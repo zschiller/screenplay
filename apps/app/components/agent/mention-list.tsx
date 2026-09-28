@@ -73,7 +73,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
 
     return (
       <div className="max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-xs shadow-md">
-        <div className="px-2 py-1 text-[10px] tracking-wide text-muted-foreground uppercase">
+        <div className="px-2 py-1 text-3xs tracking-wide text-muted-foreground uppercase">
           Documents
         </div>
         {items.map((item, i) => (
@@ -89,7 +89,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
               i === selected ? "bg-accent text-accent-foreground" : ""
             }`}
           >
-            <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <FileText className="size-3 shrink-0 text-muted-foreground" />
             <span className="truncate">{item.label || "Untitled"}</span>
           </button>
         ))}

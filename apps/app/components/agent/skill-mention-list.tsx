@@ -85,7 +85,7 @@ export const SkillMentionList = forwardRef<
 
   return (
     <div className="max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-xs shadow-md">
-      <div className="px-2 py-1 text-[10px] tracking-wide text-muted-foreground uppercase">
+      <div className="px-2 py-1 text-3xs tracking-wide text-muted-foreground uppercase">
         Skills
       </div>
       {items.map((item, i) => (
@@ -102,13 +102,13 @@ export const SkillMentionList = forwardRef<
           }`}
         >
           <span className="flex items-center gap-2">
-            <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <Sparkles className="size-3 shrink-0 text-muted-foreground" />
             <span className="truncate font-medium">{item.name}</span>
-            <span className="ml-auto shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] tracking-wide text-muted-foreground uppercase">
+            <span className="ml-auto shrink-0 rounded bg-muted px-1 py-0.5 text-3xs tracking-wide text-muted-foreground uppercase">
               {ORIGIN_LABEL[item.origin]}
             </span>
           </span>
-          <span className="line-clamp-2 pl-5 text-[11px] text-muted-foreground">
+          <span className="line-clamp-2 pl-5 text-2xs text-muted-foreground">
             {item.description}
           </span>
         </button>

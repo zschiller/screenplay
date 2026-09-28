@@ -113,7 +113,7 @@ export function AgentStep({
 
   return (
     <CurrentSetupStep step={1} title="Install a coding agent">
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Agent chats and terminals run on a coding CLI on this device.
       </p>
       {loadFailed ? (
@@ -125,7 +125,7 @@ export function AgentStep({
         </div>
       ) : run ? (
         <div className="space-y-2">
-          <p className="text-[13px] text-muted-foreground">{run.message}</p>
+          <p className="text-sm text-muted-foreground">{run.message}</p>
           <HostSessionTerminal
             sessionKey={`screenplay-harness-setup-${selected.hostBinary}`}
             command={run.command}
@@ -150,7 +150,7 @@ export function AgentStep({
               {selected.key === recommended?.key && (
                 <SetupChip>Recommended</SetupChip>
               )}
-              <span className="text-[13px] text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 {agentState(selected)}
               </span>
               {rows.length > 1 && (

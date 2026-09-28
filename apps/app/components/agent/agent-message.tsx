@@ -136,7 +136,7 @@ function renderTitleWithCode(title: string): ReactNode[] {
   while ((match = codeSpan.exec(title)) !== null) {
     if (match.index > last) parts.push(title.slice(last, match.index))
     parts.push(
-      <code key={key++} className="align-baseline font-mono text-[11px]">
+      <code key={key++} className="align-baseline font-mono text-2xs">
         {match[1]}
       </code>
     )
@@ -264,10 +264,10 @@ function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
   )
   return (
     <div data-testid="tool-content-diff">
-      <div className="border-b border-border px-2 py-1 font-mono text-[10px] break-all text-muted-foreground">
+      <div className="border-b border-border px-2 py-1 font-mono text-3xs break-all text-muted-foreground">
         {block.path}
       </div>
-      <div className={`${TOOL_OUTPUT_CAP} py-1 font-mono text-[10px]`}>
+      <div className={`${TOOL_OUTPUT_CAP} py-1 font-mono text-3xs`}>
         {rows.map((row, i) =>
           row.kind === "skip" ? (
             <div key={i} className="px-2 text-muted-foreground/70 select-none">
@@ -320,7 +320,7 @@ function ToolContentBlock({
     return (
       <div
         data-testid="tool-content-terminal"
-        className="flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] text-muted-foreground"
+        className="flex items-center gap-1.5 px-2 py-1 font-mono text-3xs text-muted-foreground"
       >
         <Terminal className="size-3 shrink-0" />
         terminal {block.terminalId}
@@ -334,7 +334,7 @@ function ToolContentBlock({
   return (
     <pre
       data-testid="tool-content-text"
-      className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-[10px] ${failed ? "text-destructive" : "text-muted-foreground"}`}
+      className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-3xs ${failed ? "text-destructive" : "text-muted-foreground"}`}
     >
       {text}
     </pre>
@@ -450,7 +450,7 @@ function ToolCallRow({
       {detail ? (
         <>
           {" "}
-          <code className="align-baseline font-mono text-[11px]">{detail}</code>
+          <code className="align-baseline font-mono text-2xs">{detail}</code>
         </>
       ) : null}
     </>
@@ -496,7 +496,7 @@ function ToolCallRow({
         ) : (
           <p
             data-testid="tool-call-no-reason"
-            className="px-2 py-1.5 text-[11px] text-destructive"
+            className="px-2 py-1.5 text-2xs text-destructive"
           >
             The tool failed without reporting a reason.
           </p>
@@ -594,7 +594,7 @@ export function TaskGroup({
         }
         title={renderTitleWithCode(task.title)}
         meta={
-          <span className="shrink-0 text-[11px] text-muted-foreground/70 tabular-nums">
+          <span className="shrink-0 text-2xs text-muted-foreground/70 tabular-nums">
             {childCalls.length}
           </span>
         }
@@ -645,7 +645,7 @@ export function TurnSummaryRow({
             // Inline, so it follows the text onto a wrapped line.
             <span
               data-testid="turn-summary-failure"
-              className="ml-1.5 inline-flex h-[18px] items-center rounded-md bg-destructive/10 px-1.5 align-[1px] text-[11px] font-medium whitespace-nowrap text-destructive"
+              className="ml-1.5 inline-flex h-[18px] items-center rounded-md bg-destructive/10 px-1.5 align-[1px] text-2xs font-medium whitespace-nowrap text-destructive"
             >
               {failures.length === 1
                 ? `${failures[0]} failed`
@@ -699,13 +699,13 @@ function PlanMessage({
   const statusBadge = {
     pending: null,
     approved: (
-      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
-        <CheckCircle2 className="h-3 w-3" /> Approved
+      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-3xs font-medium text-success">
+        <CheckCircle2 className="size-3" /> Approved
       </span>
     ),
     rejected: (
-      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
-        <XCircle className="h-3 w-3" /> Changes requested
+      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-3xs font-medium text-destructive">
+        <XCircle className="size-3" /> Changes requested
       </span>
     ),
   }[message.status]
@@ -757,8 +757,8 @@ function PlanMessage({
         )}
         {isRejected && message.feedback && (
           <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
-            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-              <XCircle className="h-3 w-3" /> Your feedback
+            <div className="mb-1 flex items-center gap-1.5 text-3xs font-medium text-muted-foreground">
+              <XCircle className="size-3" /> Your feedback
             </div>
             <ChatMarkdown tone="muted" size="xs">
               {message.feedback}
@@ -998,7 +998,7 @@ export function AgentMessageItem({
         <div
           role="note"
           data-testid="run-stopped"
-          className="flex items-center gap-2 text-[11px] text-muted-foreground"
+          className="flex items-center gap-2 text-2xs text-muted-foreground"
         >
           <span className="h-px flex-1 bg-border" />
           <span className="flex items-center gap-1">

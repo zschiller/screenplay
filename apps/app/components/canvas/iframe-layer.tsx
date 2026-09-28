@@ -1028,7 +1028,7 @@ export function IframeLayer({
             // minus 2px and the corners stay concentric.
             <div
               data-interacting-hint=""
-              className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-[11px] leading-4 font-medium whitespace-nowrap text-white"
+              className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-2xs leading-4 font-medium whitespace-nowrap text-white"
               style={{
                 transform: `translateX(-50%) scale(${1 / zoom})`,
                 transformOrigin: "top center",
@@ -1036,7 +1036,7 @@ export function IframeLayer({
               }}
             >
               Interacting
-              <Kbd className="h-4 min-w-4 rounded-[calc(var(--radius-sm)-2px)] bg-white/20 px-1 text-[10px] text-white">
+              <Kbd className="h-4 min-w-4 rounded-[calc(var(--radius-sm)-2px)] bg-white/20 px-1 text-3xs text-white">
                 Esc
               </Kbd>
             </div>

@@ -319,7 +319,7 @@ export function LogsPanel({
         // dropped stream never hides the output that was already there.
         <div
           role="status"
-          className="flex shrink-0 items-center border-t px-3 py-1.5 font-mono text-[11px]"
+          className="flex shrink-0 items-center border-t px-3 py-1.5 font-mono text-2xs"
         >
           {notice}
         </div>
