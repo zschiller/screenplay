@@ -51,33 +51,6 @@ function renderDialog(
 }
 
 describe("ConfirmDialog", () => {
-  it("focuses Cancel, the safe action, when it opens", () => {
-    renderDialog()
-
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Cancel" })
-    )
-  })
-
-  it("hides Cancel's focus ring after a mouse open until a key is pressed", () => {
-    fireEvent.pointerDown(document.body)
-    renderDialog()
-    const cancel = screen.getByRole("button", { name: "Cancel" })
-    expect(cancel.className).toContain("focus-visible:ring-0")
-
-    fireEvent.keyDown(cancel, { key: "Tab" })
-    expect(cancel.className).not.toContain("focus-visible:ring-0")
-  })
-
-  it("shows Cancel's focus ring after a keyboard open", () => {
-    fireEvent.keyDown(document.body, { key: "Enter" })
-    renderDialog()
-
-    expect(
-      screen.getByRole("button", { name: "Cancel" }).className
-    ).not.toContain("focus-visible:ring-0")
-  })
-
   it("quotes the item name in the title and labels the button with the verb", () => {
     renderDialog()
 

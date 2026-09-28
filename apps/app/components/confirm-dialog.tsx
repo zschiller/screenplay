@@ -14,8 +14,6 @@ import {
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Label } from "@workspace/ui/components/label"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { cn } from "@workspace/ui/lib/utils"
-import { lastInputWasPointer } from "@/lib/input-modality"
 
 export type ConfirmDialogProps = {
   open: boolean
@@ -87,9 +85,6 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // True while Cancel holds focus that a mouse open put there: its ring stays
-  // hidden until the first key press, so only keyboard users see it.
-  const [quietFocus, setQuietFocus] = useState(false)
 
   // Reset transient state when the dialog closes, so reopening starts clean.
   // Done during render via the previous-prop pattern rather than in an effect
@@ -112,11 +107,13 @@ export function ConfirmDialog({
       }}
     >
       <AlertDialogContent
-        // Radix focuses Cancel, the safe action, on open. Opened by mouse, its
-        // ring stays hidden until a key is pressed; opened by keyboard, it shows.
-        onOpenAutoFocus={() => setQuietFocus(lastInputWasPointer())}
-        onKeyDown={() => {
-          if (quietFocus) setQuietFocus(false)
+        // Focus the dialog itself rather than Cancel, so opening from a menu
+        // doesn't paint Cancel's focus ring. Tab still reaches both buttons
+        // and Escape still cancels.
+        tabIndex={-1}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          ;(event.currentTarget as HTMLElement | null)?.focus()
         }}
       >
         <AlertDialogHeader>
@@ -132,15 +129,7 @@ export function ConfirmDialog({
           </p>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel
-            disabled={pending}
-            className={cn(
-              quietFocus &&
-                "focus-visible:border-transparent focus-visible:ring-0"
-            )}
-          >
-            Cancel
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
             disabled={pending}

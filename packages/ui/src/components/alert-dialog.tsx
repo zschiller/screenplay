@@ -125,9 +125,9 @@ function AlertDialogDescription({
 }
 
 /**
- * The confirming action. `variant="destructive"` is the Button's solid
- * `destructive-solid`, for confirms that permanently destroy something: the
- * Button's own tinted `destructive` reads as the secondary action.
+ * The confirming action. `variant="destructive"` is the real destructive
+ * treatment (not the default styling with red layered on top), for confirms
+ * that permanently destroy something.
  */
 function AlertDialogAction({
   className,
@@ -140,12 +140,7 @@ function AlertDialogAction({
     <AlertDialogPrimitive.Action
       data-slot="alert-dialog-action"
       data-variant={variant}
-      className={cn(
-        buttonVariants({
-          variant: variant === "destructive" ? "destructive-solid" : "default",
-        }),
-        className
-      )}
+      className={cn(buttonVariants({ variant }), className)}
       {...props}
     />
   )
