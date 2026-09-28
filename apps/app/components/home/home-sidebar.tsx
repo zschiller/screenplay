@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Clock, Files, Settings, type LucideIcon } from "lucide-react"
+import { BookOpen, Clock, Files, Settings, type LucideIcon } from "lucide-react"
 import {
   SidebarContent,
   SidebarGroup,
@@ -15,7 +15,9 @@ import {
   SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
 import { cn } from "@workspace/ui/lib/utils"
+import { docsUrl } from "@/lib/docs-url"
 import { isLocalBuild } from "@/lib/local-mode"
+import { openExternal } from "@/lib/open-external"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { AccountMenu } from "./account-menu"
 import { PinnedList } from "./pinned-list"
@@ -35,6 +37,9 @@ const SECTIONS: NavLink[] = [
   { href: "/files", label: "All files", icon: Files },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
+
+/** Opens the product docs in the browser, below the app's own sections. */
+const DOCS: NavLink = { href: docsUrl, label: "Docs", icon: BookOpen }
 
 export function HomeSidebar() {
   const pathname = usePathname()
@@ -102,6 +107,7 @@ export function HomeSidebar() {
                   />
                 )
               )}
+              <DocsNavItem link={DOCS} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -122,6 +128,33 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
           <Icon />
           <span>{link.label}</span>
         </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
+/**
+ * The Docs link: leaves the app for the docs site, so it never shows as
+ * active. The desktop webview can't honor `target="_blank"`, so the click goes
+ * through the opener plugin (a plain new tab on the web).
+ */
+function DocsNavItem({ link }: { link: NavLink }) {
+  const Icon = link.icon
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild>
+        <a
+          href={link.href}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => {
+            e.preventDefault()
+            openExternal(link.href)
+          }}
+        >
+          <Icon />
+          <span>{link.label}</span>
+        </a>
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
