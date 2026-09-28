@@ -1,5 +1,4 @@
 import { Frame } from "lucide-react"
-import { Badge } from "@workspace/ui/components/badge"
 import type { IframeLayerData } from "@/lib/types"
 import type { LayerKindDescriptor } from "./types"
 
@@ -12,12 +11,16 @@ export const iframeLayerKind: LayerKindDescriptor<IframeLayerData> = {
   // Iframe layers are sandbox-backed; their chat is run by the agent flow on
   // the agent record, not the layer itself, so they aren't a chat target.
   canBeChatTarget: false,
+  // The route is muted text that only takes the width the frame's name
+  // leaves over (#793). A zero flex basis lays the name out first; the route
+  // then shows whole or not at all: when it doesn't fit it wraps onto a second
+  // line (past a zero-width, full-height spacer) that the one-line box clips,
+  // rather than truncating into a fragment that reads as a different route.
   renderRowAccessory: (a) => (
-    <Badge
-      variant="outline"
-      className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent px-1.5 py-0 font-mono text-[10px] text-sidebar-foreground/60"
-    >
-      <span className="truncate">{a.route || "/"}</span>
-    </Badge>
+    <span className="flex h-4 min-w-0 flex-1 basis-0 flex-wrap justify-end overflow-hidden before:h-4 before:w-0 before:content-['']">
+      <span className="font-mono text-[11px] leading-4 whitespace-nowrap text-sidebar-foreground/60">
+        {a.route || "/"}
+      </span>
+    </span>
   ),
 }
