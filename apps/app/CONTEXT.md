@@ -241,6 +241,19 @@ stays; the local build simply has one peer, so there are no others to show);
 saying "comments are gone" flatly (the persisted thread is, but the
 anchor-and-send-to-agent reference path survives).
 
+**Room Access** (`@/lib/room-access`, #900):
+The one way a server entry point turns (session, Room) into room-scoped
+capabilities: `openRoom(roomId)` resolves the session, requires membership
+(`room_member` on the hosted build; always the single local user on the local
+build, see **Multi-user surface**), and hands back a handle whose
+`mutateDoc`/`readDoc` are the only room-doc access the caller gets. A
+non-member is rejected before anything touches the Room. The Branch diff-stat
+and PR caches (`compareBranches`/`listBranchPrs`) go through it; the other
+room-scoped actions and routes still call `requireMember`/`mutateRoomDoc`
+directly and move behind it next (#904, #906).
+_Avoid_: checking membership ad hoc in a new action; "permissions" (Room Access
+is membership, not per-comment or per-role rules).
+
 **GitHub Connection** (local build):
 The local desktop build's **optional, on-demand GitHub API access** (PRD #428)
 — explicitly _not_ the multi-tenant login #417 stripped (no session, no

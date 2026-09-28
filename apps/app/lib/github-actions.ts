@@ -3,7 +3,7 @@
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { isMergeBlocked, summarizeCheckRuns } from "@/lib/pr-checks"
 import { FIXTURE_GITHUB_REPOS, hasFixtureGitHub } from "@/lib/fixture-github"
-import { mutateRoomDoc } from "@/lib/yjs/server"
+import { openRoom, type RoomAccess } from "@/lib/room-access"
 
 export interface GitHubRepo {
   id: number
@@ -270,6 +270,9 @@ export async function compareBranches(
   queries: DiffStatQuery[]
 ): Promise<Array<{ id: string; stats: DiffStats | null }>> {
   if (queries.length === 0) return []
+  // Membership first: a non-member is rejected before any GitHub call, and
+  // the write-through below can only reach the room through this handle.
+  const room = await openRoom(roomId)
   const token = await getGitHubToken()
   if (!token) return queries.map((q) => ({ id: q.id, stats: null }))
 
@@ -279,7 +282,7 @@ export async function compareBranches(
       stats: await fetchCompare(token, q.owner, q.repo, q.base, q.head),
     }))
   )
-  await cacheDiffStats(roomId, results)
+  await cacheDiffStats(room, results)
   return results
 }
 
@@ -288,11 +291,11 @@ export async function compareBranches(
  *  rather than clearing the badge. Runs server-side, so the update reaches
  *  clients as a remote change and never lands in their undo history. */
 async function cacheDiffStats(
-  roomId: string,
+  room: RoomAccess,
   results: Array<{ id: string; stats: DiffStats | null }>
 ): Promise<void> {
   if (!results.some((r) => r.stats)) return
-  await mutateRoomDoc(roomId, ({ branches }) => {
+  await room.mutateDoc(({ branches }) => {
     for (const { id, stats } of results) {
       if (!stats) continue
       const cur = branches.get(id)
@@ -425,6 +428,7 @@ export async function listBranchPrs(
   queries: BranchPrQuery[]
 ): Promise<Array<{ id: string; pr: BranchPrInfo | null }>> {
   if (queries.length === 0) return []
+  const room = await openRoom(roomId)
   const token = await getGitHubToken()
   if (!token) return queries.map((q) => ({ id: q.id, pr: null }))
 
@@ -434,7 +438,7 @@ export async function listBranchPrs(
       pr: await fetchBranchPr(token, q.owner, q.repo, q.branch),
     }))
   )
-  await cachePrs(roomId, results)
+  await cachePrs(room, results)
   return results
 }
 
@@ -444,11 +448,11 @@ export async function listBranchPrs(
  *  flicker the icon back to "no PR". Server-side write → remote change on
  *  clients → never tracked by their undo history. */
 async function cachePrs(
-  roomId: string,
+  room: RoomAccess,
   results: Array<{ id: string; pr: BranchPrInfo | null }>
 ): Promise<void> {
   if (!results.some((r) => r.pr)) return
-  await mutateRoomDoc(roomId, ({ branches }) => {
+  await room.mutateDoc(({ branches }) => {
     for (const { id, pr } of results) {
       if (!pr) continue
       const cur = branches.get(id)
