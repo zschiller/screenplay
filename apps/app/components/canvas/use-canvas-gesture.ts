@@ -167,8 +167,9 @@ export function useCanvasGesture(
   // state where the render tree needs them (the wrapper cursor, the reorder dot
   // highlight); `layerDraggingRef` gates the component's hover outline; the two
   // *Held / Active refs feed the window key listeners below.
-  const [activeGapHandle, setActiveGapHandle] =
-    useState<ActiveGapHandle | null>(null)
+  const [activeGapHandle, setActiveGapHandle] = useState<ActiveGapHandle | null>(
+    null
+  )
   const [hoveredReorderIframeLayerId, setHoveredReorderIframeLayerId] =
     useState<string | null>(null)
   /** True while any Layer (frame or group) is being drag-moved — used to
@@ -553,11 +554,7 @@ export function useCanvasGesture(
    */
   const onMove = useCallback(
     (totalDx: number, totalDy: number, metaKey: boolean) => {
-      dispatch({
-        type: "move",
-        cursor: { x: totalDx, y: totalDy },
-        meta: metaKey,
-      })
+      dispatch({ type: "move", cursor: { x: totalDx, y: totalDy }, meta: metaKey })
     },
     [dispatch]
   )

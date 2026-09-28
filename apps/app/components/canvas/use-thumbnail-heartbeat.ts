@@ -191,5 +191,8 @@ export function useThumbnailHeartbeat(
 
   // Stable handle that defers to whichever effect run is live (or a no-op once
   // unmounted), so callers can hold it across renders.
-  return useMemo(() => ({ flushLayout: () => flushRef.current() }), [])
+  return useMemo(
+    () => ({ flushLayout: () => flushRef.current() }),
+    []
+  )
 }
