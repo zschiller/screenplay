@@ -38,25 +38,13 @@ import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
 import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 
-// Every row leads with the same 40×28 slot — the folder icon or the canvas's
-// mini preview — so folder and canvas names start at one x and share one
-// 44px row height.
-const ROW_SLOT = "h-7 w-10 shrink-0 overflow-hidden rounded-sm"
-
-// A row's Name-column link: the slot, then the name. Shared by folder and
-// canvas rows and their drag previews.
-const ROW_NAME_LINK = "flex min-w-0 items-center gap-3"
-
-// The Name-column content of a folder row — icon slot, name, and a muted
-// contents count. Shared by the live row and its drag preview so they stay in
-// sync.
+// The Name-column content of a folder row — icon, name and a muted contents
+// count. Shared by the live row and its drag preview so they stay in sync.
 function FolderRowName({ folder }: { folder: FolderSummary }) {
   const { folderContents } = useHome()
   return (
-    <Link href={`/files/${folder.id}`} className={ROW_NAME_LINK}>
-      <span className={cn(ROW_SLOT, "grid place-items-center bg-muted")}>
-        <FolderIcon className="size-4 text-muted-foreground" />
-      </span>
+    <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
+      <FolderIcon className="size-4 shrink-0 text-primary" />
       <span className="truncate">
         <span className="font-medium">{folder.name}</span>
         <span className="text-muted-foreground">
@@ -68,15 +56,20 @@ function FolderRowName({ folder }: { folder: FolderSummary }) {
   )
 }
 
-// A canvas row's slot — the grid card's frame composite shrunk to the row, or
-// the dashed empty preview when nothing has been captured yet. The composite
-// never draws text.
+// A canvas row's leading thumbnail — the grid card's preview shrunk to a 4:3
+// row tile, standing in for the old empty-doc icon. Renders the same frame
+// composite as the grid (`ThumbnailComposite`) over the gradient backdrop the
+// grid card uses, so a captured canvas shows its real layout. An uncaptured one
+// gets the grid's dashed empty preview. The composite never draws text.
+const ROW_THUMBNAIL =
+  "relative aspect-[4/3] h-14 shrink-0 overflow-hidden rounded-xs @2xl/home:h-20"
+
 function RoomRowThumbnail({ room }: { room: RoomSummary }) {
   if (!hasThumbnail(room.thumbnailManifest)) {
-    return <EmptyThumbnail className={ROW_SLOT} iconClassName="size-3.5" />
+    return <EmptyThumbnail className={ROW_THUMBNAIL} />
   }
   return (
-    <div className={cn(ROW_SLOT, "relative bg-muted-foreground/15")}>
+    <div className={cn(ROW_THUMBNAIL, "bg-muted-foreground/15")}>
       <ThumbnailComposite
         manifest={room.thumbnailManifest}
         version={room.thumbnailUpdatedAt}
@@ -86,11 +79,11 @@ function RoomRowThumbnail({ room }: { room: RoomSummary }) {
   )
 }
 
-// The Name-column content of a canvas row — thumbnail slot + name link. Shared
-// by the live row and its drag preview.
+// The Name-column content of a canvas row — thumbnail + name link. Shared by the
+// live row and its drag preview.
 function RoomRowName({ room }: { room: RoomSummary }) {
   return (
-    <Link href={`/${room.id}`} className={ROW_NAME_LINK}>
+    <Link href={`/${room.id}`} className="flex items-center gap-2">
       <RoomRowThumbnail room={room} />
       <span className="truncate font-medium">{room.name}</span>
     </Link>
@@ -108,7 +101,7 @@ const ROW_PREVIEW_CHIP =
 // The base TableRow paints its own rect on hover; suppress it (`!`) so only the
 // rounded cell fill shows.
 const ROW_HOVER_PILL =
-  "h-11 [&>td]:py-0 hover:bg-transparent! [&>td]:transition-colors hover:[&>td]:bg-muted/50 " +
+  "hover:bg-transparent! [&>td]:transition-colors hover:[&>td]:bg-muted/50 " +
   "[&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
 
 // A Folder row's drop-target highlight, drawn to match the grid tile's and the
@@ -124,7 +117,7 @@ const ROW_DROP_RING =
 
 // The columns that give way as the content narrows (sized off the home
 // container, `HomeScrollBody`): Created goes first, so Name keeps room for the
-// slot and a readable title down to the narrowest the sidebar allows.
+// thumbnail and a readable title down to the narrowest the sidebar allows.
 const CREATED_COLUMN = "hidden @2xl/home:table-cell"
 
 export function FolderRowDragPreview({ folder }: { folder: FolderSummary }) {
@@ -143,7 +136,7 @@ export function RoomRowDragPreview({ room }: { room: RoomSummary }) {
   )
 }
 
-// Folder row (PRD #475): a folder icon slot + name in the Name column, with the same
+// Folder row (PRD #475): a folder icon + name in the Name column, with the same
 // edited/created columns as canvases; only the owner column stays empty. Clicking
 // the name navigates into the folder (`/files/<id>`); the ⋮ menu renames it in
 // place (#484).
@@ -177,8 +170,10 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       {...attributes}
       {...listeners}
       style={{ opacity: isDragging ? 0 : undefined }}
+      // Folder rows carry only an icon + name, so trim their vertical padding to
+      // sit shorter than the thumbnail-bearing canvas rows.
       className={cn(
-        "group border-b-0",
+        "group border-b-0 [&>td]:py-1.5",
         ROW_HOVER_PILL,
         isOver && ROW_DROP_RING
       )}
@@ -494,6 +489,11 @@ export function RoomTable({
         {folders.map((folder) => (
           <FolderRow key={folder.id} folder={folder} />
         ))}
+        {/* A non-interactive spacer row sets the folder section apart from the
+            canvas section — a real gap that isn't part of either row's hover. */}
+        {folders.length > 0 && rooms.length > 0 && (
+          <tr aria-hidden className="h-3" />
+        )}
         {rooms.map((room) => (
           <RoomRow key={room.id} room={room} />
         ))}
