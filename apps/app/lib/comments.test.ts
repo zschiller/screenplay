@@ -165,7 +165,10 @@ describe("content mutations ring the room doorbell exactly once", () => {
       "setThreadResolved",
       () => setThreadResolved({ threadId: "thread-1", resolved: true }),
     ],
-    ["deleteThread", () => deleteThread("thread-1")],
+    [
+      "deleteThread",
+      () => deleteThread({ threadId: "thread-1", userId: "author-1" }),
+    ],
   ]
 
   for (const [name, run] of cases) {

@@ -725,6 +725,7 @@ export function Canvas({
     getIframeLayerDom: reference.getIframeLayerDom,
     getDocumentEditor: reference.getDocumentEditor,
     documentEditorsVersion: reference.documentEditorsVersion,
+    activeThreadId: reference.activeThreadId,
   })
   const commentFrameInfo = useMemo(
     () =>
@@ -735,6 +736,16 @@ export function Canvas({
         ])
       ),
     [iframeLayers]
+  )
+  // The thread card's chip names the frame's route or the document's title.
+  const describeCommentLayer = useCallback(
+    (id: string) => {
+      const frame = iframeLayers.find((l) => l.id === id)
+      if (frame) return { title: frame.label, route: frame.route }
+      const doc = markdownLayers.find((l) => l.id === id)
+      return doc ? { title: doc.title } : undefined
+    },
+    [iframeLayers, markdownLayers]
   )
 
   // Chat-Target selection controller (PRD #569): owns which Chat Target the
@@ -882,6 +893,9 @@ export function Canvas({
         `[data-comment-thread-id="${CSS.escape(threadId)}"]`
       )
       if (pin) camera.centerOnElement(pin)
+      // A resolved thread is only placed once it's active: centre its pin
+      // when it shows.
+      else pendingCenterThreadRef.current = threadId
     },
     [reference, commentThreads, commentPlacements, layerMutations, camera]
   )
@@ -1663,6 +1677,7 @@ export function Canvas({
                 onSendToChat={reference.sendReference}
                 activeThreadId={reference.activeThreadId}
                 onActivateThread={reference.setActiveThread}
+                describeLayer={describeCommentLayer}
               />
             </div>
 
@@ -1835,14 +1850,12 @@ export function Canvas({
                 {!isLocalBuild && (
                   <>
                     <CommentsMenu
-                      threads={commentThreads.threads}
+                      roomId={roomId}
+                      commentThreads={commentThreads}
                       placements={commentPlacements.placements}
                       onSelectThread={selectCommentThread}
+                      describeLayer={describeCommentLayer}
                       getDocumentEditor={reference.getDocumentEditor}
-                      onMarkUnread={(threadId) =>
-                        commentThreads.setThreadUnread(threadId, true)
-                      }
-                      onOpenThread={commentThreads.markRead}
                     />
                     <FollowingToolbar
                       followingId={followingConnectionId}

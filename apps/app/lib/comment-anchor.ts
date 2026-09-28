@@ -136,7 +136,8 @@ export type DetachReason = "frame" | "element"
 /**
  * Where one thread's pin goes for this viewer:
  *
- * - `pinned`: at `x`/`y`, local to `frameId`;
+ * - `pinned`: at `x`/`y`, local to `frameId`, with the element's box when
+ *   it has one (for the open thread's outline);
  * - `offRoute`: its frame is on another route, so no pin shows; the comments
  *   menu says which route, and opening it navigates the frame there;
  * - `detached`: its frame or element is gone, so it's only listed;
@@ -144,7 +145,13 @@ export type DetachReason = "frame" | "element"
  *   been missing only briefly), so nothing shows.
  */
 export type Placement =
-  | { kind: "pinned"; frameId: string; x: number; y: number }
+  | {
+      kind: "pinned"
+      frameId: string
+      x: number
+      y: number
+      element?: { x: number; y: number; width: number; height: number }
+    }
   | { kind: "offRoute"; frameId: string; route: string }
   | { kind: "detached"; reason: DetachReason }
   | { kind: "pending" }
@@ -202,7 +209,7 @@ export function placeFrameThread(input: {
   if (x < 0 || y < 0 || x > frame.width || y > frame.height) {
     return { kind: "pending" }
   }
-  return { kind: "pinned", frameId: frame.id, x, y }
+  return { kind: "pinned", frameId: frame.id, x, y, element: view.rect }
 }
 
 /**

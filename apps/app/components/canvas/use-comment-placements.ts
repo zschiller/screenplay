@@ -19,7 +19,8 @@ import type { DomRect } from "@/lib/postmessage-protocol"
 import type { IframeLayerData } from "@/lib/types"
 
 export interface CommentPlacements {
-  /** Where each open frame or document thread shows for this viewer, by
+  /** Where each open frame or document thread (and an active resolved one)
+   *  shows for this viewer, by
    *  thread id. Canvas-level threads (no container) aren't in it: they sit at
    *  their stored point. */
   placements: ReadonlyMap<string, Placement>
@@ -49,6 +50,7 @@ export function useCommentPlacements({
   getIframeLayerDom,
   getDocumentEditor,
   documentEditorsVersion,
+  activeThreadId,
 }: {
   threads: ThreadWithComments[]
   iframeLayers: IframeLayerData[]
@@ -57,6 +59,9 @@ export function useCommentPlacements({
   getIframeLayerDom?: (id: string) => ScreenplayDom | undefined
   getDocumentEditor?: (id: string) => Editor | undefined
   documentEditorsVersion?: number
+  /** A resolved thread opened from the thread list is placed too, so its
+   *  pin and card can show until it's closed. */
+  activeThreadId?: string | null
 }): CommentPlacements {
   const [framePlacements, setFramePlacements] = useState<
     ReadonlyMap<string, Placement>
@@ -87,8 +92,11 @@ export function useCommentPlacements({
   )
 
   const frameThreads = useMemo(
-    () => threads.filter((t) => !t.resolved && t.iframeLayerId),
-    [threads]
+    () =>
+      threads.filter(
+        (t) => (!t.resolved || t.id === activeThreadId) && t.iframeLayerId
+      ),
+    [threads, activeThreadId]
   )
 
   // When each thread's element was first reported missing on its route.
@@ -207,7 +215,12 @@ export function useCommentPlacements({
     function placeDocThreads() {
       const next = new Map<string, Placement>()
       for (const t of threads) {
-        if (t.resolved || !t.documentId || !t.anchorStart || !t.anchorEnd) {
+        if (
+          (t.resolved && t.id !== activeThreadId) ||
+          !t.documentId ||
+          !t.anchorStart ||
+          !t.anchorEnd
+        ) {
           continue
         }
         const layout = layouts.get(t.documentId)
@@ -245,7 +258,14 @@ export function useCommentPlacements({
       return next
     }
     // `documentEditorsVersion` re-runs this when an editor (un)registers.
-  }, [threads, layouts, zoom, getDocumentEditor, documentEditorsVersion])
+  }, [
+    threads,
+    layouts,
+    zoom,
+    getDocumentEditor,
+    documentEditorsVersion,
+    activeThreadId,
+  ])
 
   return useMemo(() => {
     // The last check may still hold threads resolved or deleted since.
@@ -269,7 +289,8 @@ function samePlacements(
       if (
         pa.frameId !== pb.frameId ||
         Math.abs(pa.x - pb.x) > MOVE_EPSILON_PX ||
-        Math.abs(pa.y - pb.y) > MOVE_EPSILON_PX
+        Math.abs(pa.y - pb.y) > MOVE_EPSILON_PX ||
+        !sameBox(pa.element, pb.element)
       ) {
         return false
       }
@@ -280,4 +301,16 @@ function samePlacements(
     }
   }
   return true
+}
+
+type Box = { x: number; y: number; width: number; height: number }
+
+function sameBox(a: Box | undefined, b: Box | undefined): boolean {
+  if (!a || !b) return a === b
+  return (
+    Math.abs(a.x - b.x) <= MOVE_EPSILON_PX &&
+    Math.abs(a.y - b.y) <= MOVE_EPSILON_PX &&
+    Math.abs(a.width - b.width) <= MOVE_EPSILON_PX &&
+    Math.abs(a.height - b.height) <= MOVE_EPSILON_PX
+  )
 }
