@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
-import { AgentMessageItem, TaskGroup } from "./agent-message"
+import { AgentMessageItem, TaskGroup, TurnSummaryRow } from "./agent-message"
 
 afterEach(cleanup)
 
@@ -594,5 +594,47 @@ describe("TaskGroup — auto-collapse on settle (issue #709)", () => {
       <TaskGroup task={task("in_progress")} childCalls={[child("completed")]} />
     )
     expect(screen.queryByTestId("tool-call")).toBeTruthy()
+  })
+})
+
+describe("TurnSummaryRow (issue #800)", () => {
+  it("shows the summary and failure chip, hiding the steps until opened", () => {
+    render(
+      <TurnSummaryRow
+        summary={{ text: "Ran 2 commands", failures: ["pnpm lint"] }}
+      >
+        <p>the steps</p>
+      </TurnSummaryRow>
+    )
+    const trigger = screen.getByRole("button", { name: /Ran 2 commands/ })
+    expect(screen.getByTestId("turn-summary-failure").textContent).toBe(
+      "pnpm lint failed"
+    )
+    expect(screen.queryByText("the steps")).toBeNull()
+
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute("aria-expanded")).toBe("true")
+    expect(screen.getByText("the steps")).toBeTruthy()
+  })
+
+  it("counts several failures in one chip, and shows none without them", () => {
+    render(
+      <TurnSummaryRow
+        summary={{ text: "Ran 2 commands", failures: ["a", "b"] }}
+      >
+        <p>x</p>
+      </TurnSummaryRow>
+    )
+    expect(screen.getByTestId("turn-summary-failure").textContent).toBe(
+      "2 failed"
+    )
+    cleanup()
+
+    render(
+      <TurnSummaryRow summary={{ text: "Read 1 file", failures: [] }}>
+        <p>x</p>
+      </TurnSummaryRow>
+    )
+    expect(screen.queryByTestId("turn-summary-failure")).toBeNull()
   })
 })

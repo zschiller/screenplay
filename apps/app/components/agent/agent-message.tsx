@@ -20,12 +20,19 @@ import {
   Crosshair,
   Bot,
   Square,
+  ChevronRight,
 } from "lucide-react"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@workspace/ui/components/collapsible"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
+import type { TurnSummary } from "@/lib/agent/turn-summary"
 import {
   elementMarkersToPills,
   parseTargetedElementsFooter,
@@ -46,7 +53,7 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { chatStore } from "@/lib/chat-store"
 import { diffLines, foldContext } from "@/lib/agent/line-diff"
-import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
+import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
 import { ChatDisclosure } from "./chat-disclosure"
@@ -602,6 +609,57 @@ export function TaskGroup({
   )
 }
 
+/**
+ * A finished turn's steps behind one muted line (issue #800): what the agent
+ * read, edited and ran, with a red chip naming each call that failed so a
+ * failure shows without opening it. Collapsed by default; opening it shows the
+ * steps as they streamed.
+ */
+export function TurnSummaryRow({
+  summary,
+  children,
+}: {
+  summary: TurnSummary
+  children: ReactNode
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const { failures } = summary
+  return (
+    <Collapsible
+      open={expanded}
+      onOpenChange={setExpanded}
+      data-testid="turn-summary"
+    >
+      <CollapsibleTrigger
+        data-testid="turn-summary-trigger"
+        className="group/summary flex max-w-full min-w-0 items-start gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <ChevronRight
+          aria-hidden
+          className="mt-0.5 size-3 shrink-0 transition-transform group-data-[state=open]/summary:rotate-90"
+        />
+        <span className="min-w-0">
+          {summary.text}
+          {failures.length > 0 && (
+            // Inline, so it follows the text onto a wrapped line.
+            <span
+              data-testid="turn-summary-failure"
+              className="ml-1.5 inline-flex h-[18px] items-center rounded-md bg-destructive/10 px-1.5 align-[1px] text-[11px] font-medium whitespace-nowrap text-destructive"
+            >
+              {failures.length === 1
+                ? `${failures[0]} failed`
+                : `${failures.length} failed`}
+            </span>
+          )}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2 pt-2">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 function PlanMessage({
   message,
   roomId,
@@ -741,7 +799,7 @@ function ElementHistoryToken({
   return (
     <HoverCard onOpenChange={handleOpenChange}>
       <HoverCardTrigger asChild>
-        <span className={`${MENTION_TEXT_CLASS_INVERTED} font-mono`}>
+        <span className={`${MENTION_TEXT_CLASS} font-mono`}>
           <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
           {children}
         </span>
@@ -813,7 +871,7 @@ function UserMessage({
           typeof href === "string" &&
           (href.startsWith("skill:") || href.startsWith("mention:"))
         ) {
-          return <span className={MENTION_TEXT_CLASS_INVERTED}>{children}</span>
+          return <span className={MENTION_TEXT_CLASS}>{children}</span>
         }
         // element tokens: a clean lucide crosshair + `font-mono` tag name,
         // matching the composer token. Detail rides the footer, keyed by the
@@ -824,7 +882,7 @@ function UserMessage({
           const detail = targetedElements.get(refId)
           if (!detail) {
             return (
-              <span className={`${MENTION_TEXT_CLASS_INVERTED} font-mono`}>
+              <span className={`${MENTION_TEXT_CLASS} font-mono`}>
                 <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
                 {children}
               </span>
@@ -849,10 +907,10 @@ function UserMessage({
   return (
     <div className="flex justify-end">
       <ChatMarkdown
-        tone="inverted"
+        tone="bubble"
         urlTransform={(url) => url}
         components={components}
-        className="max-w-[85%] rounded-lg bg-primary px-3 py-1"
+        className="max-w-[85%] rounded-xl bg-muted px-3 py-1.5"
       >
         {displayContent}
       </ChatMarkdown>
