@@ -4,6 +4,8 @@ export type IframeLayerSizeCategory = "Desktop" | "Tablet" | "Mobile"
 
 export type IframeLayerSizePreset = {
   id: string
+  /** The device's name, without its size: lists show the size in their own
+   *  column, so presets that share a name ("Laptop") differ only by size. */
   label: string
   width: number
   height: number
@@ -19,14 +21,14 @@ export const IFRAME_LAYER_SIZE_PRESETS: IframeLayerSizePreset[] = [
   // Desktop
   {
     id: "desktop-4k",
-    label: "Desktop · 4K",
+    label: "Desktop 4K",
     width: 3840,
     height: 2160,
     category: "Desktop",
   },
   {
     id: "desktop-fullhd",
-    label: "Desktop · 1920 × 1080",
+    label: "Desktop",
     width: 1920,
     height: 1080,
     category: "Desktop",
@@ -47,14 +49,14 @@ export const IFRAME_LAYER_SIZE_PRESETS: IframeLayerSizePreset[] = [
   },
   {
     id: "desktop-laptop",
-    label: "Laptop · 1440 × 900",
+    label: "Laptop",
     width: 1440,
     height: 900,
     category: "Desktop",
   },
   {
     id: "desktop-default",
-    label: "Laptop · 1280 × 800",
+    label: "Laptop",
     width: 1280,
     height: 800,
     category: "Desktop",
@@ -216,6 +218,11 @@ export const GROUPED_IFRAME_LAYER_SIZE_PRESETS: Array<{
   category,
   presets: IFRAME_LAYER_SIZE_PRESETS.filter((p) => p.category === category),
 }))
+
+/** A preset's size as lists show it, e.g. "1280×800". */
+export function formatIframeLayerSize(preset: IframeLayerSizePreset): string {
+  return `${preset.width}×${preset.height}`
+}
 
 /** Look up a preset by id, falling back to the default preset if missing. */
 export function getIframeLayerSizePreset(

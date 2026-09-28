@@ -34,6 +34,7 @@ import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import {
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
   GROUPED_IFRAME_LAYER_SIZE_PRESETS,
+  formatIframeLayerSize,
   getIframeLayerSizePreset,
 } from "@/lib/iframe-layer-sizes"
 import { CommentsPanel } from "@/components/canvas/comments-panel"
@@ -300,7 +301,7 @@ export function PlayerHud({
           <Select value={deviceSizeId} onValueChange={onDeviceSizeChange}>
             <SelectPrimitive.Trigger asChild>
               <IconButton
-                label={`Device: ${devicePreset.label}`}
+                label={`Device: ${devicePreset.label} ${formatIframeLayerSize(devicePreset)}`}
                 tooltipSide={tooltipSide}
                 onPointerDown={(e) => e.stopPropagation()}
               >
@@ -325,13 +326,14 @@ export function PlayerHud({
                       <SelectItem
                         key={preset.id}
                         value={preset.id}
-                        className="text-xs"
+                        // Stretch the item text so the size column lines up.
+                        className="text-xs [&>span:last-child]:flex-1"
                       >
                         <span className="flex w-full items-center gap-2">
                           <Icon className="text-muted-foreground" />
                           <span className="truncate">{preset.label}</span>
-                          <span className="ml-auto text-3xs text-muted-foreground">
-                            {preset.width}×{preset.height}
+                          <span className="ml-auto pl-4 text-3xs text-muted-foreground tabular-nums">
+                            {formatIframeLayerSize(preset)}
                           </span>
                         </span>
                       </SelectItem>
