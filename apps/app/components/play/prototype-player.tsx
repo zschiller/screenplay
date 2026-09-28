@@ -24,8 +24,16 @@ import {
   DEFAULT_IFRAME_LAYER_SIZE_ID,
   getIframeLayerSizePreset,
 } from "@/lib/iframe-layer-sizes"
-import { useCollectionEntry, useRoomCollections } from "@/lib/yjs/react"
+import {
+  useBranches,
+  useCollectionEntry,
+  useRoomCollections,
+} from "@/lib/yjs/react"
 import type { IframeLayerData } from "@/lib/types"
+import { resolveFrameStage } from "@/components/frame-status/frame-stage"
+import { FrameStatus } from "@/components/frame-status/frame-status"
+import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
+import { useStartWorkspace } from "@/hooks/use-start-workspace"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
 
@@ -48,6 +56,11 @@ interface PrototypePlayerProps {
 }
 
 const DEVICE_PADDING = 48
+// Placeholder recovery, as on the canvas frame (`iframe-layer.tsx`): once the
+// probe reports the dev server up but no real page has painted, the iframe is
+// sitting on the proxy placeholder it loaded too early, so reload it.
+const PLACEHOLDER_RELOAD_GRACE_MS = 1500
+const MAX_PLACEHOLDER_RELOADS = 10
 const STORAGE_KEY_DEVICE = "screenplay:player-device-size"
 
 export function PrototypePlayer({
@@ -150,13 +163,75 @@ export function PrototypePlayer({
     )
   }, [devicePreset, isDesktop, stageSize])
 
-  const initialSrc = useMemo(() => {
-    const path = initialRoute || "/"
-    return (
-      previewDomain.replace(/\/$/, "") +
-      (path.startsWith("/") ? path : `/${path}`)
-    )
-  }, [previewDomain, initialRoute])
+  // The live Workspace, so the player follows it from booting to ready (or to
+  // failed / stopped) instead of loading whatever the page rendered with.
+  const branches = useBranches()
+  const workspace = branches.find((b) => b.id === agentId)
+  const livePreviewDomain = workspace ? workspace.previewDomain : previewDomain
+
+  // No preview URL yet (a Workspace still booting) means no iframe at all: an
+  // empty `src` would load the player's own origin into the frame.
+  const initialPath = initialRoute || "/"
+  const initialSrc = livePreviewDomain
+    ? livePreviewDomain.replace(/\/$/, "") +
+      (initialPath.startsWith("/") ? initialPath : `/${initialPath}`)
+    : undefined
+
+  const { state: probeState, retry: retryProbe } = useDevServerProbe(
+    livePreviewDomain || undefined
+  )
+  // The bridge's `screenplay:ready`: a real page painted, not the placeholder.
+  const [contentReady, setContentReady] = useState(false)
+  const [reloads, setReloads] = useState(0)
+  // A new preview URL is a fresh load with its own recovery budget.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setContentReady(false)
+    setReloads(0)
+  }, [initialSrc])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const reloadIframe = useCallback(() => {
+    const iframe = iframeRef.current
+    if (!iframe || !initialSrc) return
+    setContentReady(false)
+    iframe.src = "about:blank"
+    requestAnimationFrame(() => {
+      if (iframeRef.current) iframeRef.current.src = initialSrc
+    })
+  }, [initialSrc, setContentReady])
+
+  useEffect(() => {
+    if (probeState !== "ready" || contentReady) return
+    if (reloads >= MAX_PLACEHOLDER_RELOADS) return
+    const id = setTimeout(() => {
+      reloadIframe()
+      setReloads((n) => n + 1)
+    }, PLACEHOLDER_RELOAD_GRACE_MS)
+    return () => clearTimeout(id)
+  }, [probeState, contentReady, reloads, reloadIframe])
+
+  const stage = resolveFrameStage({
+    // The player is always opened on a Workspace; one deleted since reads as
+    // running, and its dead preview then fails the probe.
+    status: workspace?.status ?? "running",
+    hasPreview: !!initialSrc,
+    probe: probeState,
+    contentReady,
+    recoveryExhausted: reloads >= MAX_PLACEHOLDER_RELOADS,
+  })
+
+  const retryPreview = useCallback(() => {
+    retryProbe()
+    setReloads(0)
+    reloadIframe()
+  }, [retryProbe, reloadIframe, setReloads])
+
+  const startWorkspace = useStartWorkspace()
+  const restartWorkspace = useCallback(
+    () => startWorkspace(agentId),
+    [startWorkspace, agentId]
+  )
 
   const sendKnobValues = useCallback((values: JsonObject) => {
     const iframe = iframeRef.current
@@ -200,6 +275,7 @@ export function PrototypePlayer({
       if (!iframe?.contentWindow || e.source !== iframe.contentWindow) return
 
       if (e.data.type === "screenplay:ready") {
+        setContentReady(true)
         // The bridge expects an init state; the player has none, but sending
         // an empty state lets the bridge complete its handshake.
         iframe.contentWindow.postMessage(
@@ -286,6 +362,16 @@ export function PrototypePlayer({
     sendSharedState(sharedState)
   }, [iframeLayerId, sharedState, sendSharedState])
 
+  // "Open logs" on a failed Workspace: open the chat panel on its logs tab.
+  const [logsRequest, setLogsRequest] = useState<{
+    agentId: string
+    nonce: number
+  } | null>(null)
+  const handleOpenLogs = useCallback(() => {
+    chatPanelRef.current?.expand()
+    setLogsRequest((prev) => ({ agentId, nonce: (prev?.nonce ?? 0) + 1 }))
+  }, [agentId])
+
   const handleToggleChat = useCallback(() => {
     const panel = chatPanelRef.current
     if (!panel) return
@@ -302,6 +388,34 @@ export function PrototypePlayer({
   const iframeStyle: React.CSSProperties = {
     pointerEvents: hudDragging ? "none" : "auto",
   }
+
+  const iframe = initialSrc ? (
+    <iframe
+      ref={iframeRef}
+      src={initialSrc}
+      title={`${roomName} — ${branch}`}
+      className="h-full w-full border-0 bg-white dark:bg-zinc-900"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+      style={iframeStyle}
+    />
+  ) : null
+  // The same status screen a canvas frame shows, so the player never sits on a
+  // blank white frame or the proxy's bare placeholder.
+  const statusScreen = stage ? (
+    <FrameStatus
+      stage={stage}
+      detail={
+        stage === "workspace-failed"
+          ? workspace?.error
+          : workspace?.statusMessage
+      }
+      onRetry={stage === "preview-failed" ? retryPreview : restartWorkspace}
+      onStart={restartWorkspace}
+      onOpenLogs={handleOpenLogs}
+      // Opaque to the pointer too: nothing behind it is worth clicking.
+      className="pointer-events-auto"
+    />
+  ) : null
 
   return (
     <ResizablePanelGroup
@@ -335,14 +449,8 @@ export function PrototypePlayer({
                     }
               }
             >
-              <iframe
-                ref={iframeRef}
-                src={initialSrc}
-                title={`${roomName} — ${branch}`}
-                className="h-full w-full border-0 bg-white dark:bg-zinc-900"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                style={iframeStyle}
-              />
+              {iframe}
+              {statusScreen}
             </div>
           </div>
           <PlayerHud
@@ -388,6 +496,7 @@ export function PrototypePlayer({
             roomId={roomId}
             agentId={agentId}
             onCollapse={handleCollapseChat}
+            logsRequest={logsRequest}
           />
         </div>
       </ResizablePanel>

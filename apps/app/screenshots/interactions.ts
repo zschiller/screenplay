@@ -1,6 +1,10 @@
 import type { Page } from "playwright-core"
 
 import { stubTerminal } from "./fixtures/streams"
+import {
+  connectWorkspaceLifecycle,
+  livePreviewDomain,
+} from "./fixtures/workspace-lifecycle"
 import { FIXTURE_IDS } from "./fixtures/world"
 import {
   canvasPanels,
@@ -450,6 +454,22 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1500)
     },
   },
+  {
+    name: "frame-boot",
+    description:
+      "A frame follows its Workspace from booting, through the dev server starting, to the live page.",
+    path: `/${ids.rooms.frameStates}`,
+    beforeNavigate: resetBootWorkspace,
+    run: (page) => bootWorkspace(page),
+  },
+  {
+    name: "play-boot",
+    description:
+      "The prototype player follows its Workspace from booting to the live page.",
+    path: `/play/${ids.rooms.frameStates}/${ids.branches.framesLive}?iframe-layer=layer-frames-live`,
+    beforeNavigate: resetBootWorkspace,
+    run: (page) => bootWorkspace(page),
+  },
 ]
 
 /**
@@ -476,6 +496,43 @@ async function step(fn: () => Promise<unknown>): Promise<void> {
     console.warn(
       `  ! skipped a step: ${error instanceof Error ? error.message : error}`
     )
+  }
+}
+
+/** Put the recording Workspace back on `creating` before the page loads. */
+async function resetBootWorkspace(): Promise<void> {
+  const lifecycle = await connectWorkspaceLifecycle()
+  lifecycle.reset()
+  // Give the update a beat to reach the server before the socket closes.
+  await new Promise((r) => setTimeout(r, 300))
+  lifecycle.close()
+}
+
+/**
+ * Drive the recording Workspace from booting to running while the page films
+ * it, then put it back, so later captures still see it booting.
+ */
+async function bootWorkspace(page: Page): Promise<void> {
+  const lifecycle = await connectWorkspaceLifecycle()
+  try {
+    await page.waitForTimeout(2500)
+    lifecycle.patch({
+      status: "starting",
+      statusMessage: "Running setup script…",
+    })
+    await page.waitForTimeout(2500)
+    lifecycle.patch({ statusMessage: "Starting dev server…" })
+    await page.waitForTimeout(2000)
+    lifecycle.patch({
+      status: "running",
+      statusMessage: "",
+      previewDomain: livePreviewDomain(),
+    })
+    await page.waitForTimeout(6000)
+  } finally {
+    lifecycle.reset()
+    await page.waitForTimeout(300)
+    lifecycle.close()
   }
 }
 

@@ -443,6 +443,12 @@ interface ChatPanelProps {
   onPrCreated?: (branchId: string, pr: BranchPrInfo) => void
   onCollapse?: () => void
   onLogsReady?: () => void
+  /**
+   * Ask the panel to show a Workspace's sandbox logs (a frame's "Open logs",
+   * issue #731). Honoured once per `nonce`, as soon as `agentId` is the panel's
+   * target, so a request made alongside a target switch lands after it.
+   */
+  logsRequest?: { agentId: string; nonce: number } | null
   disableBranchPicker?: boolean
 }
 
@@ -471,6 +477,7 @@ export function ChatPanel({
   onPrCreated,
   onCollapse,
   onLogsReady,
+  logsRequest,
   disableBranchPicker,
 }: ChatPanelProps) {
   const isAgentTarget = target.kind === "agent"
@@ -651,6 +658,17 @@ export function ChatPanel({
     // The targetKey-keyed Reorder.Group remounts on switch, so this target's
     // tabs are already initial-present — seed them so they don't re-register.
     setEnteredIds(new Set(openTabs.map((t) => t.id)))
+  }
+  // A logs request, handled during render like the target reset above (and
+  // after it, so the reset can't undo it).
+  const [handledLogsNonce, setHandledLogsNonce] = useState(0)
+  if (
+    logsRequest &&
+    logsRequest.nonce !== handledLogsNonce &&
+    logsRequest.agentId === agent?.id
+  ) {
+    setHandledLogsNonce(logsRequest.nonce)
+    setShowLogs(true)
   }
 
   // The displayed tab order: stored ids first (in saved order, skipping any

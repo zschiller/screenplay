@@ -2,7 +2,7 @@ import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { LOCAL_USER_ID } from "@/lib/local-user"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { previewDomainFor } from "../lib/preview-url"
+import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "../lib/preview-url"
 import type {
   BranchData,
   ChatSessionData,
@@ -196,6 +196,8 @@ export const FIXTURE_IDS = {
     onboarding: "room-onboarding",
     /** Deliberately empty: the Canvas empty state. */
     empty: "room-empty-canvas",
+    /** One frame per Workspace stage: booting, starting, failed, stopped, unassigned, ready. */
+    frameStates: "room-frame-states",
     /** Filed deep (Design system → Archive), to exercise breadcrumbs. */
     archived: "room-old-experiment",
   },
@@ -216,6 +218,18 @@ export const FIXTURE_IDS = {
     applePay: "branch-apple-pay",
     /** `error` — a failed setup script. */
     giftCards: "branch-gift-cards",
+    /** Frame states Canvas: `creating`, behind a cold preview. */
+    framesBooting: "branch-frames-booting",
+    /** Frame states Canvas: `starting`, behind a cold preview. */
+    framesStarting: "branch-frames-starting",
+    /** Frame states Canvas: `error`, behind a cold preview. */
+    framesFailed: "branch-frames-failed",
+    /** Frame states Canvas: `stopped`, behind a cold preview. */
+    framesStopped: "branch-frames-stopped",
+    /** Frame states Canvas: `running`, serving a page. */
+    framesReady: "branch-frames-ready",
+    /** Frame states Canvas: the one the boot recording walks from `creating` to `running`. */
+    framesLive: "branch-frames-live",
   },
   chats: {
     checkoutPolish: "chat-checkout-polish",
@@ -294,6 +308,7 @@ export function buildFixtureWorld(options: BuildWorldOptions): FixtureWorld {
       pricingRoom(now, previewOrigin),
       tokensRoom(now),
       onboardingRoom(now, previewOrigin),
+      frameStatesRoom(now, previewOrigin),
       {
         // The Canvas empty state — no Project, no Layers, nothing in the doc.
         // Two fields is the whole entry, which is the point.
@@ -900,6 +915,141 @@ function onboardingRoom(now: number, previewOrigin: string): FixtureRoom {
       savedViewport: { x: 80, y: 60, zoom: 0.45 },
     },
     thumbnailFrames: ["layer-onboarding-1", "layer-onboarding-2"],
+  }
+}
+
+/**
+ * One frame per stage a frame can show for its Workspace (issue #731): booting,
+ * starting, failed, stopped, no Workspace, and a live page for comparison. The
+ * non-running Workspaces sit behind cold previews (`COLD_WORKSPACE_PREFIX`), so
+ * their frames get the proxy placeholder a real one would, never a page.
+ */
+function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
+  const b = FIXTURE_IDS.branches
+  const repo: RepoData = {
+    id: "repo-frame-states",
+    name: "web",
+    repoFullName: "acme/web",
+    repoOwner: "acme",
+    repoName: "web",
+    defaultBranch: "main",
+    cloneUrl: "https://github.com/acme/web.git",
+    setupScript: "pnpm install",
+    devScript: "pnpm dev --port $PORT",
+    devServerPort: 3000,
+    envVars: "",
+    createdAt: daysAgo(now, 4),
+    sidebarOrder: 0,
+  }
+  const branch = (
+    id: string,
+    sandboxName: string,
+    ref: string,
+    order: number,
+    rest: Pick<BranchData, "status"> & Partial<BranchData>
+  ): BranchData => ({
+    id,
+    repoId: repo.id,
+    sandboxName,
+    gitUrl: repo.cloneUrl,
+    ref,
+    previewDomain: previewDomainFor(previewOrigin, sandboxName),
+    port: 3000 + order,
+    createdAt: minutesAgo(now, 30 - order),
+    colorIndex: order,
+    sidebarOrder: order,
+    ...rest,
+  })
+  const cold = COLD_WORKSPACE_PREFIX
+  const branches: BranchData[] = [
+    branch(b.framesBooting, `${cold}booting`, "search-filters", 0, {
+      status: "creating",
+      statusMessage: "Cloning repository…",
+    }),
+    branch(b.framesStarting, `${cold}starting`, "saved-searches", 1, {
+      status: "starting",
+      statusMessage: "Running setup script…",
+    }),
+    branch(b.framesFailed, `${cold}failed`, "map-view", 2, {
+      status: "error",
+      error:
+        'setup script exited with code 1: ERR_PNPM_OUTDATED_LOCKFILE  Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date with package.json',
+    }),
+    branch(b.framesStopped, `${cold}stopped`, "listing-gallery", 3, {
+      status: "stopped",
+    }),
+    branch(b.framesReady, "listing-page", "listing-page", 4, {
+      status: "running",
+    }),
+    branch(b.framesLive, `${cold}live`, "agent-profile", 5, {
+      status: "creating",
+      statusMessage: "Cloning repository…",
+    }),
+  ]
+  const frame = (id: string, label: string, branchId?: string) => ({
+    id,
+    ...(branchId ? { branchId } : {}),
+    width: 480,
+    height: 320,
+    label,
+    iframeState: {},
+    route: "/",
+  })
+  const iframeLayers: IframeLayerData[] = [
+    frame("layer-frames-booting", "Booting", b.framesBooting),
+    frame("layer-frames-starting", "Starting", b.framesStarting),
+    frame("layer-frames-failed", "Failed", b.framesFailed),
+    frame("layer-frames-stopped", "Stopped", b.framesStopped),
+    frame("layer-frames-unassigned", "No Workspace"),
+    frame("layer-frames-ready", "Ready", b.framesReady),
+    frame("layer-frames-live", "Boot to ready", b.framesLive),
+  ]
+  const member = (id: string) => ({ kind: "iframe-layer" as const, id })
+  return {
+    id: FIXTURE_IDS.rooms.frameStates,
+    name: "Frame states",
+    createdAt: daysAgo(now, 4),
+    lastOpenedAt: daysAgo(now, 4),
+    doc: {
+      repos: [repo],
+      branches,
+      iframeLayers,
+      iframeLayerGroups: [
+        {
+          id: "grp-frames-progress",
+          name: "Progress",
+          x: 0,
+          y: 0,
+          members: [
+            member("layer-frames-booting"),
+            member("layer-frames-starting"),
+            member("layer-frames-ready"),
+          ],
+          sidebarOrder: 0,
+        },
+        {
+          id: "grp-frames-problems",
+          name: "Problems",
+          x: 0,
+          y: 440,
+          members: [
+            member("layer-frames-failed"),
+            member("layer-frames-stopped"),
+            member("layer-frames-unassigned"),
+          ],
+          sidebarOrder: 1,
+        },
+        {
+          id: "grp-frames-live",
+          name: "Recording",
+          x: 0,
+          y: 880,
+          members: [member("layer-frames-live")],
+          sidebarOrder: 2,
+        },
+      ],
+      savedViewport: { x: 40, y: 60, zoom: 0.75 },
+    },
   }
 }
 

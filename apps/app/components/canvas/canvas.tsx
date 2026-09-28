@@ -1337,6 +1337,23 @@ export function Canvas({
       if (inPixels < 480) panel.resize(480)
     }
   }, [])
+  // A frame's "Open logs" (issue #731): point the chat panel at the frame's
+  // Workspace, open it, and ask it for the sandbox logs tab.
+  const [logsRequest, setLogsRequest] = useState<{
+    agentId: string
+    nonce: number
+  } | null>(null)
+  const selectAgentForLogs = chatTarget.selectAgent
+  const openBranchLogs = useCallback(
+    (branchId: string) => {
+      selectAgentForLogs(branchId)
+      setLogsRequest((prev) => ({
+        agentId: branchId,
+        nonce: (prev?.nonce ?? 0) + 1,
+      }))
+    },
+    [selectAgentForLogs]
+  )
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const onLayoutChanged = useCallback((layout: PanelLayout) => {
     writePanelLayout("canvas-layout", layout)
@@ -1583,6 +1600,8 @@ export function Canvas({
                     remoteGroupSelectionColors={remoteGroupSelectionColors}
                     agentDomains={agentDomains}
                     agents={agents}
+                    onRestartWorkspace={branchActions.startWorkspace}
+                    onOpenLogs={openBranchLogs}
                     repos={repos}
                     zoom={zoom}
                     spaceHeld={spaceHeld}
@@ -1891,6 +1910,7 @@ export function Canvas({
             onUpdateChatSession={updateChatSession}
             onSetBranchPr={setBranchPr}
             onLogsReady={handleLogsReady}
+            logsRequest={logsRequest}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

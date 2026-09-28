@@ -14,10 +14,12 @@ import {
   recreate as recreateBranchRecovery,
   restartDevServer as restartDevServerRecovery,
   restartSandbox as restartSandboxRecovery,
+  startWorkspace as startWorkspaceRecovery,
   type RecoveryOutcome,
 } from "@/lib/branch/recovery"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import type { BranchPrInfo } from "@/lib/github-actions"
+import { isLocalBuild } from "@/lib/local-mode"
 import { openExternal } from "@/lib/open-external"
 import type { BranchData, ChatSessionData, RepoData } from "@/lib/types"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
@@ -70,6 +72,8 @@ export interface BranchActions {
   restartDevServer: (agentId: string) => void
   /** Snapshot-restore onto a fresh VM, preserving the working tree. */
   restartSandbox: (agentId: string) => void
+  /** A frame's Retry / Start on a failed or stopped Workspace (issue #731). */
+  startWorkspace: (agentId: string) => void
   /**
    * Destructive reclone — runs only after the sidebar's confirm, which awaits
    * it. Rejects with the failure so the confirm can show it inline.
@@ -219,6 +223,10 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       createPullRequest: (agentId) => run("create-pr", agentId),
       restartDevServer: (agentId) => run("restart-dev-server", agentId),
       restartSandbox: (agentId) => run("restart-sandbox", agentId),
+      startWorkspace: (agentId) =>
+        void startWorkspaceRecovery(agentId, recoveryDeps, {
+          local: isLocalBuild,
+        }),
       recreate: async (agentId) => {
         const outcome = (await run("recreate", agentId)) as
           | RecoveryOutcome
@@ -226,6 +234,6 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         if (outcome && !outcome.ok) throw new Error(outcome.error)
       },
     }),
-    [run]
+    [run, recoveryDeps]
   )
 }

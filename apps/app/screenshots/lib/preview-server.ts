@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http"
 
 import { BRIDGE_JS } from "@/lib/sandbox-bridge"
 
-import { PREVIEW_WORKSPACE_PREFIX } from "./preview-url"
+import { COLD_WORKSPACE_PREFIX, PREVIEW_WORKSPACE_PREFIX } from "./preview-url"
 
 /**
  * The **fixture preview server** — a static stand-in for the dev servers the
@@ -60,6 +60,19 @@ export async function startPreviewServer(
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", origin)
     const { workspace, route } = splitPath(url.pathname)
+    if (workspace.startsWith(COLD_WORKSPACE_PREFIX)) {
+      // What the Sandbox proxy serves while the dev server behind it isn't up:
+      // a 5xx placeholder with no bridge. The app's probe reads it as "not
+      // ready", so a frame on a cold Workspace stays on its status screen.
+      res.writeHead(503, {
+        "content-type": "text/html; charset=utf-8",
+        "x-screenplay-fixture-preview": "1",
+        "x-screenplay-proxy": "placeholder",
+        "cache-control": "no-store",
+      })
+      res.end("Dev server not yet ready")
+      return
+    }
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       // The marker `isPreviewServerUp` recognises, so a second harness command

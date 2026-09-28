@@ -10,6 +10,7 @@ import {
   recreate,
   restartDevServer,
   restartSandbox,
+  startWorkspace,
 } from "@/lib/branch/recovery"
 
 // The recovery verbs await the sandbox lifecycle actions through the module
@@ -285,5 +286,52 @@ describe("guards", () => {
       description: "Workspace not found",
     })
     expect(lifecycle.restartDevServer).not.toHaveBeenCalled()
+  })
+})
+
+describe("startWorkspace", () => {
+  it("restarts the sandbox on the hosted build", async () => {
+    lifecycle.restartSandbox.mockResolvedValue(ok)
+    const deps = makeDeps()
+    await startWorkspace("branch-1", deps, { local: false })
+    expect(lifecycle.restartSandbox).toHaveBeenCalledWith("sandbox-1", REPO)
+    expect(lifecycle.restartDevServer).not.toHaveBeenCalled()
+    expect(deps.patches.at(-1)?.patch.status).toBe("running")
+  })
+
+  it("restarts the dev server locally, flipping status so the frame follows", async () => {
+    lifecycle.restartDevServer.mockResolvedValue({
+      success: true,
+      value: { previewDomain: "https://local.preview" },
+    })
+    const deps = makeDeps()
+    await startWorkspace("branch-1", deps, { local: true })
+    expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
+    expect(deps.patches.map((p) => p.patch.status)).toEqual([
+      "starting",
+      "running",
+    ])
+    expect(deps.patches.at(-1)?.patch).toMatchObject({
+      sandboxName: "sandbox-1",
+      previewDomain: "https://local.preview",
+      error: "",
+    })
+  })
+
+  it("lands a failed local restart back on error with the reason", async () => {
+    lifecycle.restartDevServer.mockResolvedValue({
+      success: false,
+      error: "Sandbox is not running",
+    })
+    const deps = makeDeps()
+    await startWorkspace("branch-1", deps, { local: true })
+    expect(deps.patches.at(-1)?.patch).toMatchObject({
+      status: "error",
+      error: "Sandbox is not running",
+    })
+    expect(deps.toasts.at(-1)).toMatchObject({
+      kind: "error",
+      message: "Couldn't restart dev server",
+    })
   })
 })
