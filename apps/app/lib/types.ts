@@ -93,6 +93,9 @@ export type BranchData = {
   prNumber?: number
   prUrl?: string
   prState?: "open" | "closed" | "merged"
+  /** True when an open PR can't merge (failing checks, a conflict, or a
+   *  missing required review or check). Absent otherwise. */
+  prBlocked?: boolean
   /**
    * Cached diff stats (additions/deletions vs the Repo's default branch, from
    * the GitHub compare API), refreshed by the same poll. Same rationale as the

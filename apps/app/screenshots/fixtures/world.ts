@@ -980,6 +980,14 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
     }),
     branch(b.framesReady, "listing-page", "listing-page", 4, {
       status: "running",
+      // An open PR whose merge is blocked (failing checks): the chat header's
+      // PR button turns red with the merge-blocked icon.
+      prNumber: 491,
+      prUrl: "https://github.com/acme/listings/pull/491",
+      prState: "open",
+      prBlocked: true,
+      diffAdditions: 62,
+      diffDeletions: 9,
     }),
     branch(b.framesLive, `${cold}live`, "agent-profile", 5, {
       status: "creating",

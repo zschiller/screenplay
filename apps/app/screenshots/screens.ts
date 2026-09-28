@@ -421,6 +421,36 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-header-pr-none",
+    description:
+      "The chat header for a Workspace with no PR yet: the Create PR button.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "empty-cart-state")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-merged",
+    description:
+      "The chat header for a Workspace whose PR merged: the PR button in GitHub purple.",
+    path: `/${ids.rooms.pricing}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-blocked",
+    description:
+      "The chat header for a Workspace whose open PR can't merge: the PR button in red with the merge-blocked icon.",
+    path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "listing-page")
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-chat-turn-expanded",
     description:
       "A finished turn's summary opened: diff, terminal, subagent, and failed tool calls.",
