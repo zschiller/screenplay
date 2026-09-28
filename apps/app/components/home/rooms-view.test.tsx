@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import { HomeProvider } from "./home-provider"
 import { RoomsView } from "./rooms-view"
@@ -164,7 +165,7 @@ describe("RoomsView — creating a folder", () => {
   it("does not surface 'Add folder' when folders are disabled (Recents)", () => {
     render(
       <HomeProvider initialRooms={[]} initialFolders={[]}>
-        <RoomsView title="Recents" showSort={false} />
+        <RoomsView title="Recents" />
       </HomeProvider>
     )
     expect(screen.queryByText("Add folder")).toBeNull()
@@ -194,7 +195,7 @@ function renderRecents(view: View, folders: FolderSummary[]) {
       initialPlacements={[]}
       initialViewPrefs={withView(DEFAULT_VIEW_PREFS, view)}
     >
-      <RoomsView title="Recents" showSort={false} />
+      <RoomsView title="Recents" />
     </HomeProvider>
   )
 }
@@ -335,31 +336,41 @@ describe("RoomsView — search and the ownership filter (#807)", () => {
     )
   }
 
-  it("finds a Canvas filed two folders deep and names where it lives", () => {
+  it("finds a Canvas filed two folders deep in a popover, leaving the page", () => {
     renderRoot()
     // At the root, the Canvas filed in Designs / Archive isn't listed.
     expect(screen.queryByText("Checkout")).toBeNull()
 
-    fireEvent.change(screen.getByLabelText("Search canvases and folders"), {
-      target: { value: "check" },
-    })
+    const field = screen.getByLabelText("Search canvases and folders")
+    fireEvent.focus(field)
+    fireEvent.change(field, { target: { value: "check" } })
 
-    expect(screen.getByText("Checkout")).not.toBeNull()
-    expect(screen.getByText("Designs / Archive")).not.toBeNull()
-    expect(screen.getByRole("status").textContent).toBe(
-      "1 result across all folders"
-    )
+    const results = screen.getByRole("listbox")
+    expect(within(results).getByText("Checkout")).not.toBeNull()
+    expect(within(results).getByText("Designs / Archive")).not.toBeNull()
+    // The folder view underneath stays as it was.
+    expect(screen.getByText("Designs")).not.toBeNull()
   })
 
-  it("says so when nothing matches, and clears back to the folder", () => {
+  it("opens the highlighted result on Enter", () => {
     renderRoot()
-    fireEvent.change(screen.getByLabelText("Search canvases and folders"), {
-      target: { value: "zzz" },
-    })
+    const field = screen.getByLabelText("Search canvases and folders")
+    fireEvent.focus(field)
+    fireEvent.change(field, { target: { value: "check" } })
+    fireEvent.keyDown(field, { key: "Enter" })
+    expect(push).toHaveBeenCalledWith("/r1")
+  })
+
+  it("says so when nothing matches, and Esc clears it", () => {
+    renderRoot()
+    const field = screen.getByLabelText("Search canvases and folders")
+    fireEvent.focus(field)
+    fireEvent.change(field, { target: { value: "zzz" } })
     expect(screen.getByText("No matches")).not.toBeNull()
 
-    fireEvent.click(screen.getByText("Clear search"))
-    expect(screen.getByText("Designs")).not.toBeNull()
+    fireEvent.keyDown(field, { key: "Escape" })
+    expect((field as HTMLInputElement).value).toBe("")
+    expect(screen.queryByText("No matches")).toBeNull()
   })
 
   it("lists only Canvases shared with the user under Shared with me", async () => {
