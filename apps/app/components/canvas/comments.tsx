@@ -11,10 +11,6 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { useAppSession } from "@/lib/auth-client"
-import {
-  createThreadAction,
-  markThreadUnreadAction,
-} from "@/lib/comments-actions"
 import type { ThreadWithComments } from "@/lib/comments"
 import { selectorLabel } from "@/lib/comment-element-label"
 import { listCollaborators } from "@/lib/rooms-actions"
@@ -373,7 +369,7 @@ export function Comments({
                 onClick={(e) => e.stopPropagation()}
               >
                 <NewThreadComposer
-                  roomId={roomId}
+                  createThread={commentThreads.createThread}
                   place={describePlace(
                     {
                       documentId: newCommentPos.documentId ?? null,
@@ -493,7 +489,8 @@ export function OpenThreadCard({
   onClose: () => void
 }) {
   const { data: session } = useAppSession()
-  const { setThreadUnread, setResolved, deleteWithUndo } = commentThreads
+  const { reply, editComment, markUnread, setResolved, deleteWithUndo } =
+    commentThreads
   return (
     <ThreadCard
       thread={thread}
@@ -513,12 +510,11 @@ export function OpenThreadCard({
       onSendToAgent={
         requests?.canSend(thread) ? () => requests.send([thread.id]) : undefined
       }
+      onReply={(body) => reply(thread.id, body)}
+      onEditComment={editComment}
       onMarkUnread={() => {
-        setThreadUnread(thread.id, true)
         onClose()
-        markThreadUnreadAction(thread.id).catch((e) =>
-          console.error("markThreadUnread failed:", e)
-        )
+        markUnread(thread.id)
       }}
       onDeleteThread={() => {
         onClose()
@@ -697,7 +693,7 @@ interface FrameAnchor {
 }
 
 function NewThreadComposer({
-  roomId,
+  createThread,
   place,
   members,
   x,
@@ -717,7 +713,7 @@ function NewThreadComposer({
   onCancel,
   onSendToChat,
 }: {
-  roomId: string
+  createThread: CommentThreads["createThread"]
   place: string | null
   members: CommentMember[]
   x: number
@@ -738,7 +734,6 @@ function NewThreadComposer({
   onSendToChat?: (text: string) => void
 }) {
   const [body, setBody] = useState("")
-  const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const empty = !body.trim()
   return (
@@ -760,10 +755,7 @@ function NewThreadComposer({
         rows={3}
         placeholder="Add a comment…"
         value={body}
-        onChange={(v) => {
-          setBody(v)
-          setError(null)
-        }}
+        onChange={setBody}
         members={members}
         // Desktop has no comment threads: plain Enter sends the selection to
         // the agent, Shift+Enter adds a line. Web: Cmd/Ctrl+Enter comments.
@@ -771,7 +763,7 @@ function NewThreadComposer({
         onSubmit={isLocalBuild ? sendToChat : submit}
         onEscape={onCancel}
       />
-      <ComposerFooter error={error}>
+      <ComposerFooter>
         {/* Web: send-to-agent is a quiet icon beside the primary Comment. */}
         {onSendToChat && !isLocalBuild && (
           <IconButton
@@ -806,29 +798,23 @@ function NewThreadComposer({
     const text = body.trim()
     if (!text || pending) return
     setPending(true)
-    try {
-      await createThreadAction({
-        roomId,
-        x,
-        y,
-        iframeLayerId,
-        selector,
-        offsetX,
-        offsetY,
-        ...frameAnchor,
-        documentId,
-        anchorStart,
-        anchorEnd,
-        quotedText,
-        body: text,
-      })
-      onSubmitted()
-    } catch (e) {
-      console.error("createThread failed:", e)
-      setError("Couldn't post. Try again.")
-    } finally {
-      setPending(false)
-    }
+    // A thread that wasn't saved keeps the composer open with its text.
+    const saved = await createThread({
+      x,
+      y,
+      iframeLayerId,
+      selector,
+      offsetX,
+      offsetY,
+      ...frameAnchor,
+      documentId,
+      anchorStart,
+      anchorEnd,
+      quotedText,
+      body: text,
+    })
+    setPending(false)
+    if (saved) onSubmitted()
   }
 
   function sendToChat() {

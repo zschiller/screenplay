@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useRef, useState } from "react"
 import { Bot, Check, Clock, MoreHorizontal } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -19,7 +19,6 @@ import { GripSpinner } from "@/components/grip-spinner"
 import { useNow } from "@/hooks/use-now"
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
 import { isWithAgent, shortCommit } from "@/lib/comments-agent"
-import { appendCommentAction, editCommentAction } from "@/lib/comments-actions"
 import {
   canDeleteComment,
   canDeleteThread,
@@ -93,6 +92,8 @@ export function ThreadCard({
   onMarkUnread,
   onDeleteThread,
   onDeleteComment,
+  onReply,
+  onEditComment,
   onSendToAgent,
 }: {
   thread: ThreadWithComments
@@ -107,12 +108,14 @@ export function ThreadCard({
   onMarkUnread: () => void
   onDeleteThread: () => void
   onDeleteComment: (commentId: string) => void
+  /** Save a reply or an edit; false when it wasn't saved (and the failure
+   *  has been shown), so the text typed isn't lost. */
+  onReply: (body: string) => Promise<boolean>
+  onEditComment: (commentId: string, body: string) => Promise<boolean>
   /** Ask the Workspace's agent to address the thread (#788), when it can. */
   onSendToAgent?: () => void
 }) {
   const [reply, setReply] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [pending, start] = useTransition()
   // Everyone who has commented is a member too, so their names highlight
   // even before the member list arrives.
   const memberNames = [
@@ -183,6 +186,7 @@ export function ThreadCard({
               ) : null
             }
             onDelete={() => onDeleteComment(c.id)}
+            onEdit={(body) => onEditComment(c.id, body)}
           />
         ))}
         {isWithAgent(thread) && thread.agentStatus && (
@@ -197,19 +201,12 @@ export function ThreadCard({
             rows={2}
             placeholder="Reply…"
             value={reply}
-            onChange={(v) => {
-              setReply(v)
-              setError(null)
-            }}
+            onChange={setReply}
             members={members}
             onSubmit={submitReply}
           />
-          <ComposerFooter error={error}>
-            <Button
-              size="xs"
-              onClick={submitReply}
-              disabled={pending || !reply.trim()}
-            >
+          <ComposerFooter>
+            <Button size="xs" onClick={submitReply} disabled={!reply.trim()}>
               Reply
             </Button>
           </ComposerFooter>
@@ -218,18 +215,12 @@ export function ThreadCard({
     </div>
   )
 
-  function submitReply() {
+  async function submitReply() {
     const text = reply.trim()
-    if (!text || pending) return
-    start(async () => {
-      try {
-        await appendCommentAction({ threadId: thread.id, body: text })
-        setReply("")
-      } catch (e) {
-        console.error("appendComment failed:", e)
-        setError("Couldn't send. Try again.")
-      }
-    })
+    if (!text) return
+    // The reply shows in the thread at once; a failed one comes back here.
+    setReply("")
+    if (!(await onReply(text))) setReply((now) => now || text)
   }
 }
 
@@ -263,6 +254,7 @@ function CommentRow({
   memberNames,
   status,
   onDelete,
+  onEdit,
 }: {
   comment: CommentRecord
   currentUserId: string | null
@@ -271,12 +263,11 @@ function CommentRow({
   /** The agent's status chip, under its latest reply. */
   status?: React.ReactNode
   onDelete: () => void
+  onEdit: (body: string) => Promise<boolean>
 }) {
   const now = useNow()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(comment.body)
-  const [error, setError] = useState<string | null>(null)
-  const [pending, start] = useTransition()
   const canEdit = canEditComment(comment, currentUserId)
   const canDelete = canDeleteComment(comment, currentUserId)
   return (
@@ -316,7 +307,6 @@ function CommentRow({
                   <DropdownMenuItem
                     onSelect={() => {
                       setDraft(comment.body)
-                      setError(null)
                       setEditing(true)
                     }}
                   >
@@ -338,28 +328,20 @@ function CommentRow({
               autoFocus
               rows={2}
               value={draft}
-              onChange={(v) => {
-                setDraft(v)
-                setError(null)
-              }}
+              onChange={setDraft}
               members={members}
               onSubmit={save}
               onEscape={() => setEditing(false)}
             />
-            <ComposerFooter error={error}>
+            <ComposerFooter>
               <Button
                 size="xs"
                 variant="ghost"
                 onClick={() => setEditing(false)}
-                disabled={pending}
               >
                 Cancel
               </Button>
-              <Button
-                size="xs"
-                onClick={save}
-                disabled={pending || !draft.trim()}
-              >
+              <Button size="xs" onClick={save} disabled={!draft.trim()}>
                 Save
               </Button>
             </ComposerFooter>
@@ -372,22 +354,16 @@ function CommentRow({
     </div>
   )
 
-  function save() {
+  async function save() {
     const text = draft.trim()
-    if (!text || pending) return
-    if (text === comment.body) {
-      setEditing(false)
-      return
+    if (!text) return
+    setEditing(false)
+    if (text === comment.body) return
+    // The new text shows at once; a failed edit reopens with it.
+    if (!(await onEdit(text))) {
+      setDraft(text)
+      setEditing(true)
     }
-    start(async () => {
-      try {
-        await editCommentAction({ commentId: comment.id, body: text })
-        setEditing(false)
-      } catch (e) {
-        console.error("editComment failed:", e)
-        setError("Couldn't save. Try again.")
-      }
-    })
   }
 }
 
@@ -415,24 +391,13 @@ function CommentBody({
 }
 
 /**
- * The row under every comment text box: the buttons on the right, and what
- * went wrong on the left when the last send failed.
+ * The row under every comment text box: its buttons, on the right. A failed
+ * send says so in a toast (see `useCommentThreads`).
  */
-export function ComposerFooter({
-  error,
-  children,
-}: {
-  error: string | null
-  children: React.ReactNode
-}) {
+export function ComposerFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-6 items-center justify-end gap-2">
-      {error && (
-        <p role="alert" className="mr-auto min-w-0 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-      <div className="flex shrink-0 gap-1">{children}</div>
+    <div className="flex min-h-6 items-center justify-end gap-1">
+      {children}
     </div>
   )
 }
