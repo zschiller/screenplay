@@ -93,6 +93,9 @@ export type BranchData = {
   prNumber?: number
   prUrl?: string
   prState?: "open" | "closed" | "merged"
+  /** Rolled-up CI checks on an open PR's head commit. Absent when the PR has
+   *  no checks, isn't open, or hasn't been polled yet. */
+  prChecks?: "pending" | "passing" | "failing"
   /**
    * Cached diff stats (additions/deletions vs the Repo's default branch, from
    * the GitHub compare API), refreshed by the same poll. Same rationale as the

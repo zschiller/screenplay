@@ -1,6 +1,7 @@
 "use server"
 
 import { getGitHubToken } from "@/lib/auth-helpers"
+import { summarizeCheckRuns } from "@/lib/pr-checks"
 import { FIXTURE_GITHUB_REPOS, hasFixtureGitHub } from "@/lib/fixture-github"
 import { mutateRoomDoc } from "@/lib/yjs/server"
 
@@ -309,10 +310,37 @@ async function cacheDiffStats(
 
 export type BranchPrState = "open" | "closed" | "merged"
 
+export type { BranchPrChecks } from "@/lib/pr-checks"
+import type { BranchPrChecks } from "@/lib/pr-checks"
+
 export interface BranchPrInfo {
   number: number
   url: string
   state: BranchPrState
+  /** Only looked up for open PRs; absent when the head commit has no checks. */
+  checks?: BranchPrChecks
+}
+
+async function fetchPrChecks(
+  token: string,
+  owner: string,
+  repo: string,
+  sha: string
+): Promise<BranchPrChecks | undefined> {
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+    }
+  )
+  if (!res.ok) return undefined
+  const data = (await res.json()) as {
+    check_runs: Array<{ status: string; conclusion: string | null }>
+  }
+  return summarizeCheckRuns(data.check_runs ?? [])
 }
 
 /** Token-injected core of the PR lookup. Fanned out in parallel by
@@ -340,12 +368,17 @@ async function fetchBranchPr(
     html_url: string
     state: "open" | "closed"
     merged_at: string | null
+    head: { sha: string }
   }>
   const pr = data[0]
   if (!pr) return null
 
   const state: BranchPrState = pr.merged_at ? "merged" : pr.state
-  return { number: pr.number, url: pr.html_url, state }
+  const checks =
+    state === "open"
+      ? await fetchPrChecks(token, owner, repo, pr.head.sha)
+      : undefined
+  return { number: pr.number, url: pr.html_url, state, checks }
 }
 
 export interface BranchPrQuery {
@@ -398,12 +431,14 @@ async function cachePrs(
       if (
         cur.prNumber !== pr.number ||
         cur.prUrl !== pr.url ||
-        cur.prState !== pr.state
+        cur.prState !== pr.state ||
+        cur.prChecks !== pr.checks
       ) {
         branches.update(id, {
           prNumber: pr.number,
           prUrl: pr.url,
           prState: pr.state,
+          prChecks: pr.checks,
         })
       }
     }

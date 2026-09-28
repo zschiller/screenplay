@@ -16,9 +16,8 @@ import {
   ChevronDown,
   Check,
   GitPullRequest,
-  GitPullRequestClosed,
-  GitMerge,
   ArrowUpRight,
+  Link as LinkIcon,
   Logs,
   MessageCircle,
   SquareTerminal,
@@ -88,8 +87,12 @@ import { useAppSession } from "@/lib/auth-client"
 import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
-import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
-import { prStateColor } from "@/components/pr-state-color"
+import type {
+  BranchPrChecks,
+  BranchPrInfo,
+  BranchPrState,
+} from "@/lib/github-actions"
+import { prStatusDotColor, prStatusLabel } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
@@ -531,29 +534,26 @@ export function ChatPanel({
 
   const activeTab = selectedChatId ?? openTabs[0]?.id ?? ""
   const chatHistoryPr = useLatestPr(activeTab)
+  // The polled branch PR carries state and checks; a `create_pr` result in this
+  // chat's history only knows the number, so it's used when the poll hasn't
+  // seen that PR yet.
   const displayPr: {
     url: string
     number: string
-    state?: BranchPrState
+    state: BranchPrState
+    checks?: BranchPrChecks
   } | null =
-    chatHistoryPr ??
-    (branchPr
+    branchPr &&
+    (!chatHistoryPr || chatHistoryPr.number === String(branchPr.number))
       ? {
           url: branchPr.url,
           number: String(branchPr.number),
           state: branchPr.state,
+          checks: branchPr.checks,
         }
-      : null)
-  // The PR button's icon and color mirror the sidebar branch icon so the two
-  // stay legible together: open = green, merged = purple, closed = red.
-  const prState = displayPr?.state
-  const PrStateIcon =
-    prState === "merged"
-      ? GitMerge
-      : prState === "closed"
-        ? GitPullRequestClosed
-        : GitPullRequest
-  const prColor = prStateColor(prState ?? "open")
+      : chatHistoryPr
+        ? { ...chatHistoryPr, state: "open" }
+        : null
   const isAgentBusy = agent
     ? agent.status === "creating" || agent.status === "starting"
     : false
@@ -929,28 +929,50 @@ export function ChatPanel({
           {isAgentTarget &&
             diffStats &&
             (diffStats.additions > 0 || diffStats.deletions > 0) && (
-              <span className="flex items-center gap-1 font-mono text-[10px]">
-                <span className="text-green-700 dark:text-green-300">
-                  +{diffStats.additions}
-                </span>
-                <span className="text-red-700 dark:text-red-300">
-                  -{diffStats.deletions}
-                </span>
+              <span className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground tabular-nums">
+                <span>+{diffStats.additions}</span>
+                <span>−{diffStats.deletions}</span>
               </span>
             )}
           {isAgentTarget &&
             (displayPr ? (
-              <Button size="xs" variant="outline" asChild>
-                <a
-                  href={displayPr.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cn("group", prColor)}
-                >
-                  <PrStateIcon />#{displayPr.number}
-                  <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
-                </a>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="xs" variant="outline">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-1.5 shrink-0 rounded-full",
+                        prStatusDotColor(displayPr.state, displayPr.checks)
+                      )}
+                    />
+                    PR #{displayPr.number}
+                    <ChevronDown className="text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-48">
+                  <DropdownMenuLabel className="font-normal text-muted-foreground">
+                    {prStatusLabel(displayPr.state, displayPr.checks)}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => openExternal(displayPr.url)}
+                  >
+                    <ArrowUpRight />
+                    Open on GitHub
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      void navigator.clipboard
+                        ?.writeText(displayPr.url)
+                        .then(() => toast.success("Link copied"))
+                    }}
+                  >
+                    <LinkIcon />
+                    Copy link
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <Button
                 size="xs"

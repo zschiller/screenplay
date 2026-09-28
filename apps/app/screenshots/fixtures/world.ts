@@ -425,6 +425,7 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       prNumber: 482,
       prUrl: "https://github.com/acme/storefront/pull/482",
       prState: "open",
+      prChecks: "passing",
       diffAdditions: 214,
       diffDeletions: 37,
     },
