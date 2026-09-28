@@ -33,10 +33,30 @@ function FolderTileFace({
 }: {
   folder: FolderSummary
   menu: React.ReactNode
-  /** A search result's folder trail, after the name (#807). */
+  /** A search result's folder trail, in place of the contents count (#807). */
   location?: React.ReactNode
 }) {
   const { folderContents } = useHome()
+  if (location) {
+    // A search result: where the folder lives takes the contents count's
+    // place after the name, so the tile keeps one line.
+    return (
+      <>
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+          <Link
+            href={`/files/${folder.id}`}
+            className="flex min-w-0 shrink items-center gap-2"
+          >
+            <FolderIcon className="size-4 shrink-0 text-primary" />
+            <span className="truncate font-medium">{folder.name}</span>
+          </Link>
+          <span className="-mx-1 text-muted-foreground">·</span>
+          <div className="min-w-0 shrink-[2]">{location}</div>
+        </div>
+        {menu}
+      </>
+    )
+  }
   return (
     <>
       <Link
@@ -52,10 +72,6 @@ function FolderTileFace({
           </span>
         </span>
       </Link>
-      {/* On the tile's one line, so a result keeps the plain tile's height. */}
-      {location && (
-        <div className="max-w-[50%] min-w-0 shrink text-xs">{location}</div>
-      )}
       {menu}
     </>
   )
