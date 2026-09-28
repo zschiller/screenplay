@@ -90,6 +90,7 @@ import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
+import { prStateColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
@@ -545,12 +546,7 @@ export function ChatPanel({
       : prState === "closed"
         ? GitPullRequestClosed
         : GitPullRequest
-  const prStateColor =
-    prState === "merged"
-      ? "text-purple-600 dark:text-purple-400"
-      : prState === "closed"
-        ? "text-red-600 dark:text-red-400"
-        : "text-green-700 dark:text-green-300"
+  const prColor = prStateColor(prState ?? "open")
   const isAgentBusy = agent
     ? agent.status === "creating" || agent.status === "starting"
     : false
@@ -931,7 +927,7 @@ export function ChatPanel({
                   href={displayPr.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={cn("group", prStateColor)}
+                  className={cn("group", prColor)}
                 >
                   <PrStateIcon />#{displayPr.number}
                   <ArrowUpRight className="opacity-60 group-hover:opacity-100" />

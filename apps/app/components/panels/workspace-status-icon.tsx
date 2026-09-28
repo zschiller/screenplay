@@ -17,12 +17,14 @@ import {
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { GripSpinner } from "@/components/grip-spinner"
+import { prStateColor } from "@/components/pr-state-color"
 import {
   formatElapsed,
   workspaceStatusLine,
@@ -72,28 +74,28 @@ function StateIcon({
   context: StatusLineContext
 }) {
   // Progress uses the shared Spinner; the 9-dot GripSpinner is reserved for
-  // agent activity. Everything else is a muted glyph: colour is for failures.
+  // agent activity. A PR takes GitHub's state colour; a bare branch is muted.
   if (line.kind === "progress")
     return <Spinner className="size-3.5 text-sidebar-foreground/70" />
   if (context.agentWorking)
     return <GripSpinner className="size-3.5 text-sidebar-foreground/70" />
+  const pr = context.pr
+  if (!pr) return <GitBranch className="size-4 text-sidebar-foreground/70" />
   const Icon =
-    context.pr?.state === "merged"
+    pr.state === "merged"
       ? GitMerge
-      : context.pr?.state === "open"
-        ? GitPullRequest
-        : context.pr?.state === "closed"
-          ? GitPullRequestClosed
-          : GitBranch
-  return <Icon className="size-4 text-sidebar-foreground/70" />
+      : pr.state === "closed"
+        ? GitPullRequestClosed
+        : GitPullRequest
+  return <Icon className={cn("size-4", prStateColor(pr.state))} />
 }
 
 /**
  * The leading icon of a Workspace row (#791): one glyph for its state, with the
  * state in words in a tooltip ("Installing dependencies · 40s", "Agent
- * working", "PR #482 · open"). A failure is the one coloured icon; clicking it
- * opens a card titled by the step that failed, with the error and Retry,
- * Recreate and Copy error.
+ * working", "PR #482 · open"). A PR icon takes GitHub's state colour. A
+ * failure is the red triangle; clicking it opens a card titled by the step
+ * that failed, with the error and Retry, Recreate and Copy error.
  */
 export function WorkspaceStatusIcon({
   branch,
