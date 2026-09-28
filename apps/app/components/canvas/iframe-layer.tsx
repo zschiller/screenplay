@@ -955,33 +955,24 @@ export function IframeLayer({
             )}
           </div>
           {focused && (
-            // The interacting hint under the frame: what mode this is and how
-            // to leave it, on the same floating-toolbar shell as the frame's
-            // toolbar. Counter-scaled like the title bar so it stays one
-            // screen size at any zoom.
+            // The interacting tag: a small label in the selection colour,
+            // hung under the ring like a canvas size tag, so the mode reads
+            // as part of the selection rather than another floating control.
+            // Counter-scaled like the title bar so it stays one screen size
+            // at any zoom; the margin clears the bottom resize handle.
             <div
-              className="absolute top-full left-1/2"
+              data-interacting-hint=""
+              className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-[11px] leading-4 font-medium whitespace-nowrap text-white"
               style={{
                 transform: `translateX(-50%) scale(${1 / zoom})`,
                 transformOrigin: "top center",
                 marginTop: 8 / zoom,
               }}
             >
-              <FloatingToolbar
-                aria-label="Interacting"
-                data-interacting-hint=""
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <span className="px-1.5 text-xs font-medium whitespace-nowrap">
-                  Interacting
-                </span>
-                <FloatingToolbarSeparator />
-                <Button size="xs" variant="ghost" onClick={() => onFocus(null)}>
-                  Exit
-                  <Kbd>Esc</Kbd>
-                </Button>
-              </FloatingToolbar>
+              Interacting
+              <Kbd className="h-4 min-w-4 bg-white/20 px-1 text-[10px] text-white">
+                Esc
+              </Kbd>
             </div>
           )}
         </>
