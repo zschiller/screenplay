@@ -56,7 +56,12 @@ const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
  * the form in a dialog over the list, so the editor never nests a scroll area
  * inside the page's own scroll.
  */
-export function RepoConfigsPanel() {
+export function RepoConfigsPanel({
+  header,
+}: {
+  /** The Settings section's title row; New preset sits on its right (#927). */
+  header: (action?: React.ReactNode) => React.ReactNode
+}) {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -123,41 +128,51 @@ export function RepoConfigsPanel() {
   // with the full path in its facts line.
   const sortedGroups = groupConfigs(configs)
 
-  const newPreset = (
-    <Button size="sm" onClick={() => openForm({ kind: "new" })}>
+  const newPreset = (variant: "default" | "outline") => (
+    <Button
+      size="sm"
+      variant={variant}
+      onClick={() => openForm({ kind: "new" })}
+    >
       <Plus className="size-3.5" />
       New preset
     </Button>
   )
 
+  // With presets listed, New preset sits on the section's title row. The empty
+  // state offers it as its own call to action instead, so it shows once.
+  const hasList = !loading && !loadFailed && configs.length > 0
+
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {loading ? (
-        <SettingsRowSkeleton label="Loading repository presets…" count={2} />
-      ) : loadFailed ? (
-        <LoadErrorRow
-          title="Couldn't load repository presets"
-          onRetry={reload}
-        />
-      ) : configs.length === 0 ? (
-        <Empty className="border py-8">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Folder />
-            </EmptyMedia>
-            <EmptyTitle>No repository presets yet</EmptyTitle>
-            <EmptyDescription>
-              A preset remembers how to run a repository:{" "}
-              {isLocalBuild
-                ? "its setup and run scripts, and the files to copy from your checkout."
-                : "its setup and run scripts, port and environment variables."}{" "}
-              Add the repository to any canvas and its workspaces start from it.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>{newPreset}</EmptyContent>
-        </Empty>
-      ) : (
-        <>
+    <>
+      {header(hasList ? newPreset("outline") : undefined)}
+      <div className="flex min-w-0 flex-col gap-3">
+        {loading ? (
+          <SettingsRowSkeleton label="Loading repository presets…" count={2} />
+        ) : loadFailed ? (
+          <LoadErrorRow
+            title="Couldn't load repository presets"
+            onRetry={reload}
+          />
+        ) : configs.length === 0 ? (
+          <Empty className="border py-8">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Folder />
+              </EmptyMedia>
+              <EmptyTitle>No repository presets yet</EmptyTitle>
+              <EmptyDescription>
+                A preset remembers how to run a repository:{" "}
+                {isLocalBuild
+                  ? "its setup and run scripts, and the files to copy from your checkout."
+                  : "its setup and run scripts, port and environment variables."}{" "}
+                Add the repository to any canvas and its workspaces start from
+                it.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>{newPreset("default")}</EmptyContent>
+          </Empty>
+        ) : (
           <SettingsRowList>
             {sortedGroups.flatMap((group) =>
               group.items
@@ -232,100 +247,100 @@ export function RepoConfigsPanel() {
                 ))
             )}
           </SettingsRowList>
-          <div className="flex justify-end">{newPreset}</div>
-        </>
-      )}
+        )}
 
-      <Dialog
-        open={mode.kind !== "list"}
-        onOpenChange={(open) => {
-          if (!open) requestCloseForm()
-        }}
-      >
-        <DialogContent
-          // With a source already set (Edit, Duplicate), start in the name
-          // field rather than on Change, the dialog's first control.
-          onOpenAutoFocus={(event) => {
-            const name = (
-              event.currentTarget as HTMLElement
-            ).querySelector<HTMLInputElement>("#config-name")
-            if (!name) return
-            event.preventDefault()
-            name.focus()
+        <Dialog
+          open={mode.kind !== "list"}
+          onOpenChange={(open) => {
+            if (!open) requestCloseForm()
           }}
-          className="gap-0 overflow-hidden p-0 sm:max-w-lg"
         >
-          <DialogHeader className="px-5 pt-5 pb-3">
-            <DialogTitle>
-              {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
-            </DialogTitle>
-            <DialogDescription>
-              A repository&apos;s scripts, applied when you add it to a canvas.
-            </DialogDescription>
-          </DialogHeader>
-          {mode.kind !== "list" && (
-            <RepoConfigForm
-              // A fresh form per open, so switching presets never carries
-              // one's edits into another.
-              key={
-                mode.kind === "new" ? "new" : `${mode.kind}:${mode.config.id}`
-              }
-              initial={mode.kind === "edit" ? mode.config : undefined}
-              template={
-                mode.kind === "duplicate"
-                  ? {
-                      ...mode.config,
-                      name: duplicateName(mode.config, configs),
-                    }
-                  : undefined
-              }
-              existingConfigs={configs}
-              onDirtyChange={(dirty) => {
-                formDirty.current = dirty
-              }}
-              onSaved={(updated) => {
-                setConfigs(updated)
-                closeForm()
-              }}
-              onCancel={requestCloseForm}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+          <DialogContent
+            // With a source already set (Edit, Duplicate), start in the name
+            // field rather than on Change, the dialog's first control.
+            onOpenAutoFocus={(event) => {
+              const name = (
+                event.currentTarget as HTMLElement
+              ).querySelector<HTMLInputElement>("#config-name")
+              if (!name) return
+              event.preventDefault()
+              name.focus()
+            }}
+            className="gap-0 overflow-hidden p-0 sm:max-w-lg"
+          >
+            <DialogHeader className="px-5 pt-5 pb-3">
+              <DialogTitle>
+                {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
+              </DialogTitle>
+              <DialogDescription>
+                A repository&apos;s scripts, applied when you add it to a
+                canvas.
+              </DialogDescription>
+            </DialogHeader>
+            {mode.kind !== "list" && (
+              <RepoConfigForm
+                // A fresh form per open, so switching presets never carries
+                // one's edits into another.
+                key={
+                  mode.kind === "new" ? "new" : `${mode.kind}:${mode.config.id}`
+                }
+                initial={mode.kind === "edit" ? mode.config : undefined}
+                template={
+                  mode.kind === "duplicate"
+                    ? {
+                        ...mode.config,
+                        name: duplicateName(mode.config, configs),
+                      }
+                    : undefined
+                }
+                existingConfigs={configs}
+                onDirtyChange={(dirty) => {
+                  formDirty.current = dirty
+                }}
+                onSaved={(updated) => {
+                  setConfigs(updated)
+                  closeForm()
+                }}
+                onCancel={requestCloseForm}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
-      <ConfirmDialog
-        open={confirmDiscard}
-        onOpenChange={setConfirmDiscard}
-        verb="Discard"
-        itemNoun="changes"
-        cancelLabel="Keep editing"
-        description="Your edits to this preset haven’t been saved."
-        onConfirm={closeForm}
-      />
+        <ConfirmDialog
+          open={confirmDiscard}
+          onOpenChange={setConfirmDiscard}
+          verb="Discard"
+          itemNoun="changes"
+          cancelLabel="Keep editing"
+          description="Your edits to this preset haven’t been saved."
+          onConfirm={closeForm}
+        />
 
-      <ConfirmDialog
-        open={!!pendingDelete}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null)
-        }}
-        verb="Delete"
-        itemName={pendingDelete?.name}
-        itemNoun="preset"
-        description={
-          pendingDelete ? (
-            <>
-              Adding{" "}
-              <span className="font-mono">
-                {presetOwnerLabel(pendingDelete)}
-              </span>{" "}
-              to a canvas will no longer start from this preset. Repositories
-              already on a canvas keep their settings.
-            </>
-          ) : null
-        }
-        onConfirm={() => handleDelete(pendingDelete!.id)}
-      />
-    </div>
+        <ConfirmDialog
+          open={!!pendingDelete}
+          onOpenChange={(open) => {
+            if (!open) setPendingDelete(null)
+          }}
+          verb="Delete"
+          itemName={pendingDelete?.name}
+          itemNoun="preset"
+          description={
+            pendingDelete ? (
+              <>
+                Adding{" "}
+                <span className="font-mono">
+                  {presetOwnerLabel(pendingDelete)}
+                </span>{" "}
+                to a canvas will no longer start from this preset. Repositories
+                already on a canvas keep their settings.
+              </>
+            ) : null
+          }
+          onConfirm={() => handleDelete(pendingDelete!.id)}
+        />
+      </div>
+    </>
   )
 }
 
