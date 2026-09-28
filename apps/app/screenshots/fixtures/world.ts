@@ -1227,7 +1227,8 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
           sidebarOrder: 2,
         },
       ],
-      savedViewport: { x: 40, y: 60, zoom: 0.75 },
+      // Clear of the top chrome, so the first row's labels show and take clicks.
+      savedViewport: { x: 40, y: 110, zoom: 0.75 },
     },
   }
 }

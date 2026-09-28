@@ -288,6 +288,9 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
  *  - Wraps any standalone markdown layer (created before they were group
  *    members) in a fresh single-member group, anchored at its own x/y.
  *  - Back-fills a `name` on any group that lacks one.
+ *  - Gives every group a Workspace (#868): one without a `branchId` takes its
+ *    leftmost frame's, so nothing changes in which Workspace a frame shows.
+ *    Frames on another Workspace become exceptions.
  *
  * Runs once per Y.Doc in `getRoomCollections`. Safe to re-run — every step
  * is a no-op when the data is already in the target shape.
@@ -317,6 +320,7 @@ function migrateLegacyGroups(c: RoomCollections): void {
     x: number
     y: number
     sidebarOrder?: number
+    branchId?: string
   }[] = []
   iframeLayersMap.forEach((layerMap, id) => {
     if (referenced.has(id)) return
@@ -324,7 +328,8 @@ function migrateLegacyGroups(c: RoomCollections): void {
     const y = layerMap.get("y") as number | undefined
     if (typeof x !== "number" || typeof y !== "number") return
     const sidebarOrder = layerMap.get("sidebarOrder") as number | undefined
-    iframeLayerOrphans.push({ id, x, y, sidebarOrder })
+    const branchId = layerMap.get("branchId") as string | undefined
+    iframeLayerOrphans.push({ id, x, y, sidebarOrder, branchId })
   })
 
   const markdownLayerOrphans: { id: string; x: number; y: number }[] = []
@@ -364,10 +369,29 @@ function migrateLegacyGroups(c: RoomCollections): void {
     return a.id.localeCompare(b.id)
   })
 
+  // Groups without a Workspace take their leftmost frame's.
+  const groupBranches: Array<{ id: string; branchId: string }> = []
+  groupsMap.forEach((groupMap, id) => {
+    if (groupMap.get("branchId")) return
+    const members = groupMap.get("members") as
+      | Array<{ kind: string; id: string }>
+      | undefined
+    if (!Array.isArray(members)) return
+    for (const m of members) {
+      if (m?.kind !== "iframe-layer") continue
+      const branchId = iframeLayersMap.get(m.id)?.get("branchId")
+      if (typeof branchId === "string" && branchId) {
+        groupBranches.push({ id, branchId })
+        return
+      }
+    }
+  })
+
   if (
     iframeLayerOrphans.length === 0 &&
     markdownLayerOrphans.length === 0 &&
-    unnamed.length === 0
+    unnamed.length === 0 &&
+    groupBranches.length === 0
   ) {
     return
   }
@@ -380,6 +404,9 @@ function migrateLegacyGroups(c: RoomCollections): void {
         g.set("name", `Group ${nextNumber++}`)
       }
     }
+    for (const g of groupBranches) {
+      groupsMap.get(g.id)?.set("branchId", g.branchId)
+    }
     for (const orphan of iframeLayerOrphans) {
       const groupId = nanoid()
       c.iframeLayerGroups.set(groupId, {
@@ -391,6 +418,7 @@ function migrateLegacyGroups(c: RoomCollections): void {
         ...(orphan.sidebarOrder !== undefined
           ? { sidebarOrder: orphan.sidebarOrder }
           : {}),
+        ...(orphan.branchId ? { branchId: orphan.branchId } : {}),
       })
       const layer = iframeLayersMap.get(orphan.id)
       if (layer) {

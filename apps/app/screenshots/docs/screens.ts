@@ -366,19 +366,6 @@ async function clickFrameToolbar(page: Page, label: string, wait = 900) {
   await clickAt(page, at, wait)
 }
 
-/** A button in a frame's title bar on the canvas, by its text. */
-async function titleBarButton(page: Page, match: (text: string) => boolean) {
-  const all = (await page.evaluate(
-    `[...document.querySelectorAll("button")].map((b) => {
-      const r = b.getBoundingClientRect()
-      return { text: b.innerText.trim(), x: r.x + r.width / 2, y: r.y + r.height / 2, left: r.x, top: r.y }
-    }).filter((b) => b.left > 250 && b.left < 700 && b.top > 40 && b.top < 110)`
-  )) as Array<{ text: string; x: number; y: number }>
-  const hit = all.find((b) => match(b.text))
-  if (!hit) throw new Error("title bar button not found")
-  return hit
-}
-
 /** Click into the chat composer. */
 async function focusComposer(page: Page) {
   const at = (await page.evaluate(
@@ -919,9 +906,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
+      // The address bar's host: frame labels name a Workspace only when it
+      // differs from the Group's (#868).
       await clickAt(
         page,
-        await titleBarButton(page, (t) => t.startsWith("h")),
+        await centerOf(
+          page,
+          "#frame-toolbar-portal button[aria-label^='Workspace: ']"
+        ),
         900
       )
     },
@@ -1026,10 +1018,9 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await focusComposer(page)
       await page.keyboard.type("Make ", { delay: 5 })
       await pointAtStartTrial(page, true)
-      await page.keyboard.type(
-        "bigger and add an arrow icon after the label",
-        { delay: 8 }
-      )
+      await page.keyboard.type("bigger and add an arrow icon after the label", {
+        delay: 8,
+      })
       await sleep(page, 600)
       const token = page
         .locator(

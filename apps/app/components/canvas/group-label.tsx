@@ -2,10 +2,15 @@
 
 import { cn } from "@workspace/ui/lib/utils"
 import { EditableText } from "@workspace/ui/components/editable-text"
+import { BranchBadge } from "@/components/branch-badge"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
+import type { FrameWorkspace } from "./frame-nav"
 
 interface GroupLabelProps {
   label: string
+  /** The Group's Workspace, named once after its name (#868). Its frames
+   *  leave it off their own labels unless they differ. */
+  workspace?: FrameWorkspace
   /** True when the parent group is selected — colors the label fuchsia. */
   groupSelected?: boolean
   /** Color of a *remote* user's group selection. When set (and not locally
@@ -32,14 +37,42 @@ interface GroupLabelProps {
  * leftmost item in a multi-member group. Shared between `IframeLayer` and
  * `MarkdownLayer` so both kinds of group members render the same label.
  */
-export function GroupLabel({
+export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
+  if (!workspace) return <GroupName {...props} className="mb-0.5" />
+  return (
+    <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
+      <GroupName {...props} />
+      {/* Names win: the pill gives up its width first. Pressing it selects
+          the Group, like its name, rather than reordering the member under it. */}
+      <span
+        className="flex min-w-10 shrink-[100]"
+        onPointerDown={(e) => {
+          if (e.button !== 0) return
+          e.stopPropagation()
+          props.onSelectGroup?.(e.shiftKey)
+        }}
+      >
+        <BranchBadge
+          branch={workspace.ref}
+          title={workspace.title}
+          colorKey={workspace.branchId}
+          colorIndex={workspace.colorIndex}
+          className="px-1 py-0 text-3xs"
+        />
+      </span>
+    </div>
+  )
+}
+
+function GroupName({
   label,
   groupSelected,
   color,
   onSelectGroup,
   dragHandlers,
   onRename,
-}: GroupLabelProps) {
+  className,
+}: Omit<GroupLabelProps, "workspace"> & { className?: string }) {
   // Local selection (fuchsia) wins; a remote selector's color applies only
   // when the group isn't locally selected.
   const remoteColor = !groupSelected && color ? color : undefined
@@ -70,7 +103,7 @@ export function GroupLabel({
       // slot to scroll inside.
       return (
         <div
-          className="mb-0.5 flex max-w-full items-center"
+          className={cn("flex max-w-full min-w-0 items-center", className)}
           {...dragHandlers}
           onPointerDown={handleSelectPointerDown}
           onClick={(e) => {
@@ -95,8 +128,9 @@ export function GroupLabel({
       <button
         type="button"
         className={cn(
-          "mb-0.5 min-w-0 cursor-grab truncate text-xs outline-none active:cursor-grabbing",
-          colorClass
+          "min-w-0 cursor-grab truncate text-xs outline-none active:cursor-grabbing",
+          colorClass,
+          className
         )}
         style={colorStyle}
         {...dragHandlers}
@@ -112,12 +146,13 @@ export function GroupLabel({
   return (
     <div
       className={cn(
-        "mb-0.5 min-w-0 truncate text-xs",
+        "min-w-0 truncate text-xs",
         groupSelected
           ? "text-canvas-selection"
           : remoteColor
             ? undefined
-            : "text-muted-foreground"
+            : "text-muted-foreground",
+        className
       )}
       style={colorStyle}
     >

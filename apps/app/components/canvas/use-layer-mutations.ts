@@ -106,7 +106,7 @@ export function useLayerMutations({
 
   const assignAgent = useCallback(
     (iframeLayerId: string, agentId: string) => {
-      ops.patch("iframeLayers", iframeLayerId, { branchId: agentId })
+      ops.assignBranch(iframeLayerId, agentId)
     },
     [ops]
   )

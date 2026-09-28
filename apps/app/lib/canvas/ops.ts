@@ -202,6 +202,14 @@ export type CanvasOps = {
     label?: string
   ): { layerId: string; groupId: string }
   /**
+   * Show the Workspace `branchId` in the Iframe Layer with `layerId`, keeping
+   * its route and state. A frame picking a Workspace other than its Group's
+   * becomes an exception (#868); picking the Group's makes it follow again.
+   * The Group's own Workspace moves with it only when the frame is the
+   * Group's one frame, or the Group has none yet.
+   */
+  assignBranch(layerId: string, branchId: string): void
+  /**
    * Navigate the Iframe Layer with `layerId` to `route`: write its new route
    * and, when the route changed, register it on the bound agent's
    * `discoveredRoutes` (deduped). When `cloneTrail` is set (the canvas's Create
@@ -383,6 +391,36 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     }
   }
 
+  // A Group whose Workspace was removed falls back to its leftmost remaining
+  // frame's (see `groupBranchId`) rather than naming a Workspace that's gone.
+  function clearGroupBranches(branchIds: ReadonlySet<string>): void {
+    for (const group of collections.iframeLayerGroups.toArray()) {
+      if (group.branchId && branchIds.has(group.branchId)) {
+        collections.iframeLayerGroups.update(group.id, { branchId: undefined })
+      }
+    }
+  }
+
+  function assignBranch(layerId: string, branchId: string): void {
+    batch(() => {
+      if (!collections.iframeLayers.has(layerId)) return
+      collections.iframeLayers.update(layerId, { branchId })
+      const group = collections.iframeLayerGroups
+        .toArray()
+        .find((g) => getGroupMembers(g).some((m) => m.id === layerId))
+      if (!group) return
+      const frames = getGroupMembers(group).filter(
+        (m) => m.kind === "iframe-layer"
+      )
+      // The Group's Workspace follows its only frame, and an unassigned Group
+      // takes the first Workspace a frame picks. Otherwise the frame becomes
+      // (or stops being) an exception and the Group keeps its own.
+      if (!group.branchId || frames.length === 1) {
+        collections.iframeLayerGroups.update(group.id, { branchId })
+      }
+    })
+  }
+
   function saveViewport(viewport: ViewportData): void {
     batch(() => {
       collections.savedViewport.set(viewport)
@@ -479,6 +517,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         x,
         y,
         members: [{ kind: "iframe-layer", id: layerId }],
+        branchId: agentId,
       })
     })
     return { layerId, groupId }
@@ -519,6 +558,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         x,
         y,
         members: layerIds.map((id) => ({ kind: "iframe-layer", id })),
+        branchId: agentId,
       })
     })
     return { groupId, firstLayerId: layerIds[0]! }
@@ -567,6 +607,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         x,
         y,
         members: layerIds.map((id) => ({ kind: "iframe-layer", id })),
+        // The Group shows its first frame's Workspace; the others are
+        // exceptions that name their own.
+        branchId: frames[0]!.agentId,
       })
     })
     return { groupId, layerIds }
@@ -854,6 +897,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       removeMembersMatching(
         (m) => m.kind === "iframe-layer" && removedLayerIds.has(m.id)
       )
+      clearGroupBranches(new Set([branchId]))
     })
     return { removedChatIds }
   }
@@ -885,6 +929,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       removeMembersMatching(
         (m) => m.kind === "iframe-layer" && removedLayerIds.has(m.id)
       )
+      clearGroupBranches(branchIds)
     })
     return { removedChatIds }
   }
@@ -997,12 +1042,17 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         .map((id) => memberById.get(id))
         .filter((m): m is GroupMember => m !== undefined)
       if (newMembers.length === 0) return
+      const branchId = newMembers
+        .filter((m) => m.kind === "iframe-layer")
+        .map((m) => collections.iframeLayers.get(m.id)?.branchId)
+        .find((id): id is string => !!id)
       collections.iframeLayerGroups.set(newGroupId, {
         id: newGroupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
         x: anchor.x,
         y: anchor.y,
         members: newMembers,
+        ...(branchId ? { branchId } : {}),
       })
       for (const sourceId of touchedSources) pruneIfEmpty(sourceId)
     })
@@ -1023,6 +1073,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     createDocument,
     createBranch,
     seedFrameForAgent,
+    assignBranch,
     navigateRoute,
     addFrameToGroup,
     addDocumentToGroup,

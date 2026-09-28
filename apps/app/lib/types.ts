@@ -244,6 +244,14 @@ export type IframeLayerGroupData = {
   sidebarOrder?: number
   /** Horizontal gap between members in this group. Falls back to IFRAME_LAYER_GROUP_GAP. */
   gap?: number
+  /**
+   * The Workspace (Branch) this Group shows, issue #868. Each frame still
+   * stores its own `branchId`, which stays the source of truth for what it
+   * renders; a frame whose Branch differs from this is an *exception*. Unset on
+   * Groups of Documents only. Read it through `groupBranchId`, which falls back
+   * to the leftmost frame's for Groups that predate it.
+   */
+  branchId?: string
 }
 
 /**

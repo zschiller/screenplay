@@ -2394,6 +2394,24 @@ export const SCREENS: Screen[] = [
     // cold ones to settle on "not ready".
     settleMs: 2500,
   },
+  {
+    name: "canvas-frame-follow-group",
+    description:
+      "An exception frame's Workspace list, opened from the pill on its label: Follow <Group> leads, then the Workspaces for this frame only (#868).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      // "Starting" is on saved-searches; its Group, Progress, is on
+      // search-filters.
+      await page
+        .getByRole("button", { name: "Workspace: saved-searches" })
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .getByPlaceholder("Search workspaces…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 800,
+  },
   ...(
     [
       ["booting", "framesBooting", "Booting"],

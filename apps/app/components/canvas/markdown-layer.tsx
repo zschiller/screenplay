@@ -67,6 +67,7 @@ import {
 } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import type { MarkdownLayerData } from "@/lib/types"
+import type { FrameWorkspace } from "@/components/canvas/frame-nav"
 
 export interface InlineCommentDraft {
   documentId: string
@@ -318,6 +319,8 @@ interface MarkdownLayerProps {
   dragPopped?: boolean
   /** Group display name — only set on the leftmost member of a multi-member group. */
   groupLabel?: string
+  /** The Group's Workspace, named after the group label (#868). */
+  groupWorkspace?: FrameWorkspace
   /** True when the parent group is selected. Drives label color, frame
    *  highlight, and click behavior (clicks are a no-op while the group owns
    *  the selection — same as IframeLayer). */
@@ -397,6 +400,7 @@ export function MarkdownLayer({
   dragTranslateY,
   dragPopped,
   groupLabel,
+  groupWorkspace,
   groupSelected,
   remoteSelectedColor,
   remoteGroupSelectedColor,
@@ -849,6 +853,7 @@ export function MarkdownLayer({
       // caret / selection at the doc's edges.
       resizable={!editing}
       groupLabel={groupLabel}
+      groupWorkspace={groupWorkspace}
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}

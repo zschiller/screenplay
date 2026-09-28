@@ -3,6 +3,10 @@
 import { memo } from "react"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
+import {
+  groupBranchId,
+  isWorkspaceException,
+} from "@/lib/canvas/group-workspace"
 import type {
   IframeLayerLayoutMap,
   PlaceholderRect,
@@ -206,6 +210,22 @@ function CanvasMemberLayerImpl({
         }
         entries.sort((a, b) => a.member.id.localeCompare(b.member.id))
 
+        // Each Group's Workspace (#868), as its label and its frames name it.
+        const framesById = new Map(iframeLayers.map((l) => [l.id, l]))
+        const workspaceOf = (branchId: string | undefined) => {
+          const branch = branchId
+            ? agents.find((a) => a.id === branchId)
+            : undefined
+          return branch?.ref
+            ? {
+                branchId: branch.id,
+                ref: branch.ref,
+                title: branch.title,
+                colorIndex: branch.colorIndex,
+              }
+            : undefined
+        }
+
         return entries.map(({ member, group }) => {
           const members = getGroupMembers(group)
           const index = members.findIndex((m) => m.id === member.id)
@@ -214,6 +234,9 @@ function CanvasMemberLayerImpl({
           const groupLabel = showGroupLabel
             ? groupDisplayNames.get(group.id)
             : undefined
+          const groupBranch = groupBranchId(group, framesById)
+          const groupWorkspace =
+            index === 0 && showGroupLabel ? workspaceOf(groupBranch) : undefined
           // Tint this member's name (and, on the leftmost member,
           // the group label) to match a remote user's selection
           // rect. Skipped when we've selected it locally — our own
@@ -279,6 +302,7 @@ function CanvasMemberLayerImpl({
                 remoteSelectedColor={remoteSelectedColor}
                 remoteGroupSelectedColor={remoteGroupSelectedColor}
                 groupLabel={index === 0 ? groupLabel : undefined}
+                groupWorkspace={groupWorkspace}
                 groupSelected={groupSelected}
                 onSelectGroup={
                   index === 0 && showGroupLabel
@@ -314,8 +338,12 @@ function CanvasMemberLayerImpl({
             )
           }
 
-          const iframeLayer = iframeLayers.find((a) => a.id === member.id)
+          const iframeLayer = framesById.get(member.id)
           if (!iframeLayer) return null
+          // A frame names its Workspace only when it differs from its
+          // Group's, or when there's no group label to name it (#868).
+          const exception = isWorkspaceException(iframeLayer, groupBranch)
+          const groupFollowed = exception ? workspaceOf(groupBranch) : undefined
           const agentInfo = iframeLayer.branchId
             ? agentDomains[iframeLayer.branchId]
             : undefined
@@ -422,6 +450,16 @@ function CanvasMemberLayerImpl({
               remoteSelectedColor={remoteSelectedColor}
               remoteGroupSelectedColor={remoteGroupSelectedColor}
               groupLabel={index === 0 ? groupLabel : undefined}
+              groupWorkspace={groupWorkspace}
+              showWorkspace={!showGroupLabel || exception}
+              followGroup={
+                groupFollowed
+                  ? {
+                      name: groupDisplayNames.get(group.id) ?? "Group",
+                      workspace: groupFollowed,
+                    }
+                  : undefined
+              }
               groupSelected={groupSelected}
               onSelectGroup={
                 index === 0 && showGroupLabel

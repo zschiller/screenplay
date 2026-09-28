@@ -16,19 +16,22 @@ A canvas has three regions:
 - **Agent panel** (<kbd>⌘</kbd> <kbd>I</kbd>): chat and terminals for the
   selected workspace or document.
 
-<Screenshot name="hero" alt="The canvas with the sidebar on the left, frames in the middle and the agent panel on the right" />
+<Screenshot
+  name="hero"
+  alt="The canvas with the sidebar on the left, frames in the middle and the agent panel on the right"
+/>
 
-<kbd>⌘</kbd> <kbd>.</kbd> hides both panels at once, or brings them back.
-Drag a panel's edge to resize it; the layout is remembered.
+<kbd>⌘</kbd> <kbd>.</kbd> hides both panels at once, or brings them back. Drag a
+panel's edge to resize it; the layout is remembered.
 
 ## Moving around
 
-| Action | How |
-| --- | --- |
-| Pan | Scroll or trackpad-swipe, or hold <kbd>Space</kbd> and drag |
-| Zoom | <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, or pinch; <kbd>⌘</kbd> <kbd>=</kbd> and <kbd>⌘</kbd> <kbd>-</kbd> |
-| Zoom to 100% / to fit | <kbd>⌘</kbd> <kbd>0</kbd> / <kbd>⇧</kbd> <kbd>1</kbd> |
-| Jump to a layer | Double-click it in the sidebar's **Canvas** list |
+| Action                | How                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| Pan                   | Scroll or trackpad-swipe, or hold <kbd>Space</kbd> and drag                                              |
+| Zoom                  | <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, or pinch; <kbd>⌘</kbd> <kbd>=</kbd> and <kbd>⌘</kbd> <kbd>-</kbd> |
+| Zoom to 100% / to fit | <kbd>⌘</kbd> <kbd>0</kbd> / <kbd>⇧</kbd> <kbd>1</kbd>                                                    |
+| Jump to a layer       | Double-click it in the sidebar's **Canvas** list                                                         |
 
 The zoom percentage at the top right opens the zoom menu: **Zoom in**,
 **Zoom out**, **Zoom to fit**, **Zoom to 50%**, **Zoom to 100%**, **Zoom to
@@ -53,17 +56,20 @@ comment count, who else is here, and **Share**. See [Sharing & collaboration](/g
 The toolbar at the bottom holds the drawing tools. Exactly one is active at a
 time. Pressing a tool's key again returns to **Select**.
 
-| Tool | Key | Use |
-| --- | --- | --- |
-| **Select** | <kbd>V</kbd> | Select, move and resize layers |
-| **Frame** | <kbd>F</kbd> | Click to drop a 1280×800 frame, or drag to draw one |
-| **Document** | <kbd>D</kbd> | Click to drop a document, or drag to draw one |
-| **Comment** | <kbd>C</kbd> | *Hosted only.* Pin a comment to an element or text |
+| Tool         | Key          | Use                                                 |
+| ------------ | ------------ | --------------------------------------------------- |
+| **Select**   | <kbd>V</kbd> | Select, move and resize layers                      |
+| **Frame**    | <kbd>F</kbd> | Click to drop a 1280×800 frame, or drag to draw one |
+| **Document** | <kbd>D</kbd> | Click to drop a document, or drag to draw one       |
+| **Comment**  | <kbd>C</kbd> | _Hosted only._ Pin a comment to an element or text  |
 
 While the Frame or Document tool is active, every group shows a dashed
 **+** slot at its end. Click it to add the new layer to that group.
 
-<Screenshot name="frame-tool" alt="The Frame tool is active in the bottom toolbar" />
+<Screenshot
+  name="frame-tool"
+  alt="The Frame tool is active in the bottom toolbar"
+/>
 
 ## Selecting
 
@@ -96,10 +102,20 @@ such as a page's desktop and mobile versions or the steps of a signup flow.
 
 A group disappears when its last member is removed.
 
+### A group's workspace
+
+Each group shows one workspace, named by the pill after the group's name. Its
+frames leave the workspace off their own titles. A frame switched to a
+different workspace is an exception: its title ends with its own workspace
+pill, so you can see at a glance which screens differ. A group with a single
+frame has no group label, so that frame's title shows the pill instead.
+
 ## The layers list
 
 The sidebar's **Canvas** section mirrors the canvas. Groups with several
-members appear as folders. Each frame shows its workspace badge and route.
+members appear as folders, and a group's row ends with its workspace pill.
+Frame rows show just their names, except exceptions and single-frame groups,
+which end with their workspace pill.
 
 - Click to select; <kbd>Shift</kbd>-click to add to the selection.
 - Double-click to zoom to it.
