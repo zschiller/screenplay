@@ -53,6 +53,7 @@ export function RepoAddSettings({
   showEnvField,
   onConfirm,
   onCancel,
+  cancelLabel = "Cancel",
 }: {
   /**
    * Runs deterministic detection for the pick, or absent when no filesystem
@@ -67,6 +68,8 @@ export function RepoAddSettings({
     options: { savePreset: boolean }
   ) => void
   onCancel: () => void
+  /** "Back" when there is a previous screen to return to (#781). */
+  cancelLabel?: string
 }) {
   // The three detectable fields live in one object so a detection fill can be
   // applied inside a single `setState` updater — against the live values, so it
@@ -205,7 +208,7 @@ export function RepoAddSettings({
   ])
 
   return (
-    <div className="flex flex-col gap-4 p-4 pt-0">
+    <div className="flex flex-col gap-4 px-5 pt-2 pb-5">
       {status !== "idle" && status !== "done" && (
         <div className="flex min-h-5 items-center gap-2 text-xs text-muted-foreground">
           {status === "detecting" ? (
@@ -229,7 +232,7 @@ export function RepoAddSettings({
           )}
         </div>
       )}
-      <div className="-mx-4 flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-4">
+      <div className="-mx-5 flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-5">
         <RepoSettingsFields
           idPrefix="repo-add"
           section="essential"
@@ -296,7 +299,7 @@ export function RepoAddSettings({
         </Label>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
+            {cancelLabel}
           </Button>
           <Button size="sm" onClick={handleConfirm} disabled={!portIsValid}>
             Add project

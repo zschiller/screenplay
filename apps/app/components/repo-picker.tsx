@@ -55,6 +55,10 @@ export function RepoPicker({
 }: RepoPickerProps) {
   const [repos, setRepos] = useState<GitHubRepo[]>(() => cachedRepos ?? [])
   const [loading, setLoading] = useState(cachedRepos === null)
+  // The list failed to load (GitHub or the server errored), as opposed to
+  // loading fine and being empty. Try again bumps `attempt` to reload.
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState<GitHubLocalStatus | null>(null)
   // The single search box doubles as a paste-a-URL field: `search` drives both
   // the repo filter and the "Add <url>" row. There is no separate URL screen.
@@ -90,21 +94,34 @@ export function RepoPicker({
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const data = await listUserRepos()
-      if (cancelled) return
-      cachedRepos = data
-      setRepos(data)
-      setLoading(false)
+      try {
+        const data = await listUserRepos()
+        if (cancelled) return
+        cachedRepos = data
+        setRepos(data)
+      } catch {
+        if (!cancelled) setLoadFailed(true)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     })()
     if (localSources) {
-      getGitHubLocalStatus().then((s) => {
-        if (!cancelled) setStatus(s)
-      })
+      getGitHubLocalStatus()
+        .then((s) => {
+          if (!cancelled) setStatus(s)
+        })
+        .catch(() => {})
     }
     return () => {
       cancelled = true
     }
-  }, [localSources])
+  }, [localSources, attempt])
+
+  const retry = () => {
+    setLoadFailed(false)
+    setLoading(true)
+    setAttempt((n) => n + 1)
+  }
 
   const configsByRepo = new Map<string, RepoConfig[]>()
   for (const c of configs ?? []) {
@@ -129,6 +146,7 @@ export function RepoPicker({
   const showConnectHint =
     localSources &&
     !loading &&
+    !loadFailed &&
     repos.length === 0 &&
     status?.tokenSource === null
 
@@ -189,25 +207,22 @@ export function RepoPicker({
               </CommandGroup>
             )}
 
-            <CommandEmpty>
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 py-4">
-                  <Spinner className="size-4 text-muted-foreground" />
+            {/* Only once the list has loaded: while loading, or after a
+                failed load, the block below says why there is nothing. */}
+            {!loading && !loadFailed && (
+              <CommandEmpty>
+                {showConnectHint ? (
                   <span className="text-sm text-muted-foreground">
-                    Loading GitHub repositories…
+                    Connect GitHub to browse your repositories, or paste a clone
+                    URL above or add a local folder below.
                   </span>
-                </div>
-              ) : showConnectHint ? (
-                <span className="text-sm text-muted-foreground">
-                  Connect GitHub to browse your repositories, or paste a clone
-                  URL above or add a local folder below.
-                </span>
-              ) : (
-                "No GitHub repositories found."
-              )}
-            </CommandEmpty>
+                ) : (
+                  "No GitHub repositories found."
+                )}
+              </CommandEmpty>
+            )}
 
-            {!loading && showGroups && (
+            {!loading && !loadFailed && showGroups && (
               <CommandGroup heading="Project presets">
                 {sortedConfigs.map((config) => {
                   const repo = reposByFullName.get(config.repoFullName)
@@ -221,7 +236,9 @@ export function RepoPicker({
                       {isPrivate ? <FolderLock /> : <Folder />}
                       <span className="truncate">
                         {config.repoFullName}
-                        {config.name ? (
+                        {/* The preset's name only when it says something the
+                            repo name doesn't (#781). */}
+                        {config.name && config.name !== config.repoName ? (
                           <span className="text-muted-foreground">
                             {" "}
                             · {config.name}
@@ -234,21 +251,50 @@ export function RepoPicker({
               </CommandGroup>
             )}
 
-            {!loading && (
-              <CommandGroup
-                heading={showGroups ? "Other GitHub repositories" : undefined}
-              >
-                {(showGroups ? otherRepos : repos).map((repo) => (
-                  <CommandItem
-                    key={repo.id}
-                    value={repo.fullName}
-                    onSelect={() => onSelect({ kind: "repo", repo })}
-                  >
-                    {repo.private ? <FolderLock /> : <Folder />}
-                    <span className="truncate">{repo.fullName}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+            {loading || loadFailed ? (
+              // Centred at the height the original loading line had
+              // (CommandEmpty's py-6 around a py-4 row). A plain block rather
+              // than CommandEmpty so it stays up whatever the search (#781).
+              loading ? (
+                <div
+                  role="status"
+                  className="flex items-center justify-center gap-2 py-10"
+                >
+                  <Spinner className="size-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Loading GitHub repositories…
+                  </span>
+                </div>
+              ) : (
+                <div
+                  role="alert"
+                  className="flex flex-col items-center gap-3 py-8"
+                >
+                  <span className="text-sm text-muted-foreground">
+                    Couldn&apos;t load your GitHub repositories.
+                  </span>
+                  <Button variant="outline" size="sm" onClick={retry}>
+                    Try again
+                  </Button>
+                </div>
+              )
+            ) : (
+              (showGroups ? otherRepos : repos).length > 0 && (
+                <CommandGroup
+                  heading={showGroups ? "GitHub repositories" : undefined}
+                >
+                  {(showGroups ? otherRepos : repos).map((repo) => (
+                    <CommandItem
+                      key={repo.id}
+                      value={repo.fullName}
+                      onSelect={() => onSelect({ kind: "repo", repo })}
+                    >
+                      {repo.private ? <FolderLock /> : <Folder />}
+                      <span className="truncate">{repo.fullName}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )
             )}
           </CommandList>
         </div>
@@ -259,7 +305,10 @@ export function RepoPicker({
           deliberately not gated on `deviceFlowConfigured`, since the primary
           `gh` path in Settings needs no client id. */}
       {localSources && status?.tokenSource === null && (
-        <div className="flex flex-col gap-1 border-t p-1">
+        <div
+          data-slot="repo-picker-footer"
+          className="flex flex-col gap-1 border-t p-1"
+        >
           <Button
             asChild
             variant="ghost"

@@ -68,6 +68,10 @@ export function RepoConfigForm({
   // Desktop folder-path fallback when the native directory dialog is
   // unreachable (story 27) — mirrors the in-Room add flow (#604).
   const [folderMode, setFolderMode] = useState(false)
+  // A folder the native dialog picked but couldn't use, kept for the form.
+  const [folderError, setFolderError] = useState<
+    { path: string; error: string } | undefined
+  >(undefined)
   const [name, setName] = useState(initial?.name ?? "")
   const [setupScript, setSetupScript] = useState(initial?.setupScript ?? "")
   const [devScript, setDevScript] = useState(initial?.devScript ?? "")
@@ -161,7 +165,13 @@ export function RepoConfigForm({
   const openFolder = async () => {
     const result = await chooseLocalFolder()
     if (result.kind === "source") applySource(result.source)
-    else if (result.kind === "fallback") setFolderMode(true)
+    else if (result.kind === "error") {
+      setFolderError({ path: result.path, error: result.error })
+      setFolderMode(true)
+    } else if (result.kind === "fallback") {
+      setFolderError(undefined)
+      setFolderMode(true)
+    }
   }
 
   if (!repo) {
@@ -174,6 +184,7 @@ export function RepoConfigForm({
           {folderMode ? (
             <div className="rounded-lg border">
               <LocalFolderForm
+                initial={folderError}
                 onBack={() => setFolderMode(false)}
                 onResolved={applySource}
               />
