@@ -1,7 +1,14 @@
+import { fileURLToPath } from "node:url"
 import { sql } from "drizzle-orm"
 
 import { createPgliteDb } from "@/lib/db/pglite"
 import type { DB } from "@/lib/db"
+
+/** The hosted migration history (`drizzle/`), for tests of the multi-user
+ *  surface. The default set is the local build's `drizzle/local`. */
+export const HOSTED_MIGRATIONS = fileURLToPath(
+  new URL("../drizzle", import.meta.url)
+)
 
 type GlobalWithDb = typeof globalThis & {
   __screenplayDbHandle?: { db: DB; ready: Promise<void> }
@@ -55,7 +62,10 @@ export async function truncateAllTables(db: DB): Promise<void> {
  *
  * `reset()` truncates every table between tests: the cheap equivalent of the
  * old per-test reboot, restoring a clean slate in milliseconds rather than
- * paying the ~2s migration boot each time. Wire it up as:
+ * paying the ~2s migration boot each time. Pass `migrationsFolder` (e.g.
+ * {@link HOSTED_MIGRATIONS}) to boot the hosted schema, with `room_member` and
+ * the rest of the multi-user surface, instead of the local build's. Wire it up
+ * as:
  *
  * ```ts
  * let harness: SharedPgliteDb
@@ -64,8 +74,10 @@ export async function truncateAllTables(db: DB): Promise<void> {
  * beforeEach(() => harness.reset())
  * ```
  */
-export async function setupSharedPgliteDb(): Promise<SharedPgliteDb> {
-  const handle = createPgliteDb("memory://")
+export async function setupSharedPgliteDb(
+  options: { migrationsFolder?: string } = {}
+): Promise<SharedPgliteDb> {
+  const handle = createPgliteDb("memory://", options)
   await handle.ready
 
   const globalForDb = globalThis as GlobalWithDb
