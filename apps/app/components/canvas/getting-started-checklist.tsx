@@ -28,8 +28,9 @@ const STEPS: { key: GettingStartedStep; title: string }[] = [
  *
  * Centred in place of the empty-canvas guidance while the Canvas is empty.
  * Adding a Project starts its first Workspace and lands its frame, so from then
- * on the checklist sits in the Canvas's bottom-left corner, out of the frame's
- * way (inset like the rest of the canvas chrome), until the preview runs. Dismiss closes it for good.
+ * on the checklist sits in the Canvas's bottom-left corner, inset like the rest
+ * of the canvas chrome and out of the frame's way. It stays, all ticked, until
+ * it's dismissed.
  */
 export function GettingStartedChecklist({
   progress,
@@ -79,7 +80,7 @@ export function GettingStartedChecklist({
           </div>
           <IconButton
             label="Dismiss"
-            className="-mt-0.5 -mr-1"
+            className="-mt-0.5 -mr-1.5"
             onClick={onDismiss}
           >
             <X />
@@ -123,14 +124,6 @@ export function GettingStartedChecklist({
             )
           })}
         </ol>
-
-        {!progress.current && (
-          <div className="flex justify-end">
-            <Button type="button" size="sm" onClick={onDismiss}>
-              Done
-            </Button>
-          </div>
-        )}
       </section>
     </div>
   )
