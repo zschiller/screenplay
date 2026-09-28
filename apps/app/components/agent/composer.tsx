@@ -49,6 +49,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { IconButton, Shortcut } from "@workspace/ui/components/icon-button"
 import {
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
@@ -59,7 +60,7 @@ import {
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 import type { ModelInfo } from "@/lib/models-store"
-import { groupModelsByProvider } from "@/lib/model-selection"
+import { groupModelsByProvider, modelDisplayLabel } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
@@ -323,6 +324,11 @@ export interface ComposerProps {
   modelsLoaded?: boolean
   /** The currently-selected model id (already resolved by the caller). */
   model: string
+  /**
+   * The user's default model (Settings). When given and {@link model} differs,
+   * the picker says the chat is off the default.
+   */
+  defaultModel?: string
   /** Called when the user picks a different model from the dropdown. */
   onModelChange: (model: string) => void
   /**
@@ -428,6 +434,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       models,
       modelsLoaded = false,
       model,
+      defaultModel,
       onModelChange,
       modelLocked = false,
       planMode,
@@ -779,18 +786,41 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       () => ({
         insertText: (text: string) => {
           if (!editor) return
-          const prefix = editor.isEmpty ? "" : "\n\n"
-          editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+          if (!text.includes("\n")) {
+            const prefix = editor.isEmpty ? "" : "\n\n"
+            editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+            return
+          }
+          // A plain string's newlines collapse to spaces, so multi-line text
+          // (a quoted plan) goes in as one paragraph per line. The leading
+          // empty paragraph starts it on its own line after an existing draft.
+          const lines = text
+            .split("\n")
+            .map((line) =>
+              line
+                ? { type: "paragraph", content: [{ type: "text", text: line }] }
+                : { type: "paragraph" }
+            )
+          editor
+            .chain()
+            .focus("end")
+            .insertContent(
+              editor.isEmpty ? lines : [{ type: "paragraph" }, ...lines]
+            )
+            .run()
         },
         focus: () => editor?.chain().focus("end").run(),
       }),
       [editor]
     )
 
-    const currentModel = models.find((m) => m.id === model) ?? {
-      id: model,
-      label: model || "Loading…",
-    }
+    const currentModel = models.find((m) => m.id === model)
+    const currentModelLabel = currentModel
+      ? modelDisplayLabel(currentModel)
+      : model || "Loading…"
+    const defaultModelInfo = models.find((m) => m.id === defaultModel)
+    const offDefault =
+      !!currentModel && !!defaultModelInfo && model !== defaultModel
 
     const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
@@ -807,21 +837,37 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               </span>
             ) : (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <InputGroupButton
-                    size="xs"
-                    className="-ml-1 text-xs"
-                    disabled={modelLocked}
-                    title={
-                      modelLocked
-                        ? "Model is locked to this session"
-                        : "Change model"
-                    }
-                  >
-                    {currentModel.label}
-                    <ChevronDown />
-                  </InputGroupButton>
-                </DropdownMenuTrigger>
+                <TooltipProvider>
+                  <Tooltip>
+                    {/* The span carries the tooltip: a locked (disabled)
+                        picker emits no pointer events, and the lock is exactly
+                        what needs explaining. */}
+                    <TooltipTrigger asChild>
+                      <span className="-ml-1 inline-flex">
+                        <DropdownMenuTrigger asChild>
+                          <InputGroupButton
+                            size="xs"
+                            className="text-xs"
+                            disabled={modelLocked}
+                          >
+                            {currentModelLabel}
+                            {offDefault && (
+                              <span className="font-normal text-muted-foreground">
+                                · not default
+                              </span>
+                            )}
+                            <ChevronDown />
+                          </InputGroupButton>
+                        </DropdownMenuTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {modelLocked
+                        ? "A chat keeps the model it started with. Start a new chat to switch."
+                        : "Change model"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <DropdownMenuContent align="start">
                   {models.length === 0 ? (
                     <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
@@ -838,6 +884,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                             onSelect={() => onModelChange(m.id)}
                           >
                             <span className="flex-1">{m.label}</span>
+                            {m.id === defaultModel && (
+                              <span className="text-xs text-muted-foreground">
+                                Default
+                              </span>
+                            )}
                             {m.id === model && <Check className="size-3.5" />}
                           </DropdownMenuItem>
                         ))}
@@ -848,70 +899,98 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               </DropdownMenu>
             )}
             {onPlanModeChange && (
-              <InputGroupButton
-                size="xs"
-                variant={planMode ? "default" : "ghost"}
-                onClick={() => onPlanModeChange(!planMode)}
-                title={planMode ? "Plan mode enabled" : "Enable plan mode"}
-                className="text-xs"
-              >
-                <ClipboardList />
-                Plan
-              </InputGroupButton>
-            )}
-            {onPickElement && (
               <TooltipProvider>
                 <Tooltip>
-                  {/* Wrap the trigger in a span: a disabled button emits no
-                      pointer events, so Radix couldn't surface the "open the
-                      preview first" explanation without a live element to hover. */}
                   <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <InputGroupButton
-                        size="icon-xs"
-                        variant="ghost"
-                        onClick={triggerPick}
-                        disabled={noAgents || !targetEligible}
-                      >
-                        <Crosshair />
-                      </InputGroupButton>
-                    </span>
+                    <InputGroupButton
+                      size="xs"
+                      variant={planMode ? "default" : "ghost"}
+                      onClick={() => onPlanModeChange(!planMode)}
+                      aria-pressed={!!planMode}
+                      className="text-xs"
+                    >
+                      <ClipboardList />
+                      Plan
+                    </InputGroupButton>
                   </TooltipTrigger>
                   <TooltipContent side="top">
-                    {targetEligible
-                      ? "Target an element (⌘E)"
-                      : "Open this workspace's preview first to target an element"}
+                    {planMode ? "Plan mode enabled" : "Enable plan mode"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
-            {hideSend ? null : isStreaming && onStop ? (
-              <InputGroupButton
-                size="icon-xs"
-                variant="secondary"
-                onClick={onStop}
-                title="Stop"
-                className="ml-auto"
-              >
-                <Square fill="currentColor" />
-              </InputGroupButton>
-            ) : (
-              <InputGroupButton
-                size="icon-xs"
-                variant={
-                  (hasContent || allowEmptySubmit) && !noAgents
-                    ? "default"
-                    : "ghost"
+            {onPickElement && (
+              <IconButton
+                label="Target an element"
+                shortcut="⌘E"
+                hint={
+                  targetEligible
+                    ? undefined
+                    : "Open this workspace's preview first"
                 }
-                onClick={handleSubmit}
-                disabled={
-                  (!hasContent && !allowEmptySubmit) || isStreaming || noAgents
-                }
-                title={noAgents ? "No coding agent detected" : "Send"}
-                className="ml-auto"
+                asChild
+                disabled={noAgents || !targetEligible}
               >
-                <ArrowUp />
-              </InputGroupButton>
+                <InputGroupButton
+                  size="icon-xs"
+                  variant="ghost"
+                  onClick={triggerPick}
+                >
+                  <Crosshair />
+                </InputGroupButton>
+              </IconButton>
+            )}
+            {hideSend ? null : (
+              <span className="ml-auto inline-flex">
+                {isStreaming && onStop ? (
+                  <IconButton label="Stop" asChild>
+                    <InputGroupButton
+                      size="icon-xs"
+                      variant="secondary"
+                      onClick={onStop}
+                    >
+                      <Square fill="currentColor" />
+                    </InputGroupButton>
+                  </IconButton>
+                ) : (
+                  <IconButton
+                    label="Send"
+                    shortcut={submitMode === "enter" ? "↵" : "⌘↵"}
+                    hint={
+                      noAgents ? (
+                        "No coding agent detected"
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          New line
+                          <Shortcut
+                            keys={
+                              submitMode === "enter" || onEnter ? "⇧↵" : "↵"
+                            }
+                          />
+                        </span>
+                      )
+                    }
+                    asChild
+                    disabled={
+                      (!hasContent && !allowEmptySubmit) ||
+                      isStreaming ||
+                      noAgents
+                    }
+                  >
+                    <InputGroupButton
+                      size="icon-xs"
+                      variant={
+                        (hasContent || allowEmptySubmit) && !noAgents
+                          ? "default"
+                          : "ghost"
+                      }
+                      onClick={handleSubmit}
+                    >
+                      <ArrowUp />
+                    </InputGroupButton>
+                  </IconButton>
+                )}
+              </span>
             )}
           </InputGroupAddon>
         </InputGroup>
