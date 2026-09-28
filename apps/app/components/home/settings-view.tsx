@@ -11,10 +11,7 @@ import {
   AvatarImage,
 } from "@workspace/ui/components/avatar"
 import { Button, buttonVariants } from "@workspace/ui/components/button"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
+import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
 import { signOut, useAppSession } from "@/lib/auth-client"
 import { getTauriInvoke } from "@/lib/desktop/tauri-bridge"
@@ -184,27 +181,16 @@ function ThemeToggle() {
   return (
     <div className="flex items-center gap-3">
       <span className="w-28 shrink-0 text-sm">Theme</span>
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        aria-label="Theme"
-        value={mounted ? (theme ?? "") : ""}
-        // Radix clears the value when the pressed item is clicked again; a
-        // theme is always set, so ignore that.
-        onValueChange={(value) => value && setTheme(value)}
-      >
-        {THEMES.map(({ value, label, icon: Icon }) => (
-          <ToggleGroupItem
-            key={value}
-            value={value}
-            className="text-muted-foreground"
-          >
-            <Icon />
-            {label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      <Tabs value={mounted ? (theme ?? "") : ""} onValueChange={setTheme}>
+        <TabsList aria-label="Theme">
+          {THEMES.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger key={value} value={value}>
+              <Icon />
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
     </div>
   )
 }
