@@ -52,7 +52,9 @@ export function HomeSearchField({
     <InputGroup
       data-search-open={open}
       className={cn(
-        "@3xl/header:w-60",
+        // A field holds focus the whole time you type, so it keeps the
+        // focused border but drops the halo the header's buttons flash.
+        "has-[[data-slot=input-group-control]:focus-visible]:ring-0 @3xl/header:w-60",
         open ? "@max-3xl/header:flex-1" : "@max-3xl/header:w-8"
       )}
     >

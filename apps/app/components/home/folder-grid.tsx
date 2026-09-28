@@ -31,7 +31,7 @@ function FolderTileFace({
 }: {
   folder: FolderSummary
   menu: React.ReactNode
-  /** A search result's folder trail, under the name (#807). */
+  /** A search result's folder trail, after the name (#807). */
   location?: React.ReactNode
 }) {
   const name = (
@@ -45,13 +45,10 @@ function FolderTileFace({
   )
   return (
     <>
-      {location ? (
-        <div className="min-w-0 flex-1">
-          {name}
-          <div className="mt-0.5 pl-6 text-xs">{location}</div>
-        </div>
-      ) : (
-        name
+      {name}
+      {/* On the tile's one line, so a result keeps the plain tile's height. */}
+      {location && (
+        <div className="max-w-[50%] min-w-0 shrink text-xs">{location}</div>
       )}
       {menu}
     </>
