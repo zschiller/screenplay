@@ -196,6 +196,7 @@ export function toolKindFor(toolName: string): ToolKind {
   switch (toolName) {
     case "read_file":
     case "read_document":
+    case "read_canvas":
     case "read_skill":
     case "list_files":
       return "read"

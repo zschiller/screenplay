@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   agentChatTarget,
   markdownLayerChatTarget,
+  roomChatTarget,
   type ChatTargetSpec,
 } from "@/lib/agent/chat-target-kinds"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
@@ -45,6 +46,16 @@ describe("decorateUserMessage — per target kind", () => {
     expect(out).not.toContain(PLAN_MODE_MARKER)
   })
 
+  it("leaves a Room Target chat's message undecorated", () => {
+    const out = decorate(roomChatTarget.decorateUserMessage, {
+      planMode: true,
+      branch: "feat/x",
+      isFirstMessage: true,
+    })
+
+    expect(out).toBe(MESSAGE)
+  })
+
   it("doesn't leak the branch marker into a document chat's first message", () => {
     const out = decorate(markdownLayerChatTarget.decorateUserMessage, {
       branch: "feat/x",
@@ -52,5 +63,41 @@ describe("decorateUserMessage — per target kind", () => {
     })
 
     expect(out).toBe(MESSAGE)
+  })
+})
+
+/**
+ * The `room` kind (the Coordinator): the whole canvas as context and the
+ * Coordinator tools module as its tool set, with no sandbox or document tools.
+ */
+describe("room chat target", () => {
+  it("is its own kind", () => {
+    expect(roomChatTarget.kind).toBe("room")
+  })
+
+  it("bakes the canvas summary into its system prompt", () => {
+    const prompt = roomChatTarget.buildSystemPrompt(
+      { canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"' },
+      {}
+    )
+
+    expect(prompt).toContain("Coordinator")
+    expect(prompt).toContain('- [doc-1] "Launch spec"')
+    expect(prompt).toContain("read_canvas")
+  })
+
+  it("runs with the canvas reader and the shared document reader only", () => {
+    const room = {
+      roomId: "room-1",
+      readDoc: async () => {
+        throw new Error("not read while building tools")
+      },
+      mutateDoc: async () => {
+        throw new Error("not written while building tools")
+      },
+    }
+    const tools = roomChatTarget.buildTools(room, { userId: "user-1" })
+
+    expect(Object.keys(tools).sort()).toEqual(["read_canvas", "read_document"])
   })
 })

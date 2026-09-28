@@ -8,16 +8,33 @@ import { Callout } from "nextra/components"
 # Agent chat
 
 The agent panel on the right (<kbd>⌘</kbd> <kbd>I</kbd>) is where you work
-with the agent. It always targets one workspace or one document. In a
-workspace chat, everything it does happens inside that workspace's sandbox.
+with the agent. With nothing selected it shows the canvas's
+[Coordinator](#the-coordinator). Pick a workspace or a document and it chats
+with that instead. In a workspace chat, everything the agent does happens
+inside that workspace's sandbox.
 
 <Screenshot name="hero" alt="The agent panel: a finished turn with tool calls and a summary, next to the updated previews" />
 
+## The Coordinator
+
+The **Coordinator** is one chat for the whole canvas. It's where the panel
+opens, and every canvas has exactly one, shared by everyone on it. It can see
+every workspace (its title, status, changed lines and pull request), every
+frame and document, and your terminal tabs, so you can ask things like
+"What's on this canvas?" or "Which workspaces have a PR?" without opening
+each one. It reads documents too, including ones you @ mention.
+
+<Screenshot name="coordinator" alt="The Coordinator chat, the panel's home when no workspace is selected" />
+
+The Coordinator never works inside a sandbox, and for now it only reads the
+canvas: to change code, open a workspace and ask its agent.
+
 ## Choosing a target
 
-The pill at the top of the panel shows the current **target**. Click it to
-switch to any running workspace (**Workspaces**) or document (**Documents**).
-Clicking a workspace in the sidebar does the same thing. When you switch back
+Click a workspace in the sidebar to open its chat. The header then reads
+**Coordinator / _workspace_**: click **Coordinator** to go back. The pill
+after it shows the current **target**. Click it to switch to any running
+workspace (**Workspaces**) or document (**Documents**). When you switch back
 to a target, the panel reopens the chat you last used there.
 
 The header also shows the workspace's **+/−** diff and a **Create PR** button

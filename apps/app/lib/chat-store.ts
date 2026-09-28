@@ -52,6 +52,8 @@ export interface SendMessageOptions {
   sandboxName?: string
   /** Document-layer chat target — mutually exclusive with sandboxName. */
   markdownLayerId?: string
+  /** The Room's Coordinator chat (no sandbox, no document). */
+  roomTarget?: boolean
   message: string
   isFirstChat?: boolean
   planMode?: boolean
@@ -343,6 +345,7 @@ class ChatStore {
           chatId: opts.chatId,
           sandboxName: opts.sandboxName,
           markdownLayerId: opts.markdownLayerId,
+          target: opts.roomTarget ? "room" : undefined,
           message: opts.message,
           isFirstChat: opts.isFirstChat,
           planMode: opts.planMode,

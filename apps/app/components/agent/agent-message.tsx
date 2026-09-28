@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react"
 import { type Components } from "react-markdown"
 import {
   FileText,
+  LayoutGrid,
   Terminal,
   Pencil,
   FolderOpen,
@@ -69,6 +70,7 @@ const toolIcons: Record<string, typeof FileText> = {
   create_pr: GitPullRequest,
   read_skill: Sparkles,
   read_document: FileText,
+  read_canvas: LayoutGrid,
   replace_document_body: SquarePen,
   append_to_document_body: SquarePen,
   set_document_title: PencilLine,
@@ -84,6 +86,7 @@ const toolLabels: Record<string, string> = {
   read_skill: "Read skill",
   submit_plan: "Submit plan",
   read_document: "Read document",
+  read_canvas: "Read canvas",
   replace_document_body: "Rewrite document",
   append_to_document_body: "Append to document",
   set_document_title: "Set title",
