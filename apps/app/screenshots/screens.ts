@@ -403,6 +403,16 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
+    name: "terminal-tabs-restored",
+    description:
+      "A cold room load with the Workspace's two saved terminal tabs still in its tab strip.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: stubTerminal,
+    prepare: (page) => selectWorkspace(page, "checkout-polish"),
+    settleMs: 600,
+  },
+  {
     name: "logs-reconnecting",
     description:
       "The sandbox logs panel with coloured output, dropped and reconnecting.",
