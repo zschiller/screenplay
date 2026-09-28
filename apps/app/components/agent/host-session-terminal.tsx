@@ -60,13 +60,13 @@ export function HostSessionTerminal({
         className="absolute inset-0 h-full w-full bg-background text-foreground"
       />
       {state.status !== "ready" && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
           {state.status === "loading" ? (
             <span className="flex items-center gap-2">
               <Spinner className="size-4" /> Starting terminal…
             </span>
           ) : (
-            <span>{state.message}</span>
+            <span className="max-w-sm">{state.message}</span>
           )}
         </div>
       )}
