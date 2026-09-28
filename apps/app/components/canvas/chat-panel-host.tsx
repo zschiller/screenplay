@@ -89,6 +89,20 @@ export function ChatPanelHost({
             chatSession={chatSessions.find((c) => c.id === chatId)}
             onModelChange={(id, model) => onUpdateChatSession(id, { model })}
             onCollapse={() => chatPanelRef.current?.collapse()}
+            onOpenWorkspace={({ branchId, chatId: taskChatId }) => {
+              const chat = chatSessions.find(
+                (c) =>
+                  c.id === taskChatId && c.branchId === branchId && !c.closedAt
+              )
+              if (chat) {
+                chatTarget.selectAgentChat(branchId, chat.id, {
+                  clearDocument: true,
+                  remember: true,
+                })
+              } else {
+                chatTarget.selectAgent(branchId, { clearDocument: true })
+              }
+            }}
           />
         )
       }

@@ -4,6 +4,13 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import { inputStore } from "@/lib/input-store"
+import { prependTurnMarkers } from "@/lib/agent/message-markers"
+import { sentToWorkspaceResult } from "@/lib/agent/workspace-task"
+import type { BranchData } from "@/lib/types"
+import {
+  WorkspaceTasksProvider,
+  type WorkspaceTasks,
+} from "./workspace-task-row"
 import {
   AgentMessageItem,
   TaskGroup,
@@ -720,5 +727,135 @@ describe("AgentMessageItem — a Coordinator canvas change (#894)", () => {
     )
     expect(screen.getByTestId("tool-call").textContent).toContain("Remove")
     expect(screen.getByTestId("tool-call").textContent).not.toContain("Error")
+  })
+})
+
+describe("AgentMessageItem — Delegated Message (#896)", () => {
+  const delegated: AgentMessage = {
+    role: "user",
+    content: prependTurnMarkers("Keep the next param.", {
+      delegatedFrom: "room-chat-r1",
+      branch: "fix-sign-in",
+    }),
+  }
+
+  it("collapses to one line that opens to the message", () => {
+    render(<AgentMessageItem message={delegated} />)
+
+    const row = screen.getByRole("button", {
+      name: "Received a message from the Coordinator",
+    })
+    expect(screen.queryByText("Keep the next param.")).toBeNull()
+
+    fireEvent.click(row)
+    expect(screen.getByText("Keep the next param.")).toBeTruthy()
+    // The markers stay out of what the user reads.
+    expect(screen.queryByText(/from coordinator/)).toBeNull()
+  })
+
+  it("leaves a typed message as a bubble", () => {
+    render(<AgentMessageItem message={{ role: "user", content: "Hi" }} />)
+    expect(screen.getByText("Hi")).toBeTruthy()
+    expect(screen.queryByTestId("delegated-message")).toBeNull()
+  })
+})
+
+describe("AgentMessageItem — Workspace task row (#896)", () => {
+  const branch: BranchData = {
+    id: "ws-1",
+    repoId: "repo-1",
+    sandboxName: "sandbox-ws-1",
+    gitUrl: "",
+    ref: "fix-sign-in",
+    title: "Fix sign-in redirect",
+    previewDomain: "",
+    port: 3000,
+    status: "running",
+    createdAt: 0,
+    diffAdditions: 18,
+    diffDeletions: 3,
+  }
+  const sent: AgentMessage = {
+    role: "tool_call",
+    toolCallId: "t1",
+    title: "send_to_workspace",
+    status: "completed",
+    rawInput: { workspace_id: "ws-1", message: "Go" },
+    content: [
+      {
+        type: "content",
+        content: {
+          type: "text",
+          text: sentToWorkspaceResult("Fix sign-in redirect", "chat-1"),
+        },
+      },
+    ],
+  }
+
+  function renderRow(tasks: Partial<WorkspaceTasks> = {}) {
+    const opened: unknown[] = []
+    const value: WorkspaceTasks = {
+      branches: [branch],
+      chatSessions: [],
+      plans: [],
+      onOpen: (task) => opened.push(task),
+      ...tasks,
+    }
+    const view = render(
+      <WorkspaceTasksProvider value={value}>
+        <AgentMessageItem message={sent} />
+      </WorkspaceTasksProvider>
+    )
+    return { opened, view, value }
+  }
+
+  it("shows the Workspace's title, lines and live state, and opens it", () => {
+    const { opened } = renderRow({
+      chatSessions: [
+        {
+          id: "chat-1",
+          branchId: "ws-1",
+          label: "",
+          createdAt: 0,
+          isStreaming: true,
+        },
+      ],
+    })
+    const row = screen.getByTestId("workspace-task")
+    expect(row.textContent).toContain("Fix sign-in redirect")
+    expect(row.textContent).toContain("+18")
+    expect(row.getAttribute("data-state")).toBe("working")
+
+    fireEvent.click(row)
+    expect(opened).toEqual([{ branchId: "ws-1", chatId: "chat-1" }])
+  })
+
+  it("updates in place when the Workspace's turn ends", () => {
+    const { view, value } = renderRow({
+      chatSessions: [
+        {
+          id: "chat-1",
+          branchId: "ws-1",
+          label: "",
+          createdAt: 0,
+          isStreaming: true,
+        },
+      ],
+    })
+    view.rerender(
+      <WorkspaceTasksProvider value={{ ...value, chatSessions: [] }}>
+        <AgentMessageItem message={sent} />
+      </WorkspaceTasksProvider>
+    )
+    expect(
+      screen.getByTestId("workspace-task").getAttribute("data-state")
+    ).toBe("done")
+    expect(screen.getByText("Done")).toBeTruthy()
+  })
+
+  it("stays a tool row outside the Coordinator chat", () => {
+    render(<AgentMessageItem message={sent} />)
+    expect(screen.queryByTestId("workspace-task")).toBeNull()
+    expect(screen.getByTestId("tool-call")).toBeTruthy()
   })
 })

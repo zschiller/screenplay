@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@/lib/agent/types"
 import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
+import { workspaceTaskOf } from "@/lib/agent/workspace-task"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 
@@ -28,6 +29,16 @@ export interface TurnSummary {
 const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
 
 /**
+ * Whether an entry stays on screen in a folded turn: a pinned kind, or a
+ * Coordinator call that names a Workspace, whose task row is the point of the
+ * turn (#896).
+ */
+function isPinned(message: AgentMessage): boolean {
+  if (PINNED_ROLES.has(message.role)) return true
+  return message.role === "tool_call" && workspaceTaskOf(message) !== null
+}
+
+/**
  * Fold each finished turn's steps behind one summary line.
  *
  * A turn is everything after a user message up to the next one. Once it has
@@ -35,7 +46,8 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
  * tool call, its tool calls, reasoning and interim narration fold into a
  * `turn-summary` item. The answer (the turn's last assistant message) stays
  * visible, as do plans, errors and the stopped marker: the summary sits where
- * the turn begins, then those follow in their original order.
+ * the turn begins, then those follow in their original order. Workspace task
+ * rows stay visible too, and a turn whose only calls are task rows stays flat.
  *
  * A turn still streaming renders flat, so a run in progress shows its live
  * steps.
@@ -55,8 +67,11 @@ export function foldFinishedTurns(
   turns.forEach((turn, t) => {
     const live = streaming && t === lastTurn
     const isUserTurn = turn.length === 1 && turn[0].message.role === "user"
-    // Reasoning alone is already one collapsed line; fold only real work.
-    const didWork = turn.some((e) => e.message.role === "tool_call")
+    // Reasoning alone is already one collapsed line, and a task row is the
+    // work's own summary; fold only real work.
+    const didWork = turn.some(
+      (e) => e.message.role === "tool_call" && !isPinned(e.message)
+    )
     if (live || isUserTurn || !didWork) {
       for (const entry of turn) items.push({ kind: "message", entry })
       return
@@ -69,7 +84,7 @@ export function foldFinishedTurns(
     const steps: GroupedMessage[] = []
     const shown: GroupedMessage[] = []
     turn.forEach((e, i) => {
-      if (i === answer || PINNED_ROLES.has(e.message.role)) shown.push(e)
+      if (i === answer || isPinned(e.message)) shown.push(e)
       else steps.push(e)
     })
     items.push({

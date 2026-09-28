@@ -36,6 +36,39 @@ function shape(messages: AgentMessage[], streaming = false): string[] {
 }
 
 describe("foldFinishedTurns (issue #800)", () => {
+  it("keeps Workspace task rows on screen (#896)", () => {
+    const send = (id: string) =>
+      call(id, {
+        title: "send_to_workspace",
+        rawInput: { workspace_id: `ws-${id}`, message: "Go" },
+      })
+    // Only task rows: nothing to fold, the narration stays.
+    expect(
+      shape([
+        user("split it"),
+        assistant("Starting"),
+        send("a"),
+        send("b"),
+        assistant("Sent"),
+      ])
+    ).toEqual([
+      "user",
+      "assistant:Starting",
+      "tool_call",
+      "tool_call",
+      "assistant:Sent",
+    ])
+    // With other work, the rows sit after the summary line.
+    expect(
+      shape([
+        user("split it"),
+        call("r", { title: "read_canvas" }),
+        send("a"),
+        assistant("Sent"),
+      ])
+    ).toEqual(["user", "summary(1)", "tool_call", "assistant:Sent"])
+  })
+
   it("folds a finished turn's steps and narration, keeping the answer", () => {
     const messages = [
       user("fix it"),

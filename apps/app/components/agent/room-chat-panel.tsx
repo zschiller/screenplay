@@ -1,11 +1,14 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { PanelRightClose } from "lucide-react"
 
 import { IconButton } from "@workspace/ui/components/icon-button"
 
 import { AgentChat } from "@/components/agent/agent-chat"
+import { WorkspaceTasksProvider } from "@/components/agent/workspace-task-row"
+import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
+import { useBranches, useChatSessions, usePlans } from "@/lib/yjs/react"
 import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { ensureRoomChatAction } from "@/lib/room-chat-actions"
 import type { ChatSessionData } from "@/lib/types"
@@ -23,14 +26,26 @@ export function RoomChatPanel({
   chatSession,
   onModelChange,
   onCollapse,
+  onOpenWorkspace,
 }: {
   roomId: string
   /** The Room's Coordinator chat record, or undefined until it's created. */
   chatSession: ChatSessionData | undefined
   onModelChange: (chatId: string, model: string) => void
   onCollapse: () => void
+  /** Open a Workspace from its task row, on the chat the message went to. */
+  onOpenWorkspace: (task: WorkspaceTaskRef) => void
 }) {
   const chatId = roomChatId(roomId)
+
+  // Task rows read the Room live, so they update in place as Workspaces work.
+  const branches = useBranches()
+  const chatSessions = useChatSessions()
+  const plans = usePlans()
+  const workspaceTasks = useMemo(
+    () => ({ branches, chatSessions, plans, onOpen: onOpenWorkspace }),
+    [branches, chatSessions, plans, onOpenWorkspace]
+  )
 
   const requestedRef = useRef(false)
   useEffect(() => {
@@ -61,13 +76,15 @@ export function RoomChatPanel({
         <h2 className="text-sm font-medium">{ROOM_CHAT_LABEL}</h2>
       </div>
       <div className="min-h-0 flex-1">
-        <AgentChat
-          chatId={chatId}
-          roomId={roomId}
-          roomTarget
-          model={chatSession?.model}
-          onModelChange={(model) => onModelChange(chatId, model)}
-        />
+        <WorkspaceTasksProvider value={workspaceTasks}>
+          <AgentChat
+            chatId={chatId}
+            roomId={roomId}
+            roomTarget
+            model={chatSession?.model}
+            onModelChange={(model) => onModelChange(chatId, model)}
+          />
+        </WorkspaceTasksProvider>
       </div>
     </div>
   )

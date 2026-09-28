@@ -53,6 +53,37 @@ describe("prependTurnMarkers", () => {
   })
 })
 
+describe("Delegated Message prefix (#896)", () => {
+  it("goes before the plan and branch prefixes", () => {
+    const out = prependTurnMarkers("ship it", {
+      delegatedFrom: "room-chat-r1",
+      planMode: true,
+      branch: "feat/x",
+    })
+    expect(out).toBe(
+      "[from coordinator: room-chat-r1] [plan mode: enabled] [branch: feat/x] ship it"
+    )
+  })
+
+  it("round-trips the sending chat", () => {
+    const parsed = parseUserMessage(
+      prependTurnMarkers("ship it", {
+        delegatedFrom: "room-chat-r1",
+        branch: "feat/x",
+      })
+    )
+    expect(parsed).toMatchObject({
+      delegatedFrom: "room-chat-r1",
+      branch: "feat/x",
+      body: "ship it",
+    })
+  })
+
+  it("is absent from a message the user typed", () => {
+    expect(parseUserMessage("ship it").delegatedFrom).toBeUndefined()
+  })
+})
+
 describe("parseUserMessage", () => {
   it("round-trips plan and branch together", () => {
     const wire = prependTurnMarkers("ship it", {
