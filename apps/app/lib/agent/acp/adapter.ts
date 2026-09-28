@@ -1,5 +1,6 @@
 import type { ModelMessage, SystemModelMessage, TextStreamPart } from "ai"
 import type { Tool } from "ai"
+import { isImageToolOutput } from "../image-output"
 import {
   repairOrphanedAcpToolCalls,
   type AcpMessageRecord,
@@ -197,6 +198,10 @@ export function toolKindFor(toolName: string): ToolKind {
     case "read_file":
     case "read_document":
     case "read_canvas":
+    case "read_workspace_chat":
+    case "read_workspace_diff":
+    case "read_workspace_file":
+    case "view_frame":
     case "read_skill":
     case "list_files":
       return "read"
@@ -218,9 +223,17 @@ export function toolKindFor(toolName: string): ToolKind {
  * engine's tools return strings (or JSON-serialisable values), so this is the
  * text path — a single `content` block. A real ACP agent emits richer blocks
  * (file `diff`, `terminal`) directly, which flow through untouched.
+ *
+ * An image result (`ImageToolOutput`) keeps only its caption: the image went to the
+ * model through the tool's `toModelOutput`, and the transcript never carries
+ * the bytes.
  */
 export function toolOutputToContent(output: unknown): ToolCallContent[] {
-  const text = typeof output === "string" ? output : JSON.stringify(output)
+  const text = isImageToolOutput(output)
+    ? output.caption
+    : typeof output === "string"
+      ? output
+      : JSON.stringify(output)
   return text ? [{ type: "content", content: textBlock(text) }] : []
 }
 

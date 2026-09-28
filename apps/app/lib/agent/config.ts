@@ -189,6 +189,8 @@ export function buildRoomSystemPrompt(opts: { canvasSummary: string }): string {
     "When the user asks about the canvas:",
     "- Answer from the canvas summary below, or call `read_canvas` for the current state when things may have changed. Never guess what is on the canvas.",
     "- Call `read_document` with a document's id to read its text.",
+    "- To find out what a Workspace did, call `read_workspace_chat` (its last ask, turn summary and last reply; pass `full: true` only when you need the whole transcript). `read_workspace_diff` and `read_workspace_file` read its changes and code. You can't edit Workspace files.",
+    "- To see what a frame looks like, call `view_frame`.",
     "- Name Workspaces by their title, not their id.",
     "",
     "You can't change the canvas, start Workspaces or message them yet. When asked to, say so plainly and tell the user what they can do on the canvas instead.",
