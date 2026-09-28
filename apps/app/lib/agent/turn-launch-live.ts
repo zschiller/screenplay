@@ -15,11 +15,12 @@ import {
 import { DEFAULT_MODEL } from "./providers"
 import {
   appendAcpMessage,
+  findActiveRun,
   findPendingPlanForChat,
   loadAcpHistory,
   upsertChat,
 } from "./persistence"
-import { resolvePlan, startRun } from "./run-state"
+import { resolvePlan, startRun, transition } from "./run-state"
 import {
   broadcastAcpUpdate,
   broadcastControl,
@@ -34,7 +35,7 @@ import {
   settleCommentRequest,
   startCommentRequest,
 } from "./comment-request"
-import type { TurnLaunchDeps, TurnTarget } from "./turn-launch"
+import type { TurnLaunchDeps, TurnStopDeps, TurnTarget } from "./turn-launch"
 
 /** Turn Launch over the live database, Room broadcast and `after()`. */
 export const liveTurnLaunchDeps: TurnLaunchDeps = {
@@ -58,6 +59,15 @@ export const liveTurnLaunchDeps: TurnLaunchDeps = {
   settleCommentRequest,
   driveTurn: launchEngineTurn,
   runAfterResponse: (task) => after(task),
+}
+
+/** Stopping a turn over the live database and Room broadcast. */
+export const liveTurnStopDeps: TurnStopDeps = {
+  findActiveRun,
+  transition,
+  broadcastControl,
+  broadcastStreamEnd: (roomId, chatId) =>
+    broadcastSignal(roomId, chatId, "chat-stream-end"),
 }
 
 /**

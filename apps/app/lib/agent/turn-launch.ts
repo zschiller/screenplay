@@ -3,7 +3,7 @@ import type { Engine } from "./acp/engine-seam"
 import type { SessionUpdate } from "./acp/schema"
 import { userMessageChunk } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
-import type { PlanResolution } from "./run-state"
+import type { PlanResolution, RunStatus } from "./run-state"
 
 /**
  * What a Chat Target hands {@link launchTurn} once its kind-specific setup is
@@ -255,4 +255,53 @@ async function resolveChatPlan(
     feedback: request.message,
   })
   return resolved ? { planId: pending.id, approved: false } : null
+}
+
+/**
+ * The run status a user stop records. It is the one outcome that means "the
+ * user halted this with no continuation", distinct from the `superseded` an
+ * approved or rejected plan or a new message records.
+ *
+ * This is the whole decision about how an unfinished run reads in the
+ * transcript, live and on reload: a stopped run ends with a "Stopped" marker
+ * ({@link stopTurn} broadcasts it; the history route rebuilds it from runs with
+ * this status), and a superseded run leaves nothing because the next turn
+ * carries on. Neither is an error, so the Engine reports both as a clean
+ * cancellation and the consumer shows no error bubble.
+ */
+export const STOPPED_RUN_STATUS = "aborted" satisfies RunStatus
+
+/** The side effects {@link stopTurn} orders. */
+export interface TurnStopDeps {
+  findActiveRun(chatId: string): Promise<{ id: string } | null>
+  transition(runId: string, to: RunStatus): Promise<void>
+  broadcastControl(
+    roomId: string,
+    chatId: string,
+    control: ChatControlEvent
+  ): Promise<void>
+  broadcastStreamEnd(roomId: string, chatId: string): Promise<void>
+}
+
+/**
+ * Stop a chat's active turn at the user's request.
+ *
+ * Records the stop on the run first: the abort watchdog in `driveEngineTurn`
+ * polls the run and aborts the Engine once it is no longer active, and the
+ * run-state machine's terminal guard keeps a duplicate stop a no-op. Then marks
+ * the transcript before the stream ends, so clients show the run as stopped
+ * rather than finished. The stream always ends, even with no active run, so the
+ * user's stop never depends on the abort landing this tick.
+ */
+export async function stopTurn(
+  deps: TurnStopDeps,
+  request: { roomId: string; chatId: string }
+): Promise<void> {
+  const { roomId, chatId } = request
+  const active = await deps.findActiveRun(chatId)
+  if (active) {
+    await deps.transition(active.id, STOPPED_RUN_STATUS)
+    await deps.broadcastControl(roomId, chatId, { kind: "stopped" })
+  }
+  await deps.broadcastStreamEnd(roomId, chatId)
 }

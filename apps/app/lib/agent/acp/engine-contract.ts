@@ -337,9 +337,9 @@ export function contractFor(
     // (or a supersession) aborts the in-flight turn and reports the terminal
     // outcome as a **stop**, never a `failed` run. The run lifecycle's watchdog
     // has already moved the run to its terminal stop state (`aborted`/
-    // `superseded`) by the time the abort surfaces, so the consumer's `failed`
-    // transition must no-op and "Stopped by user" must surface — kept distinct
-    // from a genuine error, which *does* record `failed`.
+    // `superseded`) by the time the abort surfaces, so the Engine reports a
+    // clean cancellation: no error, the run keeps its stop status — kept
+    // distinct from a genuine error, which *does* record `failed` (#909).
     it("/stop cancels the in-flight turn and reports a stop, not a failure", async () => {
       const broadcasts: SessionUpdate[] = []
       const errors: string[] = []
@@ -415,8 +415,8 @@ export function contractFor(
       )
 
       // Observable ACP outcome: a stop, not a failure.
-      expect(errors).toEqual(["Stopped by user"])
-      expect(rows.get("run_1")).toBe("aborted") // the `failed` transition no-ops
+      expect(errors).toEqual([]) // a stop is not an error
+      expect(rows.get("run_1")).toBe("aborted")
       expect(records).toEqual([]) // nothing durable persisted on a stop
       expect(ended).toBe(true)
     })

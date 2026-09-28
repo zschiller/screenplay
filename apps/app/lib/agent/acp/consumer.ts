@@ -228,16 +228,14 @@ export class AcpUpdateConsumer {
     if (this.closed) return
     this.closed = true
 
-    // A clean ACP cancellation (a `/stop` or a supersession answered by the
-    // agent resolving the turn with `stopReason: "cancelled"`, rather than the
-    // abort surfacing as an `error`). The run lifecycle's watchdog already
+    // A cancellation: a `/stop` or a supersession, which every Engine reports
+    // as `stopReason: "cancelled"`. The run lifecycle's watchdog already
     // recorded the terminal stop (`aborted`/`superseded`) when it tripped the
-    // signal, so this is **not** a completion and **not** a failure: surface the
-    // stop so the UI unsticks and close, with no `completed` transition that
-    // would mislabel a stopped turn. Mirrors the in-process engine's abort path,
-    // which reaches the consumer as `error: "Stopped by user"` instead.
+    // signal, so this is **not** a completion and **not** a failure: close the
+    // stream so the UI unsticks, with no `completed` transition that would
+    // mislabel it and no error. What a stopped or superseded run shows is
+    // Turn Launch's decision (see `STOPPED_RUN_STATUS`), not the consumer's.
     if (stopReason === "cancelled") {
-      await this.ports.broadcastError("Stopped by user")
       await this.ports.broadcastEnd()
       return
     }
@@ -255,9 +253,8 @@ export class AcpUpdateConsumer {
     if (this.closed) return
     this.closed = true
     await this.ports.broadcastError(message)
-    // A genuine failure records `failed`; a user `/stop` or supersession has
-    // already moved the run to a terminal state, so this transition no-ops and
-    // the "Stopped by user" outcome is preserved (it is not a failure).
+    // A genuine failure records `failed`. The transition no-ops on a run that
+    // already reached a terminal state, so a late error can't relabel it.
     await this.ports.transition("failed")
     await this.ports.broadcastEnd()
   }

@@ -662,6 +662,11 @@ follow-up message take the same step. Each Chat Target kind supplies only its
 own setup (`turn-launch-live.ts`); the stream and plan routes are auth, body
 parsing and HTTP mapping. The abort watchdog stays at the Engine drive (ADR
 0006).
+Turn Launch also owns stopping a turn (`stopTurn`, what `/api/agent/stop`
+calls) and the one decision about how an unfinished run reads, live and on
+reload: a user stop records `aborted` and ends in a "Stopped" marker; a
+superseded run leaves nothing. Neither is an error: every Engine reports both as
+a `cancelled` stop, and the consumer shows no error bubble.
 _Avoid_: copying these steps into a route; resolving a plan outside Turn
 Launch.
 

@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { agentMessage, agentPendingToolCall, agentRun } from "@/lib/db/schema"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { renderHistory, type HistoryEntry } from "@/lib/agent/history-render"
+import { STOPPED_RUN_STATUS } from "@/lib/agent/turn-launch"
 
 export const runtime = "nodejs"
 
@@ -59,14 +60,15 @@ export async function GET(req: Request) {
       ),
     // Runs the user stopped. The stop drops the run's remaining output, so
     // nothing in the message log says the turn was cut short; its `endedAt`
-    // places a "Stopped" marker where the transcript ends.
+    // places a "Stopped" marker where the transcript ends. Turn Launch decides
+    // which runs read as stopped, the same decision the live stop broadcasts.
     db
       .select({ endedAt: agentRun.endedAt })
       .from(agentRun)
       .where(
         and(
           eq(agentRun.chatId, chatId),
-          eq(agentRun.status, "aborted"),
+          eq(agentRun.status, STOPPED_RUN_STATUS),
           isNotNull(agentRun.endedAt)
         )
       ),
