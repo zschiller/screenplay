@@ -27,19 +27,12 @@ export interface TurnSummary {
 /** Kinds that always stay on screen, even in a folded turn. */
 const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
 
-/** A step is work the agent did on the way to its answer. */
-function isStep(entry: GroupedMessage): boolean {
-  return (
-    entry.message.role === "tool_call" || entry.message.role === "reasoning"
-  )
-}
-
 /**
  * Fold each finished turn's steps behind one summary line.
  *
  * A turn is everything after a user message up to the next one. Once it has
- * finished (every turn but the last while a run streams), and if it did any
- * work, its tool calls, reasoning and interim narration fold into a
+ * finished (every turn but the last while a run streams), and if it made any
+ * tool call, its tool calls, reasoning and interim narration fold into a
  * `turn-summary` item. The answer (the turn's last assistant message) stays
  * visible, as do plans, errors and the stopped marker: the summary sits where
  * the turn begins, then those follow in their original order.
@@ -62,7 +55,9 @@ export function foldFinishedTurns(
   turns.forEach((turn, t) => {
     const live = streaming && t === lastTurn
     const isUserTurn = turn.length === 1 && turn[0].message.role === "user"
-    if (live || isUserTurn || !turn.some(isStep)) {
+    // Reasoning alone is already one collapsed line; fold only real work.
+    const didWork = turn.some((e) => e.message.role === "tool_call")
+    if (live || isUserTurn || !didWork) {
       for (const entry of turn) items.push({ kind: "message", entry })
       return
     }
@@ -243,10 +238,9 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     )
   }
 
-  // A turn whose only steps were reasoning.
   const text =
     parts.length > 0
       ? parts.join(", ").replace(/^./, (c) => c.toUpperCase())
-      : "Reasoning"
+      : "Worked"
   return { text, failures }
 }

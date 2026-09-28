@@ -89,9 +89,13 @@ describe("foldFinishedTurns (issue #800)", () => {
     ])
   })
 
-  it("leaves a turn with no steps alone", () => {
-    const messages = [user("hi"), assistant("hello")]
-    expect(shape(messages)).toEqual(["user", "assistant:hello"])
+  it("leaves a turn with no tool calls alone, reasoning included", () => {
+    const messages = [
+      user("hi"),
+      { role: "reasoning", content: "hmm" } as AgentMessage,
+      assistant("hello"),
+    ]
+    expect(shape(messages)).toEqual(["user", "reasoning", "assistant:hello"])
   })
 
   it("folds a subagent group as one step", () => {
@@ -202,11 +206,5 @@ describe("summarizeSteps", () => {
         call("2", { title: "Fetch", kind: "fetch" }),
       ]).text
     ).toBe("Read 1 file, used 1 other tool")
-  })
-
-  it("names a reasoning-only turn", () => {
-    expect(summarize([{ role: "reasoning", content: "hmm" }]).text).toBe(
-      "Reasoning"
-    )
   })
 })
