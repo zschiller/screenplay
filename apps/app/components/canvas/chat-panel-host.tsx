@@ -1,8 +1,9 @@
 "use client"
 
-import { PanelRightClose } from "lucide-react"
+import { FolderPlus, PanelRightClose } from "lucide-react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
+import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 
 import { ChatPanel } from "@/components/agent/chat-panel"
@@ -48,6 +49,7 @@ export function ChatPanelHost({
   onSetBranchPr,
   onLogsReady,
   logsRequest,
+  onAddProject,
 }: {
   chatTarget: ChatTarget
   tabPool: TabPool
@@ -66,6 +68,8 @@ export function ChatPanelHost({
   onSetBranchPr: (branchId: string, pr: BranchPrInfo) => void
   onLogsReady: () => void
   logsRequest: { agentId: string; nonce: number } | null
+  /** Open the sidebar's add-project flow, from the no-projects state. */
+  onAddProject: () => void
 }) {
   return (
     (() => {
@@ -177,12 +181,23 @@ export function ChatPanelHost({
           </span>
         </div>
         <div className="border-b border-border" />
-        <div className="flex flex-1 items-center justify-center px-6">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
           <p className="max-w-xs text-center text-sm text-balance text-muted-foreground">
             {repos.length === 0
               ? "Add a project to get started"
               : "Waiting for an agent to start…"}
           </p>
+          {repos.length === 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onAddProject}
+            >
+              <FolderPlus />
+              Add project
+            </Button>
+          )}
         </div>
       </div>
     )
