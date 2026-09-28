@@ -1458,6 +1458,14 @@ export const SCREENS: Screen[] = [
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
   },
   {
+    name: "player-agent",
+    description:
+      "The prototype player with the agent open beside it, composer in view.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    prepare: openPlayerAgent,
+    settleMs: 600,
+  },
+  {
     name: "player-chat-warming-up",
     description:
       "The player's agent panel while the Workspace's sandbox is still warming up.",
