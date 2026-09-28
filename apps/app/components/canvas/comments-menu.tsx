@@ -117,7 +117,7 @@ export function CommentsMenu({
             <DetachedNote
               thread={openThread}
               placement={placements.get(openThread.id)}
-              className="border-b border-border px-3 py-2"
+              className="px-3 pt-2 pb-1"
             />
             <ThreadView
               thread={openThread}
