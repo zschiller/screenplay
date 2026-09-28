@@ -164,3 +164,15 @@ export function getBranchColor(
 export function getBranchColorByIndex(index: number): BranchColor | undefined {
   return BRANCH_COLORS[index]
 }
+
+/**
+ * Just the text colour of a palette entry's badge (light and dark), for a
+ * Workspace named in coloured text without its pill, like the frame address
+ * bar's host (issue #867).
+ */
+export function branchTextClass(color: BranchColor): string {
+  return color.badge
+    .split(" ")
+    .filter((c) => c.startsWith("text-") || c.startsWith("dark:text-"))
+    .join(" ")
+}

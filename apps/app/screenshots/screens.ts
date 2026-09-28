@@ -1049,6 +1049,43 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-frame-workspace-host",
+    description:
+      "A selected frame's address field naming its Workspace before the route, like a browser's host.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      // Park the pointer on empty canvas so no hover state lingers.
+      await page.mouse.move(5, 5)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-frame-workspace-switcher",
+    description:
+      "A selected frame's Workspace list, opened from its address field's host (from the label's Workspace stub before #867).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      const host = page
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: /^Workspace:/ })
+      if ((await host.count()) > 0) {
+        await host.click({ timeout: 15_000 })
+      } else {
+        await page
+          .locator("button:has(svg.lucide-chevrons-up-down)")
+          .filter({ hasText: "checkout-polish" })
+          .first()
+          .click({ timeout: 15_000 })
+      }
+      await page
+        .getByPlaceholder("Search workspaces…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-frame-back",
     description:
       "A frame navigated from its toolbar's route field, hovering Back: the history button enabled with its tooltip.",
@@ -1555,7 +1592,7 @@ export const SCREENS: Screen[] = [
       // Matches the copy on both sides of the #723 rename so a before/after
       // pair shoots the same state.
       await page
-        .getByText(/^Choose a (branch|workspace)$/)
+        .getByRole("button", { name: /^Choose a (branch|workspace)$/ })
         .first()
         .click({ timeout: 15_000 })
     },
