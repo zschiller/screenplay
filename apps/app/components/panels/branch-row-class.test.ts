@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { branchRowClassName } from "./branch-row-class"
 
-const classes = (opts: { isPanelActive: boolean }) =>
+const classes = (opts: { isPanelActive: boolean; isHighlighted?: boolean }) =>
   branchRowClassName(opts).split(" ")
 
 describe("branchRowClassName", () => {
@@ -21,5 +21,11 @@ describe("branchRowClassName", () => {
     expect(list.every((c) => !/foregroundbg|foregroundopacity/.test(c))).toBe(
       true
     )
+  })
+
+  it("wears the hover background while one of its frames is hovered", () => {
+    const list = classes({ isPanelActive: false, isHighlighted: true })
+    expect(list).toContain("bg-sidebar-accent")
+    expect(list).toContain("text-sidebar-accent-foreground")
   })
 })

@@ -1070,6 +1070,47 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "sidebar-workspace-hover-frames",
+    description:
+      "Hovering a Workspace row: its frames are outlined on the Canvas and lit in the layer list (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/branch-row")
+        .filter({ hasText: "checkout-polish" })
+        .first()
+        .locator("[data-sidebar=menu-sub-button]")
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-frame-row-hover-workspace",
+    description:
+      "Hovering a frame row in the layer list: its Workspace row lights up (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/frame-row")
+        .filter({ hasText: "Empty cart" })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-frame-hover-workspace",
+    description:
+      "Hovering a frame on the Canvas: its Workspace row lights up in the sidebar (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const frame = checkoutDesktopFrame(page)
+      await frame.waitFor({ state: "visible", timeout: 15_000 })
+      await frame.hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "chat-tab-close-focus",
     description:
       "The active chat tab's close button reached by keyboard (focus the tab, then Tab past its label).",
