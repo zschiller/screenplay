@@ -1152,11 +1152,21 @@ export const DOCS_SCREENS: DocsScreen[] = [
     beforeNavigate: warmPlay,
     crop: [760, 440, 520, 360],
     prepare: async (page) => {
-      await page.mouse.move(
-        ...xy(
-          await playHudButton(page, "button:has(svg.lucide-sliders-horizontal)")
+      const knobs = "button:has(svg.lucide-sliders-horizontal)"
+      // The HUD can still sit at the preview's top-left before it snaps to its
+      // bottom-right corner; hovering then shot it in the wrong corner on some
+      // runs.
+      await page
+        .waitForFunction(
+          `(() => {
+            const r = document.querySelector(${JSON.stringify(knobs)})?.getBoundingClientRect()
+            return !!r && r.left > innerWidth / 2 && r.top > innerHeight / 2
+          })()`,
+          undefined,
+          { timeout: 10_000 }
         )
-      )
+        .catch(() => {})
+      await page.mouse.move(...xy(await playHudButton(page, knobs)))
       await sleep(page, 900)
     },
   }),

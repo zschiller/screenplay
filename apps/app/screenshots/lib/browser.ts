@@ -2,6 +2,7 @@ import {
   chromium,
   type Browser,
   type BrowserContext,
+  type Frame,
   type Page,
 } from "playwright-core"
 
@@ -181,6 +182,12 @@ export async function settle(
     .waitFor({ state: "detached", timeout: 20_000 })
     .catch(() => {})
 
+  // Images and embedded pages load after the document does, and on a cold
+  // server the first request for them is slow: without this the first screen
+  // of a run can catch the home cards' thumbnails or a player preview still
+  // blank, and the next run flips the image back.
+  await Promise.all(page.frames().map(waitForMedia))
+
   // One beat for entrance transitions (`disableTransitionOnChange` covers the
   // theme flip, not the app's own mount animations).
   await sleep(600 + extraMs)
@@ -199,6 +206,28 @@ export async function settle(
         caret-color: transparent !important;
       }`,
     })
+    .catch(() => {})
+}
+
+/**
+ * Wait for one frame's fonts and images (loaded or failed), and for an
+ * embedded page's load event. Not the top page's: the canvas keeps long-lived
+ * connections open and may never fire it. A frame that never gets there (a
+ * preview that won't answer) is a legitimate capture, so a timeout is
+ * tolerated.
+ */
+async function waitForMedia(frame: Frame): Promise<void> {
+  if (frame.parentFrame()) {
+    await frame.waitForLoadState("load", { timeout: 10_000 }).catch(() => {})
+  }
+  // A string expression, for the esbuild `__name` reason above.
+  await frame
+    .waitForFunction(
+      `Array.from(document.images).every((img) => img.complete) &&
+        (!document.fonts || document.fonts.status === "loaded")`,
+      undefined,
+      { timeout: 10_000 }
+    )
     .catch(() => {})
 }
 
