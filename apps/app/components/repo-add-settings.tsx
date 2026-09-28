@@ -16,6 +16,7 @@ import {
   mergeDetectedSettings,
   type DetectableField,
   type DetectableFields,
+  type DetectedSettings,
   type ResolvedRepoSettings,
 } from "@/lib/add-repo/resolver"
 import type { DetectRepoSettingsResult } from "@/lib/add-repo/actions"
@@ -24,6 +25,15 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 /** Beyond this the modal gives up on detection and falls back to defaults. */
 const DETECTION_TIMEOUT_MS = 8000
+/** The model pass reads more and thinks longer; its server cap is 30s. */
+const REFINE_TIMEOUT_MS = 35_000
+
+/** Today's plain defaults, the model pass's first guess when rules found nothing. */
+const PLAIN_DETECTED: DetectedSettings = {
+  setupScript: "",
+  devScript: "",
+  devServerPort: 3000,
+}
 
 type DetectionStatus = "idle" | "detecting" | "done" | "failed"
 
@@ -41,8 +51,11 @@ type DetectionStatus = "idle" | "detecting" | "done" | "failed"
  * The modal opens instantly with the essential fields editable and pre-filled
  * with today's plain defaults; if a `detect` seam is supplied (a GitHub-repo
  * pick), deterministic auto-detection (#678) kicks off as it opens and, when it
- * returns, fills only the fields the user hasn't touched. Add is enabled
- * throughout — detection is an assist, never a gate.
+ * returns, fills only the fields the user hasn't touched. A `refine` seam then
+ * has a model read the project's files and correct that first guess (a README
+ * that runs `make dev`, a dev script pinned to another port, a monorepo's web
+ * app), again only in untouched fields. Add is enabled throughout — detection
+ * is an assist, never a gate.
  *
  * Confirm hands the resolved settings back — along with whether to remember them
  * as a preset (PRD #680) — so the caller creates the Repo + first Branch and
@@ -50,6 +63,7 @@ type DetectionStatus = "idle" | "detecting" | "done" | "failed"
  */
 export function RepoAddSettings({
   detect,
+  refine,
   showEnvField,
   onConfirm,
   onCancel,
@@ -61,6 +75,11 @@ export function RepoAddSettings({
    * and the per-field merge; the caller only wires the source.
    */
   detect?: () => Promise<DetectRepoSettingsResult>
+  /**
+   * The model-assisted second pass, handed the first pass's result (or plain
+   * defaults when it found nothing). Absent when there's no source to read.
+   */
+  refine?: (baseline: DetectedSettings) => Promise<DetectRepoSettingsResult>
   /** Whether the source has an env-injection path — see `RepoSettingsFields`. */
   showEnvField: boolean
   onConfirm: (
@@ -113,8 +132,10 @@ export function RepoAddSettings({
   // ref so the kickoff effect can stay mount-once instead of re-firing on every
   // render (which would spam detection).
   const detectRef = useRef(detect)
+  const refineRef = useRef(refine)
   useEffect(() => {
     detectRef.current = detect
+    refineRef.current = refine
   })
 
   const setField = useCallback((field: DetectableField, value: string) => {
@@ -127,30 +148,32 @@ export function RepoAddSettings({
     if (!run) return
     const currentRun = ++runId.current
 
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<DetectRepoSettingsResult>((resolve) => {
-      timer = setTimeout(() => resolve({ ok: false }), DETECTION_TIMEOUT_MS)
-    })
-
-    let result: DetectRepoSettingsResult
-    try {
-      result = await Promise.race([run(), timeout])
-    } catch {
-      result = { ok: false }
-    } finally {
-      if (timer) clearTimeout(timer)
-    }
-
+    // Rules first: fast, and fills the form while the model reads.
+    const result = await withTimeout(run(), DETECTION_TIMEOUT_MS)
     // A newer run (or an unmount) supersedes this one — drop the late result.
     if (currentRun !== runId.current) return
     if (result.ok) {
       setFields((prev) =>
         mergeDetectedSettings(prev, result.settings, dirty.current)
       )
-      setStatus("done")
-    } else {
-      setStatus("failed")
     }
+
+    const refineRun = refineRef.current
+    if (!refineRun) {
+      setStatus(result.ok ? "done" : "failed")
+      return
+    }
+    const refined = await withTimeout(
+      refineRun(result.ok ? result.settings : PLAIN_DETECTED),
+      REFINE_TIMEOUT_MS
+    )
+    if (currentRun !== runId.current) return
+    if (refined.ok) {
+      setFields((prev) =>
+        mergeDetectedSettings(prev, refined.settings, dirty.current)
+      )
+    }
+    setStatus(result.ok || refined.ok ? "done" : "failed")
   }, [])
 
   // Kick off detection once as the modal opens. All state writes happen after
@@ -308,4 +331,22 @@ export function RepoAddSettings({
       </div>
     </div>
   )
+}
+
+/** Race a detection call against a timeout; a throw or a timeout is `{ ok: false }`. */
+async function withTimeout(
+  call: Promise<DetectRepoSettingsResult>,
+  ms: number
+): Promise<DetectRepoSettingsResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<DetectRepoSettingsResult>((resolve) => {
+    timer = setTimeout(() => resolve({ ok: false }), ms)
+  })
+  try {
+    return await Promise.race([call, timeout])
+  } catch {
+    return { ok: false }
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }

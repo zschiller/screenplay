@@ -102,6 +102,8 @@ import { RepoAddSettings } from "@/components/repo-add-settings"
 import {
   detectFolderSettings,
   detectRepoSettings,
+  refineFolderSettings,
+  refineRepoSettings,
 } from "@/lib/add-repo/actions"
 import {
   resolvePresetUpsert,
@@ -1683,6 +1685,30 @@ export function RoomSidebar({
                                   detectFolderSettings({
                                     localPath: pendingPick.source.localPath!,
                                   })
+                              : undefined
+                        }
+                        // Then a model reads the same files and corrects the
+                        // rule-based guess.
+                        refine={
+                          pendingPick.kind === "repo"
+                            ? (baseline) =>
+                                refineRepoSettings(
+                                  {
+                                    owner: pendingPick.repo.owner,
+                                    repo: pendingPick.repo.name,
+                                    ref: pendingPick.repo.defaultBranch,
+                                  },
+                                  baseline
+                                )
+                            : pendingPick.kind === "source" &&
+                                pendingPick.source.localPath
+                              ? (baseline) =>
+                                  refineFolderSettings(
+                                    {
+                                      localPath: pendingPick.source.localPath!,
+                                    },
+                                    baseline
+                                  )
                               : undefined
                         }
                         // Env-field presence follows the source (#681): hosted

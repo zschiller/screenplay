@@ -18,6 +18,7 @@ import {
 } from "@/lib/fixture-entry"
 import { fixtureFaultCookieName, type FixtureFault } from "@/lib/fixture-faults"
 import { fixtureGitHubCookieName } from "@/lib/fixture-github"
+import { fixtureModelCookieName } from "@/lib/fixture-model"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
@@ -1573,6 +1574,40 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await addFixtureFolder(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-settings-model",
+    description:
+      "Configure project after a model read the folder's files: the README's one-time codegen step joins the install.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureModel("connected"),
+    prepare: async (page) => {
+      await addFixtureFolder(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-settings-model-detecting",
+    description:
+      "Configure project while the model reads the folder, the rule-based guess already filled in.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureModel("slow"),
+    prepare: async (page) => {
+      const { checkout } = fixtureCheckouts()
+      await openAddProject(page, "folder")
+      await page.getByPlaceholder("/path/to/your/clone").fill(checkout)
+      await page.getByRole("button", { name: "Add", exact: true }).click()
+      await page.getByText("Configure project").waitFor({ timeout: 15_000 })
+      // The rule-based pass has filled the form; the model is still reading.
+      await page.waitForFunction(
+        () =>
+          (document.getElementById("repo-add-setup") as HTMLInputElement | null)
+            ?.value === "pnpm install",
+        undefined,
+        { timeout: 15_000 }
+      )
     },
     settleMs: 300,
   },
@@ -3294,6 +3329,13 @@ async function selectCheckoutFrame(page: Page): Promise<void> {
  * The cookie that signs the Fixture World in to GitHub (`@/lib/fixture-github`),
  * so GitHub-backed lists answer with the fixture account's repositories.
  */
+/** Make a model reachable for settings detection (`slow` answers after 20s). */
+export function fixtureModel(
+  mode: "connected" | "slow"
+): Array<{ name: string; value: string }> {
+  return [{ name: fixtureModelCookieName(), value: mode }]
+}
+
 export function fixtureGitHub(): Array<{ name: string; value: string }> {
   return [{ name: fixtureGitHubCookieName(), value: "connected" }]
 }
@@ -3389,7 +3431,10 @@ export function fixtureCheckouts(): { checkout: string; plain: string } {
       {
         name: "storefront",
         packageManager: "pnpm@10.0.0",
-        scripts: { dev: "next dev" },
+        scripts: {
+          dev: "next dev -p 4000",
+          "db:generate": "prisma generate",
+        },
         dependencies: { next: "15.0.0" },
       },
       null,
@@ -3397,6 +3442,10 @@ export function fixtureCheckouts(): { checkout: string; plain: string } {
     )
   )
   writeFileSync(join(checkout, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+  writeFileSync(
+    join(checkout, "README.md"),
+    "# Storefront\n\nRun `pnpm install` and `pnpm db:generate` once, then `pnpm dev` and open http://localhost:4000.\n"
+  )
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: checkout })
   return { checkout, plain }
 }
