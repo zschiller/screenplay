@@ -407,10 +407,27 @@ _Avoid_: the grid for plain progress; `Spinner` or a raw `Loader2` for model
 activity; a third spinner style.
 
 **Chat Target**:
-What a Chat Session talks to — either a Branch's **sandbox** or a Markdown
-Layer (a document). The target decides the system prompt and which Tools the
-model is given.
+What a Chat Session talks to — a Branch's **sandbox**, a Markdown Layer (a
+document), or the whole **Room** (see **Room Target**). The target decides the
+system prompt and which Tools the model is given.
 _Avoid_: subject, destination.
+
+**Room Target** (planned, wayfinder #856):
+The Chat Target of a chat that works on the whole Room rather than one Branch
+or document: it sees every Repo, Branch and Layer, arranges the Canvas, creates
+Branches, and hands work to their agents through **Delegated Messages**. Its
+kind is `room`, named for its target like the other kinds, never for its role.
+_Shown to users as_: "Canvas" (its entry in the Workspace switcher and its tabs).
+_Avoid_: coordinator or orchestrator as a code identifier (fine in prose for the
+role); `canvas` as the kind (in code, Canvas is the spatial surface only).
+
+**Delegated Message**:
+A message a Room Target chat sends into a Branch's Chat Session. It is an
+ordinary turn in that chat that the user can read and take over, marked with
+where it came from.
+_Shown to users as_: "From Canvas", linking back to the sending chat.
+_Avoid_: forwarding, relay; hidden subagent work (delegation is always visible
+in the Branch's own chat).
 
 **Chat-Target selection**:
 _Which_ Chat Target the agent panel shows — the other half of the panel model
