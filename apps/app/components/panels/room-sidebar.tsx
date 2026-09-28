@@ -2051,7 +2051,7 @@ export function RoomSidebar({
                 if (!open) setPendingRenameBranchId(null)
               }}
               title="Rename branch"
-              description="Renames the git branch on GitHub and in this Workspace. The Workspace keeps its title."
+              description="Renames the git branch. The workspace keeps its title."
               initialValue={branch?.ref ?? ""}
               submitLabel="Rename"
               submittingLabel="Renaming…"

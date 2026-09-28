@@ -50,6 +50,16 @@ export const BranchBadge = forwardRef<EditableTextHandle, BranchBadgeProps>(
           color.badge,
           className
         )}
+        // A title has spaces: keep the editor's keys from bubbling to an
+        // ancestor sortable row, whose keyboard sensor eats Space (#881).
+        onKeyDown={
+          onRename
+            ? (e) => {
+                if ((e.target as HTMLElement).isContentEditable)
+                  e.stopPropagation()
+              }
+            : undefined
+        }
       >
         {icon && <GitBranch className="size-3 shrink-0" />}
         {onRename ? (

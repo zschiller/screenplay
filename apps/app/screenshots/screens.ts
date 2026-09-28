@@ -1269,13 +1269,16 @@ export const SCREENS: Screen[] = [
   {
     name: "sidebar-workspace-rename-title",
     description:
-      "Renaming a Workspace's title inline from its sidebar row (#881). The branch is untouched.",
+      "Renaming a Workspace's title by double-clicking its sidebar row (#881). The branch is untouched.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await openBranchRowMenu(page, "Empty cart state")
+      // Light and dark share the Canvas, and the first run's rename commits
+      // on close, so find the row by either name.
       await page
-        .getByRole("menuitem", { name: "Rename", exact: true })
-        .click({ timeout: 10_000 })
+        .locator(".group\\/branch-row")
+        .getByText(/^(Empty cart state|Empty cart illustration)$/)
+        .first()
+        .dblclick({ timeout: 15_000 })
       await page.keyboard.press("ControlOrMeta+a")
       await page.keyboard.type("Empty cart illustration")
     },
