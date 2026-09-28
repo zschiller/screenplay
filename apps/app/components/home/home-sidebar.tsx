@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { BookOpen, Clock, Files, Settings, type LucideIcon } from "lucide-react"
 import {
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -38,7 +39,7 @@ const SECTIONS: NavLink[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
-/** Opens the product docs in the browser, below the app's own sections. */
+/** Opens the product docs in the browser, anchored at the bottom of the nav. */
 const DOCS: NavLink = { href: docsUrl, label: "Docs", icon: BookOpen }
 
 export function HomeSidebar() {
@@ -107,7 +108,6 @@ export function HomeSidebar() {
                   />
                 )
               )}
-              <DocsNavItem link={DOCS} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -115,6 +115,13 @@ export function HomeSidebar() {
         {/* The user's pins, below the nav — self-hiding when there are none. */}
         <PinnedList />
       </SidebarContent>
+
+      {/* Docs sits at the foot of the nav, below any pins, like a help link. */}
+      <SidebarFooter>
+        <SidebarMenu>
+          <DocsNavItem link={DOCS} />
+        </SidebarMenu>
+      </SidebarFooter>
     </SidebarProvider>
   )
 }
