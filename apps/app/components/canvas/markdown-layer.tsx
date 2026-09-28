@@ -67,7 +67,7 @@ import {
 } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import type { MarkdownLayerData } from "@/lib/types"
-import type { FrameWorkspace } from "@/components/canvas/frame-nav"
+import type { GroupWorkspace } from "@/components/canvas/group-label"
 
 export interface InlineCommentDraft {
   documentId: string
@@ -320,7 +320,7 @@ interface MarkdownLayerProps {
   /** Group display name — only set on the leftmost member of a multi-member group. */
   groupLabel?: string
   /** The Group's Workspace, named after the group label (#868). */
-  groupWorkspace?: FrameWorkspace
+  groupWorkspace?: GroupWorkspace
   /** True when the parent group is selected. Drives label color, frame
    *  highlight, and click behavior (clicks are a no-op while the group owns
    *  the selection — same as IframeLayer). */

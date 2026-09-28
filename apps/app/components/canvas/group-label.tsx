@@ -1,16 +1,40 @@
 "use client"
 
+import { useState } from "react"
+import { ChevronsUpDown } from "lucide-react"
 import { cn } from "@workspace/ui/lib/utils"
 import { EditableText } from "@workspace/ui/components/editable-text"
-import { BranchBadge } from "@/components/branch-badge"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
+import type { BranchData } from "@/lib/types"
+import { workspaceLabel } from "@/lib/workspace-label"
 import type { FrameWorkspace } from "./frame-nav"
+import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
+
+/** Switching a whole Group's Workspace from its label (#869). */
+interface GroupWorkspaceSwitch {
+  /** Workspaces to offer, filtered like every Workspace list. */
+  branches: BranchData[]
+  /** Footer lines: what the pick moves and which exceptions stay. */
+  summary: string[]
+  /** Show the whole Group from `branchId`. */
+  onPick: (branchId: string) => void
+}
+
+/** The Group's Workspace as its label names it, and switches it (#869). */
+export interface GroupWorkspace extends FrameWorkspace {
+  switcher?: GroupWorkspaceSwitch
+}
 
 interface GroupLabelProps {
   label: string
   /** The Group's Workspace, named once after its name (#868). Its frames
    *  leave it off their own labels unless they differ. */
-  workspace?: FrameWorkspace
+  workspace?: GroupWorkspace
   /** True when the parent group is selected — colors the label fuchsia. */
   groupSelected?: boolean
   /** Color of a *remote* user's group selection. When set (and not locally
@@ -42,25 +66,87 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
   return (
     <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
       <GroupName {...props} />
-      {/* Names win: the pill gives up its width first. Pressing it selects
-          the Group, like its name, rather than reordering the member under it. */}
-      <span
-        className="flex min-w-10 shrink-[100]"
-        onPointerDown={(e) => {
-          if (e.button !== 0) return
-          e.stopPropagation()
-          props.onSelectGroup?.(e.shiftKey)
-        }}
-      >
-        <BranchBadge
-          branch={workspace.ref}
-          title={workspace.title}
-          colorKey={workspace.branchId}
-          colorIndex={workspace.colorIndex}
-          className="px-1 py-0 text-3xs"
+      {workspace.switcher ? (
+        <GroupWorkspaceSwitcher
+          label={props.label}
+          workspace={workspace}
+          switcher={workspace.switcher}
         />
-      </span>
+      ) : (
+        // Names win: the Workspace gives up its width first. Pressing it
+        // selects the Group, like its name, rather than reordering the member.
+        <span
+          className="flex min-w-10 shrink-[100]"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.stopPropagation()
+            props.onSelectGroup?.(e.shiftKey)
+          }}
+        >
+          <WorkspaceName
+            workspace={workspace}
+            className="text-xs text-muted-foreground"
+          />
+        </span>
+      )}
     </div>
+  )
+}
+
+/**
+ * The Group's Workspace as a switcher (#869): its plain name, muted, with the
+ * up-down chevron on hover, and pressing it opens the Workspace list. Picking one
+ * shows the whole Group from it; the footer says what moves before you pick.
+ */
+function GroupWorkspaceSwitcher({
+  label,
+  workspace,
+  switcher,
+}: {
+  label: string
+  workspace: FrameWorkspace
+  switcher: GroupWorkspaceSwitch
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Show ${label} from another workspace (now ${workspaceLabel(workspace)})`}
+          // Names win: the Workspace gives up its width first.
+          className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <WorkspaceName
+            workspace={workspace}
+            className="text-xs text-muted-foreground"
+          />
+          <ChevronsUpDown
+            aria-hidden
+            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-72 p-0"
+        side="bottom"
+        align="start"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <WorkspaceCommandList
+          branches={switcher.branches}
+          currentBranchId={workspace.branchId}
+          placeholder={`Show ${label} from…`}
+          footer={switcher.summary}
+          onPick={(id) => {
+            if (id !== workspace.branchId) switcher.onPick(id)
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 

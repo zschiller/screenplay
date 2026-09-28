@@ -9,6 +9,7 @@ import {
   nextGroupNumber,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import { groupSwitchFrames } from "@/lib/canvas/group-workspace"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
 import {
@@ -209,6 +210,13 @@ export type CanvasOps = {
    * Group's one frame, or the Group has none yet.
    */
   assignBranch(layerId: string, branchId: string): void
+  /**
+   * Show the Workspace `branchId` in the whole Group `groupId` (#869): the
+   * Group takes it, and so does every frame that follows the Group, each
+   * keeping its route, state and size. Exceptions stay on their own
+   * Workspace, and Documents are untouched. One transaction, so one undo step.
+   */
+  assignGroupBranch(groupId: string, branchId: string): void
   /**
    * Navigate the Iframe Layer with `layerId` to `route`: write its new route
    * and, when the route changed, register it on the bound agent's
@@ -418,6 +426,23 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       if (!group.branchId || frames.length === 1) {
         collections.iframeLayerGroups.update(group.id, { branchId })
       }
+    })
+  }
+
+  function assignGroupBranch(groupId: string, branchId: string): void {
+    batch(() => {
+      const group = collections.iframeLayerGroups.get(groupId)
+      if (!group) return
+      const framesById = new Map(
+        getGroupMembers(group)
+          .filter((m) => m.kind === "iframe-layer")
+          .map((m) => [m.id, collections.iframeLayers.get(m.id)] as const)
+          .filter((e): e is [string, IframeLayerData] => !!e[1])
+      )
+      for (const id of groupSwitchFrames(group, framesById).following) {
+        collections.iframeLayers.update(id, { branchId })
+      }
+      collections.iframeLayerGroups.update(groupId, { branchId })
     })
   }
 
@@ -1074,6 +1099,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     createBranch,
     seedFrameForAgent,
     assignBranch,
+    assignGroupBranch,
     navigateRoute,
     addFrameToGroup,
     addDocumentToGroup,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UndoManager } from "yjs"
 import { CANVAS_OPS_ORIGIN } from "@/lib/canvas/ops"
 import {
   MIN_IFRAME_LAYER_HEIGHT,
@@ -6,6 +7,7 @@ import {
 } from "@/lib/constants"
 import { routeToLabel } from "@/lib/route-utils"
 import { documentFragment, getFragmentTitle } from "@/lib/yjs/fragment-text"
+import { COLLECTION_KEYS } from "@/lib/yjs/schema"
 import {
   baseBranch,
   baseChat,
@@ -1344,5 +1346,95 @@ describe("Group Workspace (#868)", () => {
     const groupId = ops.splitToNewGroup(["layer-2"], { x: 0, y: 0 })
 
     expect(collections.iframeLayerGroups.get(groupId)?.branchId).toBe("agent-2")
+  })
+})
+
+describe("assignGroupBranch", () => {
+  function seedCartGroup() {
+    const harness = makeHarness()
+    const { collections } = harness
+    collections.iframeLayers.set(
+      "empty-cart",
+      baseLayer("empty-cart", {
+        branchId: "ws-ec",
+        route: "/cart",
+        iframeState: { step: 2 },
+      })
+    )
+    collections.iframeLayers.set(
+      "cart-mobile",
+      baseLayer("cart-mobile", { branchId: "ws-ec", width: 390 })
+    )
+    collections.iframeLayers.set(
+      "gift-card",
+      baseLayer("gift-card", { branchId: "ws-gc", route: "/gift-cards" })
+    )
+    collections.iframeLayers.set("new-frame", baseLayer("new-frame"))
+    collections.markdownLayers.set("brief", baseDoc("brief"))
+    seedGroup(collections, "cart", [
+      { kind: "iframe-layer", id: "empty-cart" },
+      { kind: "iframe-layer", id: "cart-mobile" },
+      { kind: "iframe-layer", id: "gift-card" },
+      { kind: "iframe-layer", id: "new-frame" },
+      { kind: "markdown-layer", id: "brief" },
+    ])
+    collections.iframeLayerGroups.update("cart", { branchId: "ws-ec" })
+    return harness
+  }
+
+  it("moves the Group and every following frame, leaving exceptions", () => {
+    const { ops, collections } = seedCartGroup()
+
+    ops.assignGroupBranch("cart", "ws-cp")
+
+    const layer = (id: string) => collections.iframeLayers.get(id)
+    expect(collections.iframeLayerGroups.get("cart")?.branchId).toBe("ws-cp")
+    expect(layer("empty-cart")?.branchId).toBe("ws-cp")
+    expect(layer("cart-mobile")?.branchId).toBe("ws-cp")
+    // A frame with no Workspace yet follows its Group too.
+    expect(layer("new-frame")?.branchId).toBe("ws-cp")
+    expect(layer("gift-card")?.branchId).toBe("ws-gc")
+    // Route, state and size survive the switch.
+    expect(layer("empty-cart")?.route).toBe("/cart")
+    expect(layer("empty-cart")?.iframeState).toEqual({ step: 2 })
+    expect(layer("cart-mobile")?.width).toBe(390)
+  })
+
+  it("keeps a frame that was an exception one after the switch", () => {
+    const { ops, collections } = seedCartGroup()
+
+    ops.assignGroupBranch("cart", "ws-gc")
+
+    // The old exception now matches its Group, so it follows it again.
+    expect(collections.iframeLayers.get("gift-card")?.branchId).toBe("ws-gc")
+    expect(collections.iframeLayers.get("empty-cart")?.branchId).toBe("ws-gc")
+  })
+
+  it("commits as one transaction, undone in one step", () => {
+    const { doc, ops, collections } = seedCartGroup()
+    const undo = new UndoManager(
+      [
+        doc.getMap(COLLECTION_KEYS.iframeLayers),
+        doc.getMap(COLLECTION_KEYS.iframeLayerGroups),
+      ],
+      { trackedOrigins: new Set([CANVAS_OPS_ORIGIN]) }
+    )
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.assignGroupBranch("cart", "ws-cp")
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+
+    undo.undo()
+    expect(collections.iframeLayerGroups.get("cart")?.branchId).toBe("ws-ec")
+    expect(collections.iframeLayers.get("empty-cart")?.branchId).toBe("ws-ec")
+    expect(collections.iframeLayers.get("cart-mobile")?.branchId).toBe("ws-ec")
+    expect(collections.iframeLayers.get("new-frame")?.branchId).toBeUndefined()
+  })
+
+  it("is a no-op for a missing Group", () => {
+    const { ops, collections } = seedCartGroup()
+    ops.assignGroupBranch("missing", "ws-cp")
+    expect(collections.iframeLayerGroups.has("missing")).toBe(false)
   })
 })

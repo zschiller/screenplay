@@ -53,6 +53,9 @@ export interface LayerMutations {
   rename: (id: string, label: string) => void
   /** Assign (or reassign) the frame's branch. */
   assignAgent: (iframeLayerId: string, agentId: string) => void
+  /** Show a whole Group from another branch: every frame that follows it
+   *  moves, exceptions stay (#869). */
+  assignGroupAgent: (groupId: string, agentId: string) => void
   /** Persist the frame's serialized iframe state. */
   updateState: (id: string, state: JsonObject) => void
   /** Persist the frame's scroll position. */
@@ -107,6 +110,13 @@ export function useLayerMutations({
   const assignAgent = useCallback(
     (iframeLayerId: string, agentId: string) => {
       ops.assignBranch(iframeLayerId, agentId)
+    },
+    [ops]
+  )
+
+  const assignGroupAgent = useCallback(
+    (groupId: string, agentId: string) => {
+      ops.assignGroupBranch(groupId, agentId)
     },
     [ops]
   )
@@ -253,6 +263,7 @@ export function useLayerMutations({
     () => ({
       rename,
       assignAgent,
+      assignGroupAgent,
       updateState,
       updateScroll,
       updateKnobs,
@@ -267,6 +278,7 @@ export function useLayerMutations({
     [
       rename,
       assignAgent,
+      assignGroupAgent,
       updateState,
       updateScroll,
       updateKnobs,

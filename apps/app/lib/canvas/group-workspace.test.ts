@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { getRoomCollections } from "@/lib/yjs/schema"
-import { groupBranchId, isWorkspaceException } from "./group-workspace"
+import {
+  groupBranchId,
+  groupSwitchFrames,
+  groupSwitchSummary,
+  isWorkspaceException,
+} from "./group-workspace"
 
 const frames = new Map([
   ["a", { branchId: "ws-1" }],
@@ -113,5 +118,77 @@ describe("on-load conversion", () => {
     // Frames keep the Workspace they showed; f1 is now an exception.
     expect(c.iframeLayers.get("f1")?.branchId).toBe("ws-1")
     expect(c.iframeLayers.get("f2")?.branchId).toBe("ws-2")
+  })
+})
+
+describe("groupSwitchFrames", () => {
+  it("splits a Group's frames into followers and exceptions, skipping Documents", () => {
+    expect(
+      groupSwitchFrames(
+        {
+          branchId: "ws-1",
+          members: [
+            { kind: "iframe-layer", id: "a" },
+            { kind: "markdown-layer", id: "doc" },
+            { kind: "iframe-layer", id: "b" },
+            { kind: "iframe-layer", id: "empty" },
+          ],
+        },
+        frames
+      )
+    ).toEqual({ following: ["a", "empty"], exceptions: ["b"] })
+  })
+
+  it("uses the leftmost frame's Workspace for a Group without its own", () => {
+    expect(
+      groupSwitchFrames(
+        {
+          members: [
+            { kind: "iframe-layer", id: "b" },
+            { kind: "iframe-layer", id: "a" },
+          ],
+        },
+        frames
+      )
+    ).toEqual({ following: ["b"], exceptions: ["a"] })
+  })
+})
+
+describe("groupSwitchSummary", () => {
+  it("counts the frames that move", () => {
+    expect(groupSwitchSummary(2, [])).toEqual([
+      "Moves 2 frames. Each keeps its route and state.",
+    ])
+    expect(groupSwitchSummary(1, [])).toEqual([
+      "Moves 1 frame. It keeps its route and state.",
+    ])
+  })
+
+  it("names an exception and the Workspace it stays on", () => {
+    expect(
+      groupSwitchSummary(2, [
+        { name: "Gift card balance", workspace: "gift-cards" },
+      ])
+    ).toEqual([
+      "Moves 2 frames. Each keeps its route and state.",
+      "Gift card balance stays on gift-cards.",
+    ])
+  })
+
+  it("lists several exceptions, shortening a long list", () => {
+    expect(
+      groupSwitchSummary(1, [
+        { name: "Pay", workspace: "a" },
+        { name: "Cart", workspace: "b" },
+      ])[1]
+    ).toBe("Pay and Cart stay on their own workspaces.")
+    expect(
+      groupSwitchSummary(1, [
+        { name: "A" },
+        { name: "B" },
+        { name: "C" },
+        { name: "D" },
+      ])[1]
+    ).toBe("A, B and 2 more stay on their own workspaces.")
   })
 })
