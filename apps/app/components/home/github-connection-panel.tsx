@@ -151,7 +151,8 @@ export function GitHubConnectionPanel() {
           type="button"
           size="sm"
           variant="ghost"
-          className="font-normal text-muted-foreground"
+          // Pull the label back onto the column's edge, under the group.
+          className="-ml-2.5 font-normal text-muted-foreground"
           onClick={() => setDeviceOpen(true)}
         >
           Connect with a device code instead

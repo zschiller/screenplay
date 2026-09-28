@@ -162,7 +162,7 @@ export function RepoConfigsPanel() {
         }}
       >
         <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
-          <DialogHeader className="px-4 pt-4 pb-3">
+          <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>
               {mode.kind === "edit" ? "Edit preset" : "New preset"}
             </DialogTitle>

@@ -67,7 +67,7 @@ export function HarnessSetupPanel() {
   }
 
   if (!rows) {
-    return <SettingsRowSkeleton label="Checking coding agents…" count={2} />
+    return <SettingsRowSkeleton label="Checking coding agents…" count={3} />
   }
 
   return (
