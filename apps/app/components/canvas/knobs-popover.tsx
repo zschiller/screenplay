@@ -9,25 +9,13 @@ import {
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar"
-import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
-import { Slider } from "@workspace/ui/components/slider"
-import { Switch } from "@workspace/ui/components/switch"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@workspace/ui/components/select"
-import {
-  coerceKnobValue,
-  isKnobDef,
-  type KnobDef,
-  type KnobValue,
-  type KnobValues,
-} from "@/lib/knobs/types"
+import type { KnobValues } from "@/lib/knobs/types"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
+import {
+  hasKnobOverrides,
+  knobDefs,
+  KnobsPanel,
+} from "@/components/knobs-panel"
 
 interface KnobsPopoverProps {
   knobs: JsonValue[] | undefined
@@ -46,37 +34,11 @@ export function KnobsPopover({
   onChange,
   onAskForKnob,
 }: KnobsPopoverProps) {
-  const defs = useMemo<KnobDef[]>(() => {
-    if (!knobs) return []
-    return knobs.filter(isKnobDef)
-  }, [knobs])
-
   const [open, setOpen] = useState(false)
-
-  const hasOverrides = useMemo(() => {
-    if (!values) return false
-    for (const def of defs) {
-      if (coerceKnobValue(def, values[def.id]) !== def.default) return true
-    }
-    return false
-  }, [defs, values])
-
-  function setValue(id: string, next: KnobValue) {
-    const merged: KnobValues = { [id]: next }
-    if (values) {
-      for (const def of defs) {
-        if (def.id === id) continue
-        merged[def.id] = coerceKnobValue(def, values[def.id])
-      }
-    }
-    onChange(merged)
-  }
-
-  function resetAll() {
-    const next: KnobValues = {}
-    for (const def of defs) next[def.id] = def.default
-    onChange(next)
-  }
+  const hasOverrides = useMemo(
+    () => hasKnobOverrides(knobDefs(knobs), values),
+    [knobs, values]
+  )
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -96,165 +58,36 @@ export function KnobsPopover({
         align="start"
         sideOffset={8}
         collisionPadding={16}
-        className="w-72 gap-3"
+        className="w-72 gap-0 overflow-hidden p-0"
       >
-        {defs.length === 0 ? (
-          <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">No knobs yet</p>
-            <p>
-              Knobs let you tweak this prototype live, like a slider for the
-              card padding.
-            </p>
-            {onAskForKnob ? (
-              <Button
-                size="xs"
-                variant="outline"
-                className="mt-1 self-start"
-                onClick={() => {
-                  setOpen(false)
-                  onAskForKnob()
-                }}
-              >
-                Ask the agent to add a knob
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <>
-            {defs.map((def) => (
-              <KnobControl
-                key={def.id}
-                def={def}
-                value={coerceKnobValue(def, values?.[def.id])}
-                onChange={(v) => setValue(def.id, v)}
-              />
-            ))}
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={!hasOverrides}
-              onClick={resetAll}
-              className="h-6 w-full text-xs"
-            >
-              Reset to defaults
-            </Button>
-          </>
-        )}
+        <KnobsPanel
+          knobs={knobs}
+          values={values}
+          onChange={onChange}
+          empty={
+            <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">No knobs yet</p>
+              <p>
+                Knobs let you tweak this prototype live, like a slider for the
+                card padding.
+              </p>
+              {onAskForKnob ? (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="mt-1 self-start"
+                  onClick={() => {
+                    setOpen(false)
+                    onAskForKnob()
+                  }}
+                >
+                  Ask the agent to add a knob
+                </Button>
+              ) : null}
+            </div>
+          }
+        />
       </PopoverContent>
     </Popover>
   )
-}
-
-interface KnobControlProps {
-  def: KnobDef
-  value: KnobValue
-  onChange: (next: KnobValue) => void
-}
-
-function KnobControl({ def, value, onChange }: KnobControlProps) {
-  const label = def.label ?? def.id
-
-  switch (def.type) {
-    case "slider": {
-      const numericValue = typeof value === "number" ? value : def.default
-      return (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs">{label}</Label>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {numericValue}
-            </span>
-          </div>
-          <Slider
-            min={def.min}
-            max={def.max}
-            step={def.step ?? 1}
-            value={[numericValue]}
-            onValueChange={(vals) => {
-              const next = vals[0]
-              if (typeof next === "number") onChange(next)
-            }}
-          />
-        </div>
-      )
-    }
-    case "number": {
-      const numericValue = typeof value === "number" ? value : def.default
-      return (
-        <div className="flex items-center justify-between gap-3">
-          <Label className="text-xs">{label}</Label>
-          <Input
-            type="number"
-            value={numericValue}
-            min={def.min}
-            max={def.max}
-            step={def.step}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (!Number.isNaN(n)) onChange(n)
-            }}
-            className="h-7 w-24 text-xs"
-          />
-        </div>
-      )
-    }
-    case "boolean": {
-      const boolValue = typeof value === "boolean" ? value : def.default
-      return (
-        <div className="flex items-center justify-between gap-3">
-          <Label className="text-xs">{label}</Label>
-          <Switch checked={boolValue} onCheckedChange={onChange} />
-        </div>
-      )
-    }
-    case "string": {
-      const stringValue = typeof value === "string" ? value : def.default
-      return (
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">{label}</Label>
-          <Input
-            type="text"
-            value={stringValue}
-            placeholder={def.placeholder}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-7 text-xs"
-          />
-        </div>
-      )
-    }
-    case "select": {
-      const stringValue = typeof value === "string" ? value : def.default
-      return (
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">{label}</Label>
-          <Select value={stringValue} onValueChange={onChange}>
-            <SelectTrigger size="sm" className="h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {def.options.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label ?? opt.value}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )
-    }
-    case "color": {
-      const stringValue = typeof value === "string" ? value : def.default
-      return (
-        <div className="flex items-center justify-between gap-3">
-          <Label className="text-xs">{label}</Label>
-          <input
-            type="color"
-            value={stringValue}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-7 w-12 cursor-pointer rounded border border-border bg-transparent"
-          />
-        </div>
-      )
-    }
-  }
 }
