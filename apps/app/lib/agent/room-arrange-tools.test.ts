@@ -46,6 +46,9 @@ function room() {
       throw new Error("no browser")
     },
     readFrameCapture: async () => null,
+    launchWorkspaceTurn: async () => {
+      throw new Error("no Workspaces")
+    },
   }
   const turn = () => {
     const tools = buildRoomTools("room-1", ports)

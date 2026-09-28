@@ -46,7 +46,14 @@ import {
   settleCommentRequest,
   startCommentRequest,
 } from "./comment-request"
-import type { TurnLaunchDeps, TurnStopDeps, TurnTarget } from "./turn-launch"
+import {
+  launchTurn,
+  type TurnLaunchDeps,
+  type TurnStopDeps,
+  type TurnTarget,
+} from "./turn-launch"
+import { prependTurnMarkers } from "./message-markers"
+import type { WorkspaceTurnRequest } from "./room-tools"
 
 /**
  * Turn Launch over the live database, Room broadcast and `after()`, for a turn
@@ -173,7 +180,10 @@ export function roomTurn(input: {
       const prepared = await prepareChatTarget(
         room,
         roomChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
-        { userId: room.userId } as unknown as never
+        {
+          userId: room.userId,
+          launchWorkspaceTurn: delegatedTurnLauncher(room, chatId),
+        } as unknown as never
       )
       if (!prepared) return null
 
@@ -198,6 +208,56 @@ export function roomTurn(input: {
   }
 }
 
+/**
+ * A Delegated Message (#896): the Coordinator chat `coordinatorChatId` starts a
+ * turn in a Workspace chat, through the same Turn Launch a typed message takes.
+ * The turn is the acting member's, as if they had typed it; its user message
+ * carries the `[from coordinator: …]` prefix, in the live echo too, so the
+ * Workspace chat shows it collapsed. Resolves once the turn is started.
+ */
+export function delegatedTurnLauncher(
+  room: RoomAccess,
+  coordinatorChatId: string
+): (request: WorkspaceTurnRequest) => Promise<void> {
+  return (request) => launchDelegatedTurn(room, coordinatorChatId, request)
+}
+
+async function launchDelegatedTurn(
+  room: RoomAccess,
+  coordinatorChatId: string,
+  request: WorkspaceTurnRequest
+): Promise<void> {
+  const { chatId, sandboxName, message, model } = request
+  const result = await launchTurn(
+    liveTurnLaunchDeps(room),
+    {
+      roomId: room.roomId,
+      chatId,
+      message: prependTurnMarkers(message, {
+        delegatedFrom: coordinatorChatId,
+      }),
+      sandboxName,
+      model,
+    },
+    sandboxTurn({
+      room,
+      chatId,
+      sandboxName,
+      userId: room.userId,
+      message,
+      isFirstChat: request.isFirstChat,
+      model,
+      delegatedFrom: coordinatorChatId,
+    })
+  )
+  if (result.kind === "target-not-found") {
+    throw new Error("The Workspace is gone.")
+  }
+  if (result.kind === "plan-already-resolved") {
+    throw new Error("The Workspace's plan changed while sending. Try again.")
+  }
+}
+
 /** A chat on a Branch's sandbox. */
 export function sandboxTurn(input: {
   room: RoomDoc
@@ -209,6 +269,8 @@ export function sandboxTurn(input: {
   planMode?: boolean
   model?: string
   commentThreadIds?: string[]
+  /** The sending Coordinator chat, when this turn is a Delegated Message. */
+  delegatedFrom?: string
 }): TurnTarget {
   const { room, chatId, sandboxName, userId, message, planMode } = input
   const { roomId } = room
@@ -300,6 +362,7 @@ export function sandboxTurn(input: {
           planMode,
           branch: effectiveBranch,
           isFirstMessage: isNewChat,
+          delegatedFrom: input.delegatedFrom,
         }),
         planMode,
         branchRename,

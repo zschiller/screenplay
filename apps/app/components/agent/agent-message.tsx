@@ -37,6 +37,7 @@ import {
   CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -68,6 +69,8 @@ import { ElementDetail } from "./element-detail"
 import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
 import { ChatDisclosure } from "./chat-disclosure"
+import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
+import { workspaceTaskOf } from "@/lib/agent/workspace-task"
 
 const toolIcons: Record<string, typeof FileText> = {
   read_file: FileText,
@@ -929,6 +932,56 @@ function UserMessage({
 }: {
   message: AgentMessage & { role: "user" }
 }) {
+  const delegatedFrom = useMemo(
+    () => parseUserMessage(message.content).delegatedFrom,
+    [message.content]
+  )
+  return delegatedFrom ? (
+    <DelegatedMessage message={message} />
+  ) : (
+    <UserBubble message={message} />
+  )
+}
+
+/**
+ * A Delegated Message (#896): a turn the Coordinator sent into this Workspace
+ * chat. One muted line, like a finished turn's summary, that opens to the
+ * message, so the chat stays readable and what it was asked stays one click
+ * away.
+ */
+function DelegatedMessage({
+  message,
+}: {
+  message: AgentMessage & { role: "user" }
+}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <Collapsible
+      open={expanded}
+      onOpenChange={setExpanded}
+      data-testid="delegated-message"
+    >
+      <CollapsibleTrigger className="group/delegated flex max-w-full min-w-0 items-center gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+        <ChevronRight
+          aria-hidden
+          className="size-3 shrink-0 transition-transform group-data-[state=open]/delegated:rotate-90"
+        />
+        Received a message from the Coordinator
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-1.5 pl-4.5">
+        <UserBubble message={message} align="start" />
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+function UserBubble({
+  message,
+  align = "end",
+}: {
+  message: AgentMessage & { role: "user" }
+  align?: "start" | "end"
+}) {
   // Strip the server turn prefixes and the referenced-documents / targeted-
   // elements footers via the Message Markers codec, then recover the inline
   // chips: `skillMarkersToPills` for the `/`-skill marker and
@@ -996,7 +1049,7 @@ function UserMessage({
   )
 
   return (
-    <div className="flex justify-end">
+    <div className={cn("flex", align === "end" && "justify-end")}>
       <ChatMarkdown
         tone="bubble"
         urlTransform={(url) => url}
@@ -1007,6 +1060,23 @@ function UserMessage({
       </ChatMarkdown>
     </div>
   )
+}
+
+/**
+ * A tool call, or, in the Coordinator's transcript, a Workspace task row when
+ * the call names a Workspace (#896).
+ */
+function ToolCallItem({
+  message,
+}: {
+  message: AgentMessage & { role: "tool_call" }
+}) {
+  const tasks = useWorkspaceTasks()
+  const task = tasks ? workspaceTaskOf(message) : null
+  if (tasks && task) {
+    return <WorkspaceTaskRow call={message} task={task} tasks={tasks} />
+  }
+  return <ToolCallRow message={message} />
 }
 
 export function AgentMessageItem({
@@ -1029,7 +1099,7 @@ export function AgentMessageItem({
       return <ReasoningMessage message={message} />
 
     case "tool_call":
-      return <ToolCallRow message={message} />
+      return <ToolCallItem message={message} />
 
     case "plan":
       return roomId && chatId ? (

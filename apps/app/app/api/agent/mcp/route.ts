@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent/coordinator-mcp"
 import { ROOM_TOOL_ANNOTATIONS } from "@/lib/agent/room-tools"
 import { findActiveRun } from "@/lib/agent/persistence"
+import { delegatedTurnLauncher } from "@/lib/agent/turn-launch-live"
 import {
   handleMcpMessage,
   parseErrorResponse,
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
     tools: roomChatTarget.buildTools(room, {
       userId: room.userId,
       turnId: run?.id,
+      launchWorkspaceTurn: delegatedTurnLauncher(room, binding.chatId),
     }),
     annotations: ROOM_TOOL_ANNOTATIONS,
     // A wrong URL or token only ever shows up as "the tools aren't there", so

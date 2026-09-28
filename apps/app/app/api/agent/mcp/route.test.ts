@@ -101,6 +101,13 @@ describe("the Coordinator's MCP route", () => {
       annotations: { readOnlyHint: true },
     })
     expect(readCanvas.description).toMatch(/canvas/)
+    // It writes a Workspace turn, so it isn't read-only, but it destroys
+    // nothing and stays on this machine: Codex runs it without asking.
+    expect(
+      result.tools.find((t: { name: string }) => t.name === "send_to_workspace")
+    ).toMatchObject({
+      annotations: { destructiveHint: false, openWorldHint: false },
+    })
   })
 
   it("runs read_canvas against the token's Room", async () => {

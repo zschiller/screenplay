@@ -30,6 +30,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   MemoryData,
+  PlanData,
   ViewportData,
   RepoData,
 } from "@/lib/types"
@@ -88,6 +89,10 @@ export function useBranches(): Array<BranchData> {
 
 export function useChatSessions(): Array<ChatSessionData> {
   return useCollectionArray(useRoomCollections().chatSessions)
+}
+
+export function usePlans(): Array<PlanData> {
+  return useCollectionArray(useRoomCollections().plans)
 }
 
 export function useSavedViewport(): ViewportData | null {

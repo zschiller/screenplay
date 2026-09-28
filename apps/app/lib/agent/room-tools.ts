@@ -17,12 +17,15 @@ import {
   MEMORY_ENTRY_MAX_LENGTH,
   removeMemory,
 } from "@/lib/canvas/memory"
+import { isBranchBusy } from "@/lib/branch-busy"
+import { sentToWorkspaceResult } from "@/lib/agent/workspace-task"
 import type {
   BranchData,
   ChatSessionData,
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  PlanData,
   RepoData,
 } from "@/lib/types"
 
@@ -48,6 +51,27 @@ export interface RoomToolPorts extends WorkspaceReadPorts {
   ): Promise<T>
   /** The acting member's Terminal Tabs in this Room (tabs are per user). */
   listTerminalTabs(): Promise<TerminalTabSummary[]>
+  /**
+   * Start a turn in a Workspace chat carrying a Delegated Message, through
+   * Turn Launch. Resolves once the turn is queued (the message persisted and
+   * broadcast), never when it ends.
+   */
+  launchWorkspaceTurn(input: WorkspaceTurnRequest): Promise<void>
+}
+
+/** A Delegated Message on its way into a Workspace chat. */
+export type WorkspaceTurnRequest = {
+  branchId: string
+  sandboxName: string
+  chatId: string
+  /** The message as the Coordinator wrote it, before any turn marker. */
+  message: string
+  /**
+   * True when this is the Workspace's only chat, so its first turn may name
+   * the Workspace and its branch, as a first chat typed by hand does.
+   */
+  isFirstChat: boolean
+  model?: string
 }
 
 /** What the Coordinator sees of a Terminal Tab: never its scrollback. */
@@ -79,6 +103,8 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
     destructiveHint: false,
     openWorldHint: false,
   },
+  // Starts a turn in a Workspace chat the user can see and take over.
+  send_to_workspace: { destructiveHint: false, openWorldHint: false },
   // Shared by every chat's toolset (`layer-read-tools.ts`).
   read_document: { readOnlyHint: true, openWorldHint: false },
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
@@ -140,6 +166,27 @@ export function buildRoomTools(
       }),
       execute: async (input) => writeMemory(ports, input),
     }),
+    send_to_workspace: tool({
+      description:
+        "Send a message into a Workspace's chat, as a new turn for its agent. Use it to hand a Workspace work or a follow-up; the user sees it in that chat and can take over at any time. It returns as soon as the message is queued, never waiting for the turn: you hear back when the turn ends. It refuses a Workspace whose agent is working, whose sandbox isn't running, or whose plan waits on the user (only the user approves plans).",
+      inputSchema: jsonSchema<{ workspace_id: string; message: string }>({
+        type: "object",
+        properties: {
+          workspace_id: {
+            type: "string",
+            description: "The Workspace's id, from `read_canvas`.",
+          },
+          message: {
+            type: "string",
+            description:
+              "What the Workspace's agent should do, written as the user would write it.",
+          },
+        },
+        required: ["workspace_id", "message"],
+      }),
+      execute: async ({ workspace_id, message }) =>
+        sendToWorkspace(ports, workspace_id, message),
+    }),
   }
 }
 
@@ -168,6 +215,87 @@ async function writeMemory(
   }
   const removed = await ports.mutateDoc((c) => removeMemory(c, id))
   return removed ? `Removed [${id}].` : `No memory entry [${id}].`
+}
+
+/**
+ * The Workspace chat a Delegated Message goes to: the Workspace's newest open
+ * chat, or a new one when every chat is closed. Throws (the tool call then
+ * fails with the reason) when the Workspace can't take a message now.
+ */
+async function sendToWorkspace(
+  ports: RoomToolPorts,
+  branchId: string,
+  rawMessage: string
+): Promise<string> {
+  const message = rawMessage.trim()
+  if (!message) throw new Error("The message is empty.")
+
+  const target = await ports.mutateDoc((collections) => {
+    const branch = collections.branches.get(branchId)
+    if (!branch) {
+      throw new Error(
+        `No Workspace has the id ${branchId}. Call read_canvas for current ids.`
+      )
+    }
+    const title = workspaceLabel(branch)
+    if (branch.status !== "running") {
+      throw new Error(
+        `"${title}" isn't running (its sandbox is ${branch.status}), so it can't take a message.`
+      )
+    }
+    const chats = records<ChatSessionData>(
+      collections,
+      COLLECTION_KEYS.chatSessions
+    )
+    if (isBranchBusy(branchId, chats)) {
+      throw new Error(
+        `"${title}" is working on a turn. Wait until it ends, then send the message.`
+      )
+    }
+    const plans = records<PlanData>(collections, COLLECTION_KEYS.plans)
+    if (plans.some((p) => p.branchId === branchId && p.status === "pending")) {
+      throw new Error(
+        `"${title}" is waiting for the user to approve its plan. Only the user approves plans: tell them it's waiting.`
+      )
+    }
+    const branchChats = chats.filter((c) => c.branchId === branchId)
+    const open = branchChats
+      .filter((c) => !c.closedAt)
+      .sort((a, b) => b.createdAt - a.createdAt)[0]
+    if (open) {
+      return {
+        title,
+        branch,
+        chatId: open.id,
+        model: open.model,
+        isFirstChat: branchChats.length === 1,
+      }
+    }
+    const chat: ChatSessionData = {
+      id: nanoid(),
+      branchId,
+      label: "Untitled",
+      createdAt: Date.now(),
+    }
+    collections.chatSessions.set(chat.id, chat)
+    return {
+      title,
+      branch,
+      chatId: chat.id,
+      model: undefined,
+      isFirstChat: branchChats.length === 0,
+    }
+  })
+
+  await ports.launchWorkspaceTurn({
+    branchId,
+    sandboxName: target.branch.sandboxName,
+    chatId: target.chatId,
+    message,
+    isFirstChat: target.isFirstChat,
+    model: target.model,
+  })
+  return sentToWorkspaceResult(target.title, target.chatId)
 }
 
 /**

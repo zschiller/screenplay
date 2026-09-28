@@ -45,7 +45,24 @@ you can undo an undo the same way. Your own ⌘Z still undoes only your own
 edits, never the Coordinator's.
 
 The Coordinator never works inside a sandbox and never edits a workspace's
-files: to change code, open a workspace and ask its agent.
+files. When you ask for work in a workspace, it sends that workspace's agent a
+message, and the agent does the work. It can't start new workspaces yet.
+
+### Messages to workspaces
+
+Each workspace the Coordinator messaged shows up in its reply as a row with the
+workspace's title, its changed lines and its state: **Working** while the
+agent runs, **Needs you** when a plan waits for your approval, **Done**, or
+**Failed**. The row updates as the workspace works. Click it to open that
+workspace on the chat the message went to.
+
+In the workspace's chat, the message shows as one line, **Received a message
+from the Coordinator**. Click it to read what was asked. The chat is still
+yours: type in it at any time to take over.
+
+The Coordinator won't message a workspace whose agent is already working,
+whose sandbox isn't running, or whose plan is waiting on you. It tells you
+instead, and only you approve plans.
 
 ### Canvas memory
 

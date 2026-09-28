@@ -5,6 +5,7 @@ import {
   CANVAS_SUMMARY_LIMITS,
   type RoomToolPorts,
   type TerminalTabSummary,
+  type WorkspaceTurnRequest,
 } from "@/lib/agent/room-tools"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import { readMemory } from "@/lib/canvas/memory"
@@ -37,6 +38,7 @@ function portsOver(
     readWorkspaceFile: unused,
     captureFrame: unused,
     readFrameCapture: unused,
+    launchWorkspaceTurn: async () => {},
   }
 }
 
@@ -264,5 +266,136 @@ describe("write_memory", () => {
       /needs text/
     )
     expect(readMemory(collections)).toEqual([])
+  })
+})
+
+describe("send_to_workspace", () => {
+  /** Ports that record every Workspace turn the tool starts. */
+  function sendHarness() {
+    const { collections } = makeHarness()
+    const launched: WorkspaceTurnRequest[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      launchWorkspaceTurn: async (request) => {
+        launched.push(request)
+      },
+    }
+    const send = async (input: { workspace_id: string; message: string }) =>
+      (await buildRoomTools("room-1", ports).send_to_workspace.execute!(input, {
+        toolCallId: "t1",
+        messages: [],
+      })) as string
+    return { collections, launched, ports, send }
+  }
+
+  it("queues the message in the Workspace's newest open chat and returns", async () => {
+    const { collections, launched, send } = sendHarness()
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { title: "Fix sign-in redirect" })
+    )
+    collections.chatSessions.set(
+      "old",
+      baseChat("old", { branchId: "ws-1", createdAt: 1 })
+    )
+    collections.chatSessions.set(
+      "new",
+      baseChat("new", { branchId: "ws-1", createdAt: 2, model: "m-1" })
+    )
+    collections.chatSessions.set(
+      "closed",
+      baseChat("closed", { branchId: "ws-1", createdAt: 3, closedAt: 4 })
+    )
+
+    const result = await send({
+      workspace_id: "ws-1",
+      message: "  Keep the next param.  ",
+    })
+
+    expect(launched).toEqual([
+      {
+        branchId: "ws-1",
+        sandboxName: "sandbox-ws-1",
+        chatId: "new",
+        message: "Keep the next param.",
+        isFirstChat: false,
+        model: "m-1",
+      },
+    ])
+    expect(result).toContain('Sent to "Fix sign-in redirect" [chat new]')
+  })
+
+  it("never waits on the Workspace turn", async () => {
+    const { collections, ports } = sendHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1"))
+    // Resolving means queued: Turn Launch drives the turn after the fact.
+    let queued = false
+    const result = buildRoomTools("room-1", {
+      ...ports,
+      launchWorkspaceTurn: async () => {
+        queued = true
+      },
+    }).send_to_workspace.execute!(
+      { workspace_id: "ws-1", message: "Go" },
+      { toolCallId: "t1", messages: [] }
+    )
+    await expect(result).resolves.toMatch(/Sent to/)
+    expect(queued).toBe(true)
+  })
+
+  it("opens a chat when the Workspace has none open", async () => {
+    const { collections, launched, send } = sendHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1"))
+
+    await send({ workspace_id: "ws-1", message: "Add a dark mode toggle" })
+
+    const [request] = launched
+    const chat = collections.chatSessions.get(request.chatId)
+    expect(chat).toMatchObject({ branchId: "ws-1", label: "Untitled" })
+    expect(request.isFirstChat).toBe(true)
+  })
+
+  it.each([
+    ["an unknown Workspace", () => {}, /No Workspace has the id ws-1/],
+    [
+      "a Workspace whose sandbox isn't running",
+      (c: RoomCollections) =>
+        c.branches.set("ws-1", baseBranch("ws-1", { status: "starting" })),
+      /isn't running/,
+    ],
+    [
+      "a Workspace whose agent is working",
+      (c: RoomCollections) => {
+        c.branches.set("ws-1", baseBranch("ws-1"))
+        c.chatSessions.set(
+          "chat-1",
+          baseChat("chat-1", { branchId: "ws-1", isStreaming: true })
+        )
+      },
+      /is working on a turn/,
+    ],
+    [
+      "a Workspace whose plan waits on the user",
+      (c: RoomCollections) => {
+        c.branches.set("ws-1", baseBranch("ws-1"))
+        c.plans.set("plan-1", {
+          id: "plan-1",
+          chatId: "chat-1",
+          branchId: "ws-1",
+          content: "Plan",
+          status: "pending",
+          toolEventId: "t",
+          createdAt: 0,
+        })
+      },
+      /Only the user approves plans/,
+    ],
+  ])("refuses %s without starting a turn", async (_, seed, reason) => {
+    const { collections, launched, send } = sendHarness()
+    seed(collections)
+    await expect(send({ workspace_id: "ws-1", message: "Go" })).rejects.toThrow(
+      reason
+    )
+    expect(launched).toEqual([])
   })
 })

@@ -54,7 +54,13 @@ export interface ChatTargetSpec<TTarget, TContext> {
   ): Record<string, Tool>
   decorateUserMessage?(
     message: string,
-    opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean }
+    opts: {
+      planMode?: boolean
+      branch?: string
+      isFirstMessage: boolean
+      /** The Coordinator chat that sent this turn, for a Delegated Message. */
+      delegatedFrom?: string
+    }
   ): string
 }
 
@@ -138,12 +144,16 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
     }
     return toolsetFor({ kind: "sandbox", room, sandbox })
   },
-  decorateUserMessage(message, { planMode, branch, isFirstMessage }) {
+  decorateUserMessage(
+    message,
+    { planMode, branch, isFirstMessage, delegatedFrom }
+  ) {
     // Policy lives here (branch only on the first message); the codec owns
     // the format.
     return prependTurnMarkers(message, {
       planMode,
       branch: isFirstMessage ? branch : undefined,
+      delegatedFrom,
     })
   },
 }
@@ -229,6 +239,12 @@ export interface RoomTarget {
    * passes the chat's running turn instead.
    */
   turnId?: string
+  /**
+   * Starts a Workspace turn for `send_to_workspace`. Turn Launch lives above
+   * this module (`turn-launch-live.ts`), so the Room turn injects it; without
+   * it the tool reports that it can't reach Workspaces.
+   */
+  launchWorkspaceTurn?: RoomToolPorts["launchWorkspaceTurn"]
 }
 
 interface RoomContext {
@@ -239,12 +255,17 @@ interface RoomContext {
 /** The Coordinator tools module's ports over the live Room doc and database. */
 export function liveRoomToolPorts(
   room: RoomDoc,
-  userId: string
+  { userId, launchWorkspaceTurn }: RoomTarget
 ): RoomToolPorts {
   return {
     ...liveWorkspaceReadPorts(room.roomId),
     readDoc: (fn) => room.readDoc(fn),
     mutateDoc: (fn) => room.mutateDoc(fn),
+    launchWorkspaceTurn:
+      launchWorkspaceTurn ??
+      (async () => {
+        throw new Error("Messaging Workspaces isn't available here.")
+      }),
     listTerminalTabs: async () =>
       (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
         id: t.id,
@@ -257,7 +278,7 @@ export function liveRoomToolPorts(
 export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   kind: "room",
   async loadContext(room, target) {
-    const ports = liveRoomToolPorts(room, target.userId)
+    const ports = liveRoomToolPorts(room, target)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
     const [canvasSummary, memory] = await Promise.all([
       ports.readDoc((collections) =>
@@ -277,7 +298,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
     return toolsetFor({
       kind: "room",
       room,
-      ports: liveRoomToolPorts(room, target.userId),
+      ports: liveRoomToolPorts(room, target),
       turnId: target.turnId,
     })
   },
@@ -295,7 +316,13 @@ export type PreparedChatTarget = {
   tools: Record<string, Tool>
   decorateUserMessage: (
     message: string,
-    opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean }
+    opts: {
+      planMode?: boolean
+      branch?: string
+      isFirstMessage: boolean
+      /** The Coordinator chat that sent this turn, for a Delegated Message. */
+      delegatedFrom?: string
+    }
   ) => string
 }
 

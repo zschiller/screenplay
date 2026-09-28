@@ -7,8 +7,10 @@
  * its interface to encode and decode instead of each carrying their own
  * inline string-building or regex copy.
  *
- * This slice owns the two *server-prepended* turn prefixes:
+ * This slice owns the three *server-prepended* turn prefixes:
  *
+ *   - `[from coordinator: <chatId>]` — marks a Delegated Message: a turn the
+ *     Room's Coordinator chat (`<chatId>`) sent into a Workspace chat.
  *   - `[plan mode: enabled]` — flags the Engine to submit a plan first.
  *   - `[branch: <ref>]`      — attaches the chat's working branch.
  *
@@ -46,6 +48,14 @@ export const BRANCH_MARKER_LABEL = "branch"
 /** Renders the parameterized branch prefix for a given ref. */
 function branchMarker(branch: string): string {
   return `[${BRANCH_MARKER_LABEL}: ${branch}]`
+}
+
+/** Label used by the Delegated Message prefix: `[from coordinator: <chatId>]`. */
+export const DELEGATED_MARKER_LABEL = "from coordinator"
+
+/** Renders the Delegated Message prefix for the sending Coordinator chat. */
+function delegatedMarker(chatId: string): string {
+  return `[${DELEGATED_MARKER_LABEL}: ${chatId}]`
 }
 
 /** Label used by the inline skill marker: `[skill: <name>]`. */
@@ -269,20 +279,28 @@ export function buildTargetedElementsFooter(
 }
 
 /**
- * Prepend the server turn prefixes to a user message body, plan before
- * branch. Each prefix is emitted only when its input is present, so a turn
- * with neither marker returns `body` unchanged.
+ * Prepend the server turn prefixes to a user message body: delegation, then
+ * plan, then branch. Each prefix is emitted only when its input is present, so
+ * a turn with no marker returns `body` unchanged.
  */
 export function prependTurnMarkers(
   body: string,
-  opts: { planMode?: boolean; branch?: string }
+  opts: { planMode?: boolean; branch?: string; delegatedFrom?: string }
 ): string {
+  const delegatedPrefix = opts.delegatedFrom
+    ? `${delegatedMarker(opts.delegatedFrom)} `
+    : ""
   const planPrefix = opts.planMode ? `${PLAN_MODE_MARKER} ` : ""
   const branchPrefix = opts.branch ? `${branchMarker(opts.branch)} ` : ""
-  return `${planPrefix}${branchPrefix}${body}`
+  return `${delegatedPrefix}${planPrefix}${branchPrefix}${body}`
 }
 
 export interface ParsedUserMessage {
+  /**
+   * The sending Coordinator chat's id when this is a Delegated Message (the
+   * `[from coordinator: <chatId>]` prefix was present).
+   */
+  delegatedFrom?: string
   /** True when the `[plan mode: enabled]` prefix was present. */
   planMode: boolean
   /** The branch ref from the `[branch: <ref>]` prefix, if present. */
@@ -311,6 +329,8 @@ export interface ParsedUserMessage {
 // followed by a space), which is exactly what `prependTurnMarkers` emits.
 // Anchoring on that pair — rather than the first `]` — lets a branch ref
 // contain spaces and brackets while still parsing back exactly.
+// A Coordinator chat id holds no `]`, so the first one ends the prefix.
+const DELEGATED_PREFIX_RE = /^\[from coordinator: ([^\]]+)\] /
 const PLAN_PREFIX_RE = /^\[plan mode: enabled\] /
 const BRANCH_PREFIX_RE = /^\[branch: (.*?)\] /
 // Built from the canonical token so build and strip can't drift. The footer
@@ -345,6 +365,10 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   let planMode = false
   let branch: string | undefined
 
+  const delegatedMatch = body.match(DELEGATED_PREFIX_RE)
+  const delegatedFrom = delegatedMatch?.[1]
+  if (delegatedMatch) body = body.slice(delegatedMatch[0].length)
+
   if (PLAN_PREFIX_RE.test(body)) {
     planMode = true
     body = body.replace(PLAN_PREFIX_RE, "")
@@ -371,6 +395,7 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   }
 
   return {
+    ...(delegatedFrom ? { delegatedFrom } : {}),
     planMode,
     branch,
     body,

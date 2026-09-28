@@ -21,6 +21,8 @@ import { fixtureGitHubCookieName } from "@/lib/fixture-github"
 import { fixtureModelCookieName } from "@/lib/fixture-model"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
 import { roomChatId } from "@/lib/chat/room-chat"
+import { prependTurnMarkers } from "@/lib/agent/message-markers"
+import { sentToWorkspaceResult } from "@/lib/agent/workspace-task"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
@@ -551,6 +553,78 @@ export const SCREENS: Screen[] = [
         coordinatorUndoRun()
       )
       await expandTurnSummaries(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-tasks",
+    description:
+      "The Coordinator's task rows after it messaged two Workspaces: one working, one waiting on a plan (#896).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.checkout), delegationRun())
+      // Checkout polish's turn is under way; Empty cart state's plan waits.
+      await replayRun(page, ids.chats.checkoutPolish, [
+        { type: "chat-stream-start" },
+      ])
+      await page
+        .getByTestId("workspace-task")
+        .first()
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-tasks-done",
+    description:
+      "The same task rows once Checkout polish's turn ended: Done, with its changed lines (#896).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.checkout), delegationRun())
+      await page
+        .getByTestId("workspace-task")
+        .first()
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-delegated-message",
+    description:
+      'A Workspace chat the Coordinator messaged: the collapsed "Received a message from the Coordinator" row, then the agent\'s reply (#896).',
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, delegatedWorkspaceRun())
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-delegated-message-open",
+    description:
+      "The Delegated Message row opened to the Coordinator's message (#896).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, delegatedWorkspaceRun())
+      await page
+        .getByRole("button", {
+          name: "Received a message from the Coordinator",
+        })
+        .first()
+        .click({ timeout: 15_000 })
     },
     settleMs: 400,
   },
@@ -3568,6 +3642,135 @@ export function coordinatorRun(): RunEvent[] {
             "",
             "There are four frames (checkout on desktop and iPhone, the empty cart, and one with no Workspace) and one document, Checkout brief.",
           ].join("\n")
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
+/** The ask the Coordinator splits across two Workspaces (#896). */
+const DELEGATED_STICKY = "Make the order summary sticky on mobile, below 768px."
+
+/**
+ * A finished Coordinator turn that messaged two Workspaces on the checkout
+ * canvas: its reply, one `send_to_workspace` call per Workspace (task rows),
+ * and a closing line.
+ */
+export function delegationRun(): RunEvent[] {
+  const send = (
+    toolCallId: string,
+    branchId: string,
+    title: string,
+    chatId: string,
+    message: string
+  ): RunEvent => ({
+    type: "chat-acp-update",
+    update: {
+      sessionUpdate: "tool_call",
+      toolCallId,
+      title: "send_to_workspace",
+      status: "completed",
+      rawInput: { workspace_id: branchId, message },
+      content: [
+        {
+          type: "content",
+          content: text(sentToWorkspaceResult(title, chatId)),
+        },
+      ],
+    },
+  })
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text(
+          "Pin the order summary on mobile in Checkout polish, and add a Continue shopping link to the empty cart."
+        ),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text("Those belong to two Workspaces, so I sent one to each."),
+      },
+    },
+    send(
+      "fixture-send-checkout",
+      ids.branches.checkoutPolish,
+      "Checkout polish",
+      ids.chats.checkoutPolish,
+      DELEGATED_STICKY
+    ),
+    send(
+      "fixture-send-empty-cart",
+      ids.branches.emptyCart,
+      "Empty cart state",
+      "chat-empty-cart",
+      "Add a Continue shopping link under the empty cart message."
+    ),
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "\n\nEmpty cart state is still waiting for you to approve its plan, so it will pick this up after that. I'll tell you when they're done or need you."
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
+/**
+ * A Workspace turn the Coordinator started: the Delegated Message (its turn
+ * markers, as persisted), a step, and the agent's reply.
+ */
+export function delegatedWorkspaceRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text(
+          prependTurnMarkers(DELEGATED_STICKY, {
+            delegatedFrom: roomChatId(ids.rooms.checkout),
+          })
+        ),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-delegated-read",
+        title: "read_file",
+        kind: "read",
+        status: "completed",
+        rawInput: { path: "app/checkout/summary.tsx" },
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-delegated-edit",
+        title: "edit_file",
+        kind: "edit",
+        status: "completed",
+        rawInput: { path: "app/checkout/summary.tsx" },
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "The summary is now `position: sticky` at the bottom of the viewport below 768px, with a top border so it separates from the form."
         ),
       },
     },
