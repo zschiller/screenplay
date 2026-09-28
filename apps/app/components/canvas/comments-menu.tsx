@@ -128,9 +128,11 @@ export function CommentsMenu({
               </button>
             </div>
             <div className="flex flex-col gap-2 p-3">
+              {/* The card's chip already says where it was. */}
               <DetachedNote
                 thread={openThread}
                 placement={placements.get(openThread.id)}
+                showRoute={false}
               />
               <OpenThreadCard
                 thread={openThread}
@@ -240,15 +242,17 @@ export function CommentsMenu({
 function DetachedNote({
   thread,
   placement,
+  showRoute = true,
   className,
 }: {
   thread: ThreadWithComments
   placement: Placement | undefined
+  showRoute?: boolean
   className?: string
 }) {
   if (placement?.kind !== "detached") return null
   const what = thread.snapshot ?? thread.quotedText
-  const where = thread.route
+  const where = showRoute ? thread.route : null
   const reason =
     placement.reason === "frame"
       ? thread.documentId
