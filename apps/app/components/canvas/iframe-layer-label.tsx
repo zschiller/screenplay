@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { Braces, ChevronsUpDown } from "lucide-react"
 import { BranchBadge } from "@/components/branch-badge"
+import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import {
   Popover,
   PopoverContent,
@@ -93,13 +94,18 @@ export function IframeLayerLabel({
         onAssignBranch={onAssignBranch}
       />
     ) : (
-      <BranchBadge
-        branch={branch}
-        title={branchTitle}
-        colorKey={branchId}
-        colorIndex={colorIndex}
-        className="min-w-10 shrink-[100] px-1 py-0 text-3xs"
-      />
+      <MaybeWorkspaceHoverCard branchId={branchId} side="bottom">
+        {/* BranchBadge doesn't take the trigger's props; this span does. */}
+        <span className="flex min-w-10 shrink-[100]">
+          <BranchBadge
+            branch={branch}
+            title={branchTitle}
+            colorKey={branchId}
+            colorIndex={colorIndex}
+            className="min-w-0 px-1 py-0 text-3xs"
+          />
+        </span>
+      </MaybeWorkspaceHoverCard>
     )
   }
   return (
@@ -192,42 +198,47 @@ function BranchPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={
-            branch
-              ? `Workspace: ${workspaceLabel({ ref: branch, title: branchTitle })}`
-              : "Choose a workspace"
-          }
-          // Names win: the pill gives up its width first.
-          className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {branch ? (
-            <BranchBadge
-              branch={branch}
-              title={branchTitle}
-              colorKey={currentBranchId}
-              colorIndex={colorIndex}
-              className="px-1 py-0 text-3xs"
-            />
-          ) : (
-            <span className="truncate text-xs text-muted-foreground">
-              Choose a workspace
-            </span>
-          )}
-          <ChevronsUpDown
-            aria-hidden
-            className={
+      <MaybeWorkspaceHoverCard
+        branchId={branch ? currentBranchId : undefined}
+        side="bottom"
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={
               branch
-                ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
-                : "ml-1 size-3 shrink-0 text-muted-foreground"
+                ? `Workspace: ${workspaceLabel({ ref: branch, title: branchTitle })}`
+                : "Choose a workspace"
             }
-          />
-        </button>
-      </PopoverTrigger>
+            // Names win: the pill gives up its width first.
+            className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {branch ? (
+              <BranchBadge
+                branch={branch}
+                title={branchTitle}
+                colorKey={currentBranchId}
+                colorIndex={colorIndex}
+                className="px-1 py-0 text-3xs"
+              />
+            ) : (
+              <span className="truncate text-xs text-muted-foreground">
+                Choose a workspace
+              </span>
+            )}
+            <ChevronsUpDown
+              aria-hidden
+              className={
+                branch
+                  ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+                  : "ml-1 size-3 shrink-0 text-muted-foreground"
+              }
+            />
+          </button>
+        </PopoverTrigger>
+      </MaybeWorkspaceHoverCard>
       <PopoverContent
         className="w-72 p-0"
         side="bottom"
