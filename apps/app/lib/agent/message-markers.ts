@@ -7,8 +7,10 @@
  * its interface to encode and decode instead of each carrying their own
  * inline string-building or regex copy.
  *
- * This slice owns the three *server-prepended* turn prefixes:
+ * This slice owns the four *server-prepended* turn prefixes:
  *
+ *   - `[workspace update: <workspaceId>]` — marks a Coordinator wake: the
+ *     server's report that a Workspace's turn ended. Never shown.
  *   - `[from coordinator: <chatId>]` — marks a Delegated Message: a turn the
  *     Room's Coordinator chat (`<chatId>`) sent into a Workspace chat.
  *   - `[plan mode: enabled]` — flags the Engine to submit a plan first.
@@ -56,6 +58,14 @@ export const DELEGATED_MARKER_LABEL = "from coordinator"
 /** Renders the Delegated Message prefix for the sending Coordinator chat. */
 function delegatedMarker(chatId: string): string {
   return `[${DELEGATED_MARKER_LABEL}: ${chatId}]`
+}
+
+/** Label used by the Coordinator wake prefix: `[workspace update: <id>]`. */
+export const WAKE_MARKER_LABEL = "workspace update"
+
+/** Renders the Coordinator wake prefix for the Workspace whose turn ended. */
+function wakeMarker(workspaceId: string): string {
+  return `[${WAKE_MARKER_LABEL}: ${workspaceId}]`
 }
 
 /** Label used by the inline skill marker: `[skill: <name>]`. */
@@ -279,23 +289,34 @@ export function buildTargetedElementsFooter(
 }
 
 /**
- * Prepend the server turn prefixes to a user message body: delegation, then
- * plan, then branch. Each prefix is emitted only when its input is present, so
- * a turn with no marker returns `body` unchanged.
+ * Prepend the server turn prefixes to a user message body: wake, delegation,
+ * then plan, then branch. Each prefix is emitted only when its input is
+ * present, so a turn with no marker returns `body` unchanged.
  */
 export function prependTurnMarkers(
   body: string,
-  opts: { planMode?: boolean; branch?: string; delegatedFrom?: string }
+  opts: {
+    planMode?: boolean
+    branch?: string
+    delegatedFrom?: string
+    wakeFrom?: string
+  }
 ): string {
+  const wakePrefix = opts.wakeFrom ? `${wakeMarker(opts.wakeFrom)} ` : ""
   const delegatedPrefix = opts.delegatedFrom
     ? `${delegatedMarker(opts.delegatedFrom)} `
     : ""
   const planPrefix = opts.planMode ? `${PLAN_MODE_MARKER} ` : ""
   const branchPrefix = opts.branch ? `${branchMarker(opts.branch)} ` : ""
-  return `${delegatedPrefix}${planPrefix}${branchPrefix}${body}`
+  return `${wakePrefix}${delegatedPrefix}${planPrefix}${branchPrefix}${body}`
 }
 
 export interface ParsedUserMessage {
+  /**
+   * The Workspace whose turn ended when this is a Coordinator wake (the
+   * `[workspace update: <id>]` prefix was present).
+   */
+  wakeFrom?: string
   /**
    * The sending Coordinator chat's id when this is a Delegated Message (the
    * `[from coordinator: <chatId>]` prefix was present).
@@ -330,6 +351,8 @@ export interface ParsedUserMessage {
 // Anchoring on that pair — rather than the first `]` — lets a branch ref
 // contain spaces and brackets while still parsing back exactly.
 // A Coordinator chat id holds no `]`, so the first one ends the prefix.
+// A Workspace id holds no `]` either.
+const WAKE_PREFIX_RE = /^\[workspace update: ([^\]]+)\] /
 const DELEGATED_PREFIX_RE = /^\[from coordinator: ([^\]]+)\] /
 const PLAN_PREFIX_RE = /^\[plan mode: enabled\] /
 const BRANCH_PREFIX_RE = /^\[branch: (.*?)\] /
@@ -365,6 +388,10 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   let planMode = false
   let branch: string | undefined
 
+  const wakeMatch = body.match(WAKE_PREFIX_RE)
+  const wakeFrom = wakeMatch?.[1]
+  if (wakeMatch) body = body.slice(wakeMatch[0].length)
+
   const delegatedMatch = body.match(DELEGATED_PREFIX_RE)
   const delegatedFrom = delegatedMatch?.[1]
   if (delegatedMatch) body = body.slice(delegatedMatch[0].length)
@@ -395,6 +422,7 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   }
 
   return {
+    ...(wakeFrom ? { wakeFrom } : {}),
     ...(delegatedFrom ? { delegatedFrom } : {}),
     planMode,
     branch,

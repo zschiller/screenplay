@@ -84,6 +84,23 @@ describe("Delegated Message prefix (#896)", () => {
   })
 })
 
+describe("Coordinator wake prefix (#897)", () => {
+  it("round-trips the Workspace and goes first", () => {
+    const wire = prependTurnMarkers("Workspace finished its turn.", {
+      wakeFrom: "ws-1",
+    })
+    expect(wire).toBe("[workspace update: ws-1] Workspace finished its turn.")
+    expect(parseUserMessage(wire)).toMatchObject({
+      wakeFrom: "ws-1",
+      body: "Workspace finished its turn.",
+    })
+  })
+
+  it("is absent from a message the user typed", () => {
+    expect(parseUserMessage("ship it").wakeFrom).toBeUndefined()
+  })
+})
+
 describe("parseUserMessage", () => {
   it("round-trips plan and branch together", () => {
     const wire = prependTurnMarkers("ship it", {

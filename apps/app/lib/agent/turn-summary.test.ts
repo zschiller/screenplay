@@ -36,6 +36,33 @@ function shape(messages: AgentMessage[], streaming = false): string[] {
 }
 
 describe("foldFinishedTurns (issue #800)", () => {
+  it("hides a finished Coordinator wake that wrote nothing, keeping its task rows (#897)", () => {
+    const wake = user("[workspace update: ws-a] Workspace finished its turn.")
+    const send = call("s", {
+      title: "send_to_workspace",
+      rawInput: { workspace_id: "ws-b", message: "Go" },
+    })
+    // Quiet: nothing shows, not even its reads.
+    expect(
+      shape([
+        user("hi"),
+        assistant("Hello"),
+        wake,
+        call("r", { title: "read_workspace_chat" }),
+      ])
+    ).toEqual(["user", "assistant:Hello"])
+    // A follow-up it sent still shows as a task row.
+    expect(shape([wake, call("r", { title: "read_canvas" }), send])).toEqual([
+      "tool_call",
+    ])
+    // A wake that answers shows its reply; its message never shows.
+    expect(shape([wake, assistant("Checkout form is ready.")])).toEqual([
+      "assistant:Checkout form is ready.",
+    ])
+    // Still running: its steps show live.
+    expect(shape([wake, call("r")], true)).toEqual(["tool_call"])
+  })
+
   it("keeps Workspace task rows on screen (#896)", () => {
     const send = (id: string) =>
       call(id, {

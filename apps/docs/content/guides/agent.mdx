@@ -64,6 +64,17 @@ The Coordinator won't message a workspace whose agent is already working,
 whose sandbox isn't running, or whose plan is waiting on you. It tells you
 instead, and only you approve plans.
 
+### When a workspace finishes
+
+The Coordinator hears from every workspace on the canvas, including ones you
+started yourself. Each time a workspace's agent finishes, fails, is stopped or
+stops to wait for plan approval, the Coordinator reads what happened.
+
+It stays quiet unless there's something you need to know: a result, a
+blocker, or a decision only you can make. When a workspace is waiting for you
+to approve its plan, it tells you which one, with a link that opens it. You
+approve the plan in the workspace; the Coordinator can't.
+
 ### Canvas memory
 
 Each canvas keeps a shared **memory**: preferences, decisions and facts about
