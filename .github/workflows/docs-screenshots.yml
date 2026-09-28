@@ -78,6 +78,9 @@ jobs:
       # state, so fail the run rather than propose that image.
       - name: Regenerate the docs screenshots
         run: pnpm --filter app screenshots:docs --strict
+        env:
+          # A fresh runner compiles the app from cold before it answers.
+          SCREENSHOTS_BOOT_TIMEOUT_MS: "600000"
 
       - name: Keep the raw captures
         if: always()

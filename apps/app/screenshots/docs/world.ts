@@ -248,6 +248,9 @@ export async function buildDocsWorld(
       { id: "pin-marketing", folderId: ids.folders.marketing, position: 1 },
     ],
     repoConfigs: repoConfigs(now),
+    // The docs are shot from the local build, which has no people or
+    // comment threads to seed.
+    hosted: { userName: "Sam Rivera", collaborators: [], threads: [] },
   }
 }
 

@@ -105,7 +105,8 @@ export async function startServer(
  * Poll `/api/health` until it answers. The generous ceiling is for the cold
  * Turbopack compile of the first route on a fresh checkout; it fails fast instead
  * if the child has already exited, so a crashed boot reports the crash rather
- * than timing out two minutes later.
+ * than timing out two minutes later. `SCREENSHOTS_BOOT_TIMEOUT_MS` raises the
+ * ceiling for a cold CI runner, whose first compile can run past it.
  */
 export async function waitForServer(
   profile: CaptureProfile,
@@ -113,7 +114,7 @@ export async function waitForServer(
     code: number | null
     signal: NodeJS.Signals | null
   } | null = () => null,
-  timeoutMs = 180_000
+  timeoutMs = Number(process.env.SCREENSHOTS_BOOT_TIMEOUT_MS) || 180_000
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
