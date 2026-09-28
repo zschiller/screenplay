@@ -52,8 +52,7 @@ const MARGIN = 16
 const HUD_WIDTH = 132
 const HUD_HEIGHT = 32
 const PANEL_WIDTH = 320
-const PANEL_HEIGHT = 360
-// The comments panel's filters and grouped rows need more room than knobs.
+// The comments panel's filters and grouped rows need a fixed, taller box.
 const COMMENTS_PANEL_HEIGHT = 480
 const PANEL_GAP = 8
 const STORAGE_KEY = "screenplay:player-hud-corner"
@@ -204,7 +203,9 @@ export function PlayerHud({
     const isLeft = corner === "tl" || corner === "bl"
     return {
       width: PANEL_WIDTH,
-      height: panel === "comments" ? COMMENTS_PANEL_HEIGHT : PANEL_HEIGHT,
+      // The comments panel fills a fixed box; the knobs panel hugs its
+      // controls and scrolls past its own max height.
+      height: panel === "comments" ? COMMENTS_PANEL_HEIGHT : undefined,
       [isTop ? "top" : "bottom"]: HUD_HEIGHT + PANEL_GAP,
       [isLeft ? "left" : "right"]: 0,
     }
