@@ -9,6 +9,7 @@ import {
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+import { ElementDetail } from "./element-detail"
 import { useElementHighlight } from "./use-element-highlight"
 
 /**
@@ -59,22 +60,12 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
             {label}
           </span>
         </HoverCardTrigger>
-        <HoverCardContent align="start" className="gap-2">
-          <div className="font-mono text-xs break-all text-foreground">
-            {selector || "(no selector)"}
-          </div>
-          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-            <div className="flex gap-1.5">
-              <span className="shrink-0 text-foreground/60">Route</span>
-              <span className="font-mono break-all">{route}</span>
-            </div>
-            {frameLabel ? (
-              <div className="flex gap-1.5">
-                <span className="shrink-0 text-foreground/60">Frame</span>
-                <span className="break-all">{frameLabel}</span>
-              </div>
-            ) : null}
-          </div>
+        <HoverCardContent align="start">
+          <ElementDetail
+            selector={selector}
+            route={route}
+            frameLabel={frameLabel}
+          />
         </HoverCardContent>
       </HoverCard>
     </NodeViewWrapper>

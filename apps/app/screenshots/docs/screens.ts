@@ -1019,7 +1019,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.keyboard.type("Make ", { delay: 5 })
       await pointAtStartTrial(page, true)
       await page.keyboard.type(
-        " bigger and add an arrow icon after the label",
+        "bigger and add an arrow icon after the label",
         { delay: 8 }
       )
       await sleep(page, 600)
