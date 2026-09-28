@@ -1015,6 +1015,46 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "sidebar-workspace-menu-open-pr",
+    description:
+      "The Workspace row's … menu open on a Workspace with an open PR.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "checkout-polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-changes",
+    description:
+      "The Workspace row's … menu open on a Workspace with changes and no PR.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "empty-cart-state")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-starting",
+    description:
+      "The Workspace row's … menu open on a Workspace still running setup.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "apple-pay-button")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-failed",
+    description:
+      "The Workspace row's … menu open on a Workspace whose setup failed.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "gift-cards")
+    },
+    settleMs: 400,
+  },
+  {
     name: "sidebar-layer-menu-hover",
     description: "Hovering a Layer row's overflow (…) button in the sidebar.",
     path: `/${ids.rooms.checkout}`,
@@ -1912,6 +1952,18 @@ export function rowMenuTrigger(page: Page, text: string): Locator {
  * The \`…\` menu trigger on a Workspace row, which only shows while the row is
  * hovered: hover the row, then hand back its trigger.
  */
+/** Open a Workspace row's … menu and leave it open. */
+export async function openBranchRowMenu(
+  page: Page,
+  ref: string
+): Promise<void> {
+  const trigger = await branchRowMenu(page, ref)
+  await trigger.click({ timeout: 15_000, force: true })
+  await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
+  // Park the pointer on the menu's edge so no item shows a hover highlight.
+  await page.mouse.move(5, 5)
+}
+
 export async function branchRowMenu(page: Page, ref: string): Promise<Locator> {
   const row = page
     .locator(".group\\/branch-row")
