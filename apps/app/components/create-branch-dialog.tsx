@@ -27,6 +27,7 @@ import {
   type ModelInfo,
 } from "@/lib/models-store"
 import { resolveDefaultModel } from "@/lib/model-selection"
+import { useDefaultModel } from "@/lib/default-model-store"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import {
@@ -37,17 +38,6 @@ import {
   type ComposerRow,
 } from "@/lib/composer-rows"
 import type { MarkdownLayerData } from "@/lib/types"
-
-const LAST_MODEL_STORAGE_KEY = "agent-last-model"
-
-function readStoredModel(): string | null {
-  if (typeof window === "undefined") return null
-  try {
-    return window.localStorage.getItem(LAST_MODEL_STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
 
 // Process-wide source of stable row keys. A module counter (rather than a ref
 // read during render) keeps the seed pure from React's view; skipped numbers
@@ -173,10 +163,11 @@ export function CreateBranchDialog({
     }
   }, [open])
 
-  // Stored model (the user's last-used pick) wins over the server default; see
+  // The user's default from Settings wins over the server default; see
   // `resolveDefaultModel` for the full precedence and stale-id guarding.
+  const userDefaultModel = useDefaultModel()
   const initialModel = resolveDefaultModel({
-    stored: readStoredModel(),
+    stored: userDefaultModel,
     serverDefault: serverDefaultModel,
     models,
   })
@@ -283,6 +274,7 @@ export function CreateBranchDialog({
                   focused={idx === focusedIndex}
                   canRemove={rows.length > 1}
                   models={models}
+                  defaultModel={initialModel}
                   skills={skills}
                   skillsLoading={skillsLoading}
                   markdownLayers={markdownLayers}
@@ -337,6 +329,8 @@ interface WorkspaceRowProps {
   /** Whether a remove control is offered (hidden when a single row remains). */
   canRemove: boolean
   models: ModelInfo[]
+  /** The model new Workspaces start from, so a row on another one says so. */
+  defaultModel: string
   skills: SkillMenuItem[]
   skillsLoading: boolean
   markdownLayers: MarkdownLayerData[]
@@ -363,6 +357,7 @@ function WorkspaceRow({
   focused,
   canRemove,
   models,
+  defaultModel,
   skills,
   skillsLoading,
   markdownLayers,
@@ -441,6 +436,7 @@ function WorkspaceRow({
           enableSkills
           models={models}
           model={row.model}
+          defaultModel={defaultModel}
           onModelChange={onModelChange}
           planMode={row.planMode}
           onPlanModeChange={onPlanModeChange}
