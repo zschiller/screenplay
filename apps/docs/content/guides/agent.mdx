@@ -26,8 +26,19 @@ each one. It reads documents too, including ones you @ mention.
 
 <Screenshot name="coordinator" alt="The Coordinator chat, the panel's home when no workspace is selected" />
 
-The Coordinator never works inside a sandbox, and for now it only reads the
-canvas: to change code, open a workspace and ask its agent.
+The Coordinator can also arrange the canvas. Ask it to add frames for a
+workspace's routes, add a document, move or rename frames, groups and
+documents, gather frames into a group, merge groups, or remove frames and
+documents. It does these right away, without asking first. Removing a frame
+never removes its workspace.
+
+To take a change back, ask it: "undo that". It keeps what each of its replies
+changed, so a frame or document it removed comes back exactly as it was, and
+you can undo an undo the same way. Your own ⌘Z still undoes only your own
+edits, never the Coordinator's.
+
+The Coordinator never works inside a sandbox: to change code, open a workspace
+and ask its agent.
 
 ## Choosing a target
 

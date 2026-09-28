@@ -26,6 +26,7 @@ function portsOver(
 ): RoomToolPorts {
   return {
     readDoc: async (fn) => fn(collections),
+    mutateDoc: async (fn) => fn(collections),
     listTerminalTabs: async () => terminalTabs,
   }
 }
@@ -92,9 +93,11 @@ describe("read_canvas", () => {
       '- [ws-2] "dark-mode" · branch dark-mode · acme/web · starting'
     )
     expect(summary).toContain(
-      "- [frame-1] /settings · 1280×800 · Workspace ws-1"
+      '- [frame-1] "Frame" · /settings · 1280×800 · Workspace ws-1'
     )
-    expect(summary).toContain("- [frame-2] (no route) · 400×300 · no Workspace")
+    expect(summary).toContain(
+      '- [frame-2] "Frame" · (no route) · 400×300 · no Workspace'
+    )
     expect(summary).toContain('- [doc-1] "Launch spec"')
     expect(summary).toContain('- [term-1] "Claude Code" · Workspace ws-1')
   })

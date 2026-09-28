@@ -14,7 +14,7 @@ import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
-import type { RoomDoc, RoomReader } from "@/lib/room-access"
+import type { RoomDoc } from "@/lib/room-access"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -211,11 +211,12 @@ interface RoomContext {
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
 export function liveRoomToolPorts(
-  room: RoomReader,
+  room: RoomDoc,
   userId: string
 ): RoomToolPorts {
   return {
     readDoc: (fn) => room.readDoc(fn),
+    mutateDoc: (fn) => room.mutateDoc(fn),
     listTerminalTabs: async () =>
       (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
         id: t.id,

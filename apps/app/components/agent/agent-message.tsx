@@ -22,6 +22,14 @@ import {
   Bot,
   Square,
   ChevronRight,
+  AppWindow,
+  FilePlus,
+  Move,
+  Group,
+  Merge,
+  Trash2,
+  History,
+  Undo2,
 } from "lucide-react"
 import {
   Collapsible,
@@ -74,6 +82,15 @@ const toolIcons: Record<string, typeof FileText> = {
   replace_document_body: SquarePen,
   append_to_document_body: SquarePen,
   set_document_title: PencilLine,
+  create_frames: AppWindow,
+  create_document: FilePlus,
+  move_group: Move,
+  move_to_group: Group,
+  merge_groups: Merge,
+  rename: PencilLine,
+  remove: Trash2,
+  list_changes: History,
+  undo_changes: Undo2,
 }
 
 const toolLabels: Record<string, string> = {
@@ -90,6 +107,15 @@ const toolLabels: Record<string, string> = {
   replace_document_body: "Rewrite document",
   append_to_document_body: "Append to document",
   set_document_title: "Set title",
+  create_frames: "Create frames",
+  create_document: "Create document",
+  move_group: "Move group",
+  move_to_group: "Move to group",
+  merge_groups: "Merge groups",
+  rename: "Rename",
+  remove: "Remove",
+  list_changes: "List changes",
+  undo_changes: "Undo changes",
 }
 
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
