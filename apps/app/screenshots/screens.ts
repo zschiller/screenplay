@@ -619,6 +619,72 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-chat-composer-draft",
+    description: "A frame chat with a draft typed into the composer.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Make the order summary sticky on mobile")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-draft-reload",
+    description:
+      "A draft typed into a chat, after the page reloads: what's left in the composer.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Make the order summary sticky on mobile")
+      await page.waitForTimeout(300)
+      await page.reload()
+      await openChatTab(page, "New chat")
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-chat-send-failed",
+    description: "A message the server refused: what's left of it in the chat.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page.route("**/api/agent/stream", (route) =>
+        route.fulfill({ status: 503, body: "The agent couldn't be reached" })
+      )
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Make the order summary sticky on mobile")
+      await page.keyboard.press("Enter")
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-chat-queued",
+    description: "A message sent with Enter while the agent is still running.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, streamingRun())
+      await typeInComposer(page, "Then do the same for the cart page")
+      await page.keyboard.press("Enter")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-image-paste",
+    description: "An image pasted into the composer.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Match this layout ")
+      await pasteImageInComposer(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-chat-tool-states",
     description:
       "Every tool-call state: running, done, failed with and without a reason, an expanded edit diff, and a long transcript error.",
@@ -1742,6 +1808,37 @@ export async function openChatTab(page: Page, label: string): Promise<void> {
     .first()
     .waitFor({ state: "hidden", timeout: 30_000 })
     .catch(() => {})
+}
+
+/** Type into the visible chat composer, as a user would. */
+export async function typeInComposer(page: Page, text: string): Promise<void> {
+  const editor = page.locator(".tiptap:visible").last()
+  await editor.click({ timeout: 15_000 })
+  await page.keyboard.type(text)
+}
+
+/** Paste a tiny PNG into the visible chat composer. */
+export async function pasteImageInComposer(page: Page): Promise<void> {
+  await page
+    .locator(".tiptap:visible")
+    .last()
+    .evaluate((el) => {
+      const bytes = Uint8Array.from(
+        atob(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        ),
+        (c) => c.charCodeAt(0)
+      )
+      const data = new DataTransfer()
+      data.items.add(new File([bytes], "mockup.png", { type: "image/png" }))
+      el.dispatchEvent(
+        new ClipboardEvent("paste", {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
 }
 
 /**
