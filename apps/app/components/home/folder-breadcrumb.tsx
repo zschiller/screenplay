@@ -25,7 +25,7 @@ import { useHomeHeaderCompact } from "./home-page-header"
 /**
  * Beyond this many ancestor crumbs (the chain root→current, current included),
  * the middle collapses into an overflow menu so a deep path can't push the
- * header past its width. Three keeps "All files › A › B › current" inline —
+ * header past its width. Three keeps "All files / A / B / current" inline —
  * the deepest trail that still reads comfortably as a title — and only folds
  * once a fourth level appears.
  */
@@ -36,7 +36,6 @@ const MAX_INLINE_ANCESTORS = 3
 // ancestors ("All files" included) first, four times as fast, then the current
 // folder, which keeps its leading characters to the last.
 const LIST_CLASS = "min-w-0 flex-nowrap gap-1.5 text-2xl font-normal sm:gap-2.5"
-const SEPARATOR_CLASS = "shrink-0 [&>svg]:size-5"
 const ANCESTOR_ITEM_CLASS = "min-w-8 shrink-[4]"
 const CURRENT_ITEM_CLASS = "min-w-0"
 const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
@@ -63,7 +62,7 @@ const DROP_OVER_CLASS = "ring-2 ring-primary [&_a]:text-foreground"
  *
  * In a compact header (a narrow window beside a wide sidebar) any folder below
  * the root collapses, and "All files" joins its ancestors in the menu: the trail
- * reads "… › current", so the crumb that names the page keeps the room.
+ * reads "… / current", so the crumb that names the page keeps the room.
  */
 export function FolderBreadcrumb({
   ancestors,
@@ -92,7 +91,7 @@ export function FolderBreadcrumb({
           {!compact && (
             <>
               {allFilesCrumb}
-              <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+              <Separator />
             </>
           )}
           <BreadcrumbItem className="shrink-0">
@@ -119,7 +118,7 @@ export function FolderBreadcrumb({
               </DropdownMenuContent>
             </DropdownMenu>
           </BreadcrumbItem>
-          <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+          <Separator />
           <BreadcrumbItem className={CURRENT_ITEM_CLASS}>
             <BreadcrumbPage className={CURRENT_PAGE_CLASS}>
               {current.name}
@@ -138,7 +137,7 @@ export function FolderBreadcrumb({
           const isCurrent = i === ancestors.length - 1
           return (
             <Fragment key={folder.id}>
-              <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+              <Separator />
               {isCurrent ? (
                 <BreadcrumbItem className={CURRENT_ITEM_CLASS}>
                   <BreadcrumbPage className={CURRENT_PAGE_CLASS}>
@@ -153,6 +152,19 @@ export function FolderBreadcrumb({
         })}
       </BreadcrumbList>
     </Breadcrumb>
+  )
+}
+
+/**
+ * A "/" between crumbs, muted like the canvas top bar's breadcrumb (issue
+ * #925), so the same path reads the same on home and in a canvas. The
+ * padding keeps the slanted glyph clear of a crumb's drop ring.
+ */
+function Separator() {
+  return (
+    <BreadcrumbSeparator className="shrink-0 px-0.5 text-muted-foreground/60">
+      /
+    </BreadcrumbSeparator>
   )
 }
 
