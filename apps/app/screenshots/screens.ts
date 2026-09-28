@@ -1411,6 +1411,8 @@ export const SCREENS: Screen[] = [
         await page.waitForTimeout(300)
       }
       await list.waitFor({ timeout: 5_000 })
+      // Park the pointer so no row shows its hover fill.
+      await page.mouse.move(0, 0)
     },
     settleMs: 300,
   },

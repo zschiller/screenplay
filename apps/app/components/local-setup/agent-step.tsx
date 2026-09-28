@@ -150,7 +150,7 @@ export function AgentStep({
               {selected.key === recommended?.key && (
                 <SetupChip>Recommended</SetupChip>
               )}
-              <span className="text-muted-foreground">
+              <span className="text-[13px] text-muted-foreground">
                 {agentState(selected)}
               </span>
               {rows.length > 1 && (
@@ -158,7 +158,7 @@ export function AgentStep({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="ml-auto"
+                  className="-mr-2.5 ml-auto"
                   onClick={() => setChoosing(true)}
                 >
                   Change

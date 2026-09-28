@@ -75,13 +75,12 @@ export function CollapsedSetupStep({
   onChange?: () => void
 }) {
   return (
-    <div
-      className={cn(
-        "flex h-10 items-center gap-2.5 rounded-lg border pl-3 text-sm",
-        onChange ? "pr-1.5" : "pr-3"
-      )}
-    >
-      <StepMarker step={step} state={state} />
+    <div className="flex h-10 items-center gap-2.5 rounded-lg border px-4 text-sm">
+      {/* The same 20px slot as the current step's marker, so titles line up
+          down the page. */}
+      <span className="flex size-5 shrink-0 items-center justify-center">
+        <StepMarker step={step} state={state} />
+      </span>
       <span className="min-w-0 flex-1 truncate">
         <span className={cn(state === "upcoming" && "text-muted-foreground")}>
           {title}
@@ -90,7 +89,13 @@ export function CollapsedSetupStep({
       </span>
       {chip}
       {onChange && (
-        <Button type="button" variant="ghost" size="sm" onClick={onChange}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-mr-2.5"
+          onClick={onChange}
+        >
           Change
         </Button>
       )}
