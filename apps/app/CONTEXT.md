@@ -1037,8 +1037,14 @@ plumbing (collision, pointer tracking) and rendering. Member indices in the
 intent are gaps **as the sidebar shows them**; turning that into the
 post-removal splice index a same-Group reorder needs belongs to **Group
 Operations** (`moveMember`), not the caller.
+The Repositories list (Repos and their Branches) goes through the same module:
+`resolveRepoListDrop` returns the Branch before/after `line` and a
+`reorder-repos` or `reorder-branches` intent, with a Branch confined to its own
+Repo. Groups, Repos and Branches all reorder with one gap algorithm,
+`reorderToGap`; a before/after drop on a row is the gap on that side of it.
 _Avoid_: deciding the hint and the move in two places again; adjusting a
-member index for the dragged member's own removal in UI code.
+member index for the dragged member's own removal in UI code; a second
+reorder algorithm for one of the lists.
 
 **Sandbox Reconnect**:
 The Canvas's mount-time Sandbox-lifecycle orchestration, split the way the rest

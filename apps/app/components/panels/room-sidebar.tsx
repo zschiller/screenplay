@@ -110,9 +110,11 @@ import { getGroupMembers } from "@/lib/canvas/layout"
 import { sortForSidebar } from "@/lib/sidebar-order"
 import {
   parseSidebarRowId,
+  resolveRepoListDrop,
   resolveSidebarDrop,
   sidebarRowId,
   type MoveMemberTarget,
+  type RepoListDropHint,
   type SidebarDropHint,
   type SidebarRow,
 } from "@/lib/sidebar-drop"
@@ -229,11 +231,11 @@ const canvasCollision: CollisionDetection = (args) => {
 }
 
 /**
- * The single before/after indicator for the Branches section (one for the repo
- * list, normalized per list so each gap is one pixel). No "into" — repos and
- * branches only reorder, never nest.
+ * The single before/after indicator for the Branches section, resolved by
+ * {@link resolveRepoListDrop} and normalized so each gap is one pixel. No
+ * "into" — repos and branches only reorder, never nest.
  */
-type LineHint = { rowId: string; edge: "before" | "after" } | null
+type LineHint = RepoListDropHint | null
 
 const BranchesDropHintContext = createContext<LineHint>(null)
 
@@ -327,26 +329,6 @@ const branchesCollision: CollisionDetection = (args) => {
   // snap to the nearest gap anywhere in the list.
   if (active?.kind === "branch" && (y < blockTop || y > blockBottom)) return []
   return [best]
-}
-
-/**
- * Move `activeId` to the `before`/`after` side of `overId` within `ids`. Unlike
- * arrayMove (which places by index and so depends on drag direction), this is
- * driven purely by the resolved side, so the commit lands exactly where the
- * indicator pointed.
- */
-function reorderToSide(
-  ids: readonly string[],
-  activeId: string,
-  overId: string,
-  after: boolean
-): string[] {
-  const without = ids.filter((x) => x !== activeId)
-  let idx = without.indexOf(overId)
-  if (idx < 0) return [...ids]
-  if (after) idx += 1
-  without.splice(idx, 0, activeId)
-  return without
 }
 
 /**
@@ -1012,105 +994,51 @@ export function RoomSidebar({
     endBranchesDrag()
   }, [endBranchesDrag])
 
-  // Only branch drags use the before/after line hint; repo drags land in a gap
-  // strip that paints its own indicator (so there's no hint to compute).
+  /** Repos in sidebar order with their branch ids, for Sidebar Drop. */
+  const dropRepos = useMemo(
+    () =>
+      sortedRepos.map((r) => ({
+        id: r.id,
+        branchIds: branchesByRepo(r.id).map((b) => b.id),
+      })),
+    [sortedRepos, branchesByRepo]
+  )
+
+  /** The Sidebar Drop decision (hint + intent) for the Repositories list. */
+  const resolveBranchesDrop = useCallback(
+    (activeId: string, over: { id: string | number; rect: ClientRect }) =>
+      resolveRepoListDrop({
+        repos: dropRepos,
+        activeId,
+        overId: String(over.id),
+        side: pointerSide(over.rect, pointerYRef.current),
+      }),
+    [dropRepos]
+  )
+
   const handleBranchesDragMove = useCallback(
     (event: DragMoveEvent) => {
       const { active, over } = event
-      const a = active.data.current as
-        | { kind?: "repo" | "branch"; repoId?: string }
-        | undefined
-      if (
-        !over ||
-        a?.kind !== "branch" ||
-        !a.repoId ||
-        String(active.id) === String(over.id)
-      ) {
-        setBranchesDropHint(null)
-        return
-      }
-      const overId = String(over.id)
-      const edge = pointerSide(over.rect, pointerYRef.current)
-      // Collapse "after X" → "before next sibling" so a gap renders once.
-      let next: LineHint = { rowId: overId, edge }
-      if (edge === "after") {
-        const peers = branchesByRepo(a.repoId).map((x) => `branch:${x.id}`)
-        const idx = peers.indexOf(overId)
-        if (idx >= 0 && idx < peers.length - 1)
-          next = { rowId: peers[idx + 1]!, edge: "before" }
-      }
+      const next = over
+        ? resolveBranchesDrop(String(active.id), over).hint
+        : null
       setBranchesDropHint((prev) => (sameLineHint(prev, next) ? prev : next))
     },
-    [branchesByRepo]
-  )
-
-  /**
-   * Slot a repo into the list at gap index `gapIndex` (0 = before first,
-   * N = after last). Accounts for the source repo's own removal so a `repogap:N`
-   * drop maps straight through. Mirrors {@link reorderGroupToGap}.
-   */
-  const reorderRepoToGap = useCallback(
-    (repoId: string, gapIndex: number) => {
-      const currentIds = sortedRepos.map((w) => w.id)
-      const currentIdx = currentIds.indexOf(repoId)
-      if (currentIdx < 0) return
-      let target = gapIndex
-      if (currentIdx < gapIndex) target -= 1
-      const without = currentIds.filter((_, i) => i !== currentIdx)
-      const clamped = Math.max(0, Math.min(target, without.length))
-      const newOrder = [
-        ...without.slice(0, clamped),
-        repoId,
-        ...without.slice(clamped),
-      ]
-      if (newOrder.join(",") === currentIds.join(",")) return
-      onReorderRepos(newOrder)
-    },
-    [sortedRepos, onReorderRepos]
+    [resolveBranchesDrop]
   )
 
   const handleBranchesDragEnd = useCallback(
     (event: DragEndEvent) => {
-      const pointerY = pointerYRef.current
-      endBranchesDrag()
       const { active, over } = event
-      if (!over) return
-      const activeId = String(active.id)
-      const overId = String(over.id)
-      if (activeId === overId) return
-
-      // Repo reorder — the repo lands in a `repogap` strip between whole repos.
-      if (activeId.startsWith("repo:") && overId.startsWith("repogap:")) {
-        reorderRepoToGap(
-          activeId.slice(5),
-          Number(overId.slice("repogap:".length))
-        )
-        return
-      }
-
-      // Branch reorder — confined to a single repo. The collision already keeps
-      // a branch's targets within its own repo; this guard is the belt-and-
-      // braces backstop so a branch can never be filed under a foreign repo.
-      if (activeId.startsWith("branch:") && overId.startsWith("branch:")) {
-        const activeWs = (
-          active.data.current as { repoId?: string } | undefined
-        )?.repoId
-        const overWs = (over.data.current as { repoId?: string } | undefined)
-          ?.repoId
-        if (!activeWs || activeWs !== overWs) return
-        const currentIds = branchesByRepo(activeWs).map((a) => a.id)
-        const after = pointerSide(over.rect, pointerY) === "after"
-        const newOrder = reorderToSide(
-          currentIds,
-          activeId.slice(7),
-          overId.slice(7),
-          after
-        )
-        if (newOrder.join(",") !== currentIds.join(","))
-          onReorderBranches(activeWs, newOrder)
-      }
+      const intent = over
+        ? resolveBranchesDrop(String(active.id), over).intent
+        : null
+      endBranchesDrag()
+      if (!intent) return
+      if (intent.kind === "reorder-repos") onReorderRepos(intent.orderedIds)
+      else onReorderBranches(intent.repoId, intent.orderedIds)
     },
-    [branchesByRepo, onReorderBranches, reorderRepoToGap, endBranchesDrag]
+    [resolveBranchesDrop, onReorderRepos, onReorderBranches, endBranchesDrag]
   )
 
   const handleDragEnd = useCallback(
