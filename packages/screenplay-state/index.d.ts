@@ -20,6 +20,9 @@ export type JsonValue =
  * starts a new one; the canvas treats `sharedState` as last-write-wins per
  * key.
  *
+ * Pass `setter` to take updates from other viewers too. When the frame loads,
+ * a value the room already holds for `key` wins over the frame's own.
+ *
  * @example
  *   const [user, setUser] = useState<User | null>(null)
  *   useSharedState("user", user)
@@ -27,7 +30,11 @@ export type JsonValue =
  *   const [cart, setCart] = useState<CartItem[]>([])
  *   useSharedState("cart", { itemCount: cart.length, total: sum(cart) })
  */
-export function useSharedState(key: string, value: JsonValue | undefined): void
+export function useSharedState<T extends JsonValue | undefined>(
+  key: string,
+  value: T,
+  setter?: (value: T) => void,
+): void
 
 /**
  * Imperative writer for non-React code. Returns a remover that drops the key

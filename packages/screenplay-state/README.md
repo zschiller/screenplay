@@ -61,6 +61,11 @@ const user = useUser()
 useSharedState("user", user ? { id: user.id, role: user.role } : null)
 ```
 
+When a frame loads, the package asks the canvas for the room's current state
+and holds its first publish until the answer arrives (or 500 ms pass), so a
+reloading viewer adopts what the room already has instead of overwriting it
+with its initial values.
+
 Stable, descriptive `key`s persist across reloads. Rename a key and the
 canvas drops the old entry; treat it like an `id`.
 
@@ -72,6 +77,7 @@ canvas drops the old entry; treat it like an `id`.
 | Other clients → local        | Yes when you pass `setter` (3-arg form)                        |
 | Canvas user editing          | No editor UI yet — read-only at the canvas surface             |
 | Persistence across reloads   | Yes — state lives on the artboard until cleared                |
+| Frame loads or reloads       | Room's state wins; the frame's values fill only missing keys   |
 | Cross into prototype player  | Yes — same protocol, same room, same Yjs                       |
 
 ## Non-React API

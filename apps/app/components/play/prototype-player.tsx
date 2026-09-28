@@ -299,11 +299,11 @@ export function PrototypePlayer({
     sendCursorMode(isTouchDevice)
   }, [isTouchDevice, sendCursorMode])
 
-  const sendSharedState = useCallback((state: JsonObject) => {
+  const sendSharedState = useCallback((state: JsonObject, initial = false) => {
     const iframe = iframeRef.current
     if (!iframe?.contentWindow) return
     iframe.contentWindow.postMessage(
-      { type: "screenplay:shared-state-apply", state },
+      { type: "screenplay:shared-state-apply", state, initial },
       "*"
     )
   }, [])
@@ -346,6 +346,16 @@ export function PrototypePlayer({
           lastAppliedSharedRef.current = serialized
           sendSharedState(sharedStateRef.current)
         }
+      } else if (e.data.type === "screenplay:shared-state-request") {
+        // The frame just loaded and holds its publish until the room answers,
+        // so its defaults never overwrite state other viewers already set.
+        const state = sharedStateRef.current ?? {}
+        try {
+          lastAppliedSharedRef.current = JSON.stringify(state)
+        } catch {
+          lastAppliedSharedRef.current = null
+        }
+        sendSharedState(state, true)
       } else if (e.data.type === "screenplay:shared-state") {
         const next = e.data.state
         // Persist to Yjs when we have an iframeLayer binding so other clients
