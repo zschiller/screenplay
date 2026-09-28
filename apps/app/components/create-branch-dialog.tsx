@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { ChevronDown, GitBranch, Plus, Trash2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import { Kbd } from "@workspace/ui/components/kbd"
+import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import {
   Dialog,
   DialogContent,
@@ -300,7 +300,10 @@ export function CreateBranchDialog({
               >
                 <Plus />
                 Add another
-                <Kbd>⌘↵</Kbd>
+                <KbdGroup>
+                  <Kbd>⌘</Kbd>
+                  <Kbd>↵</Kbd>
+                </KbdGroup>
               </Button>
             </div>
           </ScrollArea>

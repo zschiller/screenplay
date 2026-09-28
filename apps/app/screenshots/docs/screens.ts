@@ -805,6 +805,9 @@ export const DOCS_SCREENS: DocsScreen[] = [
         .filter({ hasText: "Add another" })
         .first()
         .click()
+      // The new row pushes the button down, leaving the pointer over its model
+      // picker; park it on the overlay so no hover wash shows.
+      await page.mouse.move(0, 0)
       await sleep(page, 800)
       await page.keyboard.type("Redesign the customer quotes as a carousel", {
         delay: 2,
