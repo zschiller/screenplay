@@ -10,7 +10,6 @@ import {
   Maximize2,
   MoreHorizontal,
   MousePointer,
-  Move,
   Play,
   Trash2,
 } from "lucide-react"
@@ -901,12 +900,19 @@ export function IframeLayer({
                 onClick={(e) => e.stopPropagation()}
               >
                 <FloatingToolbarButton
-                  label={focused ? "Back to canvas" : "Interact"}
+                  label="Interact"
                   shortcut={focused ? ["Esc"] : undefined}
                   pressed={focused}
+                  // While interacting, the pressed button takes the selection
+                  // colour, like the ring around the frame.
+                  className={
+                    focused
+                      ? "bg-canvas-selection text-white hover:bg-canvas-selection/90 hover:text-white dark:hover:bg-canvas-selection/90"
+                      : undefined
+                  }
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
                 >
-                  {focused ? <Move /> : <MousePointer />}
+                  <MousePointer />
                 </FloatingToolbarButton>
                 <FloatingToolbarSeparator />
                 <FloatingToolbarButton
