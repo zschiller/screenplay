@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, RotateCw } from "lucide-react"
+import { Check, ChevronsUpDown, RotateCw } from "lucide-react"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Badge } from "@workspace/ui/components/badge"
 import {
@@ -26,12 +26,16 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import type { JsonObject } from "@/lib/postmessage-protocol"
+import { branchTextClass, getBranchColor } from "@/lib/branch-colors"
+import type { BranchData } from "@/lib/types"
 import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
+import { WorkspaceCommandList } from "./workspace-list"
 
 /**
  * The address field in a selected frame's floating toolbar (issue #795), like
- * Safari's: the route (press it to go anywhere), reload, and record. Record
+ * Safari's: the frame's Workspace as the host (press it to switch, #867), the
+ * route (press it to go anywhere), reload, and record. Record
  * runs Create Flow; while it runs the field turns red and counts the screens
  * laid down. The preview's status shows at the field's start only when it
  * isn't live, so a healthy frame carries no dot.
@@ -97,6 +101,12 @@ function StatusIndicator({
 }
 
 interface FrameAddressBarProps {
+  /** The frame's Workspace, shown before the route like a browser's host. */
+  workspace?: FrameWorkspace
+  /** Workspaces the frame can switch to. */
+  workspaces: BranchData[]
+  /** Unset while the frame can't switch (a read-only viewer). */
+  onAssignWorkspace?: (branchId: string) => void
   route?: string
   discoveredRoutes: { route: string; label: string }[]
   /** Unset while the frame can't navigate (a read-only viewer). */
@@ -111,6 +121,9 @@ interface FrameAddressBarProps {
 }
 
 export function FrameAddressBar({
+  workspace,
+  workspaces,
+  onAssignWorkspace,
   route,
   discoveredRoutes,
   onSelectRoute,
@@ -131,17 +144,26 @@ export function FrameAddressBar({
   ) : status && status !== "live" ? (
     <StatusIndicator status={status} />
   ) : null
+  // A recording is about its screens; the host comes back when it stops.
+  const showHost = !recording && (workspace?.ref || onAssignWorkspace)
 
   return (
     <div
       className={cn(
-        "flex h-6 w-56 min-w-0 items-center rounded-md bg-muted pr-0.5 text-muted-foreground",
-        leading && "pl-0.5",
+        "flex h-6 max-w-[28rem] min-w-56 items-center rounded-md bg-muted pr-0.5 text-muted-foreground",
+        (leading || showHost) && "pl-0.5",
         recording && "bg-destructive/10 text-destructive"
       )}
       {...stopPointer}
     >
       {leading}
+      {showHost && (
+        <FrameWorkspaceHost
+          workspace={workspace}
+          workspaces={workspaces}
+          onAssignWorkspace={onAssignWorkspace}
+        />
+      )}
       <FrameRouteField
         route={route}
         discoveredRoutes={discoveredRoutes}
@@ -152,7 +174,8 @@ export function FrameAddressBar({
             ? ` · ${recordedScreens} ${recordedScreens === 1 ? "screen" : "screens"}`
             : undefined
         }
-        inset={!leading}
+        inset={!leading && !showHost}
+        afterHost={!!showHost}
         recording={recording}
       />
       {!recording && (
@@ -186,6 +209,91 @@ export function FrameAddressBar({
   )
 }
 
+/** The frame's Workspace, as the address field names it. */
+export interface FrameWorkspace {
+  branchId: string
+  ref: string
+  colorIndex?: number
+}
+
+/**
+ * The address field's host (issue #867): the frame's Workspace as a dot and its
+ * name in the Workspace's text colour, like the site before a browser's path.
+ * Pressing it opens the Workspace list; picking one switches only this frame,
+ * which keeps its route and state. A long name truncates before the route does.
+ */
+function FrameWorkspaceHost({
+  workspace,
+  workspaces,
+  onAssignWorkspace,
+}: {
+  workspace?: FrameWorkspace
+  workspaces: BranchData[]
+  onAssignWorkspace?: (branchId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const color = workspace
+    ? getBranchColor(workspace.branchId, workspace.colorIndex)
+    : undefined
+
+  const host = (
+    <>
+      {color && (
+        <span className={cn("size-1.5 shrink-0 rounded-full", color.swatch)} />
+      )}
+      <span className="truncate">{workspace?.ref ?? "Choose a workspace"}</span>
+    </>
+  )
+  const hostClass = cn(
+    "flex h-5 max-w-40 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1.5 font-mono text-2xs font-medium",
+    color ? branchTextClass(color) : "font-sans text-muted-foreground"
+  )
+
+  if (!onAssignWorkspace) {
+    return <span className={hostClass}>{host}</span>
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={
+            workspace ? `Workspace: ${workspace.ref}` : "Choose a workspace"
+          }
+          className={cn(
+            hostClass,
+            "pr-1 outline-none hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=open]:bg-background"
+          )}
+        >
+          {host}
+          <ChevronsUpDown
+            aria-hidden
+            className="size-2.5 shrink-0 opacity-60"
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-72 p-0"
+        side="bottom"
+        sideOffset={8}
+        align="start"
+        onPointerDown={(e) => e.stopPropagation()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <WorkspaceCommandList
+          branches={workspaces}
+          currentBranchId={workspace?.branchId}
+          onPick={(id) => {
+            if (id !== workspace?.branchId) onAssignWorkspace(id)
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 interface FrameRouteFieldProps {
   route?: string
   discoveredRoutes: { route: string; label: string }[]
@@ -196,6 +304,8 @@ interface FrameRouteFieldProps {
   suffix?: string
   /** Pad the route in from the field's edge (no status or record dot before it). */
   inset: boolean
+  /** Leave a little room after the Workspace host, whose hover fill ends here. */
+  afterHost?: boolean
   /** Keep the recording red instead of brightening on hover. */
   recording: boolean
 }
@@ -212,6 +322,7 @@ export function FrameRouteField({
   sharedState,
   suffix,
   inset,
+  afterHost,
   recording,
 }: FrameRouteFieldProps) {
   const [open, setOpen] = useState(false)
@@ -237,7 +348,8 @@ export function FrameRouteField({
     <span
       className={cn(
         "flex h-6 min-w-0 flex-1 items-center pr-1 font-mono text-2xs",
-        inset && "pl-2"
+        inset && "pl-2",
+        afterHost && "pl-1"
       )}
     >
       <span className="truncate">

@@ -23,11 +23,11 @@ import {
   CommandItem,
   CommandList,
 } from "@workspace/ui/components/command"
-import { Spinner } from "@workspace/ui/components/spinner"
 import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
 import { LayerLabelRow } from "./layer-title-bar"
+import { WorkspaceCommandList } from "./workspace-list"
 
 interface IframeLayerLabelProps {
   label: string
@@ -336,9 +336,6 @@ function BranchPicker({
   onAssignBranch,
 }: BranchPickerProps) {
   const [open, setOpen] = useState(false)
-  const pickableBranches = assignableBranches.filter(
-    (a) => a.ref && a.status !== "error" && a.status !== "stopped"
-  )
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -377,39 +374,14 @@ function BranchPicker({
         align="start"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <Command>
-          <CommandInput placeholder="Search workspaces…" />
-          <CommandList>
-            <CommandEmpty>No workspaces found.</CommandEmpty>
-            <CommandGroup>
-              {pickableBranches.map((a) => {
-                const isBusy =
-                  a.status === "creating" || a.status === "starting"
-                return (
-                  <CommandItem
-                    key={a.id}
-                    value={a.ref}
-                    onSelect={() => {
-                      onAssignBranch(a.id)
-                      setOpen(false)
-                    }}
-                  >
-                    <Check
-                      className={`shrink-0 ${a.id === currentBranchId ? "" : "opacity-0"}`}
-                    />
-                    <BranchBadge
-                      branch={a.ref}
-                      colorKey={a.id}
-                      colorIndex={a.colorIndex}
-                      className="px-1.5 py-0 text-2xs"
-                    />
-                    {isBusy && <Spinner className="ml-auto size-3" />}
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+        <WorkspaceCommandList
+          branches={assignableBranches}
+          currentBranchId={currentBranchId}
+          onPick={(id) => {
+            onAssignBranch(id)
+            setOpen(false)
+          }}
+        />
       </PopoverContent>
     </Popover>
   )

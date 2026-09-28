@@ -930,6 +930,23 @@ export function IframeLayer({
                   <ChevronRight />
                 </FloatingToolbarButton>
                 <FrameAddressBar
+                  workspace={
+                    iframeLayer.branchId && iframeLayer.branch
+                      ? {
+                          branchId: iframeLayer.branchId,
+                          ref: iframeLayer.branch,
+                          colorIndex: assignableBranches?.find(
+                            (a) => a.id === iframeLayer.branchId
+                          )?.colorIndex,
+                        }
+                      : undefined
+                  }
+                  workspaces={assignableBranches ?? []}
+                  onAssignWorkspace={
+                    onAssignBranch
+                      ? (branchId) => onAssignBranch(iframeLayer.id, branchId)
+                      : undefined
+                  }
                   route={iframeLayer.route}
                   discoveredRoutes={discoveredRoutes ?? []}
                   onSelectRoute={
