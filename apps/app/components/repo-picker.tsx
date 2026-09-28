@@ -250,7 +250,7 @@ export function RepoPicker({
             {showConnectHint && !cloneUrl && (
               <div className="flex flex-col items-center gap-3 py-6">
                 <span className="text-sm text-muted-foreground">
-                  GitHub isn&apos;t connected.
+                  Connect GitHub to see your repositories here.
                 </span>
                 <Button asChild variant="outline" size="sm">
                   <Link href="/settings?section=github">
