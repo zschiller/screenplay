@@ -41,8 +41,13 @@ vi.mock("@/lib/add-repo/actions", () => ({
   refineRepoSettings: vi.fn().mockResolvedValue({ ok: false }),
   refineFolderSettings: vi.fn().mockResolvedValue({ ok: false }),
 }))
-// The remove confirm reads each Workspace's git state and the GitHub token;
-// neither matters to what this dialog does with the answer.
+// The remove confirm reads each Workspace's git state, the GitHub token and
+// its chats' turns (for the state icon); none matters to what this dialog does
+// with the answer.
+vi.mock("@/components/workspace-mention", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/workspace-mention")>()),
+  useWorkspaceAgentWorking: () => () => false,
+}))
 vi.mock("@/hooks/use-unsaved-work", () => ({
   useUnsavedWork: () => new Map(),
 }))

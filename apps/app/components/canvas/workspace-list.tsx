@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, CircleSmall, Undo2 } from "lucide-react"
+import { Check, Undo2 } from "lucide-react"
 import {
   Command,
   CommandEmpty,
@@ -10,9 +10,11 @@ import {
   CommandList,
   CommandSeparator,
 } from "@workspace/ui/components/command"
-import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
-import { PrStateBadge } from "@/components/pr-state-badge"
+import {
+  WorkspaceMention,
+  useWorkspaceAgentWorking,
+} from "@/components/workspace-mention"
 import type { BranchData } from "@/lib/types"
 import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
 import type { FrameWorkspace } from "./frame-nav"
@@ -24,27 +26,6 @@ import type { FrameWorkspace } from "./frame-nav"
 export function pickableWorkspaces(branches: BranchData[]): BranchData[] {
   return branches.filter(
     (a) => a.ref && a.status !== "error" && a.status !== "stopped"
-  )
-}
-
-/**
- * A row's leading glyph, as in the sidebar (#963): its state only, busy or
- * ready. Its PR sits at the row's end. Stopped and failed Workspaces aren't
- * listed, and the switcher doesn't track agent turns.
- */
-function WorkspaceIcon({ branch }: { branch: BranchData }) {
-  const busy = branch.status === "creating" || branch.status === "starting"
-  return (
-    <span className="flex size-4 shrink-0 items-center justify-center">
-      {busy ? (
-        <Spinner
-          aria-label="Starting"
-          className="size-3.5 text-muted-foreground"
-        />
-      ) : (
-        <CircleSmall className="size-3.5 text-muted-foreground/70" />
-      )}
-    </span>
   )
 }
 
@@ -81,10 +62,11 @@ export interface FollowGroup {
 
 /**
  * The searchable Workspace list a frame's Workspace switchers open (the label
- * picker and the address bar's host, issue #867): status icon, name, PR or
- * diff and * a check on the current one. For a frame on another Workspace than its Group
- * (#868), it leads with "Follow <Group>", which picks the Group's. The Group
- * switcher (#869) opens it too, with a footer saying what the pick moves.
+ * picker and the address bar's host, issue #867): each row the shared Workspace
+ * mention (#974: state icon, plain name, PR badge or line count) and a check on
+ * the current one. For a frame on another Workspace than its Group (#868), it
+ * leads with "Follow <Group>", which picks the Group's. The Group switcher
+ * (#869) opens it too, with a footer saying what the pick moves.
  */
 export function WorkspaceCommandList({
   branches,
@@ -103,6 +85,7 @@ export function WorkspaceCommandList({
   /** Muted lines under the list, read before picking (#869). */
   footer?: string[]
 }) {
+  const agentWorking = useWorkspaceAgentWorking()
   return (
     <Command>
       <CommandInput placeholder={placeholder} />
@@ -138,28 +121,26 @@ export function WorkspaceCommandList({
                 keywords={a.title ? [a.title] : undefined}
                 onSelect={() => onPick(a.id)}
               >
-                <WorkspaceIcon branch={a} />
-                <WorkspaceName workspace={a} />
-                <span className="ml-auto flex shrink-0 items-center gap-2">
-                  {a.status === "running" && a.prNumber && a.prState ? (
-                    // Wrapped in the badge's own colour, so the item's
-                    // selected state doesn't repaint it.
-                    <PrStateBadge number={a.prNumber} state={a.prState} />
-                  ) : hasDiff ? (
-                    <span className="flex items-center gap-1 font-mono text-3xs">
-                      <span className="text-success">+{a.diffAdditions}</span>
-                      <span className="text-destructive">
-                        -{a.diffDeletions}
+                <WorkspaceMention
+                  branch={a}
+                  agentWorking={agentWorking(a.id)}
+                  fallback={
+                    hasDiff ? (
+                      <span className="flex items-center gap-1 font-mono text-3xs">
+                        <span className="text-success">+{a.diffAdditions}</span>
+                        <span className="text-destructive">
+                          -{a.diffDeletions}
+                        </span>
                       </span>
-                    </span>
-                  ) : null}
-                  <Check
-                    className={cn(
-                      "size-3.5",
-                      a.id !== currentBranchId && "invisible"
-                    )}
-                  />
-                </span>
+                    ) : null
+                  }
+                />
+                <Check
+                  className={cn(
+                    "size-3.5",
+                    a.id !== currentBranchId && "invisible"
+                  )}
+                />
               </CommandItem>
             )
           })}

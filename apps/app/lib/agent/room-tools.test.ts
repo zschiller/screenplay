@@ -59,6 +59,14 @@ async function readCanvas(ports: RoomToolPorts): Promise<string> {
   return (await execute({}, { toolCallId: "t1", messages: [] })) as string
 }
 
+describe("the Coordinator's tools", () => {
+  it("have no way to approve or reject a Workspace's plan (#897)", () => {
+    const { collections } = makeHarness()
+    const names = Object.keys(buildRoomTools("room-1", portsOver(collections)))
+    expect(names.filter((n) => /plan|approve|reject/.test(n))).toEqual([])
+  })
+})
+
 describe("read_canvas", () => {
   it("summarizes Workspaces, frames, documents and Terminal Tabs", async () => {
     const { collections } = makeHarness()

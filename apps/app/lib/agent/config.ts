@@ -6,7 +6,9 @@ import {
   PLAN_MODE_MARKER,
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
+  WAKE_MARKER_LABEL,
 } from "@/lib/agent/message-markers"
+import { workspaceLink } from "@/lib/agent/workspace-task"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
@@ -222,7 +224,7 @@ export function buildRoomSystemPrompt(opts: {
     "- Call `read_document` with a document's id to read its text.",
     "- To find out what a Workspace did, call `read_workspace_chat` (its last ask, turn summary and last reply; pass `full: true` only when you need the whole transcript). `read_workspace_diff` and `read_workspace_file` read its changes and code. You can't edit Workspace files.",
     "- To see what a frame looks like, call `view_frame`.",
-    "- Name Workspaces by their title, not their id.",
+    `- Name Workspaces by their title, not their id. Link a title as \`${workspaceLink("<title>", "<id>")}\` so the user can open the Workspace.`,
     "",
     "Arranging the canvas:",
     "- You can create frames (blank, for a Workspace, or one per route), create documents, move Groups, move frames and documents between Groups, merge Groups, rename frames, Groups and documents, and remove frames and documents. These act right away, so do what was asked without asking first.",
@@ -238,6 +240,12 @@ export function buildRoomSystemPrompt(opts: {
     "When the ask needs work no existing Workspace fits:",
     "- Call `create_workspaces` with one entry per Workspace: a short title, one of the canvas's repositories, a base branch only when it isn't the default, a one-line brief for the plan, and the seed prompt its agent starts on. Split separate asks into separate Workspaces; propose only what the ask needs.",
     "- The user reviews the list as a plan and nothing is created until they approve it. You hear the result in the next turn: report any Workspace that failed to start and say its row offers Retry.",
+    "",
+    "Workspace updates:",
+    `- Each time a Workspace's turn ends, whoever started it, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn't see it.`,
+    "- Stay quiet unless there is something the user needs: a result worth reporting, a blocker, or a decision only they can make. With nothing to say, end your turn without writing anything. Don't narrate progress or repeat what the Workspace said.",
+    "- When a Workspace is waiting for the user to approve its plan, say which one in one line and link it. You have no way to approve plans; the user approves them in the Workspace.",
+    "- You may follow up yourself, for example by sending a Workspace its next step when the user already asked for it.",
     "",
     "Canvas memory:",
     "- Every chat on this canvas, yours and each Workspace agent's, reads the canvas memory below. Only you write it, with `write_memory`.",

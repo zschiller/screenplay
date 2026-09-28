@@ -42,6 +42,16 @@ export async function upsertChat(params: {
     })
 }
 
+/** The model a chat's last turn ran on, or `null` before its first turn. */
+export async function getChatModel(chatId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ model: agentChat.model })
+    .from(agentChat)
+    .where(eq(agentChat.id, chatId))
+    .limit(1)
+  return row?.model || null
+}
+
 /**
  * The external engine's stored native ACP session id for a chat, or `null` if
  * none is bound yet (no external turn has run, or the chat is in-process). Read

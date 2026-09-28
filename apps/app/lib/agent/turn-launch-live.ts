@@ -22,11 +22,12 @@ import {
   appendAcpMessage,
   findActiveRun,
   findPendingPlanForChat,
+  getChatModel,
   loadAcpHistory,
   upsertAcpToolCall,
   upsertChat,
 } from "./persistence"
-import { resolvePlan, startRun, transition } from "./run-state"
+import { resolvePlan, runStatus, startRun, transition } from "./run-state"
 import {
   broadcastAcpUpdate,
   broadcastControl,
@@ -58,6 +59,7 @@ import {
 import { prependTurnMarkers } from "./message-markers"
 import {
   createWorkspaces,
+  wakeRequesterId,
   type WorkspacePlanInput,
   type WorkspaceTurnRequest,
 } from "./room-tools"
@@ -71,13 +73,22 @@ import { toolKindFor } from "./acp/adapter"
 import type { RoomTarget } from "./chat-target-kinds"
 import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
 import { isLocalBuild } from "@/lib/local-mode"
+import {
+  createKeyedQueue,
+  wakeMessage,
+  type WorkspaceTurnEnd,
+} from "./coordinator-wake"
+import { loadChatTranscript } from "./history-load"
+import { renderLastTurn } from "./room-read-tools"
+import { roomChatId } from "@/lib/chat/room-chat"
+import { workspaceLabel } from "@/lib/workspace-label"
 
 /**
  * Turn Launch over the live database, Room broadcast and `after()`, for a turn
  * in `room` (the route's Room Access). The comment hooks write the room's
  * doorbell through it; their `roomId` is the same Room.
  */
-export const liveTurnLaunchDeps = (room: RoomDoc): TurnLaunchDeps => ({
+export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
   resolveEngine: resolveLiveEngine,
   findPendingPlan: findPendingPlanForChat,
   resolvePlan,
@@ -115,8 +126,89 @@ export const liveTurnLaunchDeps = (room: RoomDoc): TurnLaunchDeps => ({
   startCommentRequest: (_roomId, chatId) => startCommentRequest(room, chatId),
   settleCommentRequest: (input) => settleCommentRequest({ ...input, room }),
   driveTurn: launchEngineTurn,
+  loadRunStatus: runStatus,
+  wakeCoordinator: (end) =>
+    wakeCoordinator(room, end).catch((e) => {
+      console.error("coordinator wake failed:", e)
+    }),
   runAfterResponse: (task) => after(task),
 })
+
+/** Coordinator wakes, one at a time per Room, in the order turns ended. */
+const wakeQueue = createKeyedQueue()
+
+/** How often a wake checks whether the Coordinator is still answering. */
+const COORDINATOR_IDLE_POLL_MS = 1_000
+/**
+ * The longest a wake waits for the Coordinator's current turn before it runs
+ * anyway, so a run record a crash left `running` can't hold wakes forever.
+ */
+const COORDINATOR_IDLE_WAIT_MS = 5 * 60_000
+
+/**
+ * Tell the Room's Coordinator how a Workspace turn ended (#897): which
+ * Workspace, the run state, and the turn's summary and final reply, read now
+ * so a queued wake still reports its own turn. Chats that aren't on a
+ * Workspace wake nothing.
+ */
+async function wakeCoordinator(
+  room: RoomAccess,
+  end: WorkspaceTurnEnd
+): Promise<void> {
+  const workspace = await room.readDoc(({ chatSessions, branches }) => {
+    const branchId = chatSessions.get(end.chatId)?.branchId
+    const branch = branchId ? branches.get(branchId) : undefined
+    return branch
+      ? {
+          id: branch.id,
+          title: workspaceLabel(branch),
+          // Workspaces this wake creates belong to this Workspace's owner.
+          requesterId: wakeRequesterId(branch, room.userId),
+        }
+      : null
+  })
+  if (!workspace) return
+  const message = wakeMessage({
+    workspaceId: workspace.id,
+    title: workspace.title,
+    status: end.status,
+    lastTurn: renderLastTurn(await loadChatTranscript(end.chatId)),
+  })
+  await wakeQueue(room.roomId, () =>
+    runWakeTurn(room, message, workspace.requesterId)
+  )
+}
+
+/**
+ * One Coordinator turn for a wake, through the same Turn Launch a typed
+ * message takes, held until the turn is over so the next wake starts after it.
+ * It waits for a turn the user started to finish first: a new turn would
+ * supersede it.
+ */
+async function runWakeTurn(
+  room: RoomAccess,
+  message: string,
+  requesterId: string
+): Promise<void> {
+  const chatId = roomChatId(room.roomId)
+  const deadline = Date.now() + COORDINATOR_IDLE_WAIT_MS
+  while ((await findActiveRun(chatId)) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, COORDINATOR_IDLE_POLL_MS))
+  }
+  const model = (await getChatModel(chatId)) ?? undefined
+  let drive: (() => Promise<void>) | undefined
+  await launchTurn(
+    {
+      ...liveTurnLaunchDeps(room),
+      runAfterResponse: (task) => {
+        drive = task
+      },
+    },
+    { roomId: room.roomId, chatId, message, model },
+    roomTurn({ room, chatId, message, model, requesterId })
+  )
+  await drive?.()
+}
 
 /** Stopping a turn over the live database and Room broadcast. */
 export const liveTurnStopDeps: TurnStopDeps = {
@@ -189,6 +281,8 @@ export function roomTurn(input: {
   chatId: string
   message: string
   model?: string
+  /** Who owns Workspaces this turn creates, when not the acting member. */
+  requesterId?: string
 }): TurnTarget {
   const { room, chatId } = input
   return {
@@ -197,7 +291,9 @@ export function roomTurn(input: {
       const prepared = await prepareChatTarget(
         room,
         roomChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
-        coordinatorTarget(room, chatId) as unknown as never
+        coordinatorTarget(room, chatId, {
+          requesterId: input.requesterId,
+        }) as unknown as never
       )
       if (!prepared) return null
 
@@ -230,11 +326,12 @@ export function roomTurn(input: {
 export function coordinatorTarget(
   room: RoomAccess,
   coordinatorChatId: string,
-  turnId?: string
+  opts: { turnId?: string; requesterId?: string } = {}
 ): RoomTarget {
   return {
     userId: room.userId,
-    turnId,
+    turnId: opts.turnId,
+    requesterId: opts.requesterId,
     coordinatorChatId,
     launchWorkspaceTurn: delegatedTurnLauncher(room, coordinatorChatId),
     // Provisioned with the owner's GitHub account, as the create they asked
@@ -493,6 +590,7 @@ export function sandboxTurn(input: {
             ? input.commentThreadIds.filter((id) => typeof id === "string")
             : [],
         },
+        wakesCoordinator: true,
       }
     },
   }
@@ -527,6 +625,7 @@ export function planResumeTurn(input: {
           userId,
           threadIds: [],
         },
+        wakesCoordinator: true,
       }
     },
   }

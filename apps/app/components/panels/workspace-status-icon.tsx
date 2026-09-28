@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type SyntheticEvent } from "react"
-import { AlertTriangle, CircleDashed, CircleSmall, Copy } from "lucide-react"
+import { AlertTriangle, Copy } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -9,14 +9,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
-import { Spinner } from "@workspace/ui/components/spinner"
-import { GripSpinner } from "@/components/grip-spinner"
 import { useCloseWorkspaceHoverCard } from "@/components/workspace-hover-card"
+import { WorkspaceStateGlyph } from "@/components/workspace-mention"
 import {
   workspaceStatusLine,
   type StatusLineBranch,
   type StatusLineContext,
-  type WorkspaceStatusLine,
 } from "@/lib/branch/status-line"
 
 // The icon sits inside the dnd-kit sortable row, and the popover portals out
@@ -31,39 +29,9 @@ const isolate = {
   onPointerDown: stop,
 }
 
-function StateIcon({
-  line,
-}: {
-  line: Exclude<WorkspaceStatusLine, { kind: "error" }>
-}) {
-  // Progress uses the shared Spinner; the 9-dot GripSpinner is reserved for
-  // agent activity. The PR is not a state: it sits at the row's end (#963).
-  const glyph =
-    line.kind === "progress" ? (
-      <Spinner className="size-3.5 text-sidebar-foreground/70" />
-    ) : line.state === "working" ? (
-      <GripSpinner className="size-3.5 text-sidebar-foreground/70" />
-    ) : line.state === "stopped" ? (
-      // Lucide's dashed circle is drawn larger than CircleSmall; shrink it
-      // to about the same size (past the menu button's own svg size), with
-      // a heavier stroke so the line weight matches.
-      <CircleDashed
-        strokeWidth={2.6}
-        className="size-3! text-sidebar-foreground/50"
-      />
-    ) : (
-      <CircleSmall className="size-3.5 text-sidebar-foreground/50" />
-    )
-  return (
-    <span className="flex size-4 shrink-0 items-center justify-center">
-      {glyph}
-    </span>
-  )
-}
-
 /**
- * The leading icon of a Workspace row (#791, #963): one glyph for its state
- * only; its PR sits at the row's end. The state in words ("Installing
+ * The leading icon of a sidebar Workspace row (#791, #963): the shared state
+ * glyph (#974); its PR sits at the row's end. The state in words ("Installing
  * dependencies · 40s", "Agent working", "Ready") is in the row's Workspace
  * hover card (#882). A failure is the red triangle; clicking it opens a card titled
  * by the step that failed, with the error and Retry, Recreate and Copy error.
@@ -90,7 +58,7 @@ export function WorkspaceStatusIcon({
         aria-label={line.kind === "progress" ? line.step : line.text}
         className="flex shrink-0"
       >
-        <StateIcon line={line} />
+        <WorkspaceStateGlyph line={line} />
       </span>
     )
   }

@@ -1,6 +1,7 @@
 import type { AgentMessage } from "@/lib/agent/types"
 import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
+import { parseUserMessage } from "@/lib/agent/message-markers"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 
@@ -51,15 +52,24 @@ function isPinned(message: AgentMessage): boolean {
  *
  * A turn still streaming renders flat, so a run in progress shows its live
  * steps.
+ *
+ * A Coordinator wake's message (#897) is left out, and a finished wake turn
+ * that wrote no reply shows only what stays pinned (its task rows, errors).
  */
 export function foldFinishedTurns(
   entries: GroupedMessage[],
   { streaming }: { streaming: boolean }
 ): TranscriptItem[] {
   const turns: GroupedMessage[][] = [[]]
+  // The turns that answer a Coordinator wake, by index.
+  const wakeTurns = new Set<number>()
   for (const entry of entries) {
-    if (entry.message.role === "user") turns.push([entry], [])
-    else turns[turns.length - 1].push(entry)
+    if (entry.message.role === "user") {
+      turns.push([entry], [])
+      if (parseUserMessage(entry.message.content).wakeFrom) {
+        wakeTurns.add(turns.length - 1)
+      }
+    } else turns[turns.length - 1].push(entry)
   }
   const lastTurn = turns.length - 1
 
@@ -67,6 +77,18 @@ export function foldFinishedTurns(
   turns.forEach((turn, t) => {
     const live = streaming && t === lastTurn
     const isUserTurn = turn.length === 1 && turn[0].message.role === "user"
+    // The wake message is the server's, never drawn.
+    if (isUserTurn && wakeTurns.has(t + 1)) return
+    const quietWake =
+      !live &&
+      wakeTurns.has(t) &&
+      !turn.some((e) => e.message.role === "assistant")
+    if (quietWake) {
+      for (const entry of turn) {
+        if (isPinned(entry.message)) items.push({ kind: "message", entry })
+      }
+      return
+    }
     // Reasoning alone is already one collapsed line, and a task row is the
     // work's own summary; fold only real work.
     const didWork = turn.some(

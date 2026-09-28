@@ -105,6 +105,8 @@ export interface RunState {
   transition(runId: string, to: RunStatus): Promise<void>
   startRun(chatId: string): Promise<string>
   isRunActive(runId: string): Promise<boolean>
+  /** A run's recorded status, or null when there's no such run. */
+  runStatus(runId: string): Promise<RunStatus | null>
   pauseForPlan(runId: string, planCall: PendingPlanCall): Promise<void>
   resolvePlan(
     planId: string,
@@ -171,7 +173,14 @@ export function createRunState(repo: RunStateRepo): RunState {
     return repo.resolvePlan(planId, resolution)
   }
 
-  return { transition, startRun, isRunActive, pauseForPlan, resolvePlan }
+  return {
+    transition,
+    startRun,
+    isRunActive,
+    runStatus: (runId) => repo.loadStatus(runId),
+    pauseForPlan,
+    resolvePlan,
+  }
 }
 
 /**
@@ -288,5 +297,6 @@ const defaultRunState = createRunState(drizzleRepo())
 export const transition = defaultRunState.transition
 export const startRun = defaultRunState.startRun
 export const isRunActive = defaultRunState.isRunActive
+export const runStatus = defaultRunState.runStatus
 export const pauseForPlan = defaultRunState.pauseForPlan
 export const resolvePlan = defaultRunState.resolvePlan

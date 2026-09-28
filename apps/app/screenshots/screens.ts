@@ -25,8 +25,10 @@ import { prependTurnMarkers } from "@/lib/agent/message-markers"
 import {
   createdWorkspacesResult,
   sentToWorkspaceResult,
+  workspaceLink,
   workspacePlanMarkdown,
 } from "@/lib/agent/workspace-task"
+import { wakeMessage } from "@/lib/agent/coordinator-wake"
 import { planPermissionRequest } from "@/lib/agent/acp/schema"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
@@ -604,6 +606,28 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-coordinator-wake",
+    description:
+      "The Coordinator after Workspace turns ended: a result and a plan waiting on you, each linking its Workspace; a quiet wake in between shows nothing (#897).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.checkout), [
+        ...delegationRun(),
+        ...coordinatorWakeRun(),
+      ])
+      await page
+        .getByTestId("workspace-link")
+        .first()
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-coordinator-workspace-plan",
     description:
       "The Coordinator proposing two new Workspaces: the plan card with one row per Workspace, waiting for approval (#898).",
@@ -691,6 +715,25 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-header-workspace-picker",
+    description:
+      "A Workspace's chat header with its Workspace picker open: each row a state icon, the plain name and the PR badge or line count (#974).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "Checkout polish")
+      await page
+        .locator("[data-slot=tabs]")
+        .locator("button:has(svg.lucide-chevrons-up-down)")
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .getByPlaceholder("Search workspaces and layers…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-header-pr-none",
     description:
       "The chat header for a Workspace with no PR yet: the Create PR button.",
@@ -707,7 +750,7 @@ export const SCREENS: Screen[] = [
       "The chat header for a Workspace whose PR merged: the PR button in GitHub purple.",
     path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
-    prepare: (page) => selectWorkspace(page, "pricing-tiers"),
+    prepare: (page) => selectWorkspace(page, "Pricing tiers"),
     settleMs: 400,
   },
   {
@@ -4007,6 +4050,63 @@ export function workspacesCreatedRun(): RunEvent[] {
       },
     },
     { type: "chat-stream-end" },
+  ]
+}
+
+/**
+ * Coordinator wakes after the delegation (#897): Checkout polish finished and
+ * the Coordinator reports it; a quiet wake it answers with nothing; then Empty
+ * cart state stops for plan approval and the Coordinator links it.
+ */
+export function coordinatorWakeRun(): RunEvent[] {
+  const wake = (
+    branchId: string,
+    title: string,
+    status: "completed" | "paused_for_plan",
+    reply?: string
+  ): RunEvent[] => [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text(
+          wakeMessage({
+            workspaceId: branchId,
+            title,
+            status,
+            lastTurn: "Last ask: …",
+          })
+        ),
+      },
+    },
+    { type: "chat-stream-start" },
+    ...(reply
+      ? [
+          {
+            type: "chat-acp-update",
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: text(reply),
+            },
+          } satisfies RunEvent,
+        ]
+      : []),
+    { type: "chat-stream-end" },
+  ]
+  return [
+    ...wake(
+      ids.branches.checkoutPolish,
+      "Checkout polish",
+      "completed",
+      `${workspaceLink("Checkout polish", ids.branches.checkoutPolish)} is done: the order summary now stays pinned above the Pay button on mobile.`
+    ),
+    ...wake(ids.branches.checkoutPolish, "Checkout polish", "completed"),
+    ...wake(
+      ids.branches.emptyCart,
+      "Empty cart state",
+      "paused_for_plan",
+      `${workspaceLink("Empty cart state", ids.branches.emptyCart)} is waiting for you to approve its plan.`
+    ),
   ]
 }
 

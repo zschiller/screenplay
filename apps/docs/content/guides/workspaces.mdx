@@ -71,13 +71,20 @@ Each workspace row shows:
   **Copy error**;
 - the workspace's **title** (double-click to rename). Workspaces created
   before titles existed show their branch name until you rename them;
-- at the end, the workspace's **pull request** as its number in GitHub's
-  colours (green open, purple merged, red closed), or, with no pull request,
+- at the end, the workspace's **pull request** as a small outlined badge:
+  its icon in GitHub's colours (green open, purple merged, red closed) and
+  its number. When the row is too narrow for both, the badge is hidden
+  rather than cutting off the title. With no pull request the row shows
   **+/− line counts** for changes compared with the base branch. A workspace
   that's starting, stopped or failed shows neither;
 - on a canvas with two or more repositories, the **repository's short name**
   at the end, so you can tell web and API work apart. With one repository
   it's never shown.
+
+The agent panel's header and its picker, a frame's workspace list and the
+**Remove** repository dialog show a workspace the same way: the status icon,
+then the title, then the pull request badge (the header keeps its own pull
+request button instead).
 
 Workspaces keep their repository's order, and within it the order you give
 them: drag a row to move it among its repository's workspaces.

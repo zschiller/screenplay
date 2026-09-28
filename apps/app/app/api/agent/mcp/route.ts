@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     tools: withoutPlanGates(
       roomChatTarget.buildTools(
         room,
-        coordinatorTarget(room, binding.chatId, run?.id)
+        coordinatorTarget(room, binding.chatId, { turnId: run?.id })
       )
     ),
     annotations: ROOM_TOOL_ANNOTATIONS,

@@ -92,6 +92,17 @@ away. The workspace's chat keeps everything so far.
 When the Coordinator runs on a desktop harness (Claude Code or Codex), it can't
 show you a plan yet, so it can't start workspaces there.
 
+### When a workspace finishes
+
+The Coordinator hears from every workspace on the canvas, including ones you
+started yourself. Each time a workspace's agent finishes, fails, is stopped or
+stops to wait for plan approval, the Coordinator reads what happened.
+
+It stays quiet unless there's something you need to know: a result, a
+blocker, or a decision only you can make. When a workspace is waiting for you
+to approve its plan, it tells you which one, with a link that opens it. You
+approve the plan in the workspace; the Coordinator can't.
+
 ### Canvas memory
 
 Each canvas keeps a shared **memory**: preferences, decisions and facts about
@@ -117,9 +128,10 @@ shared canvas sees the same entries.
 ## Choosing a target
 
 Click a workspace in the sidebar to open its chat. The header then reads
-**Coordinator / _workspace_**: click **Coordinator** to go back. The pill
-after it shows the current **target**. Click it to switch to any running
-workspace (**Workspaces**) or document (**Documents**). When you switch back
+**Coordinator / _workspace_**: click **Coordinator** to go back. After it
+is the current **target**, a workspace with its status icon or a document.
+Click it to switch to any running workspace (**Workspaces**, each with its
+status icon and pull request) or document (**Documents**). When you switch back
 to a target, the panel reopens the chat you last used there.
 
 The header also shows the workspace's **+/−** diff and a **Create PR** button

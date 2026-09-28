@@ -4,6 +4,7 @@ import type { SessionUpdate } from "./acp/schema"
 import { userMessageChunk } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
 import type { PlanResolution, RunStatus } from "./run-state"
+import { isWakeStatus, type WorkspaceTurnEnd } from "./coordinator-wake"
 import type { BranchRenameClaim } from "./auto-naming"
 
 /**
@@ -35,6 +36,11 @@ export interface PreparedTurn {
     userId: string
     threadIds: string[]
   }
+  /**
+   * A Workspace turn (#897): once it ends, however it ends, the Room's
+   * Coordinator hears how. Set on every sandbox turn, whoever sent it.
+   */
+  wakesCoordinator?: boolean
 }
 
 /**
@@ -128,6 +134,10 @@ export interface TurnLaunchDeps {
   }): Promise<void>
   /** Drive the Engine turn (the abort watchdog and consumer live behind this). */
   driveTurn(turn: EngineTurnLaunch): Promise<void>
+  /** The run's recorded status once the Engine turn is over. */
+  loadRunStatus(runId: string): Promise<RunStatus | null>
+  /** Start a Coordinator turn about a Workspace turn that just ended (#897). */
+  wakeCoordinator(end: WorkspaceTurnEnd): Promise<void>
   /** Schedule work to run after the HTTP response (`after()` in production). */
   runAfterResponse(task: () => Promise<void>): void
 }
@@ -156,6 +166,10 @@ export type TurnLaunchResult =
  *    client joining mid-stream.
  * 6. After the response, rename the claimed git branch, then drive the Engine
  *    turn, with the comment request started before it and settled after it.
+ * 7. Once a Workspace turn is over, wake the Coordinator with how it ended:
+ *    completed, failed, stopped, or paused for plan approval. Whichever
+ *    Engine ran it, this is where every turn ends. A superseded run wakes
+ *    nothing: the turn that superseded it will.
  *
  * Names are never broadcast: the target writes them to the room doc, and
  * clients observe the doc (#910).
@@ -225,6 +239,12 @@ export async function launchTurn(
         sandboxName: commentRequest.sandboxName,
         userId: commentRequest.userId,
       })
+    }
+    if (prepared.wakesCoordinator) {
+      const status = await deps.loadRunStatus(runId)
+      if (status && isWakeStatus(status)) {
+        await deps.wakeCoordinator({ roomId, chatId, runId, status })
+      }
     }
   })
 

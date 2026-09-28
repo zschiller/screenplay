@@ -859,3 +859,75 @@ describe("AgentMessageItem — Workspace task row (#896)", () => {
     expect(screen.getByTestId("tool-call")).toBeTruthy()
   })
 })
+
+describe("AgentMessageItem — Coordinator wakes (#897)", () => {
+  const branch = {
+    id: "ws-1",
+    repoId: "repo-1",
+    sandboxName: "sandbox-ws-1",
+    gitUrl: "",
+    ref: "fix-sign-in",
+    title: "Fix sign-in redirect",
+    previewDomain: "",
+    port: 3000,
+    status: "running",
+    createdAt: 0,
+  } satisfies BranchData
+
+  it("never shows the wake message itself", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={{
+          role: "user",
+          content: prependTurnMarkers("Workspace finished its turn.", {
+            wakeFrom: "ws-1",
+          }),
+        }}
+      />
+    )
+    expect(container.textContent).toBe("")
+  })
+
+  it("opens a linked Workspace from a Coordinator reply", () => {
+    const opened: unknown[] = []
+    render(
+      <WorkspaceTasksProvider
+        value={{
+          branches: [branch],
+          chatSessions: [],
+          plans: [],
+          onOpen: (task) => opened.push(task),
+        }}
+      >
+        <AgentMessageItem
+          message={{
+            role: "assistant",
+            content:
+              "[Fix sign-in redirect](workspace:ws-1) is waiting for you to approve its plan.",
+          }}
+        />
+      </WorkspaceTasksProvider>
+    )
+    fireEvent.click(screen.getByTestId("workspace-link"))
+    expect(opened).toEqual([{ branchId: "ws-1" }])
+  })
+
+  it("reads as plain text outside the Coordinator chat, or once the Workspace is gone", () => {
+    const reply: AgentMessage = {
+      role: "assistant",
+      content: "[Fix sign-in redirect](workspace:ws-1) is done.",
+    }
+    render(<AgentMessageItem message={reply} />)
+    expect(screen.queryByTestId("workspace-link")).toBeNull()
+    expect(screen.getByText("Fix sign-in redirect")).toBeTruthy()
+    cleanup()
+    render(
+      <WorkspaceTasksProvider
+        value={{ branches: [], chatSessions: [], plans: [], onOpen: () => {} }}
+      >
+        <AgentMessageItem message={reply} />
+      </WorkspaceTasksProvider>
+    )
+    expect(screen.queryByTestId("workspace-link")).toBeNull()
+  })
+})

@@ -74,6 +74,12 @@ function recordingDeps(
     async driveTurn(turn) {
       log.push(`drive ${turn.runId} planMode=${turn.planMode ?? false}`)
     },
+    async loadRunStatus() {
+      return "completed"
+    },
+    async wakeCoordinator({ runId, status }) {
+      log.push(`wake coordinator ${runId} ${status}`)
+    },
     runAfterResponse(task) {
       log.push("response sent")
       afterResponse.push(task)
