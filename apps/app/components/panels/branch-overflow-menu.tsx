@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Recycle,
   RotateCcw,
+  RotateCw,
   Route,
   Trash2,
 } from "lucide-react"
@@ -36,12 +37,12 @@ import type { BranchData, RepoData } from "@/lib/types"
 
 /**
  * Stable key for one branch-menu action. Sections reference these so the
- * rendered order and the structural skeleton stay in lock-step — a later
- * slice that adds an action declares its key in {@link BRANCH_MENU_SECTIONS}
- * and supplies the node, rather than threading it into the middle of a giant
- * JSX block.
+ * rendered order and the structural skeleton stay in lock-step: adding an
+ * action means declaring its key in {@link BRANCH_MENU_SECTIONS} and supplying
+ * its node, rather than threading it into the middle of a giant JSX block.
  */
 export type BranchMenuItemKey =
+  | "retry"
   | "rename"
   | "color"
   | "play"
@@ -54,12 +55,7 @@ export type BranchMenuItemKey =
   | "open-github"
   | "delete"
 
-export type BranchMenuSectionId =
-  | "identity"
-  | "preview"
-  | "branch-sandbox"
-  | "git"
-  | "danger"
+export type BranchMenuSectionId = "view" | "git" | "manage" | "danger"
 
 export interface BranchMenuSection {
   id: BranchMenuSectionId
@@ -69,35 +65,73 @@ export interface BranchMenuSection {
 }
 
 /**
- * The Branch overflow ("…") menu skeleton (#350): five labelled sections in a
- * fixed order, each owning the existing actions it inherits. This is the
- * structural spine the later epic-#349 slices slot new items into — adding an
- * action means appending its key to a section here (and rendering its node in
- * {@link BranchOverflowMenuContent}), never reordering the sections.
+ * The Workspace overflow ("…") menu skeleton (#792): View, Git, Manage, then
+ * Delete on its own. The Workspace's state picks one lead action (see
+ * {@link workspaceMenuLead}) that renders first, above these sections, and is
+ * dropped from the section it would otherwise sit in, so no action (the PR
+ * one in particular) shows twice.
  *
  * `fetch`/`pull`/`push`/`sync` are deliberately absent: the always-commit-and-
  * push Engine loop makes them redundant.
  */
 export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
-  { id: "identity", label: "Identity", itemKeys: ["rename", "color"] },
   {
-    id: "preview",
-    label: "Preview",
+    id: "view",
+    label: "View",
     itemKeys: ["play", "open-in-browser", "routes"],
   },
   {
-    id: "branch-sandbox",
-    label: "Workspace & sandbox",
-    itemKeys: ["new-branch-from-here", "restart"],
+    id: "git",
+    label: "Git",
+    itemKeys: ["create-pr", "rebase", "open-github", "new-branch-from-here"],
   },
-  { id: "git", label: "Git", itemKeys: ["create-pr", "rebase", "open-github"] },
+  { id: "manage", label: "Manage", itemKeys: ["rename", "color", "restart"] },
   { id: "danger", label: "Danger", itemKeys: ["delete"] },
 ]
+
+/** What the lead action reads. {@link BranchData} satisfies the branch half. */
+export interface WorkspaceMenuLeadInput {
+  branch: Pick<BranchData, "status" | "error" | "previewDomain">
+  pr?: Pick<BranchPrInfo, "state"> | null
+  /** The Workspace has a diff against its base (the sidebar's diff stat). */
+  hasChanges: boolean
+  /** A chat turn is in flight on this Workspace. */
+  isBusy: boolean
+}
+
+/**
+ * The one action that leads the Workspace menu, from its state: Retry when
+ * setup failed, the open PR when there is one, Create pull request when there
+ * are changes to propose, otherwise the prototype player. A Workspace that's
+ * still being set up (or stopped) has no lead: nothing in it works yet.
+ */
+export function workspaceMenuLead({
+  branch,
+  pr,
+  hasChanges,
+  isBusy,
+}: WorkspaceMenuLeadInput): BranchMenuItemKey | null {
+  if (branch.status === "error" || branch.error) return "retry"
+  if (
+    branch.status === "creating" ||
+    branch.status === "starting" ||
+    branch.status === "stopped"
+  ) {
+    return null
+  }
+  if (pr?.state === "open") return "create-pr"
+  if (hasChanges && !isBusy) return "create-pr"
+  return branch.previewDomain ? "play" : null
+}
 
 export interface BranchOverflowMenuContentProps {
   branch: BranchData
   repo: RepoData
   onPlay: (branchId: string) => void
+  /** Re-runs a failed setup (the status icon's Retry). Leads the menu on error. */
+  onRetry: (branchId: string) => void
+  /** The Workspace has a diff against its base; see {@link workspaceMenuLead}. */
+  hasChanges?: boolean
   /** Opens the inline branch-name editor — already bound to this branch. */
   onRename: () => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
@@ -144,15 +178,16 @@ export interface BranchOverflowMenuContentProps {
 }
 
 /**
- * Renders the Branch overflow menu's `<DropdownMenuContent>` from {@link
- * BRANCH_MENU_SECTIONS}. Each item's behaviour, disable condition, and routing
- * are unchanged from the pre-#350 inline menu — this component only groups them
- * under section labels with separators between sections.
+ * Renders the Workspace overflow menu's `<DropdownMenuContent>`: the lead
+ * action from {@link workspaceMenuLead}, then {@link BRANCH_MENU_SECTIONS} with
+ * separators between groups (no section labels).
  */
 export function BranchOverflowMenuContent({
   branch,
   repo,
   onPlay,
+  onRetry,
+  hasChanges = false,
   onRename,
   onUpdateBranch,
   onNewBranchFromHere,
@@ -168,6 +203,12 @@ export function BranchOverflowMenuContent({
   isBusy = false,
 }: BranchOverflowMenuContentProps) {
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
+    retry: (
+      <DropdownMenuItem onClick={() => onRetry(branch.id)}>
+        <RotateCw />
+        Retry setup
+      </DropdownMenuItem>
+    ),
     rename: (
       <DropdownMenuItem disabled={!branch.ref} onClick={onRename}>
         <Pencil />
@@ -358,16 +399,25 @@ export function BranchOverflowMenuContent({
     ),
   }
 
+  const lead = workspaceMenuLead({ branch, pr, hasChanges, isBusy })
+  const groups = [
+    ...(lead ? [{ id: "lead", itemKeys: [lead] }] : []),
+    ...BRANCH_MENU_SECTIONS.map((section) => ({
+      id: section.id,
+      itemKeys: section.itemKeys.filter((key) => key !== lead),
+    })),
+  ].filter((group) => group.itemKeys.length > 0)
+
   return (
     <DropdownMenuContent
       side="right"
       align="start"
       onCloseAutoFocus={onCloseAutoFocus}
     >
-      {BRANCH_MENU_SECTIONS.map((section, i) => (
-        <Fragment key={section.id}>
+      {groups.map((group, i) => (
+        <Fragment key={group.id}>
           {i > 0 ? <DropdownMenuSeparator /> : null}
-          {section.itemKeys.map((key) => (
+          {group.itemKeys.map((key) => (
             <Fragment key={key}>{nodes[key]}</Fragment>
           ))}
         </Fragment>

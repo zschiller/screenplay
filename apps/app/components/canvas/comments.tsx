@@ -114,6 +114,8 @@ export interface CommentsProps {
   onActivateThread?: (threadId: string | null) => void
   /** Names a frame or document layer for the thread card's chip. */
   describeLayer?: (id: string) => { title?: string; route?: string } | undefined
+  /** Hide the pins (the comments panel's toggle), all but the open one's. */
+  hidePins?: boolean
 }
 
 export function Comments({
@@ -132,6 +134,7 @@ export function Comments({
   activeThreadId: controlledActiveThreadId,
   onActivateThread,
   describeLayer,
+  hidePins = false,
 }: CommentsProps) {
   const { threads, markRead } = commentThreads
   const [internalActiveThreadId, setInternalActiveThreadId] = useState<
@@ -264,8 +267,9 @@ export function Comments({
     <>
       {threads
         // A resolved thread leaves the canvas, but opening it from the
-        // thread list shows it until it's closed again.
-        .filter((t) => !t.resolved || t.id === activeThreadId)
+        // comments panel shows it until it's closed again. Hidden pins work
+        // the same way.
+        .filter((t) => t.id === activeThreadId || (!t.resolved && !hidePins))
         .map((thread) => {
           const pos = threadPos(thread)
           if (!pos) return null

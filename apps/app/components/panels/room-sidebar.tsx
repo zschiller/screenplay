@@ -2124,6 +2124,12 @@ export function RoomSidebar({
                                                                     onPlay={
                                                                       onPlayBranch
                                                                     }
+                                                                    onRetry={
+                                                                      onRetryBranch
+                                                                    }
+                                                                    hasChanges={
+                                                                      !!hasStats
+                                                                    }
                                                                     onRename={
                                                                       triggerBranchRename
                                                                     }
