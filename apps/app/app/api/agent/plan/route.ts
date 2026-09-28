@@ -1,18 +1,14 @@
-import { after } from "next/server"
 import { openRoomForRoute } from "@/lib/room-access"
 import { db } from "@/lib/db"
 import { agentChat } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
-import { toolsetFor } from "@/lib/agent/toolset"
-import type { ToolContext } from "@/lib/agent/tools"
 import { findPendingToolCall } from "@/lib/agent/persistence"
-import { startRun } from "@/lib/agent/run-state"
-import { broadcastSignal } from "@/lib/agent/broadcast"
-import { resolvePlanGate } from "@/lib/agent/acp/resolution"
-import { livePlanResolutionPorts } from "@/lib/agent/acp/consumer-live"
-import { resolveLiveEngine } from "@/lib/agent/acp/resolve-live-engine"
-import { launchEngineTurn } from "@/lib/agent/launch-turn"
-import { settleCommentRequest } from "@/lib/agent/comment-request"
+import { planResolutionText } from "@/lib/agent/acp/resolution"
+import { launchTurn } from "@/lib/agent/turn-launch"
+import {
+  liveTurnLaunchDeps,
+  planResumeTurn,
+} from "@/lib/agent/turn-launch-live"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -59,59 +55,27 @@ export async function POST(req: Request) {
     .limit(1)
   if (!chat) return new Response("Chat not found", { status: 404 })
 
-  // Resolve the engine before any side effects so a misconfigured deployment
-  // fails loud here rather than silently falling back (ADR 0006). The chat's
-  // stored `model` (a `harness:` id) picks the adapter on the external engine (#479).
-  const engine = await resolveLiveEngine({
-    sandboxName: chat.sandboxName,
-    chatId,
-    model: chat.model,
-  })
-
-  // Resolve the plan gate, ACP-native (ADR 0006): supersede the paused run,
-  // persist the human resolution as an ACP-native `user` record (the
-  // continuation the agent acts on next — approve → "proceed", reject → the
-  // feedback), and broadcast the outcome (flip the plan card + echo the
-  // continuation as a live user turn). Returns null when nothing was still
-  // pending (a double-submit or a gate a /stop already tore down).
-  const resolved = await resolvePlanGate(
-    livePlanResolutionPorts(roomId, chatId),
-    planId,
-    { approved, feedback }
-  )
-  if (!resolved) return new Response("Plan already resolved", { status: 409 })
-
-  const toolCtx: ToolContext = {
-    sandboxName: chat.sandboxName,
-    roomId,
-    userId,
-  }
-
-  const runId = await startRun(chatId)
-
-  // Re-enter the streaming state before the response returns; a failed `after()`
-  // won't leave the chat stuck on the plan card with no progress.
-  await broadcastSignal(roomId, chatId, "chat-stream-start")
-
-  // A comment request paused on its plan (#788) is settled by this turn.
-  after(async () => {
-    await launchEngineTurn({
-      engine,
+  // Turn Launch resolves the plan (the one path shared with a follow-up
+  // message's implicit rejection) and resumes the chat with the decision's
+  // continuation as the next user turn: approve → "proceed", reject → the
+  // feedback.
+  const message = planResolutionText({ approved, feedback })
+  const result = await launchTurn(
+    liveTurnLaunchDeps,
+    {
       roomId,
       chatId,
-      runId,
-      systemPrompt: chat.systemPrompt,
-      model: chat.model,
-      tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
-    })
-    await settleCommentRequest({
-      roomId,
-      chatId,
-      runId,
+      message,
       sandboxName: chat.sandboxName,
-      userId,
-    })
-  })
-
-  return Response.json({ success: true, runId })
+      model: chat.model,
+      planDecision: { planId, approved, feedback },
+    },
+    planResumeTurn({ roomId, userId, message, chat })
+  )
+  // Nothing was still pending: a double-submit, or a gate a /stop or a
+  // follow-up message already resolved.
+  if (result.kind !== "started") {
+    return new Response("Plan already resolved", { status: 409 })
+  }
+  return Response.json({ success: true, runId: result.runId })
 }

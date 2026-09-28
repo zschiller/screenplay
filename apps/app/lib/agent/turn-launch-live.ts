@@ -39,6 +39,8 @@ import type { TurnLaunchDeps, TurnTarget } from "./turn-launch"
 /** Turn Launch over the live database, Room broadcast and `after()`. */
 export const liveTurnLaunchDeps: TurnLaunchDeps = {
   resolveEngine: resolveLiveEngine,
+  findPendingPlan: findPendingPlanForChat,
+  resolvePlan,
   // The user turn is stored ACP-native: the decorated wire text (plan/branch
   // markers + `@`-mention `resource_link`s) encoded to content blocks.
   persistUserTurn: (chatId, userText) =>
@@ -205,22 +207,6 @@ export function sandboxTurn(input: {
         }
       }
 
-      // A follow-up sent while a submit_plan awaits approval is an implicit
-      // rejection: resolve the plan and flip its card. The follow-up itself
-      // becomes the next user turn (the revision instruction).
-      const pendingPlan = await findPendingPlanForChat(chatId)
-      if (pendingPlan) {
-        await resolvePlan(pendingPlan.id, {
-          approved: false,
-          feedback: message,
-        })
-        await broadcastControl(roomId, chatId, {
-          kind: "plan_resolved",
-          planId: pendingPlan.id,
-          approved: false,
-        })
-      }
-
       return {
         systemPrompt,
         model,
@@ -240,6 +226,40 @@ export function sandboxTurn(input: {
           threadIds: Array.isArray(input.commentThreadIds)
             ? input.commentThreadIds.filter((id) => typeof id === "string")
             : [],
+        },
+      }
+    },
+  }
+}
+
+/**
+ * A chat resuming from a plan decision. It reuses the chat's recorded config
+ * (the original run's prompt, model and sandbox); the message is the decision's
+ * continuation text, and the turn settles any comment request the plan paused.
+ */
+export function planResumeTurn(input: {
+  roomId: string
+  userId: string
+  message: string
+  chat: { sandboxName: string; model: string; systemPrompt: string }
+}): TurnTarget {
+  const { roomId, userId, message, chat } = input
+  return {
+    async prepare() {
+      const toolCtx: ToolContext = {
+        sandboxName: chat.sandboxName,
+        roomId,
+        userId,
+      }
+      return {
+        systemPrompt: chat.systemPrompt,
+        model: chat.model,
+        tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
+        userText: message,
+        commentRequest: {
+          sandboxName: chat.sandboxName,
+          userId,
+          threadIds: [],
         },
       }
     },

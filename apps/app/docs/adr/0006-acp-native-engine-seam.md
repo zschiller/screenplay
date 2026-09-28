@@ -111,7 +111,7 @@ Session against a real ACP client. Three guardrails keep this real:
    `permission_request` `EngineUpdate`), kept structurally distinct from ACP's
    informational `plan` update. The consumer turns that request into the
    `pauseForPlan` gate and the human resolution rides back through
-   `resolvePlanGate` as an ACP-native record (approve → resume, reject → revise).
+   Turn Launch as an ACP-native record (approve → resume, reject → revise).
    It is weighted heavily in the contract test, which now passes for this
    mapping.
 3. **Message Markers won't come entirely for free** — where ACP has a native
@@ -241,7 +241,7 @@ the legacy machinery is **deleted**, not parallel.
   transitions the client into streaming is an ACP-native `user` record append
   plus a live `user_message_chunk` broadcast.
 - **The plan gate is fully ACP-native.** The human resolution lands as an
-  ACP-native `user` turn (`resolvePlanGate`) — approve → "proceed", reject → the
+  ACP-native `user` turn (resolved and resumed by Turn Launch) — approve → "proceed", reject → the
   feedback — which is both the continuation the engine rebuilds and the bubble
   the Room renders; the plan card flips via the control envelope. No synthetic
   `ModelMessage` tool-result is persisted anymore.
