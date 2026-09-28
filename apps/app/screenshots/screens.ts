@@ -368,24 +368,15 @@ export const SCREENS: Screen[] = [
   {
     name: "home-search",
     description:
-      "Home search (#807): results from every folder, each naming where it lives.",
+      "Home search (#807): a popover of results from every folder, each naming where it lives.",
     path: "/files",
-    prepare: async (page) => {
-      await searchHome(page, "design")
-    },
-  },
-  {
-    name: "home-search-table",
-    description: "The same search in the table layout, with a Location column.",
-    path: "/files",
-    cookies: homeView("table"),
     prepare: async (page) => {
       await searchHome(page, "design")
     },
   },
   {
     name: "home-search-empty",
-    description: "A search that matches nothing.",
+    description: "A search that matches nothing: the popover says so.",
     path: "/files",
     prepare: async (page) => {
       await searchHome(page, "zzz")
@@ -394,7 +385,7 @@ export const SCREENS: Screen[] = [
   {
     name: "home-search-narrow",
     description:
-      "Search at the narrowest content width: the field shrinks, the toolbar collapses to icons.",
+      "Search at the narrowest content width, over the table layout.",
     path: "/files",
     viewport: NARROW_HOME_VIEWPORT,
     cookies: [...narrowHome(), ...homeView("table")],

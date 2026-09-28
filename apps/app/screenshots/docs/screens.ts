@@ -534,17 +534,18 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: (page) => openCardMenu(page, "Marketing", "Folder actions"),
   }),
   screen({
-    name: "home-sort-menu",
-    description: "The home sort menu.",
+    name: "home-search",
+    description: "Home search's results popover under the sidebar field.",
     path: "/files",
-    crop: [560, 0, 720, 340],
-    focus: MENU,
+    focus: ["[data-slot=popover-content]", "[data-slot=sidebar-input]"],
     prepare: async (page) => {
+      const field = page.getByLabel("Search canvases and folders")
+      await field.click({ timeout: 15_000 })
+      await field.pressSequentially("north")
       await page
-        .getByRole("button", { name: /Last edited/ })
-        .first()
-        .click()
-      await sleep(page, 800)
+        .locator("[data-slot=popover-content]")
+        .waitFor({ timeout: 5_000 })
+      await sleep(page, 400)
     },
   }),
   screen({

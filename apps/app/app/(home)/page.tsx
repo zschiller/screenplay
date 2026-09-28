@@ -10,5 +10,5 @@ import { RoomsView } from "@/components/home/rooms-view"
  * cross-folder list — Recents is always recency-first, so no sort control.
  */
 export default function RecentsPage() {
-  return <RoomsView title="Recents" showSort={false} />
+  return <RoomsView title="Recents" />
 }
