@@ -27,6 +27,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { branchTextClass, getBranchColor } from "@/lib/branch-colors"
+import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
 import type { BranchData } from "@/lib/types"
 import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
@@ -213,6 +214,8 @@ export function FrameAddressBar({
 export interface FrameWorkspace {
   branchId: string
   ref: string
+  /** Shown over `ref` when set (#881); see `workspaceLabel`. */
+  title?: string
   colorIndex?: number
 }
 
@@ -235,18 +238,20 @@ function FrameWorkspaceHost({
   const color = workspace
     ? getBranchColor(workspace.branchId, workspace.colorIndex)
     : undefined
+  const label = workspace ? workspaceLabel(workspace) : undefined
 
   const host = (
     <>
       {color && (
         <span className={cn("size-1.5 shrink-0 rounded-full", color.swatch)} />
       )}
-      <span className="truncate">{workspace?.ref ?? "Choose a workspace"}</span>
+      <span className="truncate">{label ?? "Choose a workspace"}</span>
     </>
   )
   const hostClass = cn(
-    "flex h-5 max-w-40 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1.5 font-mono text-2xs font-medium",
-    color ? branchTextClass(color) : "font-sans text-muted-foreground"
+    "flex h-5 max-w-40 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1.5 text-2xs font-medium",
+    workspace && !hasWorkspaceTitle(workspace) && "font-mono",
+    color ? branchTextClass(color) : "text-muted-foreground"
   )
 
   if (!onAssignWorkspace) {
@@ -258,9 +263,7 @@ function FrameWorkspaceHost({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={
-            workspace ? `Workspace: ${workspace.ref}` : "Choose a workspace"
-          }
+          aria-label={label ? `Workspace: ${label}` : "Choose a workspace"}
           className={cn(
             hostClass,
             "pr-1 outline-none hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=open]:bg-background"

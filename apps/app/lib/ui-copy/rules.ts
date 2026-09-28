@@ -36,9 +36,10 @@ const GIT_LEVEL_ONLY: Array<{ rule: string; pattern: RegExp }> = [
 ]
 
 /** Words that mark a string as talking about git, where "branch" is the
- *  right word. */
+ *  right word. "Rename branch" is the Git menu's rename of the git branch
+ *  itself, as opposed to the Workspace's title (#881). */
 const GIT_CONTEXT =
-  /\b(git|github|origin|remote|clone|cloning|pull requests?|(base|local|default) branch(es)?)\b/i
+  /\b(git|github|origin|remote|clone|cloning|pull requests?|(base|local|default) branch(es)?|rename branch)\b/i
 
 export function findCopyViolations(text: string): CopyViolation[] {
   const out: CopyViolation[] = []

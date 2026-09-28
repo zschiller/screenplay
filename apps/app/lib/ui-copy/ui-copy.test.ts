@@ -64,6 +64,7 @@ describe("findCopyViolations", () => {
     "Also delete 2 branches on remote",
     "Choose the base branch",
     "Open branch on GitHub",
+    "Rename branch…",
     "Search GitHub repositories…",
     "Restart sandbox",
     "No repositories found.",

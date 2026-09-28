@@ -29,6 +29,7 @@ describe("generateChatNames", () => {
     expect(result).toEqual({
       branch: "fix-login-test",
       chatLabel: "Fix Login Test",
+      title: "Fix Login Test",
     })
   })
 
@@ -44,6 +45,7 @@ describe("generateChatNames", () => {
     expect(result).toEqual({
       branch: fallback.branch,
       chatLabel: fallback.label,
+      title: fallback.label,
     })
     // The improved slug, not the raw truncated prompt (#675).
     expect(result.branch).toMatch(/^fix-flaky-login-test-/)
@@ -57,6 +59,7 @@ describe("generateChatNames", () => {
       { runModel: transport(null) }
     )
     expect(result.branch).toBe("")
+    expect(result.title).toBe("")
     expect(result.chatLabel).toBe(deriveFallbackName(message).label)
   })
 
@@ -65,7 +68,12 @@ describe("generateChatNames", () => {
       { message: "add dark mode", shouldNameBranch: false },
       { runModel: transport("Add Dark Mode") }
     )
-    expect(result).toEqual({ branch: "", chatLabel: "Add Dark Mode" })
+    // A later chat never retitles its Workspace (#881).
+    expect(result).toEqual({
+      branch: "",
+      chatLabel: "Add Dark Mode",
+      title: "",
+    })
   })
 
   it("drops an out-of-bounds branch and falls back for an unusable label", async () => {

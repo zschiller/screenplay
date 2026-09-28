@@ -60,6 +60,12 @@ export type BranchData = {
   gitUrl: string
   /** The git ref (branch name) this Branch maps to. */
   ref: string
+  /**
+   * The Workspace's display name (#881), written by the first chat's naming
+   * call and changed by inline rename. Absent on Workspaces created before
+   * titles, which show `ref` instead — read it through `workspaceLabel`.
+   */
+  title?: string
   previewDomain: string
   port: number
   status: SandboxStatus

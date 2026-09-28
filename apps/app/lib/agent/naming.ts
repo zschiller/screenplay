@@ -6,7 +6,8 @@ import { deriveFallbackName } from "./fallback-name"
 import { runOneShotModel } from "./one-shot-model"
 
 /**
- * Generate a git branch name and a chat label from the user's first message.
+ * Generate a git branch name, a chat label and a Workspace title from the
+ * user's first message.
  * Mirrors the v1 stream route's behavior (one cheap LLM call, two-line output),
  * routed through {@link runOneShotModel}: hosted shells the configured API-key
  * provider unchanged, desktop shells the user's own installed harness CLI in
@@ -14,7 +15,12 @@ import { runOneShotModel } from "./one-shot-model"
  * returns `null` and we fall back to the improved deterministic slug (#675) —
  * naming never blocks Workspace creation.
  *
- * Returns `{ branch: "" }` if naming is skipped (`shouldNameBranch=false`).
+ * The Workspace title is the chat label (#881): the first chat names its
+ * Workspace, so one line of the same call serves both. It is only returned
+ * alongside a branch name — a later chat (`shouldNameBranch=false`) never
+ * retitles its Workspace.
+ *
+ * Returns `{ branch: "", title: "" }` if naming is skipped (`shouldNameBranch=false`).
  */
 export async function generateChatNames(
   opts: {
@@ -25,7 +31,7 @@ export async function generateChatNames(
   },
   /** Injected for tests; defaults to the real per-backend transport. */
   deps: { runModel?: typeof runOneShotModel } = {}
-): Promise<{ branch: string; chatLabel: string }> {
+): Promise<{ branch: string; chatLabel: string; title: string }> {
   const runModel = deps.runModel ?? runOneShotModel
   const system = opts.shouldNameBranch
     ? "Generate two things for the user's request:\n1. A short, lowercase, hyphenated git branch name (2-4 words)\n2. A short chat label (2-5 words, title case)\n\nOutput ONLY as two lines, no explanation, backticks, or quotes.\nLine 1: branch name\nLine 2: chat label\n\nExamples:\nfix-login-button\nFix Login Button\n\nadd-dark-mode\nAdd Dark Mode"
@@ -45,6 +51,7 @@ export async function generateChatNames(
     return {
       branch: opts.shouldNameBranch ? fallback.branch : "",
       chatLabel: fallback.label,
+      title: opts.shouldNameBranch ? fallback.label : "",
     }
   }
 
@@ -76,7 +83,11 @@ export async function generateChatNames(
   if (chatLabel.length < 2 || chatLabel.length > 60) {
     chatLabel = deriveFallbackName(opts.message).label
   }
-  return { branch, chatLabel }
+  return {
+    branch,
+    chatLabel,
+    title: opts.shouldNameBranch ? chatLabel : "",
+  }
 }
 
 /**

@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode } from "react"
 import {
   ExternalLink,
+  GitBranch,
   GitBranchPlus,
   GitMerge,
   GitPullRequest,
@@ -44,6 +45,7 @@ import type { BranchData, RepoData } from "@/lib/types"
 export type BranchMenuItemKey =
   | "retry"
   | "rename"
+  | "rename-branch"
   | "color"
   | "play"
   | "open-in-browser"
@@ -83,7 +85,13 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   {
     id: "git",
     label: "Git",
-    itemKeys: ["create-pr", "rebase", "open-github", "new-branch-from-here"],
+    itemKeys: [
+      "create-pr",
+      "rebase",
+      "open-github",
+      "rename-branch",
+      "new-branch-from-here",
+    ],
   },
   { id: "manage", label: "Manage", itemKeys: ["rename", "color", "restart"] },
   { id: "danger", label: "Danger", itemKeys: ["delete"] },
@@ -132,8 +140,10 @@ export interface BranchOverflowMenuContentProps {
   onRetry: (branchId: string) => void
   /** The Workspace has a diff against its base; see {@link workspaceMenuLead}. */
   hasChanges?: boolean
-  /** Opens the inline branch-name editor — already bound to this branch. */
+  /** Opens the inline title editor — already bound to this Workspace. */
   onRename: () => void
+  /** Opens the Rename branch dialog for the git branch (#881). */
+  onRenameBranch: (branchId: string) => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
   /**
    * Opens the create dialog seeded with this branch as the base and an empty
@@ -189,6 +199,7 @@ export function BranchOverflowMenuContent({
   onRetry,
   hasChanges = false,
   onRename,
+  onRenameBranch,
   onUpdateBranch,
   onNewBranchFromHere,
   onRestartDevServer,
@@ -213,6 +224,15 @@ export function BranchOverflowMenuContent({
       <DropdownMenuItem disabled={!branch.ref} onClick={onRename}>
         <Pencil />
         Rename
+      </DropdownMenuItem>
+    ),
+    "rename-branch": (
+      <DropdownMenuItem
+        disabled={!branch.sandboxName || !branch.ref}
+        onClick={() => onRenameBranch(branch.id)}
+      >
+        <GitBranch />
+        Rename branch…
       </DropdownMenuItem>
     ),
     color: (

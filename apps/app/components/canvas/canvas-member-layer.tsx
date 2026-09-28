@@ -351,6 +351,7 @@ function CanvasMemberLayerImpl({
                 ...iframeLayer,
                 iframeUrl: agentInfo?.previewDomain,
                 branch: agentInfo?.branch ?? assignedAgent?.ref,
+                branchTitle: assignedAgent?.title,
               }}
               zoom={zoom}
               focused={focusedIframeLayerId === iframeLayer.id}

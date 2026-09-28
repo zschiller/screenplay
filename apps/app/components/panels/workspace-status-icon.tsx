@@ -75,10 +75,19 @@ function StateIcon({
 }) {
   // Progress uses the shared Spinner; the 9-dot GripSpinner is reserved for
   // agent activity. A PR takes GitHub's state colour; a bare branch is muted.
+  // Spinners draw at 3.5 in a 4 box, so every row's label starts at the same x.
   if (line.kind === "progress")
-    return <Spinner className="size-3.5 text-sidebar-foreground/70" />
+    return (
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <Spinner className="size-3.5 text-sidebar-foreground/70" />
+      </span>
+    )
   if (context.agentWorking)
-    return <GripSpinner className="size-3.5 text-sidebar-foreground/70" />
+    return (
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <GripSpinner className="size-3.5 text-sidebar-foreground/70" />
+      </span>
+    )
   const pr = context.pr
   if (!pr) return <GitBranch className="size-4 text-sidebar-foreground/70" />
   const Icon =
@@ -145,7 +154,7 @@ export function WorkspaceStatusIcon({
             <button
               type="button"
               aria-label={line.title}
-              className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              className="-m-0.5 box-content flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               {...isolate}
             >
               <AlertTriangle className="size-3.5 text-destructive" />

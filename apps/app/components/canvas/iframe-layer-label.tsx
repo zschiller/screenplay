@@ -32,6 +32,8 @@ import { WorkspaceCommandList } from "./workspace-list"
 interface IframeLayerLabelProps {
   label: string
   branch?: string
+  /** The Workspace's title (#881); the badge shows it over `branch`. */
+  branchTitle?: string
   branchId?: string
   route?: string
   /** Bidirectional shared state from `@screenplay.space/state`. When present
@@ -66,6 +68,7 @@ interface IframeLayerLabelProps {
 export function IframeLayerLabel({
   label,
   branch,
+  branchTitle,
   branchId,
   route,
   sharedState,
@@ -91,6 +94,7 @@ export function IframeLayerLabel({
         onAssignBranch ? (
           <BranchPicker
             branch={branch}
+            branchTitle={branchTitle}
             currentBranchId={branchId}
             colorKey={branchId}
             colorIndex={
@@ -102,6 +106,7 @@ export function IframeLayerLabel({
         ) : branch ? (
           <BranchBadge
             branch={branch}
+            title={branchTitle}
             colorKey={branchId}
             colorIndex={
               assignableBranches?.find((a) => a.id === branchId)?.colorIndex
@@ -271,6 +276,7 @@ function RoutePicker({
 
 interface BranchPickerProps {
   branch?: string
+  branchTitle?: string
   currentBranchId?: string
   colorKey?: string
   colorIndex?: number
@@ -329,6 +335,7 @@ export function SharedStateIndicator({
 
 function BranchPicker({
   branch,
+  branchTitle,
   currentBranchId,
   colorKey,
   colorIndex,
@@ -349,6 +356,7 @@ function BranchPicker({
           {branch ? (
             <BranchBadge
               branch={branch}
+              title={branchTitle}
               colorKey={colorKey}
               colorIndex={colorIndex}
               className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"

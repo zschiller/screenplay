@@ -84,7 +84,6 @@ import {
 } from "@workspace/ui/components/dialog"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
-import { BranchBadge } from "@/components/branch-badge"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import {
   AddRepositoryDialog,
@@ -135,6 +134,9 @@ import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
+import { checkBranchRename } from "@/lib/branch-rename"
+import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
+import { InputDialog } from "@/components/home/input-dialog"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
 import {
   useIsWorkspaceHighlighted,
@@ -606,15 +608,6 @@ interface RoomSidebarProps {
   footer?: React.ReactNode
 }
 
-function sanitizeBranchName(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9/_-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-}
-
 /** A sidebar Layer awaiting its delete confirm. */
 type PendingRemoveLayer = {
   kind: "iframe-layer" | "markdown-layer"
@@ -712,6 +705,9 @@ export function RoomSidebar({
     string | null
   >(null)
   const [pendingRecreateBranchId, setPendingRecreateBranchId] = useState<
+    string | null
+  >(null)
+  const [pendingRenameBranchId, setPendingRenameBranchId] = useState<
     string | null
   >(null)
   const [pendingDeleteRepoId, setPendingDeleteRepoId] = useState<string | null>(
@@ -1514,65 +1510,63 @@ export function RoomSidebar({
                                                             }
                                                           />
                                                           {branch.ref ? (
-                                                            <BranchBadge
-                                                              ref={branchRef}
-                                                              branch={
-                                                                branch.ref
-                                                              }
-                                                              colorKey={
-                                                                branch.id
-                                                              }
-                                                              colorIndex={
-                                                                branch.colorIndex
-                                                              }
-                                                              className="px-1.5 py-0 text-2xs"
-                                                              onRename={(
-                                                                next
+                                                            // A plain title, like the other sidebar rows
+                                                            // (wireframe 2.1A); the Workspace colour stays
+                                                            // on the canvas. Untitled Workspaces show
+                                                            // their branch in mono.
+                                                            <span
+                                                              className={cn(
+                                                                "flex min-w-0 has-[[data-editable-text=editing]]:overflow-visible",
+                                                                !hasWorkspaceTitle(
+                                                                  branch
+                                                                ) &&
+                                                                  "font-mono text-xs"
+                                                              )}
+                                                              // The sortable row's keyboard sensor eats
+                                                              // Space; keep the editor's keys here.
+                                                              onKeyDown={(
+                                                                e
                                                               ) => {
-                                                                const sanitized =
-                                                                  sanitizeBranchName(
-                                                                    next
-                                                                  )
-                                                                if (!sanitized)
-                                                                  return
                                                                 if (
-                                                                  sanitized ===
-                                                                  branch.ref
-                                                                )
-                                                                  return
-                                                                // Renaming onto a branch that already exists on the
-                                                                // remote would hijack its history, so that's always
-                                                                // blocked. On the desktop build a name another open
-                                                                // Branch holds is blocked too: the local backend
-                                                                // keeps one checkout per ref (worktrees, ADR 0009),
-                                                                // so the rename would collide at provision time. The
-                                                                // hosted backend has no such limit.
-                                                                const remote =
-                                                                  remoteBranchesByRepo.get(
-                                                                    repo.id
+                                                                  (
+                                                                    e.target as HTMLElement
                                                                   )
-                                                                const localTaken =
-                                                                  isLocalBuild &&
-                                                                  repoBranches.some(
-                                                                    (a) =>
-                                                                      a.id !==
-                                                                        branch.id &&
-                                                                      a.ref ===
-                                                                        sanitized
-                                                                  )
-                                                                if (
-                                                                  localTaken ||
-                                                                  remote?.has(
-                                                                    sanitized
-                                                                  )
+                                                                    .isContentEditable
                                                                 )
-                                                                  return
-                                                                onRenameBranch(
-                                                                  branch.id,
-                                                                  sanitized
-                                                                )
+                                                                  e.stopPropagation()
                                                               }}
-                                                            />
+                                                            >
+                                                              <EditableText
+                                                                ref={branchRef}
+                                                                as="span"
+                                                                value={workspaceLabel(
+                                                                  branch
+                                                                )}
+                                                                onCommit={(
+                                                                  next
+                                                                ) => {
+                                                                  // Renames the title only (#881); the branch
+                                                                  // moves through Rename branch in the menu.
+                                                                  const title =
+                                                                    next.trim()
+                                                                  if (
+                                                                    !title ||
+                                                                    title ===
+                                                                      workspaceLabel(
+                                                                        branch
+                                                                      )
+                                                                  )
+                                                                    return
+                                                                  onUpdateBranch(
+                                                                    branch.id,
+                                                                    { title }
+                                                                  )
+                                                                }}
+                                                                className="min-w-0"
+                                                                viewClassName="truncate"
+                                                                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                                                              />
+                                                            </span>
                                                           ) : (
                                                             <span className="truncate font-mono text-xs text-muted-foreground">
                                                               Creating…
@@ -1628,6 +1622,9 @@ export function RoomSidebar({
                                                                     }
                                                                     onRename={
                                                                       triggerBranchRename
+                                                                    }
+                                                                    onRenameBranch={
+                                                                      setPendingRenameBranchId
                                                                     }
                                                                     onUpdateBranch={
                                                                       onUpdateBranch
@@ -1750,12 +1747,15 @@ export function RoomSidebar({
                       <div>
                         <GitBranch className="shrink-0 text-sidebar-foreground/70" />
                         {activeBranchesDrag.branch.ref ? (
-                          <BranchBadge
-                            branch={activeBranchesDrag.branch.ref}
-                            colorKey={activeBranchesDrag.branch.id}
-                            colorIndex={activeBranchesDrag.branch.colorIndex}
-                            className="px-1.5 py-0 text-2xs"
-                          />
+                          <span
+                            className={cn(
+                              "truncate",
+                              !hasWorkspaceTitle(activeBranchesDrag.branch) &&
+                                "font-mono text-xs"
+                            )}
+                          >
+                            {workspaceLabel(activeBranchesDrag.branch)}
+                          </span>
                         ) : (
                           <span className="truncate font-mono text-xs text-muted-foreground">
                             Creating…
@@ -2034,7 +2034,7 @@ export function RoomSidebar({
               onOpenChange={(open) => {
                 if (!open) setPendingDeleteBranchId(null)
               }}
-              branchName={branch?.ref ?? ""}
+              branchName={branch ? workspaceLabel(branch) : ""}
               // Remote deletion goes through the GitHub API, so it is only
               // offered when the API can actually serve it: a token resolves
               // and this Project names a GitHub remote (issue #741).
@@ -2058,6 +2058,47 @@ export function RoomSidebar({
                 if (!branch) return
                 await onRemoveBranch(branch.id, { deleteOnRemote })
                 setPendingDeleteBranchId(null)
+              }}
+            />
+          )
+        })()}
+        {(() => {
+          const branch = pendingRenameBranchId
+            ? branches.find((a) => a.id === pendingRenameBranchId)
+            : null
+          return (
+            <InputDialog
+              open={!!branch}
+              onOpenChange={(open) => {
+                if (!open) setPendingRenameBranchId(null)
+              }}
+              title="Rename branch"
+              description="Renames the git branch. The workspace keeps its title."
+              initialValue={branch?.ref ?? ""}
+              submitLabel="Rename"
+              submittingLabel="Renaming…"
+              errorMessage="That branch name is empty or already taken."
+              onSubmit={async (next) => {
+                if (!branch) return
+                const check = checkBranchRename({
+                  next,
+                  current: branch.ref,
+                  remoteBranches: remoteBranchesByRepo.get(branch.repoId),
+                  otherLocalRefs: isLocalBuild
+                    ? branches
+                        .filter(
+                          (a) =>
+                            a.repoId === branch.repoId && a.id !== branch.id
+                        )
+                        .map((a) => a.ref)
+                    : [],
+                })
+                if (check.kind === "invalid") {
+                  throw new Error("Invalid branch name")
+                }
+                if (check.kind === "rename") {
+                  onRenameBranch(branch.id, check.branch)
+                }
               }}
             />
           )

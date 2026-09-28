@@ -45,6 +45,7 @@ export function RemoveRepositoryDialog({
       workspaces={targets.map((b) => ({
         id: b.id,
         ref: b.ref,
+        title: b.title,
         colorIndex: b.colorIndex,
         openPrNumber: b.prState === "open" ? b.prNumber : undefined,
         work: unsavedWork.get(b.id),
