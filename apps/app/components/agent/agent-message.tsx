@@ -55,6 +55,7 @@ import { chatStore } from "@/lib/chat-store"
 import { inputStore } from "@/lib/input-store"
 import { diffLines, foldContext } from "@/lib/agent/line-diff"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+import { ElementDetail } from "./element-detail"
 import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
 import { ChatDisclosure } from "./chat-disclosure"
@@ -835,22 +836,12 @@ function ElementHistoryToken({
           {children}
         </span>
       </HoverCardTrigger>
-      <HoverCardContent align="start" className="gap-2">
-        <div className="font-mono text-xs break-all text-foreground">
-          {detail.selector || "(no selector)"}
-        </div>
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-          <div className="flex gap-1.5">
-            <span className="shrink-0 text-foreground/60">Route</span>
-            <span className="font-mono break-all">{detail.route}</span>
-          </div>
-          {detail.frameLabel ? (
-            <div className="flex gap-1.5">
-              <span className="shrink-0 text-foreground/60">Frame</span>
-              <span className="break-all">{detail.frameLabel}</span>
-            </div>
-          ) : null}
-        </div>
+      <HoverCardContent align="start">
+        <ElementDetail
+          selector={detail.selector}
+          route={detail.route}
+          frameLabel={detail.frameLabel}
+        />
       </HoverCardContent>
     </HoverCard>
   )
