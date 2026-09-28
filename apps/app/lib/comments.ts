@@ -1,23 +1,49 @@
 import "server-only"
 
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, ne, notExists, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
 import type { ElementAnchor } from "@/lib/comment-anchor"
 import type { AgentStatus } from "@/lib/comments-agent"
 import { planBranchThreadMoves } from "@/lib/comment-migration"
+import {
+  canDeleteComment,
+  canDeleteThread,
+  canEditComment,
+} from "@/lib/comment-permissions"
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
 import { isLocalBuild } from "@/lib/local-mode"
-import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
+import { openRoom, type RoomAccess } from "@/lib/room-access"
+import { mutateRoomDoc } from "@/lib/yjs/server"
 
-// Comments (the `thread`/`comment`/`thread_read` tables) are excluded from the
-// local desktop build (PRD #404, issue #417): those tables don't exist on disk
-// and the comment UI is not surfaced. Reads return empty so server components
-// that pre-fetch threads render cleanly; writes refuse as a backstop.
-function assertCommentsEnabled(): void {
-  if (isLocalBuild) {
+/**
+ * **Comments**: the server side of comment threads. Every operation opens the
+ * thread's Room through Room Access (so a non-member is refused before any
+ * read or write), applies the same `comment-permissions` rules the thread card
+ * reads, and rings the doorbell its change calls for. The server actions in
+ * `comments-actions.ts` are transport only.
+ *
+ * Comments (the `thread`/`comment`/`thread_read` tables) are excluded from the
+ * local desktop build (PRD #404, issue #417): those tables don't exist on disk
+ * and the comment UI is not surfaced. This flag is the one place that decides
+ * it: reads return empty so server components that pre-fetch threads render
+ * cleanly, a person's writes refuse, and the agent's hooks do nothing.
+ */
+const commentsEnabled = !isLocalBuild
+
+function requireCommentsEnabled(): void {
+  if (!commentsEnabled) {
     throw new Error("Comments are not available in the local build")
+  }
+}
+
+/** Thrown when someone edits or deletes what `comment-permissions` says
+ *  isn't theirs. Every such case fails with this one error. */
+export class NotYourCommentError extends Error {
+  constructor() {
+    super("Only its author can change this")
+    this.name = "NotYourCommentError"
   }
 }
 
@@ -126,6 +152,8 @@ function toComment(
   }
 }
 
+type ThreadRow = typeof schema.thread.$inferSelect
+
 /**
  * Rings the room-global content doorbell: every connected client refetches
  * the thread list. Used for create/edit/delete/resolve. Server-side only so
@@ -140,22 +168,59 @@ async function signalContentChange(roomId: string) {
  * unread. Used for mark-read/mark-unread, which happen constantly and so must
  * not force a room-wide refetch storm.
  */
-async function signalReadChange(roomId: string, userId: string) {
-  await mutateRoomDoc(roomId, ({ doc }) => bumpCommentsRead(doc, userId))
+async function signalReadChange(room: RoomAccess) {
+  await room.mutateDoc(({ doc }) => bumpCommentsRead(doc, room.userId))
+}
+
+/** Opens the Room a thread belongs to, for the current session. */
+async function openThread(
+  threadId: string
+): Promise<{ room: RoomAccess; thread: ThreadRow }> {
+  requireCommentsEnabled()
+  const [thread] = await db
+    .select()
+    .from(schema.thread)
+    .where(eq(schema.thread.id, threadId))
+    .limit(1)
+  if (!thread) throw new Error("Thread not found")
+  return { room: await openRoom(thread.roomId), thread }
+}
+
+/** Opens the Room a comment's thread belongs to, for the current session. */
+async function openComment(commentId: string): Promise<{
+  room: RoomAccess
+  comment: typeof schema.comment.$inferSelect
+}> {
+  requireCommentsEnabled()
+  const [comment] = await db
+    .select()
+    .from(schema.comment)
+    .where(eq(schema.comment.id, commentId))
+    .limit(1)
+  if (!comment) throw new Error("Comment not found")
+  const { room } = await openThread(comment.threadId)
+  return { room, comment }
+}
+
+async function authorOf(
+  authorId: string
+): Promise<{ name: string; image: string | null } | null> {
+  const [author] = await getUsersByIds([authorId])
+  return author ? { name: author.name, image: author.image } : null
 }
 
 /**
  * Every thread in a Canvas, newest first: frame, document and canvas threads,
  * and the Workspace threads made in the player (#789). The canvas and the
- * player read this one list, so they always show the same threads.
+ * player read this one list, so they always show the same threads. Read only.
  */
 export async function listThreads(
-  roomId: string,
-  userId: string
+  roomId: string
 ): Promise<ThreadWithComments[]> {
-  if (isLocalBuild) return []
-  const threadRows = await moveFeedThreads(
-    roomId,
+  if (!commentsEnabled) return []
+  const room = await openRoom(roomId)
+  const threadRows = await placeFeedThreads(
+    room,
     await db
       .select()
       .from(schema.thread)
@@ -175,7 +240,7 @@ export async function listThreads(
       .from(schema.threadRead)
       .where(
         and(
-          eq(schema.threadRead.userId, userId),
+          eq(schema.threadRead.userId, room.userId),
           inArray(schema.threadRead.threadId, threadIds)
         )
       ),
@@ -218,39 +283,29 @@ export async function listThreads(
   })
 }
 
-type ThreadRow = typeof schema.thread.$inferSelect
-
 /**
- * Moves the retired play-mode feed's threads (keyed by `branch`) onto their
- * Workspace, the first time a room's threads are listed after #789 (see
- * `lib/comment-migration.ts`). Returns the rows as they now stand. Once a
- * room's feed threads have moved none carry a branch, so this costs nothing
- * on every later list.
+ * Places the retired play-mode feed's threads (keyed by `branch`) on their
+ * Workspace as they're listed (#789, see `lib/comment-migration.ts`). The
+ * rows are left as stored: listing never writes. Rooms with no feed threads,
+ * which is every Canvas made since #789, skip the room-doc read.
  */
-async function moveFeedThreads(
-  roomId: string,
+async function placeFeedThreads(
+  room: RoomAccess,
   rows: ThreadRow[]
 ): Promise<ThreadRow[]> {
   const feed = rows.flatMap((r) =>
     r.branch ? [{ id: r.id, branch: r.branch }] : []
   )
   if (feed.length === 0) return rows
-  const workspaces = await readRoomDoc(roomId, ({ branches }) =>
+  const workspaces = await room.readDoc(({ branches }) =>
     branches
       .toArray()
       .sort((a, b) => a.createdAt - b.createdAt)
       .map((b) => ({ id: b.id, ref: b.ref }))
   )
-  const moves = planBranchThreadMoves(feed, workspaces)
-  await Promise.all(
-    moves.map((m) =>
-      db
-        .update(schema.thread)
-        .set({ workspaceId: m.workspaceId, snapshot: m.snapshot, branch: null })
-        .where(eq(schema.thread.id, m.threadId))
-    )
+  const byId = new Map(
+    planBranchThreadMoves(feed, workspaces).map((m) => [m.threadId, m])
   )
-  const byId = new Map(moves.map((m) => [m.threadId, m]))
   return rows.map((r) => {
     const m = byId.get(r.id)
     return m
@@ -259,7 +314,7 @@ async function moveFeedThreads(
   })
 }
 
-export async function createThreadWithFirstComment(opts: {
+export interface CreateThreadInput {
   roomId: string
   x: number | null
   y: number | null
@@ -278,178 +333,184 @@ export async function createThreadWithFirstComment(opts: {
   anchorEnd?: string | null
   quotedText?: string | null
   body: string
-  authorId: string
-}): Promise<ThreadWithComments> {
-  assertCommentsEnabled()
+}
+
+/**
+ * Starts a thread with its first comment, as the current session's user. The
+ * thread, the comment and the starter's read mark are one SQL statement, so
+ * a failure leaves none of them (neon-http has no interactive transactions).
+ */
+export async function createThread(
+  input: CreateThreadInput
+): Promise<ThreadWithComments> {
+  requireCommentsEnabled()
+  const room = await openRoom(input.roomId)
+  const body = requireBody(input.body)
   const threadId = nanoid()
   const commentId = nanoid()
   const now = new Date()
 
-  const [threadRow] = await db
-    .insert(schema.thread)
-    .values({
-      id: threadId,
-      roomId: opts.roomId,
-      x: opts.x,
-      y: opts.y,
-      iframeLayerId: opts.iframeLayerId,
-      selector: opts.selector,
-      offsetX: opts.offsetX,
-      offsetY: opts.offsetY,
-      workspaceId: opts.workspaceId ?? null,
-      route: opts.route ?? null,
-      anchor: opts.anchor ?? null,
-      viewportWidth: opts.viewportWidth ?? null,
-      viewportHeight: opts.viewportHeight ?? null,
-      snapshot: opts.snapshot ?? null,
-      documentId: opts.documentId ?? null,
-      anchorStart: opts.anchorStart ?? null,
-      anchorEnd: opts.anchorEnd ?? null,
-      quotedText: opts.quotedText ?? null,
-      createdBy: opts.authorId,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning()
-  if (!threadRow) throw new Error("Failed to create thread")
+  const insertThread = db.$with("new_thread").as(
+    db
+      .insert(schema.thread)
+      .values({
+        id: threadId,
+        roomId: room.roomId,
+        x: input.x,
+        y: input.y,
+        iframeLayerId: input.iframeLayerId,
+        selector: input.selector,
+        offsetX: input.offsetX,
+        offsetY: input.offsetY,
+        workspaceId: input.workspaceId ?? null,
+        route: input.route ?? null,
+        anchor: input.anchor ?? null,
+        viewportWidth: input.viewportWidth ?? null,
+        viewportHeight: input.viewportHeight ?? null,
+        snapshot: input.snapshot ?? null,
+        documentId: input.documentId ?? null,
+        anchorStart: input.anchorStart ?? null,
+        anchorEnd: input.anchorEnd ?? null,
+        quotedText: input.quotedText ?? null,
+        createdBy: room.userId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: schema.thread.id })
+  )
+  const insertComment = db.$with("new_comment").as(
+    db
+      .insert(schema.comment)
+      .values({
+        id: commentId,
+        threadId,
+        authorId: room.userId,
+        body,
+        createdAt: now,
+      })
+      .returning({ id: schema.comment.id })
+  )
+  // The starter has implicitly read their own thread.
+  await db
+    .with(insertThread, insertComment)
+    .insert(schema.threadRead)
+    .values({ threadId, userId: room.userId, lastReadAt: now })
 
-  const [commentRow] = await db
-    .insert(schema.comment)
-    .values({
-      id: commentId,
-      threadId,
-      authorId: opts.authorId,
-      body: opts.body,
-      createdAt: now,
-    })
-    .returning()
-  if (!commentRow) throw new Error("Failed to create comment")
+  await signalContentChange(room.roomId)
 
-  // Creator has implicitly read their own thread.
-  await db.insert(schema.threadRead).values({
-    threadId,
-    userId: opts.authorId,
-    lastReadAt: now,
-  })
-
-  await signalContentChange(opts.roomId)
-
-  const [author] = await getUsersByIds([opts.authorId])
+  const [[threadRow], [commentRow]] = await Promise.all([
+    db.select().from(schema.thread).where(eq(schema.thread.id, threadId)),
+    db.select().from(schema.comment).where(eq(schema.comment.id, commentId)),
+  ])
+  if (!threadRow || !commentRow) throw new Error("Failed to create thread")
   return {
     ...toThread(threadRow),
-    comments: [
-      toComment(
-        commentRow,
-        author ? { name: author.name, image: author.image } : null
-      ),
-    ],
+    comments: [toComment(commentRow, await authorOf(room.userId))],
     unread: false,
   }
 }
 
+/** Replies in a thread. Any member may. */
 export async function appendComment(opts: {
   threadId: string
-  authorId: string
   body: string
 }): Promise<CommentRecord> {
-  assertCommentsEnabled()
-  const id = nanoid()
+  const { room } = await openThread(opts.threadId)
+  const body = requireBody(opts.body)
   const [row] = await db
     .insert(schema.comment)
     .values({
-      id,
+      id: nanoid(),
       threadId: opts.threadId,
-      authorId: opts.authorId,
-      body: opts.body,
+      authorId: room.userId,
+      body,
     })
     .returning()
   if (!row) throw new Error("Failed to append comment")
 
-  // Touch parent thread's updated_at and bump the room's revision.
-  const [threadRow] = await db
+  await db
     .update(schema.thread)
     .set({ updatedAt: new Date() })
     .where(eq(schema.thread.id, opts.threadId))
-    .returning({ roomId: schema.thread.roomId })
-  if (threadRow) await signalContentChange(threadRow.roomId)
+  await signalContentChange(room.roomId)
 
-  const [author] = await getUsersByIds([opts.authorId])
-  return toComment(
-    row,
-    author ? { name: author.name, image: author.image } : null
-  )
+  return toComment(row, await authorOf(room.userId))
 }
 
+/** Edits a comment's body. Author only (`canEditComment`). */
 export async function editComment(opts: {
   commentId: string
-  authorId: string
   body: string
 }): Promise<void> {
-  assertCommentsEnabled()
-  const [row] = await db
+  const { room, comment } = await openComment(opts.commentId)
+  const body = requireBody(opts.body)
+  const fromAgent = !!comment.agentChatId
+  if (!canEditComment({ authorId: comment.authorId, fromAgent }, room.userId)) {
+    throw new NotYourCommentError()
+  }
+  await db
     .update(schema.comment)
-    .set({ body: opts.body, editedAt: new Date() })
+    .set({ body, editedAt: new Date() })
     .where(
       and(
-        eq(schema.comment.id, opts.commentId),
-        eq(schema.comment.authorId, opts.authorId),
+        eq(schema.comment.id, comment.id),
+        eq(schema.comment.authorId, room.userId),
         isNull(schema.comment.agentChatId)
       )
     )
-    .returning({ threadId: schema.comment.threadId })
-  if (!row) throw new Error("Comment not found or not yours")
-
-  const [threadRow] = await db
-    .select({ roomId: schema.thread.roomId })
-    .from(schema.thread)
-    .where(eq(schema.thread.id, row.threadId))
-    .limit(1)
-  if (threadRow) await signalContentChange(threadRow.roomId)
+  await signalContentChange(room.roomId)
 }
 
+/**
+ * Deletes a comment. Author only (`canDeleteComment`). Deleting a thread's
+ * last comment deletes the thread too, in the same statement, so no empty
+ * pin is left behind.
+ */
 export async function deleteComment(opts: {
   commentId: string
-  authorId: string
 }): Promise<void> {
-  assertCommentsEnabled()
-  const [row] = await db
-    .delete(schema.comment)
+  const { room, comment } = await openComment(opts.commentId)
+  if (!canDeleteComment(comment, room.userId)) throw new NotYourCommentError()
+
+  const removeComment = db
+    .$with("removed_comment")
+    .as(
+      db
+        .delete(schema.comment)
+        .where(eq(schema.comment.id, comment.id))
+        .returning({ id: schema.comment.id })
+    )
+  // The statement sees the thread as it was, so "no other comment" is the
+  // test for this one being its last.
+  await db
+    .with(removeComment)
+    .delete(schema.thread)
     .where(
       and(
-        eq(schema.comment.id, opts.commentId),
-        eq(schema.comment.authorId, opts.authorId)
+        eq(schema.thread.id, comment.threadId),
+        notExists(
+          db
+            .select({ id: schema.comment.id })
+            .from(schema.comment)
+            .where(
+              and(
+                eq(schema.comment.threadId, comment.threadId),
+                ne(schema.comment.id, comment.id)
+              )
+            )
+        )
       )
     )
-    .returning({ threadId: schema.comment.threadId })
-  if (!row) return
-  // If the thread is now empty, drop it so we don't leave an orphan pin.
-  const [remaining] = await db
-    .select({ id: schema.comment.id })
-    .from(schema.comment)
-    .where(eq(schema.comment.threadId, row.threadId))
-    .limit(1)
-  if (!remaining) {
-    const [threadRow] = await db
-      .delete(schema.thread)
-      .where(eq(schema.thread.id, row.threadId))
-      .returning({ roomId: schema.thread.roomId })
-    if (threadRow) await signalContentChange(threadRow.roomId)
-    return
-  }
-  const [threadRow] = await db
-    .select({ roomId: schema.thread.roomId })
-    .from(schema.thread)
-    .where(eq(schema.thread.id, row.threadId))
-    .limit(1)
-  if (threadRow) await signalContentChange(threadRow.roomId)
+  await signalContentChange(room.roomId)
 }
 
+/** Resolves or reopens a thread. Any member may. */
 export async function setThreadResolved(opts: {
   threadId: string
   resolved: boolean
 }): Promise<void> {
-  assertCommentsEnabled()
-  const [row] = await db
+  const { room } = await openThread(opts.threadId)
+  await db
     .update(schema.thread)
     .set({
       resolved: opts.resolved,
@@ -457,99 +518,75 @@ export async function setThreadResolved(opts: {
       updatedAt: new Date(),
     })
     .where(eq(schema.thread.id, opts.threadId))
-    .returning({ roomId: schema.thread.roomId })
-  if (row) await signalContentChange(row.roomId)
+  await signalContentChange(room.roomId)
 }
 
-/** Deletes a thread and its comments. Only the thread's starter may, as
- *  `canDeleteThread` says; anyone else gets an error and nothing changes. */
-export async function deleteThread(opts: {
-  threadId: string
-  userId: string
-}): Promise<void> {
-  assertCommentsEnabled()
-  const [row] = await db
-    .delete(schema.thread)
-    .where(
-      and(
-        eq(schema.thread.id, opts.threadId),
-        eq(schema.thread.createdBy, opts.userId)
-      )
-    )
-    .returning({ roomId: schema.thread.roomId })
-  if (!row) throw new Error("Thread not found or not yours")
-  await signalContentChange(row.roomId)
+/** Deletes a thread and its comments. Only its starter may
+ *  (`canDeleteThread`). */
+export async function deleteThread(threadId: string): Promise<void> {
+  const { room, thread } = await openThread(threadId)
+  if (!canDeleteThread(thread, room.userId)) throw new NotYourCommentError()
+  await db.delete(schema.thread).where(eq(schema.thread.id, threadId))
+  await signalContentChange(room.roomId)
 }
 
-export async function markThreadRead(opts: {
-  threadId: string
-  userId: string
-}): Promise<void> {
-  assertCommentsEnabled()
+export async function markThreadRead(threadId: string): Promise<void> {
+  const { room } = await openThread(threadId)
   await db
     .insert(schema.threadRead)
-    .values({
-      threadId: opts.threadId,
-      userId: opts.userId,
-      lastReadAt: new Date(),
-    })
+    .values({ threadId, userId: room.userId, lastReadAt: new Date() })
     .onConflictDoUpdate({
       target: [schema.threadRead.threadId, schema.threadRead.userId],
       set: { lastReadAt: sql`now()` },
     })
   // Ring only this user's read doorbell so their other tabs recompute unread,
   // without forcing every client in the room to refetch.
-  const [row] = await db
-    .select({ roomId: schema.thread.roomId })
-    .from(schema.thread)
-    .where(eq(schema.thread.id, opts.threadId))
-    .limit(1)
-  if (row) await signalReadChange(row.roomId, opts.userId)
+  await signalReadChange(room)
 }
 
-export async function markThreadUnread(opts: {
-  threadId: string
-  userId: string
-}): Promise<void> {
-  assertCommentsEnabled()
+export async function markThreadUnread(threadId: string): Promise<void> {
+  const { room } = await openThread(threadId)
   await db
     .delete(schema.threadRead)
     .where(
       and(
-        eq(schema.threadRead.threadId, opts.threadId),
-        eq(schema.threadRead.userId, opts.userId)
+        eq(schema.threadRead.threadId, threadId),
+        eq(schema.threadRead.userId, room.userId)
       )
     )
   // Per-user doorbell: only the acting user's tabs refresh their unread counts
   // (relevant when the same user has the room open elsewhere). A read-state
   // change is not a content change, so the room counter stays put.
-  const [row] = await db
-    .select({ roomId: schema.thread.roomId })
-    .from(schema.thread)
-    .where(eq(schema.thread.id, opts.threadId))
-    .limit(1)
-  if (row) await signalReadChange(row.roomId, opts.userId)
+  await signalReadChange(room)
+}
+
+function requireBody(body: string): string {
+  const trimmed = body.trim()
+  if (!trimmed) throw new Error("Comment body is required")
+  return trimmed
 }
 
 /**
  * Marks open threads as sent to a Workspace's agent (#788): `queued` on the
  * chat that carries the request, remembering HEAD so the commit the agent
- * makes can be told apart. Threads from another Canvas, or resolved since
- * they were picked, are left alone.
+ * makes can be told apart (`readBaseCommit`, which isn't called when there's
+ * nothing to queue). Threads from another Canvas, or resolved since they were
+ * picked, are left alone.
  */
 export async function queueThreadsForAgent(opts: {
   roomId: string
   threadIds: readonly string[]
   chatId: string
-  baseCommit: string | null
+  readBaseCommit: () => Promise<string | null>
 }): Promise<void> {
-  if (isLocalBuild || opts.threadIds.length === 0) return
+  if (!commentsEnabled || opts.threadIds.length === 0) return
+  const baseCommit = await opts.readBaseCommit()
   const rows = await db
     .update(schema.thread)
     .set({
       agentStatus: "queued",
       agentChatId: opts.chatId,
-      agentBaseCommit: opts.baseCommit,
+      agentBaseCommit: baseCommit,
       agentCommit: null,
       updatedAt: new Date(),
     })
@@ -573,7 +610,7 @@ export async function pendingAgentThreads(chatId: string): Promise<
     agentBaseCommit: string | null
   }[]
 > {
-  if (isLocalBuild) return []
+  if (!commentsEnabled) return []
   return db
     .select({
       id: schema.thread.id,
@@ -595,7 +632,7 @@ export async function startAgentThreads(
   roomId: string,
   chatId: string
 ): Promise<void> {
-  if (isLocalBuild) return
+  if (!commentsEnabled) return
   const rows = await db
     .update(schema.thread)
     .set({ agentStatus: "working" })
@@ -623,7 +660,7 @@ export async function settleAgentThreads(opts: {
   replies: ReadonlyMap<string, { body: string; commit: string | null }>
   failed: readonly string[]
 }): Promise<void> {
-  if (isLocalBuild) return
+  if (!commentsEnabled) return
   const now = new Date()
   for (const [threadId, reply] of opts.replies) {
     if (reply.body) {
@@ -660,7 +697,7 @@ export async function settleAgentThreads(opts: {
 export async function roomThreadOrder(
   roomId: string
 ): Promise<{ id: string; createdAt: number }[]> {
-  if (isLocalBuild) return []
+  if (!commentsEnabled) return []
   const rows = await db
     .select({ id: schema.thread.id, createdAt: schema.thread.createdAt })
     .from(schema.thread)

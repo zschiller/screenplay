@@ -79,7 +79,7 @@ export default async function PlayPage({
   >
   // Every thread in the Canvas: the player shows its Workspace's, with the
   // pin numbers they carry on the canvas.
-  const initialThreads = await listThreads(roomId, userId).catch(() => [])
+  const initialThreads = await listThreads(roomId).catch(() => [])
 
   return (
     <YjsRoomProvider

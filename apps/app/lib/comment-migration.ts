@@ -6,8 +6,9 @@
  * that Workspace's threads on the canvas and in the player from then on.
  *
  * The branch → Workspace map lives in the room's Y.Doc, not the database, so
- * the move happens when a room's threads are next listed rather than in a SQL
- * migration. This module is the pure half: which Workspace each row goes to.
+ * the move happens as a room's threads are listed rather than in a SQL
+ * migration, without writing the rows back. This module is the pure half:
+ * which Workspace each row goes to.
  */
 
 export interface BranchThreadRow {
