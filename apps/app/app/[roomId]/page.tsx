@@ -11,7 +11,6 @@ import {
   parsePanelLayoutValue,
 } from "@/lib/panel-layout"
 import { isLocalBuild } from "@/lib/local-mode"
-import { NEW_CANVAS_PARAM } from "@/lib/new-canvas"
 import {
   canAccess,
   getMemberCounts,
@@ -33,15 +32,10 @@ export async function generateMetadata({
 
 export default async function RoomPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ roomId: string }>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { roomId } = await params
-  // Home opens a Canvas it just made with this flag, so its title starts in
-  // edit mode (#777).
-  const isNew = (await searchParams)[NEW_CANVAS_PARAM] !== undefined
 
   const userId = await getUserId()
   if (!userId) redirect(`/sign-in?redirect=/${roomId}`)
@@ -102,7 +96,6 @@ export default async function RoomPage({
         initialLayout={initialLayout}
         initialThreads={initialThreads}
         initialTerminalTabs={initialTerminalTabs}
-        renameOnOpen={isNew && isOwner}
       />
     </YjsRoomProvider>
   )

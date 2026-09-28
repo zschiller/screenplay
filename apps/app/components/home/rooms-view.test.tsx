@@ -239,13 +239,13 @@ describe("RoomsView — New canvas opens without a dialog (#777)", () => {
     )
   }
 
-  it("creates an Untitled Canvas and opens it with its title up for editing", async () => {
+  it("creates an Untitled Canvas and opens it", async () => {
     createRoom.mockResolvedValue(untitled)
     renderFolder(null, [])
 
     fireEvent.click(screen.getAllByRole("button", { name: "New canvas" })[0]!)
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
     expect(createRoom).toHaveBeenCalledWith("Untitled")
     expect(screen.queryByRole("dialog")).toBeNull()
     // Created at the root, so there's nothing to file.
@@ -259,7 +259,7 @@ describe("RoomsView — New canvas opens without a dialog (#777)", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "New canvas" })[0]!)
 
     await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r-new", "f1"))
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
   })
 
   it("creates inside a folder from that folder's menu", async () => {
@@ -273,7 +273,7 @@ describe("RoomsView — New canvas opens without a dialog (#777)", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "New canvas" }))
 
     await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r-new", "f2"))
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
   })
 
   it("creates from the N key, but not while typing", async () => {
@@ -290,7 +290,7 @@ describe("RoomsView — New canvas opens without a dialog (#777)", () => {
     expect(createRoom).not.toHaveBeenCalled()
 
     fireEvent.keyDown(document.body, { key: "n" })
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
     expect(createRoom).toHaveBeenCalledTimes(1)
   })
 

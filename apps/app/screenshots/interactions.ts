@@ -352,17 +352,24 @@ export const INTERACTIONS: Interaction[] = [
   {
     name: "new-canvas",
     description:
-      "New canvas from home, then naming it: a dialog before #777, the Canvas's own title after.",
+      "New canvas from home, then naming it: a dialog before #777, the Canvas's breadcrumb after.",
     path: "/",
     run: async (page) => {
       await page.waitForTimeout(800)
-      await click(
-        page,
-        page.getByRole("button", { name: "New canvas" }).first()
-      )
-      await page.waitForTimeout(1200)
-      // Before #777 a dialog asks for the name first; type it there.
+      // The header button can be clicked before hydration wires it up, so
+      // retry until something happens (a dialog, or the Canvas route).
       const dialog = page.getByRole("dialog")
+      for (let i = 0; i < 5; i++) {
+        if ((await dialog.count()) || new URL(page.url()).pathname !== "/") {
+          break
+        }
+        await click(
+          page,
+          page.getByRole("button", { name: "New canvas" }).first()
+        )
+        await page.waitForTimeout(1200)
+      }
+      // Before #777 a dialog asks for the name first; type it there.
       if (await dialog.count()) {
         await page.keyboard.type("Onboarding", { delay: 90 })
         await page.waitForTimeout(400)
@@ -375,9 +382,12 @@ export const INTERACTIONS: Interaction[] = [
         })
       )
       await page.waitForTimeout(2500)
-      // After #777 the Canvas opens with its title already in edit mode.
-      const editing = page.locator('[contenteditable="true"]').first()
-      if (await editing.count()) {
+      // After #777 the Canvas opens as Untitled; name it from the breadcrumb.
+      if (!(await dialog.count())) {
+        await step(() =>
+          page.getByText("Untitled", { exact: true }).first().dblclick()
+        )
+        await page.waitForTimeout(400)
         await page.keyboard.type("Onboarding", { delay: 90 })
         await page.waitForTimeout(400)
         await page.keyboard.press("Enter")

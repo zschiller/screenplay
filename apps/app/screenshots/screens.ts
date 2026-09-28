@@ -1298,7 +1298,7 @@ export const SCREENS: Screen[] = [
   {
     name: "home-new-canvas",
     description:
-      "What pressing New canvas on home opens: the Canvas itself, title ready to type.",
+      "What pressing New canvas on home opens: the new Untitled Canvas itself.",
     path: "/",
     prepare: async (page) => {
       await unfreeze(page)
@@ -1312,8 +1312,7 @@ export const SCREENS: Screen[] = [
       }
       if (!(await dialog.count())) {
         await page
-          .locator('[contenteditable="true"]')
-          .first()
+          .getByText("This canvas is empty")
           .waitFor({ timeout: 30_000 })
           .catch(() => {})
       }
