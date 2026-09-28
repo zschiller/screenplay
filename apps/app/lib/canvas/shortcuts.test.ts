@@ -103,3 +103,21 @@ describe("canvasShortcutGroups", () => {
     expect(labels(false)).not.toContain("Comment")
   })
 })
+
+describe("canvas shortcut key caps", () => {
+  it("keeps pointer actions out of the key caps", () => {
+    const shortcuts = canvasShortcutGroups({ comments: true }).flatMap(
+      (g) => g.shortcuts
+    )
+    for (const { keys } of shortcuts) {
+      for (const key of keys) {
+        expect(key).not.toMatch(/click|drag|scroll/i)
+      }
+    }
+    expect(shortcuts.find((s) => s.label === "Rename a title")).toEqual({
+      label: "Rename a title",
+      keys: [],
+      gesture: "Double-click",
+    })
+  })
+})

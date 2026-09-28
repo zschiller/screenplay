@@ -22,6 +22,9 @@ export interface CanvasShortcut {
   label: string
   /** Each entry renders as one key cap, e.g. `["⌘", "⇧", "Z"]`. */
   keys: string[]
+  /** A pointer action that completes the shortcut ("Click", "Drag"). It
+   *  renders as plain text after the key caps, never as a key cap. */
+  gesture?: string
 }
 
 export interface CanvasShortcutGroup {
@@ -56,8 +59,8 @@ export function canvasShortcutGroups({
         { label: "Zoom out", keys: [...ZOOM_SHORTCUTS.zoomOut] },
         { label: "Zoom to 100%", keys: [...ZOOM_SHORTCUTS.zoomTo100] },
         { label: "Zoom to fit", keys: [...ZOOM_SHORTCUTS.zoomToFit] },
-        { label: "Zoom with wheel", keys: ["⌘", "Scroll"] },
-        { label: "Pan", keys: ["Space", "Drag"] },
+        { label: "Zoom with wheel", keys: ["⌘"], gesture: "Scroll" },
+        { label: "Pan", keys: ["Space"], gesture: "Drag" },
       ],
     },
     {
@@ -72,9 +75,9 @@ export function canvasShortcutGroups({
     {
       title: "Edit",
       shortcuts: [
-        { label: "Rename a title", keys: ["Double-click"] },
-        { label: "Edit a document", keys: ["Double-click"] },
-        { label: "Add to selection", keys: ["⇧", "Click"] },
+        { label: "Rename a title", keys: [], gesture: "Double-click" },
+        { label: "Edit a document", keys: [], gesture: "Double-click" },
+        { label: "Add to selection", keys: ["⇧"], gesture: "Click" },
         { label: "Delete selection", keys: ["⌫"] },
         { label: "Undo", keys: ["⌘", "Z"] },
         { label: "Redo", keys: ["⌘", "⇧", "Z"] },

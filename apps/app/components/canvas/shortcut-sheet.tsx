@@ -51,12 +51,19 @@ export function ShortcutSheet({
                     className="flex items-center justify-between gap-4"
                   >
                     <dt>{shortcut.label}</dt>
-                    <dd>
-                      <KbdGroup>
-                        {shortcut.keys.map((key) => (
-                          <Kbd key={key}>{key}</Kbd>
-                        ))}
-                      </KbdGroup>
+                    <dd className="flex items-center gap-1.5">
+                      {shortcut.keys.length > 0 && (
+                        <KbdGroup>
+                          {shortcut.keys.map((key) => (
+                            <Kbd key={key}>{key}</Kbd>
+                          ))}
+                        </KbdGroup>
+                      )}
+                      {shortcut.gesture && (
+                        <span className="text-muted-foreground">
+                          {shortcut.gesture}
+                        </span>
+                      )}
                     </dd>
                   </div>
                 ))}
