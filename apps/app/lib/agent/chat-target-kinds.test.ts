@@ -86,7 +86,7 @@ describe("room chat target", () => {
     expect(prompt).toContain("read_canvas")
   })
 
-  it("runs with the canvas reader, the arrange tools and the document reader", () => {
+  it("runs with the read tools and the arrange tools", () => {
     const room = {
       roomId: "room-1",
       readDoc: async () => {
@@ -107,9 +107,13 @@ describe("room chat target", () => {
       "move_to_group",
       "read_canvas",
       "read_document",
+      "read_workspace_chat",
+      "read_workspace_diff",
+      "read_workspace_file",
       "remove",
       "rename",
       "undo_changes",
+      "view_frame",
     ])
   })
 })

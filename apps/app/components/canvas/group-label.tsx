@@ -3,6 +3,7 @@
 import { cn } from "@workspace/ui/lib/utils"
 import { EditableText } from "@workspace/ui/components/editable-text"
 import { BranchBadge } from "@/components/branch-badge"
+import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import type { FrameWorkspace } from "./frame-nav"
 
@@ -44,22 +45,24 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
       <GroupName {...props} />
       {/* Names win: the pill gives up its width first. Pressing it selects
           the Group, like its name, rather than reordering the member under it. */}
-      <span
-        className="flex min-w-10 shrink-[100]"
-        onPointerDown={(e) => {
-          if (e.button !== 0) return
-          e.stopPropagation()
-          props.onSelectGroup?.(e.shiftKey)
-        }}
-      >
-        <BranchBadge
-          branch={workspace.ref}
-          title={workspace.title}
-          colorKey={workspace.branchId}
-          colorIndex={workspace.colorIndex}
-          className="px-1 py-0 text-3xs"
-        />
-      </span>
+      <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
+        <span
+          className="flex min-w-10 shrink-[100]"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.stopPropagation()
+            props.onSelectGroup?.(e.shiftKey)
+          }}
+        >
+          <BranchBadge
+            branch={workspace.ref}
+            title={workspace.title}
+            colorKey={workspace.branchId}
+            colorIndex={workspace.colorIndex}
+            className="px-1 py-0 text-3xs"
+          />
+        </span>
+      </WorkspaceHoverCard>
     </div>
   )
 }

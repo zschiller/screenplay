@@ -6,6 +6,10 @@ import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
 import { workspaceLabel } from "@/lib/workspace-label"
+import {
+  buildWorkspaceReadTools,
+  type WorkspaceReadPorts,
+} from "@/lib/agent/room-read-tools"
 import type {
   BranchData,
   ChatSessionData,
@@ -27,7 +31,7 @@ import type {
  * mutation, ADR 0001), logged per turn so the Coordinator can undo a turn when
  * asked (`room-arrange-tools.ts`, `room-change-log.ts`).
  */
-export interface RoomToolPorts {
+export interface RoomToolPorts extends WorkspaceReadPorts {
   /** Read-only access to the Room's doc, as `RoomAccess.readDoc`. */
   readDoc<T>(fn: (collections: RoomCollections) => T | Promise<T>): Promise<T>
   /** A server-side room mutation, as `RoomAccess.mutateDoc`. */
@@ -72,6 +76,7 @@ export function buildRoomTools(
         return summary || `Canvas ${roomId} is empty.`
       },
     }),
+    ...buildWorkspaceReadTools(ports),
   }
 }
 

@@ -11,6 +11,7 @@ import { toolsetFor } from "./toolset"
 import { prependTurnMarkers } from "./message-markers"
 import type { ToolContext } from "./tools"
 import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
+import { liveWorkspaceReadPorts } from "./room-read-ports"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
@@ -215,6 +216,7 @@ export function liveRoomToolPorts(
   userId: string
 ): RoomToolPorts {
   return {
+    ...liveWorkspaceReadPorts(room.roomId),
     readDoc: (fn) => room.readDoc(fn),
     mutateDoc: (fn) => room.mutateDoc(fn),
     listTerminalTabs: async () =>

@@ -24,6 +24,13 @@ frame and document, and your terminal tabs, so you can ask things like
 "What's on this canvas?" or "Which workspaces have a PR?" without opening
 each one. It reads documents too, including ones you @ mention.
 
+It can also look inside a workspace: what its agent was last asked, a summary
+of what it did and its last reply (or the whole chat when it needs it), the
+workspace's changes and its files. And it can look at a frame, taking a
+screenshot of the live preview, or using the last saved one when the preview
+isn't running. So you can ask "What did the sign-in workspace change, and how
+does it look?"
+
 <Screenshot name="coordinator" alt="The Coordinator chat, the panel's home when no workspace is selected" />
 
 The Coordinator can also arrange the canvas. Ask it to add frames for a
@@ -37,8 +44,8 @@ changed, so a frame or document it removed comes back exactly as it was, and
 you can undo an undo the same way. Your own ⌘Z still undoes only your own
 edits, never the Coordinator's.
 
-The Coordinator never works inside a sandbox: to change code, open a workspace
-and ask its agent.
+The Coordinator never works inside a sandbox and never edits a workspace's
+files: to change code, open a workspace and ask its agent.
 
 ## Choosing a target
 
