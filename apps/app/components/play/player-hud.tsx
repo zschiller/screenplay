@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Select,
   SelectContent,
@@ -27,12 +28,7 @@ import {
   SelectPrimitive,
   SelectSeparator,
 } from "@workspace/ui/components/select"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
+import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import type { ThreadWithComments } from "@/lib/comments"
 import {
@@ -271,42 +267,33 @@ export function PlayerHud({
           </span>
           {/* The desktop (local) build has no room route to go back to. */}
           {!isLocalBuild && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  asChild
-                  variant="ghost"
-                  size="icon-xs"
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <Link href={`/${roomId}`}>
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side={tooltipSide}>
-                Back to {roomName}
-              </TooltipContent>
-            </Tooltip>
+            <IconButton
+              label={`Back to ${roomName}`}
+              tooltipSide={tooltipSide}
+              asChild
+            >
+              <Button
+                asChild
+                variant="ghost"
+                size="icon-xs"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <Link href={`/${roomId}`}>
+                  <ArrowLeft />
+                </Link>
+              </Button>
+            </IconButton>
           )}
           <Select value={deviceSizeId} onValueChange={onDeviceSizeChange}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <SelectPrimitive.Trigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    aria-label={`Device: ${devicePreset.label}`}
-                  >
-                    <DeviceIcon className="h-3.5 w-3.5" />
-                  </Button>
-                </SelectPrimitive.Trigger>
-              </TooltipTrigger>
-              <TooltipContent side={tooltipSide}>
-                {devicePreset.label}
-              </TooltipContent>
-            </Tooltip>
+            <SelectPrimitive.Trigger asChild>
+              <IconButton
+                label={`Device: ${devicePreset.label}`}
+                tooltipSide={tooltipSide}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <DeviceIcon />
+              </IconButton>
+            </SelectPrimitive.Trigger>
             <SelectContent
               side={tooltipSide}
               align="start"
@@ -341,69 +328,52 @@ export function PlayerHud({
               })}
             </SelectContent>
           </Select>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                ref={(el) => {
-                  panelButtons.current.knobs = el
-                }}
-                variant={panel === "knobs" ? "default" : "ghost"}
-                size="icon-xs"
-                aria-label="Knobs"
-                aria-expanded={panel === "knobs"}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setPanel(panel === "knobs" ? null : "knobs")}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side={tooltipSide}>
-              {knobs.length > 0
+          <IconButton
+            label={
+              knobs.length > 0
                 ? `${knobs.length} knob${knobs.length === 1 ? "" : "s"}`
-                : "Knobs"}
-            </TooltipContent>
-          </Tooltip>
+                : "Knobs"
+            }
+            tooltipSide={tooltipSide}
+            ref={(el) => {
+              panelButtons.current.knobs = el
+            }}
+            variant={panel === "knobs" ? "default" : "ghost"}
+            aria-expanded={panel === "knobs"}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setPanel(panel === "knobs" ? null : "knobs")}
+          >
+            <SlidersHorizontal />
+          </IconButton>
           {/* Comments are excluded from the local build (PRD #404, #417). */}
           {!isLocalBuild && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  ref={(el) => {
-                    panelButtons.current.comments = el
-                  }}
-                  variant={panel === "comments" ? "default" : "ghost"}
-                  size="icon-xs"
-                  aria-label="Comments"
-                  aria-expanded={panel === "comments"}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() =>
-                    setPanel(panel === "comments" ? null : "comments")
-                  }
-                >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side={tooltipSide}>Comments</TooltipContent>
-            </Tooltip>
+            <IconButton
+              label="Comments"
+              tooltipSide={tooltipSide}
+              ref={(el) => {
+                panelButtons.current.comments = el
+              }}
+              variant={panel === "comments" ? "default" : "ghost"}
+              aria-expanded={panel === "comments"}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() =>
+                setPanel(panel === "comments" ? null : "comments")
+              }
+            >
+              <MessageSquare />
+            </IconButton>
           )}
           {onToggleChat ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={chatOpen ? "default" : "ghost"}
-                  size="icon-xs"
-                  aria-label={chatOpen ? "Hide agent" : "Open agent"}
-                  aria-expanded={!!chatOpen}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={onToggleChat}
-                >
-                  <MessagesSquare className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side={tooltipSide}>
-                {chatOpen ? "Hide agent" : "Open agent"}
-              </TooltipContent>
-            </Tooltip>
+            <IconButton
+              label={chatOpen ? "Hide agent" : "Open agent"}
+              tooltipSide={tooltipSide}
+              variant={chatOpen ? "default" : "ghost"}
+              aria-expanded={!!chatOpen}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={onToggleChat}
+            >
+              <MessagesSquare />
+            </IconButton>
           ) : null}
         </div>
       </TooltipProvider>

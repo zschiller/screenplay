@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { EditableText } from "@workspace/ui/components/editable-text"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { BranchSwatch } from "@/components/branch-identity"
 import { branchTitle } from "@/lib/branch-title"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
@@ -140,15 +141,17 @@ export function IframeLayerRowMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuAction
-          className={
-            isSub
-              ? "!top-1/2 -translate-y-1/2 group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-              : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-          }
-        >
-          <MoreHorizontal />
-        </SidebarMenuAction>
+        <IconButton label="Frame options" tooltipSide="right" asChild>
+          <SidebarMenuAction
+            className={
+              isSub
+                ? "!top-1/2 -translate-y-1/2 group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+                : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+            }
+          >
+            <MoreHorizontal />
+          </SidebarMenuAction>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="right"
