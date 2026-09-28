@@ -1076,13 +1076,13 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-pr-merged",
     description:
-      "A Canvas whose Workspace has a merged PR: the sidebar's merged icon and diff stats.",
+      "A Canvas whose Workspace has a merged PR and an agent turn in flight: the activity spinner up front, the merged PR at the row's end (#963).",
     path: `/${ids.rooms.pricing}`,
   },
   {
     name: "canvas-pr-closed",
     description:
-      "A Canvas with a closed-PR Workspace and one still being created.",
+      "A Canvas with a stopped Workspace (a dashed circle, its closed PR not shown) and one still being created.",
     path: `/${ids.rooms.onboarding}`,
   },
   {

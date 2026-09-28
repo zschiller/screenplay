@@ -204,6 +204,12 @@ export const markdownLayerChatTarget: ChatTargetSpec<
 export interface RoomTarget {
   /** The member whose message this turn answers (Terminal Tabs are per user). */
   userId: string
+  /**
+   * The turn canvas changes are logged under for undo. Omitted, each tool set
+   * built is its own turn; the desktop MCP route builds one per request, so it
+   * passes the chat's running turn instead.
+   */
+  turnId?: string
 }
 
 interface RoomContext {
@@ -246,6 +252,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       kind: "room",
       room,
       ports: liveRoomToolPorts(room, target.userId),
+      turnId: target.turnId,
     })
   },
   // No turn markers: there is no branch, and plan mode belongs to sandbox

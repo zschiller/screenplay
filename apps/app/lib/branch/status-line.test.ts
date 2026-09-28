@@ -51,31 +51,21 @@ describe("workspaceStatusLine", () => {
     ).toMatchObject({ kind: "error", title: "Setup failed", detail: "boom" })
   })
 
-  it("puts a working agent ahead of the PR", () => {
+  it("reads Agent working while a turn is in flight", () => {
     expect(
-      workspaceStatusLine(
-        { status: "running" },
-        { agentWorking: true, pr: { number: 482, state: "open" } }
-      )
-    ).toEqual({ kind: "idle", text: "Agent working" })
-  })
-
-  it("shows the PR and its state", () => {
-    expect(
-      workspaceStatusLine(
-        { status: "running" },
-        { agentWorking: false, pr: { number: 482, state: "merged" } }
-      )
-    ).toEqual({ kind: "idle", text: "PR #482 · merged" })
+      workspaceStatusLine({ status: "running" }, { agentWorking: true })
+    ).toEqual({ kind: "idle", state: "working", text: "Agent working" })
   })
 
   it("reads Ready or Stopped otherwise", () => {
     expect(workspaceStatusLine({ status: "running" }, idle)).toEqual({
       kind: "idle",
+      state: "ready",
       text: "Ready",
     })
     expect(workspaceStatusLine({ status: "stopped" }, idle)).toEqual({
       kind: "idle",
+      state: "stopped",
       text: "Stopped",
     })
   })

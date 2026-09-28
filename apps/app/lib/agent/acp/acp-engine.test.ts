@@ -283,6 +283,35 @@ describe("ExternalEngine — native session resume", () => {
     expect(blockText(rec.prompted()![0]!)).toContain("first answer")
   })
 
+  // #903: a Coordinator resume must keep its tools, so the servers ride the
+  // load, and the fresh fallback after a load miss, alike.
+  it("hands its MCP servers and _meta to both the load and the fresh fallback", async () => {
+    const rec = recordingFactory({ failLoad: true })
+    const mcpServers = [
+      {
+        type: "http" as const,
+        name: "screenplay",
+        url: "http://127.0.0.1:1/api/agent/mcp",
+        headers: [],
+      },
+    ]
+    const sessionMeta = { claudeCode: { options: { allowedTools: ["x"] } } }
+    const engine = new ExternalEngine({
+      sessionFactory: rec.factory,
+      loadSessionId: "stale-sess",
+      mcpServers,
+      sessionMeta,
+    })
+
+    await engine.run(turn(), () => {}, new AbortController().signal)
+
+    expect(rec.opens).toHaveLength(2)
+    for (const options of rec.opens) {
+      expect(options.mcpServers).toBe(mcpServers)
+      expect(options.sessionMeta).toBe(sessionMeta)
+    }
+  })
+
   /**
    * ACP has no system-prompt channel, so the external engine must fold the
    * turn's system prompt — the always-commit-and-push rule, plan-mode protocol,

@@ -106,6 +106,14 @@ export async function openThemedContext(
     )
   }
 
+  // The fixture world has no agent runs, so the heal check a Canvas sends for
+  // each chat stored as streaming would end every one on load. Answer it
+  // without touching the doc, so a fixture's in-flight turn stays in flight
+  // and every screen of that room sees the same state (#963).
+  await context.route("**/api/branch/heal", (route) =>
+    route.fulfill({ status: 200, json: { ok: true } })
+  )
+
   // Passed as a **source string**, not a function. `tsx` runs this harness
   // through esbuild with name-keeping on, which rewrites a function literal to
   // reference an `__name` helper that exists in this process and not in the
