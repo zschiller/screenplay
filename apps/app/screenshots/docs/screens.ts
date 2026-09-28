@@ -877,7 +877,11 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
-      await clickAt(page, await titleBarButton(page, (t) => t === "/"), 900)
+      await clickAt(
+        page,
+        await centerOf(page, "button[aria-label^='Route: ']"),
+        900
+      )
     },
   }),
   screen({
