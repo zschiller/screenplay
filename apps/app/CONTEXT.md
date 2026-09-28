@@ -417,6 +417,9 @@ The Chat Target of a chat that works on the whole Room rather than one Branch
 or document: it sees every Repo, Branch and Layer, arranges the Canvas, creates
 Branches, and hands work to their agents through **Delegated Messages**. Its
 kind is `room`, named for its target like the other kinds, never for its role.
+It works like a Claude Projects chat: a Room has **exactly one** Room Target
+chat, it hears every Branch's turns (Branches are its threads), and it stays
+quiet unless there is a result, a blocker or a decision.
 _Shown to users as_: "Canvas" (its entry in the Workspace switcher and its tabs).
 _Avoid_: coordinator or orchestrator as a code identifier (fine in prose for the
 role); `canvas` as the kind (in code, Canvas is the spatial surface only).
