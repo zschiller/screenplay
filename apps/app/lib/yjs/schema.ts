@@ -6,6 +6,7 @@ import type {
   IframeLayerGroupData,
   ChatSessionData,
   MarkdownLayerData,
+  MemoryData,
   PlanData,
   ViewportData,
   RepoData,
@@ -27,6 +28,8 @@ export const COLLECTION_KEYS = {
   markdownLayers: "markdownLayers",
   chatSessions: "chatSessions",
   plans: "plans",
+  /** Canvas memory entries (#902), `lib/canvas/memory.ts`. */
+  memories: "memories",
   // Formerly the shared tracked-pin positions of selector-anchored comments.
   // No longer written (#785): pins are placed per viewer, from their own
   // frame, so viewers can't overwrite each other's. Kept so existing docs
@@ -226,6 +229,7 @@ export type RoomCollections = {
   markdownLayers: YjsCollection<MarkdownLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
+  memories: YjsCollection<MemoryData>
   commentPositions: YjsCollection<CommentPosition>
   savedViewport: YjsSingleton<ViewportData>
   /** Run a function as a single Yjs transaction (one update, one undo step). */
@@ -281,6 +285,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     plans: new YjsCollection<PlanData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.plans)
+    ),
+    memories: new YjsCollection<MemoryData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.memories)
     ),
     commentPositions: new YjsCollection<CommentPosition>(
       doc,

@@ -8,7 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react"
-import type { BranchData, RepoData } from "@/lib/types"
+import type { BranchData, MemoryData, RepoData } from "@/lib/types"
 
 // The add flow's server actions: one GitHub repository to pick, no presets,
 // and detection that finds nothing (the form opens on plain defaults).
@@ -111,11 +111,27 @@ const BRANCHES = [
   } as BranchData,
 ]
 
-function renderDialog(repos: RepoData[] = [STOREFRONT, DOCS]) {
+const MEMORIES: MemoryData[] = [
+  {
+    id: "mem-1",
+    text: "Use pnpm, never npm.",
+    source: "coordinator",
+    createdAt: 1,
+    updatedAt: 1,
+  },
+]
+
+function renderDialog(
+  repos: RepoData[] = [STOREFRONT, DOCS],
+  memories: MemoryData[] = MEMORIES
+) {
   const handlers = {
     onCreateRepo: vi.fn(),
     onUpdateRepo: vi.fn(),
     onRemoveRepo: vi.fn().mockResolvedValue(undefined),
+    onAddMemory: vi.fn(),
+    onEditMemory: vi.fn(),
+    onRemoveMemory: vi.fn(),
   }
   render(
     <CanvasSettingsDialog
@@ -123,10 +139,15 @@ function renderDialog(repos: RepoData[] = [STOREFRONT, DOCS]) {
       onOpenChange={vi.fn()}
       repos={repos}
       branches={BRANCHES}
+      memories={memories}
       {...handlers}
     />
   )
   return handlers
+}
+
+function openMemory() {
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
 }
 
 describe("CanvasSettingsDialog", () => {
@@ -211,5 +232,63 @@ describe("CanvasSettingsDialog", () => {
         deleteBranchesOnRemote: false,
       })
     )
+  })
+
+  describe("Memory", () => {
+    it("lists each entry with who saved it", () => {
+      renderDialog()
+      openMemory()
+
+      expect(screen.getByText("Use pnpm, never npm.")).not.toBeNull()
+      expect(screen.getByText("Saved by the Coordinator")).not.toBeNull()
+    })
+
+    it("says so when the canvas has no memory yet", () => {
+      renderDialog(undefined, [])
+      openMemory()
+
+      expect(screen.getByText("No memories yet")).not.toBeNull()
+    })
+
+    it("adds an entry", async () => {
+      const { onAddMemory } = renderDialog(undefined, [])
+      openMemory()
+
+      fireEvent.click(screen.getByRole("button", { name: "Add memory" }))
+      const form = await screen.findByRole("dialog", { name: "Add memory" })
+      fireEvent.change(within(form).getByLabelText("Memory"), {
+        target: { value: "Staging deploys on merge." },
+      })
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+
+      expect(onAddMemory).toHaveBeenCalledWith("Staging deploys on merge.")
+    })
+
+    it("edits an entry", async () => {
+      const { onEditMemory } = renderDialog()
+      openMemory()
+
+      fireEvent.click(screen.getByRole("button", { name: /^Edit memory/ }))
+      const form = await screen.findByRole("dialog", { name: "Edit memory" })
+      fireEvent.change(within(form).getByLabelText("Memory"), {
+        target: { value: "Use pnpm." },
+      })
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+
+      expect(onEditMemory).toHaveBeenCalledWith("mem-1", "Use pnpm.")
+    })
+
+    it("deletes an entry from its menu", async () => {
+      const { onRemoveMemory } = renderDialog()
+      openMemory()
+
+      fireEvent.pointerDown(
+        screen.getByRole("button", { name: /^More actions for memory/ }),
+        { button: 0, ctrlKey: false }
+      )
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }))
+
+      expect(onRemoveMemory).toHaveBeenCalledWith("mem-1")
+    })
   })
 })

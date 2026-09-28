@@ -171,6 +171,20 @@ export type TerminalTabData = {
   createdAt: number
 }
 
+/**
+ * One entry of **canvas memory** (#902): a preference, decision or fact every
+ * chat on the canvas reads. Written by the Coordinator's `write_memory` tool
+ * or by a member in Canvas settings › Memory (`lib/canvas/memory.ts`).
+ */
+export type MemoryData = {
+  id: string
+  text: string
+  /** Who saved it: the Coordinator, or a member in Canvas settings. */
+  source: "coordinator" | "member"
+  createdAt: number
+  updatedAt: number
+}
+
 export type PlanData = {
   id: string
   chatId: string

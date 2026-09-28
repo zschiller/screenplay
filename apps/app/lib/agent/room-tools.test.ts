@@ -7,6 +7,7 @@ import {
   type TerminalTabSummary,
 } from "@/lib/agent/room-tools"
 import type { RoomCollections } from "@/lib/yjs/schema"
+import { readMemory } from "@/lib/canvas/memory"
 import {
   baseBranch,
   baseChat,
@@ -190,5 +191,78 @@ describe("read_canvas", () => {
     )
     // Counts stay truthful even when the list is cut.
     expect(summary).toContain("Frames (3000):")
+  })
+})
+
+async function writeMemory(
+  ports: RoomToolPorts,
+  input: { action: "add" | "edit" | "remove"; id?: string; text?: string }
+): Promise<string> {
+  const tools = buildRoomTools("room-1", ports)
+  const execute = tools.write_memory.execute!
+  return (await execute(input, { toolCallId: "t1", messages: [] })) as string
+}
+
+describe("write_memory", () => {
+  it("adds an entry to the Room's shared data, marked as the Coordinator's", async () => {
+    const { collections } = makeHarness()
+    const out = await writeMemory(portsOver(collections), {
+      action: "add",
+      text: "  Use pnpm, never npm.  ",
+    })
+
+    const [entry, ...rest] = readMemory(collections)
+    expect(rest).toEqual([])
+    expect(entry).toMatchObject({
+      text: "Use pnpm, never npm.",
+      source: "coordinator",
+    })
+    expect(out).toContain(`[${entry!.id}]`)
+  })
+
+  it("edits an entry by id", async () => {
+    const { collections } = makeHarness()
+    const ports = portsOver(collections)
+    await writeMemory(ports, { action: "add", text: "Deploy on Fridays." })
+    const id = readMemory(collections)[0]!.id
+
+    const out = await writeMemory(ports, {
+      action: "edit",
+      id,
+      text: "Never deploy on Fridays.",
+    })
+
+    expect(out).toBe(`Updated [${id}].`)
+    expect(readMemory(collections).map((m) => m.text)).toEqual([
+      "Never deploy on Fridays.",
+    ])
+  })
+
+  it("removes an entry by id", async () => {
+    const { collections } = makeHarness()
+    const ports = portsOver(collections)
+    await writeMemory(ports, { action: "add", text: "Staging is flaky." })
+    const id = readMemory(collections)[0]!.id
+
+    expect(await writeMemory(ports, { action: "remove", id })).toBe(
+      `Removed [${id}].`
+    )
+    expect(readMemory(collections)).toEqual([])
+  })
+
+  it("changes nothing for an unknown id or empty text", async () => {
+    const { collections } = makeHarness()
+    const ports = portsOver(collections)
+
+    expect(
+      await writeMemory(ports, { action: "edit", id: "mem-x", text: "hi" })
+    ).toBe("No memory entry [mem-x].")
+    expect(await writeMemory(ports, { action: "remove" })).toMatch(
+      /needs the entry's id/
+    )
+    expect(await writeMemory(ports, { action: "add", text: "   " })).toMatch(
+      /needs text/
+    )
+    expect(readMemory(collections)).toEqual([])
   })
 })

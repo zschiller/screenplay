@@ -1923,6 +1923,44 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-settings-memory",
+    description:
+      "Canvas settings on Memory: entries the Coordinator saved and one a member added (#902).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openCanvasSettings(page)
+      await page.getByRole("button", { name: "Memory" }).click()
+      await page.getByText("Saved by the Coordinator").first().waitFor()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-settings-memory-empty",
+    description:
+      "Canvas settings on Memory, for a canvas with none yet (#902).",
+    path: `/${ids.rooms.pricing}`,
+    prepare: async (page) => {
+      await openCanvasSettings(page)
+      await page.getByRole("button", { name: "Memory" }).click()
+      await page.getByText("No memories yet").waitFor()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-settings-memory-edit",
+    description: "Canvas settings › Memory → Edit on an entry (#902).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openCanvasSettings(page)
+      await page.getByRole("button", { name: "Memory" }).click()
+      await page
+        .getByRole("button", { name: /^Edit memory: Design mobile-first/ })
+        .click()
+      await page.getByRole("dialog", { name: "Edit memory" }).waitFor()
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-settings-edit",
     description:
       "Canvas settings → Edit on a repository: its run settings (#883).",

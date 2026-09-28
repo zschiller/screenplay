@@ -1,5 +1,6 @@
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
-import type { MarkdownLayerData } from "@/lib/types"
+import type { MarkdownLayerData, MemoryData } from "@/lib/types"
+import { MEMORY_PROMPT_LIMIT } from "@/lib/canvas/memory"
 import {
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
@@ -36,6 +37,28 @@ function renderLayerDirectory(dir: LayerDirectory, excludeId?: string): string {
 }
 
 /**
+ * Renders canvas memory (#902) as a system-prompt block. Every chat target
+ * kind includes it, the same way a Workspace chat includes its repository's
+ * system prompt, so preferences saved once reach every chat on the canvas.
+ * Only the Coordinator writes memory, so only its block carries the ids its
+ * `write_memory` tool takes. Past {@link MEMORY_PROMPT_LIMIT} the newest win.
+ */
+export function renderCanvasMemory(
+  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined,
+  opts: { withIds?: boolean } = {}
+): string {
+  if (!memory || memory.length === 0) return ""
+  const kept = memory.slice(-MEMORY_PROMPT_LIMIT)
+  return [
+    "",
+    "Canvas memory (preferences, decisions and facts saved for this canvas; follow them unless the user says otherwise):",
+    ...kept.map((m) =>
+      opts.withIds ? `- [${m.id}] ${m.text}` : `- ${m.text}`
+    ),
+  ].join("\n")
+}
+
+/**
  * System prompt for chat sessions that target a *document layer* on the
  * canvas instead of an agent's sandbox. The agent's job here is editorial:
  * it reads the doc body, edits the title, and rewrites the body using
@@ -51,6 +74,7 @@ export function buildMarkdownLayerSystemPrompt(opts: {
   layerDirectory: LayerDirectory
   /** This doc's own id — excluded from the directory to avoid self-recursion. */
   selfId?: string
+  memory?: readonly MemoryData[]
 }): string {
   return [
     "You are an editor working inside a Notion-style document tile on a collaborative canvas. You can read, retitle, and rewrite the document via your tools. There is no sandbox, no shell, no git — only the document body.",
@@ -81,6 +105,7 @@ export function buildMarkdownLayerSystemPrompt(opts: {
     opts.currentBody || "(empty)",
     "```",
     renderLayerDirectory(opts.layerDirectory, opts.selfId),
+    ...(opts.memory?.length ? [renderCanvasMemory(opts.memory)] : []),
   ].join("\n")
 }
 
@@ -148,8 +173,9 @@ export function buildAgentSystemPrompt(opts: {
   repoSystemPrompt?: string
   layerDirectory: LayerDirectory
   skills: OriginTaggedSkill[]
+  memory?: readonly MemoryData[]
 }): string {
-  const { repoSystemPrompt, layerDirectory, skills } = opts
+  const { repoSystemPrompt, layerDirectory, skills, memory } = opts
   const skillsBlock =
     skills.length === 0
       ? ""
@@ -167,11 +193,13 @@ export function buildAgentSystemPrompt(opts: {
     ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
     : ""
   const directoryBlock = renderLayerDirectory(layerDirectory)
+  const memoryBlock = renderCanvasMemory(memory)
   return (
     AGENT_SYSTEM_PROMPT_BASE +
     skillsBlock +
     AGENT_SYSTEM_PROMPT_TAIL +
     repoBlock +
+    (memoryBlock ? `\n${memoryBlock}` : "") +
     (directoryBlock ? `\n${directoryBlock}` : "")
   )
 }
@@ -182,7 +210,10 @@ export function buildAgentSystemPrompt(opts: {
  * `canvasSummary` is the `read_canvas` summary as of the turn's start, baked in
  * so a question about the canvas needs no tool call; the tool re-reads it live.
  */
-export function buildRoomSystemPrompt(opts: { canvasSummary: string }): string {
+export function buildRoomSystemPrompt(opts: {
+  canvasSummary: string
+  memory?: readonly MemoryData[]
+}): string {
   return [
     "You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, and Terminal Tabs. You see the whole canvas. You never work inside a sandbox yourself: Workspace agents do that.",
     "",
@@ -200,11 +231,18 @@ export function buildRoomSystemPrompt(opts: { canvasSummary: string }): string {
     "",
     "You can't start Workspaces or message them yet. When asked to, say so plainly and tell the user what they can do on the canvas instead.",
     "",
+    "Canvas memory:",
+    "- Every chat on this canvas, yours and each Workspace agent's, reads the canvas memory below. Only you write it, with `write_memory`.",
+    "- Save a preference, decision or fact about the repositories when the user states one, asks you to remember something, or you learn one that later chats would otherwise have to ask for. One short, self-contained sentence per entry.",
+    "- Edit an entry that has become wrong rather than adding a contradicting one, and remove one the user asks you to forget. Never save secrets or credentials.",
+    "",
     `Mentions: the user's message may reference canvas documents as \`${MENTION_MARKER_TOKEN}\` markers, listed with their ids under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer; read them with \`read_document\`.`,
     "",
     "Keep replies short and lead with the answer.",
     "",
     "Canvas summary:",
     opts.canvasSummary || "(the canvas is empty)",
+    renderCanvasMemory(opts.memory, { withIds: true }) ||
+      "\nCanvas memory: (empty)",
   ].join("\n")
 }

@@ -8,6 +8,7 @@ import type { ToolContext } from "./tools"
 import type { RoomDoc } from "@/lib/room-access"
 import {
   agentChatTarget,
+  loadCanvasMemory,
   loadLayerDirectory,
   markdownLayerChatTarget,
   prepareChatTarget,
@@ -222,7 +223,7 @@ export function sandboxTurn(input: {
       // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
       // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
       // the per-Agent prompt.
-      const [branchState, layerDirectory, skills] = await Promise.all([
+      const [branchState, layerDirectory, skills, memory] = await Promise.all([
         room
           .readDoc(({ branches, repos }) => {
             // `toArray` is a cached snapshot; read the Branch itself fresh.
@@ -240,11 +241,13 @@ export function sandboxTurn(input: {
           .catch(() => undefined),
         loadLayerDirectory(room),
         getMergedSkillIndexForSandbox(sandboxName),
+        loadCanvasMemory(room),
       ])
       const systemPrompt = buildAgentSystemPrompt({
         repoSystemPrompt: branchState?.systemPrompt ?? undefined,
         layerDirectory,
         skills,
+        memory,
       })
 
       await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })
