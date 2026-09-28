@@ -154,6 +154,7 @@ function FolderRow({
   const {
     renameFolder,
     moveFolder,
+    createFolder,
     allFolders,
     previewFolderDeletion,
     removeFolder,
@@ -260,6 +261,7 @@ function FolderRow({
         movingFolderId={folder.id}
         folders={allFolders}
         onMove={(target) => moveFolder(folder.id, target)}
+        onCreateFolder={createFolder}
       />
       <DeleteFolderDialog
         open={deleteOpen}
@@ -288,6 +290,7 @@ function RoomRow({
     renameRoom,
     removeRoom,
     moveRoom,
+    createFolder,
     allFolders,
     folderView,
     folderOfRoom,
@@ -403,6 +406,7 @@ function RoomRow({
         currentParentId={folderOfRoom(room.id)}
         folders={allFolders}
         onMove={(target) => moveRoom(room.id, target)}
+        onCreateFolder={createFolder}
       />
       <DeleteRoomDialog
         open={deleteOpen}
