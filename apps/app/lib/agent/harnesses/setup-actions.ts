@@ -1,8 +1,12 @@
 "use server"
 
+import { readFixtureEntryState } from "@/lib/fixture-entry"
+import { isFixtureWorld } from "@/lib/fixture-world"
 import { isLocalBuild } from "@/lib/local-mode"
 import {
+  createHarnessSetup,
   harnessSetup,
+  type HarnessSetup,
   type HarnessSetupActionKind,
   type HarnessSetupRow,
   type HarnessSetupRun,
@@ -24,7 +28,7 @@ import {
  */
 export async function listHarnessSetupRows(): Promise<HarnessSetupRow[]> {
   if (!isLocalBuild) return []
-  return harnessSetup.rows()
+  return (await setupFor()).rows()
 }
 
 /**
@@ -39,7 +43,7 @@ export async function resolveHarnessSetupRun(
   kind: HarnessSetupActionKind
 ): Promise<HarnessSetupRun | null> {
   if (!isLocalBuild) return null
-  return harnessSetup.commandsFor(key, kind)
+  return (await setupFor()).commandsFor(key, kind)
 }
 
 /**
@@ -50,5 +54,25 @@ export async function resolveHarnessSetupRun(
  */
 export async function noteHarnessConnected(): Promise<HarnessSetupRow[]> {
   if (!isLocalBuild) return []
-  return harnessSetup.markConnected()
+  return (await setupFor()).markConnected()
+}
+
+/**
+ * The module to read through. A Fixture World capture of the setup gate asks
+ * for a host by its entry state (`@/lib/fixture-entry`) instead of probing the
+ * capture container's own: nothing installed while setup is pending, and only
+ * Claude Code installed and signed in once an agent is ready. Every other
+ * request, fixture or not, reads the real host.
+ */
+async function setupFor(): Promise<HarnessSetup> {
+  if (!isFixtureWorld) return harnessSetup
+  const entry = await readFixtureEntryState()
+  if (entry !== "setup-pending" && entry !== "setup-agent-ready") {
+    return harnessSetup
+  }
+  return createHarnessSetup({
+    probe: async (binary) =>
+      entry === "setup-agent-ready" && binary === "claude",
+    run: async () => ({ exitCode: 0, stdout: "fixture-credential" }),
+  })
 }
