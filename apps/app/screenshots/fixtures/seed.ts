@@ -8,6 +8,7 @@ import { createPgliteDb } from "@/lib/db/pglite"
 import * as schema from "@/lib/db/schema"
 import type { DB } from "@/lib/db/types"
 import { encrypt } from "@/lib/crypto"
+import { snapshotLabel } from "@/lib/comment-anchor"
 import { LOCAL_USER } from "@/lib/local-user"
 import {
   buildThumbnailManifest,
@@ -21,6 +22,7 @@ import {
 import { getRoomCollections } from "@/lib/yjs/schema"
 
 import type { CaptureProfile } from "../profile"
+import { FIXTURE_SESSION_TOKEN } from "../lib/hosted"
 import { renderFrameCaptures, type FrameCaptureRequest } from "./frame-captures"
 import { buildFixtureWorld, type FixtureRoom, type FixtureWorld } from "./world"
 
@@ -98,10 +100,16 @@ export async function seedFixtureWorld(
   Object.assign(process.env, profile.env)
 
   log(`• opening PGlite at ${pgliteDir}`)
-  const handle = createPgliteDb(pgliteDir)
+  const handle = createPgliteDb(pgliteDir, {
+    migrationsFolder: profile.env.PGLITE_MIGRATIONS_DIR,
+  })
   try {
     await handle.ready
     await seedDatabase(handle.db, world)
+    if (profile.hosted) {
+      await seedHostedDatabase(handle.db, world)
+      log(`• seeded ${world.hosted.threads.length} comment threads (hosted)`)
+    }
     log(
       `• seeded ${world.rooms.length} canvases, ${world.folders.length} folders`
     )
@@ -129,6 +137,109 @@ export async function seedFixtureWorld(
 // ---------------------------------------------------------------------------
 // Postgres
 // ---------------------------------------------------------------------------
+
+/**
+ * The hosted build's rows (#789): the fixture user's name and signed-in
+ * session, everyone's membership of every Canvas, and the comment threads.
+ * Upserts, like the rest. Runs after {@link seedDatabase}, whose user and
+ * rooms these reference.
+ */
+async function seedHostedDatabase(db: DB, world: FixtureWorld): Promise<void> {
+  const { hosted } = world
+  await db
+    .update(schema.user)
+    .set({ name: hosted.userName })
+    .where(eq(schema.user.id, world.userId))
+  for (const person of hosted.collaborators) {
+    await db.insert(schema.user).values(person).onConflictDoNothing()
+  }
+
+  await db
+    .insert(schema.session)
+    .values({
+      id: "session-screenshot-fixture",
+      userId: world.userId,
+      token: FIXTURE_SESSION_TOKEN,
+      expiresAt: new Date(world.now + 365 * 24 * 60 * 60 * 1000),
+    })
+    .onConflictDoUpdate({
+      target: schema.session.id,
+      set: { expiresAt: new Date(world.now + 365 * 24 * 60 * 60 * 1000) },
+    })
+
+  const members = [
+    { userId: world.userId, role: "owner" as const },
+    ...hosted.collaborators.map((p) => ({
+      userId: p.id,
+      role: "editor" as const,
+    })),
+  ]
+  for (const room of world.rooms) {
+    for (const member of members) {
+      await db
+        .insert(schema.roomMember)
+        .values({ roomId: room.id, ...member })
+        .onConflictDoNothing()
+    }
+  }
+
+  for (const t of hosted.threads) {
+    const createdAt = new Date(t.comments[0]!.createdAt)
+    await db
+      .insert(schema.thread)
+      .values({
+        id: t.id,
+        roomId: t.roomId,
+        x: null,
+        y: null,
+        iframeLayerId: t.iframeLayerId ?? null,
+        selector: t.anchor?.path ?? null,
+        offsetX: t.offsetX ?? null,
+        offsetY: t.offsetY ?? null,
+        workspaceId: t.workspaceId ?? null,
+        route: t.route ?? null,
+        anchor: t.anchor ?? null,
+        viewportWidth: t.viewportWidth ?? null,
+        viewportHeight: t.viewportHeight ?? null,
+        snapshot: t.anchor ? snapshotLabel(t.anchor) : null,
+        branch: t.branch ?? null,
+        createdBy: t.comments[0]!.authorId,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .onConflictDoNothing()
+    for (const c of t.comments) {
+      await db
+        .insert(schema.comment)
+        .values({
+          id: c.id,
+          threadId: t.id,
+          authorId: c.authorId,
+          body: c.body,
+          createdAt: new Date(c.createdAt),
+        })
+        .onConflictDoNothing()
+    }
+    // Everything is read but the newest thread, so its pin shows the dot.
+    if (t !== newest(hosted.threads)) {
+      await db
+        .insert(schema.threadRead)
+        .values({
+          threadId: t.id,
+          userId: world.userId,
+          lastReadAt: new Date(world.now),
+        })
+        .onConflictDoNothing()
+    }
+  }
+}
+
+function newest<T extends { comments: { createdAt: number }[] }>(
+  threads: readonly T[]
+): T | undefined {
+  const last = (t: T) => t.comments.at(-1)?.createdAt ?? 0
+  return [...threads].sort((a, b) => last(b) - last(a))[0]
+}
 
 /**
  * Write the relational half. Every statement is an upsert

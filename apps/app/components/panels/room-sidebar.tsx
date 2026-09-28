@@ -111,6 +111,8 @@ import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
+import { useUnsavedWork } from "@/hooks/use-unsaved-work"
+import { useChatSessions } from "@/lib/yjs/react"
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type {
@@ -145,6 +147,10 @@ import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
+import {
+  useIsWorkspaceHighlighted,
+  workspaceHoverStore,
+} from "@/lib/workspace-hover-store"
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 
 /** A human-readable label for a picker pick, for the settings-stage header. */
@@ -850,6 +856,27 @@ export function RoomSidebar({
   // remote-branch offer (issue #741). False until probed, so the destructive
   // toggle is never shown on a guess.
   const githubTokenAvailable = useGitHubTokenAvailable()
+  // What the delete confirms say is lost (issue #776): the Chat Sessions and
+  // frames each Workspace cascades to, and its checkout's unpushed work, read
+  // only while a confirm is open.
+  const chatSessions = useChatSessions()
+  const deleteTargets = useMemo(() => {
+    if (pendingDeleteBranchId) {
+      return branches.filter((b) => b.id === pendingDeleteBranchId)
+    }
+    if (pendingDeleteRepoId) {
+      return branches.filter((b) => b.repoId === pendingDeleteRepoId && b.ref)
+    }
+    return []
+  }, [branches, pendingDeleteBranchId, pendingDeleteRepoId])
+  const deleteTargetRepo = repos.find(
+    (r) => r.id === (deleteTargets[0]?.repoId ?? pendingDeleteRepoId)
+  )
+  const unsavedWork = useUnsavedWork(
+    deleteTargets,
+    deleteTargetRepo?.defaultBranch,
+    deleteTargets.length > 0
+  )
   const iframeLayersById = useMemo(() => {
     const m = new Map<string, RoomSidebarProps["iframeLayers"][number]>()
     for (const a of iframeLayers) m.set(a.id, a)
@@ -1593,7 +1620,7 @@ export function RoomSidebar({
                         stepBack()
                       }
                     }}
-                    className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0"
+                    className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2"
                   >
                     <DialogHeader className="px-5 pt-5 pb-2">
                       <DialogTitle>
@@ -1971,12 +1998,11 @@ export function RoomSidebar({
                                                     onCloseAutoFocus:
                                                       onBranchMenuCloseAutoFocus,
                                                   }) => (
-                                                    <div
-                                                      className={branchRowClassName(
-                                                        {
-                                                          isPanelActive,
-                                                        }
-                                                      )}
+                                                    <BranchRowShell
+                                                      branchId={branch.id}
+                                                      isPanelActive={
+                                                        isPanelActive
+                                                      }
                                                       onClick={(e) => {
                                                         e.stopPropagation()
                                                         onSelectBranch(
@@ -2124,6 +2150,12 @@ export function RoomSidebar({
                                                                     onPlay={
                                                                       onPlayBranch
                                                                     }
+                                                                    onRetry={
+                                                                      onRetryBranch
+                                                                    }
+                                                                    hasChanges={
+                                                                      !!hasStats
+                                                                    }
                                                                     onRename={
                                                                       triggerBranchRename
                                                                     }
@@ -2174,7 +2206,7 @@ export function RoomSidebar({
                                                           )
                                                         })()}
                                                       </div>
-                                                    </div>
+                                                    </BranchRowShell>
                                                   )}
                                                 </WithEditableRef>
                                               </SidebarMenuItem>
@@ -2505,6 +2537,21 @@ export function RoomSidebar({
               // offered when the API can actually serve it: a token resolves
               // and this Project names a GitHub remote (issue #741).
               canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
+              chatCount={
+                branch
+                  ? chatSessions.filter((c) => c.branchId === branch.id).length
+                  : 0
+              }
+              frameCount={
+                branch
+                  ? iframeLayers.filter((l) => l.branchId === branch.id).length
+                  : 0
+              }
+              openPrNumber={
+                branch?.prState === "open" ? branch.prNumber : undefined
+              }
+              work={branch ? unsavedWork.get(branch.id) : undefined}
+              localBranchKept={isLocalBuild}
               onConfirm={async ({ deleteOnRemote }) => {
                 if (!branch) return
                 await onRemoveBranch(branch.id, { deleteOnRemote })
@@ -2560,10 +2607,16 @@ export function RoomSidebar({
           const repo = pendingDeleteRepoId
             ? repos.find((w) => w.id === pendingDeleteRepoId)
             : null
-          const repoBranches = repo
+          const repoWorkspaces = repo
             ? branches
                 .filter((a) => a.repoId === repo.id && a.ref)
-                .map((a) => a.ref)
+                .map((a) => ({
+                  id: a.id,
+                  ref: a.ref,
+                  colorIndex: a.colorIndex,
+                  openPrNumber: a.prState === "open" ? a.prNumber : undefined,
+                  work: unsavedWork.get(a.id),
+                }))
             : []
           return (
             <DeleteRepoDialog
@@ -2572,7 +2625,9 @@ export function RoomSidebar({
                 if (!open) setPendingDeleteRepoId(null)
               }}
               repoName={repo?.name?.trim() || repo?.repoFullName || ""}
-              branches={repoBranches}
+              workspaces={repoWorkspaces}
+              canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
+              localBranchKept={isLocalBuild}
               onConfirm={async ({ deleteBranchesOnRemote }) => {
                 if (!repo) return
                 await onRemoveRepo(repo.id, { deleteBranchesOnRemote })
@@ -2733,6 +2788,38 @@ function MemberEntry({
         editableRef={editableRef}
       />
     </>
+  )
+}
+
+/** A Workspace row. Hovering it outlines the Workspace's frames (canvas and
+ *  layer list); hovering one of those frames lights the row up (#793). */
+function BranchRowShell({
+  branchId,
+  isPanelActive,
+  children,
+  ...rest
+}: {
+  branchId: string
+  isPanelActive: boolean
+  children: React.ReactNode
+} & Pick<React.ComponentProps<"div">, "onClick" | "onDoubleClick">) {
+  const isHighlighted = useIsWorkspaceHighlighted(branchId)
+  const hover = { branchId, source: "workspace" } as const
+  // A row unmounting mid-hover (deleted, collapsed) must not leave its
+  // frames outlined.
+  useEffect(
+    () => () => workspaceHoverStore.clear({ branchId, source: "workspace" }),
+    [branchId]
+  )
+  return (
+    <div
+      {...rest}
+      className={branchRowClassName({ isPanelActive, isHighlighted })}
+      onPointerEnter={() => workspaceHoverStore.set(hover)}
+      onPointerLeave={() => workspaceHoverStore.clear(hover)}
+    >
+      {children}
+    </div>
   )
 }
 

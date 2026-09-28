@@ -160,18 +160,35 @@ photograph it doesn't restamp it as just-edited. It is `and`-ed with
 
 The local build excludes the entire multi-user surface (see
 [Local (single-user) build](/configuration/local-build)), so these never appear
-in a capture and a ticket that changes them can't be reviewed from this harness:
+in a plain capture:
 
-- **Comments** — threads, canvas pins, replies, read state, the player comment
-  feed. (The single-user "Send to Claude" reference path _is_ kept.)
+- **Comments** — threads, pins, replies, read state, the comment lists.
+  (The single-user "Send to Claude" reference path _is_ kept.)
 - **Cursors and presence** — with one local Yjs peer there is nobody else on the
   canvas; the follow toolbar is hidden.
 - **Sharing and membership** — no `room_member`, no Share affordances, no
   collaborator lists.
 - **Sign-in** — there is no login screen to shoot.
 
-Capture those against a hosted deployment with a second signed-in account. There
-is no scripted path for it yet; when there is, it belongs here.
+### The hosted capture
+
+Add `--hosted` to any harness command to shoot the **hosted build** instead:
+
+```bash
+pnpm screenshots:shots --hosted --label after
+```
+
+It runs the same fixture world with the multi-user surface switched back on:
+the hosted migrations into the same embedded Postgres, every Canvas shared with
+a second fixture person, comment threads (including two written the way the
+retired play-mode feed wrote them), and a signed-in session whose cookie the
+capture browser carries, so there's no GitHub sign-in. Its state lives in
+`.screenshots/hosted/` and it serves on port 3949, so it never collides with a
+local run.
+
+A screen with `hosted: true` in `screens.ts` is shot only by hosted runs, and a
+hosted run shoots only those, so each set still diffs file-for-file. The
+comment screens (`player-comments`, `canvas-comments-list`, …) live there.
 
 Two more things vary by machine rather than by branch, so ignore them in a diff
 (or leave those screens out of it):

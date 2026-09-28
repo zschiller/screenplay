@@ -61,3 +61,14 @@ export function listFlag(args: ParsedArgs, name: string): string[] {
     .map((part) => part.trim())
     .filter(Boolean)
 }
+
+/**
+ * `--hosted`, which every entry point takes: capture the hosted build rather
+ * than the local one (see `isHostedCapture`). Applied to the environment
+ * before the profile resolves, since that is what reads it, and so the server
+ * the harness spawns inherits it. Put it after any positional argument: a bare
+ * flag followed by a word takes that word as its value.
+ */
+export function applyHostedFlag(args: ParsedArgs): void {
+  if (boolFlag(args, "hosted")) process.env.SCREENSHOTS_HOSTED = "1"
+}

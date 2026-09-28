@@ -104,7 +104,6 @@ describe("local build — access model", () => {
         selector: null,
         offsetX: null,
         offsetY: null,
-        branch: null,
         body: "hi",
         authorId: "local",
       })

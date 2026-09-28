@@ -130,8 +130,26 @@ export interface FrameView {
   rect: { x: number; y: number; width: number; height: number } | null
 }
 
-/** Why a comment is detached. */
-export type DetachReason = "frame" | "element"
+/**
+ * Why a comment is detached: its frame is gone, its element is gone, or it
+ * never pointed at an element (a note from the retired play-mode feed, #789).
+ */
+export type DetachReason = "frame" | "element" | "unanchored"
+
+/** The thread fields that say whether a thread belongs on a frame. */
+export interface FrameThreadFields {
+  iframeLayerId: string | null
+  workspaceId: string | null
+  documentId: string | null
+}
+
+/**
+ * Whether a thread lives on a frame: it was made on one, or in the player on
+ * one of the Workspace's pages (#789), which stores the Workspace but no frame.
+ */
+export function isFrameThread(t: FrameThreadFields): boolean {
+  return !t.documentId && !!(t.iframeLayerId || t.workspaceId)
+}
 
 /**
  * Where one thread's pin goes for this viewer:
@@ -179,12 +197,14 @@ export function placeFrameThread(input: {
   now: number
 }): Placement {
   const { thread, frame, view, missingSince, now } = input
-  if (!frame) return { kind: "detached", reason: "frame" }
-
   const tracked = !!(thread.anchor || thread.selector)
   if (!tracked) {
+    // Neither an element nor a point: a note from the retired play-mode feed.
+    if (thread.x === null || thread.y === null) {
+      return { kind: "detached", reason: "unanchored" }
+    }
+    if (!frame) return { kind: "detached", reason: "frame" }
     // A click that resolved no element: a plain point on the frame.
-    if (thread.x === null || thread.y === null) return { kind: "pending" }
     if (thread.route !== null) {
       if (!view) return { kind: "pending" }
       if (!sameRoute(view.path, thread.route)) {
@@ -194,6 +214,7 @@ export function placeFrameThread(input: {
     return { kind: "pinned", frameId: frame.id, x: thread.x, y: thread.y }
   }
 
+  if (!frame) return { kind: "detached", reason: "frame" }
   if (!view) return { kind: "pending" }
   if (thread.route !== null && !sameRoute(view.path, thread.route)) {
     return { kind: "offRoute", frameId: frame.id, route: thread.route }

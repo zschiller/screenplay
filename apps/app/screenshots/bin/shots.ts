@@ -2,11 +2,17 @@
 import { relative } from "node:path"
 
 import { seedFixtureWorld } from "../fixtures/seed"
-import { boolFlag, listFlag, parseArgs, stringFlag } from "../lib/args"
+import {
+  applyHostedFlag,
+  boolFlag,
+  listFlag,
+  parseArgs,
+  stringFlag,
+} from "../lib/args"
 import { captureScreens } from "../lib/capture"
 import { isServerUp, startCaptureStack } from "../lib/server"
-import { SCREENS, selectScreens } from "../screens"
-import { resolveCaptureProfile } from "../profile"
+import { selectScreens } from "../screens"
+import { isHostedCapture, resolveCaptureProfile } from "../profile"
 import { THEMES, type Theme } from "../lib/browser"
 
 /**
@@ -25,12 +31,14 @@ import { THEMES, type Theme } from "../lib/browser"
  *   --list              print the screen list and exit
  *   --no-seed           capture whatever is in the state dir already
  *   --fresh             re-seed a clean world first (implies a server restart)
+ *   --hosted            the hosted build and its screens (comments) instead
  */
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
 
+  applyHostedFlag(args)
   if (boolFlag(args, "list")) {
-    for (const screen of SCREENS) {
+    for (const screen of selectScreens([], { hosted: isHostedCapture() })) {
       console.log(
         `${screen.name.padEnd(22)} ${screen.path.padEnd(42)} ${screen.description}`
       )
@@ -44,7 +52,9 @@ async function main(): Promise<void> {
   if (out) process.env.SCREENSHOTS_CAPTURE_DIR = out
   const profile = resolveCaptureProfile()
   const label = stringFlag(args, "label") ?? "capture"
-  const screens = selectScreens(listFlag(args, "screens"))
+  const screens = selectScreens(listFlag(args, "screens"), {
+    hosted: profile.hosted,
+  })
   const themes = resolveThemes(listFlag(args, "themes"))
   const fresh = boolFlag(args, "fresh")
   const seed = !boolFlag(args, "no-seed")

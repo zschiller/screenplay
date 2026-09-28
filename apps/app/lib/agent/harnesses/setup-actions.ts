@@ -73,6 +73,13 @@ async function setupFor(): Promise<HarnessSetup> {
   return createHarnessSetup({
     probe: async (binary) =>
       entry === "setup-agent-ready" && binary === "claude",
-    run: async () => ({ exitCode: 0, stdout: "fixture-credential" }),
+    run: async (cmd, args) => {
+      // The facts line: a version and a PATH location like a real install's.
+      if (args[0] === "--version") return { exitCode: 0, stdout: "2.1.4\n" }
+      if (cmd === "sh") {
+        return { exitCode: 0, stdout: `/Users/you/.local/bin/${args[2]}\n` }
+      }
+      return { exitCode: 0, stdout: "fixture-credential" }
+    },
   })
 }

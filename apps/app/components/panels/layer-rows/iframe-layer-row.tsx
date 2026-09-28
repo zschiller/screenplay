@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import {
   SidebarMenuAction,
@@ -16,9 +16,14 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { EditableText } from "@workspace/ui/components/editable-text"
 import { IconButton } from "@workspace/ui/components/icon-button"
+import { cn } from "@workspace/ui/lib/utils"
 import { BranchBadge } from "@/components/branch-badge"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
+import {
+  useIsFrameHighlighted,
+  workspaceHoverStore,
+} from "@/lib/workspace-hover-store"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
 /** Per-row props the iframeLayer renderer needs that the generic
@@ -45,6 +50,27 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     const Icon = iframeLayerKind.Icon
     const label = iframeLayerKind.getLabel(item)
 
+    // Hovering this row lights up its Workspace in the sidebar; hovering the
+    // Workspace lights up this row (#793). The highlight is the row's own
+    // hover background.
+    const branchId = item.branchId ?? undefined
+    const isHighlighted = useIsFrameHighlighted(branchId)
+    useEffect(() => {
+      if (!branchId) return
+      return () => workspaceHoverStore.clear({ branchId, source: "frame" })
+    }, [branchId])
+    const hoverProps = branchId
+      ? {
+          onPointerEnter: () =>
+            workspaceHoverStore.set({ branchId, source: "frame" }),
+          onPointerLeave: () =>
+            workspaceHoverStore.clear({ branchId, source: "frame" }),
+        }
+      : {}
+    const highlightClass = isHighlighted
+      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+      : undefined
+
     const nameEditable = (
       <EditableText
         ref={editableRef}
@@ -61,7 +87,11 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     if (variant === "flat") {
       return (
         <SidebarMenuButton
-          className="w-full !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+          {...hoverProps}
+          className={cn(
+            "w-full !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible",
+            highlightClass
+          )}
           isActive={selected}
           onClick={(e) => {
             e.stopPropagation()
@@ -90,7 +120,11 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
       <SidebarMenuSubButton asChild isActive={selected}>
         <button
           type="button"
-          className="w-full cursor-pointer !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+          {...hoverProps}
+          className={cn(
+            "w-full cursor-pointer !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible",
+            highlightClass
+          )}
           onClick={(e) => {
             e.stopPropagation()
             onSelect(item.id, e.shiftKey)

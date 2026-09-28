@@ -1,13 +1,14 @@
 import "server-only"
 
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
 import type { ElementAnchor } from "@/lib/comment-anchor"
+import { planBranchThreadMoves } from "@/lib/comment-migration"
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
 import { isLocalBuild } from "@/lib/local-mode"
-import { mutateRoomDoc } from "@/lib/yjs/server"
+import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 
 // Comments (the `thread`/`comment`/`thread_read` tables) are excluded from the
 // local desktop build (PRD #404, issue #417): those tables don't exist on disk
@@ -22,7 +23,8 @@ function assertCommentsEnabled(): void {
 export type ThreadRecord = {
   id: string
   roomId: string
-  /** Null for branch-level threads (no canvas position). */
+  /** Null when the thread has no point: a note from the retired play-mode
+   *  feed (#789), or a thread on a document. */
   x: number | null
   y: number | null
   iframeLayerId: string | null
@@ -45,8 +47,6 @@ export type ThreadRecord = {
   anchorStart: string | null
   anchorEnd: string | null
   quotedText: string | null
-  /** Set on threads scoped to an agent branch (the player's flat feed). */
-  branch: string | null
   resolved: boolean
   resolvedAt: number | null
   createdBy: string
@@ -90,7 +90,6 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
     anchorStart: row.anchorStart,
     anchorEnd: row.anchorEnd,
     quotedText: row.quotedText,
-    branch: row.branch,
     resolved: row.resolved,
     resolvedAt: row.resolvedAt?.getTime() ?? null,
     createdBy: row.createdBy,
@@ -134,33 +133,23 @@ async function signalReadChange(roomId: string, userId: string) {
 }
 
 /**
- * Shared loader. Filters threads either to the canvas (positional only —
- * `branch IS NULL`) or to a specific agent branch. Always orders threads
- * oldest→newest of the inner comments first; outer ordering is handled by
- * the caller via the `outerOrder` param.
+ * Every thread in a Canvas, newest first: frame, document and canvas threads,
+ * and the Workspace threads made in the player (#789). The canvas and the
+ * player read this one list, so they always show the same threads.
  */
-async function listThreadsScoped(
+export async function listThreads(
   roomId: string,
-  userId: string,
-  filter: { branch: string } | { positional: true },
-  outerOrder: "asc" | "desc"
+  userId: string
 ): Promise<ThreadWithComments[]> {
-  const where =
-    "branch" in filter
-      ? and(
-          eq(schema.thread.roomId, roomId),
-          eq(schema.thread.branch, filter.branch)
-        )
-      : and(eq(schema.thread.roomId, roomId), isNull(schema.thread.branch))
-  const threadRows = await db
-    .select()
-    .from(schema.thread)
-    .where(where)
-    .orderBy(
-      outerOrder === "asc"
-        ? asc(schema.thread.createdAt)
-        : desc(schema.thread.createdAt)
-    )
+  if (isLocalBuild) return []
+  const threadRows = await moveFeedThreads(
+    roomId,
+    await db
+      .select()
+      .from(schema.thread)
+      .where(eq(schema.thread.roomId, roomId))
+      .orderBy(desc(schema.thread.createdAt))
+  )
   if (threadRows.length === 0) return []
 
   const threadIds = threadRows.map((t) => t.id)
@@ -217,24 +206,45 @@ async function listThreadsScoped(
   })
 }
 
-/** Canvas threads: anchored to a position/iframeLayer/selector, branch null. */
-export async function listThreads(
-  roomId: string,
-  userId: string
-): Promise<ThreadWithComments[]> {
-  if (isLocalBuild) return []
-  return listThreadsScoped(roomId, userId, { positional: true }, "desc")
-}
+type ThreadRow = typeof schema.thread.$inferSelect
 
-/** Player threads: scoped to an agent branch, no canvas position. Returned
- *  oldest→newest so the player's flat feed reads chronologically. */
-export async function listBranchThreads(
+/**
+ * Moves the retired play-mode feed's threads (keyed by `branch`) onto their
+ * Workspace, the first time a room's threads are listed after #789 (see
+ * `lib/comment-migration.ts`). Returns the rows as they now stand. Once a
+ * room's feed threads have moved none carry a branch, so this costs nothing
+ * on every later list.
+ */
+async function moveFeedThreads(
   roomId: string,
-  userId: string,
-  branch: string
-): Promise<ThreadWithComments[]> {
-  if (isLocalBuild) return []
-  return listThreadsScoped(roomId, userId, { branch }, "asc")
+  rows: ThreadRow[]
+): Promise<ThreadRow[]> {
+  const feed = rows.flatMap((r) =>
+    r.branch ? [{ id: r.id, branch: r.branch }] : []
+  )
+  if (feed.length === 0) return rows
+  const workspaces = await readRoomDoc(roomId, ({ branches }) =>
+    branches
+      .toArray()
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((b) => ({ id: b.id, ref: b.ref }))
+  )
+  const moves = planBranchThreadMoves(feed, workspaces)
+  await Promise.all(
+    moves.map((m) =>
+      db
+        .update(schema.thread)
+        .set({ workspaceId: m.workspaceId, snapshot: m.snapshot, branch: null })
+        .where(eq(schema.thread.id, m.threadId))
+    )
+  )
+  const byId = new Map(moves.map((m) => [m.threadId, m]))
+  return rows.map((r) => {
+    const m = byId.get(r.id)
+    return m
+      ? { ...r, workspaceId: m.workspaceId, snapshot: m.snapshot, branch: null }
+      : r
+  })
 }
 
 export async function createThreadWithFirstComment(opts: {
@@ -255,7 +265,6 @@ export async function createThreadWithFirstComment(opts: {
   anchorStart?: string | null
   anchorEnd?: string | null
   quotedText?: string | null
-  branch: string | null
   body: string
   authorId: string
 }): Promise<ThreadWithComments> {
@@ -285,7 +294,6 @@ export async function createThreadWithFirstComment(opts: {
       anchorStart: opts.anchorStart ?? null,
       anchorEnd: opts.anchorEnd ?? null,
       quotedText: opts.quotedText ?? null,
-      branch: opts.branch,
       createdBy: opts.authorId,
       createdAt: now,
       updatedAt: now,

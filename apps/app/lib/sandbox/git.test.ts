@@ -73,6 +73,7 @@ import {
   configureAgentGit,
   createAgentBranch,
   getDiffStats,
+  getUnsavedWork,
   renameAgentBranch,
 } from "@/lib/sandbox/git"
 
@@ -403,5 +404,76 @@ describe("createAgentBranch", () => {
     if (result.success) throw new Error("expected failure")
     expect(result.error).not.toContain(token)
     expect(result.error).toContain("[REDACTED]")
+  })
+})
+
+describe("getUnsavedWork", () => {
+  it("counts commits origin lacks and uncommitted files", async () => {
+    const calls: string[][] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        calls.push(args)
+        if (args[0] === "rev-parse") return { exitCode: 0, stdout: "abc123\n" }
+        if (args[0] === "rev-list") return { exitCode: 0, stdout: "2\n" }
+        if (args[0] === "status") {
+          return { exitCode: 0, stdout: " M a.ts\n?? b.ts\n M c.ts\n" }
+        }
+        return { exitCode: 1 }
+      })
+    )
+
+    const result = await getUnsavedWork("sandbox-a", "feature-a", "main")
+
+    expect(result).toEqual({
+      onOrigin: true,
+      unpushedCommits: 2,
+      uncommittedFiles: 3,
+    })
+    expect(calls).toContainEqual([
+      "rev-list",
+      "--count",
+      "refs/remotes/origin/feature-a..HEAD",
+    ])
+  })
+
+  it("counts a never-pushed branch's commits from the default branch", async () => {
+    const calls: string[][] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        calls.push(args)
+        if (args[0] === "rev-parse") return { exitCode: 1 }
+        if (args[0] === "rev-list") return { exitCode: 0, stdout: "5\n" }
+        return { exitCode: 0, stdout: "" }
+      })
+    )
+
+    const result = await getUnsavedWork("sandbox-a", "feature-a", "main")
+
+    expect(result).toEqual({
+      onOrigin: false,
+      unpushedCommits: 5,
+      uncommittedFiles: 0,
+    })
+    expect(calls).toContainEqual([
+      "rev-list",
+      "--count",
+      "refs/remotes/origin/main..HEAD",
+    ])
+  })
+
+  it("returns null when the sandbox is not running", async () => {
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 }), "stopped"))
+
+    expect(await getUnsavedWork("sandbox-a", "feature-a", "main")).toBeNull()
+  })
+
+  it("returns null when a read fails", async () => {
+    fake.setInstance(
+      fakeSandbox((cmd, args) =>
+        args[0] === "status" ? { exitCode: 128 } : { exitCode: 0, stdout: "0" }
+      )
+    )
+
+    expect(await getUnsavedWork("sandbox-a", "feature-a", "main")).toBeNull()
   })
 })

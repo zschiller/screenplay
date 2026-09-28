@@ -163,6 +163,40 @@ export interface FixtureWorld {
   pins: FixturePin[]
   /** Saved Project presets, encrypted into `kv_store` by the seeder. */
   repoConfigs: RepoConfig[]
+  /** The hosted build's half, seeded only by a `--hosted` run (#789). */
+  hosted: FixtureHostedWorld
+}
+
+/**
+ * What only the hosted build has: people, and the comment threads between
+ * them. The local build has no tables for either.
+ */
+export interface FixtureHostedWorld {
+  /** The name the fixture user signs in with (the local build's is fixed). */
+  userName: string
+  /** Other members of every Canvas, for comment authors. */
+  collaborators: { id: string; name: string; email: string }[]
+  threads: FixtureThread[]
+}
+
+/**
+ * A comment thread, stored as the app would have written it. `branch` writes a
+ * thread the way the retired play-mode feed did, so every hosted capture shows
+ * the move onto the one comment model (#789).
+ */
+export interface FixtureThread {
+  id: string
+  roomId: string
+  iframeLayerId?: string
+  workspaceId?: string
+  route?: string
+  anchor?: { path: string; tag: string; text?: string }
+  offsetX?: number
+  offsetY?: number
+  viewportWidth?: number
+  viewportHeight?: number
+  branch?: string
+  comments: { id: string; authorId: string; body: string; createdAt: number }[]
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +291,118 @@ export interface BuildWorldOptions {
    * dev server…" forever — there is no real dev server in a fixture world.
    */
   previewOrigin: string
+}
+
+const COLLABORATOR_ID = "user-priya"
+
+/**
+ * The Checkout canvas's threads, all on the Mobile checkout Workspace so the
+ * player shows them together: two on frames at `/checkout`, one made in the
+ * player on `/cart`, and two from the old play-mode feed (one whose branch was
+ * since renamed away).
+ */
+function hostedWorld(now: number): FixtureHostedWorld {
+  const room = FIXTURE_IDS.rooms.checkout
+  const workspace = FIXTURE_IDS.branches.checkoutPolish
+  return {
+    userName: "Jordan Lee",
+    collaborators: [
+      { id: COLLABORATOR_ID, name: "Priya Shah", email: "priya@example.com" },
+    ],
+    threads: [
+      {
+        id: "thread-summary-sticky",
+        roomId: room,
+        iframeLayerId: "layer-checkout-desktop",
+        workspaceId: workspace,
+        route: "/checkout",
+        anchor: { path: "main > section.cols > aside", tag: "aside" },
+        offsetX: 0.5,
+        offsetY: 0.45,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+        comments: [
+          {
+            id: "comment-summary-1",
+            authorId: COLLABORATOR_ID,
+            body: "Summary should stick to the bottom under 768px.",
+            createdAt: minutesAgo(now, 42),
+          },
+          {
+            id: "comment-summary-2",
+            authorId: LOCAL_USER_ID,
+            body: "Agreed. I'll ask the agent to pin it with position: sticky.",
+            createdAt: minutesAgo(now, 18),
+          },
+        ],
+      },
+      {
+        id: "thread-hero-copy",
+        roomId: room,
+        iframeLayerId: "layer-checkout-desktop",
+        workspaceId: workspace,
+        route: "/checkout",
+        anchor: { path: "main > section.hero > h1", tag: "h1" },
+        offsetX: 1,
+        offsetY: 0.1,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+        comments: [
+          {
+            id: "comment-hero-1",
+            authorId: LOCAL_USER_ID,
+            body: "Can the title say how many items are in the order?",
+            createdAt: minutesAgo(now, 30),
+          },
+        ],
+      },
+      {
+        id: "thread-cart-empty",
+        roomId: room,
+        workspaceId: workspace,
+        route: "/cart",
+        anchor: { path: "main > section.cols > div.card", tag: "div" },
+        offsetX: 0.5,
+        offsetY: 0.2,
+        viewportWidth: 1512,
+        viewportHeight: 982,
+        comments: [
+          {
+            id: "comment-cart-1",
+            authorId: COLLABORATOR_ID,
+            body: "The empty cart needs a way back to the shop.",
+            createdAt: minutesAgo(now, 12),
+          },
+        ],
+      },
+      {
+        id: "thread-feed-note",
+        roomId: room,
+        branch: "checkout-polish",
+        comments: [
+          {
+            id: "comment-feed-1",
+            authorId: COLLABORATOR_ID,
+            body: "Played through the whole flow on a phone. Feels fast.",
+            createdAt: daysAgo(now, 1),
+          },
+        ],
+      },
+      {
+        id: "thread-feed-orphan",
+        roomId: room,
+        branch: "checkout-v1",
+        comments: [
+          {
+            id: "comment-orphan-1",
+            authorId: LOCAL_USER_ID,
+            body: "Promo field is hidden behind a link, which reads well.",
+            createdAt: daysAgo(now, 2),
+          },
+        ],
+      },
+    ],
+  }
 }
 
 /**
@@ -366,6 +512,7 @@ export function buildFixtureWorld(options: BuildWorldOptions): FixtureWorld {
       },
     ],
     repoConfigs: repoConfigs(now),
+    hosted: hostedWorld(now),
   }
 }
 
@@ -982,6 +1129,14 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
     }),
     branch(b.framesReady, "listing-page", "listing-page", 4, {
       status: "running",
+      // An open PR whose merge is blocked (failing checks): the chat header's
+      // PR button turns red with the merge-blocked icon.
+      prNumber: 491,
+      prUrl: "https://github.com/acme/listings/pull/491",
+      prState: "open",
+      prBlocked: true,
+      diffAdditions: 62,
+      diffDeletions: 9,
     }),
     branch(b.framesLive, `${cold}live`, "agent-profile", 5, {
       status: "creating",

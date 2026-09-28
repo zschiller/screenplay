@@ -30,9 +30,9 @@ import { useHome } from "./home-provider"
 // Drag-drop filing for the home (issue #487). A single DndContext spans the
 // whole home shell — the folder section, the canvas list, *and* the sidebar — so
 // a canvas or folder can be dragged onto any folder tile/row to file it there, or
-// onto a pinned folder / the "All files" root in the sidebar. All paths reuse the
-// same move path and cycle guard as the "Move to…" dialog. Breadcrumb crumbs are
-// deliberately not drop targets. Built on the same dnd-kit setup as the in-room
+// onto a pinned folder / the "All files" root in the sidebar, or onto a parent
+// crumb in the folder breadcrumb to move it up (issue #808). All paths reuse the
+// same move path and cycle guard as the "Move to…" dialog. Built on the same dnd-kit setup as the in-room
 // sidebar (PointerSensor with a small activation distance so clicks/navigation
 // still pass through).
 
@@ -97,14 +97,15 @@ export function useFolderDroppable(folderId: string, scope = "grid") {
 
 /**
  * Make the "All files" root a drop target, so an item dragged onto the sidebar's
- * "All files" entry is filed back at the top of the tree. The root is never a
+ * "All files" entry (or the breadcrumb's) is filed back at the top of the tree.
+ * `scope` keeps the two registrations' ids apart, as for folders. The root is never a
  * cycle, so it's always enabled; `planFileDrop` skips the no-op when the item
  * already lives there. The `folderId: null` payload is what `handleDragEnd`
  * reads to resolve the move to the root.
  */
-export function useRootDroppable() {
+export function useRootDroppable(scope = "sidebar") {
   const { setNodeRef, isOver } = useDroppable({
-    id: "file-dnd-root",
+    id: `${scope}:file-dnd-root`,
     data: { folderId: null },
   })
   return { setNodeRef, isOver }

@@ -1,7 +1,12 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
-import { Check, Folder as FolderIcon, FolderOpen } from "lucide-react"
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
+import {
+  Check,
+  Folder as FolderIcon,
+  FolderOpen,
+  FolderPlus,
+} from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -11,6 +16,10 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { Button } from "@workspace/ui/components/button"
+import {
+  EditableText,
+  type EditableTextHandle,
+} from "@workspace/ui/components/editable-text"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { foldersInParent } from "@/lib/folder-tree"
@@ -36,6 +45,11 @@ export function canMoveRoom(folders: FolderSummary[]): boolean {
   return folders.length > 0
 }
 
+// The rename-in-place box, as the chat tabs draw it: a popped field whose
+// padding is cancelled by negative margins, so the row doesn't shift.
+const RENAME_EDIT_CLASS =
+  "relative z-10 -mx-0.5 -my-0.5 overflow-x-auto rounded-xs bg-background px-0.5 py-0.5 text-foreground shadow-sm ring-[0.5px] ring-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+
 type MoveToDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -55,6 +69,14 @@ type MoveToDialogProps = {
   folders: FolderSummary[]
   /** Commit the move to `targetId` (null = the root). */
   onMove: (targetId: string | null) => Promise<void>
+  /**
+   * Create a folder named `name` under `parentFolderId` (null = the root).
+   * Offers New folder when given; the new folder must then appear in `folders`.
+   */
+  onCreateFolder?: (
+    name: string,
+    parentFolderId: string | null
+  ) => Promise<FolderSummary>
 }
 
 // A folder plus its depth in the tree, in root→leaf, name-sorted order — the
@@ -82,10 +104,21 @@ export function MoveToDialog({
   movingFolderId,
   folders,
   onMove,
+  onCreateFolder,
 }: MoveToDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // Escape in New folder's name field closes the field, not the dialog.
+        onEscapeKeyDown={(e) => {
+          if (
+            e.target instanceof Element &&
+            e.target.closest("[data-new-folder]")
+          )
+            e.preventDefault()
+        }}
+      >
         {/* Mount the form only while open so its selection/error state resets
             on each open, matching InputDialog. */}
         {open && (
@@ -95,6 +128,7 @@ export function MoveToDialog({
             movingFolderId={movingFolderId}
             folders={folders}
             onMove={onMove}
+            onCreateFolder={onCreateFolder}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -109,6 +143,7 @@ function MoveToForm({
   movingFolderId,
   folders,
   onMove,
+  onCreateFolder,
   onClose,
 }: {
   itemName: string
@@ -116,6 +151,7 @@ function MoveToForm({
   movingFolderId?: string
   folders: FolderSummary[]
   onMove: (targetId: string | null) => Promise<void>
+  onCreateFolder?: MoveToDialogProps["onCreateFolder"]
   onClose: () => void
 }) {
   // `undefined` = nothing picked yet (Move stays disabled); `null` = the root;
@@ -123,6 +159,11 @@ function MoveToForm({
   const [selected, setSelected] = useState<string | null | undefined>(undefined)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Where New folder's name field sits: under this parent (null = the root),
+  // or `undefined` while it's closed.
+  const [newFolderParent, setNewFolderParent] = useState<
+    string | null | undefined
+  >(undefined)
 
   const rows = useMemo(() => flattenTree(folders, null, 0), [folders])
   // The folder being moved plus its descendants are off-limits (would cycle).
@@ -188,6 +229,36 @@ function MoveToForm({
     radios[next]!.click()
   }
 
+  // New folder goes inside the picked destination, else at the root.
+  function openNewFolder() {
+    setError(null)
+    setNewFolderParent(selected ?? null)
+  }
+
+  async function handleCreateFolder(name: string) {
+    if (!onCreateFolder || newFolderParent === undefined) return
+    setError(null)
+    try {
+      const folder = await onCreateFolder(name, newFolderParent)
+      setNewFolderParent(undefined)
+      setSelected(folder.id)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Couldn't create the folder"
+      )
+      throw err
+    }
+  }
+
+  // Indent one level under the parent row it's nested in.
+  const newFolderRow = (depth: number) => (
+    <NewFolderRow
+      depth={depth}
+      onSubmit={handleCreateFolder}
+      onCancel={() => setNewFolderParent(undefined)}
+    />
+  )
+
   async function handleMove() {
     if (selected === undefined) return
     setPending(true)
@@ -207,14 +278,15 @@ function MoveToForm({
         <DialogTitle>Move &ldquo;{itemName}&rdquo;</DialogTitle>
         <DialogDescription>Choose a destination folder.</DialogDescription>
       </DialogHeader>
-      <ScrollArea className="my-2 max-h-72">
+      <ScrollArea className="-mx-1 my-2 max-h-72">
         <div
           ref={groupRef}
           role="radiogroup"
           aria-label="Destination"
           onKeyDown={handleGroupKeyDown}
-          // Room for the focus ring, which the scroll viewport would clip.
-          className="flex flex-col gap-0.5 p-1 pr-3"
+          // Room for the focus ring, which the scroll viewport would clip;
+          // the -mx-1 above cancels it, so rows sit on the dialog's gutter.
+          className="flex flex-col gap-0.5 p-1"
         >
           <DestinationRow
             label="All files"
@@ -227,25 +299,40 @@ function MoveToForm({
             disabled={isDisabled(null)}
             onSelect={() => setSelected(null)}
           />
+          {newFolderParent === null && newFolderRow(1)}
           {rows.map(({ folder, depth }) => (
-            <DestinationRow
-              key={folder.id}
-              label={folder.name}
-              icon={
-                <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-              }
-              // Nest under the root crumb's indent.
-              depth={depth + 1}
-              selected={selected === folder.id}
-              tabbable={tabStop === folder.id}
-              disabled={isDisabled(folder.id)}
-              onSelect={() => setSelected(folder.id)}
-            />
+            <Fragment key={folder.id}>
+              <DestinationRow
+                label={folder.name}
+                icon={
+                  <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+                }
+                // Nest under the root crumb's indent.
+                depth={depth + 1}
+                selected={selected === folder.id}
+                tabbable={tabStop === folder.id}
+                disabled={isDisabled(folder.id)}
+                onSelect={() => setSelected(folder.id)}
+              />
+              {newFolderParent === folder.id && newFolderRow(depth + 2)}
+            </Fragment>
           ))}
         </div>
       </ScrollArea>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
+        {onCreateFolder && (
+          <Button
+            type="button"
+            variant="outline"
+            className="sm:mr-auto"
+            disabled={newFolderParent !== undefined || pending}
+            onClick={openNewFolder}
+          >
+            <FolderPlus />
+            New folder
+          </Button>
+        )}
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
@@ -300,5 +387,82 @@ function DestinationRow({
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {selected && <Check className="size-4 shrink-0" />}
     </button>
+  )
+}
+
+/**
+ * The row New folder adds to the tree, at the depth the folder will live: a
+ * destination row whose name is already in the app's rename-in-place field
+ * (the same EditableText the layer rows and chat tabs rename with), with
+ * "Untitled folder" selected. Enter creates it, as does clicking away after
+ * typing a name; Escape, or clicking away untouched (say, on Cancel), backs
+ * out. The dialog lets Escape through to the field, so it closes only the
+ * field. A failed create reopens the field with the name kept.
+ */
+function NewFolderRow({
+  depth,
+  onSubmit,
+  onCancel,
+}: {
+  depth: number
+  onSubmit: (name: string) => Promise<void>
+  onCancel: () => void
+}) {
+  const [name, setName] = useState("Untitled folder")
+  const editableRef = useRef<EditableTextHandle>(null)
+  // EditableText reports a commit only when the name changed; these tell the
+  // other ends of an edit apart: Enter on the default name, or Escape.
+  const committed = useRef(false)
+  const lastKey = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    editableRef.current?.startEditing()
+  }, [])
+
+  async function submit(next: string) {
+    setName(next)
+    try {
+      await onSubmit(next)
+    } catch {
+      // The form shows the error; reopen the field to retry.
+      editableRef.current?.startEditing()
+    }
+  }
+
+  return (
+    <div
+      data-new-folder
+      className="flex items-center gap-2 rounded-md py-1.5 pr-2 text-sm"
+      style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
+      // Keep the arrow keys and Home/End in the field, not the radio group.
+      onKeyDown={(e) => e.stopPropagation()}
+      onKeyDownCapture={(e) => {
+        lastKey.current = e.key
+      }}
+    >
+      <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+      <EditableText
+        ref={editableRef}
+        value={name}
+        placeholder="Folder name"
+        editTrigger="manual"
+        className="min-w-0"
+        viewClassName="truncate"
+        editClassName={RENAME_EDIT_CLASS}
+        onEditStart={() => {
+          committed.current = false
+          lastKey.current = null
+        }}
+        onCommit={(next) => {
+          committed.current = true
+          void submit(next)
+        }}
+        onEditEnd={() => {
+          if (committed.current) return
+          if (lastKey.current === "Enter") void submit(name)
+          else onCancel()
+        }}
+      />
+    </div>
   )
 }

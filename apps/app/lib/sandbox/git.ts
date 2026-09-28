@@ -6,6 +6,9 @@ import {
   getGitIdentityForUser,
   getUserId,
 } from "@/lib/auth-helpers"
+import type { UnsavedWork } from "@/lib/branch/unsaved-work"
+import { fixtureUnsavedWork } from "@/lib/fixture-git"
+import { isFixtureWorld } from "@/lib/fixture-world"
 import { createBranch, renameBranch } from "@/lib/github-actions"
 import {
   isSandboxRunning,
@@ -145,6 +148,59 @@ export async function getDiffStats(
     }
 
     return { additions, deletions }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Read what a Workspace's checkout holds that git hasn't saved elsewhere:
+ * whether its branch is on origin, how many commits origin lacks, and how many
+ * files are uncommitted (issue #776). The delete confirms show it so a warning
+ * appears only when it's true.
+ *
+ * It reads the local `origin/*` refs without fetching, so it answers at once;
+ * those refs move with every push the app makes. A pure query like
+ * {@link getDiffStats}: `null` when the Sandbox isn't running or any read
+ * fails, which the dialogs treat as "unknown" and claim nothing about.
+ */
+export async function getUnsavedWork(
+  sandboxName: string,
+  ref: string,
+  defaultBranch: string
+): Promise<UnsavedWork | null> {
+  // A capture has no real checkouts; it reads the canned ones instead.
+  if (isFixtureWorld) return fixtureUnsavedWork(sandboxName)
+  if (!sandboxName || !ref) return null
+  try {
+    const sandbox = await sandboxProvider.get({
+      name: sandboxName,
+      resume: false,
+    })
+    if (!isSandboxRunning(sandbox)) return null
+
+    const git = async (args: string[]) => {
+      const result = await sandbox.runCommand("git", args)
+      return { ok: result.exitCode === 0, out: (await result.stdout()).trim() }
+    }
+    const remoteRef = `refs/remotes/origin/${ref}`
+    const onOrigin = (
+      await git(["rev-parse", "--verify", "--quiet", remoteRef])
+    ).ok
+    // A branch that was never pushed has all its own commits to lose: count
+    // them from where it left the default branch.
+    const base = onOrigin ? remoteRef : `refs/remotes/origin/${defaultBranch}`
+    const [count, status] = await Promise.all([
+      git(["rev-list", "--count", `${base}..HEAD`]),
+      git(["status", "--porcelain"]),
+    ])
+    if (!count.ok || !status.ok) return null
+
+    return {
+      onOrigin,
+      unpushedCommits: parseInt(count.out, 10) || 0,
+      uncommittedFiles: status.out ? status.out.split("\n").length : 0,
+    }
   } catch {
     return null
   }
