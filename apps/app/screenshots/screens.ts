@@ -234,8 +234,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-narrow",
-    description: "Settings at the narrowest content width.",
-    path: "/settings",
+    description: "Settings → Coding agents at the narrowest content width.",
+    path: "/settings?section=coding-agents",
     viewport: NARROW_HOME_VIEWPORT,
     cookies: narrowHome(),
     fullPage: true,
@@ -352,15 +352,56 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings",
-    description:
-      "Settings: appearance, Projects (the saved presets), coding agents.",
+    description: "Settings → General (the page's default section).",
     path: "/settings",
+    fullPage: true,
+  },
+  {
+    name: "settings-coding-agents",
+    description:
+      "Settings → Coding agents: the default agent and one row per CLI.",
+    path: "/settings?section=coding-agents",
+    fullPage: true,
+  },
+  {
+    name: "settings-github",
+    description: "Settings → GitHub, connected.",
+    path: "/settings?section=github",
+    cookies: fixtureGitHub(),
+    fullPage: true,
+  },
+  {
+    name: "settings-github-signed-out",
+    description: "Settings → GitHub with no connection.",
+    path: "/settings?section=github",
+    fullPage: true,
+  },
+  {
+    name: "settings-presets",
+    description: "Settings → Project presets.",
+    path: "/settings?section=project-presets",
+    fullPage: true,
+  },
+  {
+    name: "settings-account",
+    description: "Settings → Account: the desktop app and its version.",
+    path: "/settings?section=account",
+    beforeNavigate: async (page) => {
+      // Stand in for the desktop shell's app plugin, which the version reads.
+      // A source string, not a function: tsx's name-keeping breaks function
+      // init scripts in the page (see `openThemedContext`).
+      await page.addInitScript({
+        content: `window.__TAURI_INTERNALS__ = {
+          invoke: async (cmd) => (cmd === "plugin:app|version" ? "0.1.1" : null),
+        }`,
+      })
+    },
     fullPage: true,
   },
   {
     name: "settings-default-agent",
     description: "Settings: the Default agent menu open on Coding agents.",
-    path: "/settings",
+    path: "/settings?section=coding-agents",
     prepare: async (page) => {
       const trigger = page.getByRole("button", { name: "Default agent" })
       const menu = page.getByRole("menu")
@@ -1524,7 +1565,7 @@ export const SCREENS: Screen[] = [
   {
     name: "confirm-delete-preset",
     description: "Settings → a saved Project preset's Delete button.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     prepare: async (page) => {
       // Wait for the presets to load before holding server actions (the list
       // itself loads through one), then hold them so a build without the
@@ -1610,8 +1651,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-loading",
-    description: "Settings while every panel is still checking or loading.",
-    path: "/settings",
+    description: "Settings → Coding agents while its rows are still checking.",
+    path: "/settings?section=coding-agents",
     fullPage: true,
     beforeNavigate: (page) => holdServerActions(page, "hang"),
     settleMs: 500,
@@ -1619,14 +1660,14 @@ export const SCREENS: Screen[] = [
   {
     name: "settings-presets-empty",
     description: "Settings with no saved Project presets.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     fullPage: true,
     cookies: fixtureFault("no-presets"),
   },
   {
     name: "settings-edit-preset",
     description: "Settings → editing a saved Project preset.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     fullPage: true,
     prepare: async (page) => {
       const edit = page.getByRole("button", { name: "Edit", exact: true })
@@ -1637,9 +1678,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-load-error",
-    description:
-      "Settings when every panel's load fails: GitHub, coding agents, presets.",
-    path: "/settings",
+    description: "Settings → Coding agents when its check fails.",
+    path: "/settings?section=coding-agents",
     fullPage: true,
     beforeNavigate: failServerActions,
     settleMs: 500,
@@ -1710,7 +1750,7 @@ export const SCREENS: Screen[] = [
   {
     name: "github-connect-error",
     description: "The GitHub device-code dialog after starting the flow fails.",
-    path: "/settings",
+    path: "/settings?section=github",
     cookies: fixtureFault("github-device-flow"),
     prepare: async (page) => {
       await unfreeze(page)

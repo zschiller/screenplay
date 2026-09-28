@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useReducer, useState } from "react"
-import { Terminal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
@@ -127,7 +126,7 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
   // PTY exits, at which point we re-detect (and bust the availability memo).
   if (state.phase === "working" && run) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 p-4">
         <p className="text-sm text-muted-foreground">{run.message}</p>
         <HostSessionTerminal
           sessionKey={`screenplay-harness-setup-${initial.hostBinary}`}
@@ -145,16 +144,20 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
 
   return (
     <SettingsRow
-      icon={Terminal}
       title={row.label}
+      state={row.state}
       status={row.connected ? "on" : "off"}
-      detail={row.detail}
+      detail={
+        [row.version && `v${row.version}`, row.path]
+          .filter(Boolean)
+          .join(" · ") || undefined
+      }
       action={
         action && (
           <Button
             type="button"
             size="sm"
-            variant={action.primary ? "default" : "outline"}
+            variant="outline"
             disabled={preparing}
             onClick={() => start(action.kind)}
           >

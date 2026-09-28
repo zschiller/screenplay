@@ -1,14 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import {
-  Folder,
-  FolderLock,
-  FolderOpen,
-  Plus,
-  Pencil,
-  Trash2,
-} from "lucide-react"
+import { Folder, Plus } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -91,7 +84,7 @@ export function RepoConfigsPanel() {
   // folder-added preset for `owner/repo` lands in the same group as a GitHub- or
   // URL-added one and dedupes. A genuinely remote-less folder falls back to
   // *path identity*: keyed by its `localPath`, headed by the folder basename
-  // with the full path as muted subtext and a distinct local-folder icon.
+  // with the full path in its facts line.
   const sortedGroups = groupConfigs(configs)
 
   const newPreset = (
@@ -131,36 +124,26 @@ export function RepoConfigsPanel() {
                 .map((config) => (
                   <SettingsRow
                     key={config.id}
-                    icon={
-                      group.kind === "path"
-                        ? FolderOpen
-                        : group.private
-                          ? FolderLock
-                          : Folder
-                    }
                     title={group.heading}
-                    detail={
-                      <span className="block truncate">
-                        {presetDetail(config, group)}
-                      </span>
-                    }
+                    state={group.private ? "Private" : undefined}
+                    detail={presetDetail(config, group)}
                     action={
                       <>
                         <Button
-                          variant="ghost"
-                          size="icon-sm"
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setMode({ kind: "edit", config })}
                         >
-                          <Pencil className="size-3.5" />
-                          <span className="sr-only">Edit</span>
+                          Edit
                         </Button>
                         <Button
-                          variant="ghost"
-                          size="icon-sm"
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setPendingDelete(config)}
                         >
-                          <Trash2 className="size-3.5" />
-                          <span className="sr-only">Delete</span>
+                          Delete
                         </Button>
                       </>
                     }
