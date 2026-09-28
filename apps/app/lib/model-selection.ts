@@ -37,7 +37,7 @@ export interface ResolveModelArgs {
    * concept, e.g. each parallel-create row seeds from the shared default.
    */
   perSession?: string | null
-  /** The user's last-used model, read from localStorage. */
+  /** The user's default model, set in Settings (`lib/default-model-store`). */
   stored?: string | null
   /** Server-suggested default for the configured provider set. */
   serverDefault?: string | null
@@ -47,13 +47,13 @@ export interface ResolveModelArgs {
 
 /**
  * Resolve the model a picker should sit on, by precedence:
- * per-session override → stored last-used → server default → first available.
+ * per-session override → user's default → server default → first available.
  *
  * Returns "" while the catalog is still loading (length 0) so callers can
  * render a "Loading…" placeholder rather than a stale id from a different
  * deployment's provider set. Once the catalog has loaded, a preferred id
- * that's no longer in it (e.g. the user's last-used model was retired when a
- * newer one shipped) is dropped — we fall back to the server default, then
+ * that's no longer in it (e.g. the user's default model was retired when a
+ * newer one shipped, or its CLI was uninstalled) is dropped — we fall back to the server default, then
  * the first listed model — so the picker never sits on an invalid value.
  */
 export function resolveDefaultModel({
@@ -68,4 +68,14 @@ export function resolveDefaultModel({
   if (serverDefault && models.some((m) => m.id === serverDefault))
     return serverDefault
   return models[0]?.id ?? preferred
+}
+
+/**
+ * How a model reads in a picker: its agent (the provider or Harness) and the
+ * model, e.g. "Claude Code · Opus 4.8". A Harness with no model list is a
+ * single entry labelled with the Harness's own name, so it isn't doubled.
+ */
+export function modelDisplayLabel(model: ModelInfo): string {
+  if (model.label === model.provider.label) return model.label
+  return `${model.provider.label} · ${model.label}`
 }

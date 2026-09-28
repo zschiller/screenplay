@@ -1,8 +1,8 @@
 import "server-only"
 
-import http from "node:http"
+import http, { type IncomingMessage } from "node:http"
 import path from "node:path"
-import { WebSocketServer } from "ws"
+import { type RawData, WebSocket, WebSocketServer } from "ws"
 import * as Y from "yjs"
 import {
   docs,
@@ -160,6 +160,43 @@ export interface YjsServerHandle {
 
 let serverHandle: YjsServerHandle | null = null
 
+/**
+ * Hand a connection to y-websocket only once its room's disk state is loaded.
+ * y-websocket binds persistence without awaiting it and answers the client's
+ * sync step 1 at once, so the first peer of an unloaded room would otherwise
+ * report `synced` against an empty doc and write concurrently with, rather
+ * than on top of, the persisted state (#769). Messages the client sends while
+ * we wait are buffered and replayed so its sync step 1 isn't dropped.
+ */
+async function connectWhenLoaded(
+  conn: WebSocket,
+  req: IncomingMessage
+): Promise<void> {
+  // Same room-name derivation `setupWSConnection` uses by default.
+  const docName = (req.url ?? "").slice(1).split("?")[0]
+  const buffered: [RawData, boolean][] = []
+  const buffer = (data: RawData, isBinary: boolean) =>
+    buffered.push([data, isBinary])
+  conn.on("message", buffer)
+
+  try {
+    // Creating the doc binds persistence, which starts the disk load.
+    getYDoc(docName)
+    await ensureConfigured().whenLoaded(docName)
+  } catch (err) {
+    console.warn(`yjs-host: failed to load room ${docName}`, err)
+    conn.close()
+    return
+  } finally {
+    conn.off("message", buffer)
+  }
+  // The client may have gone away while the room loaded.
+  if (conn.readyState !== WebSocket.OPEN) return
+
+  setupWSConnection(conn, req, { docName })
+  for (const [data, isBinary] of buffered) conn.emit("message", data, isBinary)
+}
+
 export async function startLocalYjsServer(
   opts: { port?: number } = {}
 ): Promise<YjsServerHandle> {
@@ -173,7 +210,7 @@ export async function startLocalYjsServer(
     res.end("ok")
   })
   const wss = new WebSocketServer({ noServer: true })
-  wss.on("connection", (conn, req) => setupWSConnection(conn, req))
+  wss.on("connection", (conn, req) => void connectWhenLoaded(conn, req))
   server.on("upgrade", (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (conn) => {
       wss.emit("connection", conn, req)

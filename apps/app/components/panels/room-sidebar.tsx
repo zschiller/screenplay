@@ -97,20 +97,15 @@ import {
   FieldDescription,
   FieldLabel,
 } from "@workspace/ui/components/field"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { Input } from "@workspace/ui/components/input"
-import { Kbd } from "@workspace/ui/components/kbd"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { Spinner } from "@workspace/ui/components/spinner"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
+import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
@@ -1465,19 +1460,19 @@ export function RoomSidebar({
           data-tauri-drag-region
           className="flex h-12 items-center justify-end px-4 pr-3"
         >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                className="flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-                onClick={onCollapseSidebar}
-              >
-                <PanelLeftClose />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              Collapse sidebar <Kbd>⌘B</Kbd>
-            </TooltipContent>
-          </Tooltip>
+          <IconButton
+            label="Collapse sidebar"
+            shortcut="⌘B"
+            tooltipSide="right"
+            asChild
+          >
+            <button
+              className="flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+              onClick={onCollapseSidebar}
+            >
+              <PanelLeftClose />
+            </button>
+          </IconButton>
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <DndContext
@@ -1515,18 +1510,17 @@ export function RoomSidebar({
                       open={addProjectMenuOpen}
                       onOpenChange={setAddProjectMenuOpen}
                     >
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <SidebarGroupAction className="top-1.5">
-                              <FolderPlus />
-                            </SidebarGroupAction>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          Add project
-                        </TooltipContent>
-                      </Tooltip>
+                      <DropdownMenuTrigger asChild>
+                        <IconButton
+                          label="Add project"
+                          tooltipSide="right"
+                          asChild
+                        >
+                          <SidebarGroupAction className="top-1.5">
+                            <FolderPlus />
+                          </SidebarGroupAction>
+                        </IconButton>
+                      </DropdownMenuTrigger>
                       <DropdownMenuContent
                         side="bottom"
                         align="end"
@@ -1550,16 +1544,17 @@ export function RoomSidebar({
                   ) : (
                     // Web has no folder source: the trigger opens the GitHub
                     // picker modal directly, no menu (#604).
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <DialogTrigger asChild>
-                          <SidebarGroupAction className="top-1.5">
-                            <FolderPlus />
-                          </SidebarGroupAction>
-                        </DialogTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">Add project</TooltipContent>
-                    </Tooltip>
+                    <DialogTrigger asChild>
+                      <IconButton
+                        label="Add project"
+                        tooltipSide="right"
+                        asChild
+                      >
+                        <SidebarGroupAction className="top-1.5">
+                          <FolderPlus />
+                        </SidebarGroupAction>
+                      </IconButton>
+                    </DialogTrigger>
                   )}
                   <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0">
                     <DialogHeader className="px-4 pt-4 pb-2">
@@ -1748,17 +1743,22 @@ export function RoomSidebar({
                                   {/* The Repo row collapses to two affordances:
                                     the primary "New Workspace" button and a `…`
                                     overflow menu (PRD #314). */}
-                                  <SidebarMenuAction
-                                    className="right-7 group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[menu-open]/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setNewWorkspaceBaseBranch(null)
-                                      setNewWorkspaceRepoId(repo.id)
-                                    }}
-                                    title="New workspace"
+                                  <IconButton
+                                    label="New workspace"
+                                    tooltipSide="right"
+                                    asChild
                                   >
-                                    <Plus />
-                                  </SidebarMenuAction>
+                                    <SidebarMenuAction
+                                      className="right-7 group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[menu-open]/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setNewWorkspaceBaseBranch(null)
+                                        setNewWorkspaceRepoId(repo.id)
+                                      }}
+                                    >
+                                      <Plus />
+                                    </SidebarMenuAction>
+                                  </IconButton>
                                   <DropdownMenu
                                     open={menuOpenRepoId === repo.id}
                                     onOpenChange={(open) =>
@@ -1766,13 +1766,18 @@ export function RoomSidebar({
                                     }
                                   >
                                     <DropdownMenuTrigger asChild>
-                                      <SidebarMenuAction
-                                        className="group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[menu-open]/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-                                        onClick={(e) => e.stopPropagation()}
-                                        title="More"
+                                      <IconButton
+                                        label="Project options"
+                                        tooltipSide="right"
+                                        asChild
                                       >
-                                        <MoreHorizontal />
-                                      </SidebarMenuAction>
+                                        <SidebarMenuAction
+                                          className="group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[menu-open]/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <MoreHorizontal />
+                                        </SidebarMenuAction>
+                                      </IconButton>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
                                       side="right"
@@ -1923,254 +1928,280 @@ export function RoomSidebar({
                                                       onBranchMenuCloseAutoFocus,
                                                   }) => (
                                                     <div
-                                                      className={branchRowClassName({
-                                                        isPanelActive,
-                                                        isLoading,
-                                                      })}
-                                                        onClick={(e) => {
-                                                          e.stopPropagation()
-                                                          onSelectBranch(
-                                                            branch.id,
-                                                            {
-                                                              expandPanel: false,
-                                                            }
-                                                          )
-                                                        }}
-                                                        onDoubleClick={(e) => {
-                                                          e.stopPropagation()
-                                                          onSelectBranch(
-                                                            branch.id
-                                                          )
-                                                        }}
+                                                      className={branchRowClassName(
+                                                        {
+                                                          isPanelActive,
+                                                          isLoading,
+                                                        }
+                                                      )}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        onSelectBranch(
+                                                          branch.id,
+                                                          {
+                                                            expandPanel: false,
+                                                          }
+                                                        )
+                                                      }}
+                                                      onDoubleClick={(e) => {
+                                                        e.stopPropagation()
+                                                        onSelectBranch(
+                                                          branch.id
+                                                        )
+                                                      }}
+                                                    >
+                                                      <SidebarMenuSubButton
+                                                        asChild
+                                                        className="!bg-transparent !pr-0 hover:!bg-transparent"
+                                                        isActive={false}
                                                       >
-                                                        <SidebarMenuSubButton
-                                                          asChild
-                                                          className="!bg-transparent !pr-0 hover:!bg-transparent"
-                                                          isActive={false}
+                                                        <div
+                                                          title={
+                                                            isLoading
+                                                              ? branch.statusMessage ||
+                                                                "Starting…"
+                                                              : undefined
+                                                          }
                                                         >
-                                                          <div
-                                                            title={
-                                                              isLoading
-                                                                ? branch.statusMessage ||
-                                                                  "Starting…"
-                                                                : undefined
-                                                            }
-                                                          >
-                                                            {isError ? (
-                                                              <Popover>
-                                                                <PopoverTrigger asChild>
-                                                                  <button
-                                                                    type="button"
-                                                                    aria-label="Show setup error"
-                                                                    className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    onDoubleClick={(e) => e.stopPropagation()}
-                                                                    // Keep Enter/Space from reaching the sortable
-                                                                    // row's KeyboardSensor (Space is its pick-up key).
-                                                                    onKeyDown={(e) => e.stopPropagation()}
-                                                                  >
-                                                                    <AlertTriangle className="size-3.5 text-destructive" />
-                                                                  </button>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent
-                                                                  align="start"
-                                                                  side="right"
-                                                                  className="max-h-64 w-80 gap-1 overflow-auto"
-                                                                  // Portaled, but React events still bubble to the
-                                                                  // row: keep clicks from selecting the Workspace and
-                                                                  // keys/pointer from reaching the dnd-kit sensors.
-                                                                  onClick={(e) => e.stopPropagation()}
-                                                                  onKeyDown={(e) => e.stopPropagation()}
-                                                                  onPointerDown={(e) => e.stopPropagation()}
+                                                          {isError ? (
+                                                            <Popover>
+                                                              <PopoverTrigger
+                                                                asChild
+                                                              >
+                                                                <button
+                                                                  type="button"
+                                                                  aria-label="Show setup error"
+                                                                  className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                                                                  onClick={(
+                                                                    e
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
+                                                                  onDoubleClick={(
+                                                                    e
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
+                                                                  // Keep Enter/Space from reaching the sortable
+                                                                  // row's KeyboardSensor (Space is its pick-up key).
+                                                                  onKeyDown={(
+                                                                    e
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
                                                                 >
-                                                                  <p className="text-xs font-medium text-popover-foreground">
-                                                                    Setup failed
-                                                                  </p>
-                                                                  <pre className="font-mono text-xs break-words whitespace-pre-wrap text-destructive">
-                                                                    {branch.error || "Unknown error"}
-                                                                  </pre>
-                                                                </PopoverContent>
-                                                              </Popover>
-                                                            ) : isLoading ? (
-                                                              // Progress (creating/starting) uses the shared Spinner;
-                                                              // the 9-dot GripSpinner is reserved for agent activity.
-                                                              <Spinner
-                                                                aria-label="Setting up"
-                                                                className="size-3.5 shrink-0 text-sidebar-foreground/70"
-                                                              />
-                                                            ) : isActive ? (
-                                                              <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
-                                                            ) : pr?.state === "merged" ? (
-                                                              <GitMerge className="shrink-0 text-info!" />
-                                                            ) : pr?.state === "open" ? (
-                                                              <GitPullRequest className="shrink-0 text-success!" />
-                                                            ) : pr?.state === "closed" ? (
-                                                              <GitPullRequestClosed className="shrink-0 text-destructive!" />
-                                                            ) : (
-                                                              <GitBranch className="shrink-0 text-sidebar-foreground/70" />
-                                                            )}
-                                                            {branch.ref ? (
-                                                              <BranchBadge
-                                                                ref={branchRef}
-                                                                branch={
+                                                                  <AlertTriangle className="size-3.5 text-destructive" />
+                                                                </button>
+                                                              </PopoverTrigger>
+                                                              <PopoverContent
+                                                                align="start"
+                                                                side="right"
+                                                                className="max-h-64 w-80 gap-1 overflow-auto"
+                                                                // Portaled, but React events still bubble to the
+                                                                // row: keep clicks from selecting the Workspace and
+                                                                // keys/pointer from reaching the dnd-kit sensors.
+                                                                onClick={(e) =>
+                                                                  e.stopPropagation()
+                                                                }
+                                                                onKeyDown={(
+                                                                  e
+                                                                ) =>
+                                                                  e.stopPropagation()
+                                                                }
+                                                                onPointerDown={(
+                                                                  e
+                                                                ) =>
+                                                                  e.stopPropagation()
+                                                                }
+                                                              >
+                                                                <p className="text-xs font-medium text-popover-foreground">
+                                                                  Setup failed
+                                                                </p>
+                                                                <pre className="font-mono text-xs break-words whitespace-pre-wrap text-destructive">
+                                                                  {branch.error ||
+                                                                    "Unknown error"}
+                                                                </pre>
+                                                              </PopoverContent>
+                                                            </Popover>
+                                                          ) : isLoading ? (
+                                                            // Progress (creating/starting) uses the shared Spinner;
+                                                            // the 9-dot GripSpinner is reserved for agent activity.
+                                                            <Spinner
+                                                              aria-label="Setting up"
+                                                              className="size-3.5 shrink-0 text-sidebar-foreground/70"
+                                                            />
+                                                          ) : isActive ? (
+                                                            <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
+                                                          ) : pr?.state ===
+                                                            "merged" ? (
+                                                            <GitMerge className="shrink-0 text-info!" />
+                                                          ) : pr?.state ===
+                                                            "open" ? (
+                                                            <GitPullRequest className="shrink-0 text-success!" />
+                                                          ) : pr?.state ===
+                                                            "closed" ? (
+                                                            <GitPullRequestClosed className="shrink-0 text-destructive!" />
+                                                          ) : (
+                                                            <GitBranch className="shrink-0 text-sidebar-foreground/70" />
+                                                          )}
+                                                          {branch.ref ? (
+                                                            <BranchBadge
+                                                              ref={branchRef}
+                                                              branch={
+                                                                branch.ref
+                                                              }
+                                                              colorKey={
+                                                                branch.id
+                                                              }
+                                                              colorIndex={
+                                                                branch.colorIndex
+                                                              }
+                                                              className="px-1.5 py-0 text-[11px]"
+                                                              onRename={(
+                                                                next
+                                                              ) => {
+                                                                const sanitized =
+                                                                  sanitizeBranchName(
+                                                                    next
+                                                                  )
+                                                                if (!sanitized)
+                                                                  return
+                                                                if (
+                                                                  sanitized ===
                                                                   branch.ref
-                                                                }
-                                                                colorKey={
-                                                                  branch.id
-                                                                }
-                                                                colorIndex={
-                                                                  branch.colorIndex
-                                                                }
-                                                                className="px-1.5 py-0 text-[11px]"
-                                                                onRename={(
-                                                                  next
-                                                                ) => {
-                                                                  const sanitized =
-                                                                    sanitizeBranchName(
-                                                                      next
-                                                                    )
-                                                                  if (
-                                                                    !sanitized
+                                                                )
+                                                                  return
+                                                                // Renaming onto a branch that already exists on the
+                                                                // remote would hijack its history, so that's always
+                                                                // blocked. On the desktop build a name another open
+                                                                // Branch holds is blocked too: the local backend
+                                                                // keeps one checkout per ref (worktrees, ADR 0009),
+                                                                // so the rename would collide at provision time. The
+                                                                // hosted backend has no such limit.
+                                                                const remote =
+                                                                  remoteBranchesByRepo.get(
+                                                                    repo.id
                                                                   )
-                                                                    return
-                                                                  if (
-                                                                    sanitized ===
-                                                                    branch.ref
+                                                                const localTaken =
+                                                                  isLocalBuild &&
+                                                                  repoBranches.some(
+                                                                    (a) =>
+                                                                      a.id !==
+                                                                        branch.id &&
+                                                                      a.ref ===
+                                                                        sanitized
                                                                   )
-                                                                    return
-                                                                  // Renaming onto a branch that already exists on the
-                                                                  // remote would hijack its history, so that's always
-                                                                  // blocked. On the desktop build a name another open
-                                                                  // Branch holds is blocked too: the local backend
-                                                                  // keeps one checkout per ref (worktrees, ADR 0009),
-                                                                  // so the rename would collide at provision time. The
-                                                                  // hosted backend has no such limit.
-                                                                  const remote =
-                                                                    remoteBranchesByRepo.get(
-                                                                      repo.id
-                                                                    )
-                                                                  const localTaken =
-                                                                    isLocalBuild &&
-                                                                    repoBranches.some(
-                                                                      (a) =>
-                                                                        a.id !==
-                                                                          branch.id &&
-                                                                        a.ref ===
-                                                                          sanitized
-                                                                    )
-                                                                  if (
-                                                                    localTaken ||
-                                                                    remote?.has(
-                                                                      sanitized
-                                                                    )
-                                                                  )
-                                                                    return
-                                                                  onRenameBranch(
-                                                                    branch.id,
+                                                                if (
+                                                                  localTaken ||
+                                                                  remote?.has(
                                                                     sanitized
                                                                   )
-                                                                }}
-                                                              />
-                                                            ) : (
-                                                              <span className="truncate font-mono text-xs text-muted-foreground">
-                                                                Creating…
-                                                              </span>
-                                                            )}
-                                                          </div>
-                                                        </SidebarMenuSubButton>
-                                                        <div className="group/slot flex shrink-0 items-center pr-1 pl-2">
-                                                          {(() => {
-                                                            const stats =
-                                                              diffStats.get(
-                                                                branch.id
-                                                              )
-                                                            const hasStats =
-                                                              stats &&
-                                                              (stats.additions >
-                                                                0 ||
-                                                                stats.deletions >
-                                                                  0)
-                                                            return (
-                                                              <>
-                                                                {hasStats && (
-                                                                  <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
-                                                                    <span className="text-success">
-                                                                      +
-                                                                      {
-                                                                        stats.additions
-                                                                      }
-                                                                    </span>
-                                                                    <span className="text-destructive">
-                                                                      -
-                                                                      {
-                                                                        stats.deletions
-                                                                      }
-                                                                    </span>
-                                                                  </span>
-                                                                )}
-                                                                <BranchDropdownSlot
-                                                                  menuContent={
-                                                                    <BranchOverflowMenuContent
-                                                                      branch={
-                                                                        branch
-                                                                      }
-                                                                      repo={
-                                                                        repo
-                                                                      }
-                                                                      onPlay={
-                                                                        onPlayBranch
-                                                                      }
-                                                                      onRename={
-                                                                        triggerBranchRename
-                                                                      }
-                                                                      onUpdateBranch={
-                                                                        onUpdateBranch
-                                                                      }
-                                                                      onNewBranchFromHere={() => {
-                                                                        setNewWorkspaceBaseBranch(
-                                                                          branch.ref ??
-                                                                            null
-                                                                        )
-                                                                        setNewWorkspaceRepoId(
-                                                                          branch.repoId
-                                                                        )
-                                                                      }}
-                                                                      onRestartDevServer={
-                                                                        onRestartDevServer
-                                                                      }
-                                                                      onRestart={
-                                                                        onRefreshBranch
-                                                                      }
-                                                                      onRecreate={
-                                                                        setPendingRecreateBranchId
-                                                                      }
-                                                                      onShowRoutes={
-                                                                        onShowRoutes
-                                                                      }
-                                                                      onCreatePr={
-                                                                        onCreatePr
-                                                                      }
-                                                                      pr={pr}
-                                                                      onRebase={
-                                                                        onRebaseOnDefault
-                                                                      }
-                                                                      onDelete={
-                                                                        setPendingDeleteBranchId
-                                                                      }
-                                                                      onCloseAutoFocus={
-                                                                        onBranchMenuCloseAutoFocus
-                                                                      }
-                                                                      isBusy={
-                                                                        isActive
-                                                                      }
-                                                                    />
-                                                                  }
-                                                                />
-                                                              </>
-                                                            )
-                                                          })()}
+                                                                )
+                                                                  return
+                                                                onRenameBranch(
+                                                                  branch.id,
+                                                                  sanitized
+                                                                )
+                                                              }}
+                                                            />
+                                                          ) : (
+                                                            <span className="truncate font-mono text-xs text-muted-foreground">
+                                                              Creating…
+                                                            </span>
+                                                          )}
                                                         </div>
+                                                      </SidebarMenuSubButton>
+                                                      <div className="group/slot flex shrink-0 items-center pr-1 pl-2">
+                                                        {(() => {
+                                                          const stats =
+                                                            diffStats.get(
+                                                              branch.id
+                                                            )
+                                                          const hasStats =
+                                                            stats &&
+                                                            (stats.additions >
+                                                              0 ||
+                                                              stats.deletions >
+                                                                0)
+                                                          return (
+                                                            <>
+                                                              {hasStats && (
+                                                                <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
+                                                                  <span className="text-success">
+                                                                    +
+                                                                    {
+                                                                      stats.additions
+                                                                    }
+                                                                  </span>
+                                                                  <span className="text-destructive">
+                                                                    -
+                                                                    {
+                                                                      stats.deletions
+                                                                    }
+                                                                  </span>
+                                                                </span>
+                                                              )}
+                                                              <BranchDropdownSlot
+                                                                menuContent={
+                                                                  <BranchOverflowMenuContent
+                                                                    branch={
+                                                                      branch
+                                                                    }
+                                                                    repo={repo}
+                                                                    onPlay={
+                                                                      onPlayBranch
+                                                                    }
+                                                                    onRename={
+                                                                      triggerBranchRename
+                                                                    }
+                                                                    onUpdateBranch={
+                                                                      onUpdateBranch
+                                                                    }
+                                                                    onNewBranchFromHere={() => {
+                                                                      setNewWorkspaceBaseBranch(
+                                                                        branch.ref ??
+                                                                          null
+                                                                      )
+                                                                      setNewWorkspaceRepoId(
+                                                                        branch.repoId
+                                                                      )
+                                                                    }}
+                                                                    onRestartDevServer={
+                                                                      onRestartDevServer
+                                                                    }
+                                                                    onRestart={
+                                                                      onRefreshBranch
+                                                                    }
+                                                                    onRecreate={
+                                                                      setPendingRecreateBranchId
+                                                                    }
+                                                                    onShowRoutes={
+                                                                      onShowRoutes
+                                                                    }
+                                                                    onCreatePr={
+                                                                      onCreatePr
+                                                                    }
+                                                                    pr={pr}
+                                                                    onRebase={
+                                                                      onRebaseOnDefault
+                                                                    }
+                                                                    onDelete={
+                                                                      setPendingDeleteBranchId
+                                                                    }
+                                                                    onCloseAutoFocus={
+                                                                      onBranchMenuCloseAutoFocus
+                                                                    }
+                                                                    isBusy={
+                                                                      isActive
+                                                                    }
+                                                                  />
+                                                                }
+                                                              />
+                                                            </>
+                                                          )
+                                                        })()}
                                                       </div>
+                                                    </div>
                                                   )}
                                                 </WithEditableRef>
                                               </SidebarMenuItem>
@@ -2191,7 +2222,7 @@ export function RoomSidebar({
                   </SidebarMenu>
 
                   {repos.length === 0 && !showPicker && (
-                    <div className="py-8 text-center text-xs text-sidebar-foreground/50">
+                    <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
                       No projects yet
                     </div>
                   )}
@@ -2382,9 +2413,15 @@ export function RoomSidebar({
                                         </SidebarMenuButton>
                                         <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
-                                            <SidebarMenuAction className="group-focus-within/frame-group-row:opacity-100 group-hover/frame-group-row:opacity-100 aria-expanded:opacity-100 md:opacity-0">
-                                              <MoreHorizontal />
-                                            </SidebarMenuAction>
+                                            <IconButton
+                                              label="Group options"
+                                              tooltipSide="right"
+                                              asChild
+                                            >
+                                              <SidebarMenuAction className="group-focus-within/frame-group-row:opacity-100 group-hover/frame-group-row:opacity-100 aria-expanded:opacity-100 md:opacity-0">
+                                                <MoreHorizontal />
+                                              </SidebarMenuAction>
+                                            </IconButton>
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent
                                             side="right"
@@ -2447,7 +2484,7 @@ export function RoomSidebar({
                   </SortableContext>
                 </DropHintContext.Provider>
                 {iframeLayerGroups.length === 0 && (
-                  <div className="py-8 text-center text-xs text-sidebar-foreground/50">
+                  <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
                     No frames yet
                   </div>
                 )}
@@ -2750,12 +2787,14 @@ function BranchDropdownSlot({
     >
       <DropdownMenu open={menuOpen} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
-          <button
-            className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="size-4" />
-          </button>
+          <IconButton label="Workspace options" tooltipSide="right" asChild>
+            <button
+              className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          </IconButton>
         </DropdownMenuTrigger>
         {menuContent}
       </DropdownMenu>

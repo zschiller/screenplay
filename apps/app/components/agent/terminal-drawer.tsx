@@ -2,7 +2,6 @@
 
 import { ChevronDown, Plus, SquareTerminal, X } from "lucide-react"
 
-import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
 import {
   DropdownMenu,
@@ -12,13 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { EditableText } from "@workspace/ui/components/editable-text"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
 
 import type { InstalledHarness } from "@/hooks/use-installed-harnesses"
@@ -109,24 +103,14 @@ export function TerminalDrawer({
             onCreate={onCreate}
             disabled={disabled}
           />
-          <TooltipProvider delayDuration={500}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Hide terminal"
-                  className="shrink-0 text-muted-foreground"
-                  onClick={onToggle}
-                >
-                  <ChevronDown className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                Hide terminal <ToggleKbd />
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <IconButton
+            label="Hide terminal"
+            shortcut="⌃`"
+            className="shrink-0 text-muted-foreground"
+            onClick={onToggle}
+          >
+            <ChevronDown className="size-3" />
+          </IconButton>
         </div>
       ) : (
         <button
@@ -210,18 +194,17 @@ function TerminalTabButton({
         viewClassName="truncate"
         editClassName={TAB_LABEL_EDIT_CLASS}
       />
-      <button
-        type="button"
-        aria-label={`Close ${terminal.label || "terminal"}`}
-        title="Close"
+      <IconButton
+        label="Close terminal"
+        size="icon-xxs"
         onClick={(e) => {
           e.stopPropagation()
           onClose()
         }}
-        className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover/tab:opacity-100 hover:bg-accent focus-visible:opacity-100"
+        className="text-muted-foreground opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100"
       >
         <X className="size-3" />
-      </button>
+      </IconButton>
     </div>
   )
 }
@@ -242,17 +225,15 @@ function NewTerminalButton({
   disabled?: boolean
 }) {
   const plus = (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      aria-label="New terminal"
-      title={disabled ? "Sandbox still starting…" : "New terminal"}
+    <IconButton
+      label="New terminal"
+      hint={disabled ? "Sandbox still starting…" : undefined}
       className="shrink-0 text-muted-foreground"
       disabled={disabled}
       onClick={() => onCreate(defaultHarnessKey)}
     >
       <Plus className="size-3" />
-    </Button>
+    </IconButton>
   )
   if (harnesses.length <= 1) return plus
   return (
@@ -260,16 +241,13 @@ function NewTerminalButton({
       {plus}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Choose a harness"
-            title="Choose a harness"
+          <IconButton
+            label="Choose a harness"
             className="w-4 min-w-0 px-0 text-muted-foreground"
             disabled={disabled}
           >
             <ChevronDown className="size-3" />
-          </Button>
+          </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">

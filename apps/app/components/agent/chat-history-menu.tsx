@@ -4,12 +4,12 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 import { Check, ChevronDown, Trash2 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
-import { cn } from "@workspace/ui/lib/utils"
 
 import { GripSpinner } from "@/components/grip-spinner"
 import { formatRelative } from "@/components/canvas/comments"
@@ -143,22 +143,28 @@ function HistoryRow({
         </span>
       </button>
       {/* Delete is permanent, so the first press only arms it. */}
-      <Button
-        variant={confirming ? "destructive" : "ghost"}
-        size={confirming ? "xs" : "icon-xs"}
-        aria-label={confirming ? "Confirm delete" : "Delete chat"}
-        title={confirming ? undefined : "Delete chat"}
-        onClick={() => (confirming ? onDelete() : setConfirming(true))}
-        onBlur={() => setConfirming(false)}
-        className={cn(
-          "absolute top-1 right-1 text-muted-foreground",
-          !confirming &&
-            "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
-          isStreaming && !confirming && "hidden"
-        )}
-      >
-        {confirming ? "Delete" : <Trash2 />}
-      </Button>
+      {confirming ? (
+        <Button
+          variant="destructive"
+          size="xs"
+          autoFocus
+          onClick={onDelete}
+          onBlur={() => setConfirming(false)}
+          className="absolute top-1 right-1"
+        >
+          Delete
+        </Button>
+      ) : (
+        !isStreaming && (
+          <IconButton
+            label="Delete chat"
+            onClick={() => setConfirming(true)}
+            className="absolute top-1 right-1 text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+          >
+            <Trash2 />
+          </IconButton>
+        )
+      )}
     </div>
   )
 }
@@ -205,18 +211,15 @@ export function ChatHistoryMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="All chats"
-          title="All chats"
+        <IconButton
+          label="All chats"
           className="relative shrink-0 text-muted-foreground"
         >
           <ChevronDown className="size-3" />
           {hiddenUnread && (
             <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-blue-500" />
           )}
-        </Button>
+        </IconButton>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 gap-0 p-1">
         <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
