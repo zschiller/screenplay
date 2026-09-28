@@ -72,6 +72,10 @@ function IconButton({
   size = "icon-xs",
   ...props
 }: IconButtonProps) {
+  // Controlled so a press always closes the tooltip. Radix's own close-on-press
+  // is skipped when an outer trigger (`DropdownMenuTrigger`) prevents the
+  // pointerdown's default, which left the tooltip showing behind the menu.
+  const [open, setOpen] = React.useState(false)
   const button = asChild ? (
     <Slot.Root aria-label={label} aria-pressed={pressed} {...props} />
   ) : (
@@ -85,8 +89,8 @@ function IconButton({
   )
   return (
     <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip open={open} onOpenChange={setOpen}>
+        <TooltipTrigger asChild onPointerDown={() => setOpen(false)}>
           {props.disabled ? (
             <span className="inline-flex">{button}</span>
           ) : (
