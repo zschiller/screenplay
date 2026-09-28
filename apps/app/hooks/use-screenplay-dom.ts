@@ -37,6 +37,9 @@ type Pending = {
 }
 
 const REQUEST_TIMEOUT_MS = 5000
+// A remote route change waits on this before reloading the frame instead, so
+// it's short: an older bridge that doesn't know `navigate` never answers.
+const NAVIGATE_TIMEOUT_MS = 1500
 
 export type WheelForward = {
   deltaX: number
@@ -104,21 +107,26 @@ export function useScreenplayDom(
   })
 
   const request = useCallback(
-    <T>(msg: {
-      type:
-        | "screenplay:dom-query"
-        | "screenplay:pick-start"
-        | "screenplay:pick-stop"
-        | "screenplay:set-forward-input"
-      op?: DomOp
-      selector?: string
-      selectors?: string[]
-      anchors?: ElementAnchor[]
-      handle?: string
-      enabled?: boolean
-      x?: number
-      y?: number
-    }): Promise<T> => {
+    <T>(
+      msg: {
+        type:
+          | "screenplay:dom-query"
+          | "screenplay:pick-start"
+          | "screenplay:pick-stop"
+          | "screenplay:set-forward-input"
+          | "screenplay:navigate"
+        op?: DomOp
+        selector?: string
+        selectors?: string[]
+        anchors?: ElementAnchor[]
+        handle?: string
+        enabled?: boolean
+        x?: number
+        y?: number
+        path?: string
+      },
+      timeoutMs = REQUEST_TIMEOUT_MS
+    ): Promise<T> => {
       const iframe = iframeRef.current
       if (!iframe?.contentWindow)
         return Promise.reject(new Error("iframe not mounted"))
@@ -127,7 +135,7 @@ export function useScreenplayDom(
         const timer = setTimeout(() => {
           if (pending.current.delete(id))
             reject(new Error("screenplay bridge timeout"))
-        }, REQUEST_TIMEOUT_MS)
+        }, timeoutMs)
         pending.current.set(id, {
           resolve: resolve as (v: unknown) => void,
           reject,
@@ -245,6 +253,13 @@ export function useScreenplayDom(
           type: "screenplay:dom-query",
           op: "getDocumentSize",
         }),
+      /** Follow a route client-side (#999). Resolves true when the page's
+       *  router took it, false when the frame has to reload onto it. */
+      navigate: (path: string) =>
+        request<boolean>(
+          { type: "screenplay:navigate", path },
+          NAVIGATE_TIMEOUT_MS
+        ),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),
       stopPick: () => request<null>({ type: "screenplay:pick-stop" }),
       setForwardInput: (enabled: boolean) =>

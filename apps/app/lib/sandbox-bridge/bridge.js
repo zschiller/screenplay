@@ -539,6 +539,11 @@
         lastScrollX = d.scrollX
         lastScrollY = d.scrollY
         window.scrollTo(d.scrollX, d.scrollY)
+      } else if (d.type === "screenplay:navigate") {
+        followRoute(d.path).then(
+          (followed) => reply(d.id, true, followed),
+          (err) => reply(d.id, false, (err && err.message) || err)
+        )
       } else if (d.type === "screenplay:cursor-mode") {
         setCursorMode(d.mode)
       }
@@ -583,6 +588,58 @@
   }
   window.addEventListener("popstate", () => postNavigation(false))
   window.addEventListener("hashchange", () => postNavigation(false))
+
+  // Follow a route another viewer navigated to without reloading the page, so
+  // whatever this viewer typed or opened survives (#999). Resolves true when
+  // the page's own router took the route, false when the parent should fall
+  // back to reloading the frame onto it.
+  //
+  // Next exposes its router (App and Pages alike) on `window.next.router`;
+  // its popstate handler ignores history entries it didn't write, so it has
+  // to be driven through `push`. Anything else (React Router, TanStack, Vue
+  // Router, …) listens for popstate, so a pushState plus a synthetic popstate
+  // routes it. A page with no client router ignores that, which shows up as
+  // an untouched DOM: then it's the reload after all.
+  const FOLLOW_SETTLE_MS = 300
+  function followRoute(path) {
+    if (typeof path !== "string" || path.charAt(0) !== "/")
+      return Promise.resolve(false)
+    if (path === currentPath()) return Promise.resolve(true)
+    const target = new URL(path, location.href)
+    if (
+      target.hash &&
+      target.pathname + target.search === location.pathname + location.search
+    ) {
+      location.hash = target.hash
+      return Promise.resolve(true)
+    }
+    const next = window.next
+    const router = next && next.router
+    if (router && typeof router.push === "function") {
+      router.push(path)
+      return Promise.resolve(true)
+    }
+    return new Promise((resolve) => {
+      const root = document.documentElement
+      let settled = false
+      const observer = new MutationObserver(() => done(true))
+      const timer = setTimeout(() => done(false), FOLLOW_SETTLE_MS)
+      function done(changed) {
+        if (settled) return
+        settled = true
+        observer.disconnect()
+        clearTimeout(timer)
+        resolve(changed)
+      }
+      observer.observe(root, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      })
+      history.pushState(null, "", path)
+      dispatchEvent(new PopStateEvent("popstate", { state: null }))
+    })
+  }
 
   // Scroll tracking. Trailing-edge throttle at ~20Hz keeps Yjs writes
   // manageable without feeling laggy. The echo guard (lastScrollX/Y) is also

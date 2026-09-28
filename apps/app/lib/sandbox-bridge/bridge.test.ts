@@ -13,6 +13,10 @@ const BRIDGE = readFileSync(
 let nextId = 1
 
 function query(op: string, payload: Record<string, unknown>) {
+  return send({ type: "screenplay:dom-query", op, ...payload })
+}
+
+function send(msg: Record<string, unknown>) {
   const id = `q${nextId++}`
   return new Promise<unknown>((resolve, reject) => {
     function onMessage(e: MessageEvent) {
@@ -25,7 +29,7 @@ function query(op: string, payload: Record<string, unknown>) {
     window.addEventListener("message", onMessage)
     window.dispatchEvent(
       new MessageEvent("message", {
-        data: { type: "screenplay:dom-query", op, id, ...payload },
+        data: { ...msg, id },
         source: window,
       })
     )
@@ -88,5 +92,68 @@ describe("bridge resolveAnchors", () => {
       text: "Pay now",
     })
     expect(res.path).toBe(window.location.pathname)
+  })
+})
+
+describe("bridge navigate", () => {
+  const navigate = (path: string) =>
+    send({ type: "screenplay:navigate", path }) as Promise<boolean>
+  const reported: { path: string; replace: boolean }[] = []
+  function onNavigation(e: MessageEvent) {
+    if (e.data?.type === "screenplay:navigation") reported.push(e.data)
+  }
+
+  beforeEach(() => {
+    history.replaceState(null, "", "/start")
+    reported.length = 0
+    window.addEventListener("message", onNavigation)
+    return () => {
+      window.removeEventListener("message", onNavigation)
+      delete (window as { next?: unknown }).next
+    }
+  })
+
+  it("drives Next's router when the page exposes one", async () => {
+    const pushed: string[] = []
+    ;(window as { next?: unknown }).next = {
+      router: { push: (href: string) => pushed.push(href) },
+    }
+    await expect(navigate("/pricing?plan=team")).resolves.toBe(true)
+    expect(pushed).toEqual(["/pricing?plan=team"])
+  })
+
+  it("routes a popstate router without reloading, keeping typed input", async () => {
+    document.body.innerHTML = `<input id="name" /><main>Home</main>`
+    const input = document.getElementById("name") as HTMLInputElement
+    input.value = "Ada"
+    const route = () => {
+      document.querySelector("main")!.textContent = location.pathname
+    }
+    window.addEventListener("popstate", route)
+    try {
+      await expect(navigate("/customers")).resolves.toBe(true)
+    } finally {
+      window.removeEventListener("popstate", route)
+    }
+    expect(location.pathname).toBe("/customers")
+    expect(document.querySelector("main")!.textContent).toBe("/customers")
+    expect(input.value).toBe("Ada")
+    // The page reports the route like any navigation of its own.
+    await new Promise((r) => setTimeout(r, 0))
+    expect(reported.map((r) => r.path)).toContain("/customers")
+  })
+
+  it("asks for the reload when nothing on the page takes the route", async () => {
+    await expect(navigate("/about")).resolves.toBe(false)
+  })
+
+  it("moves to an anchor on the same page without a router", async () => {
+    await expect(navigate("/start#faq")).resolves.toBe(true)
+    expect(location.hash).toBe("#faq")
+  })
+
+  it("does nothing for the route the page is already on", async () => {
+    await expect(navigate("/start")).resolves.toBe(true)
+    expect(location.pathname).toBe("/start")
   })
 })
