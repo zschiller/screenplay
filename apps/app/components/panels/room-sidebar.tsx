@@ -40,9 +40,6 @@ import {
   Settings,
   ChevronRight,
   GitBranch,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
   Plus,
   FolderOpen,
   Globe,
@@ -98,10 +95,8 @@ import {
 } from "@workspace/ui/components/field"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Input } from "@workspace/ui/components/input"
-import { Spinner } from "@workspace/ui/components/spinner"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
-import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
 import {
@@ -150,7 +145,7 @@ import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
-import { WorkspaceStatusLine } from "@/components/panels/workspace-status-line"
+import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 
 /** A human-readable label for a picker pick, for the settings-stage header. */
 function pickLabel(pick: RepoPickerSelection): string {
@@ -1890,9 +1885,6 @@ export function RoomSidebar({
                                       strategy={verticalListSortingStrategy}
                                     >
                                       {repoBranches.map((branch) => {
-                                        const isLoading =
-                                          branch.status === "creating" ||
-                                          branch.status === "starting"
                                         const isActive =
                                           activeBranchIds?.has(branch.id) ??
                                           false
@@ -1950,27 +1942,24 @@ export function RoomSidebar({
                                                         isActive={false}
                                                       >
                                                         <div>
-                                                          {isLoading ? (
-                                                            // Progress (creating/starting) uses the shared Spinner;
-                                                            // the 9-dot GripSpinner is reserved for agent activity.
-                                                            <Spinner
-                                                              aria-label="Setting up"
-                                                              className="size-3.5 shrink-0 text-sidebar-foreground/70"
-                                                            />
-                                                          ) : isActive ? (
-                                                            <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
-                                                          ) : pr?.state ===
-                                                            "merged" ? (
-                                                            <GitMerge className="shrink-0" />
-                                                          ) : pr?.state ===
-                                                            "open" ? (
-                                                            <GitPullRequest className="shrink-0" />
-                                                          ) : pr?.state ===
-                                                            "closed" ? (
-                                                            <GitPullRequestClosed className="shrink-0" />
-                                                          ) : (
-                                                            <GitBranch className="shrink-0 text-sidebar-foreground/70" />
-                                                          )}
+                                                          <WorkspaceStatusIcon
+                                                            branch={branch}
+                                                            context={{
+                                                              agentWorking:
+                                                                isActive,
+                                                              pr,
+                                                            }}
+                                                            onRetry={() =>
+                                                              onRetryBranch(
+                                                                branch.id
+                                                              )
+                                                            }
+                                                            onRecreate={() =>
+                                                              setPendingRecreateBranchId(
+                                                                branch.id
+                                                              )
+                                                            }
+                                                          />
                                                           {branch.ref ? (
                                                             <BranchBadge
                                                               ref={branchRef}
@@ -2128,25 +2117,6 @@ export function RoomSidebar({
                                                           )
                                                         })()}
                                                       </div>
-                                                      <WorkspaceStatusLine
-                                                        className="col-start-1 -mt-1 pr-2 pb-1 pl-[1.875rem]"
-                                                        branch={branch}
-                                                        context={{
-                                                          agentWorking:
-                                                            isActive,
-                                                          pr,
-                                                        }}
-                                                        onRetry={() =>
-                                                          onRetryBranch(
-                                                            branch.id
-                                                          )
-                                                        }
-                                                        onRecreate={() =>
-                                                          setPendingRecreateBranchId(
-                                                            branch.id
-                                                          )
-                                                        }
-                                                      />
                                                     </div>
                                                   )}
                                                 </WithEditableRef>

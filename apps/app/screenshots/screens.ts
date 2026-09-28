@@ -582,6 +582,19 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "canvas-workspace-status",
+    description:
+      "Hovering a Workspace's status icon: its state in words in a tooltip.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByRole("img", { name: "Running setup script" })
+        .hover({ timeout: 15_000 })
+      await page.getByRole("tooltip").first().waitFor({ timeout: 5_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "canvas-pr-merged",
     description:
       "A Canvas whose Workspace has a merged PR: the sidebar's merged icon and diff stats.",
@@ -1532,9 +1545,9 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
  * only way that version can be opened.
  */
 export async function openSetupError(page: Page): Promise<void> {
-  // The failed Workspace's status line reads "Setup failed · Retry"; the first
-  // half opens the error card.
-  const button = page.getByRole("button", { name: "Setup failed", exact: true })
+  // The failed Workspace's status icon is labelled by what failed; it opens
+  // the error card.
+  const button = page.getByRole("button", { name: /failed$/ })
   await button.first().focus({ timeout: 15_000 })
   await page.keyboard.press("Enter")
   await page

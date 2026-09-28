@@ -1,10 +1,10 @@
 import type { BranchData } from "@/lib/types"
 
 /**
- * Workspace status line — the muted second line under each Workspace row in
- * the in-room sidebar (#791). It says, in words, what the Workspace is doing
- * right now: the setup step it's on, that its agent is working, where its PR
- * stands, or that setup failed.
+ * Workspace status line — the words behind each Workspace row's status icon
+ * in the in-room sidebar (#791), shown in its tooltip. It says what the
+ * Workspace is doing right now: the setup step it's on, that its agent is
+ * working, where its PR stands, or that setup failed.
  *
  * Pure: it reads the slice of a Branch below plus two facts the sidebar
  * already holds (whether a turn is in flight, the cached PR), and returns plain
@@ -32,9 +32,6 @@ export type WorkspaceStatusLine =
   | { kind: "error"; title: string; detail: string }
   | { kind: "idle"; text: string }
 
-/** The row's words for a failure, whatever step it was. */
-export const FAILED_LABEL = "Setup failed"
-
 /** "Installing dependencies…" → "Installing dependencies". */
 function stepLabel(message: string | undefined): string {
   return (message ?? "")
@@ -50,7 +47,7 @@ function stepLabel(message: string | undefined): string {
  */
 export function failureTitle(message: string | undefined): string {
   const step = stepLabel(message)
-  return step ? `${step} failed` : FAILED_LABEL
+  return step ? `${step} failed` : "Setup failed"
 }
 
 export function workspaceStatusLine(

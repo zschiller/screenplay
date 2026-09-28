@@ -1,0 +1,200 @@
+"use client"
+
+import { useEffect, useState, type SyntheticEvent } from "react"
+import {
+  AlertTriangle,
+  Copy,
+  GitBranch,
+  GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
+} from "lucide-react"
+import { toast } from "sonner"
+import { Button } from "@workspace/ui/components/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
+import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
+import { GripSpinner } from "@/components/grip-spinner"
+import {
+  formatElapsed,
+  workspaceStatusLine,
+  type StatusLineBranch,
+  type StatusLineContext,
+  type WorkspaceStatusLine,
+} from "@/lib/branch/status-line"
+
+// The icon sits inside the dnd-kit sortable row, and the popover portals out
+// of it while React events still bubble through: keep clicks from selecting
+// the Workspace, and keys and pointer-downs from reaching the drag sensors
+// (Space is the KeyboardSensor's pick-up key).
+const stop = (e: SyntheticEvent) => e.stopPropagation()
+const isolate = {
+  onClick: stop,
+  onDoubleClick: stop,
+  onKeyDown: stop,
+  onPointerDown: stop,
+}
+
+/** Milliseconds since `key` last changed, ticking once a second. */
+function useElapsed(key: string): number {
+  const [now, setNow] = useState(() => Date.now())
+  const [start, setStart] = useState(() => ({ key, at: now }))
+  if (start.key !== key) setStart({ key, at: now })
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return now - start.at
+}
+
+function ProgressText({ step }: { step: string }) {
+  const elapsed = useElapsed(step)
+  return (
+    <>
+      {step} · {formatElapsed(elapsed)}
+    </>
+  )
+}
+
+function StateIcon({
+  line,
+  context,
+}: {
+  line: Exclude<WorkspaceStatusLine, { kind: "error" }>
+  context: StatusLineContext
+}) {
+  // Progress uses the shared Spinner; the 9-dot GripSpinner is reserved for
+  // agent activity. Everything else is a muted glyph: colour is for failures.
+  if (line.kind === "progress")
+    return <Spinner className="size-3.5 text-sidebar-foreground/70" />
+  if (context.agentWorking)
+    return <GripSpinner className="size-3.5 text-sidebar-foreground/70" />
+  const Icon =
+    context.pr?.state === "merged"
+      ? GitMerge
+      : context.pr?.state === "open"
+        ? GitPullRequest
+        : context.pr?.state === "closed"
+          ? GitPullRequestClosed
+          : GitBranch
+  return <Icon className="size-4 text-sidebar-foreground/70" />
+}
+
+/**
+ * The leading icon of a Workspace row (#791): one glyph for its state, with the
+ * state in words in a tooltip ("Installing dependencies · 40s", "Agent
+ * working", "PR #482 · open"). A failure is the one coloured icon; clicking it
+ * opens a card titled by the step that failed, with the error and Retry,
+ * Recreate and Copy error.
+ */
+export function WorkspaceStatusIcon({
+  branch,
+  context,
+  onRetry,
+  onRecreate,
+}: {
+  branch: StatusLineBranch
+  context: StatusLineContext
+  onRetry: () => void
+  onRecreate: () => void
+}) {
+  const line = workspaceStatusLine(branch, context)
+  const [open, setOpen] = useState(false)
+
+  if (line.kind !== "error") {
+    const text =
+      line.kind === "progress" ? <ProgressText step={line.step} /> : line.text
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="img"
+            aria-label={line.kind === "progress" ? line.step : line.text}
+            className="flex shrink-0"
+          >
+            <StateIcon line={line} context={context} />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right">{text}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  const copyError = () => {
+    void navigator.clipboard
+      ?.writeText(line.detail)
+      .then(() => toast.success("Error copied"))
+      .catch(() => toast.error("Couldn't copy the error"))
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={line.title}
+              className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              {...isolate}
+            >
+              <AlertTriangle className="size-3.5 text-destructive" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="right">{line.title}</TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        align="start"
+        side="right"
+        className="w-80 gap-3"
+        {...isolate}
+      >
+        <p className="text-sm font-medium text-popover-foreground">
+          {line.title}
+        </p>
+        <pre className="max-h-40 overflow-auto font-mono text-xs break-words whitespace-pre-wrap text-muted-foreground">
+          {line.detail}
+        </pre>
+        <div className="flex items-center gap-2">
+          <Button
+            size="xs"
+            onClick={() => {
+              setOpen(false)
+              onRetry()
+            }}
+          >
+            Retry
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => {
+              setOpen(false)
+              onRecreate()
+            }}
+          >
+            Recreate
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            className="ml-auto"
+            onClick={copyError}
+          >
+            <Copy />
+            Copy error
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
