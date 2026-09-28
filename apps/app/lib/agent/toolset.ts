@@ -6,16 +6,19 @@ import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 import { buildMarkdownLayerTools } from "@/lib/agent/markdown-layer-tools"
 import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
+import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
 
 /**
  * What a chat target needs to assemble its toolset. The sandbox kind carries a
  * {@link ToolContext} (which VM, room, acting user); the markdown-layer kind
- * carries the document it's editing. Both carry `roomId` so the cross-cutting
+ * carries the document it's editing; the room kind carries the ports the
+ * Coordinator tools module drives. All carry `roomId` so the cross-cutting
  * read tools can resolve peer layers.
  */
 export type ToolTarget =
   | { kind: "sandbox"; roomId: string; sandbox: ToolContext }
   | { kind: "markdown-layer"; roomId: string; markdownLayerId: string }
+  | { kind: "room"; roomId: string; ports: RoomToolPorts }
 
 /**
  * The single assembly point for an agent loop's tools. Picks the target's own
@@ -31,10 +34,12 @@ export function toolsetFor(target: ToolTarget): ToolSet {
   const own =
     target.kind === "sandbox"
       ? buildSandboxTools(target.sandbox)
-      : buildMarkdownLayerTools({
-          roomId: target.roomId,
-          markdownLayerId: target.markdownLayerId,
-        })
+      : target.kind === "room"
+        ? buildRoomTools(target.roomId, target.ports)
+        : buildMarkdownLayerTools({
+            roomId: target.roomId,
+            markdownLayerId: target.markdownLayerId,
+          })
   return withRedactedOutput({ ...own, ...read })
 }
 

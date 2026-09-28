@@ -92,6 +92,7 @@ import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
 import { prStateColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
+import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
 
@@ -411,6 +412,9 @@ interface ChatPanelProps {
   selectedChatId: string | null
   roomId: string
   onSelectChat: (chatId: string | null) => void
+  /** Go back to the panel's home, the Coordinator chat (the header's first
+   *  crumb). Absent where there is no Coordinator to go back to. */
+  onShowRoomChat?: () => void
   onCreateChat: () => void
   /** Open a new terminal tab against the current agent's sandbox, launching the
    *  given harness (by `Harness.key`). Absent for non-agent (layer) targets,
@@ -464,6 +468,7 @@ export function ChatPanel({
   selectedChatId,
   roomId,
   onSelectChat,
+  onShowRoomChat,
   onCreateChat,
   onCreateTerminal,
   onRenameChat,
@@ -924,6 +929,23 @@ export function ChatPanel({
               <PanelRightClose />
             </button>
           </IconButton>
+        )}
+        {onShowRoomChat && (
+          <>
+            <button
+              type="button"
+              onClick={onShowRoomChat}
+              className="shrink-0 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {ROOM_CHAT_LABEL}
+            </button>
+            <span
+              aria-hidden
+              className="mx-1.5 shrink-0 text-sm text-muted-foreground"
+            >
+              /
+            </span>
+          </>
         )}
         {disableBranchPicker ? (
           <TargetPill target={target} />

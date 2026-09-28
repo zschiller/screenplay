@@ -4,11 +4,14 @@ import type { ModelMessage, Tool } from "ai"
 import {
   buildAgentSystemPrompt,
   buildMarkdownLayerSystemPrompt,
+  buildRoomSystemPrompt,
   type LayerDirectory,
 } from "./config"
 import { toolsetFor } from "./toolset"
 import { prependTurnMarkers } from "./message-markers"
 import type { ToolContext } from "./tools"
+import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
+import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import { readRoomDoc } from "@/lib/yjs/server"
@@ -18,7 +21,8 @@ import {
 } from "@/lib/yjs/fragment-text"
 
 /**
- * Server-side registry of chat target kinds. Each entry contains the
+ * Server-side registry of chat target kinds (a Branch's sandbox, a document,
+ * or the whole Room). Each entry contains the
  * code paths that change between targets:
  *
  *   - `loadContext` reads the live state of the target from Yjs.
@@ -182,6 +186,63 @@ export const markdownLayerChatTarget: ChatTargetSpec<
   // (#743). The composer hides the Plan toggle for document targets; this is
   // the server-side half of that contract, so a stale client that still sends
   // `planMode: true` can't slip the prefix into the prompt.
+  decorateUserMessage(message) {
+    return message
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Room target — the whole canvas (the Coordinator). No sandbox, no document:
+// its tools come from the Coordinator tools module (`room-tools.ts`).
+// ---------------------------------------------------------------------------
+
+export interface RoomTarget {
+  /** The member whose message this turn answers (Terminal Tabs are per user). */
+  userId: string
+}
+
+interface RoomContext {
+  canvasSummary: string
+}
+
+/** The Coordinator tools module's ports over the live Room doc and database. */
+export function liveRoomToolPorts(
+  roomId: string,
+  userId: string
+): RoomToolPorts {
+  return {
+    readDoc: (fn) => readRoomDoc(roomId, fn),
+    listTerminalTabs: async () =>
+      (await listTerminalTabs({ userId, roomId })).map((t) => ({
+        id: t.id,
+        label: t.label,
+        branchId: t.branch,
+      })),
+  }
+}
+
+export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
+  kind: "room",
+  async loadContext(roomId, target) {
+    const ports = liveRoomToolPorts(roomId, target.userId)
+    const terminalTabs = await ports.listTerminalTabs().catch(() => [])
+    const canvasSummary = await ports.readDoc((collections) =>
+      summarizeCanvas(collections, terminalTabs)
+    )
+    return { canvasSummary }
+  },
+  buildSystemPrompt(ctx) {
+    return buildRoomSystemPrompt({ canvasSummary: ctx.canvasSummary })
+  },
+  buildTools(roomId, target) {
+    return toolsetFor({
+      kind: "room",
+      roomId,
+      ports: liveRoomToolPorts(roomId, target.userId),
+    })
+  },
+  // No turn markers: there is no branch, and plan mode belongs to sandbox
+  // chats (#743), so a stale `planMode: true` never reaches the model.
   decorateUserMessage(message) {
     return message
   },

@@ -55,6 +55,8 @@ interface AgentChatProps {
   branch?: string
   /** Document-layer target. */
   markdownLayerId?: string
+  /** The Room's Coordinator chat: the whole canvas, no sandbox or document. */
+  roomTarget?: boolean
   isFirstChat?: boolean
   autoNamedBranch?: boolean
   planMode?: boolean
@@ -76,6 +78,7 @@ export function AgentChat({
   sandboxStatus,
   branch,
   markdownLayerId,
+  roomTarget,
   isFirstChat,
   autoNamedBranch,
   planMode,
@@ -103,6 +106,7 @@ export function AgentChat({
     sandboxName,
     branch,
     markdownLayerId,
+    roomTarget,
     isFirstChat,
     autoNamedBranch,
     planMode,
@@ -125,9 +129,9 @@ export function AgentChat({
 
   const markdownLayers = useMarkdownLayers()
 
-  // Sandbox-backed Agent chat vs. Document / Markdown-Layer chat. A Document
-  // chat has no sandbox and an editorial toolset, so three composer affordances
-  // that only make sense against a sandbox are switched off for it:
+  // Sandbox-backed Agent chat vs. a Document (Markdown-Layer) or Coordinator
+  // (Room) chat. Neither of those has a sandbox, so three composer affordances
+  // that only make sense against a sandbox are switched off for them:
   //
   //   - the `/` skill menu — nothing to enumerate, no `read_skill` tool, so `/`
   //     stays a literal slash;
@@ -136,10 +140,17 @@ export function AgentChat({
   //   - element picking — there's no preview to pick from.
   //
   // The empty-state copy below splits on the same flag.
-  const isAgentChat = !markdownLayerId
+  const chatKind: ChatKind = roomTarget
+    ? "room"
+    : markdownLayerId
+      ? "document"
+      : "agent"
+  const isAgentChat = chatKind === "agent"
   const composerPlaceholder = isAgentChat
     ? "Ask the agent… (@ document, / skill)"
-    : "Ask the agent… (@ to mention a document)"
+    : chatKind === "room"
+      ? "Ask the Coordinator… (@ to mention a document)"
+      : "Ask the agent… (@ to mention a document)"
 
   // Merged App ∪ Repo Skill index for the `/` menu, fetched once on chat open
   // (see effect below) and handed to the Composer. `skillsLoading` drives the
@@ -420,7 +431,7 @@ export function AgentChat({
             </div>
           ) : messages.length === 0 && !failedSend ? (
             <ChatEmptyState
-              isAgentChat={isAgentChat}
+              kind={chatKind}
               branch={branch}
               onPickStarter={(text) => composerRef.current?.insertText(text)}
             />
@@ -526,31 +537,50 @@ const DOCUMENT_STARTERS = [
   "Add a summary at the top",
   "Turn this into a checklist",
 ]
+const ROOM_STARTERS = [
+  "What's on this canvas?",
+  "Which Workspaces have a PR?",
+  "What changed in each Workspace?",
+]
+
+/** Which Chat Target a chat talks to, in the UI's terms. */
+type ChatKind = "agent" | "document" | "room"
 
 /**
  * The empty chat, worded for its Chat Target in the UI's own nouns: a frame
  * chat changes the Workspace's code (and so what its frames show), a Document
- * chat edits the Document. A starter fills the composer rather than sending, so
- * it can be edited first.
+ * chat edits the Document, the Coordinator sees the whole canvas. A starter
+ * fills the composer rather than sending, so it can be edited first.
  */
 function ChatEmptyState({
-  isAgentChat,
+  kind,
   branch,
   onPickStarter,
 }: {
-  isAgentChat: boolean
+  kind: ChatKind
   branch?: string
   onPickStarter: (text: string) => void
 }) {
-  const starters = isAgentChat ? FRAME_STARTERS : DOCUMENT_STARTERS
+  const starters =
+    kind === "agent"
+      ? FRAME_STARTERS
+      : kind === "room"
+        ? ROOM_STARTERS
+        : DOCUMENT_STARTERS
   return (
     <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">
-          {isAgentChat ? "Change what your frames show" : "Edit this Document"}
+          {kind === "agent"
+            ? "Change what your frames show"
+            : kind === "room"
+              ? "Ask about this canvas"
+              : "Edit this Document"}
         </p>
         <p className="text-xs text-muted-foreground">
-          {isAgentChat ? (
+          {kind === "room" ? (
+            "The Coordinator sees every Workspace, frame and Document on this canvas."
+          ) : kind === "agent" ? (
             <>
               The agent edits the code in{" "}
               {branch ? (

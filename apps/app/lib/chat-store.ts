@@ -53,6 +53,8 @@ export interface SendMessageOptions {
   branch?: string
   /** Document-layer chat target — mutually exclusive with sandboxName. */
   markdownLayerId?: string
+  /** The Room's Coordinator chat (no sandbox, no document). */
+  roomTarget?: boolean
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
@@ -381,6 +383,7 @@ class ChatStore {
           sandboxName: opts.sandboxName,
           branch: opts.branch,
           markdownLayerId: opts.markdownLayerId,
+          target: opts.roomTarget ? "room" : undefined,
           message: opts.message,
           isFirstChat: opts.isFirstChat,
           autoNamedBranch: opts.autoNamedBranch,

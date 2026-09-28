@@ -20,6 +20,7 @@ import { fixtureFaultCookieName, type FixtureFault } from "@/lib/fixture-faults"
 import { fixtureGitHubCookieName } from "@/lib/fixture-github"
 import { fixtureModelCookieName } from "@/lib/fixture-model"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
+import { roomChatId } from "@/lib/chat/room-chat"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
@@ -505,6 +506,49 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-coordinator",
+    description:
+      "The chat panel's home with no Workspace selected: the canvas's Coordinator chat, empty (#893).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-answer",
+    description:
+      'The Coordinator answering "What\'s on this canvas?" from its read-canvas tool (#893).',
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.checkout), coordinatorRun())
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-breadcrumb",
+    description:
+      "A Workspace's chat header: the Coordinator crumb before the Workspace pill, hovered (#893).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await page
+        .getByRole("button", { name: "Coordinator", exact: true })
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-header-pr-none",
     description:
       "The chat header for a Workspace with no PR yet: the Create PR button.",
@@ -521,6 +565,7 @@ export const SCREENS: Screen[] = [
       "The chat header for a Workspace whose PR merged: the PR button in GitHub purple.",
     path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
+    prepare: (page) => selectWorkspace(page, "pricing-tiers"),
     settleMs: 400,
   },
   {
@@ -1411,6 +1456,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
+      await selectWorkspace(page, CHAT_WORKSPACE)
       await page
         .locator('[data-slot="tabs-list"] button:has(svg.lucide-plus)')
         .first()
@@ -1612,6 +1658,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
+      await selectWorkspace(page, CHAT_WORKSPACE)
       // The chat header's trigger is labelled with the current Workspace's
       // ref; the frame labels on the canvas share that shape and come first.
       await page
@@ -3023,6 +3070,12 @@ async function waitForPlanCard(page: Page): Promise<void> {
     .waitFor({ timeout: 30_000 })
 }
 
+/**
+ * The checkout Canvas's Workspace that holds the fixture chats ("Checkout
+ * polish", "Breakpoint audit", "New chat") and terminal tabs.
+ */
+const CHAT_WORKSPACE = "Checkout polish"
+
 export async function selectWorkspace(page: Page, ref: string): Promise<void> {
   // The sidebar's Workspace rows are labelled with the Workspace's title
   // (#881), or its git ref when it has none: what a person reads off the
@@ -3053,7 +3106,14 @@ export async function openSetupError(page: Page): Promise<void> {
  * opened by {@link canvasPanels}, not from here, so this only ever has to pick
  * between tabs that are already on screen.
  */
-export async function openChatTab(page: Page, label: string): Promise<void> {
+export async function openChatTab(
+  page: Page,
+  label: string,
+  workspace = CHAT_WORKSPACE
+): Promise<void> {
+  // The panel opens on the Coordinator (#893); a chat tab lives in its
+  // Workspace's tab strip.
+  await selectWorkspace(page, workspace)
   await page
     .getByRole("tab", { name: new RegExp(label, "i") })
     .first()
@@ -3105,6 +3165,7 @@ export async function pasteImageInComposer(page: Page): Promise<void> {
  * arrive, so they can't be relied on to be there.
  */
 export async function openTerminalTab(page: Page): Promise<void> {
+  await selectWorkspace(page, CHAT_WORKSPACE)
   await page
     .getByRole("button", { name: "New chat or terminal" })
     .first()
@@ -3143,6 +3204,7 @@ function playPath(branchId: string, iframeLayerId: string): string {
 }
 
 export async function openLogsTab(page: Page): Promise<void> {
+  await selectWorkspace(page, CHAT_WORKSPACE)
   await page
     .getByRole("tab", { name: "Sandbox logs" })
     .first()
@@ -3202,12 +3264,14 @@ export async function addPeer(
 
 /**
  * Pick a Chat Target from the chat panel's header picker — how a Document chat
- * is reached, since the panel opens on the Canvas's first Workspace.
+ * is reached from a Workspace's chat. The panel opens on the Coordinator
+ * (#893), whose header has no picker, so a Workspace is opened first.
  */
 export async function selectChatTarget(
   page: Page,
   label: string
 ): Promise<void> {
+  await selectWorkspace(page, CHAT_WORKSPACE)
   const trigger = page
     .getByRole("button")
     .filter({ has: page.locator("svg.lucide-chevrons-up-down") })
@@ -3288,6 +3352,52 @@ export function streamingRun(): RunEvent[] {
         ),
       },
     },
+  ]
+}
+
+/**
+ * A finished Coordinator turn on the checkout canvas: the question, a
+ * `read_canvas` call, and an answer that matches the fixture world.
+ */
+export function coordinatorRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("What's on this canvas?"),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-read-canvas",
+        title: "read_canvas",
+        kind: "read",
+        status: "completed",
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          [
+            "Four Workspaces on acme/storefront:",
+            "",
+            "- **Checkout polish**: +214 −37, PR #482 open",
+            "- **Empty cart state**: +46 −4, no PR yet",
+            "- **Apple Pay button**: still starting",
+            "- **gift-cards**: setup failed",
+            "",
+            "There are four frames (checkout on desktop and iPhone, the empty cart, and one with no Workspace) and one document, Checkout brief.",
+          ].join("\n")
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
   ]
 }
 
