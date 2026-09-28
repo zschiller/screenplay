@@ -50,20 +50,16 @@ export interface SendMessageOptions {
   chatId: string
   /** Sandbox-backed chat target. */
   sandboxName?: string
-  branch?: string
   /** Document-layer chat target — mutually exclusive with sandboxName. */
   markdownLayerId?: string
   /** The Room's Coordinator chat (no sandbox, no document). */
   roomTarget?: boolean
   message: string
   isFirstChat?: boolean
-  autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
   /** Comment threads this message asks the agent to address (#788). */
   commentThreadIds?: string[]
-  onBranchRename?: (branch: string) => void
-  onChatRename?: (label: string) => void
   /**
    * The composer's document for this message. Opaque to the store: it rides
    * along so a failed or queued message can be put back in the composer intact
@@ -74,14 +70,11 @@ export interface SendMessageOptions {
 
 /**
  * A non-ACP control signal that rides its own broadcast envelope (ADR 0006).
- * ACP has no slot for these — auto-naming renames, the human plan resolution,
- * and turn errors — so they stay screenplay-shaped on a dedicated channel,
+ * ACP has no slot for these — the human plan resolution and turn errors — so they stay screenplay-shaped on a dedicated channel,
  * structurally distinct from the ACP `session/update` and permission-request
  * envelopes (the way the permission request is already kept apart).
  */
 export type ChatControlEvent =
-  | { kind: "branch_rename"; branch: string }
-  | { kind: "chat_rename"; label: string }
   // The human resolved a plan gate — flip the matching plan card. The
   // continuation (and any reject feedback) rides its own `user` turn, so the
   // card carries only the resolved status.
@@ -232,15 +225,6 @@ class ChatStore {
    */
   private acpThoughtText = new Map<string, { text: string; active: boolean }>()
 
-  /** Per-chat callbacks for branch_rename / chat_rename broadcast events. */
-  private callbacks = new Map<
-    string,
-    {
-      onBranchRename?: (branch: string) => void
-      onChatRename?: (label: string) => void
-    }
-  >()
-
   private getOrCreate(chatId: string): ChatState {
     let state = this.states.get(chatId)
     if (!state) {
@@ -317,22 +301,6 @@ class ChatStore {
       })
   }
 
-  // --- Callbacks ---
-
-  setCallbacks(
-    chatId: string,
-    cbs: {
-      onBranchRename?: (branch: string) => void
-      onChatRename?: (label: string) => void
-    }
-  ) {
-    this.callbacks.set(chatId, cbs)
-  }
-
-  clearCallbacks(chatId: string) {
-    this.callbacks.delete(chatId)
-  }
-
   // --- Send message (fire-and-forget POST, server broadcasts via Liveblocks) ---
 
   /**
@@ -368,11 +336,6 @@ class ChatStore {
       messages: [...state.messages, optimistic],
     })
 
-    this.callbacks.set(chatId, {
-      onBranchRename: opts.onBranchRename,
-      onChatRename: opts.onChatRename,
-    })
-
     try {
       const res = await fetch(withBasePath("/api/agent/stream"), {
         method: "POST",
@@ -381,12 +344,10 @@ class ChatStore {
           roomId: opts.roomId,
           chatId: opts.chatId,
           sandboxName: opts.sandboxName,
-          branch: opts.branch,
           markdownLayerId: opts.markdownLayerId,
           target: opts.roomTarget ? "room" : undefined,
           message: opts.message,
           isFirstChat: opts.isFirstChat,
-          autoNamedBranch: opts.autoNamedBranch,
           planMode: opts.planMode,
           model: opts.model,
           commentThreadIds: opts.commentThreadIds,
@@ -552,20 +513,13 @@ class ChatStore {
   }
 
   /**
-   * Apply a non-ACP control signal (ADR 0006): an auto-naming rename (delegated
-   * to the registered callback), a plan resolution (flip the matching plan
-   * card), or a turn error (surface it in chat). These have no ACP slot, so they
-   * ride their own envelope rather than a `session/update`.
+   * Apply a non-ACP control signal (ADR 0006): a plan resolution (flip the
+   * matching plan card) or a turn error (surface it in chat). These have no ACP
+   * slot, so they ride their own envelope rather than a `session/update`.
+   * Auto-naming is not a control: the server writes names to the room doc.
    */
   private applyControl(chatId: string, control: ChatControlEvent) {
-    const cbs = this.callbacks.get(chatId)
     switch (control.kind) {
-      case "branch_rename":
-        cbs?.onBranchRename?.(control.branch)
-        break
-      case "chat_rename":
-        cbs?.onChatRename?.(control.label)
-        break
       case "plan_resolved": {
         const prev = this.getOrCreate(chatId).messages
         this.update(chatId, {
@@ -848,7 +802,6 @@ class ChatStore {
     this.states.delete(chatId)
     this.historyLoaded.delete(chatId)
     this.unreadChats.delete(chatId)
-    this.callbacks.delete(chatId)
     this.messagesEpoch.delete(chatId)
     this.appliedEventIds.delete(chatId)
     this.acpAgentText.delete(chatId)

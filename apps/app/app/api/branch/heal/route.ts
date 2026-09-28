@@ -1,6 +1,6 @@
-import { getUserId } from "@/lib/auth-helpers"
 import { findActiveRun } from "@/lib/agent/persistence"
 import { broadcastSignal } from "@/lib/agent/broadcast"
+import { openRoomForRoute } from "@/lib/room-access"
 
 export const runtime = "nodejs"
 
@@ -15,14 +15,14 @@ interface RequestBody {
  * paused_for_plan counts as "still doing something" and is left alone.
  */
 export async function POST(req: Request) {
-  const userId = await getUserId()
-  if (!userId) return new Response("Unauthorized", { status: 401 })
-
   const body: RequestBody = await req.json()
   const { roomId, chatId } = body
   if (!roomId || !chatId) {
     return new Response("Missing required fields", { status: 400 })
   }
+
+  const room = await openRoomForRoute(roomId, chatId)
+  if (room instanceof Response) return room
 
   const active = await findActiveRun(chatId)
   if (active?.status === "running") {

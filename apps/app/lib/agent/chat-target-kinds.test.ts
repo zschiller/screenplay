@@ -87,7 +87,16 @@ describe("room chat target", () => {
   })
 
   it("runs with the canvas reader and the shared document reader only", () => {
-    const tools = roomChatTarget.buildTools("room-1", { userId: "user-1" })
+    const room = {
+      roomId: "room-1",
+      readDoc: async () => {
+        throw new Error("not read while building tools")
+      },
+      mutateDoc: async () => {
+        throw new Error("not written while building tools")
+      },
+    }
+    const tools = roomChatTarget.buildTools(room, { userId: "user-1" })
 
     expect(Object.keys(tools).sort()).toEqual(["read_canvas", "read_document"])
   })

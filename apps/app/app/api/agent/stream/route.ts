@@ -16,14 +16,12 @@ interface RequestBody {
   chatId: string
   /** Required when the chat targets an agent (sandbox-backed flow). */
   sandboxName?: string
-  branch?: string
   /** Required when the chat targets a document layer (no sandbox). */
   markdownLayerId?: string
   /** `"room"` for the Room's Coordinator chat (no sandbox, whole canvas). */
   target?: "room"
   message: string
   isFirstChat?: boolean
-  autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
   /** Comment threads this turn asks the agent to address (#788). */
@@ -60,23 +58,21 @@ export async function POST(req: Request) {
   const target = isRoomTarget
     ? roomTurn({ room, chatId, message, model })
     : markdownLayerId
-      ? markdownLayerTurn({ roomId, chatId, markdownLayerId, message, model })
+      ? markdownLayerTurn({ room, chatId, markdownLayerId, message, model })
       : sandboxTurn({
-          roomId,
+          room,
           chatId,
           sandboxName: sandboxName!,
           userId,
           message,
-          branch: body.branch,
           isFirstChat: body.isFirstChat,
-          autoNamedBranch: body.autoNamedBranch,
           planMode: body.planMode,
           model,
           commentThreadIds: body.commentThreadIds,
         })
 
   const result = await launchTurn(
-    liveTurnLaunchDeps,
+    liveTurnLaunchDeps(room),
     { roomId, chatId, message, sandboxName, model },
     target
   )

@@ -92,6 +92,6 @@ describe("InProcessEngine — capability + cancellation", () => {
       },
       controller.signal
     )
-    expect(updates).toEqual([{ kind: "error", message: "Stopped by user" }])
+    expect(updates).toEqual([{ kind: "done", stopReason: "cancelled" }])
   })
 })

@@ -1,7 +1,8 @@
 import "server-only"
 
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomReader } from "@/lib/room-access"
+import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deriveFallbackName } from "./fallback-name"
 import { runOneShotModel } from "./one-shot-model"
 
@@ -69,11 +70,7 @@ export async function generateChatNames(
   let branch = ""
   let chatLabel = ""
   if (opts.shouldNameBranch) {
-    branch = (lines[0] ?? "")
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
+    branch = sanitizeBranchName(lines[0] ?? "")
     chatLabel = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
   } else {
     chatLabel = (lines[0] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
@@ -96,12 +93,12 @@ export async function generateChatNames(
  * just lifted out so we don't reach into the v1 route file.
  */
 export async function deduplicateBranchName(
-  roomId: string,
+  room: RoomReader,
   branchName: string,
   userId: string
 ): Promise<string> {
   try {
-    const repo = await readRoomDoc(roomId, ({ repos }) => {
+    const repo = await room.readDoc(({ repos }) => {
       const firstRepo = repos.toArray()[0]
       if (!firstRepo) return null
       return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }

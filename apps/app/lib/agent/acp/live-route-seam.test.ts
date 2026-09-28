@@ -15,6 +15,8 @@ import { AcpUpdateConsumer, type AcpConsumerPorts } from "./consumer"
 import { driveEngineTurn } from "./live-turn"
 import {
   launchTurn,
+  STOPPED_RUN_STATUS,
+  stopTurn,
   type PreparedTurn,
   type TurnLaunchDeps,
   type TurnRequest,
@@ -197,6 +199,7 @@ function liveHarness() {
           control,
         })
       },
+      async renameBranch() {},
       async queueCommentRequest() {},
       async startCommentRequest() {},
       async settleCommentRequest() {},
@@ -239,6 +242,31 @@ function liveHarness() {
     }
   }
 
+  /** What `/api/agent/stop` does, over the same in-memory boundary. */
+  const stop = () =>
+    stopTurn(
+      {
+        async findActiveRun() {
+          for (const [id, status] of rows) {
+            if (status === "running" || status === "paused_for_plan")
+              return { id }
+          }
+          return null
+        },
+        transition: (id, to) => runState.transition(id, to),
+        async broadcastControl(_roomId, _chatId, control) {
+          broadcasts.push({
+            type: "chat-control",
+            chatId: CHAT_ID,
+            id: mintId(),
+            control,
+          })
+        },
+        broadcastStreamEnd: () => portsFor(RUN_ID).broadcastEnd(),
+      },
+      { roomId: ROOM_ID, chatId: CHAT_ID }
+    )
+
   /** Launch a turn and drive it to the end, as the request plus `after()` do. */
   const run = async (
     text: string,
@@ -260,6 +288,7 @@ function liveHarness() {
     runState,
     launch,
     run,
+    stop,
   }
 }
 
@@ -281,7 +310,8 @@ function reloadMessages(
     string,
     { plan: string; status: "pending" | "approved" | "rejected" }
   >,
-  planAt: Map<string, number> = new Map()
+  planAt: Map<string, number> = new Map(),
+  runs: Map<string, RunStatus> = new Map()
 ): AgentMessage[] {
   const entries: HistoryEntry[] = []
   const plansAt = (i: number) => {
@@ -301,6 +331,11 @@ function reloadMessages(
     entries.push({ kind: "record", record })
   })
   plansAt(records.length)
+  // The history route's stopped-run query: each run with Turn Launch's stopped
+  // status ends in a marker (placed at its `endedAt`, after these records).
+  for (const status of runs.values()) {
+    if (status === STOPPED_RUN_STATUS) entries.push({ kind: "stopped" })
+  }
   return renderHistory(entries)
 }
 
@@ -454,7 +489,11 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
     ])
   })
 
-  it("/stop: the watchdog aborts the in-flight turn and it reports a stop, not a failure", async () => {
+  // #909: a user stop reads the same live and after reload. The stop goes
+  // through Turn Launch (`stopTurn`, what `/api/agent/stop` calls) after the
+  // response went out but before the background turn runs, so the watchdog
+  // aborts the Engine and the abort surfaces as a thrown stream error.
+  it("/stop: a stopped turn renders the same live and after reload, with no error", async () => {
     const h = liveHarness()
 
     const driver: StreamDriver = () => ({
@@ -463,24 +502,53 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
       },
     })
     const { result, afterResponse } = await h.launch("hi", driver)
-    // A `/stop` (or a superseding message) lands after the response went out
-    // but before the background turn runs: the watchdog must catch it.
     expect(result).toEqual({ kind: "started", runId: RUN_ID })
-    await h.runState.transition(RUN_ID, "aborted")
+    await h.stop()
     await afterResponse()
 
-    // A stop, not a failure: "Stopped by user" surfaces on the control channel,
-    // the run stays `aborted` (the consumer's `failed` transition no-ops), and
-    // nothing durable was persisted beyond the user turn.
-    const control = h.broadcasts.find((e) => e.type === "chat-control")
-    expect(control).toMatchObject({
-      control: { kind: "error", message: "Stopped by user" },
-    })
+    // The stop is recorded as the user's, not a failure, and nothing durable
+    // was persisted beyond the user turn.
     expect(h.rows.get(RUN_ID)).toBe("aborted")
     expect(h.records).toEqual<AcpMessageRecord[]>([
       { role: "user", content: [{ type: "text", text: "hi" }] },
     ])
+    // No error on the control channel: a stop is not a failure.
+    expect(
+      h.broadcasts.filter(
+        (e) => e.type === "chat-control" && e.control.kind === "error"
+      )
+    ).toEqual([])
     expect(h.broadcasts.at(-1)?.type).toBe("chat-stream-end")
+
+    const expected: AgentMessage[] = [
+      { role: "user", content: "hi" },
+      { role: "stopped" },
+    ]
+    expect(liveMessages(h.broadcasts)).toEqual(expected)
+    expect(reloadMessages(h.records, h.planRows, new Map(), h.rows)).toEqual(
+      expected
+    )
+  })
+
+  // A superseded run (a new message or a plan resolution replaced it) leaves
+  // nothing in the transcript, live or on reload: the next turn carries on.
+  it("a superseded turn leaves no marker and no error, live or after reload", async () => {
+    const h = liveHarness()
+
+    const driver: StreamDriver = () => ({
+      consumeStream: async () => {
+        throw new Error("aborted")
+      },
+    })
+    const { afterResponse } = await h.launch("hi", driver)
+    await h.runState.transition(RUN_ID, "superseded")
+    await afterResponse()
+
+    const expected: AgentMessage[] = [{ role: "user", content: "hi" }]
+    expect(liveMessages(h.broadcasts)).toEqual(expected)
+    expect(reloadMessages(h.records, h.planRows, new Map(), h.rows)).toEqual(
+      expected
+    )
   })
 
   describe("plan resume: accept, reject and implicit reject share one resolution path", () => {

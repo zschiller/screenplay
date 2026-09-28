@@ -19,6 +19,7 @@ import {
   type CascadeRoom,
 } from "@/lib/folder-cascade"
 import { decideRoomDeletion } from "@/lib/room-deletion"
+import { openRoom } from "@/lib/room-access"
 import { leaveRoom, teardownRoom } from "@/lib/room-teardown"
 import { getRoom, listMembers } from "@/lib/rooms"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -185,7 +186,7 @@ export async function deleteFolder(
   // folder subtree. Sub-folders and any leftover placements cascade away via the
   // self-referencing FK, so the single delete clears the whole branch.
   for (const roomId of cascade.teardownRoomIds) {
-    await teardownRoom(roomId, ownerId)
+    await teardownRoom(await openRoom(roomId))
   }
   for (const roomId of cascade.leaveRoomIds) {
     await leaveRoom(roomId, ownerId)

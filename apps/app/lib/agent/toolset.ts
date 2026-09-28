@@ -6,19 +6,20 @@ import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 import { buildMarkdownLayerTools } from "@/lib/agent/markdown-layer-tools"
 import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
+import type { RoomDoc } from "@/lib/room-access"
 import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
 
 /**
  * What a chat target needs to assemble its toolset. The sandbox kind carries a
  * {@link ToolContext} (which VM, room, acting user); the markdown-layer kind
  * carries the document it's editing; the room kind carries the ports the
- * Coordinator tools module drives. All carry `roomId` so the cross-cutting
- * read tools can resolve peer layers.
+ * Coordinator tools module drives. All carry the turn's Room (from Room
+ * Access) so the cross-cutting read tools can resolve peer layers.
  */
 export type ToolTarget =
-  | { kind: "sandbox"; roomId: string; sandbox: ToolContext }
-  | { kind: "markdown-layer"; roomId: string; markdownLayerId: string }
-  | { kind: "room"; roomId: string; ports: RoomToolPorts }
+  | { kind: "sandbox"; room: RoomDoc; sandbox: ToolContext }
+  | { kind: "markdown-layer"; room: RoomDoc; markdownLayerId: string }
+  | { kind: "room"; room: RoomDoc; ports: RoomToolPorts }
 
 /**
  * The single assembly point for an agent loop's tools. Picks the target's own
@@ -30,14 +31,14 @@ export type ToolTarget =
  * edit to a builder.
  */
 export function toolsetFor(target: ToolTarget): ToolSet {
-  const read = buildLayerReadTools({ roomId: target.roomId })
+  const read = buildLayerReadTools({ room: target.room })
   const own =
     target.kind === "sandbox"
       ? buildSandboxTools(target.sandbox)
       : target.kind === "room"
-        ? buildRoomTools(target.roomId, target.ports)
+        ? buildRoomTools(target.room.roomId, target.ports)
         : buildMarkdownLayerTools({
-            roomId: target.roomId,
+            room: target.room,
             markdownLayerId: target.markdownLayerId,
           })
   return withRedactedOutput({ ...own, ...read })

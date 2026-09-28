@@ -3,12 +3,13 @@ import type { Engine } from "./acp/engine-seam"
 import type { SessionUpdate } from "./acp/schema"
 import { userMessageChunk } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
-import type { PlanResolution } from "./run-state"
+import type { PlanResolution, RunStatus } from "./run-state"
+import type { BranchRenameClaim } from "./auto-naming"
 
 /**
  * What a Chat Target hands {@link launchTurn} once its kind-specific setup is
  * done: the prompt, model and Tools the Engine runs with, the decorated user
- * text to persist, and the first-message renames and comment request to emit.
+ * text to persist, the Branch rename it claimed, and the comment request.
  */
 export interface PreparedTurn {
   systemPrompt: string
@@ -18,8 +19,12 @@ export interface PreparedTurn {
   userText: string
   /** Whether the turn was sent in plan mode (sandbox chats only). */
   planMode?: boolean
-  /** First-message renames, broadcast inside the replay window. */
-  renames?: { branch?: string; label?: string }
+  /**
+   * A first-message Branch rename the target already wrote to the room doc
+   * (#910). Turn Launch renames the git branch before the Engine runs, so the
+   * agent works on the branch its first message names.
+   */
+  branchRename?: BranchRenameClaim
   /**
    * Comment threads (#788). Present on every sandbox turn: the turn queues
    * `threadIds` (possibly none), and starts and settles whatever the chat
@@ -105,6 +110,8 @@ export interface TurnLaunchDeps {
     chatId: string,
     control: ChatControlEvent
   ): Promise<void>
+  /** Rename the claimed git branch; roll the doc back if git refuses. */
+  renameBranch(claim: BranchRenameClaim): Promise<void>
   queueCommentRequest(input: {
     roomId: string
     chatId: string
@@ -143,12 +150,15 @@ export type TurnLaunchResult =
  *    plan still pending (the message is the revision instruction). A decision
  *    on a plan that is no longer pending stops here.
  * 4. Persist the user message before starting the run.
- * 5. Broadcast `chat-stream-start` before the plan card flip, the user echo
- *    and any rename controls. Clients replay back to the latest start marker
- *    and the event log is trimmed on each start, so anything emitted earlier
- *    is lost to a client joining mid-stream.
- * 6. After the response, drive the Engine turn, with the comment request
- *    started before it and settled after it.
+ * 5. Broadcast `chat-stream-start` before the plan card flip and the user
+ *    echo. Clients replay back to the latest start marker and the event log
+ *    is trimmed on each start, so anything emitted earlier is lost to a
+ *    client joining mid-stream.
+ * 6. After the response, rename the claimed git branch, then drive the Engine
+ *    turn, with the comment request started before it and settled after it.
+ *
+ * Names are never broadcast: the target writes them to the room doc, and
+ * clients observe the doc (#910).
  */
 export async function launchTurn(
   deps: TurnLaunchDeps,
@@ -182,19 +192,7 @@ export async function launchTurn(
     })
   }
   await deps.broadcastUpdate(roomId, chatId, userMessageChunk(message))
-  const { renames, commentRequest } = prepared
-  if (renames?.branch) {
-    await deps.broadcastControl(roomId, chatId, {
-      kind: "branch_rename",
-      branch: renames.branch,
-    })
-  }
-  if (renames?.label) {
-    await deps.broadcastControl(roomId, chatId, {
-      kind: "chat_rename",
-      label: renames.label,
-    })
-  }
+  const { branchRename, commentRequest } = prepared
 
   // Comments sent to the agent show as queued from here on.
   if (commentRequest && commentRequest.threadIds.length > 0) {
@@ -207,6 +205,7 @@ export async function launchTurn(
   }
 
   deps.runAfterResponse(async () => {
+    if (branchRename) await deps.renameBranch(branchRename)
     if (commentRequest) await deps.startCommentRequest(roomId, chatId)
     await deps.driveTurn({
       engine,
@@ -255,4 +254,53 @@ async function resolveChatPlan(
     feedback: request.message,
   })
   return resolved ? { planId: pending.id, approved: false } : null
+}
+
+/**
+ * The run status a user stop records. It is the one outcome that means "the
+ * user halted this with no continuation", distinct from the `superseded` an
+ * approved or rejected plan or a new message records.
+ *
+ * This is the whole decision about how an unfinished run reads in the
+ * transcript, live and on reload: a stopped run ends with a "Stopped" marker
+ * ({@link stopTurn} broadcasts it; the history route rebuilds it from runs with
+ * this status), and a superseded run leaves nothing because the next turn
+ * carries on. Neither is an error, so the Engine reports both as a clean
+ * cancellation and the consumer shows no error bubble.
+ */
+export const STOPPED_RUN_STATUS = "aborted" satisfies RunStatus
+
+/** The side effects {@link stopTurn} orders. */
+export interface TurnStopDeps {
+  findActiveRun(chatId: string): Promise<{ id: string } | null>
+  transition(runId: string, to: RunStatus): Promise<void>
+  broadcastControl(
+    roomId: string,
+    chatId: string,
+    control: ChatControlEvent
+  ): Promise<void>
+  broadcastStreamEnd(roomId: string, chatId: string): Promise<void>
+}
+
+/**
+ * Stop a chat's active turn at the user's request.
+ *
+ * Records the stop on the run first: the abort watchdog in `driveEngineTurn`
+ * polls the run and aborts the Engine once it is no longer active, and the
+ * run-state machine's terminal guard keeps a duplicate stop a no-op. Then marks
+ * the transcript before the stream ends, so clients show the run as stopped
+ * rather than finished. The stream always ends, even with no active run, so the
+ * user's stop never depends on the abort landing this tick.
+ */
+export async function stopTurn(
+  deps: TurnStopDeps,
+  request: { roomId: string; chatId: string }
+): Promise<void> {
+  const { roomId, chatId } = request
+  const active = await deps.findActiveRun(chatId)
+  if (active) {
+    await deps.transition(active.id, STOPPED_RUN_STATUS)
+    await deps.broadcastControl(roomId, chatId, { kind: "stopped" })
+  }
+  await deps.broadcastStreamEnd(roomId, chatId)
 }

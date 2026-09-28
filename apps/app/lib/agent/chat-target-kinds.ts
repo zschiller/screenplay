@@ -14,7 +14,7 @@ import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomDoc, RoomReader } from "@/lib/room-access"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -42,10 +42,10 @@ import {
  */
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
-  loadContext(roomId: string, target: TTarget): Promise<TContext | null>
+  loadContext(room: RoomDoc, target: TTarget): Promise<TContext | null>
   buildSystemPrompt(ctx: TContext, opts: { repoSystemPrompt?: string }): string
   buildTools(
-    roomId: string,
+    room: RoomDoc,
     target: TTarget,
     sandbox?: ToolContext
   ): Record<string, Tool>
@@ -60,14 +60,16 @@ export interface ChatTargetSpec<TTarget, TContext> {
  * collection is already in memory; we copy id + title only.
  */
 export async function loadLayerDirectory(
-  roomId: string
+  room: RoomDoc
 ): Promise<LayerDirectory> {
   return (
-    (await readRoomDoc(roomId, ({ markdownLayers }) => ({
-      documents: markdownLayers
-        .toArray()
-        .map((d) => ({ id: d.id, title: d.title })),
-    })).catch(() => null)) ?? { documents: [] }
+    (await room
+      .readDoc(({ markdownLayers }) => ({
+        documents: markdownLayers
+          .toArray()
+          .map((d) => ({ id: d.id, title: d.title })),
+      }))
+      .catch(() => null)) ?? { documents: [] }
   )
 }
 
@@ -90,16 +92,18 @@ interface AgentContext {
 
 export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   kind: "agent",
-  async loadContext(roomId, target) {
+  async loadContext(room, target) {
     const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
-      readRoomDoc(roomId, ({ branches, repos }) => {
-        const branch = branches
-          .toArray()
-          .find((a) => a.sandboxName === target.sandboxName)
-        if (!branch) return undefined
-        return repos.get(branch.repoId)?.systemPrompt
-      }).catch(() => undefined),
-      loadLayerDirectory(roomId),
+      room
+        .readDoc(({ branches, repos }) => {
+          const branch = branches
+            .toArray()
+            .find((a) => a.sandboxName === target.sandboxName)
+          if (!branch) return undefined
+          return repos.get(branch.repoId)?.systemPrompt
+        })
+        .catch(() => undefined),
+      loadLayerDirectory(room),
       getMergedSkillIndexForSandbox(target.sandboxName),
     ])
     return { repoSystemPrompt, layerDirectory, skills }
@@ -111,11 +115,11 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
       skills: ctx.skills,
     })
   },
-  buildTools(roomId, _target, sandbox) {
+  buildTools(room, _target, sandbox) {
     if (!sandbox) {
       throw new Error("agent chat target requires a sandbox ToolContext")
     }
-    return toolsetFor({ kind: "sandbox", roomId, sandbox })
+    return toolsetFor({ kind: "sandbox", room, sandbox })
   },
   decorateUserMessage(message, { planMode, branch, isFirstMessage }) {
     // Policy lives here (branch only on the first message); the codec owns
@@ -147,9 +151,9 @@ export const markdownLayerChatTarget: ChatTargetSpec<
   MarkdownLayerContext
 > = {
   kind: "markdown-layer",
-  async loadContext(roomId, target) {
+  async loadContext(room, target) {
     const [self, layerDirectory] = await Promise.all([
-      readRoomDoc(roomId, ({ markdownLayers, doc }) => {
+      room.readDoc(({ markdownLayers, doc }) => {
         const layer = markdownLayers.get(target.markdownLayerId)
         if (!layer) return null
         const fragment = documentFragment(doc, target.markdownLayerId)
@@ -159,7 +163,7 @@ export const markdownLayerChatTarget: ChatTargetSpec<
           body: fragmentBodyToPlainText(fragment),
         }
       }),
-      loadLayerDirectory(roomId),
+      loadLayerDirectory(room),
     ])
     if (!self) return null
     return { ...self, layerDirectory }
@@ -172,10 +176,10 @@ export const markdownLayerChatTarget: ChatTargetSpec<
       selfId: ctx.id,
     })
   },
-  buildTools(roomId, target) {
+  buildTools(room, target) {
     return toolsetFor({
       kind: "markdown-layer",
-      roomId,
+      room,
       markdownLayerId: target.markdownLayerId,
     })
   },
@@ -207,13 +211,13 @@ interface RoomContext {
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
 export function liveRoomToolPorts(
-  roomId: string,
+  room: RoomReader,
   userId: string
 ): RoomToolPorts {
   return {
-    readDoc: (fn) => readRoomDoc(roomId, fn),
+    readDoc: (fn) => room.readDoc(fn),
     listTerminalTabs: async () =>
-      (await listTerminalTabs({ userId, roomId })).map((t) => ({
+      (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
         id: t.id,
         label: t.label,
         branchId: t.branch,
@@ -223,8 +227,8 @@ export function liveRoomToolPorts(
 
 export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   kind: "room",
-  async loadContext(roomId, target) {
-    const ports = liveRoomToolPorts(roomId, target.userId)
+  async loadContext(room, target) {
+    const ports = liveRoomToolPorts(room, target.userId)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
     const canvasSummary = await ports.readDoc((collections) =>
       summarizeCanvas(collections, terminalTabs)
@@ -234,11 +238,11 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   buildSystemPrompt(ctx) {
     return buildRoomSystemPrompt({ canvasSummary: ctx.canvasSummary })
   },
-  buildTools(roomId, target) {
+  buildTools(room, target) {
     return toolsetFor({
       kind: "room",
-      roomId,
-      ports: liveRoomToolPorts(roomId, target.userId),
+      room,
+      ports: liveRoomToolPorts(room, target.userId),
     })
   },
   // No turn markers: there is no branch, and plan mode belongs to sandbox
@@ -265,17 +269,17 @@ export type PreparedChatTarget = {
  * deleted) so the caller can return a 404 cleanly.
  */
 export async function prepareChatTarget<TTarget, TContext>(
-  roomId: string,
+  room: RoomDoc,
   spec: ChatTargetSpec<TTarget, TContext>,
   target: TTarget,
   toolCtx?: ToolContext
 ): Promise<PreparedChatTarget | null> {
-  const ctx = await spec.loadContext(roomId, target)
+  const ctx = await spec.loadContext(room, target)
   if (!ctx) return null
   return {
     kind: spec.kind,
     systemPrompt: spec.buildSystemPrompt(ctx, {}),
-    tools: spec.buildTools(roomId, target, toolCtx),
+    tools: spec.buildTools(room, target, toolCtx),
     decorateUserMessage: (message, opts) =>
       spec.decorateUserMessage?.(message, opts) ?? message,
   }

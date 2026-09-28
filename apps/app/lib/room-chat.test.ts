@@ -53,7 +53,7 @@ vi.mock("@/lib/agent/turn-launch", () => ({
   },
 }))
 vi.mock("@/lib/agent/turn-launch-live", () => ({
-  liveTurnLaunchDeps: {},
+  liveTurnLaunchDeps: () => ({}),
   roomTurn: (input: { room: { userId: string } }) => ({
     kind: "room",
     userId: input.room.userId,

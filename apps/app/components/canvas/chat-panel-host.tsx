@@ -47,7 +47,6 @@ export function ChatPanelHost({
   diffStats,
   branchPrs,
   chatPanelRef,
-  onRenameBranch,
   onUpdateChatSession,
   onSetBranchPr,
   onLogsReady,
@@ -66,7 +65,6 @@ export function ChatPanelHost({
   diffStats: Map<string, DiffStats>
   branchPrs: Map<string, BranchPrInfo>
   chatPanelRef: React.RefObject<PanelImperativeHandle | null>
-  onRenameBranch: (id: string, branch: string) => void
   onUpdateChatSession: (id: string, data: Partial<ChatSessionData>) => void
   onSetBranchPr: (branchId: string, pr: BranchPrInfo) => void
   onLogsReady: () => void
@@ -152,9 +150,6 @@ export function ChatPanelHost({
           onRemoveChat={tabPool.remove}
           onCloseChat={tabPool.close}
           onReopenChat={tabPool.reopen}
-          onBranchRename={(branch) => {
-            if (target.kind === "agent") onRenameBranch(target.agent.id, branch)
-          }}
           onPlanModeChange={(chatId, pm) =>
             onUpdateChatSession(chatId, { planMode: pm })
           }

@@ -428,7 +428,6 @@ interface ChatPanelProps {
    *  survives (the parent then recreates a default tab). */
   onCloseChat: (chatId: string, nextSelectedId?: string) => void
   onReopenChat: (chatId: string) => void
-  onBranchRename: (branch: string) => void
   onPlanModeChange: (chatId: string, planMode: boolean) => void
   onModelChange: (chatId: string, model: string) => void
   diffStats?: DiffStats
@@ -475,7 +474,6 @@ export function ChatPanel({
   onRemoveChat,
   onCloseChat,
   onReopenChat,
-  onBranchRename,
   onPlanModeChange,
   onModelChange,
   diffStats,
@@ -1300,13 +1298,10 @@ export function ChatPanel({
                   : undefined
               }
               isFirstChat={isFirst}
-              autoNamedBranch={agent?.autoNamedBranch}
               planMode={chat.planMode}
               onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
               model={chat.model}
               onModelChange={(m) => onModelChange(chat.id, m)}
-              onBranchRename={onBranchRename}
-              onChatRename={(label) => onRenameChat(chat.id, label)}
               isActive={!showLogs && chat.id === activeTab}
             />
           </TabsContent>

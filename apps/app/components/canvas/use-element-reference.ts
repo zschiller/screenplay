@@ -56,9 +56,6 @@ export interface ElementReferenceInputs {
     ChatTarget,
     "selectDocChat" | "selectAgentChat" | "expandPanel"
   >
-  /** Late-bound rename callbacks fired by the chat stream (auto-naming). */
-  onChatRename: (chatId: string, label: string) => void
-  onBranchRename: (agentId: string, branch: string) => void
 }
 
 /** Comment-mode placement position — layer-local for frame/doc-anchored pins. */
@@ -309,8 +306,6 @@ export function useElementReference(
         {
           addChatSession: inputs.addChatSession,
           chatTarget: inputs.chatTarget,
-          onChatRename: inputs.onChatRename,
-          onBranchRename: inputs.onBranchRename,
         }
       )
     },

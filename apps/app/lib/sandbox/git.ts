@@ -50,13 +50,15 @@ export async function createAgentBranch(
  * in-sandbox rename is load-bearing (it runs through `step`, so a non-zero exit
  * becomes a redacted failure result); the GitHub rename is best-effort — a
  * branch that hasn't been pushed yet simply doesn't exist remotely and will be
- * pushed under the new name later.
+ * pushed under the new name later. `ghToken` lets a caller outside a request
+ * (the server's auto-naming, #910) act as the user who sent the turn.
  */
 export async function renameAgentBranch(
   repo: RepoData,
   sandboxName: string,
   oldBranch: string,
-  newBranch: string
+  newBranch: string,
+  ghToken?: string
 ): Promise<SandboxActionResult<void>> {
   const local = await runSandboxAction(sandboxName, async (sandbox) => {
     await step(sandbox, "git", ["branch", "-m", newBranch])
@@ -68,7 +70,8 @@ export async function renameAgentBranch(
     repo.repoOwner,
     repo.repoName,
     oldBranch,
-    newBranch
+    newBranch,
+    ghToken
   )
   if (!remote.success) {
     // Branch doesn't exist on GitHub yet — fine, it'll be pushed with the new name.

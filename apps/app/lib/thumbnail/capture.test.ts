@@ -39,6 +39,9 @@ vi.mock("./room-layout", () => ({ readRoomCaptureLayout }))
 import sharp from "sharp"
 import { captureRoomThumbnail } from "./capture"
 
+// The layout read is stubbed above, so the Room's doc reader is never called.
+const ROOM = { roomId: "room-1", readDoc: vi.fn() }
+
 /** A layout-map entry with the fields the manifest ignores defaulted. */
 function layout(
   id: string,
@@ -110,7 +113,7 @@ describe("captureRoomThumbnail", () => {
     }
     readRoomCaptureLayout.mockResolvedValue(captureLayout)
 
-    const manifest = await captureRoomThumbnail("room-1", capturer)
+    const manifest = await captureRoomThumbnail(ROOM, capturer)
 
     // 1. The capturer was driven once per frame, with each frame's preview URL
     //    and its own world-space size as the capture viewport (so the
@@ -195,7 +198,7 @@ describe("captureRoomThumbnail", () => {
       ],
     } satisfies RoomCaptureLayout)
 
-    const manifest = await captureRoomThumbnail("room-1", capturer)
+    const manifest = await captureRoomThumbnail(ROOM, capturer)
 
     expect(capturer.capture).toHaveBeenCalledTimes(1)
     expect(put).toHaveBeenCalledTimes(1)
@@ -243,7 +246,7 @@ describe("captureRoomThumbnail", () => {
       ],
     } satisfies RoomCaptureLayout)
 
-    const manifest = await captureRoomThumbnail("room-1", capturer)
+    const manifest = await captureRoomThumbnail(ROOM, capturer)
 
     // The round still completed and persisted, with only the good frame stored.
     expect(setRoomThumbnailManifest).toHaveBeenCalledTimes(1)
@@ -310,7 +313,7 @@ describe("captureRoomThumbnail", () => {
       ],
     } satisfies RoomCaptureLayout)
 
-    const manifest = await captureRoomThumbnail("room-1", capturer)
+    const manifest = await captureRoomThumbnail(ROOM, capturer)
 
     // `a` recaptured fresh this round; `b` retained its last-good image rather
     // than reverting to a placeholder.
@@ -381,7 +384,7 @@ describe("captureRoomThumbnail", () => {
     } satisfies RoomCaptureLayout)
 
     // Only frame "b" is dirty this round.
-    const manifest = await captureRoomThumbnail("room-1", capturer, {
+    const manifest = await captureRoomThumbnail(ROOM, capturer, {
       frameIds: ["b"],
     })
 
@@ -445,7 +448,7 @@ describe("captureRoomThumbnail", () => {
       ],
     } satisfies RoomCaptureLayout)
 
-    const manifest = await captureRoomThumbnail("room-1", capturer, {
+    const manifest = await captureRoomThumbnail(ROOM, capturer, {
       frameIds: [],
     })
 
@@ -509,7 +512,7 @@ describe("captureRoomThumbnail", () => {
       ],
     } satisfies RoomCaptureLayout)
 
-    const manifest = await captureRoomThumbnail("room-1", capturer, {
+    const manifest = await captureRoomThumbnail(ROOM, capturer, {
       frameIds: [],
     })
 
@@ -542,7 +545,7 @@ describe("captureRoomThumbnail", () => {
       ],
     } satisfies RoomCaptureLayout)
 
-    const pending = captureRoomThumbnail("room-1", capturer)
+    const pending = captureRoomThumbnail(ROOM, capturer)
     // Advance past the per-frame ceiling so the timeout rejects and the frame
     // is skipped rather than blocking the round forever.
     await vi.advanceTimersByTimeAsync(31_000)

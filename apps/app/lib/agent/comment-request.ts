@@ -13,6 +13,7 @@ import {
 import { threadNumbers } from "@/lib/comments-panel"
 import { db } from "@/lib/db"
 import { agentRun } from "@/lib/db/schema"
+import type { RoomDoc } from "@/lib/room-access"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 
 /**
@@ -34,13 +35,13 @@ async function readHead(sandboxName: string): Promise<string | null> {
 
 /** Queues the threads a request names, once its turn is accepted. */
 export async function queueCommentRequest(opts: {
-  roomId: string
+  room: RoomDoc
   chatId: string
   sandboxName: string
   threadIds: readonly string[]
 }): Promise<void> {
   await queueThreadsForAgent({
-    roomId: opts.roomId,
+    room: opts.room,
     threadIds: opts.threadIds,
     chatId: opts.chatId,
     readBaseCommit: () => readHead(opts.sandboxName),
@@ -49,10 +50,10 @@ export async function queueCommentRequest(opts: {
 
 /** Marks a chat's queued threads as being worked on. */
 export async function startCommentRequest(
-  roomId: string,
+  room: RoomDoc,
   chatId: string
 ): Promise<void> {
-  await startAgentThreads(roomId, chatId)
+  await startAgentThreads(room, chatId)
 }
 
 /**
@@ -62,7 +63,7 @@ export async function startCommentRequest(
  * turn that follows settles them.
  */
 export async function settleCommentRequest(opts: {
-  roomId: string
+  room: RoomDoc
   chatId: string
   runId: string
   sandboxName: string
@@ -79,7 +80,7 @@ export async function settleCommentRequest(opts: {
     const status = run?.status
     if (status === "failed" || status === "aborted") {
       await settleAgentThreads({
-        roomId: opts.roomId,
+        room: opts.room,
         chatId: opts.chatId,
         authorId: opts.userId,
         replies: new Map(),
@@ -91,7 +92,7 @@ export async function settleCommentRequest(opts: {
 
     const [history, order, head] = await Promise.all([
       loadAcpHistory(opts.chatId),
-      roomThreadOrder(opts.roomId),
+      roomThreadOrder(opts.room.roomId),
       readHead(opts.sandboxName),
     ])
     const numbers = threadNumbers(order)
@@ -101,7 +102,7 @@ export async function settleCommentRequest(opts: {
       pending.map((t) => numberOf(t.id))
     )
     await settleAgentThreads({
-      roomId: opts.roomId,
+      room: opts.room,
       chatId: opts.chatId,
       authorId: opts.userId,
       replies: new Map(

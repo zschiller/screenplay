@@ -1,7 +1,8 @@
-import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
+import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { deriveFallbackName } from "@/lib/agent/fallback-name"
 import { runOneShotModel } from "@/lib/agent/one-shot-model"
-import { readRoomDoc } from "@/lib/yjs/server"
+import { openRoomForRoute } from "@/lib/room-access"
+import { sanitizeBranchName } from "@/lib/branch-rename"
 
 export const runtime = "nodejs"
 
@@ -23,14 +24,6 @@ const NAMING_SYSTEM_PROMPT =
   "Line 1: branch name\nLine 2: chat label\n\n" +
   "Examples:\nfix-login-button\nFix Login Button\n\n" +
   "add-dark-mode\nAdd Dark Mode"
-
-function sanitizeBranch(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-}
 
 /**
  * Name one prompt: try the model through {@link runOneShotModel} (hosted API-key
@@ -58,7 +51,7 @@ export async function generateOne(
         .trim()
     )
     .filter(Boolean)
-  const branchRaw = sanitizeBranch(lines[0] ?? "")
+  const branchRaw = sanitizeBranchName(lines[0] ?? "")
   const labelRaw = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
   const branch =
     branchRaw.length >= 3 && branchRaw.length <= 50
@@ -93,22 +86,25 @@ async function branchExistsOnGitHub(
 }
 
 export async function POST(req: Request) {
-  const userId = await getUserId()
-  if (!userId) return new Response("Unauthorized", { status: 401 })
-
   const body = (await req.json()) as RequestBody
   const { roomId, prompts } = body
   if (!roomId || !Array.isArray(prompts) || prompts.length === 0) {
     return new Response("Missing required fields", { status: 400 })
   }
 
+  const room = await openRoomForRoute(roomId)
+  if (room instanceof Response) return room
+  const { userId } = room
+
   const generated = await Promise.all(prompts.map((p) => generateOne(p.trim())))
 
-  const repo = await readRoomDoc(roomId, ({ repos }) => {
-    const firstRepo = repos.toArray()[0]
-    if (!firstRepo) return null
-    return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }
-  }).catch(() => null)
+  const repo = await room
+    .readDoc(({ repos }) => {
+      const firstRepo = repos.toArray()[0]
+      if (!firstRepo) return null
+      return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }
+    })
+    .catch(() => null)
   const token = await getGitHubTokenForUser(userId)
 
   const taken = new Set<string>()

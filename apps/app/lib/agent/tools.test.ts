@@ -47,9 +47,8 @@ vi.mock("@/lib/auth-helpers", () => ({
   getGitHubTokenForUser: vi.fn(async () => null),
   getGitIdentityForUser: vi.fn(async () => null),
 }))
-// `create_pr` pulls in github-pr, which transitively imports yjs/server and
-// reads LIVEBLOCKS_SECRET_KEY at import. Stub it so the tools' import graph
-// stays unit-testable under plain Node.
+// `create_pr` pulls in github-pr and its GitHub round-trip. Stub it so the
+// tools' import graph stays unit-testable under plain Node.
 vi.mock("@/lib/github-pr", () => ({
   createGitHubPr: vi.fn(async () => ({
     url: "https://example/pr/1",
@@ -66,7 +65,7 @@ import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 
 const ctx: ToolContext = {
   sandboxName: "sandbox-a",
-  roomId: "room-1",
+  room: { roomId: "room-1" } as ToolContext["room"],
   userId: "user-1",
 }
 

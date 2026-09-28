@@ -9,7 +9,7 @@ import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import { killTerminalSessions } from "@/lib/sandbox/terminal"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { yjsHost } from "@/lib/yjs-host"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomAccess } from "@/lib/room-access"
 
 // The two ways a resolved Room deletion is carried out — `leave` and full
 // teardown — extracted so both the single-Room ⋮ delete (`deleteRoom`) and the
@@ -35,12 +35,11 @@ export async function leaveRoom(roomId: string, userId: string): Promise<void> {
 /**
  * Tear a Room down completely: its rows, Y.Doc, live terminal sessions, and
  * every Branch's Sandbox. Shared by the sole-member hard delete and the owner's
- * delete-for-all — both destroy the Room for everyone who could see it.
+ * delete-for-all — both destroy the Room for everyone who could see it. The
+ * deleter opens the Room through Room Access first.
  */
-export async function teardownRoom(
-  roomId: string,
-  userId: string
-): Promise<void> {
+export async function teardownRoom(room: RoomAccess): Promise<void> {
+  const { roomId, userId } = room
   // Capture what the Room owns *before* its Y.Doc and rows are gone: the
   // Branches' Sandbox names from the authoritative doc — enumerated
   // server-side, never accepted from the client, so a forged list can't
@@ -49,7 +48,7 @@ export async function teardownRoom(
   // unreadable doc must not block the delete itself.
   let sandboxNames: string[] = []
   try {
-    sandboxNames = await readRoomDoc(roomId, (c) =>
+    sandboxNames = await room.readDoc((c) =>
       c.branches
         .toArray()
         .map((b) => b.sandboxName)
