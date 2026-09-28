@@ -44,12 +44,6 @@ interface RepoPickerProps {
    * this picker (#604), not in the picker itself.
    */
   localSources?: boolean
-  /**
-   * Show the "Connect GitHub in Settings" row when no token has resolved.
-   * Off inside Settings itself, where the GitHub section is on the page
-   * behind the dialog and the link would lead back to where you are.
-   */
-  connectLink?: boolean
   /** Extra rows for the picker's footer, e.g. another source ("Open a folder"). */
   footer?: ReactNode
 }
@@ -68,7 +62,6 @@ export function RepoPicker({
   configs,
   onSelect,
   localSources,
-  connectLink = true,
   footer,
 }: RepoPickerProps) {
   const [repos, setRepos] = useState<GitHubRepo[]>(() => cachedRepos ?? [])
@@ -323,21 +316,20 @@ export function RepoPicker({
           connection home (ADR 0014). Shown on `tokenSource === null` alone —
           deliberately not gated on `deviceFlowConfigured`, since the primary
           `gh` path in Settings needs no client id. */}
-      {((connectLink && localSources && status?.tokenSource === null) ||
-        footer) && (
+      {((localSources && status?.tokenSource === null) || footer) && (
         <div
           data-slot="repo-picker-footer"
           className="flex flex-col gap-1 border-t p-1"
         >
           {footer}
-          {connectLink && localSources && status?.tokenSource === null && (
+          {localSources && status?.tokenSource === null && (
             <Button
               asChild
               variant="ghost"
               size="sm"
               className="justify-start gap-2 font-normal"
             >
-              <Link href="/settings">
+              <Link href="/settings?section=github">
                 <Plug className="size-4 text-muted-foreground" />
                 Connect GitHub in Settings →
               </Link>

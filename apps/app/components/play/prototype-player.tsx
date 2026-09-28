@@ -34,8 +34,10 @@ import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useStartWorkspace } from "@/hooks/use-start-workspace"
+import { isLocalBuild } from "@/lib/local-mode"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
+import { PlayerCommentLayer, usePlayerComments } from "./player-comments"
 
 interface PrototypePlayerProps {
   roomId: string
@@ -227,6 +229,44 @@ export function PrototypePlayer({
     reloadIframe()
   }, [retryProbe, reloadIframe, setReloads])
 
+  // Going to a comment on another route: the page loads there, and its pin
+  // shows once the page reports that route.
+  const navigate = useCallback(
+    (route: string) => {
+      const iframe = iframeRef.current
+      if (!iframe || !livePreviewDomain) return
+      iframe.src =
+        livePreviewDomain.replace(/\/$/, "") +
+        (route.startsWith("/") ? route : `/${route}`)
+    },
+    [livePreviewDomain]
+  )
+  // The route the page reports it's on, for placing and listing comments.
+  const [currentRoute, setCurrentRoute] = useState(initialPath)
+  const describeWorkspace = useCallback(
+    () => ({ title: branch, route: currentRoute }),
+    [branch, currentRoute]
+  )
+  const viewport = useMemo(
+    () =>
+      isDesktop
+        ? stageSize && { width: stageSize.w, height: stageSize.h }
+        : { width: devicePreset.width, height: devicePreset.height },
+    [isDesktop, stageSize, devicePreset]
+  )
+  const comments = usePlayerComments({
+    roomId,
+    agentId,
+    iframeLayerId,
+    initialThreads,
+    iframeRef,
+    viewport,
+    scale: fitScale,
+    route: currentRoute,
+    describeWorkspace,
+    onNavigate: navigate,
+  })
+
   const startWorkspace = useStartWorkspace()
   const restartWorkspace = useCallback(
     () => startWorkspace(agentId),
@@ -285,6 +325,8 @@ export function PrototypePlayer({
         // Resend the current cursor mode — a navigation or reload re-injects
         // the bridge with default state, so the puck would otherwise reset.
         sendCursorMode(isTouchDeviceRef.current)
+      } else if (e.data.type === "screenplay:navigation") {
+        setCurrentRoute(e.data.path)
       } else if (e.data.type === "screenplay:knobs-declared") {
         setKnobs(e.data.knobs)
         // Iframe just (re)registered; push our values down so the prototype
@@ -450,21 +492,23 @@ export function PrototypePlayer({
               }
             >
               {iframe}
+              {/* Comments are excluded from the local build (PRD #404). */}
+              {!isLocalBuild && iframe && !stage && (
+                <PlayerCommentLayer {...comments.layer} />
+              )}
               {statusScreen}
             </div>
           </div>
           <PlayerHud
             roomId={roomId}
             roomName={roomName}
-            agentId={agentId}
-            branch={branch}
             knobs={knobs}
             knobValues={knobValues}
             onKnobChange={handleKnobChange}
             onDraggingChange={setHudDragging}
             onToggleChat={handleToggleChat}
             chatOpen={!chatCollapsed}
-            initialThreads={initialThreads}
+            comments={comments}
             deviceSizeId={deviceSizeId}
             onDeviceSizeChange={handleDeviceSizeChange}
           />

@@ -3,7 +3,7 @@ import { relative } from "node:path"
 
 import { seedFixtureWorld } from "../fixtures/seed"
 import { INTERACTIONS, selectInteraction } from "../interactions"
-import { boolFlag, parseArgs, stringFlag } from "../lib/args"
+import { applyHostedFlag, boolFlag, parseArgs, stringFlag } from "../lib/args"
 import { recordInteraction } from "../lib/capture"
 import { THEMES, type Theme } from "../lib/browser"
 import { isServerUp, startCaptureStack } from "../lib/server"
@@ -21,6 +21,7 @@ import { resolveCaptureProfile } from "../profile"
  *   --out <dir>         capture root to write the label into
  *   --list              print the interaction list and exit
  *   --no-seed           record against whatever is in the state dir already
+ *   --hosted            record the hosted build (after the interaction name)
  */
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
   // the same knob as `SCREENSHOTS_CAPTURE_DIR`, spelled as a flag.
   const out = stringFlag(args, "out")
   if (out) process.env.SCREENSHOTS_CAPTURE_DIR = out
+  applyHostedFlag(args)
   const profile = resolveCaptureProfile()
   const interaction = selectInteraction(args.positionals[0]!)
   const theme = resolveTheme(stringFlag(args, "theme"))

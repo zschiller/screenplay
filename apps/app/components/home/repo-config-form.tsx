@@ -229,8 +229,6 @@ export function RepoConfigForm({
           // build a pasted clone URL folded into the search box (#605) and a
           // folder (#604/#606) from the footer.
           localSources={isLocalBuild}
-          // We're already in Settings; its GitHub section is behind the dialog.
-          connectLink={false}
           footer={
             isLocalBuild && (
               <Button

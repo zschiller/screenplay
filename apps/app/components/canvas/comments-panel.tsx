@@ -30,6 +30,7 @@ import {
   groupThreads,
   lastActivity,
   type CommentFilter,
+  type GroupOptions,
 } from "@/lib/comments-panel"
 
 import {
@@ -120,6 +121,9 @@ export function CommentsPanel({
   onClose,
   describeLayer,
   getDocumentEditor,
+  numbers,
+  groupOptions,
+  className,
 }: {
   roomId: string
   commentThreads: CommentThreads
@@ -134,6 +138,12 @@ export function CommentsPanel({
   onClose: () => void
   describeLayer: NonNullable<CommentsProps["describeLayer"]>
   getDocumentEditor?: (id: string) => Editor | undefined
+  /** Each thread's pin number, when `commentThreads` is a subset of the
+   *  Canvas's threads (the player's, #789). */
+  numbers?: ReadonlyMap<string, number>
+  groupOptions?: GroupOptions
+  /** Where the panel sits; the canvas's right edge by default. */
+  className?: string
 }) {
   const { threads, markRead, setResolved } = commentThreads
   const { data: session } = useAppSession()
@@ -156,9 +166,10 @@ export function CommentsPanel({
       groupThreads(
         filterThreads(threads, filter, userId),
         placements,
-        describeLayer
+        describeLayer,
+        groupOptions
       ),
-    [threads, filter, userId, placements, describeLayer]
+    [threads, filter, userId, placements, describeLayer, groupOptions]
   )
   const ordered = useMemo(() => groups.flatMap((g) => g.threads), [groups])
   const detachedThreads = useMemo(
@@ -166,7 +177,10 @@ export function CommentsPanel({
     [groups]
   )
   // The same numbers the pins on the canvas carry.
-  const numberById = useMemo(() => threadNumbers(threads), [threads])
+  const numberById = useMemo(
+    () => numbers ?? threadNumbers(threads),
+    [numbers, threads]
+  )
   const counts: Partial<Record<CommentFilter, number>> = {
     open: filterThreads(threads, "open", userId).length,
     unread: filterThreads(threads, "unread", userId).length,
@@ -243,7 +257,10 @@ export function CommentsPanel({
       aria-label="Comments"
       // Hangs 4px under the top-right pill, lined up with its right edge, on
       // the popover surface the thread list used before it became a panel.
-      className="pointer-events-auto absolute top-11 right-2 bottom-2 z-(--z-canvas-chrome) flex w-80 animate-in flex-col overflow-hidden rounded-lg bg-popover text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 fade-in-0"
+      className={cn(
+        "pointer-events-auto absolute top-11 right-2 bottom-2 z-(--z-canvas-chrome) flex w-80 animate-in flex-col overflow-hidden rounded-lg bg-popover text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 fade-in-0",
+        className
+      )}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
@@ -424,13 +441,15 @@ function DetachedNote({
   const what = thread.snapshot ?? thread.quotedText
   const where = showRoute ? thread.route : null
   const reason =
-    placement.reason === "frame"
-      ? thread.documentId
-        ? "Document deleted"
-        : "Frame deleted"
-      : thread.documentId
-        ? "Text removed"
-        : "Element not found"
+    placement.reason === "unanchored"
+      ? "Not on an element"
+      : placement.reason === "frame"
+        ? thread.documentId
+          ? "Document deleted"
+          : "Frame deleted"
+        : thread.documentId
+          ? "Text removed"
+          : "Element not found"
   return (
     <span className={cn("block text-xs text-muted-foreground", className)}>
       {reason}

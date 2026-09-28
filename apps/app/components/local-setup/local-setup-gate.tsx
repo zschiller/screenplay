@@ -1,11 +1,16 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { ScreenplayLogo } from "@/components/screenplay-logo"
 import { getLocalSetupGateStatus } from "@/lib/local-setup/gate-status"
 import { writeGitHubSkip } from "@/lib/local-setup/github-skip"
 import { isLocalSetupComplete } from "@/lib/local-setup/is-complete"
+import { markGettingStartedCanvas } from "@/lib/getting-started"
+import { createRoom } from "@/lib/rooms-actions"
+import { prewarmRoom } from "@/lib/yjs-host/client"
 import { AgentStep } from "./agent-step"
 import { GitHubStep } from "./github-step"
 
@@ -21,7 +26,8 @@ const POLL_INTERVAL_MS = 1800
  * led with so it can't be skipped past) and **Step 2** GitHub
  * ({@link GitHubStep}). Only the current step is expanded; a settled step
  * collapses to one row with the choice made and Change to reopen it. A single
- * gated **Finish** opens the app the instant the release condition holds.
+ * gated **Finish** opens the app the instant the release condition holds, on a
+ * new Canvas whose empty state is the getting-started checklist (#780).
  *
  * The harness half **hard-blocks**; the GitHub half honors the ADR 0008 no-auth
  * floor, so Step 2 offers **Skip**, which persists (a cookie, read server-side
@@ -69,6 +75,29 @@ export function LocalSetupGate({
   const finishReasonId = useId()
   // A settled step the person reopened with Change, if any.
   const [reopened, setReopened] = useState<1 | 2 | null>(null)
+
+  // Finish makes the first Canvas and opens the app on it. The gate stays up
+  // until the route has moved, so home never flashes in between.
+  const router = useRouter()
+  const pathname = usePathname()
+  const [finishingTo, setFinishingTo] = useState<string | null>(null)
+  const [finishing, setFinishing] = useState(false)
+  if (finishingTo && pathname === finishingTo && !opened) setOpened(true)
+  const finish = async () => {
+    setFinishing(true)
+    try {
+      const room = await createRoom("Untitled")
+      markGettingStartedCanvas(room.id)
+      prewarmRoom(room.id)
+      const path = `/${room.id}`
+      setFinishingTo(path)
+      router.push(path)
+    } catch (err) {
+      // The app is usable without it: open wherever the launch landed.
+      console.error("Failed to create the first canvas", err)
+      setOpened(true)
+    }
+  }
 
   // Poll the release facts ONLY while still blocked, and stop the moment the
   // condition is met — no perpetual loop on a healthy session.
@@ -151,10 +180,11 @@ export function LocalSetupGate({
           )}
           <Button
             type="button"
-            disabled={!released}
+            disabled={!released || finishing}
             aria-describedby={released ? undefined : finishReasonId}
-            onClick={() => setOpened(true)}
+            onClick={finish}
           >
+            {finishing && <Spinner />}
             Finish
           </Button>
         </div>

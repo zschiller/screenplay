@@ -29,7 +29,6 @@ function thread(
     anchorStart: null,
     anchorEnd: null,
     quotedText: null,
-    branch: null,
     resolved: false,
     resolvedAt: null,
     createdBy: authors[0]!,
@@ -124,6 +123,36 @@ describe("groupThreads", () => {
     expect(groups.map((g) => [g.title, g.route])).toEqual([
       ["Brief", null],
       ["Deleted frame", "/checkout"],
+    ])
+  })
+
+  it("groups a Workspace thread under the frame it's pinned on", () => {
+    const ws = thread({ id: "ws", iframeLayerId: null, workspaceId: "w1" })
+    const placements = new Map<string, Placement>([
+      ["ws", { kind: "pinned", frameId: "frame-b", x: 0, y: 0 }],
+    ])
+    const groups = groupThreads([ws], placements, describeLayer)
+    expect(groups.map((g) => [g.title, g.route])).toEqual([
+      ["Cart", "/checkout"],
+    ])
+  })
+
+  it("puts one frame's groups together and the current route first", () => {
+    const a = thread({ id: "a", at: 30, route: "/cart" })
+    const b = thread({ id: "b", at: 20, iframeLayerId: "frame-b" })
+    const c = thread({
+      id: "c",
+      at: 10,
+      workspaceId: "w1",
+      iframeLayerId: null,
+    })
+    const groups = groupThreads([a, b, c], new Map(), describeLayer, {
+      frame: "frame-a",
+      currentRoute: "/checkout",
+    })
+    expect(groups.map((g) => [g.route, g.threads.map((t) => t.id)])).toEqual([
+      ["/checkout", ["b", "c"]],
+      ["/cart", ["a"]],
     ])
   })
 })

@@ -12,7 +12,7 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { SettingsRow } from "@/components/home/settings-row"
+import { SettingsRow, SettingsRowList } from "@/components/home/settings-row"
 
 /**
  * Retry, with the regular spinner in place of its icon while the retry runs. A
@@ -88,13 +88,15 @@ export function LoadErrorRow({
   onRetry: () => Promise<unknown>
 }) {
   return (
-    <SettingsRow
-      role="alert"
-      icon={CircleAlert}
-      iconClassName="text-destructive"
-      title={title}
-      detail={detail}
-      action={<RetryButton onRetry={onRetry} />}
-    />
+    <SettingsRowList>
+      <SettingsRow
+        role="alert"
+        icon={CircleAlert}
+        iconClassName="text-destructive"
+        title={title}
+        detail={detail}
+        action={<RetryButton onRetry={onRetry} />}
+      />
+    </SettingsRowList>
   )
 }

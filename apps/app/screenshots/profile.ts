@@ -42,7 +42,22 @@ const DEFAULT_PORT = 3947
  *  load. Derived from the app port so one `SCREENSHOTS_PORT` moves both. */
 const PREVIEW_PORT_OFFSET = 1
 
+/** The hosted build's port, clear of the local build's pair so both can run. */
+const DEFAULT_HOSTED_PORT = 3949
+
+/**
+ * Whether this run captures the **hosted build** instead of the local one
+ * (`--hosted` on any harness command, which sets `SCREENSHOTS_HOSTED=1`). The
+ * local build strips the multi-user surface — comments, sharing, sign-in — so
+ * screens of those can only be shot here (#789).
+ */
+export function isHostedCapture(): boolean {
+  return process.env.SCREENSHOTS_HOSTED === "1"
+}
+
 export interface CaptureProfile {
+  /** Whether this is the hosted build (see {@link isHostedCapture}). */
+  hosted: boolean
   /** Repo path of `apps/app`, the cwd every spawned command runs in. */
   appRoot: string
   /** Root of the harness's throwaway state (db, Y.Docs, blobs, secrets). */
@@ -72,24 +87,34 @@ export interface CaptureProfile {
  * between the two would surface as presets that silently fail to load.
  */
 export function resolveCaptureProfile(): CaptureProfile {
+  const hosted = isHostedCapture()
+  // The two builds keep separate state: their databases have different
+  // schemas, and a world seeded for one would fail to boot the other.
   const stateRoot = process.env.SCREENSHOTS_STATE_DIR
     ? resolve(process.env.SCREENSHOTS_STATE_DIR)
-    : DEFAULT_STATE_ROOT
+    : hosted
+      ? join(DEFAULT_STATE_ROOT, "hosted")
+      : DEFAULT_STATE_ROOT
   const captureRoot = process.env.SCREENSHOTS_CAPTURE_DIR
     ? resolve(process.env.SCREENSHOTS_CAPTURE_DIR)
     : join(stateRoot, "captures")
-  const port = Number(process.env.SCREENSHOTS_PORT ?? DEFAULT_PORT)
+  const port = Number(
+    process.env.SCREENSHOTS_PORT ??
+      (hosted ? DEFAULT_HOSTED_PORT : DEFAULT_PORT)
+  )
   const previewPort = port + PREVIEW_PORT_OFFSET
 
   mkdirSync(stateRoot, { recursive: true })
   const secrets = ensureSecrets(join(stateRoot, "secrets.env"))
+  const baseUrl = `http://127.0.0.1:${port}`
 
   return {
+    hosted,
     appRoot,
     stateRoot,
     captureRoot,
     port,
-    baseUrl: `http://127.0.0.1:${port}`,
+    baseUrl,
     previewPort,
     previewOrigin: `http://127.0.0.1:${previewPort}`,
     env: {
@@ -126,7 +151,30 @@ export function resolveCaptureProfile(): CaptureProfile {
       // depend on the capturing machine's zone — a diffable before/after set
       // needs the same clock on both sides.
       TZ: "UTC",
+
+      ...(hosted ? hostedEnv(baseUrl, appRoot) : {}),
     },
+  }
+}
+
+/**
+ * What turns the profile above into the hosted build: the multi-user surface
+ * back on, the hosted schema's migrations run into the same PGlite, and Better
+ * Auth configured well enough to read the session the seeder writes. There's no
+ * GitHub sign-in: the capture browser carries that session's cookie
+ * (`./lib/hosted.ts`). Everything else stays local — the Yjs host, sandboxes,
+ * blobs — since the build switch and the backend seams are independent.
+ */
+function hostedEnv(baseUrl: string, root: string): Record<string, string> {
+  return {
+    NEXT_PUBLIC_SCREENPLAY_LOCAL: "0",
+    PGLITE_MIGRATIONS_DIR: join(root, "drizzle"),
+    BETTER_AUTH_URL: baseUrl,
+    BETTER_AUTH_PRODUCTION_URL: baseUrl,
+    GITHUB_CLIENT_ID: "screenshot-fixture",
+    GITHUB_CLIENT_SECRET: "screenshot-fixture",
+    // So the server process resolves this same profile (`workspace-lifecycle`).
+    SCREENSHOTS_HOSTED: "1",
   }
 }
 
@@ -135,11 +183,23 @@ export function captureEnv(profile: CaptureProfile): NodeJS.ProcessEnv {
   return { ...process.env, ...profile.env }
 }
 
+const SECRET_NAMES = [
+  "ENCRYPTION_KEY",
+  "TERMINAL_AUTH_SECRET",
+  // Signs the hosted build's session cookie; unused by the local build.
+  "BETTER_AUTH_SECRET",
+] as const
+
 function ensureSecrets(path: string): Record<string, string> {
-  if (existsSync(path)) return parseEnvFile(readFileSync(path, "utf8"))
-  const secrets = {
-    ENCRYPTION_KEY: randomBytes(32).toString("hex"),
-    TERMINAL_AUTH_SECRET: randomBytes(32).toString("hex"),
+  const existing = existsSync(path)
+    ? parseEnvFile(readFileSync(path, "utf8"))
+    : {}
+  if (SECRET_NAMES.every((name) => existing[name])) return existing
+  // Mint only what's missing, so a state dir from before a secret was added
+  // keeps the keys its seeded data was written with.
+  const secrets: Record<string, string> = { ...existing }
+  for (const name of SECRET_NAMES) {
+    secrets[name] ??= randomBytes(32).toString("hex")
   }
   writeFileSync(
     path,

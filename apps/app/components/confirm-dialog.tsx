@@ -31,6 +31,10 @@ export type ConfirmDialogProps = {
    * when there's no name to quote (Delete comment?) and in the fallback error.
    */
   itemNoun: string
+  /**
+   * What the action does. Rendered in a block (not a paragraph), so it can be a
+   * sentence or a structured list such as a Removes / Keeps pair.
+   */
   description: ReactNode
   /**
    * Optional slot between the description and the footer, for an option such
@@ -126,7 +130,9 @@ export function ConfirmDialog({
           <AlertDialogTitle className="break-words">
             {confirmTitle(verb, itemName, itemNoun)}
           </AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogDescription asChild>
+            <div>{description}</div>
+          </AlertDialogDescription>
         </AlertDialogHeader>
         {typeof children === "function" ? children({ pending }) : children}
         {error && (

@@ -81,6 +81,7 @@ vi.mock("@/lib/yjs/server", () => ({
     roomId: string,
     fn: (collections: { doc: Y.Doc }) => unknown
   ) => fn({ doc: roomDoc(roomId) }),
+  readRoomDoc: async () => [],
 }))
 
 import {
@@ -134,7 +135,6 @@ describe("content mutations ring the room doorbell exactly once", () => {
           selector: null,
           offsetX: null,
           offsetY: null,
-          branch: null,
           body: "hello",
           authorId: "author-1",
         }),

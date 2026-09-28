@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { seedFixtureWorld } from "../fixtures/seed"
-import { boolFlag, parseArgs } from "../lib/args"
+import { applyHostedFlag, boolFlag, parseArgs } from "../lib/args"
 import { isServerUp, startCaptureStack } from "../lib/server"
 import { resolveCaptureProfile } from "../profile"
 
@@ -15,9 +15,11 @@ import { resolveCaptureProfile } from "../profile"
  *
  *   --no-seed        start the server against whatever is already in the state dir
  *   --fresh=false    keep the existing state dir (default is a clean world)
+ *   --hosted         the hosted build, signed in as the fixture user (comments)
  */
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
+  applyHostedFlag(args)
   const profile = resolveCaptureProfile()
   const seed = !boolFlag(args, "no-seed")
   // A boot run wants a clean world by default: the whole value of the harness is
@@ -38,8 +40,12 @@ async function main(): Promise<void> {
 
   const stack = await startCaptureStack(profile)
   console.log("")
-  console.log(`  Screenplay (local build, fixture world) → ${profile.baseUrl}`)
-  console.log(`  Capture it:  pnpm screenshots:shots --label after`)
+  const build = profile.hosted ? "hosted" : "local"
+  const flag = profile.hosted ? " --hosted" : ""
+  console.log(
+    `  Screenplay (${build} build, fixture world) → ${profile.baseUrl}`
+  )
+  console.log(`  Capture it:  pnpm screenshots:shots --label after${flag}`)
   console.log(`  Stop it:     Ctrl-C`)
   console.log("")
 

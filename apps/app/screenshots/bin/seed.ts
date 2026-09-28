@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { seedFixtureWorld } from "../fixtures/seed"
-import { boolFlag, parseArgs } from "../lib/args"
+import { applyHostedFlag, boolFlag, parseArgs } from "../lib/args"
 import { resolveCaptureProfile } from "../profile"
 
 /**
@@ -12,9 +12,11 @@ import { resolveCaptureProfile } from "../profile"
  * database. Stop the server, re-seed, start it again.
  *
  *   --fresh   delete the existing database, Y.Docs, and blobs first
+ *   --hosted  seed the hosted build's state dir, with its members and comments
  */
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
+  applyHostedFlag(args)
   const profile = resolveCaptureProfile()
 
   console.log(`Seeding the fixture world into ${profile.stateRoot}`)

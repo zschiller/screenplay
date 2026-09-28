@@ -18,7 +18,11 @@ import {
 import type { ThreadWithComments } from "@/lib/comments"
 import { selectorLabel } from "@/lib/comment-element-label"
 import { listCollaborators } from "@/lib/rooms-actions"
-import type { ElementAnchor, Placement } from "@/lib/comment-anchor"
+import {
+  isFrameThread,
+  type ElementAnchor,
+  type Placement,
+} from "@/lib/comment-anchor"
 import { decodeAnchor, getLineNumbers } from "@/lib/document-comments"
 import {
   setDocumentCommentRanges,
@@ -70,6 +74,20 @@ interface NewCommentPos {
   route?: string | null
 }
 
+/** What a new comment on a frame is anchored to beyond its element. */
+export interface FrameInfo {
+  /** The Workspace the frame shows. */
+  branchId?: string
+  /** The route the frame shows, when it can't report its own path. */
+  route?: string
+  /**
+   * The canvas frame a comment made here is stored against, when that isn't
+   * the frame's key here: the player (#789) is one frame keyed by itself, and
+   * stores the canvas frame it was opened from, or none.
+   */
+  storedLayerId?: string | null
+}
+
 export interface SendToChatContext {
   iframeLayerId?: string | null
   selector?: string | null
@@ -88,7 +106,7 @@ export interface CommentsProps {
   iframeLayers: IframeLayerPos[]
   /** The Workspace and shared route of each frame, by id: what a new frame
    *  comment is anchored to beyond its element (#785). */
-  frameInfo?: ReadonlyMap<string, { branchId?: string; route?: string }>
+  frameInfo?: ReadonlyMap<string, FrameInfo>
   /** Where each open frame or document thread (and an active resolved one)
    *  shows for this viewer (see `useCommentPlacements`). Only `pinned`
    *  threads get a pin. */
@@ -114,6 +132,9 @@ export interface CommentsProps {
   onActivateThread?: (threadId: string | null) => void
   /** Names a frame or document layer for the thread card's chip. */
   describeLayer?: (id: string) => { title?: string; route?: string } | undefined
+  /** Each thread's pin number, when `commentThreads` is a subset of the
+   *  Canvas's threads (the player's, #789), so pins keep their canvas numbers. */
+  numbers?: ReadonlyMap<string, number>
   /** Hide the pins (the comments panel's toggle), all but the open one's. */
   hidePins?: boolean
 }
@@ -134,6 +155,7 @@ export function Comments({
   activeThreadId: controlledActiveThreadId,
   onActivateThread,
   describeLayer,
+  numbers,
   hidePins = false,
 }: CommentsProps) {
   const { threads, markRead } = commentThreads
@@ -215,7 +237,7 @@ export function Comments({
   const threadPos = (
     t: ThreadWithComments
   ): { x: number; y: number } | null => {
-    if (t.iframeLayerId || t.documentId) {
+    if (isFrameThread(t) || t.documentId) {
       const p = placements.get(t.id)
       if (p?.kind !== "pinned") return null
       const container = iframeLayerById.get(p.frameId)
@@ -246,7 +268,8 @@ export function Comments({
     ? frameInfo?.get(newCommentPos.iframeLayerId)
     : undefined
 
-  const numberById = useMemo(() => threadNumbers(threads), [threads])
+  const ownNumbers = useMemo(() => threadNumbers(threads), [threads])
+  const numberById = numbers ?? ownNumbers
 
   const activeThread = activeThreadId
     ? threads.find((t) => t.id === activeThreadId)
@@ -274,9 +297,11 @@ export function Comments({
           const pos = threadPos(thread)
           if (!pos) return null
           const isOpen = activeThreadId === thread.id
-          const layer = thread.iframeLayerId
-            ? iframeLayerById.get(thread.iframeLayerId)
-            : undefined
+          const placement = placements.get(thread.id)
+          const layer =
+            placement?.kind === "pinned" && isFrameThread(thread)
+              ? iframeLayerById.get(placement.frameId)
+              : undefined
           const elementBox =
             isOpen && layer && activeRect
               ? {
@@ -330,7 +355,7 @@ export function Comments({
                     so placing a comment previews its result. */}
                 <div aria-hidden className="absolute bottom-0 left-0">
                   <CommentPinMark
-                    number={isLocalBuild ? null : threads.length + 1}
+                    number={isLocalBuild ? null : numberById.size + 1}
                   />
                 </div>
               </PopoverAnchor>
@@ -348,13 +373,19 @@ export function Comments({
                       documentId: newCommentPos.documentId ?? null,
                       iframeLayerId: newCommentPos.iframeLayerId ?? null,
                       selector: newCommentPos.selector ?? null,
+                      route: newCommentPos.route ?? null,
                     },
                     describeLayer
                   )}
                   members={members}
                   x={newCommentPos.x}
                   y={newCommentPos.y}
-                  iframeLayerId={newCommentPos.iframeLayerId}
+                  iframeLayerId={
+                    composerFrameInfo &&
+                    composerFrameInfo.storedLayerId !== undefined
+                      ? (composerFrameInfo.storedLayerId ?? undefined)
+                      : newCommentPos.iframeLayerId
+                  }
                   selector={newCommentPos.selector ?? null}
                   offsetX={newCommentPos.offsetX ?? null}
                   offsetY={newCommentPos.offsetY ?? null}
@@ -414,16 +445,22 @@ export function Comments({
   )
 }
 
-/** The thread card's chip: the frame's route and the element, or the
- *  document's title. */
+/** The thread card's chip: the route it was made on (else the frame's) and
+ *  the element, or the document's title. */
 function describePlace(
-  thread: Pick<ThreadWithComments, "documentId" | "iframeLayerId" | "selector">,
+  thread: Pick<
+    ThreadWithComments,
+    "documentId" | "iframeLayerId" | "selector" | "route"
+  >,
   describeLayer: CommentsProps["describeLayer"]
 ): string | null {
   const layerId = thread.documentId ?? thread.iframeLayerId
   const layer = layerId ? describeLayer?.(layerId) : undefined
   if (thread.documentId) return layer?.title || null
-  const parts = [layer?.route, selectorLabel(thread.selector)].filter(Boolean)
+  const parts = [
+    thread.route ?? layer?.route,
+    selectorLabel(thread.selector),
+  ].filter(Boolean)
   if (parts.length > 0) return parts.join(" · ")
   return layer?.title || null
 }

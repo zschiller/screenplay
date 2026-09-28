@@ -22,6 +22,7 @@ import { panelLayoutCookieName } from "@/lib/panel-layout"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
+import { COLD_WORKSPACE_PREFIX } from "./lib/preview-url"
 import { FIXTURE_IDS } from "./fixtures/world"
 import { settle } from "./lib/browser"
 
@@ -62,6 +63,12 @@ export interface Screen {
    * reads like a user's steps survives a refactor of the markup it points at.
    */
   prepare?: (page: Page) => Promise<void>
+  /**
+   * Shoot this screen against the hosted build (`--hosted`), for a surface the
+   * local build strips: comments above all (#789). A hosted run shoots only
+   * these screens and a local run skips them, so each set stays comparable.
+   */
+  hosted?: boolean
   /**
    * Extra settle time in ms *after* `prepare`, for a surface with an entrance
    * animation the runner's generic wait can't see. Keep it small and rare — a
@@ -234,8 +241,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-narrow",
-    description: "Settings at the narrowest content width.",
-    path: "/settings",
+    description: "Settings → Coding agents at the narrowest content width.",
+    path: "/settings?section=coding-agents",
     viewport: NARROW_HOME_VIEWPORT,
     cookies: narrowHome(),
     fullPage: true,
@@ -314,6 +321,50 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "home-move-toast",
+    description:
+      "The toast after dragging a Canvas into a Folder (#808): where it went, and Undo.",
+    path: "/files",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await dragOnto(page, "Empty canvas", "Marketing site")
+      await page.mouse.up()
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-breadcrumb-drop-target",
+    description:
+      "A Canvas dragged over a parent Folder's breadcrumb (#808), mid-drag.",
+    path: `/files/${ids.folders.archive}`,
+    prepare: async (page) => {
+      await dragOntoCrumb(page, "Old experiment", "Design system")
+    },
+    settleMs: 200,
+  },
+  {
+    name: "home-move-dialog-new-folder",
+    description:
+      "The Move to… dialog naming a new Folder inside the picked destination (#808).",
+    path: "/files",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await page
+        .getByRole("button", { name: "Folder actions" })
+        .first()
+        .click({ timeout: 15_000 })
+      await page.getByRole("menuitem", { name: /^Move to/ }).click()
+      await page.getByRole("radiogroup").first().waitFor({ timeout: 5_000 })
+      await page.getByRole("radio", { name: "Marketing site" }).click()
+      await page.getByRole("button", { name: "New folder" }).click()
+      await page.keyboard.type("Launch week")
+      await page.waitForTimeout(300)
+    },
+    settleMs: 300,
+  },
+  {
     name: "home-search",
     description:
       "Home search (#807): results from every folder, each naming where it lives.",
@@ -352,15 +403,56 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings",
-    description:
-      "Settings: appearance, Projects (the saved presets), coding agents.",
+    description: "Settings → General (the page's default section).",
     path: "/settings",
+    fullPage: true,
+  },
+  {
+    name: "settings-coding-agents",
+    description:
+      "Settings → Coding agents: the default agent and one row per CLI.",
+    path: "/settings?section=coding-agents",
+    fullPage: true,
+  },
+  {
+    name: "settings-github",
+    description: "Settings → GitHub, connected.",
+    path: "/settings?section=github",
+    cookies: fixtureGitHub(),
+    fullPage: true,
+  },
+  {
+    name: "settings-github-signed-out",
+    description: "Settings → GitHub with no connection.",
+    path: "/settings?section=github",
+    fullPage: true,
+  },
+  {
+    name: "settings-presets",
+    description: "Settings → Project presets.",
+    path: "/settings?section=project-presets",
+    fullPage: true,
+  },
+  {
+    name: "settings-account",
+    description: "Settings → Account: the desktop app and its version.",
+    path: "/settings?section=account",
+    beforeNavigate: async (page) => {
+      // Stand in for the desktop shell's app plugin, which the version reads.
+      // A source string, not a function: tsx's name-keeping breaks function
+      // init scripts in the page (see `openThemedContext`).
+      await page.addInitScript({
+        content: `window.__TAURI_INTERNALS__ = {
+          invoke: async (cmd) => (cmd === "plugin:app|version" ? "0.1.1" : null),
+        }`,
+      })
+    },
     fullPage: true,
   },
   {
     name: "settings-default-agent",
     description: "Settings: the Default agent menu open on Coding agents.",
-    path: "/settings",
+    path: "/settings?section=coding-agents",
     prepare: async (page) => {
       const trigger = page.getByRole("button", { name: "Default agent" })
       const menu = page.getByRole("menu")
@@ -417,6 +509,36 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-none",
+    description:
+      "The chat header for a Workspace with no PR yet: the Create PR button.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "empty-cart-state")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-merged",
+    description:
+      "The chat header for a Workspace whose PR merged: the PR button in GitHub purple.",
+    path: `/${ids.rooms.pricing}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-blocked",
+    description:
+      "The chat header for a Workspace whose open PR can't merge: the PR button in red with the merge-blocked icon.",
+    path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "listing-page")
     },
     settleMs: 400,
   },
@@ -1070,6 +1192,47 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "sidebar-workspace-hover-frames",
+    description:
+      "Hovering a Workspace row: its frames are outlined on the Canvas and lit in the layer list (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/branch-row")
+        .filter({ hasText: "checkout-polish" })
+        .first()
+        .locator("[data-sidebar=menu-sub-button]")
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-frame-row-hover-workspace",
+    description:
+      "Hovering a frame row in the layer list: its Workspace row lights up (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/frame-row")
+        .filter({ hasText: "Empty cart" })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-frame-hover-workspace",
+    description:
+      "Hovering a frame on the Canvas: its Workspace row lights up in the sidebar (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const frame = checkoutDesktopFrame(page)
+      await frame.waitFor({ state: "visible", timeout: 15_000 })
+      await frame.hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "chat-tab-close-focus",
     description:
       "The active chat tab's close button reached by keyboard (focus the tab, then Tab past its label).",
@@ -1188,6 +1351,100 @@ export const SCREENS: Screen[] = [
       "The Canvas at a narrow window, where the panels compete for width.",
     path: `/${ids.rooms.checkout}`,
     viewport: { width: 1024, height: 768 },
+  },
+  {
+    name: "canvas-getting-started",
+    description:
+      "The first Canvas after setup: the getting-started checklist on Add a project.",
+    path: `/${ids.rooms.empty}`,
+    beforeNavigate: (page) => markGettingStarted(page, ids.rooms.empty),
+    settleMs: 400,
+  },
+  {
+    name: "canvas-getting-started-workspace",
+    description:
+      "The getting-started checklist once a Project is added with no Workspace.",
+    path: `/${ids.rooms.empty}`,
+    beforeNavigate: async (page) => {
+      await markGettingStarted(page, ids.rooms.empty)
+      await serveYjsDoc(page, (c) =>
+        c.repos.set(gettingStartedRepo.id, gettingStartedRepo)
+      )
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-getting-started-frame",
+    description:
+      "The getting-started checklist in the corner while the first Workspace starts.",
+    path: `/${ids.rooms.empty}`,
+    beforeNavigate: async (page) => {
+      await markGettingStarted(page, ids.rooms.empty)
+      await serveYjsDoc(page, (c) => {
+        c.repos.set(gettingStartedRepo.id, gettingStartedRepo)
+        c.branches.set("branch-first", {
+          id: "branch-first",
+          repoId: gettingStartedRepo.id,
+          sandboxName: `${COLD_WORKSPACE_PREFIX}first`,
+          gitUrl: gettingStartedRepo.cloneUrl,
+          ref: "quiet-harbor",
+          previewDomain: "",
+          port: 3000,
+          status: "starting",
+          statusMessage: "Installing dependencies…",
+          createdAt: Date.now() - 40_000,
+          colorIndex: 0,
+          sidebarOrder: 0,
+        })
+        c.iframeLayers.set("layer-first", {
+          id: "layer-first",
+          branchId: "branch-first",
+          width: 1280,
+          height: 800,
+          label: "storefront",
+          iframeState: {},
+          route: "/",
+        })
+        c.iframeLayerGroups.set("grp-first", {
+          id: "grp-first",
+          x: 0,
+          y: 0,
+          members: [{ kind: "iframe-layer", id: "layer-first" }],
+          sidebarOrder: 0,
+        })
+        c.savedViewport.set({ x: 180, y: 140, zoom: 0.55 })
+      })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-getting-started-done",
+    description:
+      "The getting-started checklist with every step done, on a Canvas with a running frame.",
+    path: `/${ids.rooms.frameStates}`,
+    beforeNavigate: (page) => markGettingStarted(page, ids.rooms.frameStates),
+    settleMs: 400,
+  },
+  {
+    name: "canvas-sidebar-no-projects",
+    description:
+      "The sidebar's no-projects state with its Add project menu open.",
+    path: `/${ids.rooms.tokens}`,
+    prepare: async (page) => {
+      const button = page
+        .getByRole("button", { name: "Add project", exact: true })
+        .filter({ hasText: "Add project" })
+        .first()
+      const menu = page.getByRole("menuitem", { name: "Open project" })
+      await button.waitFor({ timeout: 15_000 })
+      // The first click can land before hydration; retry until the menu opens.
+      for (let i = 0; i < 10 && !(await menu.isVisible()); i++) {
+        await button.click()
+        await page.waitForTimeout(300)
+      }
+      await menu.waitFor({ timeout: 5_000 })
+    },
+    settleMs: 300,
   },
   {
     name: "canvas-chat-no-projects",
@@ -1332,36 +1589,58 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "dialog-remove-project",
-    description: "Removing a Project from a Canvas: the confirm dialog.",
+    description:
+      "Removing a Project from a Canvas: its Workspaces and their state.",
     path: `/${ids.rooms.checkout}`,
+    // Signed in to GitHub, so the option to delete the branches there shows.
+    cookies: fixtureGitHub(),
     prepare: async (page) => {
-      await page.getByText("acme/storefront").first().hover()
-      await page
-        .locator('[title="More"], [aria-label="Project options"]')
-        .first()
-        .click({ timeout: 15_000 })
-      // Radix ignores a select that lands in the same beat the menu opened.
-      await page.waitForTimeout(300)
-      await page.getByRole("menuitem", { name: "Remove" }).click()
+      await openRemoveProject(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-remove-project-remote",
+    description:
+      "Remove project with the GitHub delete ticked: the button says so.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openRemoveProject(page)
+      await page.getByRole("checkbox").click()
     },
     settleMs: 400,
   },
   {
     name: "dialog-delete-workspace",
-    description: "Deleting a Workspace from its row menu: the confirm dialog.",
+    description:
+      "Deleting a Workspace with an open PR and uncommitted changes.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openDeleteWorkspace(page, "checkout-polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-delete-workspace-remote",
+    description:
+      "Delete workspace with the GitHub delete ticked: the branch moves to Removes.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openDeleteWorkspace(page, "checkout-polish")
+      await page.getByRole("checkbox").click()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-delete-workspace-clean",
+    description:
+      "Deleting a clean Workspace that was never pushed: no warning.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      const row = page
-        .locator(".group\\/branch-row")
-        .filter({ hasText: "checkout-polish" })
-        .first()
-      await row.hover()
-      await row
-        .locator('[aria-haspopup="menu"]')
-        .first()
-        .click({ timeout: 15_000 })
-      await page.waitForTimeout(300)
-      await page.getByRole("menuitem", { name: "Delete" }).click()
+      await openDeleteWorkspace(page, "apple-pay-button")
     },
     settleMs: 400,
   },
@@ -1385,6 +1664,14 @@ export const SCREENS: Screen[] = [
     name: "player",
     description: "The prototype player for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+  },
+  {
+    name: "player-agent",
+    description:
+      "The prototype player with the agent open beside it, composer in view.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    prepare: openPlayerAgent,
+    settleMs: 600,
   },
   {
     name: "player-chat-warming-up",
@@ -1564,7 +1851,7 @@ export const SCREENS: Screen[] = [
   {
     name: "confirm-delete-preset",
     description: "Settings → a saved Project preset's Delete button.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     prepare: async (page) => {
       // Wait for the presets to load before holding server actions (the list
       // itself loads through one), then hold them so a build without the
@@ -1643,6 +1930,31 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "setup-finish",
+    description: "Finish on the setup gate: the new first Canvas it opens.",
+    path: "/",
+    cookies: entryState("setup-agent-ready"),
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "Skip" })
+        .click({ timeout: 15_000 })
+      const finish = page.locator("button:not([disabled])", {
+        hasText: "Finish",
+      })
+      await finish.waitFor({ timeout: 15_000 })
+      await finish.click()
+      // Before #780 Finish stayed on home, so neither wait is required.
+      await page
+        .waitForURL((url) => !isHomePath(url.toString()), { timeout: 30_000 })
+        .catch(() => {})
+      await page
+        .locator("[data-slot=getting-started]")
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {})
+    },
+    settleMs: 500,
+  },
+  {
     name: "home-load-error",
     description: "Recents when the Canvas list fails to load.",
     path: "/",
@@ -1650,8 +1962,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-loading",
-    description: "Settings while every panel is still checking or loading.",
-    path: "/settings",
+    description: "Settings → Coding agents while its rows are still checking.",
+    path: "/settings?section=coding-agents",
     fullPage: true,
     beforeNavigate: (page) => holdServerActions(page, "hang"),
     settleMs: 500,
@@ -1659,15 +1971,14 @@ export const SCREENS: Screen[] = [
   {
     name: "settings-presets-empty",
     description: "Settings with no saved Project presets.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
+    fullPage: true,
     cookies: fixtureFault("no-presets"),
-    prepare: scrollToPresets,
-    settleMs: 300,
   },
   {
     name: "settings-edit-preset",
     description: "Settings → editing a saved Project preset.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     fullPage: true,
     prepare: async (page) => {
       const edit = page.getByRole("button", { name: "Edit", exact: true })
@@ -1677,16 +1988,9 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
-    name: "settings-presets",
-    description: "Settings → Project presets: each preset's row and summary.",
-    path: "/settings",
-    prepare: scrollToPresets,
-    settleMs: 300,
-  },
-  {
     name: "settings-new-preset",
     description: "Settings → New preset: choosing the preset's source.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     prepare: async (page) => {
       await page
         .getByRole("button", { name: "New preset" })
@@ -1700,7 +2004,7 @@ export const SCREENS: Screen[] = [
   {
     name: "settings-duplicate-preset",
     description: "Settings → a saved Project preset's Duplicate button.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     prepare: async (page) => {
       const duplicate = page.getByRole("button", {
         name: "Duplicate",
@@ -1715,7 +2019,7 @@ export const SCREENS: Screen[] = [
     name: "settings-discard-preset",
     description:
       "Settings → editing a preset, then Cancel with unsaved changes.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     prepare: async (page) => {
       const edit = page.getByRole("button", { name: "Edit", exact: true })
       await edit.first().click({ timeout: 30_000 })
@@ -1732,9 +2036,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-load-error",
-    description:
-      "Settings when every panel's load fails: GitHub, coding agents, presets.",
-    path: "/settings",
+    description: "Settings → Coding agents when its check fails.",
+    path: "/settings?section=coding-agents",
     fullPage: true,
     beforeNavigate: failServerActions,
     settleMs: 500,
@@ -1805,7 +2108,7 @@ export const SCREENS: Screen[] = [
   {
     name: "github-connect-error",
     description: "The GitHub device-code dialog after starting the flow fails.",
-    path: "/settings",
+    path: "/settings?section=github",
     cookies: fixtureFault("github-device-flow"),
     prepare: async (page) => {
       await unfreeze(page)
@@ -1953,6 +2256,89 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 300,
   },
+  // --- Hosted build only (`--hosted`): comments (#789) ---
+  {
+    name: "player-comments",
+    description:
+      "The player on /checkout with its Workspace's comment pins on the page.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await page
+        .locator("[data-comment-pin]")
+        .first()
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {})
+    },
+    settleMs: 300,
+  },
+  {
+    name: "player-comment-thread",
+    description: "A pin opened in the player: the canvas's thread card.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await unfreeze(page)
+      const pin = page.locator("[data-comment-pin]").first()
+      await pin.waitFor({ timeout: 30_000 })
+      await pin.click()
+      await page.getByRole("dialog").first().waitFor({ timeout: 10_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "player-comments-list",
+    description:
+      "The player's comment list: this route first, then other routes, then the old feed's notes.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await unfreeze(page)
+      await page
+        .locator("[data-comment-pin]")
+        .first()
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {})
+      await openCommentList(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "player-comment-composer",
+    description:
+      "C in the player, then a click on the order form: the composer on that element.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await unfreeze(page)
+      const field = page
+        .frameLocator("iframe")
+        .locator("section.cols > div.card > .bar.tall")
+      await field.waitFor({ timeout: 30_000 })
+      await page.keyboard.press("c")
+      const box = await field.boundingBox()
+      if (!box) throw new Error("the order form has no box")
+      await page.mouse.click(box.x + box.width * 0.4, box.y + box.height / 2)
+      await page
+        .getByPlaceholder("Add a comment…")
+        .pressSequentially("Put Apple Pay above the card fields.", {
+          timeout: 10_000,
+        })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-comments-list",
+    description:
+      "The canvas's comment list: the same threads the player shows, the player's included.",
+    hosted: true,
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await unfreeze(page)
+      await openCommentList(page)
+    },
+    settleMs: 400,
+  },
 ]
 
 function isHomePath(url: string): boolean {
@@ -2091,6 +2477,37 @@ export async function serveYjsDoc(
       ws.send(message)
     })
   })
+}
+
+/**
+ * Mark a Canvas as the first one after setup, as Finish does, so it shows the
+ * getting-started checklist (#780).
+ */
+export async function markGettingStarted(
+  page: Page,
+  roomId: string
+): Promise<void> {
+  await page.addInitScript(
+    ([key, id]) => localStorage.setItem(key!, id!),
+    ["screenplay:getting-started-canvas", roomId]
+  )
+}
+
+/** The Project the getting-started screens add, as a folder pick would. */
+const gettingStartedRepo = {
+  id: "repo-getting-started",
+  name: "storefront",
+  repoFullName: "acme/storefront",
+  repoOwner: "acme",
+  repoName: "storefront",
+  defaultBranch: "main",
+  cloneUrl: "https://github.com/acme/storefront.git",
+  setupScript: "pnpm install",
+  devScript: "pnpm dev --port $PORT",
+  devServerPort: 3000,
+  envVars: "",
+  createdAt: 0,
+  sidebarOrder: 0,
 }
 
 /** lib0's unsigned varint: 7 bits a byte, high bit set on all but the last. */
@@ -2253,6 +2670,38 @@ export async function dragOnto(
   await page.mouse.down()
   await page.mouse.move(grab.x, grab.y - 12)
   await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 })
+}
+
+/**
+ * Pick up the tile or row named `source` and hold it over the breadcrumb crumb
+ * named `crumb`, without letting go, so the shot catches the crumb's drop
+ * highlight. Same pointer choreography as {@link dragOnto}.
+ */
+export async function dragOntoCrumb(
+  page: Page,
+  source: string,
+  crumb: string
+): Promise<void> {
+  const from = await page
+    .getByText(source, { exact: true })
+    .first()
+    .locator("xpath=ancestor-or-self::*[@aria-roledescription='draggable'][1]")
+    .boundingBox({ timeout: 15_000 })
+  const to = await page
+    .locator('[data-slot="breadcrumb-item"]', { hasText: crumb })
+    .first()
+    .boundingBox({ timeout: 15_000 })
+  if (!from || !to) throw new Error(`drag: ${source} or ${crumb} not on screen`)
+  // Grab by the top-left corner so the preview hangs below and right of the
+  // pointer, and hover the crumb's bottom-right corner, so the preview leaves
+  // the crumb and its ring in view.
+  const grab = { x: from.x + 3, y: from.y + 3 }
+  await page.mouse.move(grab.x, grab.y)
+  await page.mouse.down()
+  await page.mouse.move(grab.x, grab.y + 12)
+  await page.mouse.move(to.x + to.width - 4, to.y + to.height - 4, {
+    steps: 12,
+  })
 }
 
 /**
@@ -2754,16 +3203,44 @@ export async function showTooltip(page: Page): Promise<void> {
     .catch(() => {})
 }
 
-/** Look up screens by name, preserving {@link SCREENS} order. Throws on an unknown name. */
-export function selectScreens(names: readonly string[]): Screen[] {
-  if (names.length === 0) return SCREENS
-  const unknown = names.filter((name) => !SCREENS.some((s) => s.name === name))
+/** The player on the Checkout canvas's Mobile checkout Workspace, at /checkout. */
+function playerCommentsPath(): string {
+  return `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}?route=/checkout`
+}
+
+/**
+ * Open the comment list: the count button in the canvas top bar or the player
+ * HUD (before #789, the HUD's Comments panel). Retried, since a click can land
+ * before hydration wires the button.
+ */
+async function openCommentList(page: Page): Promise<void> {
+  const button = page
+    .getByRole("button", { name: /^(\d+ comments?(, \d+ unread)?|Comments)$/ })
+    .first()
+  const list = page.getByText(/^(Comments|Workspace comments)$/)
+  for (let i = 0; i < 5 && !(await list.count()); i++) {
+    await button.click({ timeout: 15_000 })
+    await page.waitForTimeout(500)
+  }
+}
+
+/**
+ * Look up screens by name, preserving {@link SCREENS} order, from the screens
+ * of one build (see {@link Screen.hosted}). Throws on an unknown name.
+ */
+export function selectScreens(
+  names: readonly string[],
+  { hosted = false }: { hosted?: boolean } = {}
+): Screen[] {
+  const pool = SCREENS.filter((screen) => !!screen.hosted === hosted)
+  if (names.length === 0) return pool
+  const unknown = names.filter((name) => !pool.some((s) => s.name === name))
   if (unknown.length > 0) {
     throw new Error(
-      `unknown screen(s): ${unknown.join(", ")}\nknown screens: ${SCREENS.map((s) => s.name).join(", ")}`
+      `unknown ${hosted ? "hosted " : ""}screen(s): ${unknown.join(", ")}\nknown screens: ${pool.map((s) => s.name).join(", ")}`
     )
   }
-  return SCREENS.filter((screen) => names.includes(screen.name))
+  return pool.filter((screen) => names.includes(screen.name))
 }
 
 /**
@@ -2799,6 +3276,53 @@ async function selectCheckoutFrame(page: Page): Promise<void> {
  */
 export function fixtureGitHub(): Array<{ name: string; value: string }> {
   return [{ name: fixtureGitHubCookieName(), value: "connected" }]
+}
+
+/** Open the sidebar Project menu's Remove confirm for acme/storefront. */
+async function openRemoveProject(page: Page): Promise<void> {
+  await page.getByText("acme/storefront").first().hover()
+  await page
+    .locator('[title="More"], [aria-label="Project options"]')
+    .first()
+    .click({ timeout: 15_000 })
+  // Radix ignores a select that lands in the same beat the menu opened.
+  await page.waitForTimeout(300)
+  await page.getByRole("menuitem", { name: "Remove" }).click()
+  await settleDeleteConfirm(page)
+}
+
+/** Open a Workspace row menu's Delete confirm. */
+async function openDeleteWorkspace(page: Page, ref: string): Promise<void> {
+  const row = page
+    .locator(".group\\/branch-row")
+    .filter({ hasText: ref })
+    .first()
+  await row.hover()
+  await row.locator('[aria-haspopup="menu"]').first().click({ timeout: 15_000 })
+  await page.waitForTimeout(300)
+  await page.getByRole("menuitem", { name: "Delete" }).click()
+  await settleDeleteConfirm(page)
+}
+
+/**
+ * Wait for a delete confirm's reads to land: every Workspace's git state (its
+ * row spinner gone) and, when signed in, the GitHub probe that shows the
+ * option. The first open compiles the server actions, so this can take a while.
+ */
+async function settleDeleteConfirm(page: Page): Promise<void> {
+  const dialog = page.getByRole("alertdialog")
+  await dialog.waitFor({ timeout: 15_000 })
+  await dialog
+    .locator('[role="status"]')
+    .first()
+    .waitFor({ state: "detached", timeout: 60_000 })
+    .catch(() => {})
+  const signedIn = (await page.context().cookies()).some(
+    (c) => c.name === fixtureGitHubCookieName() && c.value === "connected"
+  )
+  if (signedIn) {
+    await dialog.getByRole("checkbox").waitFor({ timeout: 60_000 })
+  }
 }
 
 /**
@@ -2868,21 +3392,4 @@ export async function addFixtureFolder(page: Page): Promise<void> {
   await page
     .getByText("Detecting settings…")
     .waitFor({ state: "detached", timeout: 15_000 })
-}
-
-/**
- * Scroll Settings to its Project presets section once the presets have
- * loaded (New preset shows in both the list and the empty state). The page
- * scrolls inside the home shell, not the window, so this scrolls the heading
- * itself into view.
- */
-async function scrollToPresets(page: Page) {
-  await page
-    .getByRole("button", { name: "New preset" })
-    .first()
-    .waitFor({ timeout: 30_000 })
-  await page
-    .getByRole("heading", { name: "Project presets" })
-    .evaluate((el) => el.scrollIntoView({ block: "start" }))
-  await page.mouse.move(0, 0)
 }

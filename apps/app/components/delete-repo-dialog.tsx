@@ -1,36 +1,81 @@
 "use client"
 
 import { useState } from "react"
+import { Badge } from "@workspace/ui/components/badge"
+import { Spinner } from "@workspace/ui/components/spinner"
+import { cn } from "@workspace/ui/lib/utils"
+import { BranchBadge } from "@/components/branch-badge"
 import { ConfirmDialog, ConfirmOption } from "@/components/confirm-dialog"
+import { LostWorkAlert } from "@/components/delete-facts"
+import {
+  lostWork,
+  projectLostWorkWarning,
+  workspaceStateChip,
+  type UnsavedWork,
+} from "@/lib/branch/unsaved-work"
+
+/** One of the Project's Workspaces, as the confirm lists it. */
+export type DeleteRepoWorkspace = {
+  id: string
+  ref: string
+  colorIndex?: number
+  /** Its PR, when open: the row says so, and it closes with the branch. */
+  openPrNumber?: number
+  /** The checkout's git state: `undefined` while read, `null` when unreadable. */
+  work: UnsavedWork | null | undefined
+}
 
 type DeleteRepoDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   repoName: string
-  branches: string[]
+  workspaces: DeleteRepoWorkspace[]
+  /**
+   * Whether deleting the branches on GitHub could work: a token resolves and
+   * the Project names a GitHub remote. False hides the option (issue #741).
+   */
+  canDeleteOnRemote: boolean
+  /** The local build keeps each git branch in the clone on this computer. */
+  localBranchKept: boolean
   onConfirm: (options: { deleteBranchesOnRemote: boolean }) => Promise<void>
 }
 
-/** Confirm removing a Project (a Repo) and all of its Workspaces from the canvas. */
+/**
+ * Confirm removing a Project (a Repo) and all of its Workspaces from the
+ * canvas: each Workspace as a row with its state, a warning only when work
+ * would be lost, and an opt-in, off by default, to delete the git branches on
+ * GitHub too (issue #776).
+ */
 export function DeleteRepoDialog({
   open,
   onOpenChange,
   repoName,
-  branches,
+  workspaces,
+  canDeleteOnRemote,
+  localBranchKept,
   onConfirm,
 }: DeleteRepoDialogProps) {
-  const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(true)
+  const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(false)
 
-  // Reset the option when the dialog closes, so reopening starts from the
-  // default. The previous-prop pattern rather than an effect (see react.dev
-  // "You Might Not Need an Effect").
+  // Reset the option when the dialog closes, so reopening starts local-only.
+  // The previous-prop pattern rather than an effect (see react.dev "You Might
+  // Not Need an Effect").
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (!open) setDeleteBranchesOnRemote(true)
+    if (!open) setDeleteBranchesOnRemote(false)
   }
 
-  const branchCount = branches.length
+  const count = workspaces.length
+  const offerRemote = canDeleteOnRemote && count > 0
+  // Never act on a remote delete the dialog didn't offer.
+  const remote = offerRemote && deleteBranchesOnRemote
+  const openPrs = workspaces.filter((w) => w.openPrNumber)
+  const warning = projectLostWorkWarning(
+    workspaces.flatMap((w) =>
+      w.work ? [lostWork(w.work, { localBranchKept })] : []
+    )
+  )
 
   return (
     <ConfirmDialog
@@ -39,30 +84,92 @@ export function DeleteRepoDialog({
       verb="Remove"
       itemName={repoName}
       itemNoun="project"
-      description="This project and all of its workspaces will be removed from this canvas."
-      onConfirm={() => onConfirm({ deleteBranchesOnRemote })}
+      description={
+        count === 0
+          ? "The project is removed from this canvas."
+          : `${count === 1 ? "Its workspace is" : `Its ${count} workspaces are`} removed from this canvas, with their chats and frames.`
+      }
+      onConfirm={() => onConfirm({ deleteBranchesOnRemote: remote })}
     >
       {({ pending }) =>
-        branchCount > 0 && (
-          <div className="space-y-3">
-            <ConfirmOption
-              id="delete-branches-on-remote"
-              label={`Also delete ${branchCount} ${branchCount === 1 ? "branch" : "branches"} on origin`}
-              hint="Permanently deletes them from the remote:"
-              checked={deleteBranchesOnRemote}
-              onCheckedChange={setDeleteBranchesOnRemote}
-              disabled={pending}
-            />
-            <ul className="max-h-32 overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs">
-              {branches.map((b) => (
-                <li key={b} className="truncate text-muted-foreground">
-                  {b}
+        count > 0 && (
+          <div className="grid gap-4">
+            <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+              {workspaces.map((w) => (
+                <li
+                  key={w.id}
+                  className="flex min-w-0 items-center gap-2 px-3 py-2"
+                >
+                  <BranchBadge
+                    branch={w.ref}
+                    colorKey={w.id}
+                    colorIndex={w.colorIndex}
+                    className="min-w-0"
+                  />
+                  <StateChip workspace={w} localBranchKept={localBranchKept} />
                 </li>
               ))}
             </ul>
+            {warning && <LostWorkAlert>{warning}</LostWorkAlert>}
+            {offerRemote && (
+              <ConfirmOption
+                id="delete-branches-on-remote"
+                label={
+                  count === 1
+                    ? "Also delete its branch on GitHub"
+                    : `Also delete these ${count} branches on GitHub`
+                }
+                hint={
+                  openPrs.length === 1
+                    ? `Closes PR #${openPrs[0]!.openPrNumber}`
+                    : openPrs.length > 1
+                      ? `Closes ${openPrs.length} open PRs`
+                      : undefined
+                }
+                checked={deleteBranchesOnRemote}
+                onCheckedChange={setDeleteBranchesOnRemote}
+                disabled={pending}
+              />
+            )}
           </div>
         )
       }
     </ConfirmDialog>
+  )
+}
+
+function StateChip({
+  workspace,
+  localBranchKept,
+}: {
+  workspace: DeleteRepoWorkspace
+  localBranchKept: boolean
+}) {
+  const chip = workspaceStateChip(
+    workspace.work,
+    { number: workspace.openPrNumber, open: !!workspace.openPrNumber },
+    { localBranchKept }
+  )
+  if (!chip) return null
+  if (chip.kind === "loading") {
+    return (
+      <Spinner
+        className="ml-auto size-3.5 shrink-0 text-muted-foreground"
+        aria-label="Checking for unpushed work"
+      />
+    )
+  }
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        "ml-auto shrink-0 font-normal",
+        chip.kind === "lost"
+          ? "bg-warning/10 text-warning"
+          : "text-muted-foreground"
+      )}
+    >
+      {chip.label}
+    </Badge>
   )
 }
