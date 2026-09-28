@@ -27,6 +27,17 @@ export function sentToWorkspaceResult(title: string, chatId: string): string {
   return `Sent to "${title}" [chat ${chatId}]. Its agent is working on it now; you'll hear back when its turn ends.`
 }
 
+/** The link scheme a Coordinator reply names a Workspace with (#897). */
+export const WORKSPACE_LINK_SCHEME = "workspace:"
+
+/**
+ * A Markdown link to a Workspace, `[title](workspace:<id>)`. The Coordinator
+ * panel draws it as a link that opens the Workspace.
+ */
+export function workspaceLink(title: string, workspaceId: string): string {
+  return `[${title.replace(/[[\]]/g, "")}](${WORKSPACE_LINK_SCHEME}${workspaceId})`
+}
+
 const SENT_CHAT_RE = /\[chat ([^\]\s]+)\]/
 
 /**

@@ -34,6 +34,7 @@ import { planResolutionText } from "./resolution"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { AgentMessage } from "@/lib/agent/types"
+import type { WorkspaceTurnEnd } from "../coordinator-wake"
 
 /**
  * The keystone end-to-end live-route seam test (ADR 0006, issue #397). It drives
@@ -111,6 +112,8 @@ function liveHarness() {
   }
   const planRuns = new Map<string, string>()
   const runState = createRunState(repo)
+  // Every Coordinator wake Turn Launch asked for, in order.
+  const wakes: WorkspaceTurnEnd[] = []
 
   const portsFor = (runId: string): AcpConsumerPorts => ({
     async broadcastUpdate(update) {
@@ -217,6 +220,10 @@ function liveHarness() {
           new AcpUpdateConsumer(portsFor(turn.runId)),
           { isRunActive: (id) => runState.isRunActive(id) }
         ),
+      loadRunStatus: (id) => runState.runStatus(id),
+      async wakeCoordinator(end) {
+        wakes.push(end)
+      },
       runAfterResponse: (task) => {
         afterResponse.push(task)
       },
@@ -271,9 +278,15 @@ function liveHarness() {
   const run = async (
     text: string,
     driver: StreamDriver,
-    request: Partial<TurnRequest> = {}
+    request: Partial<TurnRequest> = {},
+    prepared: Partial<PreparedTurn> = {}
   ) => {
-    const { result, afterResponse } = await launch(text, driver, {}, request)
+    const { result, afterResponse } = await launch(
+      text,
+      driver,
+      prepared,
+      request
+    )
     await afterResponse()
     return result
   }
@@ -286,6 +299,7 @@ function liveHarness() {
     broadcasts,
     rows,
     runState,
+    wakes,
     launch,
     run,
     stop,
@@ -676,6 +690,96 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
           (e) => e.type === "chat-control" && e.control.kind === "plan_resolved"
         )
       ).toBe(false)
+    })
+  })
+
+  // #897: a Workspace turn wakes the Coordinator once, however it ends.
+  describe("Coordinator wakes", () => {
+    const workspaceTurn = { wakesCoordinator: true }
+    const woke = (runId: string, status: WorkspaceTurnEnd["status"]) => [
+      { roomId: ROOM_ID, chatId: CHAT_ID, runId, status },
+    ]
+
+    it("a completed Workspace turn wakes the Coordinator exactly once, after the turn is over", async () => {
+      const h = liveHarness()
+      const { afterResponse } = await h.launch(
+        "fix it",
+        replyDriver("Fixed."),
+        workspaceTurn
+      )
+      // Not while the turn is still to run.
+      expect(h.wakes).toEqual([])
+      await afterResponse()
+      expect(h.rows.get(RUN_ID)).toBe("completed")
+      expect(h.wakes).toEqual(woke(RUN_ID, "completed"))
+    })
+
+    it("a user-driven turn wakes it too: nothing about the sender decides", async () => {
+      const h = liveHarness()
+      // Typed by the user in the Workspace: no `[from coordinator: …]` marker.
+      await h.run("rename the button", replyDriver("Done."), {}, workspaceTurn)
+      expect(h.wakes).toEqual(woke(RUN_ID, "completed"))
+    })
+
+    it("a failed turn wakes it with `failed`", async () => {
+      const h = liveHarness()
+      const driver: StreamDriver = (config) => ({
+        consumeStream: async () => {
+          await config.onError?.({ error: new Error("model overloaded") })
+        },
+      })
+      await h.run("fix it", driver, {}, workspaceTurn)
+      expect(h.rows.get(RUN_ID)).toBe("failed")
+      expect(h.wakes).toEqual(woke(RUN_ID, "failed"))
+    })
+
+    it("a stopped turn wakes it with `aborted`", async () => {
+      const h = liveHarness()
+      const driver: StreamDriver = () => ({
+        consumeStream: async () => {
+          throw new Error("aborted")
+        },
+      })
+      const { afterResponse } = await h.launch("fix it", driver, workspaceTurn)
+      await h.stop()
+      await afterResponse()
+      expect(h.wakes).toEqual(woke(RUN_ID, "aborted"))
+    })
+
+    it("a plan-approval pause wakes it with `paused_for_plan`, and the resumed turn wakes it again", async () => {
+      const h = liveHarness()
+      await h.run("plan it", planDriver, {}, workspaceTurn)
+      expect(h.wakes).toEqual(woke("run_1", "paused_for_plan"))
+
+      await h.run(
+        planResolutionText({ approved: true }),
+        replyDriver("Shipped."),
+        { planDecision: { planId: "toolu_plan_1", approved: true } },
+        workspaceTurn
+      )
+      expect(h.wakes).toEqual([
+        ...woke("run_1", "paused_for_plan"),
+        ...woke("run_2", "completed"),
+      ])
+    })
+
+    it("a superseded turn wakes nothing: the turn that replaced it will", async () => {
+      const h = liveHarness()
+      const driver: StreamDriver = () => ({
+        consumeStream: async () => {
+          throw new Error("aborted")
+        },
+      })
+      const { afterResponse } = await h.launch("hi", driver, workspaceTurn)
+      await h.runState.transition(RUN_ID, "superseded")
+      await afterResponse()
+      expect(h.wakes).toEqual([])
+    })
+
+    it("a turn on anything but a Workspace wakes nothing", async () => {
+      const h = liveHarness()
+      await h.run("hi", replyDriver("Hello"))
+      expect(h.wakes).toEqual([])
     })
   })
 })

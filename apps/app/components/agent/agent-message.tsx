@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState, type ReactNode } from "react"
-import { type Components } from "react-markdown"
+import { defaultUrlTransform, type Components } from "react-markdown"
 import {
   FileText,
   LayoutGrid,
@@ -70,7 +70,10 @@ import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
 import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
-import { workspaceTaskOf } from "@/lib/agent/workspace-task"
+import {
+  WORKSPACE_LINK_SCHEME,
+  workspaceTaskOf,
+} from "@/lib/agent/workspace-task"
 
 const toolIcons: Record<string, typeof FileText> = {
   read_file: FileText,
@@ -932,10 +935,13 @@ function UserMessage({
 }: {
   message: AgentMessage & { role: "user" }
 }) {
-  const delegatedFrom = useMemo(
-    () => parseUserMessage(message.content).delegatedFrom,
+  const { delegatedFrom, wakeFrom } = useMemo(
+    () => parseUserMessage(message.content),
     [message.content]
   )
+  // A Coordinator wake is the server's report on a Workspace turn, not
+  // something anyone said (#897).
+  if (wakeFrom) return null
   return delegatedFrom ? (
     <DelegatedMessage message={message} />
   ) : (
@@ -1063,6 +1069,58 @@ function UserBubble({
 }
 
 /**
+ * An agent reply. In the Coordinator's transcript, a `[title](workspace:<id>)`
+ * link opens that Workspace (#897); anywhere else it reads as plain text.
+ */
+function AssistantMessage({ content }: { content: string }) {
+  const tasks = useWorkspaceTasks()
+  const components = useMemo<Components>(
+    () => ({
+      a: ({ href, children, ...props }) => {
+        if (
+          typeof href !== "string" ||
+          !href.startsWith(WORKSPACE_LINK_SCHEME)
+        ) {
+          return (
+            <a href={href} {...props}>
+              {children}
+            </a>
+          )
+        }
+        const branchId = href.slice(WORKSPACE_LINK_SCHEME.length)
+        const exists = tasks?.branches.some((b) => b.id === branchId)
+        if (!tasks || !exists) return <span>{children}</span>
+        // A link like any other in the reply; it opens the Workspace in place.
+        return (
+          <a
+            href={href}
+            {...props}
+            data-testid="workspace-link"
+            onClick={(e) => {
+              e.preventDefault()
+              tasks.onOpen({ branchId })
+            }}
+          >
+            {children}
+          </a>
+        )
+      },
+    }),
+    [tasks]
+  )
+  return (
+    <ChatMarkdown components={components} urlTransform={keepWorkspaceLinks}>
+      {content}
+    </ChatMarkdown>
+  )
+}
+
+/** Markdown's default URL filter, letting `workspace:` links through. */
+function keepWorkspaceLinks(url: string): string {
+  return url.startsWith(WORKSPACE_LINK_SCHEME) ? url : defaultUrlTransform(url)
+}
+
+/**
  * A tool call, or, in the Coordinator's transcript, a Workspace task row when
  * the call names a Workspace (#896).
  */
@@ -1093,7 +1151,7 @@ export function AgentMessageItem({
       return <UserMessage message={message} />
 
     case "assistant":
-      return <ChatMarkdown>{message.content}</ChatMarkdown>
+      return <AssistantMessage content={message.content} />
 
     case "reasoning":
       return <ReasoningMessage message={message} />
