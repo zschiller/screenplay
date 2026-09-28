@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useMemo, useRef, useState } from "react"
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   Check,
   Folder as FolderIcon,
@@ -16,7 +16,10 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { Button } from "@workspace/ui/components/button"
-import { Input } from "@workspace/ui/components/input"
+import {
+  EditableText,
+  type EditableTextHandle,
+} from "@workspace/ui/components/editable-text"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { foldersInParent } from "@/lib/folder-tree"
@@ -41,6 +44,11 @@ import type { FolderSummary } from "@/lib/folders-actions"
 export function canMoveRoom(folders: FolderSummary[]): boolean {
   return folders.length > 0
 }
+
+// The rename-in-place box, as the chat tabs draw it: a popped field whose
+// padding is cancelled by negative margins, so the row doesn't shift.
+const RENAME_EDIT_CLASS =
+  "relative z-10 -mx-0.5 -my-0.5 overflow-x-auto rounded-xs bg-background px-0.5 py-0.5 text-foreground shadow-sm ring-[0.5px] ring-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
 type MoveToDialogProps = {
   open: boolean
@@ -270,14 +278,15 @@ function MoveToForm({
         <DialogTitle>Move &ldquo;{itemName}&rdquo;</DialogTitle>
         <DialogDescription>Choose a destination folder.</DialogDescription>
       </DialogHeader>
-      <ScrollArea className="my-2 max-h-72">
+      <ScrollArea className="-mx-1 my-2 max-h-72">
         <div
           ref={groupRef}
           role="radiogroup"
           aria-label="Destination"
           onKeyDown={handleGroupKeyDown}
-          // Room for the focus ring, which the scroll viewport would clip.
-          className="flex flex-col gap-0.5 p-1 pr-3"
+          // Room for the focus ring, which the scroll viewport would clip;
+          // the -mx-1 above cancels it, so rows sit on the dialog's gutter.
+          className="flex flex-col gap-0.5 p-1"
         >
           <DestinationRow
             label="All files"
@@ -382,9 +391,13 @@ function DestinationRow({
 }
 
 /**
- * The name field New folder opens in the tree, at the depth the folder will
- * live. Enter creates it; Escape, or leaving it empty, backs out (the dialog
- * lets Escape through to the field, so it closes only the field).
+ * The row New folder adds to the tree, at the depth the folder will live: a
+ * destination row whose name is already in the app's rename-in-place field
+ * (the same EditableText the layer rows and chat tabs rename with), with
+ * "Untitled folder" selected. Enter creates it, as does clicking away after
+ * typing a name; Escape, or clicking away untouched (say, on Cancel), backs
+ * out. The dialog lets Escape through to the field, so it closes only the
+ * field. A failed create reopens the field with the name kept.
  */
 function NewFolderRow({
   depth,
@@ -395,49 +408,59 @@ function NewFolderRow({
   onSubmit: (name: string) => Promise<void>
   onCancel: () => void
 }) {
-  const [name, setName] = useState("")
-  const [pending, setPending] = useState(false)
+  const [name, setName] = useState("Untitled folder")
+  const editableRef = useRef<EditableTextHandle>(null)
+  // EditableText reports a commit only when the name changed; these tell the
+  // other ends of an edit apart: Enter on the default name, or Escape.
+  const committed = useRef(false)
+  const lastKey = useRef<string | null>(null)
 
-  async function submit() {
-    const trimmed = name.trim()
-    if (!trimmed) return onCancel()
-    setPending(true)
+  useLayoutEffect(() => {
+    editableRef.current?.startEditing()
+  }, [])
+
+  async function submit(next: string) {
+    setName(next)
     try {
-      await onSubmit(trimmed)
+      await onSubmit(next)
     } catch {
-      // The form shows the error; keep the name so it can be retried.
-      setPending(false)
+      // The form shows the error; reopen the field to retry.
+      editableRef.current?.startEditing()
     }
   }
 
   return (
     <div
       data-new-folder
-      className="flex items-center gap-2 py-0.5"
+      className="flex items-center gap-2 rounded-md py-1.5 pr-2 text-sm"
       style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
+      // Keep the arrow keys and Home/End in the field, not the radio group.
+      onKeyDown={(e) => e.stopPropagation()}
+      onKeyDownCapture={(e) => {
+        lastKey.current = e.key
+      }}
     >
       <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-      <Input
-        autoFocus
-        aria-label="New folder name"
-        placeholder="Folder name"
-        className="h-7"
+      <EditableText
+        ref={editableRef}
         value={name}
-        disabled={pending}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          // Keep the arrow keys and Home/End in the field, not the radio group.
-          e.stopPropagation()
-          if (e.key === "Enter") {
-            e.preventDefault()
-            void submit()
-          } else if (e.key === "Escape") {
-            e.preventDefault()
-            onCancel()
-          }
+        placeholder="Folder name"
+        editTrigger="manual"
+        className="min-w-0"
+        viewClassName="truncate"
+        editClassName={RENAME_EDIT_CLASS}
+        onEditStart={() => {
+          committed.current = false
+          lastKey.current = null
         }}
-        onBlur={() => {
-          if (!name.trim() && !pending) onCancel()
+        onCommit={(next) => {
+          committed.current = true
+          void submit(next)
+        }}
+        onEditEnd={() => {
+          if (committed.current) return
+          if (lastKey.current === "Enter") void submit(name)
+          else onCancel()
         }}
       />
     </div>

@@ -237,16 +237,14 @@ describe("MoveToDialog", () => {
 
     fireEvent.click(dest("Epsilon"))
     fireEvent.click(screen.getByRole("button", { name: "New folder" }))
-    const field = screen.getByRole("textbox", { name: "New folder name" })
-    fireEvent.change(field, { target: { value: "Launch" } })
+    const field = screen.getByRole("textbox", { name: "Folder name" })
+    field.textContent = "Launch"
     fireEvent.keyDown(field, { key: "Enter" })
 
     await waitFor(() =>
       expect(dest("Launch").getAttribute("aria-checked")).toBe("true")
     )
-    expect(
-      screen.queryByRole("textbox", { name: "New folder name" })
-    ).toBeNull()
+    expect(screen.queryByRole("textbox", { name: "Folder name" })).toBeNull()
   })
 
   it("closes the name field on Escape without creating anything", () => {
@@ -263,15 +261,34 @@ describe("MoveToDialog", () => {
       />
     )
     fireEvent.click(screen.getByRole("button", { name: "New folder" }))
-    fireEvent.keyDown(
-      screen.getByRole("textbox", { name: "New folder name" }),
-      {
-        key: "Escape",
-      }
-    )
-    expect(
-      screen.queryByRole("textbox", { name: "New folder name" })
-    ).toBeNull()
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Folder name" }), {
+      key: "Escape",
+    })
+    expect(screen.queryByRole("textbox", { name: "Folder name" })).toBeNull()
     expect(onCreateFolder).not.toHaveBeenCalled()
+  })
+
+  it("creates “Untitled folder” on Enter when the name is left as is", async () => {
+    const onCreateFolder = vi.fn(async (name: string, parent: string | null) =>
+      folder("n", name, parent)
+    )
+    render(
+      <MoveToDialog
+        open
+        onOpenChange={vi.fn()}
+        itemName="Sketch"
+        currentParentId={null}
+        folders={tree}
+        onMove={vi.fn().mockResolvedValue(undefined)}
+        onCreateFolder={onCreateFolder}
+      />
+    )
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }))
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Folder name" }), {
+      key: "Enter",
+    })
+    await waitFor(() =>
+      expect(onCreateFolder).toHaveBeenCalledWith("Untitled folder", null)
+    )
   })
 })
