@@ -637,6 +637,19 @@ _Avoid_: saying the Engine is "never a harness" flatly (the external engine's
 backing _is_ a Harness — what's owned is the ACP seam, not the loop); runtime;
 treating each browser as an ACP client (breaks multiplayer).
 
+**Turn Launch**:
+The module that starts one agent turn for a Chat Target
+(`lib/agent/turn-launch.ts`), and the only place the start-up ordering lives:
+resolve the Engine before any side effect, let the target prepare, persist the
+user message, start the run, broadcast `chat-stream-start` before the user echo
+and any rename controls (so a client joining mid-stream replays them), then
+drive the Engine turn after the response, with the comment request started
+before it and settled after it. Each Chat Target kind supplies only its own
+setup (`turn-launch-live.ts`); the stream route is auth, body parsing and HTTP
+mapping. The abort watchdog stays at the Engine drive (ADR 0006).
+_Avoid_: copying these steps into a route; "launch" for resuming a plan (that
+still lives in the plan route).
+
 **Harness** (BYO Coding CLI):
 An external, bring-your-own coding agent CLI — Claude Code, Codex, aider —
 someone else's tool we install (or detect) and step out of the way for, as
