@@ -60,11 +60,13 @@ import {
   type CascadeRoom,
   type FolderCascade,
 } from "@/lib/folder-cascade"
+import { searchLibrary, type OwnerFilter } from "@/lib/home-search"
 import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
 
 export type { View }
 export type { SortKey, SortOrder }
 export type { PinKind, PinSummary }
+export type { OwnerFilter }
 
 /** A→Z reads as the natural default for names; everything else newest-first. */
 export function defaultOrder(sort: SortKey): SortOrder {
@@ -166,6 +168,25 @@ type HomeContextValue = {
    */
   folderContents: (folderId: string) => FolderContents
   /**
+   * The Canvases and Folders matching a search across every folder, not just
+   * the one on screen, ordered by the current sort (#807).
+   */
+  search: (
+    query: string,
+    owner: OwnerFilter
+  ) => { rooms: RoomSummary[]; folders: FolderSummary[] }
+  /**
+   * The trail of folders from the root down to `folderId` (null = the root,
+   * an empty trail) — where a search result lives.
+   */
+  folderPath: (folderId: string | null) => FolderSummary[]
+  /**
+   * The sidebar search's query (#807). Lives here so the sidebar field and the
+   * page that renders its results share it; empty = no search.
+   */
+  query: string
+  setQuery: (query: string) => void
+  /**
    * Pin a Room to the sidebar (appends to the end); idempotent. The pin
    * mutations are fire-and-forget from menus and the drag list, so they report
    * their own failures with a toast and never reject.
@@ -234,6 +255,7 @@ export function HomeProvider({
   // state, which is what avoids the empty-grid flash on the desktop build.
   const [loading, setLoading] = useState(!initialRooms)
   const [loadFailed, setLoadFailed] = useState(initialLoadFailed)
+  const [query, setQuery] = useState("")
 
   // The grid/table view is global — one layout shared by every surface — while
   // the sort is remembered per surface (Recents / All files / each folder),
@@ -694,6 +716,17 @@ export function HomeProvider({
     [folders, rooms, placementByRoom]
   )
 
+  const search = useCallback(
+    (query: string, owner: OwnerFilter) =>
+      searchLibrary({ rooms, folders, query, owner, sort, order }),
+    [rooms, folders, sort, order]
+  )
+
+  const folderPath = useCallback(
+    (folderId: string | null) => ancestorChain(folders, folderId),
+    [folders]
+  )
+
   // The pinned rows render ascending by position — the order pins were added.
   const sortedPins = useMemo(
     () => [...pins].sort((a, b) => a.position - b.position),
@@ -731,6 +764,10 @@ export function HomeProvider({
     isPinned,
     folderOfRoom,
     folderContents,
+    search,
+    folderPath,
+    query,
+    setQuery,
     pinRoom,
     pinFolder,
     unpin,

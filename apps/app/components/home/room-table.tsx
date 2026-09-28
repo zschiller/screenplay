@@ -38,6 +38,7 @@ import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
 import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
+import { ResultLocation } from "./result-location"
 
 // The Name-column content of a folder row — icon, name and a muted contents
 // count. Shared by the live row and its drag preview so they stay in sync.
@@ -118,7 +119,9 @@ const ROW_DROP_RING =
 
 // The columns that give way as the content narrows (sized off the home
 // container, `HomeScrollBody`): Created goes first, so Name keeps room for the
-// thumbnail and a readable title down to the narrowest the sidebar allows.
+// thumbnail and a readable title down to the narrowest the sidebar allows. In
+// search results Location stands in for Created and never hides, so Last edited
+// gives way instead.
 const CREATED_COLUMN = "hidden @2xl/home:table-cell"
 
 export function FolderRowDragPreview({ folder }: { folder: FolderSummary }) {
@@ -141,7 +144,13 @@ export function RoomRowDragPreview({ room }: { room: RoomSummary }) {
 // edited/created columns as canvases; only the owner column stays empty. Clicking
 // the name navigates into the folder (`/files/<id>`); the ⋮ menu renames it in
 // place (#484).
-function FolderRow({ folder }: { folder: FolderSummary }) {
+function FolderRow({
+  folder,
+  showLocation,
+}: {
+  folder: FolderSummary
+  showLocation: boolean
+}) {
   const {
     renameFolder,
     moveFolder,
@@ -187,19 +196,28 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
           and hydration; keep the server value rather than regenerate. */}
       <TableCell
         suppressHydrationWarning
-        className="whitespace-nowrap text-muted-foreground"
+        className={cn(
+          "whitespace-nowrap text-muted-foreground",
+          showLocation && CREATED_COLUMN
+        )}
       >
         {formatDistanceToNow(folder.updatedAt)}
       </TableCell>
-      <TableCell
-        suppressHydrationWarning
-        className={cn(
-          "whitespace-nowrap text-muted-foreground",
-          CREATED_COLUMN
-        )}
-      >
-        {formatDistanceToNow(folder.createdAt)}
-      </TableCell>
+      {showLocation ? (
+        <TableCell>
+          <ResultLocation folderId={folder.parentFolderId} />
+        </TableCell>
+      ) : (
+        <TableCell
+          suppressHydrationWarning
+          className={cn(
+            "whitespace-nowrap text-muted-foreground",
+            CREATED_COLUMN
+          )}
+        >
+          {formatDistanceToNow(folder.createdAt)}
+        </TableCell>
+      )}
       {/* Owner column is hidden in the single-user desktop build. */}
       {!isLocalBuild && <TableCell />}
       <TableCell className="w-8 pr-2">
@@ -259,14 +277,19 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
   )
 }
 
-function RoomRow({ room }: { room: RoomSummary }) {
+function RoomRow({
+  room,
+  showLocation,
+}: {
+  room: RoomSummary
+  showLocation: boolean
+}) {
   const {
     renameRoom,
     removeRoom,
     moveRoom,
     allFolders,
     folderView,
-    currentFolderId,
     folderOfRoom,
     isPinned,
     pinRoom,
@@ -279,13 +302,14 @@ function RoomRow({ room }: { room: RoomSummary }) {
   const [moveOpen, setMoveOpen] = useState(false)
 
   // Draggable onto a folder row to file it (issue #487); enabled only on the
-  // files page, where the displayed rooms live in the folder being viewed.
+  // files page. The Room's own folder is where a drop relocates it from, which
+  // search results (spanning every folder) need as much as a folder view.
   const { setNodeRef, attributes, listeners, isDragging } = useFileDraggable(
     {
       kind: "room",
       id: room.id,
       name: room.name,
-      currentParentId: currentFolderId,
+      currentParentId: folderOfRoom(room.id),
     },
     { disabled: !folderView, preview: <RoomRowDragPreview room={room} /> }
   )
@@ -309,19 +333,28 @@ function RoomRow({ room }: { room: RoomSummary }) {
           and hydration; keep the server value rather than regenerate. */}
       <TableCell
         suppressHydrationWarning
-        className="whitespace-nowrap text-muted-foreground"
+        className={cn(
+          "whitespace-nowrap text-muted-foreground",
+          showLocation && CREATED_COLUMN
+        )}
       >
         {formatDistanceToNow(room.lastConnectionAt ?? room.createdAt)}
       </TableCell>
-      <TableCell
-        suppressHydrationWarning
-        className={cn(
-          "whitespace-nowrap text-muted-foreground",
-          CREATED_COLUMN
-        )}
-      >
-        {formatDistanceToNow(room.createdAt)}
-      </TableCell>
+      {showLocation ? (
+        <TableCell>
+          <ResultLocation folderId={folderOfRoom(room.id)} />
+        </TableCell>
+      ) : (
+        <TableCell
+          suppressHydrationWarning
+          className={cn(
+            "whitespace-nowrap text-muted-foreground",
+            CREATED_COLUMN
+          )}
+        >
+          {formatDistanceToNow(room.createdAt)}
+        </TableCell>
+      )}
       {/* Owner column is hidden in the single-user desktop build. */}
       {!isLocalBuild && (
         <TableCell className="whitespace-nowrap text-muted-foreground">
@@ -453,9 +486,12 @@ function SortableHead({
 export function RoomTable({
   rooms,
   folders = [],
+  showLocation = false,
 }: {
   rooms: RoomSummary[]
   folders?: FolderSummary[]
+  /** Search results: a Location column takes Created's place (#807). */
+  showLocation?: boolean
 }) {
   return (
     <Table className="table-fixed">
@@ -465,15 +501,21 @@ export function RoomTable({
           <SortableHead
             label="Last edited"
             sortKey="updated"
-            className="whitespace-nowrap"
+            className={cn("whitespace-nowrap", showLocation && CREATED_COLUMN)}
             style={{ width: "10rem" }}
           />
-          <SortableHead
-            label="Created"
-            sortKey="created"
-            className={cn("whitespace-nowrap", CREATED_COLUMN)}
-            style={{ width: "10rem" }}
-          />
+          {showLocation ? (
+            <TableHead className="w-40 whitespace-nowrap @2xl/home:w-56">
+              Location
+            </TableHead>
+          ) : (
+            <SortableHead
+              label="Created"
+              sortKey="created"
+              className={cn("whitespace-nowrap", CREATED_COLUMN)}
+              style={{ width: "10rem" }}
+            />
+          )}
           {/* Owner column is hidden in the single-user desktop build. It carries
               no sort key, so it stays a plain label. */}
           {!isLocalBuild && (
@@ -490,7 +532,11 @@ export function RoomTable({
       <TableBody>
         {/* Folders render above the files, sorted within their own section. */}
         {folders.map((folder) => (
-          <FolderRow key={folder.id} folder={folder} />
+          <FolderRow
+            key={folder.id}
+            folder={folder}
+            showLocation={showLocation}
+          />
         ))}
         {/* A non-interactive spacer row sets the folder section apart from the
             canvas section — a real gap that isn't part of either row's hover. */}
@@ -498,7 +544,7 @@ export function RoomTable({
           <tr aria-hidden className="h-3" />
         )}
         {rooms.map((room) => (
-          <RoomRow key={room.id} room={room} />
+          <RoomRow key={room.id} room={room} showLocation={showLocation} />
         ))}
       </TableBody>
     </Table>

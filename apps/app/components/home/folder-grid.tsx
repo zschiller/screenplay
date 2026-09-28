@@ -15,6 +15,7 @@ import { useHome } from "./home-provider"
 import { formatFolderContents } from "./folder-contents"
 import type { FolderSummary } from "@/lib/folders-actions"
 import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
+import { ResultLocation } from "./result-location"
 
 // Structural classes of a folder tile's outer box, shared by the live card and
 // its drag preview so the two stay identical.
@@ -28,11 +29,34 @@ const FOLDER_TILE_OUTER =
 function FolderTileFace({
   folder,
   menu,
+  location,
 }: {
   folder: FolderSummary
   menu: React.ReactNode
+  /** A search result's folder trail, in place of the contents count (#807). */
+  location?: React.ReactNode
 }) {
   const { folderContents } = useHome()
+  if (location) {
+    // A search result: where the folder lives takes the contents count's
+    // place after the name, so the tile keeps one line.
+    return (
+      <>
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+          <Link
+            href={`/files/${folder.id}`}
+            className="flex min-w-0 shrink items-center gap-2"
+          >
+            <FolderIcon className="size-4 shrink-0 text-primary" />
+            <span className="truncate font-medium">{folder.name}</span>
+          </Link>
+          <span className="-mx-1 text-muted-foreground">·</span>
+          <div className="min-w-0 shrink-[2]">{location}</div>
+        </div>
+        {menu}
+      </>
+    )
+  }
   return (
     <>
       <Link
@@ -87,7 +111,13 @@ export function FolderTileDragPreview({ folder }: { folder: FolderSummary }) {
 // thumbnail, sitting in their own section above the canvas cards. The icon+name
 // is a link that navigates into the folder (`/files/<id>`); the ⋮ menu (a
 // sibling, since an anchor can't wrap a button) renames it in place (#484).
-function FolderCard({ folder }: { folder: FolderSummary }) {
+function FolderCard({
+  folder,
+  showLocation,
+}: {
+  folder: FolderSummary
+  showLocation: boolean
+}) {
   const {
     renameFolder,
     moveFolder,
@@ -129,6 +159,9 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
     >
       <FolderTileFace
         folder={folder}
+        location={
+          showLocation && <ResultLocation folderId={folder.parentFolderId} />
+        }
         menu={
           <FolderActionMenu
             onNewCanvas={() => void createCanvas(folder.id)}
@@ -187,11 +220,22 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
   )
 }
 
-export function FolderGrid({ folders }: { folders: FolderSummary[] }) {
+export function FolderGrid({
+  folders,
+  showLocation = false,
+}: {
+  folders: FolderSummary[]
+  /** Search results: each tile names the folder it lives in (#807). */
+  showLocation?: boolean
+}) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
       {folders.map((folder) => (
-        <FolderCard key={folder.id} folder={folder} />
+        <FolderCard
+          key={folder.id}
+          folder={folder}
+          showLocation={showLocation}
+        />
       ))}
     </div>
   )

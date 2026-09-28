@@ -8,7 +8,9 @@ import {
   FolderPlus,
   LayoutGrid,
   List,
+  ListFilter,
   Plus,
+  Search,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -41,6 +43,7 @@ import {
 import {
   useHome,
   defaultOrder,
+  type OwnerFilter,
   type SortKey,
   type SortOrder,
 } from "./home-provider"
@@ -55,7 +58,11 @@ import {
   useNewCanvasShortcut,
 } from "./use-create-canvas"
 import { LoadErrorState } from "./load-error"
+import { isSearching } from "@/lib/home-search"
+import { isLocalBuild } from "@/lib/local-mode"
 import { CanvasIcon } from "@/components/canvas-icon"
+import type { RoomSummary } from "@/lib/rooms-actions"
+import type { FolderSummary } from "@/lib/folders-actions"
 
 const SORT_LABELS: Record<SortKey, string> = {
   updated: "Last edited",
@@ -69,6 +76,12 @@ const ORDER_LABELS: Record<SortKey, Record<SortOrder, string>> = {
   updated: { desc: "Newest first", asc: "Oldest first" },
   created: { desc: "Newest first", asc: "Oldest first" },
   name: { asc: "A to Z", desc: "Z to A" },
+}
+
+const OWNER_LABELS: Record<OwnerFilter, string> = {
+  all: "Anyone",
+  mine: "Owned by me",
+  shared: "Shared with me",
 }
 
 /**
@@ -103,7 +116,15 @@ export function RoomsView({
     loading,
     loadFailed,
     reload,
+    search,
+    query,
+    setQuery,
   } = useHome()
+  // The query comes from the sidebar's search field; the ownership filter is
+  // this page's own, so leaving the page (say, into a result's folder) resets
+  // it.
+  const [owner, setOwner] = useState<OwnerFilter>("all")
+  const results = isSearching(query, owner) ? search(query, owner) : null
   // New canvas makes an Untitled Canvas and opens it straight away (#777).
   const { create: createCanvas, creating } = useCreateCanvas()
   const newCanvas = () => void createCanvas()
@@ -127,6 +148,40 @@ export function RoomsView({
       title={folderView ? <FolderBreadcrumb ancestors={ancestors} /> : title}
       actions={
         <>
+          {/* Sharing doesn't exist in the single-user desktop build, where
+              every Canvas is the user's own. */}
+          {!isLocalBuild && (
+            <DropdownMenu>
+              <HomeToolbarTooltip label={`Owner: ${OWNER_LABELS[owner]}`}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    aria-label={`Owner: ${OWNER_LABELS[owner]}`}
+                  >
+                    <ListFilter />
+                    <HomeToolbarLabel>{OWNER_LABELS[owner]}</HomeToolbarLabel>
+                  </Button>
+                </DropdownMenuTrigger>
+              </HomeToolbarTooltip>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                  value={owner}
+                  onValueChange={(v) => setOwner(v as OwnerFilter)}
+                >
+                  <DropdownMenuRadioItem value="all">
+                    Anyone
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="mine">
+                    Owned by me
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="shared">
+                    Shared with me
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {showSort && (
             <DropdownMenu>
               <HomeToolbarTooltip label={sortLabel}>
@@ -228,6 +283,16 @@ export function RoomsView({
             description="Something went wrong while loading them."
             onRetry={reload}
           />
+        ) : results ? (
+          <SearchResults
+            rooms={results.rooms}
+            folders={results.folders}
+            view={view}
+            onClear={() => {
+              setQuery("")
+              setOwner("all")
+            }}
+          />
         ) : rooms.length === 0 && folders.length === 0 ? (
           // A nested folder with nothing in it reads as "empty", not first-run.
           folderView && currentFolderId !== null ? (
@@ -292,6 +357,59 @@ export function RoomsView({
         />
       )}
     </>
+  )
+}
+
+/**
+ * Library-wide results for a search or ownership filter (#807), in the same
+ * grid or table as the folder view, with each result naming where it lives.
+ */
+function SearchResults({
+  rooms,
+  folders,
+  view,
+  onClear,
+}: {
+  rooms: RoomSummary[]
+  folders: FolderSummary[]
+  view: "grid" | "table"
+  onClear: () => void
+}) {
+  const count = rooms.length + folders.length
+  if (count === 0) {
+    return (
+      <Empty className="h-full">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Search />
+          </EmptyMedia>
+          <EmptyTitle>No matches</EmptyTitle>
+          <EmptyDescription>Nothing in any folder matches.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button size="sm" variant="outline" onClick={onClear}>
+            Clear search
+          </Button>
+        </EmptyContent>
+      </Empty>
+    )
+  }
+  return (
+    <div className={cn(HOME_COLUMN, "pb-4")}>
+      <p role="status" className="mb-3 text-xs text-muted-foreground">
+        {count === 1 ? "1 result" : `${count} results`} across all folders
+      </p>
+      {view === "grid" ? (
+        <div className="space-y-4">
+          {folders.length > 0 && <FolderGrid folders={folders} showLocation />}
+          <RoomGrid rooms={rooms} showLocation />
+        </div>
+      ) : (
+        <div className="-mx-3">
+          <RoomTable rooms={rooms} folders={folders} showLocation />
+        </div>
+      )}
+    </div>
   )
 }
 
