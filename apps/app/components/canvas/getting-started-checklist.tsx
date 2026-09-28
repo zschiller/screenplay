@@ -82,14 +82,7 @@ export function GettingStartedChecklist({
             <li key={step.key} className="flex gap-2.5">
               {/* One 20px slot for every marker, so titles line up. */}
               <span className="flex size-5 shrink-0 items-center justify-center">
-                <StepMarker
-                  step={i + 1}
-                  state={state}
-                  className={cn(
-                    state === "done" &&
-                      "bg-info text-info-foreground dark:bg-info"
-                  )}
-                />
+                <StepMarker step={i + 1} state={state} />
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-2 pt-px">
                 <span
