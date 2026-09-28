@@ -172,7 +172,7 @@ It lives in `apps/app/screenshots/docs/`:
 | `demo-site.ts`  | Builds the demo site in `northwind/` once per Workspace, with that Workspace's edits applied, and serves each from its own origin.           |
 | `thumbnails.ts` | Photographs those previews for the home grid's cards.                                                                                      |
 | `screens.ts`    | The **docs screen list**: one entry per `<Screenshot name="…">` in the docs.                                                                 |
-| `frame.ts`      | Frames each capture as a desktop window, or as a magnified detail, into `apps/docs/public/screenshots/`.                                    |
+| `frame.ts`      | Frames each capture as a desktop window, or as a magnified detail centred on its focus, into `apps/docs/public/screenshots/`.               |
 
 Unlike the design-review world, the frames here are a real React site built
 against this repository's `@screenplay.space/knobs` and `@screenplay.space/state`, so
@@ -220,10 +220,11 @@ framing step keeps an existing image when the new render is visually the same.
    pass to `<Screenshot name="…">`.
 2. For a full-window shot, that's it. For a detail shot, give it a `focus`:
    selectors for what the image is about, such as `MENU`, `DIALOG` or
-   `POPOVER`. After `prepare`, the visible matches are measured and framed with
-   some room around them. So when a UI change moves a menu, the next run still
-   frames it whole. An optional `crop` (`[x, y, width, height]` in CSS px)
-   sets the minimum region, for context the focus alone would miss.
+   `POPOVER`, or a function that measures it. After `prepare`, the visible
+   matches are measured, and the framing step crops a detail centred on them,
+   with room around them, in a rounded card. So when a UI change moves a
+   menu, the next run still frames it whole and centred. A fixed `crop`
+   (`[x, y, width, height]` in CSS px) stands in when nothing matches.
 3. If the screen needs state the world doesn't have, add it to `world.ts`.
 4. Run `pnpm --filter app screenshots:docs --screens <name>` and embed it.
 

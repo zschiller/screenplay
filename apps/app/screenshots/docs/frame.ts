@@ -14,9 +14,6 @@ export const DOCS_SCREENSHOT_DIR = resolve(
   "../../../docs/public/screenshots"
 )
 
-/** Edge fade, in px, on every side a detail crop cuts through the UI. */
-const FADE = 56
-
 /**
  * Turn raw captures into the framed images the docs embed, on a light or dark
  * gradient that matches the docs theme:
@@ -24,10 +21,10 @@ const FADE = 56
  * - **Full-window** screens (`crop` unset) are drawn as a Screenplay desktop
  *   window: the Tauri overlay title bar's traffic lights at the app's
  *   `trafficLightPosition`, rounded corners, and a soft shadow.
- * - **Detail** screens (a `crop` measured from the screen's `focus` during
- *   capture, else its fixed `crop`, in CSS px) are magnified up to 1.6× and
- *   fade out on every edge that cuts through the UI, so a menu or dialog reads
- *   at a glance.
+ * - **Detail** screens are cropped around their focus (measured from the
+ *   screen's `focus` during capture, else its fixed `crop`): the focus centred
+ *   with room around it, magnified up to 1.6×, in the same rounded card — a
+ *   zoomed-in window, so a menu or dialog reads at a glance.
  */
 export async function frameScreens(
   profile: CaptureProfile,
@@ -42,9 +39,9 @@ export async function frameScreens(
   const browser = await launchBrowser()
   // 1.5× keeps text crisp on a retina display without bloating the files.
   const page = await browser.newPage({ deviceScaleFactor: 1.5 })
-  const cropsFile = join(rawDir, "crops.json")
-  const measured: Record<string, Crop> = existsSync(cropsFile)
-    ? JSON.parse(await readFile(cropsFile, "utf8"))
+  const focusFile = join(rawDir, "focus.json")
+  const measured: Record<string, Crop> = existsSync(focusFile)
+    ? JSON.parse(await readFile(focusFile, "utf8"))
     : {}
   let missing = 0
   let written = 0
@@ -124,10 +121,38 @@ async function looksTheSame(
   return differing / (a.data.length / 4) < CHANGED_PIXELS
 }
 
+/** Room left around a detail's focus, and the smallest detail worth magnifying. */
+const FOCUS_PAD = 64
+const MIN_DETAIL = { width: 560, height: 360 }
+
+/**
+ * The region a detail shows: its focus centred, with {@link FOCUS_PAD} of
+ * context on every side, grown to {@link MIN_DETAIL}, then slid (never
+ * shrunk) to stay inside the window. The focus is always wholly inside it.
+ */
+export function detailRegion(
+  focus: Crop,
+  viewport: { width: number; height: number }
+): Crop {
+  const [fx, fy, fw, fh] = focus
+  const w = Math.min(
+    viewport.width,
+    Math.max(fw + 2 * FOCUS_PAD, MIN_DETAIL.width)
+  )
+  const h = Math.min(
+    viewport.height,
+    Math.max(fh + 2 * FOCUS_PAD, MIN_DETAIL.height)
+  )
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(v, max))
+  const x = clamp(Math.round(fx + fw / 2 - w / 2), viewport.width - w)
+  const y = clamp(Math.round(fy + fh / 2 - h / 2), viewport.height - h)
+  return [x, y, w, h]
+}
+
 function framePage(
   img: string,
   viewport: { width: number; height: number },
-  crop: Crop | undefined,
+  focus: Crop | undefined,
   dark: boolean
 ): { width: number; height: number; html: string } {
   const { width: W0, height: H0 } = viewport
@@ -136,35 +161,28 @@ function framePage(
     : "radial-gradient(90% 90% at 0% 0%, #ffe6d5 0%, transparent 60%), radial-gradient(90% 90% at 100% 100%, #dde5ff 0%, transparent 60%), #f5f4f2"
   const border = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.09)"
   const shadow = `0 0 0 1px ${border}, 0 30px 70px -24px rgba(15,10,40,${dark ? 0.9 : 0.38}), 0 10px 24px -12px rgba(15,10,40,${dark ? 0.6 : 0.2})`
-  const [x, y, w, h] = crop ?? [0, 0, W0, H0]
-  // Detail crops may run tall (a long menu, a whole dialog) rather than shrink.
-  const s = crop ? Math.min(1.6, 1280 / w, 1150 / h) : 1360 / W0
+  const [x, y, w, h] = focus ? detailRegion(focus, viewport) : [0, 0, W0, H0]
+  // Details are magnified (up to 1.6×) and may run tall — a long menu, a
+  // whole dialog — rather than shrink.
+  const s = focus ? Math.min(1.6, 1200 / w, 1100 / h) : 1360 / W0
   const dw = w * s
   const dh = h * s
-  const width = crop ? Math.round(Math.max(900, dw + 200)) : 1600
-  const height = crop ? Math.round(dh + 160) : Math.round(dh + 210)
-  const cut = { l: x > 0, t: y > 0, r: x + w < W0, b: y + h < H0 }
-  const anyCut = cut.l || cut.t || cut.r || cut.b
-  const grad = (dir: string, a: boolean, z: boolean) =>
-    `linear-gradient(${dir}, ${a ? "transparent" : "#000"} 0, #000 ${a ? FADE : 0}px, #000 calc(100% - ${z ? FADE : 0}px), ${z ? "transparent" : "#000"} 100%)`
-  const mask = anyCut
-    ? `-webkit-mask-image:${grad("to right", cut.l, cut.r)},${grad("to bottom", cut.t, cut.b)};-webkit-mask-composite:source-in;mask-composite:intersect;`
-    : `box-shadow:${shadow};`
-  const r = (on: boolean) => (on ? 12 : 0)
-  const radius = `border-radius:${r(!cut.l && !cut.t)}px ${r(!cut.r && !cut.t)}px ${r(!cut.r && !cut.b)}px ${r(!cut.l && !cut.b)}px;`
+  const width = focus ? Math.round(Math.max(900, dw + 240)) : 1600
+  const height = Math.round(dh + (focus ? 200 : 210))
   // The Tauri overlay title bar: macOS traffic lights drawn over the webview
-  // at the window's `trafficLightPosition` (x 16, y 26 in the app config).
+  // at the window's `trafficLightPosition` (x 16, y 26 in the app config),
+  // whenever the region includes the window's top-left corner.
   const light = (cx: number, color: string) =>
     `<i style="position:absolute;left:${(cx - x - 6) * s}px;top:${(24 - y - 6) * s}px;width:${12 * s}px;height:${12 * s}px;border-radius:50%;background:${color};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></i>`
   const lights =
-    x < 80 && y < 40
+    x <= 10 && y <= 12
       ? light(22, "#ff5f57") + light(42, "#febc2e") + light(62, "#28c840")
       : ""
-  let inner = `<div style="position:relative;width:${dw}px;height:${dh}px;overflow:hidden;${radius}${mask}">
+  // Window and detail alike sit in one rounded, bordered card: a detail reads
+  // as a zoomed-in window, with the focus centred and only context at its
+  // edges.
+  const inner = `<div style="position:relative;width:${dw}px;height:${dh}px;overflow:hidden;border-radius:${focus ? 16 : 12}px;box-shadow:${shadow}">
     <img src="${img}" style="position:absolute;left:${-x * s}px;top:${-y * s}px;width:${W0 * s}px;height:${H0 * s}px">${lights}</div>`
-  if (anyCut) {
-    inner = `<div style="filter:drop-shadow(0 24px 40px rgba(15,10,40,${dark ? 0.7 : 0.22})) drop-shadow(0 0 1px ${border})">${inner}</div>`
-  }
   return {
     width,
     height,

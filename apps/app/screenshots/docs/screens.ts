@@ -23,22 +23,25 @@ import { DOCS_CLOCK, DOCS_IDS } from "./world"
  * measured against.
  */
 export interface DocsScreen extends Screen {
-  /** A fixed detail region, in CSS px of the capture. */
-  crop?: Crop
   /**
    * What a detail screen is *about* — a menu, a dialog, a popover — as
-   * selectors. After `prepare`, the union of the visible matches (padded) is
-   * measured and becomes the crop, so a menu that moves in a UI change is still
-   * framed whole without anyone re-measuring it. Wins over `crop` when anything
-   * matches.
+   * selectors. After `prepare`, the union of the visible matches is measured,
+   * and `./frame.ts` crops a detail centred on it with room around it. So a
+   * menu that moves in a UI change is still framed whole and centred, without
+   * anyone re-measuring it.
    */
-  focus?: readonly string[]
+  focus?: readonly string[] | ((page: Page) => Promise<Crop | null>)
+  /**
+   * A fixed focus region, `[x, y, width, height]` in CSS px of the capture, for
+   * a detail no selector pins down. Used when `focus` matches nothing.
+   */
+  crop?: Crop
 }
 
 export type Crop = [x: number, y: number, width: number, height: number]
 
-/** Crops measured from `focus` during the last capture, by `<name>.<theme>`. */
-export const measuredCrops = new Map<string, Crop>()
+/** Focus regions measured during the last capture, by `<name>.<theme>`. */
+export const measuredFocus = new Map<string, Crop>()
 
 /** Screens whose `prepare` failed in the last capture, by `<name>.<theme>`. */
 export const failedPrepares = new Map<string, string>()
@@ -47,6 +50,30 @@ export const failedPrepares = new Map<string, string>()
 const MENU = ["[role=menu]", "button[data-state=open]"]
 const DIALOG = ["[role=dialog]", "[role=alertdialog]"]
 const POPOVER = ["[data-slot=popover-content]", "button[data-state=open]"]
+/** The chat composer's editor (the canvas's documents are editors too). */
+const COMPOSER = "[contenteditable=true][data-placeholder^='Ask the agent']"
+/** A composer suggestion list (@ mentions, / skills), rendered by TipTap. */
+const SUGGESTIONS = [".react-renderer", COMPOSER]
+
+/** The text selection in a document, and the formatting toolbar above it. */
+async function selectionAndToolbar(page: Page): Promise<Crop | null> {
+  const rect = (await page.evaluate(`(() => {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return null
+    const r = sel.getRangeAt(0).getBoundingClientRect()
+    let best = null
+    for (const t of document.querySelectorAll("[data-slot=floating-toolbar]")) {
+      const b = t.getBoundingClientRect()
+      if (!b.width) continue
+      const d = Math.abs(b.bottom - r.top)
+      if (!best || d < best.d) best = { d, b }
+    }
+    const b = best ? best.b : r
+    const x0 = Math.min(r.left, b.left), y0 = Math.min(r.top, b.top)
+    return [x0, y0, Math.max(r.right, b.right) - x0, Math.max(r.bottom, b.bottom) - y0]
+  })()`)) as Crop | null
+  return rect && (rect.map(Math.round) as Crop)
+}
 
 export const DOCS_VIEWPORT = { width: 1280, height: 800 } as const
 /** For a dialog or menu too tall for {@link DOCS_VIEWPORT} to show unscrolled. */
@@ -102,11 +129,11 @@ const screen = (s: DocsScreen): DocsScreen => {
       await s.prepare?.(page)
       if (s.focus) {
         await sleep(page, 300)
-        const measured = await measureFocus(page, s.focus)
-        // Grow the hand-set crop to take in the focus, never shrink it: the
-        // hand-set region carries the context around the surface.
-        const crop = measured && s.crop ? union(measured, s.crop) : measured
-        if (crop) measuredCrops.set(key, crop)
+        const focus =
+          typeof s.focus === "function"
+            ? await s.focus(page)
+            : await measureFocus(page, s.focus)
+        if (focus) measuredFocus.set(key, focus)
       }
       failedPrepares.delete(key)
     } catch (err) {
@@ -146,21 +173,7 @@ async function themeOf(page: Page): Promise<string> {
   )) as string
 }
 
-function union(a: Crop, b: Crop): Crop {
-  const x = Math.min(a[0], b[0])
-  const y = Math.min(a[1], b[1])
-  return [
-    x,
-    y,
-    Math.max(a[0] + a[2], b[0] + b[2]) - x,
-    Math.max(a[1] + a[3], b[1] + b[3]) - y,
-  ]
-}
-
-/** Padding around a measured focus, and the smallest crop worth magnifying. */
-const FOCUS_PAD = 40
-const MIN_CROP = { width: 440, height: 280 }
-
+/** The union of the visible elements matching `selectors`, clamped to the window. */
 async function measureFocus(
   page: Page,
   selectors: readonly string[]
@@ -180,23 +193,10 @@ async function measureFocus(
   )) as [number, number, number, number] | null
   if (!rect) return null
   const { width: W, height: H } = page.viewportSize() ?? DOCS_VIEWPORT
-  let [x0, y0, x1, y1] = [
-    rect[0] - FOCUS_PAD,
-    rect[1] - FOCUS_PAD,
-    rect[2] + FOCUS_PAD,
-    rect[3] + FOCUS_PAD,
-  ]
-  // Grow a small region evenly to the minimum, then keep it on the canvas.
-  const grow = (lo: number, hi: number, min: number, max: number) => {
-    const extra = Math.max(0, min - (hi - lo)) / 2
-    lo -= extra
-    hi += extra
-    if (lo < 0) [lo, hi] = [0, hi - lo]
-    if (hi > max) [lo, hi] = [Math.max(0, lo - (hi - max)), max]
-    return [Math.round(lo), Math.round(hi)]
-  }
-  ;[x0, x1] = grow(x0, x1, MIN_CROP.width, W)
-  ;[y0, y1] = grow(y0, y1, MIN_CROP.height, H)
+  const x0 = Math.max(0, Math.floor(rect[0]))
+  const y0 = Math.max(0, Math.floor(rect[1]))
+  const x1 = Math.min(W, Math.ceil(rect[2]))
+  const y1 = Math.min(H, Math.ceil(rect[3]))
   return [x0, y0, x1 - x0, y1 - y0]
 }
 
@@ -952,6 +952,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "composer-mention",
     description: "The composer's @ mention menu.",
     path: ROOM,
+    focus: SUGGESTIONS,
     cookies: WITH_CHAT,
     crop: [850, 480, 430, 320],
     prepare: async (page) => {
@@ -967,6 +968,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "composer-skills",
     description: "The composer's / skills menu.",
     path: ROOM,
+    focus: SUGGESTIONS,
     cookies: WITH_CHAT,
     crop: [860, 440, 420, 360],
     prepare: async (page) => {
@@ -994,6 +996,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "composer-element-hover",
     description: "A targeted element in the composer, hovered.",
     path: ROOM,
+    focus: ["[data-slot=hover-card-content]", COMPOSER],
     cookies: WITH_CHAT,
     crop: [850, 480, 430, 320],
     prepare: async (page) => {
@@ -1056,6 +1059,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "doc-selection-toolbar",
     description: "Editing the document: the selection toolbar.",
     path: ROOM,
+    focus: selectionAndToolbar,
     cookies: SIDEBAR_ONLY,
     crop: [400, 150, 860, 480],
     prepare: async (page) => {
@@ -1102,6 +1106,11 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "play-hud",
     description: "Play mode's HUD, hovered.",
     path: PLAY,
+    focus: [
+      "[data-slot=tooltip-content]",
+      "button[aria-label^='Device']",
+      "button[aria-label='Open agent']",
+    ],
     beforeNavigate: warmPlay,
     crop: [760, 440, 520, 360],
     prepare: async (page) => {

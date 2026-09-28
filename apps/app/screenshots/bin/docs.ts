@@ -20,7 +20,7 @@ import { resolveDocsProfile } from "../docs/profile"
 import {
   DOCS_SCREENS,
   failedPrepares,
-  measuredCrops,
+  measuredFocus,
   selectDocsScreens,
   setDemoCheckoutPath,
   type DocsScreen,
@@ -166,13 +166,13 @@ async function capture(
     }
   }
   await rm(result.dir, { recursive: true, force: true })
-  // The crops measured from each screen's `focus`, for the framing step.
-  const cropsFile = join(dir, "crops.json")
-  const crops = existsSync(cropsFile)
-    ? (JSON.parse(await readFile(cropsFile, "utf8")) as Record<string, unknown>)
+  // The regions measured from each screen's `focus`, for the framing step.
+  const focusFile = join(dir, "focus.json")
+  const focus = existsSync(focusFile)
+    ? (JSON.parse(await readFile(focusFile, "utf8")) as Record<string, unknown>)
     : {}
-  for (const [key, crop] of measuredCrops) crops[key] = crop
-  await writeFile(cropsFile, `${JSON.stringify(crops, null, 2)}\n`)
+  for (const [key, rect] of measuredFocus) focus[key] = rect
+  await writeFile(focusFile, `${JSON.stringify(focus, null, 2)}\n`)
   console.log(
     `Wrote ${result.files.length} captures to ${relative(process.cwd(), dir)}`
   )
