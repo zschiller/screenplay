@@ -92,7 +92,7 @@ export function KnobsPopover({
         </FloatingToolbarButton>
       </PopoverTrigger>
       <PopoverContent
-        side="right"
+        side="bottom"
         align="start"
         sideOffset={8}
         collisionPadding={16}

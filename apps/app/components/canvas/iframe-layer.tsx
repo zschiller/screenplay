@@ -3,15 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   GitBranch,
   Maximize2,
   MoreHorizontal,
   MousePointer,
-  Move,
   Play,
-  RotateCw,
-  Route,
   Trash2,
 } from "lucide-react"
 import {
@@ -29,7 +28,6 @@ import {
   FloatingToolbarButton,
   FloatingToolbarSeparator,
 } from "@workspace/ui/components/floating-toolbar"
-import { Kbd } from "@workspace/ui/components/kbd"
 import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
@@ -42,9 +40,20 @@ import {
   type WheelForward,
 } from "@/hooks/use-screenplay-dom"
 import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
+import {
+  canGoBack,
+  canGoForward,
+  createRouteHistory,
+  currentRoute,
+  goBack,
+  goForward,
+  visitRoute,
+  type RouteHistory,
+} from "@/lib/canvas/route-history"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
+import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
@@ -83,6 +92,14 @@ const PLACEHOLDER_RELOAD_GRACE_MS = 1500
 // `contentReady` stops the loop the moment a real page paints, so a healthy
 // frame reloads at most once; the cap only bounds a genuinely stuck server.
 const MAX_PLACEHOLDER_RELOADS = 10
+
+// A selected frame's floating toolbar hangs centred under the frame, like
+// Safari's bottom bar (issue #795). Screen px: its gap below the frame, the
+// canvas toolbar strip it stays above when the frame runs off screen, and its
+// inset from the canvas's side edges.
+const FRAME_TOOLBAR_GAP = 8
+const CANVAS_TOOLBAR_STRIP = 48
+const FRAME_TOOLBAR_INSET = 8
 
 export interface IframeLayerData {
   id: string
@@ -240,7 +257,13 @@ interface IframeLayerProps {
   onAssignBranch?: (iframeLayerId: string, branchId: string) => void
   /** Routes discovered for the agent backing this iframeLayer. */
   discoveredRoutes?: { route: string; label: string }[]
-  onSelectRoute?: (iframeLayerId: string, route: string) => void
+  /** Navigate the frame; `replace` edits the route in place and never leaves
+   *  a Create Flow trail (back and forward use it). */
+  onSelectRoute?: (
+    iframeLayerId: string,
+    route: string,
+    replace?: boolean
+  ) => void
   /** Group label shown above the branch — only on the leftmost iframeLayer of a multi-iframeLayer group. */
   groupLabel?: string
   /** True when the parent group is selected. Drives label color + group-pink frame. */
@@ -371,9 +394,45 @@ export function IframeLayer({
   // placeholder, so this only fires for genuine dev-server pages.
   const [contentReady, setContentReady] = useState(false)
 
+  // Back/forward (issue #795). The preview is cross-origin, so the frame keeps
+  // its own list of the routes it has shown and steps its route through it.
+  // A page navigation is recorded as it's reported (a replace-style one edits
+  // the current entry); any other route change (the route field, another
+  // user) is recorded when the route arrives. Back and forward move the index
+  // first, so the route they set is already current when it arrives.
+  const shownRoute = iframeLayer.route || "/"
+  const [history, setHistory] = useState<RouteHistory>(() =>
+    createRouteHistory(shownRoute)
+  )
+  const [lastShownRoute, setLastShownRoute] = useState(shownRoute)
+  if (shownRoute !== lastShownRoute) {
+    setLastShownRoute(shownRoute)
+    setHistory(visitRoute(history, shownRoute))
+  }
+
+  // Recording (Create Flow): how many screens this run has laid down, the
+  // frame's own screen included. Each new route the frame moves to while
+  // recording leaves a screen behind, so each one counts; a replace-style
+  // navigation or a history step leaves none.
+  const [recordedScreens, setRecordedScreens] = useState(1)
+  const [lastCreateFlow, setLastCreateFlow] = useState(createFlow)
+  if (createFlow !== lastCreateFlow) {
+    setLastCreateFlow(createFlow)
+    if (createFlow) setRecordedScreens(1)
+  }
+  const recordingRef = useRef({ createFlow, shownRoute })
+  useEffect(() => {
+    recordingRef.current = { createFlow, shownRoute }
+  })
+
   const handleNavigation = useCallback(
     (id: string, path: string, replace: boolean) => {
       reportedPathRef.current = path
+      setHistory((h) => visitRoute(h, path, replace))
+      const recording = recordingRef.current
+      if (recording.createFlow && !replace && path !== recording.shownRoute) {
+        setRecordedScreens((n) => n + 1)
+      }
       onRouteChange?.(id, path, replace)
     },
     [onRouteChange]
@@ -440,13 +499,31 @@ export function IframeLayer({
     typeof document !== "undefined"
       ? document.getElementById("frame-toolbar-portal")
       : null
+  const toolbarVisible =
+    !!iframeLayer.branchId && showToolbar && !!toolbarPortalTarget
 
-  // Keep the portaled toolbar anchored to the frame's right edge.
+  // Keep the portaled toolbar centred under the frame. When the frame's bottom
+  // is off screen the toolbar stops above the canvas toolbar, and it never
+  // slides off the sides.
   useCanvasAnchoredPortal({
-    enabled: showToolbar && !!toolbarPortalTarget,
+    enabled: toolbarVisible,
     anchorRef: frameRef,
     targetRef: toolbarRef,
-    getOffset: (fr, cw) => ({ x: fr.right - cw.left + 8, y: fr.top - cw.top }),
+    getOffset: (fr, cw) => {
+      const width = toolbarRef.current?.offsetWidth ?? 0
+      const height = toolbarRef.current?.offsetHeight ?? 0
+      const centred = fr.left - cw.left + (fr.width - width) / 2
+      return {
+        x: Math.max(
+          FRAME_TOOLBAR_INSET,
+          Math.min(centred, cw.width - width - FRAME_TOOLBAR_INSET)
+        ),
+        y: Math.min(
+          fr.bottom - cw.top + FRAME_TOOLBAR_GAP,
+          cw.height - CANVAS_TOOLBAR_STRIP - height
+        ),
+      }
+    },
   })
   const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
@@ -456,7 +533,6 @@ export function IframeLayer({
   // frame has a live preview (and a Branch/Repo to resolve the portless URL),
   // so its presence is the gate.
   const showOpenInBrowser = !!onOpenInBrowser
-  const showReload = hmrStatus === "disconnected"
   // The `…` menu holds this frame's own actions (device size, fit,
   // duplicate, delete); Workspace-scoped actions (prototype player, open in
   // browser) sit in its Workspace submenu so they don't read as frame actions.
@@ -710,6 +786,28 @@ export function IframeLayer({
     recoveryExhausted: recoveryTick >= MAX_PLACEHOLDER_RELOADS,
   })
 
+  // The toolbar's status dot: the preview's state in one glance, with the
+  // status screen in the body carrying the detail.
+  const previewStatus: FramePreviewStatus | undefined = !branchId
+    ? undefined
+    : stage === null
+      ? hmrStatus === "disconnected"
+        ? "disconnected"
+        : "live"
+      : stage === "booting" || stage === "starting"
+        ? "loading"
+        : stage === "stopped"
+          ? "stopped"
+          : stage === "unassigned"
+            ? undefined
+            : "failed"
+
+  const navigateHistory = (next: RouteHistory) => {
+    if (next === history) return
+    setHistory(next)
+    onSelectRoute?.(iframeLayer.id, currentRoute(next), true)
+  }
+
   // Retry a dev server that never answered: probe again and give the iframe a
   // fresh recovery budget, starting from a clean reload.
   const retryPreview = useCallback(() => {
@@ -776,6 +874,7 @@ export function IframeLayer({
               ? (route) => onSelectRoute(iframeLayer.id, route)
               : undefined
           }
+          hideRoute={toolbarVisible}
           selected={selected || groupSelected}
           remoteSelectedColor={remoteSelectedColor}
           onSelectFrame={api.deferSelect}
@@ -787,13 +886,10 @@ export function IframeLayer({
     >
       {(api) => (
         <>
-          {iframeLayer.branchId &&
-            showToolbar &&
-            toolbarPortalTarget &&
+          {toolbarVisible &&
             createPortal(
               <FloatingToolbar
                 ref={toolbarRef}
-                orientation="vertical"
                 aria-label="Frame"
                 // Positioned every frame by the rAF loop above (translate is set
                 // imperatively from the frame's getBoundingClientRect). Lives
@@ -804,30 +900,58 @@ export function IframeLayer({
                 onClick={(e) => e.stopPropagation()}
               >
                 <FloatingToolbarButton
-                  label={focused ? "Back to canvas" : "Interact"}
+                  label="Interact"
+                  shortcut={focused ? ["Esc"] : undefined}
                   pressed={focused}
+                  // While interacting, the pressed button takes the selection
+                  // colour, like the ring around the frame.
+                  className={
+                    focused
+                      ? "bg-canvas-selection text-white hover:bg-canvas-selection/90 hover:text-white dark:hover:bg-canvas-selection/90"
+                      : undefined
+                  }
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
                 >
-                  {focused ? <Move /> : <MousePointer />}
+                  <MousePointer />
                 </FloatingToolbarButton>
-                <FloatingToolbarButton
-                  label={createFlow ? "Stop create flow" : "Create flow"}
-                  pressed={createFlow}
-                  onClick={() =>
-                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
-                  }
-                >
-                  <Route />
-                </FloatingToolbarButton>
-                {/* interaction modes above ∣ everything else below */}
                 <FloatingToolbarSeparator />
                 <FloatingToolbarButton
-                  label="Reload"
-                  variant={showReload ? "default" : "ghost"}
-                  onClick={reloadIframe}
+                  label="Back"
+                  disabled={!onSelectRoute || !canGoBack(history)}
+                  onClick={() => navigateHistory(goBack(history))}
                 >
-                  <RotateCw />
+                  <ChevronLeft />
                 </FloatingToolbarButton>
+                <FloatingToolbarButton
+                  label="Forward"
+                  disabled={!onSelectRoute || !canGoForward(history)}
+                  onClick={() => navigateHistory(goForward(history))}
+                >
+                  <ChevronRight />
+                </FloatingToolbarButton>
+                <FrameAddressBar
+                  route={iframeLayer.route}
+                  discoveredRoutes={discoveredRoutes ?? []}
+                  onSelectRoute={
+                    onSelectRoute
+                      ? (route) => {
+                          if (createFlow && route !== shownRoute) {
+                            setRecordedScreens((n) => n + 1)
+                          }
+                          onSelectRoute(iframeLayer.id, route)
+                        }
+                      : undefined
+                  }
+                  sharedState={iframeLayer.sharedState}
+                  status={previewStatus}
+                  onReload={reloadIframe}
+                  recording={createFlow}
+                  recordedScreens={recordedScreens}
+                  onToggleRecording={() =>
+                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
+                  }
+                />
+                <FloatingToolbarSeparator />
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
                   values={iframeLayer.knobValues}
@@ -843,8 +967,8 @@ export function IframeLayer({
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    side="right"
-                    align="start"
+                    side="bottom"
+                    align="end"
                     sideOffset={8}
                     className="min-w-44"
                   >
@@ -902,7 +1026,7 @@ export function IframeLayer({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </FloatingToolbar>,
-              toolbarPortalTarget
+              toolbarPortalTarget!
             )}
           <div
             className={`relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900 ${LAYER_SURFACE_CLASS}`}
@@ -1018,29 +1142,6 @@ export function IframeLayer({
               />
             )}
           </div>
-          {focused && (
-            // The interacting tag: a small label in the selection colour,
-            // hung under the ring like a canvas size tag, so the mode reads
-            // as part of the selection rather than another floating control.
-            // Counter-scaled like the title bar so it stays one screen size
-            // at any zoom; the margin clears the bottom resize handle. The key
-            // sits 2px in from the tag's edge, so its radius is the tag's
-            // minus 2px and the corners stay concentric.
-            <div
-              data-interacting-hint=""
-              className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-2xs leading-4 font-medium whitespace-nowrap text-white"
-              style={{
-                transform: `translateX(-50%) scale(${1 / zoom})`,
-                transformOrigin: "top center",
-                marginTop: 8 / zoom,
-              }}
-            >
-              Interacting
-              <Kbd className="h-4 min-w-4 rounded-[calc(var(--radius-sm)-2px)] bg-white/20 px-1 text-3xs text-white">
-                Esc
-              </Kbd>
-            </div>
-          )}
         </>
       )}
     </LayerShell>

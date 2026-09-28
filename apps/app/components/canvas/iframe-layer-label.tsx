@@ -52,6 +52,9 @@ interface IframeLayerLabelProps {
   /** Inline rename for the frame name. When provided, double-clicking the
    *  name swaps it into a contenteditable. */
   onRename?: (next: string) => void
+  /** Leave the route out: the selected frame's toolbar shows it in its route
+   *  field instead (issue #795). */
+  hideRoute?: boolean
 }
 
 /**
@@ -74,6 +77,7 @@ export function IframeLayerLabel({
   remoteSelectedColor,
   onSelectFrame,
   onRename,
+  hideRoute,
 }: IframeLayerLabelProps) {
   return (
     <LayerLabelRow
@@ -108,6 +112,7 @@ export function IframeLayerLabel({
       }
       trailing={
         branch &&
+        !hideRoute &&
         (onSelectRoute ? (
           <RoutePicker
             route={route}
@@ -283,7 +288,9 @@ interface SharedStateIndicatorProps {
  * the full JSON snapshot. Collapses to nothing when the state is empty so
  * unaffected iframeLayers don't grow an extra slot.
  */
-function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
+export function SharedStateIndicator({
+  sharedState,
+}: SharedStateIndicatorProps) {
   const json = useMemo(() => {
     if (!sharedState) return null
     const keys = Object.keys(sharedState)
