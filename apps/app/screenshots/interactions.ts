@@ -403,7 +403,7 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1200)
       // An option's name is its label then its size ("iPhone 17 Pro402×874"),
       // so anchor on the digit to keep "iPhone 17 Pro Max" out.
-      for (const device of [/^iPhone 17 Pro\s*\d/, /^Desktop · 1920/]) {
+      for (const device of [/^iPhone 17 Pro\s*\d/, /^Desktop\s*1920/]) {
         await click(page, page.getByRole("combobox", { name: /^device/i }))
         await page.waitForTimeout(400)
         await click(page, page.getByRole("option", { name: device }))

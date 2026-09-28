@@ -10,9 +10,11 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   GROUPED_IFRAME_LAYER_SIZE_PRESETS,
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
+  formatIframeLayerSize,
 } from "@/lib/iframe-layer-sizes"
 
 interface DeviceSizeSubMenuProps {
@@ -57,11 +59,15 @@ export function DeviceSizeSubMenu({
                   >
                     <Icon />
                     <span>{preset.label}</span>
-                    <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
-                      {preset.width}×{preset.height}
-                      {active ? (
-                        <Check className="size-3 text-foreground" />
-                      ) : null}
+                    <span className="ml-auto flex items-center gap-1.5 pl-4 text-xs text-muted-foreground tabular-nums">
+                      {formatIframeLayerSize(preset)}
+                      {/* Always laid out so the sizes stay one column. */}
+                      <Check
+                        className={cn(
+                          "size-3 text-foreground",
+                          !active && "invisible"
+                        )}
+                      />
                     </span>
                   </DropdownMenuItem>
                 )

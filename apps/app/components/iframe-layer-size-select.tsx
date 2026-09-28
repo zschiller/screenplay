@@ -13,6 +13,7 @@ import {
 import {
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
   GROUPED_IFRAME_LAYER_SIZE_PRESETS,
+  formatIframeLayerSize,
   getIframeLayerSizePreset,
 } from "@/lib/iframe-layer-sizes"
 
@@ -41,6 +42,9 @@ export function IframeLayerSizeSelect({
           <span className="flex items-center gap-2">
             <SelectedIcon className="size-4 text-muted-foreground" />
             <span className="truncate">{selected.label}</span>
+            <span className="text-muted-foreground tabular-nums">
+              {formatIframeLayerSize(selected)}
+            </span>
           </span>
         </SelectValue>
       </SelectTrigger>
@@ -52,12 +56,17 @@ export function IframeLayerSizeSelect({
               {index > 0 && <SelectSeparator />}
               <SelectLabel>{group.category}</SelectLabel>
               {group.presets.map((preset) => (
-                <SelectItem key={preset.id} value={preset.id}>
-                  <span className="flex items-center gap-2">
+                <SelectItem
+                  key={preset.id}
+                  value={preset.id}
+                  // Stretch the item text so the size column lines up.
+                  className="[&>span:last-child]:flex-1"
+                >
+                  <span className="flex w-full items-center gap-2">
                     <Icon className="size-4 text-muted-foreground" />
                     <span>{preset.label}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {preset.width}×{preset.height}
+                    <span className="ml-auto pl-4 text-xs text-muted-foreground tabular-nums">
+                      {formatIframeLayerSize(preset)}
                     </span>
                   </span>
                 </SelectItem>
