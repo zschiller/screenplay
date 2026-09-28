@@ -145,6 +145,10 @@ import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
+import {
+  useIsWorkspaceHighlighted,
+  workspaceHoverStore,
+} from "@/lib/workspace-hover-store"
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 
 /** A human-readable label for a picker pick, for the settings-stage header. */
@@ -1995,12 +1999,11 @@ export function RoomSidebar({
                                                     onCloseAutoFocus:
                                                       onBranchMenuCloseAutoFocus,
                                                   }) => (
-                                                    <div
-                                                      className={branchRowClassName(
-                                                        {
-                                                          isPanelActive,
-                                                        }
-                                                      )}
+                                                    <BranchRowShell
+                                                      branchId={branch.id}
+                                                      isPanelActive={
+                                                        isPanelActive
+                                                      }
                                                       onClick={(e) => {
                                                         e.stopPropagation()
                                                         onSelectBranch(
@@ -2148,6 +2151,12 @@ export function RoomSidebar({
                                                                     onPlay={
                                                                       onPlayBranch
                                                                     }
+                                                                    onRetry={
+                                                                      onRetryBranch
+                                                                    }
+                                                                    hasChanges={
+                                                                      !!hasStats
+                                                                    }
                                                                     onRename={
                                                                       triggerBranchRename
                                                                     }
@@ -2198,7 +2207,7 @@ export function RoomSidebar({
                                                           )
                                                         })()}
                                                       </div>
-                                                    </div>
+                                                    </BranchRowShell>
                                                   )}
                                                 </WithEditableRef>
                                               </SidebarMenuItem>
@@ -2789,6 +2798,38 @@ function MemberEntry({
         editableRef={editableRef}
       />
     </>
+  )
+}
+
+/** A Workspace row. Hovering it outlines the Workspace's frames (canvas and
+ *  layer list); hovering one of those frames lights the row up (#793). */
+function BranchRowShell({
+  branchId,
+  isPanelActive,
+  children,
+  ...rest
+}: {
+  branchId: string
+  isPanelActive: boolean
+  children: React.ReactNode
+} & Pick<React.ComponentProps<"div">, "onClick" | "onDoubleClick">) {
+  const isHighlighted = useIsWorkspaceHighlighted(branchId)
+  const hover = { branchId, source: "workspace" } as const
+  // A row unmounting mid-hover (deleted, collapsed) must not leave its
+  // frames outlined.
+  useEffect(
+    () => () => workspaceHoverStore.clear({ branchId, source: "workspace" }),
+    [branchId]
+  )
+  return (
+    <div
+      {...rest}
+      className={branchRowClassName({ isPanelActive, isHighlighted })}
+      onPointerEnter={() => workspaceHoverStore.set(hover)}
+      onPointerLeave={() => workspaceHoverStore.clear(hover)}
+    >
+      {children}
+    </div>
   )
 }
 

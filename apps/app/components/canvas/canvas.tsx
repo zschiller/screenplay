@@ -45,7 +45,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { renameRoom } from "@/lib/rooms-actions"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
-import { CommentsMenu } from "./comments-menu"
+import { CommentsButton, CommentsPanel } from "./comments-panel"
 import { useCommentThreads } from "./use-comment-threads"
 import { useCommentPlacements } from "./use-comment-placements"
 import type { ThreadWithComments } from "@/lib/comments"
@@ -127,8 +127,15 @@ import {
 } from "@/lib/getting-started"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
+import {
+  useHoveredWorkspaceId,
+  workspaceHoverStore,
+} from "@/lib/workspace-hover-store"
 
 /** The request the empty Knobs popover starts in the chat composer. */
+/** The comments panel's width plus its 8px margin and 8px of air. */
+const COMMENTS_PANEL_INSET_PX = 320 + 8 + 8
+
 const ASK_FOR_KNOB_PROMPT = "Add a knob to this prototype that controls "
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
@@ -464,6 +471,29 @@ export function Canvas({
   useEffect(() => {
     captureTracker.retain(new Set(iframeLayers.map((layer) => layer.id)))
   }, [captureTracker, iframeLayers])
+  // Workspace ↔ frame hover cross-highlighting (#793): a frame hovered on the
+  // Canvas lights up its Workspace in the sidebar, and a Workspace hovered in
+  // the sidebar outlines its frames here.
+  const hoveredFrameBranchId = hoveredIframeLayerId
+    ? iframeLayers.find((layer) => layer.id === hoveredIframeLayerId)?.branchId
+    : undefined
+  useEffect(() => {
+    if (!hoveredFrameBranchId) return
+    const hover = { branchId: hoveredFrameBranchId, source: "frame" } as const
+    workspaceHoverStore.set(hover)
+    return () => workspaceHoverStore.clear(hover)
+  }, [hoveredFrameBranchId])
+  const hoveredWorkspaceId = useHoveredWorkspaceId()
+  const workspaceHighlightIds = useMemo(
+    () =>
+      hoveredWorkspaceId
+        ? iframeLayers
+            .filter((layer) => layer.branchId === hoveredWorkspaceId)
+            .map((layer) => layer.id)
+        : undefined,
+    [hoveredWorkspaceId, iframeLayers]
+  )
+
   const iframeLayerLayouts = useMemo(
     () =>
       computeIframeLayerLayouts(
@@ -887,6 +917,17 @@ export function Canvas({
   // middle of the viewport, at the current zoom. A thread on another route
   // navigates its frame there first; its pin is centred once it shows.
   const pendingCenterThreadRef = useRef<string | null>(null)
+  // The comments panel (#787) floats over the canvas's right edge, so a pin
+  // it brings into view centres in the space beside it.
+  const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
+  const [commentPinsHidden, setCommentPinsHidden] = useState(false)
+  const centerOnCommentPin = useCallback(
+    (pin: HTMLElement) =>
+      camera.centerOnElement(pin, {
+        right: commentsPanelOpen ? COMMENTS_PANEL_INSET_PX : 0,
+      }),
+    [camera, commentsPanelOpen]
+  )
   const selectCommentThread = useCallback(
     (threadId: string) => {
       reference.setActiveThread(threadId)
@@ -900,12 +941,18 @@ export function Canvas({
       const pin = document.querySelector<HTMLElement>(
         `[data-comment-thread-id="${CSS.escape(threadId)}"]`
       )
-      if (pin) camera.centerOnElement(pin)
+      if (pin) centerOnCommentPin(pin)
       // A resolved thread is only placed once it's active: centre its pin
       // when it shows.
       else pendingCenterThreadRef.current = threadId
     },
-    [reference, commentThreads, commentPlacements, layerMutations, camera]
+    [
+      reference,
+      commentThreads,
+      commentPlacements,
+      layerMutations,
+      centerOnCommentPin,
+    ]
   )
   useEffect(() => {
     const threadId = pendingCenterThreadRef.current
@@ -917,10 +964,10 @@ export function Canvas({
       const pin = document.querySelector<HTMLElement>(
         `[data-comment-thread-id="${CSS.escape(threadId)}"]`
       )
-      if (pin) camera.centerOnElement(pin)
+      if (pin) centerOnCommentPin(pin)
     })
     return () => cancelAnimationFrame(raf)
-  }, [commentPlacements, camera])
+  }, [commentPlacements, centerOnCommentPin])
 
   // Group Operations controller (PRD #588): the structural sibling of
   // `useLayerMutations`. Where the Layer Mutation bundle writes a field on one
@@ -1722,6 +1769,7 @@ export function Canvas({
                 activeThreadId={reference.activeThreadId}
                 onActivateThread={reference.setActiveThread}
                 describeLayer={describeCommentLayer}
+                hidePins={commentPinsHidden}
               />
             </div>
 
@@ -1758,6 +1806,7 @@ export function Canvas({
               groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
               focusedIframeLayerId={focusedIframeLayerId}
               hoveredIframeLayerId={hoveredIframeLayerId}
+              workspaceHighlightIds={workspaceHighlightIds}
               iframeLayerLayouts={effectiveIframeLayerLayouts}
               hideResizeHandles={
                 editingDocumentLayerId !== null ||
@@ -1893,13 +1942,11 @@ export function Canvas({
                     (PRD #404, issue #417). */}
                 {!isLocalBuild && (
                   <>
-                    <CommentsMenu
-                      roomId={roomId}
-                      commentThreads={commentThreads}
-                      placements={commentPlacements.placements}
-                      onSelectThread={selectCommentThread}
-                      describeLayer={describeCommentLayer}
-                      getDocumentEditor={reference.getDocumentEditor}
+                    <CommentsButton
+                      threads={commentThreads.threads}
+                      open={commentsPanelOpen}
+                      pinsHidden={commentPinsHidden}
+                      onToggle={() => setCommentsPanelOpen((open) => !open)}
                     />
                     <FollowingToolbar
                       followingId={followingConnectionId}
@@ -1932,6 +1979,20 @@ export function Canvas({
                 )}
               </div>
             </div>
+            {!isLocalBuild && commentsPanelOpen && (
+              <CommentsPanel
+                roomId={roomId}
+                commentThreads={commentThreads}
+                placements={commentPlacements.placements}
+                activeThreadId={reference.activeThreadId}
+                onSelectThread={selectCommentThread}
+                pinsHidden={commentPinsHidden}
+                onPinsHiddenChange={setCommentPinsHidden}
+                onClose={() => setCommentsPanelOpen(false)}
+                describeLayer={describeCommentLayer}
+                getDocumentEditor={reference.getDocumentEditor}
+              />
+            )}
           </div>
         </ResizablePanel>
         <ResizableHandle

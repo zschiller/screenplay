@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useReducer, useState } from "react"
-import { ExternalLink, Plug, RotateCw } from "lucide-react"
+import { ExternalLink, RotateCw } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
@@ -31,6 +31,7 @@ import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
 import { LoadErrorRow } from "@/components/home/load-error"
 import {
   SettingsRow,
+  SettingsRowList,
   SettingsRowSkeleton,
 } from "@/components/home/settings-row"
 
@@ -73,7 +74,7 @@ export function GitHubConnectionPanel() {
   // PTY exits and we re-detect.
   if (working) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 rounded-lg border p-4">
         <p className="text-sm text-muted-foreground">{working.message}</p>
         <HostSessionTerminal
           sessionKey={GH_SETUP_SESSION_KEY}
@@ -103,57 +104,59 @@ export function GitHubConnectionPanel() {
 
   return (
     <div className="space-y-2">
-      <SettingsRow
-        icon={Plug}
-        title={view.title}
-        status={view.connected ? "on" : "off"}
-        detail={view.detail}
-        action={
-          action && (
-            <Button
-              type="button"
-              size="sm"
-              variant={action.primary ? "default" : "outline"}
-              onClick={() => start(action.kind)}
-            >
-              {action.label}
-            </Button>
-          )
-        }
-      />
+      <SettingsRowList>
+        <SettingsRow
+          title="GitHub"
+          state={view.state}
+          status={view.connected ? "on" : "off"}
+          detail={view.detail}
+          action={
+            <>
+              {action && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => start(action.kind)}
+                >
+                  {action.label}
+                </Button>
+              )}
+              {/* Disconnect keys on `hasDeviceToken`, not `tokenSource` — a
+                  dormant device token can sit *under* a `gh` connection (the
+                  resolver prefers `gh`), and it clears only the app-stored
+                  device token, never the `gh` login the user relies on outside
+                  the app (ADR 0014: one-directional help, no `gh auth logout`). */}
+              {status.hasDeviceToken && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disconnecting}
+                  onClick={disconnect}
+                >
+                  {disconnecting && <Spinner className="size-4" />}
+                  Disconnect
+                </Button>
+              )}
+            </>
+          }
+        />
+      </SettingsRowList>
 
-      {/* Fallback connect + Disconnect. "Disconnect" keys on `hasDeviceToken`,
-          not `tokenSource` — a dormant device token can sit *under* a `gh`
-          connection (the resolver prefers `gh`), and it clears only the
-          app-stored device token, never the `gh` login the user relies on
-          outside the app (ADR 0014: one-directional help, no `gh auth logout`). */}
-      {(showDeviceFallback || status.hasDeviceToken) && (
-        <div className="flex items-center gap-2 px-1">
-          {showDeviceFallback && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="font-normal text-muted-foreground"
-              onClick={() => setDeviceOpen(true)}
-            >
-              Connect with a device code instead
-            </Button>
-          )}
-          {status.hasDeviceToken && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={disconnecting}
-              className="font-normal text-muted-foreground"
-              onClick={disconnect}
-            >
-              {disconnecting && <Spinner className="size-4" />}
-              Disconnect
-            </Button>
-          )}
-        </div>
+      {/* The fallback connect, offered under the row rather than as a second
+          row action: it's another way to do the row's one job. */}
+      {showDeviceFallback && (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          // Pull the label back onto the column's edge, under the group.
+          className="-ml-2.5 font-normal text-muted-foreground"
+          onClick={() => setDeviceOpen(true)}
+        >
+          Connect with a device code instead
+        </Button>
       )}
 
       {deviceOpen && (
@@ -457,41 +460,44 @@ export function setupAction(
 }
 
 /**
- * Turn the resolver's status into what the section shows. `connected` keys on
- * the real `tokenSource` — never on the `gh` state alone — so a signed-out `gh`
- * with a live device token still reads as connected, and an authed-looking `gh`
- * whose token didn't resolve never does.
+ * Turn the resolver's status into what the GitHub row shows: its state chip
+ * and facts line. `connected` keys on the real `tokenSource` — never on the
+ * `gh` state alone — so a signed-out `gh` with a live device token still reads
+ * as connected, and an authed-looking `gh` whose token didn't resolve never
+ * does.
  */
 function describeConnection(status: GitHubLocalStatus): {
   connected: boolean
-  title: string
-  detail: string
+  state: string
+  detail?: string
 } {
   if (status.tokenSource === "gh") {
     return {
       connected: true,
-      title: status.ghHandle ? `Connected as @${status.ghHandle}` : "Connected",
-      detail: "Using the gh CLI's login for GitHub API access.",
+      state: "Connected",
+      detail: status.ghHandle
+        ? `@${status.ghHandle} · gh CLI`
+        : "Signed in with the gh CLI",
     }
   }
   if (status.tokenSource === "device") {
     return {
       connected: true,
-      title: "Connected",
-      detail: "Using a device-flow token for GitHub API access.",
+      state: "Connected",
+      detail: "Signed in with a device code",
     }
   }
   // tokenSource is null — the API is dark. The gh state says why.
   if (status.gh === "installed-not-authenticated") {
     return {
       connected: false,
-      title: "Installed · signed out",
-      detail: "The gh CLI is installed but not signed in to GitHub.",
+      state: "Signed out",
+      detail: "gh CLI installed",
     }
   }
   return {
     connected: false,
-    title: "Not installed",
-    detail: "The gh CLI isn't installed, so GitHub API features are off.",
+    state: "Not connected",
+    detail: "gh CLI not installed",
   }
 }

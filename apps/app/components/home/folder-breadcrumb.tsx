@@ -17,7 +17,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { cn } from "@workspace/ui/lib/utils"
 import type { FolderSummary } from "@/lib/folders-actions"
+import { useFolderDroppable, useRootDroppable } from "./file-dnd"
 import { useHomeHeaderCompact } from "./home-page-header"
 
 /**
@@ -38,6 +40,12 @@ const SEPARATOR_CLASS = "shrink-0 [&>svg]:size-5"
 const ANCESTOR_ITEM_CLASS = "min-w-8 shrink-[4]"
 const CURRENT_ITEM_CLASS = "min-w-0"
 const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
+// A parent crumb is a drop target (issue #808): drop a canvas or folder on it
+// to move the item up to that level. The hover ring matches the sidebar's drop
+// targets; the padding it needs is cancelled by a matching negative margin so
+// the trail doesn't shift.
+const DROP_ITEM_CLASS = "-mx-1.5 -my-1 rounded-md px-1.5 py-1"
+const DROP_OVER_CLASS = "ring-2 ring-primary [&_a]:text-foreground"
 
 /**
  * The files-header trail (PRD #475): an "All files" root crumb, a clickable link
@@ -45,6 +53,9 @@ const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
  * `ancestors` is the chain root→current *including* the current folder, so an
  * empty list is the root view — where "All files" itself is the current page.
  * Sized to read like the page title it replaces.
+ *
+ * Every crumb above the current folder is a drop target (issue #808), so a
+ * canvas or folder dragged onto it moves up to that level.
  *
  * Deep paths (issue #485) collapse the *middle* into a `BreadcrumbEllipsis`
  * overflow menu: "All files" and the current folder always stay visible, and
@@ -61,22 +72,12 @@ export function FolderBreadcrumb({
 }) {
   const compact = useHomeHeaderCompact()
   const atRoot = ancestors.length === 0
-  const allFilesCrumb = (
-    <BreadcrumbItem
-      className={atRoot ? CURRENT_ITEM_CLASS : ANCESTOR_ITEM_CLASS}
-    >
-      {atRoot ? (
-        <BreadcrumbPage className={CURRENT_PAGE_CLASS}>
-          All files
-        </BreadcrumbPage>
-      ) : (
-        <BreadcrumbLink asChild>
-          <Link href="/files" className="truncate">
-            All files
-          </Link>
-        </BreadcrumbLink>
-      )}
+  const allFilesCrumb = atRoot ? (
+    <BreadcrumbItem className={CURRENT_ITEM_CLASS}>
+      <BreadcrumbPage className={CURRENT_PAGE_CLASS}>All files</BreadcrumbPage>
     </BreadcrumbItem>
+  ) : (
+    <RootCrumb />
   )
 
   // Past the threshold, keep only "All files" and the current folder inline and
@@ -138,25 +139,61 @@ export function FolderBreadcrumb({
           return (
             <Fragment key={folder.id}>
               <BreadcrumbSeparator className={SEPARATOR_CLASS} />
-              <BreadcrumbItem
-                className={isCurrent ? CURRENT_ITEM_CLASS : ANCESTOR_ITEM_CLASS}
-              >
-                {isCurrent ? (
+              {isCurrent ? (
+                <BreadcrumbItem className={CURRENT_ITEM_CLASS}>
                   <BreadcrumbPage className={CURRENT_PAGE_CLASS}>
                     {folder.name}
                   </BreadcrumbPage>
-                ) : (
-                  <BreadcrumbLink asChild>
-                    <Link href={`/files/${folder.id}`} className="truncate">
-                      {folder.name}
-                    </Link>
-                  </BreadcrumbLink>
-                )}
-              </BreadcrumbItem>
+                </BreadcrumbItem>
+              ) : (
+                <FolderCrumb folder={folder} />
+              )}
             </Fragment>
           )
         })}
       </BreadcrumbList>
     </Breadcrumb>
+  )
+}
+
+/** The "All files" crumb below the root: a link, and a drop target. */
+function RootCrumb() {
+  const { setNodeRef, isOver } = useRootDroppable("crumb")
+  return (
+    <BreadcrumbItem
+      ref={setNodeRef}
+      className={cn(
+        ANCESTOR_ITEM_CLASS,
+        DROP_ITEM_CLASS,
+        isOver && DROP_OVER_CLASS
+      )}
+    >
+      <BreadcrumbLink asChild>
+        <Link href="/files" className="truncate">
+          All files
+        </Link>
+      </BreadcrumbLink>
+    </BreadcrumbItem>
+  )
+}
+
+/** An ancestor folder's crumb: a link, and a drop target. */
+function FolderCrumb({ folder }: { folder: FolderSummary }) {
+  const { setNodeRef, isOver } = useFolderDroppable(folder.id, "crumb")
+  return (
+    <BreadcrumbItem
+      ref={setNodeRef}
+      className={cn(
+        ANCESTOR_ITEM_CLASS,
+        DROP_ITEM_CLASS,
+        isOver && DROP_OVER_CLASS
+      )}
+    >
+      <BreadcrumbLink asChild>
+        <Link href={`/files/${folder.id}`} className="truncate">
+          {folder.name}
+        </Link>
+      </BreadcrumbLink>
+    </BreadcrumbItem>
   )
 }

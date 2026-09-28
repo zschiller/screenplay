@@ -127,7 +127,10 @@ type HomeContextValue = {
   removeRoom: (id: string) => Promise<void>
   /** File a Room into a folder for this user (null = drop it back to root). */
   moveRoom: (roomId: string, folderId: string | null) => Promise<void>
-  createFolder: (name: string) => Promise<FolderSummary>
+  createFolder: (
+    name: string,
+    parentFolderId?: string | null
+  ) => Promise<FolderSummary>
   renameFolder: (id: string, name: string) => Promise<void>
   /**
    * What deleting a folder would entail — the descendant folders and the
@@ -479,7 +482,7 @@ export function HomeProvider({
   // the local placement row, null drops it — so the Room leaves or joins the
   // folder on screen without a reload. Per-user, so a shared Room's other
   // viewers are unaffected.
-  const moveRoom = useCallback(
+  const placeRoom = useCallback(
     async (roomId: string, folderId: string | null) => {
       // Patch optimistically so the moved tile leaves its current view in the
       // *same* render that ends the drag. The source tile is hidden via
@@ -502,11 +505,29 @@ export function HomeProvider({
     []
   )
 
+  const moveRoom = useCallback(
+    async (roomId: string, folderId: string | null) => {
+      // Where it was, read before the move patches it, for Undo.
+      const from = placementByRoom.get(roomId) ?? null
+      await placeRoom(roomId, folderId)
+      confirmMove(roomsById.get(roomId)?.name, folderId, foldersById, () =>
+        placeRoom(roomId, from)
+      )
+    },
+    [placeRoom, placementByRoom, roomsById, foldersById]
+  )
+
   const createFolder = useCallback(
-    async (name: string) => {
-      // New folders nest under the folder you're viewing (root when null).
-      const parentFolderId = folderView ? currentFolderId : null
-      const folder = await createFolderAction(name, parentFolderId)
+    async (name: string, parentFolderId?: string | null) => {
+      // New folders nest under the folder asked for (the Move to… dialog names
+      // one), else the folder you're viewing (root when null).
+      const parent =
+        parentFolderId !== undefined
+          ? parentFolderId
+          : folderView
+            ? currentFolderId
+            : null
+      const folder = await createFolderAction(name, parent)
       setFolders((prev) => [folder, ...prev])
       return folder
     },
@@ -573,12 +594,13 @@ export function HomeProvider({
   // owner checks; we patch the local parent optimistically so the moved folder
   // leaves the current level — falling out of `foldersInParent` for the view
   // it left — without a reload.
-  const moveFolder = useCallback(
+  const reparentFolder = useCallback(
     async (folderId: string, parentFolderId: string | null) => {
-      // Optimistic for the same reason as moveRoom: re-parent locally now so the
-      // dragged folder leaves the level it left in the drag-end render, instead
-      // of flashing back into place until the server confirms. Roll back on
-      // failure (the server still enforces the cycle guard and owner checks).
+      // Optimistic for the same reason as placeRoom: re-parent locally now so
+      // the dragged folder leaves the level it left in the drag-end render,
+      // instead of flashing back into place until the server confirms. Roll
+      // back on failure (the server still enforces the cycle guard and owner
+      // checks).
       let prev: FolderSummary[] | undefined
       setFolders((current) => {
         prev = current
@@ -594,6 +616,21 @@ export function HomeProvider({
       }
     },
     []
+  )
+
+  const moveFolder = useCallback(
+    async (folderId: string, parentFolderId: string | null) => {
+      // Where it was, read before the move patches it, for Undo.
+      const from = foldersById.get(folderId)?.parentFolderId ?? null
+      await reparentFolder(folderId, parentFolderId)
+      confirmMove(
+        foldersById.get(folderId)?.name,
+        parentFolderId,
+        foldersById,
+        () => reparentFolder(folderId, from)
+      )
+    },
+    [reparentFolder, foldersById]
   )
 
   // Pin a Room to the sidebar. Mirrors the room/folder mutations: await the
@@ -775,4 +812,33 @@ export function HomeProvider({
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>
+}
+
+/**
+ * Confirm a finished move (issue #808): "Moved “Onboarding” to Marketing site"
+ * with an Undo that puts it back where it was. Every move path (drag and drop,
+ * the Move to… dialog) lands here, so each one confirms the same way. A failed
+ * Undo says so; the item stays where the move left it.
+ */
+function confirmMove(
+  itemName: string | undefined,
+  targetId: string | null,
+  foldersById: Map<string, FolderSummary>,
+  undo: () => Promise<unknown>
+): void {
+  const target =
+    targetId === null
+      ? "All files"
+      : (foldersById.get(targetId)?.name ?? "a folder")
+  toast(itemName ? `Moved “${itemName}” to ${target}` : `Moved to ${target}`, {
+    action: {
+      label: "Undo",
+      onClick: () => {
+        undo().catch((err: unknown) => {
+          console.error("Failed to undo move", err)
+          toast.error("Couldn't undo the move")
+        })
+      },
+    },
+  })
 }

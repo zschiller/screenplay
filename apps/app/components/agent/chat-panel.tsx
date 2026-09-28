@@ -18,6 +18,7 @@ import {
   GitPullRequest,
   GitPullRequestClosed,
   GitMerge,
+  GitMergeConflict,
   ArrowUpRight,
   Logs,
   MessageCircle,
@@ -531,29 +532,41 @@ export function ChatPanel({
 
   const activeTab = selectedChatId ?? openTabs[0]?.id ?? ""
   const chatHistoryPr = useLatestPr(activeTab)
+  // The polled branch PR carries state and blocked; a `create_pr` result in this
+  // chat's history only knows the number, so it's used when the poll hasn't
+  // seen that PR yet.
   const displayPr: {
     url: string
     number: string
-    state?: BranchPrState
+    state: BranchPrState
+    blocked?: boolean
   } | null =
-    chatHistoryPr ??
-    (branchPr
+    branchPr &&
+    (!chatHistoryPr || chatHistoryPr.number === String(branchPr.number))
       ? {
           url: branchPr.url,
           number: String(branchPr.number),
           state: branchPr.state,
+          blocked: branchPr.blocked,
         }
-      : null)
+      : chatHistoryPr
+        ? { ...chatHistoryPr, state: "open" }
+        : null
   // The PR button's icon and color mirror the sidebar branch icon so the two
-  // stay legible together: open = green, merged = purple, closed = red.
-  const prState = displayPr?.state
-  const PrStateIcon =
-    prState === "merged"
+  // stay legible together: open = green, merged = purple, closed = red. An open
+  // PR that can't merge (failing checks, a conflict) turns red with the
+  // merge-blocked icon.
+  const prBlocked = displayPr?.state === "open" && !!displayPr.blocked
+  const PrStateIcon = prBlocked
+    ? GitMergeConflict
+    : displayPr?.state === "merged"
       ? GitMerge
-      : prState === "closed"
+      : displayPr?.state === "closed"
         ? GitPullRequestClosed
         : GitPullRequest
-  const prColor = prStateColor(prState ?? "open")
+  const prColor = prStateColor(
+    prBlocked ? "closed" : (displayPr?.state ?? "open")
+  )
   const isAgentBusy = agent
     ? agent.status === "creating" || agent.status === "starting"
     : false
@@ -929,13 +942,9 @@ export function ChatPanel({
           {isAgentTarget &&
             diffStats &&
             (diffStats.additions > 0 || diffStats.deletions > 0) && (
-              <span className="flex items-center gap-1 font-mono text-[10px]">
-                <span className="text-green-700 dark:text-green-300">
-                  +{diffStats.additions}
-                </span>
-                <span className="text-red-700 dark:text-red-300">
-                  -{diffStats.deletions}
-                </span>
+              <span className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground tabular-nums">
+                <span>+{diffStats.additions}</span>
+                <span>−{diffStats.deletions}</span>
               </span>
             )}
           {isAgentTarget &&
@@ -945,6 +954,7 @@ export function ChatPanel({
                   href={displayPr.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  title={prBlocked ? "Merge blocked" : undefined}
                   className={cn("group", prColor)}
                 >
                   <PrStateIcon />#{displayPr.number}

@@ -235,8 +235,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-narrow",
-    description: "Settings at the narrowest content width.",
-    path: "/settings",
+    description: "Settings → Coding agents at the narrowest content width.",
+    path: "/settings?section=coding-agents",
     viewport: NARROW_HOME_VIEWPORT,
     cookies: narrowHome(),
     fullPage: true,
@@ -315,6 +315,50 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "home-move-toast",
+    description:
+      "The toast after dragging a Canvas into a Folder (#808): where it went, and Undo.",
+    path: "/files",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await dragOnto(page, "Empty canvas", "Marketing site")
+      await page.mouse.up()
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-breadcrumb-drop-target",
+    description:
+      "A Canvas dragged over a parent Folder's breadcrumb (#808), mid-drag.",
+    path: `/files/${ids.folders.archive}`,
+    prepare: async (page) => {
+      await dragOntoCrumb(page, "Old experiment", "Design system")
+    },
+    settleMs: 200,
+  },
+  {
+    name: "home-move-dialog-new-folder",
+    description:
+      "The Move to… dialog naming a new Folder inside the picked destination (#808).",
+    path: "/files",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await page
+        .getByRole("button", { name: "Folder actions" })
+        .first()
+        .click({ timeout: 15_000 })
+      await page.getByRole("menuitem", { name: /^Move to/ }).click()
+      await page.getByRole("radiogroup").first().waitFor({ timeout: 5_000 })
+      await page.getByRole("radio", { name: "Marketing site" }).click()
+      await page.getByRole("button", { name: "New folder" }).click()
+      await page.keyboard.type("Launch week")
+      await page.waitForTimeout(300)
+    },
+    settleMs: 300,
+  },
+  {
     name: "home-search",
     description:
       "Home search (#807): results from every folder, each naming where it lives.",
@@ -353,15 +397,56 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings",
-    description:
-      "Settings: appearance, Projects (the saved presets), coding agents.",
+    description: "Settings → General (the page's default section).",
     path: "/settings",
+    fullPage: true,
+  },
+  {
+    name: "settings-coding-agents",
+    description:
+      "Settings → Coding agents: the default agent and one row per CLI.",
+    path: "/settings?section=coding-agents",
+    fullPage: true,
+  },
+  {
+    name: "settings-github",
+    description: "Settings → GitHub, connected.",
+    path: "/settings?section=github",
+    cookies: fixtureGitHub(),
+    fullPage: true,
+  },
+  {
+    name: "settings-github-signed-out",
+    description: "Settings → GitHub with no connection.",
+    path: "/settings?section=github",
+    fullPage: true,
+  },
+  {
+    name: "settings-presets",
+    description: "Settings → Project presets.",
+    path: "/settings?section=project-presets",
+    fullPage: true,
+  },
+  {
+    name: "settings-account",
+    description: "Settings → Account: the desktop app and its version.",
+    path: "/settings?section=account",
+    beforeNavigate: async (page) => {
+      // Stand in for the desktop shell's app plugin, which the version reads.
+      // A source string, not a function: tsx's name-keeping breaks function
+      // init scripts in the page (see `openThemedContext`).
+      await page.addInitScript({
+        content: `window.__TAURI_INTERNALS__ = {
+          invoke: async (cmd) => (cmd === "plugin:app|version" ? "0.1.1" : null),
+        }`,
+      })
+    },
     fullPage: true,
   },
   {
     name: "settings-default-agent",
     description: "Settings: the Default agent menu open on Coding agents.",
-    path: "/settings",
+    path: "/settings?section=coding-agents",
     prepare: async (page) => {
       const trigger = page.getByRole("button", { name: "Default agent" })
       const menu = page.getByRole("menu")
@@ -418,6 +503,36 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-none",
+    description:
+      "The chat header for a Workspace with no PR yet: the Create PR button.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "empty-cart-state")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-merged",
+    description:
+      "The chat header for a Workspace whose PR merged: the PR button in GitHub purple.",
+    path: `/${ids.rooms.pricing}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-pr-blocked",
+    description:
+      "The chat header for a Workspace whose open PR can't merge: the PR button in red with the merge-blocked icon.",
+    path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "listing-page")
     },
     settleMs: 400,
   },
@@ -1016,6 +1131,46 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "sidebar-workspace-menu-open-pr",
+    description:
+      "The Workspace row's … menu open on a Workspace with an open PR.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "checkout-polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-changes",
+    description:
+      "The Workspace row's … menu open on a Workspace with changes and no PR.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "empty-cart-state")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-starting",
+    description:
+      "The Workspace row's … menu open on a Workspace still running setup.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "apple-pay-button")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-failed",
+    description:
+      "The Workspace row's … menu open on a Workspace whose setup failed.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "gift-cards")
+    },
+    settleMs: 400,
+  },
+  {
     name: "sidebar-layer-menu-hover",
     description: "Hovering a Layer row's overflow (…) button in the sidebar.",
     path: `/${ids.rooms.checkout}`,
@@ -1029,6 +1184,47 @@ export const SCREENS: Screen[] = [
       await showTooltip(page)
     },
     settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-hover-frames",
+    description:
+      "Hovering a Workspace row: its frames are outlined on the Canvas and lit in the layer list (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/branch-row")
+        .filter({ hasText: "checkout-polish" })
+        .first()
+        .locator("[data-sidebar=menu-sub-button]")
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-frame-row-hover-workspace",
+    description:
+      "Hovering a frame row in the layer list: its Workspace row lights up (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/frame-row")
+        .filter({ hasText: "Empty cart" })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-frame-hover-workspace",
+    description:
+      "Hovering a frame on the Canvas: its Workspace row lights up in the sidebar (#793).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const frame = checkoutDesktopFrame(page)
+      await frame.waitFor({ state: "visible", timeout: 15_000 })
+      await frame.hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
   },
   {
     name: "chat-tab-close-focus",
@@ -1442,6 +1638,14 @@ export const SCREENS: Screen[] = [
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
   },
   {
+    name: "player-agent",
+    description:
+      "The prototype player with the agent open beside it, composer in view.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    prepare: openPlayerAgent,
+    settleMs: 600,
+  },
+  {
     name: "player-chat-warming-up",
     description:
       "The player's agent panel while the Workspace's sandbox is still warming up.",
@@ -1619,7 +1823,7 @@ export const SCREENS: Screen[] = [
   {
     name: "confirm-delete-preset",
     description: "Settings → a saved Project preset's Delete button.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     prepare: async (page) => {
       // Wait for the presets to load before holding server actions (the list
       // itself loads through one), then hold them so a build without the
@@ -1730,8 +1934,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-loading",
-    description: "Settings while every panel is still checking or loading.",
-    path: "/settings",
+    description: "Settings → Coding agents while its rows are still checking.",
+    path: "/settings?section=coding-agents",
     fullPage: true,
     beforeNavigate: (page) => holdServerActions(page, "hang"),
     settleMs: 500,
@@ -1739,14 +1943,14 @@ export const SCREENS: Screen[] = [
   {
     name: "settings-presets-empty",
     description: "Settings with no saved Project presets.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     fullPage: true,
     cookies: fixtureFault("no-presets"),
   },
   {
     name: "settings-edit-preset",
     description: "Settings → editing a saved Project preset.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     fullPage: true,
     prepare: async (page) => {
       const edit = page.getByRole("button", { name: "Edit", exact: true })
@@ -1757,9 +1961,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-load-error",
-    description:
-      "Settings when every panel's load fails: GitHub, coding agents, presets.",
-    path: "/settings",
+    description: "Settings → Coding agents when its check fails.",
+    path: "/settings?section=coding-agents",
     fullPage: true,
     beforeNavigate: failServerActions,
     settleMs: 500,
@@ -1830,7 +2033,7 @@ export const SCREENS: Screen[] = [
   {
     name: "github-connect-error",
     description: "The GitHub device-code dialog after starting the flow fails.",
-    path: "/settings",
+    path: "/settings?section=github",
     cookies: fixtureFault("github-device-flow"),
     prepare: async (page) => {
       await unfreeze(page)
@@ -2032,6 +2235,18 @@ export function rowMenuTrigger(page: Page, text: string): Locator {
  * The \`…\` menu trigger on a Workspace row, which only shows while the row is
  * hovered: hover the row, then hand back its trigger.
  */
+/** Open a Workspace row's … menu and leave it open. */
+export async function openBranchRowMenu(
+  page: Page,
+  ref: string
+): Promise<void> {
+  const trigger = await branchRowMenu(page, ref)
+  await trigger.click({ timeout: 15_000, force: true })
+  await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
+  // Park the pointer on the menu's edge so no item shows a hover highlight.
+  await page.mouse.move(5, 5)
+}
+
 export async function branchRowMenu(page: Page, ref: string): Promise<Locator> {
   const row = page
     .locator(".group\\/branch-row")
@@ -2297,6 +2512,38 @@ export async function dragOnto(
   await page.mouse.down()
   await page.mouse.move(grab.x, grab.y - 12)
   await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 })
+}
+
+/**
+ * Pick up the tile or row named `source` and hold it over the breadcrumb crumb
+ * named `crumb`, without letting go, so the shot catches the crumb's drop
+ * highlight. Same pointer choreography as {@link dragOnto}.
+ */
+export async function dragOntoCrumb(
+  page: Page,
+  source: string,
+  crumb: string
+): Promise<void> {
+  const from = await page
+    .getByText(source, { exact: true })
+    .first()
+    .locator("xpath=ancestor-or-self::*[@aria-roledescription='draggable'][1]")
+    .boundingBox({ timeout: 15_000 })
+  const to = await page
+    .locator('[data-slot="breadcrumb-item"]', { hasText: crumb })
+    .first()
+    .boundingBox({ timeout: 15_000 })
+  if (!from || !to) throw new Error(`drag: ${source} or ${crumb} not on screen`)
+  // Grab by the top-left corner so the preview hangs below and right of the
+  // pointer, and hover the crumb's bottom-right corner, so the preview leaves
+  // the crumb and its ring in view.
+  const grab = { x: from.x + 3, y: from.y + 3 }
+  await page.mouse.move(grab.x, grab.y)
+  await page.mouse.down()
+  await page.mouse.move(grab.x, grab.y + 12)
+  await page.mouse.move(to.x + to.width - 4, to.y + to.height - 4, {
+    steps: 12,
+  })
 }
 
 /**
