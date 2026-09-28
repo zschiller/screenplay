@@ -403,9 +403,7 @@ function SearchResults({
             <Search />
           </EmptyMedia>
           <EmptyTitle>No matches</EmptyTitle>
-          <EmptyDescription>
-            Nothing in any folder matches.
-          </EmptyDescription>
+          <EmptyDescription>Nothing in any folder matches.</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button size="sm" variant="outline" onClick={onClear}>
