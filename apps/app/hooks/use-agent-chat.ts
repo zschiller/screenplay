@@ -10,6 +10,8 @@ interface UseAgentChatOptions {
   sandboxName?: string
   /** Document-layer target. Mutually exclusive with `sandboxName`. */
   markdownLayerId?: string
+  /** The Room's Coordinator chat. Mutually exclusive with the other targets. */
+  roomTarget?: boolean
   isFirstChat?: boolean
   planMode?: boolean
   /** Whether the chat is on screen. Defaults to true. */
@@ -27,6 +29,7 @@ export function useAgentChat({
   roomId,
   sandboxName,
   markdownLayerId,
+  roomTarget,
   isFirstChat,
   planMode,
   isActive = true,
@@ -64,6 +67,7 @@ export function useAgentChat({
         chatId,
         sandboxName,
         markdownLayerId,
+        roomTarget,
         message: text,
         isFirstChat,
         planMode,
@@ -71,7 +75,15 @@ export function useAgentChat({
         draft: options?.draft,
       })
     },
-    [chatId, roomId, sandboxName, markdownLayerId, isFirstChat, planMode]
+    [
+      chatId,
+      roomId,
+      sandboxName,
+      markdownLayerId,
+      roomTarget,
+      isFirstChat,
+      planMode,
+    ]
   )
 
   const stopMessage = useCallback(() => {

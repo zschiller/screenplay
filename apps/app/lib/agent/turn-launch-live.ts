@@ -11,7 +11,10 @@ import {
   loadLayerDirectory,
   markdownLayerChatTarget,
   prepareChatTarget,
+  roomChatTarget,
 } from "./chat-target-kinds"
+import { ensureRoomChat } from "@/lib/room-chat"
+import type { RoomAccess } from "@/lib/room-access"
 import { DEFAULT_MODEL } from "./providers"
 import {
   appendAcpMessage,
@@ -139,6 +142,49 @@ export function markdownLayerTurn(input: {
       // engine: on the ACP engine a plan-mode turn turns the permission handler
       // into the ExitPlanMode gate, which would refuse this target's document
       // writes. A chat carrying a stale `planMode: true` must still run normally.
+      return {
+        systemPrompt: prepared.systemPrompt,
+        model,
+        tools: prepared.tools,
+        userText: prepared.decorateUserMessage(input.message, {
+          isFirstMessage: false,
+        }),
+      }
+    },
+  }
+}
+
+/**
+ * The Room's Room Target chat (the Coordinator): no sandbox, the whole canvas
+ * as context, and the Coordinator tools module as its toolset. The chat record
+ * is created here too when no client has created it yet.
+ */
+export function roomTurn(input: {
+  room: RoomAccess
+  chatId: string
+  message: string
+  model?: string
+}): TurnTarget {
+  const { room, chatId } = input
+  return {
+    async prepare() {
+      await ensureRoomChat(room)
+      const prepared = await prepareChatTarget(
+        room,
+        roomChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
+        { userId: room.userId } as unknown as never
+      )
+      if (!prepared) return null
+
+      const model = input.model || DEFAULT_MODEL
+      await upsertChat({
+        chatId,
+        roomId: room.roomId,
+        // No sandbox, as for a document chat.
+        sandboxName: "",
+        model,
+        systemPrompt: prepared.systemPrompt,
+      })
       return {
         systemPrompt: prepared.systemPrompt,
         model,

@@ -120,9 +120,11 @@ export type TabKind = "chat" | "terminal"
 
 /**
  * A chat tab: the durable Engine conversation. Targets exactly one of a
- * *Branch* (`branchId` set) or a *markdown layer* (`markdownLayerId` set), and
- * its scrollback is persisted + shared. Multiple chats can target the same
- * Branch (or layer), so a user can keep parallel conversations going.
+ * *Branch* (`branchId` set), a *markdown layer* (`markdownLayerId` set) or the
+ * whole *Room* (`target: "room"`), and its scrollback is persisted + shared.
+ * Multiple chats can target the same Branch (or layer), so a user can keep
+ * parallel conversations going; a Room has exactly one Room Target chat (see
+ * `lib/chat/room-chat.ts`).
  *
  * Chat sessions live in the shared `chatSessions` Y.Doc collection. Terminal
  * tabs are deliberately *not* `ChatSessionData` (see {@link TerminalTabData}),
@@ -135,6 +137,8 @@ export type ChatSessionData = {
   branchId?: string
   /** Set when the chat targets a markdown layer. */
   markdownLayerId?: string
+  /** `"room"` when the chat targets the whole Room (the Coordinator). */
+  target?: "room"
   label: string
   createdAt: number
   isStreaming?: boolean
