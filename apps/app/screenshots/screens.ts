@@ -643,6 +643,25 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-header-workspace-picker",
+    description:
+      "A Workspace's chat header with its Workspace picker open: each row a state icon, the plain name and the PR badge or line count (#974).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "Checkout polish")
+      await page
+        .locator("[data-slot=tabs]")
+        .locator("button:has(svg.lucide-chevrons-up-down)")
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .getByPlaceholder("Search workspaces and layers…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-header-pr-none",
     description:
       "The chat header for a Workspace with no PR yet: the Create PR button.",

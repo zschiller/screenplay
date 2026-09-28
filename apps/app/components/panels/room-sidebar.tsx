@@ -139,7 +139,7 @@ import {
   workspaceHoverStore,
 } from "@/lib/workspace-hover-store"
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
-import { PrStateBadge } from "@/components/pr-state-badge"
+import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 
 /**
@@ -1186,69 +1186,109 @@ export function RoomSidebar({
                                       isActive={false}
                                     >
                                       <div>
-                                        <WorkspaceStatusIcon
-                                          branch={branch}
-                                          context={{
-                                            agentWorking: isActive,
-                                          }}
-                                          onRetry={() =>
-                                            onRetryBranch(branch.id)
-                                          }
-                                          onRecreate={() =>
-                                            setPendingRecreateBranchId(
-                                              branch.id
-                                            )
-                                          }
-                                        />
-                                        {branch.ref ? (
-                                          // A plain title, like the other sidebar rows
-                                          // (wireframe 2.1A); the Workspace colour stays
-                                          // on the canvas. Untitled Workspaces show
-                                          // their branch in mono.
-                                          <span
-                                            className={cn(
-                                              "flex min-w-0 has-[[data-editable-text=editing]]:overflow-visible",
-                                              !hasWorkspaceTitle(branch) &&
-                                                "font-mono text-xs"
-                                            )}
-                                            // The sortable row's keyboard sensor eats
-                                            // Space; keep the editor's keys here.
-                                            onKeyDown={(e) => {
-                                              if (
-                                                (e.target as HTMLElement)
-                                                  .isContentEditable
-                                              )
-                                                e.stopPropagation()
-                                            }}
-                                          >
-                                            <EditableText
-                                              ref={branchRef}
-                                              as="span"
-                                              value={workspaceLabel(branch)}
-                                              onCommit={(next) => {
-                                                // Renames the title only (#881); the branch
-                                                // moves through Rename branch in the menu.
-                                                const title = next.trim()
-                                                if (
-                                                  !title ||
-                                                  title ===
-                                                    workspaceLabel(branch)
+                                        {(() => {
+                                          const stats = diffStats.get(branch.id)
+                                          const hasStats =
+                                            stats &&
+                                            (stats.additions > 0 ||
+                                              stats.deletions > 0)
+                                          // Hidden while the row's menu shows in its place.
+                                          const underMenu =
+                                            "md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/branch-row:hidden"
+                                          return (
+                                            // The shared Workspace mention (#974): state icon,
+                                            // title, and the PR badge, else the line count
+                                            // (#963). The badge drops before the title truncates.
+                                            <WorkspaceMention
+                                              branch={branch}
+                                              prOverride={pr ?? null}
+                                              endClassName={underMenu}
+                                              fallback={
+                                                hasStats ? (
+                                                  <span className="flex items-center gap-1 font-mono text-3xs">
+                                                    <span className="text-success">
+                                                      +{stats.additions}
+                                                    </span>
+                                                    <span className="text-destructive">
+                                                      -{stats.deletions}
+                                                    </span>
+                                                  </span>
+                                                ) : null
+                                              }
+                                              icon={
+                                                <WorkspaceStatusIcon
+                                                  branch={branch}
+                                                  context={{
+                                                    agentWorking: isActive,
+                                                  }}
+                                                  onRetry={() =>
+                                                    onRetryBranch(branch.id)
+                                                  }
+                                                  onRecreate={() =>
+                                                    setPendingRecreateBranchId(
+                                                      branch.id
+                                                    )
+                                                  }
+                                                />
+                                              }
+                                              name={
+                                                branch.ref ? (
+                                                  <span
+                                                    className={cn(
+                                                      "flex max-w-full min-w-0 has-[[data-editable-text=editing]]:overflow-visible",
+                                                      !hasWorkspaceTitle(
+                                                        branch
+                                                      ) && "font-mono text-xs"
+                                                    )}
+                                                    // The sortable row's keyboard sensor eats
+                                                    // Space; keep the editor's keys here.
+                                                    onKeyDown={(e) => {
+                                                      if (
+                                                        (
+                                                          e.target as HTMLElement
+                                                        ).isContentEditable
+                                                      )
+                                                        e.stopPropagation()
+                                                    }}
+                                                  >
+                                                    <EditableText
+                                                      ref={branchRef}
+                                                      as="span"
+                                                      value={workspaceLabel(
+                                                        branch
+                                                      )}
+                                                      onCommit={(next) => {
+                                                        // Renames the title only (#881); the branch
+                                                        // moves through Rename branch in the menu.
+                                                        const title =
+                                                          next.trim()
+                                                        if (
+                                                          !title ||
+                                                          title ===
+                                                            workspaceLabel(
+                                                              branch
+                                                            )
+                                                        )
+                                                          return
+                                                        onUpdateBranch(
+                                                          branch.id,
+                                                          { title }
+                                                        )
+                                                      }}
+                                                      className="min-w-0"
+                                                      viewClassName="truncate"
+                                                      editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                                                    />
+                                                  </span>
+                                                ) : (
+                                                  <span className="truncate font-mono text-xs text-muted-foreground">
+                                                    Creating…
+                                                  </span>
                                                 )
-                                                  return
-                                                onUpdateBranch(branch.id, {
-                                                  title,
-                                                })
-                                              }}
-                                              className="min-w-0"
-                                              viewClassName="truncate"
-                                              editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                                              }
                                             />
-                                          </span>
-                                        ) : (
-                                          <span className="truncate font-mono text-xs text-muted-foreground">
-                                            Creating…
-                                          </span>
-                                        )}
+                                          )
+                                        })()}
                                       </div>
                                     </SidebarMenuButton>
                                     <div className="group/slot flex shrink-0 items-center pr-1 pl-2">
@@ -1258,30 +1298,8 @@ export function RoomSidebar({
                                           stats &&
                                           (stats.additions > 0 ||
                                             stats.deletions > 0)
-                                        // A ready or working Workspace ends with its PR, else
-                                        // its line count (#963); one setting up, stopped or
-                                        // failed ends with nothing.
-                                        const isRunning =
-                                          branch.status === "running" &&
-                                          !branch.error
                                         return (
                                           <>
-                                            {isRunning && pr ? (
-                                              <PrStateBadge
-                                                number={pr.number}
-                                                state={pr.state}
-                                                className="px-1 md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden"
-                                              />
-                                            ) : isRunning && hasStats ? (
-                                              <span className="flex items-center gap-1 px-1 font-mono text-3xs md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
-                                                <span className="text-success">
-                                                  +{stats.additions}
-                                                </span>
-                                                <span className="text-destructive">
-                                                  -{stats.deletions}
-                                                </span>
-                                              </span>
-                                            ) : null}
                                             {showRepoNames && (
                                               <span className="truncate pr-1 pl-1.5 text-xs text-muted-foreground md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
                                                 {repoShortName(repo)}

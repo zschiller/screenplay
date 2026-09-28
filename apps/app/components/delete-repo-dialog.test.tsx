@@ -25,13 +25,22 @@ afterEach(cleanup)
 
 const clean = { onOrigin: true, unpushedCommits: 0, uncommittedFiles: 0 }
 const WORKSPACES: DeleteRepoWorkspace[] = [
-  { id: "a", ref: "checkout-polish", openPrNumber: 482, work: clean },
+  {
+    id: "a",
+    ref: "checkout-polish",
+    status: "running",
+    prNumber: 482,
+    prState: "open",
+    openPrNumber: 482,
+    work: clean,
+  },
   {
     id: "b",
     ref: "empty-cart-state",
+    status: "running",
     work: { onOrigin: true, unpushedCommits: 2, uncommittedFiles: 0 },
   },
-  { id: "c", ref: "apple-pay-button", work: clean },
+  { id: "c", ref: "apple-pay-button", status: "stopped", work: clean },
 ]
 
 function renderDialog(
@@ -59,10 +68,13 @@ describe("DeleteRepoDialog", () => {
 
     const rows = screen.getAllByRole("listitem").map((li) => li.textContent)
     expect(rows).toEqual([
-      "checkout-polishPR #482",
+      "checkout-polishPR #482, open",
       "empty-cart-state2 unpushed",
       "apple-pay-buttonClean",
     ])
+    expect(
+      screen.getAllByRole("img").map((i) => i.getAttribute("aria-label"))
+    ).toEqual(["Ready", "Ready", "Stopped"])
   })
 
   it("warns about unpushed work only when some would be lost", () => {

@@ -4,7 +4,11 @@ import { useState } from "react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
-import { BranchBadge } from "@/components/branch-badge"
+import {
+  WorkspaceMention,
+  workspacePr,
+  type WorkspaceMentionBranch,
+} from "@/components/workspace-mention"
 import { ConfirmDialog, ConfirmOption } from "@/components/confirm-dialog"
 import { LostWorkAlert } from "@/components/delete-facts"
 import {
@@ -15,12 +19,10 @@ import {
 } from "@/lib/branch/unsaved-work"
 
 /** One of the Project's Workspaces, as the confirm lists it. */
-export type DeleteRepoWorkspace = {
+export type DeleteRepoWorkspace = WorkspaceMentionBranch & {
   id: string
-  ref: string
-  /** The Workspace's title (#881); named by it when set. */
-  title?: string
-  colorIndex?: number
+  /** A chat turn is in flight: its state icon is the 9-dot. */
+  agentWorking?: boolean
   /** Its PR, when open: the row says so, and it closes with the branch. */
   openPrNumber?: number
   /** The checkout's git state: `undefined` while read, `null` when unreadable. */
@@ -102,12 +104,10 @@ export function DeleteRepoDialog({
                   key={w.id}
                   className="flex min-w-0 items-center gap-2 px-3 py-2"
                 >
-                  <BranchBadge
-                    branch={w.ref}
-                    title={w.title}
-                    colorKey={w.id}
-                    colorIndex={w.colorIndex}
-                    className="min-w-0"
+                  <WorkspaceMention
+                    branch={w}
+                    agentWorking={w.agentWorking}
+                    pr="after"
                   />
                   <StateChip workspace={w} localBranchKept={localBranchKept} />
                 </li>
@@ -154,6 +154,8 @@ function StateChip({
     { localBranchKept }
   )
   if (!chip) return null
+  // The row's PR badge already says it.
+  if (chip.kind === "pr" && workspacePr(workspace)) return null
   if (chip.kind === "loading") {
     return (
       <Spinner
