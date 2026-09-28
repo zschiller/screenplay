@@ -13,7 +13,10 @@ with the agent. With nothing selected it shows the canvas's
 with that instead. In a workspace chat, everything the agent does happens
 inside that workspace's sandbox.
 
-<Screenshot name="hero" alt="The agent panel: a finished turn with tool calls and a summary, next to the updated previews" />
+<Screenshot
+  name="hero"
+  alt="The agent panel: a finished turn with tool calls and a summary, next to the updated previews"
+/>
 
 ## The Coordinator
 
@@ -31,7 +34,10 @@ screenshot of the live preview, or using the last saved one when the preview
 isn't running. So you can ask "What did the sign-in workspace change, and how
 does it look?"
 
-<Screenshot name="coordinator" alt="The Coordinator chat, the panel's home when no workspace is selected" />
+<Screenshot
+  name="coordinator"
+  alt="The Coordinator chat, the panel's home when no workspace is selected"
+/>
 
 The Coordinator can also arrange the canvas. Ask it to add frames for a
 workspace's routes, add a document, move or rename frames, groups and
@@ -46,12 +52,14 @@ edits, never the Coordinator's.
 
 The Coordinator never works inside a sandbox and never edits a workspace's
 files. When you ask for work in a workspace, it sends that workspace's agent a
-message, and the agent does the work. It can't start new workspaces yet.
+message, and the agent does the work. When no workspace fits, it can start new
+ones, after you approve its plan.
 
 ### Messages to workspaces
 
 Each workspace the Coordinator messaged shows up in its reply as a row with the
-workspace's title, its changed lines and its state: **Working** while the
+workspace's title, its changed lines and its state: **Starting** while its
+sandbox comes up, **Working** while the
 agent runs, **Needs you** when a plan waits for your approval, **Done**, or
 **Failed**. The row updates as the workspace works. Click it to open that
 workspace on the chat the message went to.
@@ -63,6 +71,26 @@ yours: type in it at any time to take over.
 The Coordinator won't message a workspace whose agent is already working,
 whose sandbox isn't running, or whose plan is waiting on you. It tells you
 instead, and only you approve plans.
+
+### Starting workspaces
+
+When an ask needs work no workspace covers, the Coordinator proposes new
+workspaces as a plan: one row per workspace with its title, its repository and
+a one-line brief. Nothing is created until you click **Approve**. Click
+**Request changes**, or just reply, to have it revise the list.
+
+Once you approve, each workspace starts its sandbox, and its agent begins on
+the Coordinator's first message as soon as the sandbox is running. The new
+workspaces show up as rows in the Coordinator's reply, **Starting** at first.
+They belong to whoever asked for them. If one fails to start, the others carry
+on: its row shows **Failed**, the Coordinator tells you, and **Retry** on the
+workspace brings it up and sends that first message then.
+
+The Coordinator can also stop a workspace's running turn, which happens right
+away. The workspace's chat keeps everything so far.
+
+When the Coordinator runs on a desktop harness (Claude Code or Codex), it can't
+show you a plan yet, so it can't start workspaces there.
 
 ### When a workspace finishes
 
@@ -92,7 +120,10 @@ next to the canvas name and choose **Memory**. **Edit** changes an entry,
 **…** › **Delete** removes it, and **Add memory** adds one. Everyone on a
 shared canvas sees the same entries.
 
-<Screenshot name="canvas-settings-memory" alt="Canvas settings open on Memory, listing three entries with Edit and more actions" />
+<Screenshot
+  name="canvas-settings-memory"
+  alt="Canvas settings open on Memory, listing three entries with Edit and more actions"
+/>
 
 ## Choosing a target
 
@@ -117,7 +148,10 @@ Each target has its own set of tabs:
   reply you haven't seen.
 - **Terminal tabs**: see [Terminal tabs](/guides/terminals).
 
-<Screenshot name="new-tab-menu" alt="The new-tab menu: New chat and New terminal" />
+<Screenshot
+  name="new-tab-menu"
+  alt="The new-tab menu: New chat and New terminal"
+/>
 
 **+** opens a new tab of whichever kind you used last. The caret next to it
 lets you choose. Double-click a tab to rename it, drag to reorder, and hover
@@ -126,7 +160,10 @@ menu at the end of the strip, which lists them with their date and first
 message, and where you can delete them for good. Closing a target's last tab opens a fresh
 one, so the panel is never empty.
 
-<Screenshot name="logs" alt="The Sandbox logs tab streaming the dev server's output" />
+<Screenshot
+  name="logs"
+  alt="The Sandbox logs tab streaming the dev server's output"
+/>
 
 ## The composer
 
@@ -167,7 +204,10 @@ a packaged set of instructions the agent loads before starting. Skills tagged
 **App** ship with Screenplay. Skills tagged **Repo** come from the
 repository's `.claude/skills/` folder.
 
-<Screenshot name="composer-skills" alt="The / menu listing screenplay-add-knob and screenplay-share-state" />
+<Screenshot
+  name="composer-skills"
+  alt="The / menu listing screenplay-add-knob and screenplay-share-state"
+/>
 
 ### Targeting an element
 
@@ -177,9 +217,15 @@ workspace's frames. A token like `⌖ a` is inserted where your cursor was, and
 the agent receives the element's CSS selector, route, and frame. Hover the
 token to highlight the element on the canvas. <kbd>Esc</kbd> cancels picking.
 
-<Screenshot name="target-picking" alt="Picking an element: the workspace's frames stay active while others dim" />
+<Screenshot
+  name="target-picking"
+  alt="Picking an element: the workspace's frames stay active while others dim"
+/>
 
-<Screenshot name="composer-element-hover" alt="An element token in the composer, with its selector, route and frame shown on hover" />
+<Screenshot
+  name="composer-element-hover"
+  alt="An element token in the composer, with its selector, route and frame shown on hover"
+/>
 
 ## Plan mode
 
@@ -188,7 +234,10 @@ any code changes. The agent investigates, then presents a **Plan** card
 instead of editing. Plan mode is for workspace chats; the composer in a
 document chat has no **Plan** toggle.
 
-<Screenshot name="plan-card" alt="An approved plan card for adding an FAQ, followed by the agent implementing it" />
+<Screenshot
+  name="plan-card"
+  alt="An approved plan card for adding an FAQ, followed by the agent implementing it"
+/>
 
 - **Approve** tells the agent to go ahead.
 - **Request changes** quotes the plan in the composer so you can add your
@@ -200,16 +249,16 @@ document chat has no **Plan** toggle.
 Agent replies stream in as they're written. Each tool call is a compact row
 you can expand for details:
 
-| Row | Meaning |
-| --- | --- |
-| **Read** *n* lines `path` | Read a file |
-| **Edit** / **Write** `path` | Changed a file (expand to see the diff) |
-| **Run command** `…` | Ran a shell command in the sandbox |
-| **List files**, **Grep**, **Glob** | Searched the code |
-| **Read skill** `name` | Loaded a skill's instructions |
-| **Read document** | Read a document on the canvas |
-| **Create PR** | Opened a pull request (shown as a link card) |
-| **Submit plan** | Presented a plan for approval |
+| Row                                | Meaning                                      |
+| ---------------------------------- | -------------------------------------------- |
+| **Read** _n_ lines `path`          | Read a file                                  |
+| **Edit** / **Write** `path`        | Changed a file (expand to see the diff)      |
+| **Run command** `…`                | Ran a shell command in the sandbox           |
+| **List files**, **Grep**, **Glob** | Searched the code                            |
+| **Read skill** `name`              | Loaded a skill's instructions                |
+| **Read document**                  | Read a document on the canvas                |
+| **Create PR**                      | Opened a pull request (shown as a link card) |
+| **Submit plan**                    | Presented a plan for approval                |
 
 Failed calls are marked in red and always show the error, or say that none
 was reported. Once a turn finishes, its tool calls fold behind one summary
@@ -234,7 +283,6 @@ is added. Later chats get their own names but leave the workspace's title and
 branch alone. See [Titles](/guides/workspaces#titles).
 
 <Callout type="info">
-  **"No coding agent detected"** on desktop means no supported CLI is
-  installed. Install one from **Settings → Coding agents**; it shows up
-  without a restart.
+  **"No coding agent detected"** on desktop means no supported CLI is installed.
+  Install one from **Settings → Coding agents**; it shows up without a restart.
 </Callout>

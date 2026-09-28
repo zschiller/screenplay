@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@/lib/agent/types"
 import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
-import { workspaceTaskOf } from "@/lib/agent/workspace-task"
+import { workspaceTasksOf } from "@/lib/agent/workspace-task"
 import { parseUserMessage } from "@/lib/agent/message-markers"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
@@ -36,7 +36,7 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
  */
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
-  return message.role === "tool_call" && workspaceTaskOf(message) !== null
+  return message.role === "tool_call" && workspaceTasksOf(message).length > 0
 }
 
 /**

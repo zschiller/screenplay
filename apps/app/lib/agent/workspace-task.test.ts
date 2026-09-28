@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import type { AgentMessage } from "@/lib/agent/types"
 import {
+  createdWorkspacesResult,
   sentToWorkspaceResult,
   workspaceTaskOf,
+  workspaceTasksOf,
   workspaceTaskState,
 } from "./workspace-task"
 
@@ -64,6 +66,19 @@ describe("workspaceTaskState", () => {
       workspaceTaskState({ ...base, branch: { ...branch, status: "error" } })
     ).toBe("failed")
     expect(
+      workspaceTaskState({ ...base, branch: { ...branch, status: "creating" } })
+    ).toBe("starting")
+    // Running, but its seed message hasn't gone yet.
+    expect(
+      workspaceTaskState({
+        ...base,
+        branch: {
+          ...branch,
+          pendingSeed: { chatId: "c", message: "m", coordinatorChatId: "r" },
+        },
+      })
+    ).toBe("starting")
+    expect(
       workspaceTaskState({
         ...base,
         chats: [{ branchId: "ws-1", isStreaming: true }],
@@ -89,5 +104,53 @@ describe("workspaceTaskState", () => {
         plans: [{ branchId: "ws-1", status: "approved" }],
       })
     ).toBe("done")
+  })
+})
+
+describe("workspaceTasksOf", () => {
+  function created(partial: Partial<ToolCall> = {}): ToolCall {
+    return {
+      role: "tool_call",
+      toolCallId: "plan-1",
+      title: "create_workspaces",
+      status: "completed",
+      rawInput: { workspaces: [] },
+      content: [
+        {
+          type: "content",
+          content: {
+            type: "text",
+            text: createdWorkspacesResult([
+              { title: "Fix", repository: "acme/web", branchId: "ws-1" },
+              {
+                title: "Dark",
+                repository: "acme/web",
+                branchId: "ws-2",
+                error: "no token",
+              },
+              { title: "Docs", repository: "acme/docs", error: "no repo" },
+            ]),
+          },
+        },
+      ],
+      ...partial,
+    }
+  }
+
+  it("shows a row for each Workspace an approved plan created, failed ones too", () => {
+    expect(workspaceTasksOf(created())).toEqual([
+      { branchId: "ws-1" },
+      { branchId: "ws-2" },
+    ])
+  })
+
+  it("shows none for a plan the user sent back", () => {
+    expect(workspaceTasksOf(created({ status: "failed" }))).toEqual([])
+  })
+
+  it("shows one for a send", () => {
+    expect(workspaceTasksOf(send())).toEqual([
+      { branchId: "ws-1", chatId: "chat-9" },
+    ])
   })
 })

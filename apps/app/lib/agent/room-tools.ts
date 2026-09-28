@@ -18,7 +18,18 @@ import {
   removeMemory,
 } from "@/lib/canvas/memory"
 import { isBranchBusy } from "@/lib/branch-busy"
-import { sentToWorkspaceResult } from "@/lib/agent/workspace-task"
+import {
+  createdWorkspacesResult,
+  sentToWorkspaceResult,
+  workspacePlanMarkdown,
+  CREATE_WORKSPACES_TOOL,
+  type WorkspaceCreateOutcome,
+} from "@/lib/agent/workspace-task"
+import { withPlanGate, type PlanGateRequest } from "@/lib/agent/plan-gate"
+import { createCanvasOps } from "@/lib/canvas/ops"
+import { createRoomCollections } from "@/lib/yjs/schema"
+import { sanitizeBranchName } from "@/lib/branch-rename"
+import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
   ChatSessionData,
@@ -57,6 +68,22 @@ export interface RoomToolPorts extends WorkspaceReadPorts {
    * broadcast), never when it ends.
    */
   launchWorkspaceTurn(input: WorkspaceTurnRequest): Promise<void>
+  /**
+   * Start provisioning a Workspace `create_workspaces` created (#898), as
+   * `/api/branch/create` does. Resolves once provisioning is under way; a
+   * failure later lands on the Branch as `error`. Throws when it can't start.
+   */
+  provisionWorkspace(request: BranchProvisionRequest): Promise<void>
+  /** Stop a Workspace chat's running turn, as that chat's Stop button does. */
+  stopWorkspaceTurn(chatId: string): Promise<void>
+  /**
+   * The member Workspaces this turn creates belong to: whoever sent the
+   * message the turn answers or, on a wake turn, the owner of the Workspace
+   * that woke it ({@link wakeRequesterId}).
+   */
+  requesterId: string
+  /** The Coordinator chat these tools run for. */
+  coordinatorChatId: string
 }
 
 /** A Delegated Message on its way into a Workspace chat. */
@@ -105,6 +132,10 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   },
   // Starts a turn in a Workspace chat the user can see and take over.
   send_to_workspace: { destructiveHint: false, openWorldHint: false },
+  // Creates Workspaces only after the user approves the plan (#898).
+  create_workspaces: { destructiveHint: false, openWorldHint: false },
+  // Stops a turn the user can resume by messaging the Workspace again.
+  stop_workspace: { destructiveHint: false, openWorldHint: false },
   // Shared by every chat's toolset (`layer-read-tools.ts`).
   read_document: { readOnlyHint: true, openWorldHint: false },
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
@@ -187,7 +218,335 @@ export function buildRoomTools(
       execute: async ({ workspace_id, message }) =>
         sendToWorkspace(ports, workspace_id, message),
     }),
+    [CREATE_WORKSPACES_TOOL]: withPlanGate(
+      tool({
+        description:
+          "Create Workspaces, each seeded with a first message for its agent. Use it when the user asks for work no existing Workspace fits; send follow-ups to an existing Workspace with `send_to_workspace` instead. The call shows the user a plan with one row per Workspace (title, repository, brief) and creates nothing until they approve it; you hear the result in the next turn. There's no limit on how many you list, but propose only what the ask needs.",
+        inputSchema: jsonSchema<CreateWorkspacesInput>({
+          type: "object",
+          properties: {
+            workspaces: {
+              type: "array",
+              minItems: 1,
+              items: {
+                type: "object",
+                properties: {
+                  title: {
+                    type: "string",
+                    description:
+                      'The Workspace\'s title: a few words naming the work, e.g. "Fix sign-in redirect".',
+                  },
+                  repository: {
+                    type: "string",
+                    description:
+                      "One of the canvas's repositories, by full name (owner/name) as `read_canvas` lists it.",
+                  },
+                  base_branch: {
+                    type: "string",
+                    description:
+                      "The branch to start from. Defaults to the repository's default branch.",
+                  },
+                  brief: {
+                    type: "string",
+                    description:
+                      "One line for the plan saying what the Workspace will do.",
+                  },
+                  prompt: {
+                    type: "string",
+                    description:
+                      "The seed message its agent starts on, written as the user would write it.",
+                  },
+                },
+                required: ["title", "repository", "brief", "prompt"],
+              },
+            },
+          },
+          required: ["workspaces"],
+        }),
+      }),
+      (input) => workspacePlan(ports, input as CreateWorkspacesInput)
+    ),
+    stop_workspace: tool({
+      description:
+        "Stop a Workspace's running turn right away, as its chat's Stop button does. Use it when a Workspace's work has gone off track or the user asks you to stop it. Its chat keeps everything so far; send it a message to carry on.",
+      inputSchema: jsonSchema<{ workspace_id: string }>({
+        type: "object",
+        properties: {
+          workspace_id: {
+            type: "string",
+            description: "The Workspace's id, from `read_canvas`.",
+          },
+        },
+        required: ["workspace_id"],
+      }),
+      execute: async ({ workspace_id }) => stopWorkspace(ports, workspace_id),
+    }),
   }
+}
+
+/** One Workspace in a `create_workspaces` call, as the model writes it. */
+export type WorkspaceSpec = {
+  title: string
+  repository: string
+  base_branch?: string
+  brief: string
+  prompt: string
+}
+
+type CreateWorkspacesInput = { workspaces: WorkspaceSpec[] }
+
+/**
+ * What a `create_workspaces` plan keeps for its approval: the Workspaces as
+ * the plan showed them, and who they will belong to.
+ */
+export type WorkspacePlanInput = {
+  gate: typeof CREATE_WORKSPACES_TOOL
+  workspaces: WorkspaceSpec[]
+  requesterId: string
+}
+
+/** Whether a pending plan's stored input is a `create_workspaces` plan. */
+export function isWorkspacePlanInput(
+  input: Record<string, unknown>
+): input is WorkspacePlanInput {
+  return (
+    input.gate === CREATE_WORKSPACES_TOOL && Array.isArray(input.workspaces)
+  )
+}
+
+/**
+ * The owner of Workspaces a wake turn creates (#890): the owner of the
+ * Workspace that woke the Coordinator, or `fallback` for one created before
+ * owners were recorded.
+ */
+export function wakeRequesterId(
+  wakingBranch: Pick<BranchData, "createdBy"> | undefined,
+  fallback: string
+): string {
+  return wakingBranch?.createdBy ?? fallback
+}
+
+/**
+ * The plan review `create_workspaces` raises: one row per Workspace with its
+ * title, repository and brief, and the base branch when it isn't the default.
+ * Never throws, so a doc read failing still shows the user a plan.
+ */
+async function workspacePlan(
+  ports: RoomToolPorts,
+  input: CreateWorkspacesInput
+): Promise<PlanGateRequest> {
+  const workspaces = (input?.workspaces ?? []).map(cleanSpec)
+  const repos = await ports
+    .readDoc((c) => records<RepoData>(c, COLLECTION_KEYS.repos))
+    .catch(() => [] as RepoData[])
+  const rows = workspaces.map((w) => {
+    const repo = findRepo(repos, w.repository)
+    const where = repo
+      ? repo.repoFullName +
+        (w.base_branch && w.base_branch !== repo.defaultBranch
+          ? ` from ${w.base_branch}`
+          : "")
+      : `${w.repository} (not on this canvas, so it can't be created)`
+    return { title: w.title, where, brief: w.brief }
+  })
+  const plan = workspacePlanMarkdown(rows)
+  return {
+    plan,
+    input: {
+      gate: CREATE_WORKSPACES_TOOL,
+      workspaces,
+      requesterId: ports.requesterId,
+    },
+  }
+}
+
+function cleanSpec(raw: WorkspaceSpec): WorkspaceSpec {
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+  const base = text(raw?.base_branch)
+  return {
+    title: text(raw?.title),
+    repository: text(raw?.repository),
+    ...(base ? { base_branch: base } : {}),
+    brief: text(raw?.brief),
+    prompt: text(raw?.prompt),
+  }
+}
+
+function findRepo(
+  repos: readonly RepoData[],
+  name: string
+): RepoData | undefined {
+  const key = name.trim().toLowerCase()
+  return repos.find(
+    (r) => r.id === name.trim() || r.repoFullName.toLowerCase() === key
+  )
+}
+
+/**
+ * Create the Workspaces of an approved `create_workspaces` plan (#898), each
+ * owned by the plan's requester and seeded with its prompt once its sandbox
+ * runs. Every Workspace is created before any is provisioned, together in one
+ * new Group of frames; a Workspace that fails to start is marked failed (its
+ * row offers Retry) and the rest carry on. Returns the tool result the
+ * Coordinator reads, naming each Workspace so its task row shows.
+ */
+export async function createWorkspaces(
+  ports: RoomToolPorts,
+  plan: WorkspacePlanInput
+): Promise<string> {
+  const outcomes: WorkspaceCreateOutcome[] = []
+  const toProvision: {
+    outcome: WorkspaceCreateOutcome
+    request: BranchProvisionRequest
+  }[] = []
+
+  await ports.mutateDoc((collections) => {
+    const repos = records<RepoData>(collections, COLLECTION_KEYS.repos)
+    const taken = new Set(
+      records<BranchData>(collections, COLLECTION_KEYS.branches).map(
+        (b) => b.ref
+      )
+    )
+    const ops = createCanvasOps(createRoomCollections(collections.doc))
+    const frames: { agentId: string; label: string }[] = []
+    ops.batch(() => {
+      for (const spec of plan.workspaces.map(cleanSpec)) {
+        const title = spec.title || "Untitled"
+        const repo = findRepo(repos, spec.repository)
+        if (!repo) {
+          outcomes.push({
+            title,
+            repository: spec.repository,
+            error: "that repository isn't on this canvas",
+          })
+          continue
+        }
+        if (!spec.prompt) {
+          outcomes.push({
+            title,
+            repository: repo.repoFullName,
+            error: "it had no seed prompt",
+          })
+          continue
+        }
+        const ref = uniqueRef(title, taken)
+        const sandboxName = `sp-${nanoid(10)}`
+        const base = spec.base_branch
+        const flow =
+          base && base !== repo.defaultBranch ? "duplicate-branch" : "new"
+        const chatId = nanoid()
+        const { branchId } = ops.createBranch({
+          branch: {
+            repoId: repo.id,
+            sandboxName,
+            gitUrl: repo.cloneUrl,
+            ref,
+            title,
+            previewDomain: "",
+            port: repo.devServerPort ?? 3000,
+            status: "creating",
+            statusMessage: "Creating branch…",
+            createdAt: Date.now(),
+            // Titled up front, so the seed message mustn't rename the branch.
+            autoNamedBranch: false,
+            createFlow: flow,
+            ...(flow === "duplicate-branch"
+              ? { createSourceBranch: base }
+              : {}),
+            createdBy: plan.requesterId,
+            pendingSeed: {
+              chatId,
+              message: spec.prompt,
+              coordinatorChatId: ports.coordinatorChatId,
+            },
+          },
+        })
+        collections.chatSessions.set(chatId, {
+          id: chatId,
+          branchId,
+          label: title,
+          createdAt: Date.now(),
+        })
+        frames.push({ agentId: branchId, label: title })
+        const outcome: WorkspaceCreateOutcome = {
+          title,
+          repository: repo.repoFullName,
+          branchId,
+        }
+        outcomes.push(outcome)
+        toProvision.push({
+          outcome,
+          request: {
+            flow,
+            branchId,
+            sandboxName,
+            branch: ref,
+            repoId: repo.id,
+            ...(flow === "duplicate-branch" ? { sourceBranch: base } : {}),
+            // The seed chat exists already.
+            seedChat: false,
+          },
+        })
+      }
+      // One Group holds every new Workspace's frame, beside the others.
+      ops.createFramesForAgents(frames, { x: 0, y: 0 })
+    })
+  })
+
+  for (const { outcome, request } of toProvision) {
+    try {
+      await ports.provisionWorkspace(request)
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e)
+      outcome.error = error
+      await ports
+        .mutateDoc(({ branches }) =>
+          branches.update(request.branchId, { status: "error", error })
+        )
+        .catch(() => {})
+    }
+  }
+  return createdWorkspacesResult(outcomes)
+}
+
+/** A branch name from the title, unique among `taken` (which it joins). */
+function uniqueRef(title: string, taken: Set<string>): string {
+  const stem =
+    sanitizeBranchName(title).slice(0, 50).replace(/-+$/, "") || "workspace"
+  let ref = stem
+  for (let n = 2; taken.has(ref); n++) ref = `${stem}-${n}`
+  taken.add(ref)
+  return ref
+}
+
+/** Stop every running turn in a Workspace's open chats. */
+async function stopWorkspace(
+  ports: RoomToolPorts,
+  branchId: string
+): Promise<string> {
+  const { title, running } = await ports.readDoc((collections) => {
+    const branch = collections.branches.get(branchId)
+    if (!branch) {
+      throw new Error(
+        `No Workspace has the id ${branchId}. Call read_canvas for current ids.`
+      )
+    }
+    const chats = records<ChatSessionData>(
+      collections,
+      COLLECTION_KEYS.chatSessions
+    )
+    return {
+      title: workspaceLabel(branch),
+      running: chats
+        .filter((c) => isBranchBusy(branchId, [c]))
+        .map((c) => c.id),
+    }
+  })
+  if (running.length === 0) {
+    return `"${title}" isn't working on a turn, so there was nothing to stop.`
+  }
+  for (const chatId of running) await ports.stopWorkspaceTurn(chatId)
+  return `Stopped "${title}". Its chat keeps what it did so far.`
 }
 
 type WriteMemoryInput = {

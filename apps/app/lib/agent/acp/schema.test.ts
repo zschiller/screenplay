@@ -171,6 +171,21 @@ describe("plan-mode gate as an ACP permission request", () => {
     expect(planFromPermissionRequest(request)).toEqual({
       toolCallId: "toolu_1",
       plan: "## Plan\n1. do it",
+      input: { plan: "## Plan\n1. do it" },
+    })
+  })
+
+  it("keeps what a plan-gated tool stores beside the plan (#898)", () => {
+    const gated = planPermissionRequest({
+      sessionId: "s",
+      toolCallId: "t",
+      plan: "Create 1 Workspace",
+      input: { gate: "create_workspaces", workspaces: [{ title: "Fix" }] },
+    })
+    expect(planFromPermissionRequest(gated).input).toEqual({
+      gate: "create_workspaces",
+      workspaces: [{ title: "Fix" }],
+      plan: "Create 1 Workspace",
     })
   })
 

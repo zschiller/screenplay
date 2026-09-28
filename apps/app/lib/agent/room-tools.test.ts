@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildRoomTools,
+  createWorkspaces,
+  isWorkspacePlanInput,
+  wakeRequesterId,
+  type WorkspacePlanInput,
   CANVAS_SUMMARY_LIMITS,
   type RoomToolPorts,
   type TerminalTabSummary,
@@ -9,6 +13,9 @@ import {
 } from "@/lib/agent/room-tools"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import { readMemory } from "@/lib/canvas/memory"
+import { planGateOf } from "@/lib/agent/plan-gate"
+import { getGroupMembers } from "@/lib/canvas/layout"
+import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import {
   baseBranch,
   baseChat,
@@ -33,6 +40,10 @@ function portsOver(
     readDoc: async (fn) => fn(collections),
     mutateDoc: async (fn) => fn(collections),
     listTerminalTabs: async () => terminalTabs,
+    provisionWorkspace: async () => {},
+    stopWorkspaceTurn: async () => {},
+    requesterId: "user-1",
+    coordinatorChatId: "room-chat-1",
     readChatTranscript: unused,
     readWorkspaceDiff: unused,
     readWorkspaceFile: unused,
@@ -405,5 +416,266 @@ describe("send_to_workspace", () => {
       reason
     )
     expect(launched).toEqual([])
+  })
+})
+
+describe("create_workspaces", () => {
+  const specs = [
+    {
+      title: "Fix sign-in redirect",
+      repository: "acme/web",
+      brief: "Stop the OAuth callback looping back to /login.",
+      prompt: "Fix the sign-in redirect loop after OAuth.",
+    },
+    {
+      title: "Dark mode toggle",
+      repository: "ACME/Web",
+      base_branch: "release",
+      brief: "Add a dark mode switch to the header.",
+      prompt: "Add a dark mode toggle to the header.",
+    },
+  ]
+
+  function createHarness(overrides: Partial<RoomToolPorts> = {}) {
+    const { collections } = makeHarness()
+    collections.repos.set(
+      "repo-1",
+      baseRepo("repo-1", { repoFullName: "acme/web", defaultBranch: "main" })
+    )
+    const provisioned: BranchProvisionRequest[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      requesterId: "asker",
+      coordinatorChatId: "room-chat-1",
+      provisionWorkspace: async (request) => {
+        provisioned.push(request)
+      },
+      ...overrides,
+    }
+    return { collections, ports, provisioned }
+  }
+
+  async function gate(ports: RoomToolPorts, input: unknown) {
+    const tool = buildRoomTools("room-1", ports).create_workspaces
+    const planGate = planGateOf(tool)
+    if (!planGate) throw new Error("create_workspaces has no plan gate")
+    return { tool, request: await planGate(input) }
+  }
+
+  it("goes through plan review: it can't run on its own, and its plan lists each Workspace", async () => {
+    const { ports } = createHarness()
+    const { tool, request } = await gate(ports, {
+      workspaces: [
+        ...specs,
+        {
+          title: "Docs",
+          repository: "acme/docs",
+          brief: "Write the guide.",
+          prompt: "Write the guide.",
+        },
+      ],
+    })
+
+    // No `execute`: calling it halts the turn on the plan card instead.
+    expect(tool.execute).toBeUndefined()
+    expect(request.plan).toBe(
+      [
+        "Create 3 Workspaces:",
+        "",
+        "- **Fix sign-in redirect** · acme/web\\",
+        "  Stop the OAuth callback looping back to /login.",
+        "- **Dark mode toggle** · acme/web from release\\",
+        "  Add a dark mode switch to the header.",
+        "- **Docs** · acme/docs (not on this canvas, so it can't be created)\\",
+        "  Write the guide.",
+        "",
+        "Each one starts its sandbox, and its agent begins once it's running.",
+      ].join("\n")
+    )
+    expect(isWorkspacePlanInput(request.input)).toBe(true)
+    expect(request.input).toMatchObject({
+      gate: "create_workspaces",
+      requesterId: "asker",
+    })
+  })
+
+  it("creates nothing until the plan is approved", async () => {
+    const { collections, ports, provisioned } = createHarness()
+    await gate(ports, { workspaces: specs })
+    expect(collections.branches.toArray()).toEqual([])
+    expect(provisioned).toEqual([])
+  })
+
+  it("creates each approved Workspace, owned by the asking member and seeded with its prompt", async () => {
+    const { collections, ports, provisioned } = createHarness()
+    const { request } = await gate(ports, { workspaces: specs })
+
+    const result = await createWorkspaces(
+      ports,
+      request.input as WorkspacePlanInput
+    )
+
+    const branches = collections.branches.toArray()
+    expect(branches.map((b) => [b.title, b.ref, b.createdBy])).toEqual([
+      ["Fix sign-in redirect", "fix-sign-in-redirect", "asker"],
+      ["Dark mode toggle", "dark-mode-toggle", "asker"],
+    ])
+    const [fix, dark] = branches
+    expect(fix).toMatchObject({
+      repoId: "repo-1",
+      status: "creating",
+      createFlow: "new",
+      autoNamedBranch: false,
+      pendingSeed: {
+        message: "Fix the sign-in redirect loop after OAuth.",
+        coordinatorChatId: "room-chat-1",
+      },
+    })
+    expect(dark).toMatchObject({
+      createFlow: "duplicate-branch",
+      createSourceBranch: "release",
+    })
+    // The seed goes to the Workspace's own chat, titled like it.
+    const seedChat = collections.chatSessions.get(fix!.pendingSeed!.chatId)
+    expect(seedChat).toMatchObject({
+      branchId: fix!.id,
+      label: "Fix sign-in redirect",
+    })
+    // Both frames land together in one new Group.
+    const groups = collections.iframeLayerGroups.toArray()
+    expect(groups).toHaveLength(1)
+    expect(getGroupMembers(groups[0]!)).toHaveLength(2)
+    expect(
+      provisioned.map((p) => [p.branchId, p.flow, p.sourceBranch])
+    ).toEqual([
+      [fix!.id, "new", undefined],
+      [dark!.id, "duplicate-branch", "release"],
+    ])
+    expect(result).toContain("Started 2 of 2 Workspaces.")
+    expect(result).toContain(`[workspace ${fix!.id}]`)
+    expect(result).toContain(`[workspace ${dark!.id}]`)
+  })
+
+  it("keeps going when one fails to start: that one is marked failed for Retry and reported", async () => {
+    const { collections, ports, provisioned } = createHarness()
+    let calls = 0
+    ports.provisionWorkspace = async (request) => {
+      if (calls++ === 0) throw new Error("no GitHub token")
+      provisioned.push(request)
+    }
+    const { request } = await gate(ports, {
+      workspaces: [
+        ...specs,
+        {
+          title: "Docs",
+          repository: "acme/docs",
+          brief: "Write the guide.",
+          prompt: "Write the guide.",
+        },
+      ],
+    })
+
+    const result = await createWorkspaces(
+      ports,
+      request.input as WorkspacePlanInput
+    )
+
+    const [fix, dark] = collections.branches.toArray()
+    // The failed one keeps its create flow, which is what Retry re-runs.
+    expect(fix).toMatchObject({
+      status: "error",
+      error: "no GitHub token",
+      createFlow: "new",
+    })
+    expect(provisioned.map((p) => p.branchId)).toEqual([dark!.id])
+    // A repository not on the canvas gets no Workspace at all.
+    expect(collections.branches.toArray()).toHaveLength(2)
+    expect(result.split("\n")).toEqual([
+      "Started 1 of 3 Workspaces. Each gets its seed message once its sandbox is running; you'll hear back when its turns end.",
+      `- "Fix sign-in redirect" (acme/web) [workspace ${fix!.id}]: failed to start (no GitHub token). Its row offers Retry; tell the user.`,
+      `- "Dark mode toggle" (acme/web) [workspace ${dark!.id}]: starting`,
+      `- "Docs" (acme/docs): not created, because that repository isn't on this canvas. Tell the user.`,
+    ])
+  })
+
+  it("gives each Workspace its own branch name", async () => {
+    const { collections, ports } = createHarness()
+    collections.branches.set(
+      "old",
+      baseBranch("old", { ref: "fix-sign-in-redirect" })
+    )
+    const { request } = await gate(ports, {
+      workspaces: [specs[0], specs[0]],
+    })
+    await createWorkspaces(ports, request.input as WorkspacePlanInput)
+    expect(
+      collections.branches
+        .toArray()
+        .map((b) => b.ref)
+        .sort()
+    ).toEqual([
+      "fix-sign-in-redirect",
+      "fix-sign-in-redirect-2",
+      "fix-sign-in-redirect-3",
+    ])
+  })
+
+  it("on a wake turn, gives Workspaces to the owner of the Workspace that woke it", () => {
+    expect(wakeRequesterId({ createdBy: "waker" }, "fallback")).toBe("waker")
+    expect(wakeRequesterId({}, "fallback")).toBe("fallback")
+    expect(wakeRequesterId(undefined, "fallback")).toBe("fallback")
+  })
+})
+
+describe("stop_workspace", () => {
+  function stopHarness() {
+    const { collections } = makeHarness()
+    const stopped: string[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      stopWorkspaceTurn: async (chatId) => {
+        stopped.push(chatId)
+      },
+    }
+    const stop = async (workspace_id: string) =>
+      (await buildRoomTools("room-1", ports).stop_workspace.execute!(
+        { workspace_id },
+        { toolCallId: "t1", messages: [] }
+      )) as string
+    return { collections, stopped, stop }
+  }
+
+  it("stops the Workspace's running turn right away", async () => {
+    const { collections, stopped, stop } = stopHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1", { title: "Fix it" }))
+    collections.chatSessions.set(
+      "chat-1",
+      baseChat("chat-1", { branchId: "ws-1", isStreaming: true })
+    )
+    collections.chatSessions.set(
+      "chat-2",
+      baseChat("chat-2", { branchId: "ws-1" })
+    )
+    collections.chatSessions.set(
+      "chat-3",
+      baseChat("chat-3", { branchId: "ws-2", isStreaming: true })
+    )
+
+    expect(await stop("ws-1")).toBe(
+      'Stopped "Fix it". Its chat keeps what it did so far.'
+    )
+    expect(stopped).toEqual(["chat-1"])
+  })
+
+  it("says so when the Workspace isn't working", async () => {
+    const { collections, stopped, stop } = stopHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1", { title: "Fix it" }))
+    expect(await stop("ws-1")).toContain("isn't working on a turn")
+    expect(stopped).toEqual([])
+  })
+
+  it("fails for an unknown Workspace", async () => {
+    const { stop } = stopHarness()
+    await expect(stop("nope")).rejects.toThrow(/No Workspace has the id nope/)
   })
 })

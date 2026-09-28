@@ -23,10 +23,13 @@ import { panelLayoutCookieName } from "@/lib/panel-layout"
 import { roomChatId } from "@/lib/chat/room-chat"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
 import {
+  createdWorkspacesResult,
   sentToWorkspaceResult,
   workspaceLink,
+  workspacePlanMarkdown,
 } from "@/lib/agent/workspace-task"
 import { wakeMessage } from "@/lib/agent/coordinator-wake"
+import { planPermissionRequest } from "@/lib/agent/acp/schema"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
@@ -619,6 +622,49 @@ export const SCREENS: Screen[] = [
       ])
       await page
         .getByTestId("workspace-link")
+        .first()
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-workspace-plan",
+    description:
+      "The Coordinator proposing two new Workspaces: the plan card with one row per Workspace, waiting for approval (#898).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(
+        page,
+        roomChatId(ids.rooms.checkout),
+        workspacePlanRun(roomChatId(ids.rooms.checkout))
+      )
+      await page.getByText("Create 2 Workspaces").first().waitFor()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-workspaces-created",
+    description:
+      "The same plan approved: a task row per created Workspace, one starting and one that failed to start (#898).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      const chatId = roomChatId(ids.rooms.checkout)
+      await replayRun(page, chatId, [
+        ...workspacePlanRun(chatId),
+        ...workspacesCreatedRun(),
+      ])
+      await page
+        .getByTestId("workspace-task")
         .first()
         .waitFor({ timeout: 15_000 })
     },
@@ -3882,6 +3928,124 @@ export function delegationRun(): RunEvent[] {
         sessionUpdate: "agent_message_chunk",
         content: text(
           "\n\nEmpty cart state is still waiting for you to approve its plan, so it will pick this up after that. I'll tell you when they're done or need you."
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
+const WORKSPACE_PLAN_ID = "fixture-create-workspaces"
+
+/**
+ * A Coordinator turn that splits an ask into two new Workspaces and halts on
+ * the plan card `create_workspaces` raises (#898). The two stand in for the
+ * checkout canvas's Apple Pay and Gift cards Workspaces.
+ */
+export function workspacePlanRun(chatId: string): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text(
+          "Add Apple Pay to checkout, and let people pay with a gift card."
+        ),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "No Workspace covers either yet, so I'd start one for each."
+        ),
+      },
+    },
+    {
+      type: "chat-acp-permission",
+      request: planPermissionRequest({
+        sessionId: chatId,
+        toolCallId: WORKSPACE_PLAN_ID,
+        plan: workspacePlanMarkdown([
+          {
+            title: "Apple Pay button",
+            where: "acme/storefront",
+            brief: "Add an Apple Pay button to the payment step.",
+          },
+          {
+            title: "Gift cards",
+            where: "acme/storefront",
+            brief: "Accept a gift card code at checkout and apply its balance.",
+          },
+        ]),
+      }),
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
+/**
+ * The approval of {@link workspacePlanRun}: the plan resolved, the resumed
+ * turn with the recorded `create_workspaces` outcome (task rows) and the
+ * Coordinator's report.
+ */
+export function workspacesCreatedRun(): RunEvent[] {
+  return [
+    // Turn Launch's order: the stream starts, the plan flips, then the echo.
+    { type: "chat-stream-start" },
+    {
+      type: "chat-control",
+      control: {
+        kind: "plan_resolved",
+        planId: WORKSPACE_PLAN_ID,
+        approved: true,
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Approved the plan."),
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: WORKSPACE_PLAN_ID,
+        title: "create_workspaces",
+        status: "completed",
+        rawInput: { workspaces: [] },
+        content: [
+          {
+            type: "content",
+            content: text(
+              createdWorkspacesResult([
+                {
+                  title: "Apple Pay button",
+                  repository: "acme/storefront",
+                  branchId: ids.branches.applePay,
+                },
+                {
+                  title: "Gift cards",
+                  repository: "acme/storefront",
+                  branchId: ids.branches.giftCards,
+                  error: "the setup script failed",
+                },
+              ])
+            ),
+          },
+        ],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "Apple Pay button is starting. Gift cards failed to start because its setup script failed; its row offers Retry."
         ),
       },
     },

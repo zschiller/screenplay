@@ -30,6 +30,8 @@ import {
   Trash2,
   History,
   Undo2,
+  FolderGit2,
+  CircleStop,
 } from "lucide-react"
 import {
   Collapsible,
@@ -72,7 +74,7 @@ import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
 import {
   WORKSPACE_LINK_SCHEME,
-  workspaceTaskOf,
+  workspaceTasksOf,
 } from "@/lib/agent/workspace-task"
 
 const toolIcons: Record<string, typeof FileText> = {
@@ -97,6 +99,8 @@ const toolIcons: Record<string, typeof FileText> = {
   remove: Trash2,
   list_changes: History,
   undo_changes: Undo2,
+  create_workspaces: FolderGit2,
+  stop_workspace: CircleStop,
 }
 
 const toolLabels: Record<string, string> = {
@@ -122,6 +126,8 @@ const toolLabels: Record<string, string> = {
   remove: "Remove",
   list_changes: "List changes",
   undo_changes: "Undo changes",
+  create_workspaces: "Create Workspaces",
+  stop_workspace: "Stop Workspace",
 }
 
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
@@ -1130,9 +1136,20 @@ function ToolCallItem({
   message: AgentMessage & { role: "tool_call" }
 }) {
   const tasks = useWorkspaceTasks()
-  const task = tasks ? workspaceTaskOf(message) : null
-  if (tasks && task) {
-    return <WorkspaceTaskRow call={message} task={task} tasks={tasks} />
+  const found = tasks ? workspaceTasksOf(message) : []
+  if (tasks && found.length > 0) {
+    return (
+      <div className="flex flex-col gap-1">
+        {found.map((task) => (
+          <WorkspaceTaskRow
+            key={task.branchId}
+            call={message}
+            task={task}
+            tasks={tasks}
+          />
+        ))}
+      </div>
+    )
   }
   return <ToolCallRow message={message} />
 }

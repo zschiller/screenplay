@@ -11,6 +11,7 @@ import {
   loadCanvasMemory,
   loadLayerDirectory,
   markdownLayerChatTarget,
+  liveRoomToolPorts,
   prepareChatTarget,
   roomChatTarget,
 } from "./chat-target-kinds"
@@ -23,6 +24,7 @@ import {
   findPendingPlanForChat,
   getChatModel,
   loadAcpHistory,
+  upsertAcpToolCall,
   upsertChat,
 } from "./persistence"
 import { resolvePlan, runStatus, startRun, transition } from "./run-state"
@@ -49,12 +51,28 @@ import {
 } from "./comment-request"
 import {
   launchTurn,
+  stopTurn,
   type TurnLaunchDeps,
   type TurnStopDeps,
   type TurnTarget,
 } from "./turn-launch"
 import { prependTurnMarkers } from "./message-markers"
-import type { WorkspaceTurnRequest } from "./room-tools"
+import {
+  createWorkspaces,
+  wakeRequesterId,
+  type WorkspacePlanInput,
+  type WorkspaceTurnRequest,
+} from "./room-tools"
+import {
+  CREATE_WORKSPACES_TOOL,
+  workspacePlanRejectedResult,
+} from "./workspace-task"
+import type { AcpToolCallRecord } from "./acp/record"
+import { textBlock, toolCallStart } from "./acp/schema"
+import { toolKindFor } from "./acp/adapter"
+import type { RoomTarget } from "./chat-target-kinds"
+import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
+import { isLocalBuild } from "@/lib/local-mode"
 import {
   createKeyedQueue,
   wakeMessage,
@@ -140,7 +158,14 @@ async function wakeCoordinator(
   const workspace = await room.readDoc(({ chatSessions, branches }) => {
     const branchId = chatSessions.get(end.chatId)?.branchId
     const branch = branchId ? branches.get(branchId) : undefined
-    return branch ? { id: branch.id, title: workspaceLabel(branch) } : null
+    return branch
+      ? {
+          id: branch.id,
+          title: workspaceLabel(branch),
+          // Workspaces this wake creates belong to this Workspace's owner.
+          requesterId: wakeRequesterId(branch, room.userId),
+        }
+      : null
   })
   if (!workspace) return
   const message = wakeMessage({
@@ -149,7 +174,9 @@ async function wakeCoordinator(
     status: end.status,
     lastTurn: renderLastTurn(await loadChatTranscript(end.chatId)),
   })
-  await wakeQueue(room.roomId, () => runWakeTurn(room, message))
+  await wakeQueue(room.roomId, () =>
+    runWakeTurn(room, message, workspace.requesterId)
+  )
 }
 
 /**
@@ -158,7 +185,11 @@ async function wakeCoordinator(
  * It waits for a turn the user started to finish first: a new turn would
  * supersede it.
  */
-async function runWakeTurn(room: RoomAccess, message: string): Promise<void> {
+async function runWakeTurn(
+  room: RoomAccess,
+  message: string,
+  requesterId: string
+): Promise<void> {
   const chatId = roomChatId(room.roomId)
   const deadline = Date.now() + COORDINATOR_IDLE_WAIT_MS
   while ((await findActiveRun(chatId)) && Date.now() < deadline) {
@@ -174,7 +205,7 @@ async function runWakeTurn(room: RoomAccess, message: string): Promise<void> {
       },
     },
     { roomId: room.roomId, chatId, message, model },
-    roomTurn({ room, chatId, message, model })
+    roomTurn({ room, chatId, message, model, requesterId })
   )
   await drive?.()
 }
@@ -250,6 +281,8 @@ export function roomTurn(input: {
   chatId: string
   message: string
   model?: string
+  /** Who owns Workspaces this turn creates, when not the acting member. */
+  requesterId?: string
 }): TurnTarget {
   const { room, chatId } = input
   return {
@@ -258,10 +291,9 @@ export function roomTurn(input: {
       const prepared = await prepareChatTarget(
         room,
         roomChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
-        {
-          userId: room.userId,
-          launchWorkspaceTurn: delegatedTurnLauncher(room, chatId),
-        } as unknown as never
+        coordinatorTarget(room, chatId, {
+          requesterId: input.requesterId,
+        }) as unknown as never
       )
       if (!prepared) return null
 
@@ -284,6 +316,113 @@ export function roomTurn(input: {
       }
     },
   }
+}
+
+/**
+ * The Coordinator's live Room Target for a turn in `coordinatorChatId`: what
+ * its tools drive (Delegated Messages, Workspace provisioning, stopping a
+ * Workspace turn), acting as the member whose message the turn answers.
+ */
+export function coordinatorTarget(
+  room: RoomAccess,
+  coordinatorChatId: string,
+  opts: { turnId?: string; requesterId?: string } = {}
+): RoomTarget {
+  return {
+    userId: room.userId,
+    turnId: opts.turnId,
+    requesterId: opts.requesterId,
+    coordinatorChatId,
+    launchWorkspaceTurn: delegatedTurnLauncher(room, coordinatorChatId),
+    // Provisioned with the owner's GitHub account, as the create they asked
+    // for; the seed message follows once the sandbox runs.
+    async provisionWorkspace(request) {
+      const owner = await room.readDoc(
+        ({ branches }) => branches.get(request.branchId)?.createdBy
+      )
+      const ghToken =
+        (await getGitHubTokenForUser(owner ?? room.userId)) ?? undefined
+      if (!ghToken && !isLocalBuild) {
+        throw new Error("no GitHub token; the owner needs to sign in again")
+      }
+      await startBranchProvisioning(room, request, {
+        ghToken,
+        runAfter: after,
+        onRunning: (id) => sendPendingSeed(room, id),
+      })
+    },
+    stopWorkspaceTurn: (chatId) =>
+      stopTurn(liveTurnStopDeps, { roomId: room.roomId, chatId }),
+  }
+}
+
+/**
+ * Settle a `create_workspaces` plan the user just decided (#898), once its
+ * resume turn has started: on approval create the Workspaces, then record the
+ * call with its outcome in the Coordinator chat, where it shows as task rows,
+ * ahead of the resumed turn reading it. A rejection records the call as not
+ * created, so the Coordinator sees what it proposed beside the feedback.
+ */
+export async function settleWorkspacePlan(
+  room: RoomAccess,
+  input: {
+    chatId: string
+    runId: string
+    planId: string
+    plan: WorkspacePlanInput
+    approved: boolean
+    feedback?: string
+  }
+): Promise<void> {
+  const { chatId, runId, planId, plan, approved, feedback } = input
+  const text = approved
+    ? await createWorkspaces(
+        liveRoomToolPorts(room, coordinatorTarget(room, chatId)),
+        plan
+      )
+    : workspacePlanRejectedResult(feedback)
+  const call = {
+    toolCallId: planId,
+    title: CREATE_WORKSPACES_TOOL,
+    kind: toolKindFor(CREATE_WORKSPACES_TOOL),
+    status: approved ? ("completed" as const) : ("failed" as const),
+    rawInput: { workspaces: plan.workspaces },
+    content: [{ type: "content" as const, content: textBlock(text) }],
+  }
+  const record: AcpToolCallRecord = { role: "tool_call", ...call }
+  await upsertAcpToolCall(chatId, runId, record)
+  await broadcastAcpUpdate(room.roomId, chatId, toolCallStart(call))
+}
+
+/**
+ * Send a Workspace's pending seed message (#898) once its sandbox runs: the
+ * first turn of a Workspace the Coordinator created, as a Delegated Message
+ * from that Coordinator chat, acting as the Workspace's owner. The seed is
+ * claimed before it's sent, so a second call (a Retry racing a reload) sends
+ * nothing.
+ */
+export async function sendPendingSeed(
+  room: RoomAccess,
+  branchId: string
+): Promise<void> {
+  const claimed = await room.mutateDoc(({ branches }) => {
+    const branch = branches.get(branchId)
+    if (!branch?.pendingSeed || branch.status !== "running") return null
+    branches.update(branchId, { pendingSeed: undefined })
+    return { branch, seed: branch.pendingSeed }
+  })
+  if (!claimed) return
+  const { branch, seed } = claimed
+  const owner = branch.createdBy ? { ...room, userId: branch.createdBy } : room
+  await launchDelegatedTurn(owner, seed.coordinatorChatId, {
+    branchId,
+    sandboxName: branch.sandboxName,
+    chatId: seed.chatId,
+    message: seed.message,
+    isFirstChat: true,
+  }).catch((e) =>
+    console.error(`[coordinator] seed for Workspace ${branchId} failed`, e)
+  )
 }
 
 /**
