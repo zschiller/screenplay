@@ -93,6 +93,23 @@ they want to *control* a value from the canvas, use knobs.
   PII you wouldn't paste in chat, or anything you wouldn't say in a
   meeting.
 
+## Zustand stores
+
+When the state the user wants shared lives in a zustand store, share the
+whole store with one line next to its `create()` instead of wiring each
+field:
+
+```ts
+import { shareStore } from "@screenplay.space/state"
+
+export const useSales = create((set) => ({ /* existing store */ }))
+shareStore("sales", useSales)
+```
+
+Its plain-JSON fields sync both ways and its actions keep working. Actions,
+`Date`s, `Map`s, `Set`s and class instances stay local. Don't add
+`useSharedState` calls for fields of a store that's already shared.
+
 ## Non-React API
 
 Reach for this when you need to publish from outside React (event

@@ -248,6 +248,80 @@ export function clearSharedState(key) {
   clearEntry(key)
 }
 
+// True for values that survive a JSON round trip unchanged: primitives,
+// arrays, and plain objects made of them. A Date, Map, Set, class instance,
+// NaN or function would come back as something else, so the fields holding
+// them stay local instead of being overwritten by their JSON shadow.
+function isPlainJson(value) {
+  if (value === null) return true
+  switch (typeof value) {
+    case "string":
+    case "boolean":
+      return true
+    case "number":
+      return Number.isFinite(value)
+    case "object":
+      break
+    default:
+      return false
+  }
+  if (Array.isArray(value)) return value.every(isPlainJson)
+  const proto = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return false
+  return Object.values(value).every(isPlainJson)
+}
+
+// The store's shareable fields: its top-level keys whose values are plain
+// JSON. Actions and anything else are left out.
+function pickShareable(state) {
+  const out = {}
+  if (!state || typeof state !== "object") return out
+  for (const [field, value] of Object.entries(state)) {
+    if (isPlainJson(value)) out[field] = value
+  }
+  return out
+}
+
+/**
+ * Share a whole zustand store (or anything with zustand's `getState`,
+ * `setState` and `subscribe`) under one key. The store's plain-JSON fields
+ * are published; remote values are merged back with `setState`, so the
+ * store's actions keep working. Fields holding functions or values JSON
+ * can't round-trip are never published and never overwritten. Returns a
+ * function that stops sharing. Outside a screenplay frame it does nothing.
+ *
+ * @example
+ *   const useSales = create((set) => ({ plan: "Growth", seats: 5, ... }))
+ *   shareStore("sales", useSales)
+ */
+export function shareStore(key, store) {
+  if (!active) return () => {}
+  if (typeof key !== "string" || key.length === 0) return () => {}
+  const applyRemote = (remote) => {
+    if (!remote || typeof remote !== "object" || Array.isArray(remote)) return
+    const current = store.getState()
+    const patch = {}
+    let any = false
+    for (const [field, value] of Object.entries(remote)) {
+      // Only fields this store shares locally too: never let a remote value
+      // replace an action or a non-JSON field.
+      if (current && field in current && !isPlainJson(current[field])) continue
+      patch[field] = value
+      any = true
+    }
+    if (any) store.setState(patch)
+  }
+  addSetter(key, applyRemote)
+  setEntry(key, pickShareable(store.getState()))
+  const unsubscribe = store.subscribe((state) =>
+    setEntry(key, pickShareable(state)),
+  )
+  return () => {
+    unsubscribe()
+    removeSetter(key, applyRemote)
+  }
+}
+
 /** Read the last value seen for a key. Mostly for tests. */
 export function getSharedState(key) {
   const entry = entries.get(key)

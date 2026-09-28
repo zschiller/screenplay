@@ -74,6 +74,32 @@ canvas drops the old entry; treat it like an `id`.
 | Persistence across reloads   | Yes — state lives on the artboard until cleared                |
 | Cross into prototype player  | Yes — same protocol, same room, same Yjs                       |
 
+## Share a zustand store
+
+One call shares a whole zustand store under one key:
+
+```ts
+import { create } from "zustand"
+import { shareStore } from "@screenplay.space/state"
+
+export const useSales = create((set) => ({
+  contactOpen: false,
+  plan: "Growth",
+  seats: 5,
+  open: (plan) => set({ contactOpen: true, plan }),
+  close: () => set({ contactOpen: false }),
+}))
+
+const stop = shareStore("sales", useSales)
+```
+
+The store's plain-JSON fields are published; updates from other viewers are
+merged back with `store.setState`, so its actions keep working. Fields holding
+functions or values JSON can't round-trip (`Date`, `Map`, `Set`, class
+instances, `undefined`, `NaN`) are never published and never overwritten.
+Anything with zustand's `getState`, `setState` and `subscribe` works, including
+a vanilla `createStore()` store. Call `stop()` to stop sharing.
+
 ## Non-React API
 
 ```ts
