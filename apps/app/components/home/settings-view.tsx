@@ -10,6 +10,7 @@ import { HomeScrollBody } from "./home-scroll-body"
 import { HOME_COLUMN, HomePageHeader } from "./home-page-header"
 import { GitHubConnectionPanel } from "./github-connection-panel"
 import { HarnessSetupPanel } from "./harness-setup-panel"
+import { DefaultAgentPicker } from "./default-agent-picker"
 import { RepoConfigsPanel } from "./repo-configs-panel"
 
 const THEMES: { value: string; label: string; icon: LucideIcon }[] = [
@@ -44,7 +45,19 @@ export function SettingsView() {
               title="Coding agents"
               description="Install and sign in to coding CLIs on this device, so Screenplay can back agent chat and terminal tabs with them."
             >
-              <HarnessSetupPanel />
+              <div className="space-y-4">
+                <DefaultAgentPicker label="Default agent" />
+                <HarnessSetupPanel />
+              </div>
+            </Section>
+          )}
+
+          {!isLocalBuild && (
+            <Section
+              title="Agent"
+              description="The model new chats and Workspaces start with."
+            >
+              <DefaultAgentPicker label="Default model" />
             </Section>
           )}
 

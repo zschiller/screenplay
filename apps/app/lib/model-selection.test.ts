@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   groupModelsByProvider,
+  modelDisplayLabel,
   resolveDefaultModel,
 } from "@/lib/model-selection"
 import type { ModelInfo } from "@/lib/models-store"
@@ -76,7 +77,7 @@ describe("resolveDefaultModel", () => {
     ).toBe("openai:gpt")
   })
 
-  it("falls back to the stored last-used model when there's no override", () => {
+  it("falls back to the user's default model when there's no override", () => {
     expect(
       resolveDefaultModel({
         stored: "openai:gpt",
@@ -124,5 +125,27 @@ describe("resolveDefaultModel", () => {
         models,
       })
     ).toBe("anthropic:opus")
+  })
+})
+
+describe("modelDisplayLabel", () => {
+  it("names the agent and the model", () => {
+    expect(
+      modelDisplayLabel({
+        id: "harness:claude-code:opus",
+        label: "Opus 4.8",
+        provider: { key: "claude-code", label: "Claude Code" },
+      })
+    ).toBe("Claude Code · Opus 4.8")
+  })
+
+  it("names a Harness with no model list once", () => {
+    expect(
+      modelDisplayLabel({
+        id: "harness:codex",
+        label: "Codex",
+        provider: { key: "codex", label: "Codex" },
+      })
+    ).toBe("Codex")
   })
 })
