@@ -3,12 +3,12 @@ import "server-only"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { deriveFallbackName } from "./fallback-name"
-import { runNamingModel } from "./naming-transport"
+import { runOneShotModel } from "./one-shot-model"
 
 /**
  * Generate a git branch name and a chat label from the user's first message.
  * Mirrors the v1 stream route's behavior (one cheap LLM call, two-line output),
- * routed through {@link runNamingModel}: hosted shells the configured API-key
+ * routed through {@link runOneShotModel}: hosted shells the configured API-key
  * provider unchanged, desktop shells the user's own installed harness CLI in
  * print mode (`claude -p`, #674). On no model / a failed call the transport
  * returns `null` and we fall back to the improved deterministic slug (#675) —
@@ -24,9 +24,9 @@ export async function generateChatNames(
     model?: string
   },
   /** Injected for tests; defaults to the real per-backend transport. */
-  deps: { runModel?: typeof runNamingModel } = {}
+  deps: { runModel?: typeof runOneShotModel } = {}
 ): Promise<{ branch: string; chatLabel: string }> {
-  const runModel = deps.runModel ?? runNamingModel
+  const runModel = deps.runModel ?? runOneShotModel
   const system = opts.shouldNameBranch
     ? "Generate two things for the user's request:\n1. A short, lowercase, hyphenated git branch name (2-4 words)\n2. A short chat label (2-5 words, title case)\n\nOutput ONLY as two lines, no explanation, backticks, or quotes.\nLine 1: branch name\nLine 2: chat label\n\nExamples:\nfix-login-button\nFix Login Button\n\nadd-dark-mode\nAdd Dark Mode"
     : "Generate a short chat label for the user's request (2-5 words, title case). Output ONLY the label — no explanation, backticks, or quotes.\n\nExamples:\nFix Login Button\nAdd Dark Mode"

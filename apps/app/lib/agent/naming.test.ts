@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { deriveFallbackName } from "@/lib/agent/fallback-name"
 import { generateChatNames } from "@/lib/agent/naming"
-import type { runNamingModel } from "@/lib/agent/naming-transport"
+import type { runOneShotModel } from "@/lib/agent/one-shot-model"
 
 /**
  * `generateChatNames` wraps the per-backend naming transport (#674): on a model
@@ -15,7 +15,7 @@ import type { runNamingModel } from "@/lib/agent/naming-transport"
  */
 
 /** A transport stub that always returns `text` (or `null`), recording its input. */
-function transport(text: string | null): typeof runNamingModel {
+function transport(text: string | null): typeof runOneShotModel {
   return async () => text
 }
 

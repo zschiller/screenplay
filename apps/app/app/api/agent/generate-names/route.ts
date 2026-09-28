@@ -1,6 +1,6 @@
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { deriveFallbackName } from "@/lib/agent/fallback-name"
-import { runNamingModel } from "@/lib/agent/naming-transport"
+import { runOneShotModel } from "@/lib/agent/one-shot-model"
 import { readRoomDoc } from "@/lib/yjs/server"
 
 export const runtime = "nodejs"
@@ -33,7 +33,7 @@ function sanitizeBranch(raw: string): string {
 }
 
 /**
- * Name one prompt: try the model through {@link runNamingModel} (hosted API-key
+ * Name one prompt: try the model through {@link runOneShotModel} (hosted API-key
  * provider, or desktop `claude -p` via the host-model seam — #674), then parse
  * its two-line output. On no model / a failed call the transport returns `null`
  * and we fall back to the improved deterministic slug (#675). `deps` is injected
@@ -41,9 +41,9 @@ function sanitizeBranch(raw: string): string {
  */
 export async function generateOne(
   prompt: string,
-  deps: { runModel?: typeof runNamingModel } = {}
+  deps: { runModel?: typeof runOneShotModel } = {}
 ): Promise<NameResult> {
-  const runModel = deps.runModel ?? runNamingModel
+  const runModel = deps.runModel ?? runOneShotModel
   const fallback = deriveFallbackName(prompt)
   const raw = await runModel({ system: NAMING_SYSTEM_PROMPT, prompt })
   if (raw === null) return { branch: fallback.branch, label: fallback.label }
