@@ -489,3 +489,20 @@ describe("abbreviateHome", () => {
     )
   })
 })
+
+describe("readiness", () => {
+  it("reports each row's install/auth pair without the facts-line probes", async () => {
+    const run = vi.fn<HarnessProcessRunner>(authedRunner)
+    const readiness = await setup({ present: ["claude"], run }).readiness()
+
+    const rows = await setup({ present: ["claude"], run: authedRunner }).rows()
+    expect(readiness).toEqual(
+      rows.map(({ installed, authenticated }) => ({ installed, authenticated }))
+    )
+    // Only the auth probe ran: no `--version`, no `command -v`.
+    for (const [cmd, args] of run.mock.calls) {
+      expect(args[0]).not.toBe("--version")
+      expect(cmd).not.toBe("sh")
+    }
+  })
+})

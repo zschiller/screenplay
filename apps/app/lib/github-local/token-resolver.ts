@@ -38,6 +38,33 @@ export function resolveLocalGitHubToken(): Promise<string | null> {
   return productionResolver()
 }
 
+/**
+ * Where a token resolves right now (`gh`, a device-flow token, or `null`), in
+ * the resolver's own priority order: the one fact the first-run gate needs.
+ * Unlike {@link readLocalGitHubConnection} it skips `gh --version` and the
+ * `gh api user` handle lookup, a GitHub round trip that would otherwise hold
+ * up every hard load (app launch included), and stall it offline.
+ */
+export function makeLocalGitHubTokenSourceReader(deps: {
+  gh: Pick<GhCli, "getToken">
+  store: () => Promise<TokenStore>
+}): () => Promise<"gh" | "device" | null> {
+  return async () => {
+    if (await deps.gh.getToken()) return "gh"
+    const store = await deps.store()
+    return (await store.get()) ? "device" : null
+  }
+}
+
+const productionTokenSourceReader = makeLocalGitHubTokenSourceReader({
+  gh: makeGhCli(),
+  store: getLocalTokenStore,
+})
+
+export function readLocalGitHubTokenSource(): Promise<"gh" | "device" | null> {
+  return productionTokenSourceReader()
+}
+
 /** Which of the three states the host `gh` CLI is in — the connection UI's
  *  install-vs-sign-in distinction, mirroring {@link GhStatus} without the
  *  token payload. */

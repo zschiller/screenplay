@@ -18,6 +18,15 @@ const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
   ...(isDesktopBuild ? { output: "standalone" } : {}),
+  experimental: {
+    // Next loads every route's server bundle before it answers its first
+    // request. The desktop shell holds its loading screen until `/api/health`
+    // answers, so that preload is launch time the user watches (~0.6s of a
+    // ~1.5s warm boot when measured); on desktop, load each route on first use
+    // instead. Hosted keeps the default: its cold starts aren't user-visible
+    // in the same way.
+    preloadEntriesOnStart: !isDesktopBuild,
+  },
   // Next 16.2 blocks cross-origin requests to dev resources (HMR, /_next/*) by
   // default. The Tauri desktop shell loads the sidecar over a loopback host that
   // doesn't always match the server's own origin, so HMR is rejected with a

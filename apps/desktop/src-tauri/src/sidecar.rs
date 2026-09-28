@@ -21,6 +21,11 @@ pub struct Sidecar {
 }
 
 impl Sidecar {
+    /// Whether the Node child has already exited (a crash during boot).
+    pub fn has_exited(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(Some(_)))
+    }
+
     /// Stop the control server and bring the Node child down — gracefully
     /// first, then by force. Idempotent enough for the single ExitRequested
     /// call that drives it.
@@ -63,8 +68,12 @@ pub fn launch(app: &AppHandle) -> Result<Sidecar, Box<dyn Error>> {
     let child = if use_dev_server() {
         spawn_dev(app, port, &control.url())?
     } else {
+        // The login-shell PATH probe can take a second or more on a heavy
+        // `.zshrc`, so run it alongside the extract instead of after it.
+        let shell_path = std::thread::spawn(login_shell_path);
         let dir = extract(app)?;
-        spawn(app, &dir, port, &control.url())?
+        let shell_path = shell_path.join().ok().flatten();
+        spawn(app, &dir, port, &control.url(), shell_path)?
     };
     Ok(Sidecar {
         port,
@@ -166,6 +175,7 @@ fn spawn(
     dir: &std::path::Path,
     port: u16,
     control_url: &str,
+    shell_path: Option<String>,
 ) -> Result<Child, Box<dyn Error>> {
     let app_root = dir.join("apps").join("app");
 
@@ -175,7 +185,7 @@ fn spawn(
         // A packaged .app launches with a minimal PATH; the agent path shells
         // out to `npx` for the ACP adapter, so prepend the usual node install
         // locations (and the bundled node's own dir) to the inherited PATH.
-        .env("PATH", augmented_path(dir));
+        .env("PATH", augmented_path(dir, shell_path));
     apply_desktop_env(&mut cmd, app, port, control_url, &app_root)?;
 
     Ok(cmd.spawn()?)
@@ -326,9 +336,9 @@ fn login_shell_path() -> Option<String> {
 /// `claude`/`node`/`npx` (for host-binary detection and the ACP adapter spawn),
 /// so prepend the bundled node's dir and common per-user install locations, then
 /// splice in the recovered login-shell PATH and finally the inherited PATH.
-fn augmented_path(dir: &std::path::Path) -> String {
+fn augmented_path(dir: &std::path::Path, shell_path: Option<String>) -> String {
     let existing = std::env::var("PATH").unwrap_or_default();
-    let shell_path = login_shell_path().unwrap_or_default();
+    let shell_path = shell_path.unwrap_or_default();
 
     let mut parts = vec![dir.to_string_lossy().to_string()];
     if let Ok(home) = std::env::var("HOME") {
@@ -351,15 +361,22 @@ fn augmented_path(dir: &std::path::Path) -> String {
 
 /// Poll `/api/health` until it 200s (or give up after ~30s). The first success
 /// was ~316 ms after spawn in the spike; the cap covers a cold PGlite migrate.
-pub fn wait_until_healthy(port: u16) -> Result<(), String> {
+/// `exited` is checked between polls so a sidecar that crashes on boot fails
+/// fast instead of holding the loading screen for the full cap.
+pub fn wait_until_healthy(port: u16, mut exited: impl FnMut() -> bool) -> Result<(), String> {
     let url = format!("http://127.0.0.1:{port}/api/health");
-    for _ in 0..300 {
+    // Short polls: the server is local, and every 100ms of poll slack is
+    // 100ms more of loading screen.
+    for _ in 0..600 {
         if let Ok(resp) = ureq::get(&url).timeout(Duration::from_secs(2)).call() {
             if resp.status() == 200 {
                 return Ok(());
             }
         }
-        std::thread::sleep(Duration::from_millis(100));
+        if exited() {
+            return Err("the Screenplay server stopped while starting".into());
+        }
+        std::thread::sleep(Duration::from_millis(50));
     }
     Err(format!("/api/health on {port} never returned 200"))
 }

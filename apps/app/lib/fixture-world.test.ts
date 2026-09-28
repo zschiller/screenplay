@@ -106,16 +106,18 @@ describe("fixture world → the first-run setup gate", () => {
     // Both host probes throw: a capture container has no coding CLI and no
     // GitHub, so the short-circuit must happen *before* either is reached, not
     // merely swallow their failures.
-    const listHarnessSetupStatus = vi.fn(() => {
+    const listHarnessReadiness = vi.fn(() => {
       throw new Error("must not probe the host in the fixture world")
     })
-    const getGitHubLocalStatus = vi.fn(() => {
+    const readLocalGitHubTokenSource = vi.fn(() => {
       throw new Error("must not probe the host in the fixture world")
     })
     vi.doMock("@/lib/agent/harnesses/setup-actions", () => ({
-      listHarnessSetupStatus,
+      listHarnessReadiness,
     }))
-    vi.doMock("@/lib/github-local/actions", () => ({ getGitHubLocalStatus }))
+    vi.doMock("@/lib/github-local/token-resolver", () => ({
+      readLocalGitHubTokenSource,
+    }))
 
     const { getLocalSetupGateStatus } =
       await import("./local-setup/gate-status")
@@ -123,13 +125,13 @@ describe("fixture world → the first-run setup gate", () => {
 
     const status = await getLocalSetupGateStatus()
     expect(status).toEqual({ harnessSatisfied: true, githubSatisfied: true })
-    expect(listHarnessSetupStatus).not.toHaveBeenCalled()
-    expect(getGitHubLocalStatus).not.toHaveBeenCalled()
+    expect(listHarnessReadiness).not.toHaveBeenCalled()
+    expect(readLocalGitHubTokenSource).not.toHaveBeenCalled()
     // The release predicate the gate folds this through must agree, with no
     // GitHub skip cookie in play.
     expect(isLocalSetupComplete({ ...status, githubSkipped: false })).toBe(true)
 
     vi.doUnmock("@/lib/agent/harnesses/setup-actions")
-    vi.doUnmock("@/lib/github-local/actions")
+    vi.doUnmock("@/lib/github-local/token-resolver")
   })
 })

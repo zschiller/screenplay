@@ -66,30 +66,17 @@ fn main() {
             }
         })
         .setup(|app| {
+            // Empty until the boot thread below parks the spawned sidecar here.
+            app.manage(SidecarState(Mutex::new(None)));
+
+            // Bring the sidecar up entirely off the main thread. `setup` runs
+            // before the event loop, so any work here keeps the window from
+            // painting at all — and `sidecar::launch` can take seconds (the
+            // login-shell PATH probe, plus unpacking the tarball on the first
+            // launch after an install or update). Returning at once lets the
+            // loading screen show immediately while the sidecar boots.
             let handle = app.handle().clone();
-
-            // Bring the sidecar up: extract the bundled tree, pick a port, spawn
-            // `node server.js`, and start the thumbnail control server. All the
-            // fallible packaging work lives in `sidecar::launch`.
-            let sidecar = sidecar::launch(&handle)?;
-            let port = sidecar.port;
-            app.manage(SidecarState(Mutex::new(Some(sidecar))));
-
-            // Gate first paint on health off the UI thread: poll `/api/health`,
-            // then navigate the (loading-screen) webview to the live server.
-            std::thread::spawn(move || match sidecar::wait_until_healthy(port) {
-                Ok(()) => {
-                    let url = format!("http://127.0.0.1:{port}/");
-                    if let (Some(window), Ok(parsed)) =
-                        (handle.get_webview_window("main"), url.parse())
-                    {
-                        if let Err(e) = window.navigate(parsed) {
-                            eprintln!("[shell] navigate failed: {e}");
-                        }
-                    }
-                }
-                Err(e) => eprintln!("[shell] sidecar never became healthy: {e}"),
-            });
+            std::thread::spawn(move || boot(handle));
 
             Ok(())
         })
@@ -126,6 +113,50 @@ fn main() {
                 _ => {}
             }
         });
+}
+
+/// Launch the sidecar, wait for it to serve, and point the webview at it. On
+/// any failure the loading screen swaps its spinner for an error, instead of
+/// spinning forever.
+fn boot(handle: tauri::AppHandle) {
+    let started = std::time::Instant::now();
+    let result = sidecar::launch(&handle).and_then(|sidecar| {
+        let port = sidecar.port;
+        eprintln!("[shell] sidecar spawned in {:?}", started.elapsed());
+        let state = handle.state::<SidecarState>();
+        *state.0.lock().unwrap() = Some(sidecar);
+        // Gate first paint on health: poll `/api/health`, bailing early if
+        // the child exits (a boot crash) rather than polling out the cap.
+        sidecar::wait_until_healthy(port, || {
+            state
+                .0
+                .lock()
+                .unwrap()
+                .as_mut()
+                .map_or(true, |s| s.has_exited())
+        })?;
+        Ok(port)
+    });
+
+    let Some(window) = handle.get_webview_window("main") else {
+        return;
+    };
+    match result {
+        Ok(port) => {
+            eprintln!("[shell] sidecar healthy in {:?}", started.elapsed());
+            let url = format!("http://127.0.0.1:{port}/");
+            if let Ok(parsed) = url.parse() {
+                if let Err(e) = window.navigate(parsed) {
+                    eprintln!("[shell] navigate failed: {e}");
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[shell] sidecar failed to start: {e}");
+            // The loading page (dist/index.html) defines this hook.
+            let _ = window.eval("window.showBootError?.()");
+        }
+    }
 }
 
 /// Register the AppKit automatic-substitution defaults as OFF for this app, so
