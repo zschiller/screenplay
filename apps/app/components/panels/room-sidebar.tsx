@@ -40,10 +40,6 @@ import {
   Settings,
   ChevronRight,
   GitBranch,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  AlertTriangle,
   Plus,
   FolderOpen,
   Globe,
@@ -99,15 +95,8 @@ import {
 } from "@workspace/ui/components/field"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Input } from "@workspace/ui/components/input"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@workspace/ui/components/popover"
-import { Spinner } from "@workspace/ui/components/spinner"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
-import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
 import {
@@ -156,6 +145,7 @@ import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
+import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 
 /** A human-readable label for a picker pick, for the settings-stage header. */
 function pickLabel(pick: RepoPickerSelection): string {
@@ -624,6 +614,8 @@ interface RoomSidebarProps {
   onRefreshBranch: (id: string) => void
   /** Destructive reclone from git — discards the working tree. */
   onRecreateBranch: (id: string) => void | Promise<void>
+  /** Re-run a failed Workspace's setup (#791). */
+  onRetryBranch: (id: string) => void
   onRemoveBranch: (
     id: string,
     options: { deleteOnRemote: boolean }
@@ -711,6 +703,7 @@ export function RoomSidebar({
   onCreatePr,
   onRefreshBranch,
   onRecreateBranch,
+  onRetryBranch,
   onRemoveBranch,
   onPlayBranch,
   onShowRoutes,
@@ -1556,8 +1549,8 @@ export function RoomSidebar({
                       </IconButton>
                     </DialogTrigger>
                   )}
-                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0">
-                    <DialogHeader className="px-4 pt-4 pb-2">
+                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-4 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-3 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0">
+                    <DialogHeader className="px-5 pt-5 pb-2">
                       <DialogTitle>
                         {pickerView === "settings"
                           ? "Configure project"
@@ -1839,7 +1832,7 @@ export function RoomSidebar({
                                       onKeyDown={(e) => e.stopPropagation()}
                                       onPointerDown={(e) => e.stopPropagation()}
                                     >
-                                      <DialogHeader className="px-4 pt-4 pb-2">
+                                      <DialogHeader className="px-5 pt-5 pb-2">
                                         <DialogTitle>
                                           Open existing git branch
                                         </DialogTitle>
@@ -1892,12 +1885,6 @@ export function RoomSidebar({
                                       strategy={verticalListSortingStrategy}
                                     >
                                       {repoBranches.map((branch) => {
-                                        const isLoading =
-                                          branch.status === "creating" ||
-                                          branch.status === "starting"
-                                        const isError =
-                                          branch.status === "error" ||
-                                          Boolean(branch.error)
                                         const isActive =
                                           activeBranchIds?.has(branch.id) ??
                                           false
@@ -1931,7 +1918,6 @@ export function RoomSidebar({
                                                       className={branchRowClassName(
                                                         {
                                                           isPanelActive,
-                                                          isLoading,
                                                         }
                                                       )}
                                                       onClick={(e) => {
@@ -1955,95 +1941,25 @@ export function RoomSidebar({
                                                         className="!bg-transparent !pr-0 hover:!bg-transparent"
                                                         isActive={false}
                                                       >
-                                                        <div
-                                                          title={
-                                                            isLoading
-                                                              ? branch.statusMessage ||
-                                                                "Starting…"
-                                                              : undefined
-                                                          }
-                                                        >
-                                                          {isError ? (
-                                                            <Popover>
-                                                              <PopoverTrigger
-                                                                asChild
-                                                              >
-                                                                <button
-                                                                  type="button"
-                                                                  aria-label="Show setup error"
-                                                                  className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                                                                  onClick={(
-                                                                    e
-                                                                  ) =>
-                                                                    e.stopPropagation()
-                                                                  }
-                                                                  onDoubleClick={(
-                                                                    e
-                                                                  ) =>
-                                                                    e.stopPropagation()
-                                                                  }
-                                                                  // Keep Enter/Space from reaching the sortable
-                                                                  // row's KeyboardSensor (Space is its pick-up key).
-                                                                  onKeyDown={(
-                                                                    e
-                                                                  ) =>
-                                                                    e.stopPropagation()
-                                                                  }
-                                                                >
-                                                                  <AlertTriangle className="size-3.5 text-destructive" />
-                                                                </button>
-                                                              </PopoverTrigger>
-                                                              <PopoverContent
-                                                                align="start"
-                                                                side="right"
-                                                                className="max-h-64 w-80 gap-1 overflow-auto"
-                                                                // Portaled, but React events still bubble to the
-                                                                // row: keep clicks from selecting the Workspace and
-                                                                // keys/pointer from reaching the dnd-kit sensors.
-                                                                onClick={(e) =>
-                                                                  e.stopPropagation()
-                                                                }
-                                                                onKeyDown={(
-                                                                  e
-                                                                ) =>
-                                                                  e.stopPropagation()
-                                                                }
-                                                                onPointerDown={(
-                                                                  e
-                                                                ) =>
-                                                                  e.stopPropagation()
-                                                                }
-                                                              >
-                                                                <p className="text-xs font-medium text-popover-foreground">
-                                                                  Setup failed
-                                                                </p>
-                                                                <pre className="font-mono text-xs break-words whitespace-pre-wrap text-destructive">
-                                                                  {branch.error ||
-                                                                    "Unknown error"}
-                                                                </pre>
-                                                              </PopoverContent>
-                                                            </Popover>
-                                                          ) : isLoading ? (
-                                                            // Progress (creating/starting) uses the shared Spinner;
-                                                            // the 9-dot GripSpinner is reserved for agent activity.
-                                                            <Spinner
-                                                              aria-label="Setting up"
-                                                              className="size-3.5 shrink-0 text-sidebar-foreground/70"
-                                                            />
-                                                          ) : isActive ? (
-                                                            <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
-                                                          ) : pr?.state ===
-                                                            "merged" ? (
-                                                            <GitMerge className="shrink-0 text-info!" />
-                                                          ) : pr?.state ===
-                                                            "open" ? (
-                                                            <GitPullRequest className="shrink-0 text-success!" />
-                                                          ) : pr?.state ===
-                                                            "closed" ? (
-                                                            <GitPullRequestClosed className="shrink-0 text-destructive!" />
-                                                          ) : (
-                                                            <GitBranch className="shrink-0 text-sidebar-foreground/70" />
-                                                          )}
+                                                        <div>
+                                                          <WorkspaceStatusIcon
+                                                            branch={branch}
+                                                            context={{
+                                                              agentWorking:
+                                                                isActive,
+                                                              pr,
+                                                            }}
+                                                            onRetry={() =>
+                                                              onRetryBranch(
+                                                                branch.id
+                                                              )
+                                                            }
+                                                            onRecreate={() =>
+                                                              setPendingRecreateBranchId(
+                                                                branch.id
+                                                              )
+                                                            }
+                                                          />
                                                           {branch.ref ? (
                                                             <BranchBadge
                                                               ref={branchRef}
@@ -2880,7 +2796,7 @@ function RepoSettings({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="-mx-4 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-4">
+      <div className="-mx-5 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-5">
         <Field>
           <FieldLabel htmlFor="repo-settings-name">Label</FieldLabel>
           <Input

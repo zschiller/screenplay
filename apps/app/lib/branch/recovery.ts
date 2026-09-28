@@ -153,10 +153,11 @@ async function runSandboxRecovery(
     deps.toast.success(spec.successMessage)
     return { ok: true }
   } else {
+    // The status message stays: it names the step that failed, which titles
+    // the sidebar's failure card.
     deps.patchAgent(id, {
       status: "error",
-      statusMessage: "",
-      error: result.error || "",
+      error: result.error || spec.failureTitle,
     })
     deps.toast.error(spec.failureTitle, result.error || undefined)
     return { ok: false, error: result.error || spec.failureTitle }

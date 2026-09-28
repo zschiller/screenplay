@@ -111,6 +111,33 @@ export const INTERACTIONS: Interaction[] = [
     },
   },
   {
+    name: "canvas-zoom-recover",
+    description:
+      "Zooming the reference Canvas all the way out, then recovering with zoom to fit (⇧1), 100% (⌘0), and the zoom menu's Zoom to fit.",
+    path: `/${ids.rooms.checkout}`,
+    run: async (page) => {
+      const box = page.viewportSize() ?? DEFAULT_VIEWPORT
+      await page.mouse.move(box.width / 2, box.height / 2)
+      for (let i = 0; i < 8; i++) {
+        await page.keyboard.down("Control")
+        await page.mouse.wheel(0, 20)
+        await page.keyboard.up("Control")
+        await page.waitForTimeout(120)
+      }
+      await page.waitForTimeout(1200)
+      await page.keyboard.press("Shift+Digit1")
+      await page.waitForTimeout(1500)
+      await page.keyboard.press("Control+0")
+      await page.waitForTimeout(1500)
+      await page.keyboard.press("Control+Minus")
+      await page.waitForTimeout(800)
+      await click(page, page.getByRole("button", { name: /^Zoom, / }))
+      await page.waitForTimeout(600)
+      await click(page, page.getByRole("menuitem", { name: /Zoom to fit/ }))
+      await page.waitForTimeout(1500)
+    },
+  },
+  {
     name: "agent-chat",
     description: "Scrolling back through a finished agent turn.",
     path: `/${ids.rooms.checkout}`,
@@ -347,6 +374,52 @@ export const INTERACTIONS: Interaction[] = [
         await page.mouse.up()
         await page.waitForTimeout(1500)
       }
+    },
+  },
+  {
+    name: "new-canvas",
+    description:
+      "New canvas from home, then naming it: a dialog before #777, the Canvas's breadcrumb after.",
+    path: "/",
+    run: async (page) => {
+      await page.waitForTimeout(800)
+      // The header button can be clicked before hydration wires it up, so
+      // retry until something happens (a dialog, or the Canvas route).
+      const dialog = page.getByRole("dialog")
+      for (let i = 0; i < 5; i++) {
+        if ((await dialog.count()) || new URL(page.url()).pathname !== "/") {
+          break
+        }
+        await click(
+          page,
+          page.getByRole("button", { name: "New canvas" }).first()
+        )
+        await page.waitForTimeout(1200)
+      }
+      // Before #777 a dialog asks for the name first; type it there.
+      if (await dialog.count()) {
+        await page.keyboard.type("Onboarding", { delay: 90 })
+        await page.waitForTimeout(400)
+        await page.keyboard.press("Enter")
+      }
+      await step(() =>
+        page.waitForURL((url) => url.pathname !== "/", {
+          timeout: 30_000,
+          waitUntil: "commit",
+        })
+      )
+      await page.waitForTimeout(2500)
+      // After #777 the Canvas opens as Untitled; name it from the breadcrumb.
+      if (!(await dialog.count())) {
+        await step(() =>
+          page.getByText("Untitled", { exact: true }).first().dblclick()
+        )
+        await page.waitForTimeout(400)
+        await page.keyboard.type("Onboarding", { delay: 90 })
+        await page.waitForTimeout(400)
+        await page.keyboard.press("Enter")
+      }
+      await page.waitForTimeout(1500)
     },
   },
 ]

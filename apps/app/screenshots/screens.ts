@@ -282,9 +282,15 @@ export const SCREENS: Screen[] = [
       // Radix focuses the first item once the menu's open animation ends.
       await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
       await page.waitForTimeout(500)
-      // The menu opens on its first item, Rename; Move to… is next.
-      await page.keyboard.press("ArrowDown")
-      await page.waitForTimeout(300)
+      // Walk down the menu to Move to…, wherever it sits in the list.
+      for (let i = 0; i < 6; i++) {
+        const label = await page.evaluate(
+          () => document.activeElement?.textContent?.trim() ?? ""
+        )
+        if (label.startsWith("Move to")) break
+        await page.keyboard.press("ArrowDown")
+        await page.waitForTimeout(150)
+      }
       await page.keyboard.press("Enter")
       // The dialog focuses its first destination as it opens.
       await page.getByRole("radiogroup").first().waitFor({ timeout: 5_000 })
@@ -298,6 +304,23 @@ export const SCREENS: Screen[] = [
       "Settings: appearance, Projects (the saved presets), coding agents.",
     path: "/settings",
     fullPage: true,
+  },
+  {
+    name: "settings-default-agent",
+    description: "Settings: the Default agent menu open on Coding agents.",
+    path: "/settings",
+    prepare: async (page) => {
+      const trigger = page.getByRole("button", { name: "Default agent" })
+      const menu = page.getByRole("menu")
+      // The first click can land before hydration or before the catalog
+      // loads (the trigger is disabled until then); retry until it opens.
+      for (let i = 0; i < 20 && !(await menu.isVisible()); i++) {
+        await trigger.click({ timeout: 5_000 })
+        await menu.waitFor({ timeout: 500 }).catch(() => {})
+      }
+      await menu.waitFor()
+    },
+    settleMs: 300,
   },
   {
     name: "canvas",
@@ -337,11 +360,23 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-agent-chat",
     description:
-      "The agent chat panel: a finished turn with diff, terminal, subagent, and failed tool calls.",
+      "The agent chat panel: a finished turn's steps folded into one summary line, with a failure chip.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-turn-expanded",
+    description:
+      "A finished turn's summary opened: diff, terminal, subagent, and failed tool calls.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await expandTurnSummaries(page)
     },
     settleMs: 400,
   },
@@ -353,6 +388,7 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Breakpoint audit")
+      await expandTurnSummaries(page)
       await page
         .getByRole("button", { name: /^Reasoning$/ })
         .first()
@@ -410,6 +446,36 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: stubTerminal,
     prepare: (page) => selectWorkspace(page, "checkout-polish"),
+    settleMs: 600,
+  },
+  {
+    name: "chat-tabs-unread",
+    description:
+      "A background chat whose run just finished, marked unread in the tab strip.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await replayRun(page, ids.chats.markdown, [
+        { type: "chat-stream-start" },
+        { type: "chat-stream-end" },
+      ])
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-history",
+    description:
+      "The chat history: closed chats with dates, first lines, one still running.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await replayRun(page, ids.chats.stickySummary, [
+        { type: "chat-stream-start" },
+      ])
+      await openChatHistory(page)
+    },
     settleMs: 600,
   },
   {
@@ -483,6 +549,20 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-chat-off-default",
+    description:
+      "A new chat switched off the default model: the composer says so.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await page.getByRole("button", { name: /^Claude Code · / }).click()
+      await page.getByRole("menuitem", { name: "Sonnet 5" }).click()
+      await page.getByText("· not default").waitFor()
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-chat-empty-document",
     description: "A Document chat with nothing sent yet: the empty state.",
     path: `/${ids.rooms.checkout}`,
@@ -549,6 +629,72 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-chat-composer-draft",
+    description: "A frame chat with a draft typed into the composer.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Make the order summary sticky on mobile")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-draft-reload",
+    description:
+      "A draft typed into a chat, after the page reloads: what's left in the composer.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Make the order summary sticky on mobile")
+      await page.waitForTimeout(300)
+      await page.reload()
+      await openChatTab(page, "New chat")
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-chat-send-failed",
+    description: "A message the server refused: what's left of it in the chat.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page.route("**/api/agent/stream", (route) =>
+        route.fulfill({ status: 503, body: "The agent couldn't be reached" })
+      )
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Make the order summary sticky on mobile")
+      await page.keyboard.press("Enter")
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-chat-queued",
+    description: "A message sent with Enter while the agent is still running.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, streamingRun())
+      await typeInComposer(page, "Then do the same for the cart page")
+      await page.keyboard.press("Enter")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-image-paste",
+    description: "An image pasted into the composer.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Match this layout ")
+      await pasteImageInComposer(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-chat-tool-states",
     description:
       "Every tool-call state: running, done, failed with and without a reason, an expanded edit diff, and a long transcript error.",
@@ -557,6 +703,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, toolStatesRun())
+      await expandTurnSummaries(page)
       await expandToolCall(page, /^Edit/)
     },
     settleMs: 400,
@@ -570,6 +717,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, toolStatesRun())
+      await expandTurnSummaries(page)
       // Hover the row, not the path text: hovering the text scrolls the
       // clipped title sideways to bring it into view.
       await page
@@ -588,6 +736,7 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+      await expandTurnSummaries(page)
       // Reach it with the keyboard (focus back, then Tab onto it) so the
       // browser treats the focus as keyboard focus and paints the ring.
       await page
@@ -606,6 +755,19 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await openSetupError(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-workspace-status",
+    description:
+      "Hovering a Workspace's status icon: its state in words in a tooltip.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByRole("img", { name: "Running setup script" })
+        .hover({ timeout: 15_000 })
+      await page.getByRole("tooltip").first().waitFor({ timeout: 5_000 })
     },
     settleMs: 300,
   },
@@ -835,6 +997,32 @@ export const SCREENS: Screen[] = [
         .first()
         .hover({ timeout: 15_000 })
       await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-zoom-controls",
+    description:
+      "The zoom menu in the top-right pill, opened from its percentage button.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: /^Zoom, / })
+        .click({ timeout: 15_000 })
+      await page.getByRole("menu").waitFor({ state: "visible", timeout: 5_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-shortcuts",
+    description: "The keyboard shortcut sheet, opened with `?`.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page.mouse.move(600, 400)
+      await page.keyboard.press("?")
+      await page
+        .getByRole("dialog")
+        .waitFor({ state: "visible", timeout: 5_000 })
     },
     settleMs: 400,
   },
@@ -1164,6 +1352,33 @@ export const SCREENS: Screen[] = [
     cookies: fixtureFault("home-load"),
   },
   {
+    name: "settings-loading",
+    description: "Settings while every panel is still checking or loading.",
+    path: "/settings",
+    fullPage: true,
+    beforeNavigate: (page) => holdServerActions(page, "hang"),
+    settleMs: 500,
+  },
+  {
+    name: "settings-presets-empty",
+    description: "Settings with no saved Project presets.",
+    path: "/settings",
+    fullPage: true,
+    cookies: fixtureFault("no-presets"),
+  },
+  {
+    name: "settings-edit-preset",
+    description: "Settings → editing a saved Project preset.",
+    path: "/settings",
+    fullPage: true,
+    prepare: async (page) => {
+      const edit = page.getByRole("button", { name: "Edit", exact: true })
+      await edit.first().click({ timeout: 30_000 })
+      await page.getByLabel("Preset name").waitFor({ timeout: 10_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "settings-load-error",
     description:
       "Settings when every panel's load fails: GitHub, coding agents, presets.",
@@ -1174,21 +1389,19 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "home-create-error",
-    description: "The New canvas dialog after creating the Canvas fails.",
+    description: "Home after pressing New canvas fails: the error toast.",
     path: "/",
     prepare: async (page) => {
       await unfreeze(page)
       await failServerActions(page)
       // The header button can be clicked before hydration wires it up, so
-      // retry until the dialog is actually open.
-      const dialog = page.getByRole("dialog")
-      for (let i = 0; i < 5 && !(await dialog.count()); i++) {
+      // retry until the create has visibly failed.
+      const toast = page.locator("[data-sonner-toast]")
+      for (let i = 0; i < 5 && !(await toast.count()); i++) {
         await page.getByRole("button", { name: "New canvas" }).first().click()
-        await page.waitForTimeout(500)
+        await page.waitForTimeout(800)
       }
-      await dialog.getByRole("textbox").fill("Onboarding")
-      await page.getByRole("button", { name: "Create" }).click()
-      await page.waitForTimeout(800)
+      await page.mouse.move(0, 0)
     },
     settleMs: 300,
   },
@@ -1268,7 +1481,86 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 300,
   },
+  {
+    name: "canvas-zoomed-out",
+    // After every other Canvas screen on purpose: the zoom persists into the
+    // Canvas's saved viewport, so any Canvas screen after this one would open
+    // at 10%. Only the home New canvas screens below may follow it.
+    description:
+      "The Canvas zoomed all the way out with a frame selected: Layer labels and resize handles at minimum zoom.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByText("Checkout · desktop", { exact: true })
+        .first()
+        .click({ timeout: 15_000 })
+      await zoomOutFully(page)
+    },
+    settleMs: 400,
+  },
+
+  // --- New canvas (issue #777) ---------------------------------------------
+  // Last in the list on purpose: `home-new-canvas` really creates a Canvas, so
+  // anything shot after it on the same server would show an extra tile.
+  {
+    name: "home-new-canvas-hint",
+    description: "Hovering the header's New canvas button.",
+    path: "/",
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New canvas" })
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+  },
+  {
+    name: "home-folder-menu",
+    description: "A pinned folder's actions menu in the home sidebar.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      const row = page
+        .locator('[data-sidebar="menu-item"]')
+        .filter({ hasText: "Design system" })
+        .first()
+      await row.hover({ timeout: 15_000 })
+      await row.getByRole("button", { name: "Folder actions" }).click()
+      await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
+      await page.waitForTimeout(300)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-new-canvas",
+    description:
+      "What pressing New canvas on home opens: the new Untitled Canvas itself.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      // The header button can be clicked before hydration wires it up, so
+      // retry until something happens (a dialog, or the Canvas route).
+      const dialog = page.getByRole("dialog")
+      for (let i = 0; i < 5; i++) {
+        if ((await dialog.count()) || !isHomePath(page.url())) break
+        await page.getByRole("button", { name: "New canvas" }).first().click()
+        await page.waitForTimeout(800)
+      }
+      if (!(await dialog.count())) {
+        await page
+          .getByText("This canvas is empty")
+          .waitFor({ timeout: 30_000 })
+          .catch(() => {})
+      }
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
 ]
+
+function isHomePath(url: string): boolean {
+  return new URL(url).pathname === "/"
+}
 
 /**
  * Open a menu from its trigger and pick an item, walking into submenus: pass
@@ -1570,19 +1862,14 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
  * only way that version can be opened.
  */
 export async function openSetupError(page: Page): Promise<void> {
-  const button = page.getByRole("button", {
-    name: "Show setup error",
-    exact: true,
-  })
-  if (await button.count()) {
-    await button.first().focus()
-    await page.keyboard.press("Enter")
-    await page.getByText("Setup failed").waitFor({ timeout: 5_000 })
-    return
-  }
-  const row = page.locator(".group\\/branch-row", { hasText: "gift-cards" })
-  await row.locator("svg").first().hover({ timeout: 15_000 })
-  await page.getByText("Setup failed").waitFor({ timeout: 5_000 })
+  // The failed Workspace's status icon is labelled by what failed; it opens
+  // the error card.
+  const button = page.getByRole("button", { name: /failed$/ })
+  await button.first().focus({ timeout: 15_000 })
+  await page.keyboard.press("Enter")
+  await page
+    .getByRole("button", { name: "Copy error" })
+    .waitFor({ timeout: 5_000 })
 }
 
 /**
@@ -1595,6 +1882,43 @@ export async function openChatTab(page: Page, label: string): Promise<void> {
     .getByRole("tab", { name: new RegExp(label, "i") })
     .first()
     .click({ timeout: 15_000 })
+  // A cold dev server can hold the history load past the settle delay.
+  await page
+    .getByText("Loading chat…")
+    .first()
+    .waitFor({ state: "hidden", timeout: 30_000 })
+    .catch(() => {})
+}
+
+/** Type into the visible chat composer, as a user would. */
+export async function typeInComposer(page: Page, text: string): Promise<void> {
+  const editor = page.locator(".tiptap:visible").last()
+  await editor.click({ timeout: 15_000 })
+  await page.keyboard.type(text)
+}
+
+/** Paste a tiny PNG into the visible chat composer. */
+export async function pasteImageInComposer(page: Page): Promise<void> {
+  await page
+    .locator(".tiptap:visible")
+    .last()
+    .evaluate((el) => {
+      const bytes = Uint8Array.from(
+        atob(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        ),
+        (c) => c.charCodeAt(0)
+      )
+      const data = new DataTransfer()
+      data.items.add(new File([bytes], "mockup.png", { type: "image/png" }))
+      el.dispatchEvent(
+        new ClipboardEvent("paste", {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
 }
 
 /**
@@ -1623,6 +1947,17 @@ export async function openTerminalTab(page: Page): Promise<void> {
     .getByRole("menu")
     .waitFor({ state: "detached", timeout: 5_000 })
     .catch(() => {})
+}
+
+/**
+ * Open the chat panel's history. Matches today's "Chat history" button and the
+ * earlier "Closed chats" one, so a before capture of this screen still opens it.
+ */
+export async function openChatHistory(page: Page): Promise<void> {
+  await page
+    .getByRole("button", { name: /^(Chat history|Closed chats)$/ })
+    .first()
+    .click({ timeout: 15_000 })
 }
 
 /** Select the chat panel's sandbox logs tab (an icon-only tab, named by its label). */
@@ -1780,6 +2115,24 @@ export function streamingRun(): RunEvent[] {
  * a row that already reports itself open, so a row that opens by default (a
  * failed call showing its reason) isn't toggled shut.
  */
+/**
+ * Open every finished turn's summary line, so the steps folded behind it show.
+ * Tolerates a transcript with none (a build from before #800), so the same
+ * screens shoot a "before" set.
+ */
+export async function expandTurnSummaries(page: Page): Promise<void> {
+  await page
+    .locator('[data-testid="turn-summary-trigger"]:visible')
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {})
+  // Other chat tabs stay mounted but hidden, so only the visible ones count.
+  const closed = page.locator(
+    '[data-testid="turn-summary-trigger"][aria-expanded="false"]:visible'
+  )
+  while ((await closed.count()) > 0) await closed.first().click()
+}
+
 export async function expandToolCall(page: Page, name: RegExp): Promise<void> {
   const row = page.getByRole("button", { name }).first()
   await row.waitFor({ timeout: 10_000 })
@@ -1907,6 +2260,23 @@ export function toolStatesRun(): RunEvent[] {
  * tooltip on the first frame of its fade-in — i.e. invisible. Dropping the
  * animation on tooltip content alone lets it paint in its final state.
  */
+/**
+ * Ctrl+wheel the Canvas out to its minimum zoom, centered on the viewport, then
+ * wait out the camera's settle so the overlays come back.
+ */
+export async function zoomOutFully(page: Page): Promise<void> {
+  const box = page.viewportSize() ?? DEFAULT_VIEWPORT
+  await page.mouse.move(box.width / 2, box.height / 2)
+  await page.keyboard.down("Control")
+  for (let i = 0; i < 30; i++) {
+    await page.mouse.wheel(0, 120)
+    await page.waitForTimeout(30)
+  }
+  await page.keyboard.up("Control")
+  await page.mouse.move(box.width - 40, box.height / 2)
+  await page.waitForTimeout(500)
+}
+
 export async function showTooltip(page: Page): Promise<void> {
   await page.addStyleTag({
     content: `[data-slot="tooltip-content"] { animation: none !important; }`,

@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest"
 import {
   fitRectToViewport,
   fitScale,
+  showsLayerDetail,
+  stepZoom,
+  unionRect,
+  zoomAtPoint,
   type Rect,
   type ViewportSize,
 } from "@/lib/canvas/camera"
@@ -66,5 +70,56 @@ describe("fitRectToViewport", () => {
     expect(t.zoom).toBe(5)
     expect(t.x + 5 * t.zoom).toBeCloseTo(viewport.width / 2)
     expect(t.y + 5 * t.zoom).toBeCloseTo(viewport.height / 2)
+  })
+})
+
+describe("stepZoom", () => {
+  it("steps to the neighbouring stop in either direction", () => {
+    expect(stepZoom(1, 1)).toBe(1.5)
+    expect(stepZoom(1, -1)).toBe(0.75)
+  })
+
+  it("goes to the nearest stop from an in-between zoom", () => {
+    expect(stepZoom(0.6, 1)).toBe(0.75)
+    expect(stepZoom(0.6, -1)).toBe(0.5)
+  })
+
+  it("stays at the ends", () => {
+    expect(stepZoom(5, 1)).toBe(5)
+    expect(stepZoom(0.1, -1)).toBe(0.1)
+  })
+})
+
+describe("zoomAtPoint", () => {
+  it("keeps the world point under the anchor fixed", () => {
+    const before = { x: 100, y: 50, zoom: 1 }
+    const anchor = { x: 500, y: 400 }
+    const after = zoomAtPoint(before, 2, anchor)
+    const worldBefore = (anchor.x - before.x) / before.zoom
+    const worldAfter = (anchor.x - after.x) / after.zoom
+    expect(worldAfter).toBeCloseTo(worldBefore)
+    expect(after.zoom).toBe(2)
+  })
+})
+
+describe("unionRect", () => {
+  it("encloses every rect", () => {
+    expect(
+      unionRect([
+        { x: 0, y: 10, width: 100, height: 50 },
+        { x: 200, y: -20, width: 50, height: 50 },
+      ])
+    ).toEqual({ x: 0, y: -20, width: 250, height: 80 })
+  })
+
+  it("is null for nothing", () => {
+    expect(unionRect([])).toBeNull()
+  })
+})
+
+describe("showsLayerDetail", () => {
+  it("hides layer detail below a quarter zoom", () => {
+    expect(showsLayerDetail(0.25)).toBe(true)
+    expect(showsLayerDetail(0.1)).toBe(false)
   })
 })

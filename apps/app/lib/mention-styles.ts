@@ -17,10 +17,3 @@
  * the composer and in-doc mentions.
  */
 export const MENTION_TEXT_CLASS = "text-sky-600 no-underline dark:text-sky-400"
-
-/**
- * Inverted variant — for the user-message bubble, whose fill is inverted (dark
- * in light mode, light in dark mode), so the sky shades flip to keep contrast.
- */
-export const MENTION_TEXT_CLASS_INVERTED =
-  "text-sky-400 no-underline dark:text-sky-600"

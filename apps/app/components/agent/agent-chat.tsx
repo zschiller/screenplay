@@ -8,11 +8,18 @@ import {
   useSyncExternalStore,
 } from "react"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
+import { Clock, X } from "lucide-react"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { Button } from "@workspace/ui/components/button"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
-import { AgentMessageItem, TaskGroup } from "./agent-message"
-import { groupToolCalls } from "@/lib/agent/group-tool-calls"
+import { AgentMessageItem, TaskGroup, TurnSummaryRow } from "./agent-message"
+import {
+  groupToolCalls,
+  type GroupedMessage,
+} from "@/lib/agent/group-tool-calls"
+import { foldFinishedTurns } from "@/lib/agent/turn-summary"
 import {
   Composer,
   type ComposerHandle,
@@ -27,30 +34,13 @@ import {
   type ModelInfo,
 } from "@/lib/models-store"
 import { resolveDefaultModel } from "@/lib/model-selection"
+import { useDefaultModel } from "@/lib/default-model-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
-
-const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
 // render would make React re-subscribe every render.
 const subscribeTargetEligibility = (onChange: () => void) =>
   targetingStore.subscribeEligibility(onChange)
-
-function readStoredModel(): string | null {
-  if (typeof window === "undefined") return null
-  try {
-    return window.localStorage.getItem(LAST_MODEL_STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function writeStoredModel(modelId: string) {
-  if (typeof window === "undefined") return
-  try {
-    window.localStorage.setItem(LAST_MODEL_STORAGE_KEY, modelId)
-  } catch {}
-}
 
 interface AgentChatProps {
   chatId: string
@@ -73,6 +63,9 @@ interface AgentChatProps {
   onModelChange?: (model: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
+  /** Whether this chat is the tab on screen. Only the visible chat marks its
+   *  finished runs read; a background tab keeps its unread dot. */
+  isActive?: boolean
 }
 
 export function AgentChat({
@@ -91,30 +84,41 @@ export function AgentChat({
   onModelChange,
   onBranchRename,
   onChatRename,
+  isActive = true,
 }: AgentChatProps) {
-  const { messages, isStreaming, isLoadingHistory, sendMessage, stopMessage } =
-    useAgentChat({
-      chatId,
-      roomId,
-      sandboxName,
-      branch,
-      markdownLayerId,
-      isFirstChat,
-      autoNamedBranch,
-      planMode,
-      onBranchRename,
-      onChatRename,
-    })
+  const {
+    messages,
+    isStreaming,
+    isLoadingHistory,
+    failedSend,
+    queued,
+    sendMessage,
+    stopMessage,
+    retryFailedSend,
+    takeFailedSend,
+    takeQueued,
+  } = useAgentChat({
+    chatId,
+    roomId,
+    sandboxName,
+    branch,
+    markdownLayerId,
+    isFirstChat,
+    autoNamedBranch,
+    planMode,
+    onBranchRename,
+    onChatRename,
+    isActive,
+  })
 
   const [models, setModels] = useState<ModelInfo[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
     null
   )
-  // Read the last-used model from localStorage during render (SSR-safe — the
-  // reader returns null when `window` is undefined) rather than syncing it in
-  // via an effect, which would trigger a cascading render on mount.
-  const [storedModel, setStoredModel] = useState<string | null>(readStoredModel)
+  // The user's default from Settings, live so a change there reaches an open
+  // chat that hasn't picked its own model yet.
+  const userDefaultModel = useDefaultModel()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ComposerHandle>(null)
@@ -282,32 +286,49 @@ export function AgentChat({
     }
   }, [isAgentChat, sandboxName])
 
-  // Precedence: per-chat override (set by `onModelChange`) → user's stored
-  // last-used model from localStorage → server-side default for the
-  // configured provider set → first available. See `resolveDefaultModel`.
+  // Precedence: per-chat override (set by `onModelChange`) → the user's
+  // default from Settings → server-side default for the configured provider
+  // set → first available. See `resolveDefaultModel`.
+  const defaultModel = resolveDefaultModel({
+    stored: userDefaultModel,
+    serverDefault: serverDefaultModel,
+    models,
+  })
   const effectiveModel = resolveDefaultModel({
     perSession: model,
-    stored: storedModel,
+    stored: userDefaultModel,
     serverDefault: serverDefaultModel,
     models,
   })
 
+  // Picking a model here changes only this chat; the default lives in Settings.
   const handleModelChange = useCallback(
-    (m: string) => {
-      writeStoredModel(m)
-      setStoredModel(m)
-      onModelChange?.(m)
-    },
+    (m: string) => onModelChange?.(m),
     [onModelChange]
   )
 
   // The Composer serializes the draft to a Message-Markers wire body and hands
   // it back here with the chosen model; the chat just relays it to the engine.
+  // A chat still following the default is pinned to the model it first sends
+  // with, so changing the default later never relabels a running session.
   const handleSubmit = useCallback(
-    ({ text, model }: ComposerSubmitPayload) => {
-      sendMessage(text, { model })
+    ({ text, model: submitted, draft }: ComposerSubmitPayload) => {
+      if (!model && submitted) onModelChange?.(submitted)
+      void sendMessage(text, { model: submitted, draft })
     },
-    [sendMessage]
+    [sendMessage, model, onModelChange]
+  )
+
+  // Put a held message (refused or queued) back in the composer to edit. The
+  // composer's own document restores mentions and element tokens intact; a
+  // message sent from outside the composer has only its text.
+  const restoreToComposer = useCallback(
+    (held: { message: string; draft?: unknown } | null) => {
+      if (!held) return
+      if (held.draft) composerRef.current?.restoreDraft(held.draft)
+      else composerRef.current?.insertText(held.message)
+    },
+    []
   )
 
   // Element targeting (PRD #616): agent chats in a room can target this branch's
@@ -348,9 +369,10 @@ export function AgentChat({
   // Allow shortcut actions (e.g. the Create PR button) to send a message directly.
   useEffect(() => {
     return inputStore.subscribeSend(chatId, (text) => {
-      sendMessage(text, { model: effectiveModel })
+      if (!model && effectiveModel) onModelChange?.(effectiveModel)
+      void sendMessage(text, { model: effectiveModel })
     })
-  }, [chatId, sendMessage, effectiveModel])
+  }, [chatId, sendMessage, effectiveModel, model, onModelChange])
 
   // Once a chat has at least one message in its log, the model used for the
   // first turn is locked — switching mid-conversation can confuse the
@@ -373,6 +395,19 @@ export function AgentChat({
 
   const lastRole = messages[messages.length - 1]?.role
 
+  const renderEntry = ({ message: msg, index: i, children }: GroupedMessage) =>
+    // A subagent's calls fold under the Task that spawned them (#640);
+    // `children` is non-empty only for such a Task.
+    children.length > 0 && msg.role === "tool_call" ? (
+      <TaskGroup
+        key={i}
+        task={msg}
+        childCalls={children.map((c) => c.message)}
+      />
+    ) : (
+      <AgentMessageItem key={i} message={msg} roomId={roomId} chatId={chatId} />
+    )
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
@@ -383,7 +418,7 @@ export function AgentChat({
               <Spinner className="size-3" />
               Loading chat…
             </div>
-          ) : messages.length === 0 ? (
+          ) : messages.length === 0 && !failedSend ? (
             <ChatEmptyState
               isAgentChat={isAgentChat}
               branch={branch}
@@ -391,28 +426,19 @@ export function AgentChat({
             />
           ) : (
             <div className="space-y-3">
-              {groupToolCalls(messages).map(
-                ({ message: msg, index: i, children }) => {
-                  // A subagent's calls fold under the Task that spawned them
-                  // (#640); `children` is non-empty only for such a Task.
-                  if (children.length > 0 && msg.role === "tool_call") {
-                    return (
-                      <TaskGroup
-                        key={i}
-                        task={msg}
-                        childCalls={children.map((c) => c.message)}
-                      />
-                    )
-                  }
-                  return (
-                    <AgentMessageItem
-                      key={i}
-                      message={msg}
-                      roomId={roomId}
-                      chatId={chatId}
-                    />
-                  )
-                }
+              {foldFinishedTurns(groupToolCalls(messages), {
+                streaming: isStreaming,
+              }).map((item) =>
+                item.kind === "turn-summary" ? (
+                  <TurnSummaryRow
+                    key={`summary-${item.index}`}
+                    summary={item.summary}
+                  >
+                    {item.steps.map((entry) => renderEntry(entry))}
+                  </TurnSummaryRow>
+                ) : (
+                  renderEntry(item.entry)
+                )
               )}
               {/* The run's in-progress cue, held until the run settles. Before
                   any text streams (and between tool calls) it says "Thinking…";
@@ -432,6 +458,16 @@ export function AgentChat({
                   )}
                 </div>
               )}
+              {failedSend && (
+                <FailedSendNotice
+                  message={failedSend.message}
+                  error={failedSend.error}
+                  roomId={roomId}
+                  chatId={chatId}
+                  onRetry={() => void retryFailedSend()}
+                  onEdit={() => restoreToComposer(takeFailedSend())}
+                />
+              )}
             </div>
           )}
         </div>
@@ -447,6 +483,7 @@ export function AgentChat({
         models={models}
         modelsLoaded={modelsLoaded}
         model={effectiveModel}
+        defaultModel={defaultModel}
         onModelChange={handleModelChange}
         modelLocked={modelLocked}
         planMode={planMode}
@@ -454,7 +491,23 @@ export function AgentChat({
         onSubmit={handleSubmit}
         isStreaming={isStreaming}
         onStop={stopMessage}
+        queueWhileStreaming
+        draftKey={chatId}
         placeholder={composerPlaceholder}
+        aboveInput={
+          queued.length > 0 ? (
+            <ul aria-label="Queued messages" className="mb-2 space-y-1">
+              {queued.map((q) => (
+                <QueuedRow
+                  key={q.id}
+                  message={q.message}
+                  onEdit={() => restoreToComposer(takeQueued(q.id))}
+                  onRemove={() => takeQueued(q.id)}
+                />
+              ))}
+            </ul>
+          ) : undefined
+        }
         onPickElement={isAgentChat && sandboxId ? handlePickElement : undefined}
         targetEligible={targetEligible}
       />
@@ -527,5 +580,75 @@ function ChatEmptyState({
         ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * A message the server refused, kept where it was sent with Retry and Edit so
+ * no typed text is lost (#802).
+ */
+function FailedSendNotice({
+  message,
+  error,
+  roomId,
+  chatId,
+  onRetry,
+  onEdit,
+}: {
+  message: string
+  error: string
+  roomId: string
+  chatId: string
+  onRetry: () => void
+  onEdit: () => void
+}) {
+  return (
+    <div className="flex flex-col items-end gap-1" data-testid="failed-send">
+      <div className="w-full">
+        <AgentMessageItem
+          message={{ role: "user", content: message }}
+          roomId={roomId}
+          chatId={chatId}
+        />
+      </div>
+      <div className="-mr-2 flex max-w-full items-center text-xs">
+        <span className="mr-2 min-w-0 truncate text-destructive" title={error}>
+          Not sent: {error}
+        </span>
+        <Button variant="ghost" size="xs" onClick={onRetry}>
+          Retry
+        </Button>
+        <Button variant="ghost" size="xs" onClick={onEdit}>
+          Edit
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** One message waiting for the current run to end. */
+function QueuedRow({
+  message,
+  onEdit,
+  onRemove,
+}: {
+  message: string
+  onEdit: () => void
+  onRemove: () => void
+}) {
+  return (
+    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs">
+      <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="shrink-0 text-muted-foreground">Queued</span>
+      <span className="min-w-0 flex-1 truncate" title={message}>
+        {message}
+      </span>
+      <Button variant="ghost" size="xs" onClick={onEdit}>
+        Edit
+      </Button>
+      <IconButton label="Remove from queue" size="icon-xs" onClick={onRemove}>
+        <X />
+      </IconButton>
+    </li>
   )
 }

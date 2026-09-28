@@ -2,6 +2,7 @@
 
 import {
   forwardRef,
+  type ReactNode,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -18,6 +19,7 @@ import {
   Square,
 } from "lucide-react"
 import { nanoid } from "nanoid"
+import { toast } from "sonner"
 import {
   EditorContent,
   ReactNodeViewRenderer,
@@ -60,10 +62,11 @@ import {
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 import type { ModelInfo } from "@/lib/models-store"
-import { groupModelsByProvider } from "@/lib/model-selection"
+import { groupModelsByProvider, modelDisplayLabel } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+import { readDraft, writeDraft } from "@/lib/composer-drafts"
 import { ElementTokenNodeView } from "./element-token-node"
 
 /** Leading glyph on an element token — a crosshair, standing in for the `@`/`/`
@@ -282,6 +285,11 @@ export interface ComposerSubmitPayload {
   text: string
   /** The model selected in the Composer at submit time. */
   model: string
+  /**
+   * The editor's own document for this draft, so a caller holding the message
+   * (a failed or queued send) can put it back with {@link ComposerHandle.restoreDraft}.
+   */
+  draft: JSONContent
 }
 
 /** Imperative handle for callers that need to drive the draft from outside. */
@@ -290,6 +298,11 @@ export interface ComposerHandle {
   insertText: (text: string) => void
   /** Focus the editor caret at the end of the draft. */
   focus: () => void
+  /**
+   * Put a message back in the composer to edit: it replaces an empty draft, or
+   * follows the current one after a blank line.
+   */
+  restoreDraft: (draft: unknown) => void
 }
 
 export interface ComposerProps {
@@ -324,6 +337,11 @@ export interface ComposerProps {
   modelsLoaded?: boolean
   /** The currently-selected model id (already resolved by the caller). */
   model: string
+  /**
+   * The user's default model (Settings). When given and {@link model} differs,
+   * the picker says the chat is off the default.
+   */
+  defaultModel?: string
   /** Called when the user picks a different model from the dropdown. */
   onModelChange: (model: string) => void
   /**
@@ -385,6 +403,23 @@ export interface ComposerProps {
    * redundant second submit affordance.
    */
   hideSend?: boolean
+  /**
+   * While streaming, commit the draft anyway (the caller queues it until the
+   * run ends) instead of suppressing submit. Send stays available whenever
+   * there's a draft; Stop shows when there isn't.
+   */
+  queueWhileStreaming?: boolean
+  /**
+   * Keeps the draft in the per-chat draft store under this key, so it survives
+   * the Composer unmounting (switching Workspace) and reloads. Omit it and the
+   * draft lives only as long as the Composer.
+   */
+  draftKey?: string
+  /**
+   * Rendered inside the composer frame, above the input: chat puts its queued
+   * messages here so they share the composer's padding.
+   */
+  aboveInput?: ReactNode
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
   /** Outer container className. Defaults to the chat input frame. */
@@ -429,6 +464,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       models,
       modelsLoaded = false,
       model,
+      defaultModel,
       onModelChange,
       modelLocked = false,
       planMode,
@@ -441,6 +477,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       onChange,
       isStreaming = false,
       onStop,
+      queueWhileStreaming = false,
+      draftKey,
+      aboveInput,
       hideSend = false,
       placeholder = "Ask the agent…",
       className = "relative border-t border-border p-3",
@@ -450,6 +489,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     ref
   ) {
     const [hasContent, setHasContent] = useState(false)
+    // The draft-store key, read by the construction-time `onUpdate`.
+    const draftKeyRef = useRef(draftKey)
+    useEffect(() => {
+      draftKeyRef.current = draftKey
+    })
     const editorContainerRef = useRef<HTMLDivElement>(null)
 
     // The Mention extension's suggestion callbacks run inside closures captured
@@ -662,16 +706,37 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           submitRef.current()
           return true
         },
+        // Chat turns are text on the wire, so an image can't ride along yet.
+        // Say so instead of silently dropping the paste or drop.
+        handlePaste(_view, event) {
+          if (!hasImageFile(event.clipboardData)) return false
+          event.preventDefault()
+          toast(IMAGE_NOT_SUPPORTED)
+          return true
+        },
+        handleDrop(_view, event) {
+          if (!hasImageFile((event as DragEvent).dataTransfer)) return false
+          event.preventDefault()
+          toast(IMAGE_NOT_SUPPORTED)
+          return true
+        },
       },
       onUpdate: ({ editor }) => {
         isEmptyRef.current = editor.isEmpty
         setHasContent(!editor.isEmpty)
+        if (draftKeyRef.current) {
+          writeDraft(
+            draftKeyRef.current,
+            editor.isEmpty ? null : editor.getJSON()
+          )
+        }
         // Mirror the live draft to any caller tracking it (the New Workspace
         // dialog's collapsed-row preview). Reads markdownLayers/model through
         // refs so this construction-time closure always serializes the latest.
         onChangeRef.current?.({
           text: serializeDraft(editor, markdownLayersRef.current),
           model: modelRef.current,
+          draft: editor.getJSON(),
         })
       },
     })
@@ -681,8 +746,21 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     // empty state and disable send rather than a dead model dropdown.
     const noAgents = modelsLoaded && models.length === 0
 
+    // Load this key's saved draft into the editor once it exists, and again if
+    // the Composer is re-pointed at another chat. Emitted as an update so the
+    // usual `onUpdate` path syncs the empty flag and send button (it writes the
+    // same draft straight back, which is harmless).
+    useEffect(() => {
+      if (!editor || !draftKey) return
+      const saved = readDraft(draftKey) as JSONContent | undefined
+      editor.commands.setContent(saved ?? "", { emitUpdate: true })
+    }, [editor, draftKey])
+
+    // Streaming blocks a commit unless the caller queues it.
+    const sendBlocked = isStreaming && !queueWhileStreaming
+
     const handleSubmit = useCallback(() => {
-      if (!editor || isStreaming) return
+      if (!editor || sendBlocked) return
       // No coding agent backs this chat — block send (Enter, too, not just the
       // disabled button) so a typed turn can't fire into a dead chat.
       if (noAgents) return
@@ -691,11 +769,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       if (editor.isEmpty && !allowEmptySubmit) return
       const decorated = serializeDraft(editor, markdownLayersRef.current)
       if (!decorated && !allowEmptySubmit) return
-      onSubmit({ text: decorated, model })
-      editor.commands.clearContent()
+      onSubmit({ text: decorated, model, draft: editor.getJSON() })
+      // Clearing emits an update, which drops the stored draft: the message now
+      // lives in the log, the queue, or (if refused) the chat's failed send.
+      editor.commands.clearContent(true)
       isEmptyRef.current = true
       setHasContent(false)
-    }, [editor, isStreaming, onSubmit, model, allowEmptySubmit, noAgents])
+    }, [editor, sendBlocked, onSubmit, model, allowEmptySubmit, noAgents])
 
     // Stash the latest submit handler in a ref so the editor's `handleKeyDown`
     // (registered once at construction) always calls the current closure.
@@ -804,19 +884,38 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             .run()
         },
         focus: () => editor?.chain().focus("end").run(),
+        restoreDraft: (draft: unknown) => {
+          if (!editor) return
+          const doc = draft as JSONContent | undefined
+          if (!doc) return
+          if (editor.isEmpty) {
+            // `setContent` emits an update, so the restored draft is saved.
+            editor.chain().setContent(doc).focus("end").run()
+          } else {
+            editor
+              .chain()
+              .focus("end")
+              .insertContent([{ type: "paragraph" }, ...(doc.content ?? [])])
+              .run()
+          }
+        },
       }),
       [editor]
     )
 
-    const currentModel = models.find((m) => m.id === model) ?? {
-      id: model,
-      label: model || "Loading…",
-    }
+    const currentModel = models.find((m) => m.id === model)
+    const currentModelLabel = currentModel
+      ? modelDisplayLabel(currentModel)
+      : model || "Loading…"
+    const defaultModelInfo = models.find((m) => m.id === defaultModel)
+    const offDefault =
+      !!currentModel && !!defaultModelInfo && model !== defaultModel
 
     const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
     return (
       <div ref={editorContainerRef} className={className}>
+        {aboveInput}
         <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
           <EmptyAwarePlaceholder editor={editor} text={placeholder} />
           <EditorContent editor={editor} className="w-full" />
@@ -838,11 +937,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                         <DropdownMenuTrigger asChild>
                           <InputGroupButton
                             size="xs"
-                            className="text-xs"
+                            className="text-xs text-foreground disabled:opacity-100"
                             disabled={modelLocked}
                           >
-                            {currentModel.label}
-                            <ChevronDown />
+                            {currentModelLabel}
+                            {offDefault && (
+                              <span className="font-normal text-muted-foreground">
+                                · not default
+                              </span>
+                            )}
+                            {!modelLocked && <ChevronDown />}
                           </InputGroupButton>
                         </DropdownMenuTrigger>
                       </span>
@@ -870,6 +974,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                             onSelect={() => onModelChange(m.id)}
                           >
                             <span className="flex-1">{m.label}</span>
+                            {m.id === defaultModel && (
+                              <span className="text-xs text-muted-foreground">
+                                Default
+                              </span>
+                            )}
                             {m.id === model && <Check className="size-3.5" />}
                           </DropdownMenuItem>
                         ))}
@@ -885,10 +994,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   <TooltipTrigger asChild>
                     <InputGroupButton
                       size="xs"
-                      variant={planMode ? "default" : "ghost"}
+                      variant={planMode ? "secondary" : "ghost"}
                       onClick={() => onPlanModeChange(!planMode)}
                       aria-pressed={!!planMode}
-                      className="text-xs"
+                      className="text-xs text-foreground"
                     >
                       <ClipboardList />
                       Plan
@@ -923,7 +1032,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             )}
             {hideSend ? null : (
               <span className="ml-auto inline-flex">
-                {isStreaming && onStop ? (
+                {isStreaming &&
+                onStop &&
+                !(queueWhileStreaming && hasContent) ? (
                   <IconButton label="Stop" asChild>
                     <InputGroupButton
                       size="icon-xs"
@@ -935,11 +1046,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   </IconButton>
                 ) : (
                   <IconButton
-                    label="Send"
+                    label={isStreaming ? "Queue message" : "Send"}
                     shortcut={submitMode === "enter" ? "↵" : "⌘↵"}
                     hint={
                       noAgents ? (
                         "No coding agent detected"
+                      ) : isStreaming ? (
+                        "Sends when the agent finishes"
                       ) : (
                         <span className="flex items-center gap-1.5">
                           New line
@@ -954,17 +1067,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                     asChild
                     disabled={
                       (!hasContent && !allowEmptySubmit) ||
-                      isStreaming ||
+                      sendBlocked ||
                       noAgents
                     }
                   >
                     <InputGroupButton
                       size="icon-xs"
-                      variant={
-                        (hasContent || allowEmptySubmit) && !noAgents
-                          ? "default"
-                          : "ghost"
-                      }
+                      variant="default"
                       onClick={handleSubmit}
                     >
                       <ArrowUp />
@@ -979,6 +1088,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     )
   }
 )
+
+const IMAGE_NOT_SUPPORTED =
+  "Images can't be attached yet. Describe it, or paste a link to it."
+
+/**
+ * Whether a paste or drop is only an image. One that also carries text (a
+ * selection copied from a page) still pastes its text as usual.
+ */
+function hasImageFile(data: DataTransfer | null | undefined): boolean {
+  if (!data || data.getData("text/plain")) return false
+  return Array.from(data.files).some((f) => f.type.startsWith("image/"))
+}
 
 /**
  * Show the textarea-style placeholder when the TipTap editor is empty.

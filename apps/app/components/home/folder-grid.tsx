@@ -6,11 +6,13 @@ import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { FolderActionMenu } from "./folder-action-menu"
+import { useCreateCanvas } from "./use-create-canvas"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
 import { useFolderDragDrop } from "./file-dnd"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { useHome } from "./home-provider"
+import { formatFolderContents } from "./folder-contents"
 import type { FolderSummary } from "@/lib/folders-actions"
 import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 
@@ -19,7 +21,7 @@ import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 const FOLDER_TILE_OUTER =
   "flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5"
 
-// The visual face of a folder tile — icon + name link, then the trailing ⋮
+// The visual face of a folder tile — icon, name and contents count link, then the trailing ⋮
 // slot. Rendered by both `FolderCard` (live menu) and `FolderTileDragPreview`
 // (invisible placeholder reserving the menu's space). Single source of truth so
 // the drag preview tracks any edit to the tile.
@@ -30,6 +32,7 @@ function FolderTileFace({
   folder: FolderSummary
   menu: React.ReactNode
 }) {
+  const { folderContents } = useHome()
   return (
     <>
       <Link
@@ -37,7 +40,13 @@ function FolderTileFace({
         className="flex min-w-0 flex-1 items-center gap-2"
       >
         <FolderIcon className="size-4 shrink-0 text-primary" />
-        <span className="truncate text-sm font-medium">{folder.name}</span>
+        <span className="truncate text-sm">
+          <span className="font-medium">{folder.name}</span>
+          <span className="text-muted-foreground">
+            {" · "}
+            {formatFolderContents(folderContents(folder.id))}
+          </span>
+        </span>
       </Link>
       {menu}
     </>
@@ -89,6 +98,7 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
     pinFolder,
     unpin,
   } = useHome()
+  const { create: createCanvas } = useCreateCanvas()
   const pinned = isPinned("folder", folder.id)
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -121,6 +131,7 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
         folder={folder}
         menu={
           <FolderActionMenu
+            onNewCanvas={() => void createCanvas(folder.id)}
             onRename={() => setRenameOpen(true)}
             onMove={() => setMoveOpen(true)}
             onDelete={() => setDeleteOpen(true)}

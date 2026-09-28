@@ -10,9 +10,28 @@ import {
   Trash2,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
 import { LoadErrorRow } from "@/components/home/load-error"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
+import {
+  SettingsRow,
+  SettingsRowList,
+  SettingsRowSkeleton,
+} from "@/components/home/settings-row"
 import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -24,9 +43,10 @@ type Mode =
   | { kind: "edit"; config: RepoConfig }
 
 /**
- * Manages saved Project presets (per-repo setup/dev/port/env), grouped by repo.
- * Lives on the Settings page; the form swaps in for new/edit and returns to the
- * list on save or cancel.
+ * Manages saved Project presets (per-repo setup/dev/port/env), one settings row
+ * each, sorted by project. Lives on the Settings page; new/edit opens the form
+ * in a dialog over the list, so the editor never nests a scroll area inside the
+ * page's own scroll.
  */
 export function RepoConfigsPanel() {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
@@ -66,20 +86,6 @@ export function RepoConfigsPanel() {
     setPendingDelete(null)
   }
 
-  if (mode.kind !== "list") {
-    return (
-      <RepoConfigForm
-        initial={mode.kind === "edit" ? mode.config : undefined}
-        existingConfigs={configs}
-        onSaved={(updated) => {
-          setConfigs(updated)
-          setMode({ kind: "list" })
-        }}
-        onCancel={() => setMode({ kind: "list" })}
-      />
-    )
-  }
-
   // Grouping has two cases in one list (ADR 0013). A preset with a detected
   // git remote keeps *remote identity*: keyed/displayed by `repoFullName`, so a
   // folder-added preset for `owner/repo` lands in the same group as a GitHub- or
@@ -88,82 +94,112 @@ export function RepoConfigsPanel() {
   // with the full path as muted subtext and a distinct local-folder icon.
   const sortedGroups = groupConfigs(configs)
 
+  const newPreset = (
+    <Button size="sm" onClick={() => setMode({ kind: "new" })}>
+      <Plus className="size-3.5" />
+      New preset
+    </Button>
+  )
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-6">
-          <Spinner className="size-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Loading…</span>
-        </div>
+        <SettingsRowSkeleton label="Loading project presets…" count={2} />
       ) : loadFailed ? (
         <LoadErrorRow title="Couldn't load project presets" onRetry={reload} />
       ) : configs.length === 0 ? (
-        <p className="py-6 text-center text-sm text-balance text-muted-foreground">
-          No project presets yet.
-        </p>
+        <Empty className="border py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Folder />
+            </EmptyMedia>
+            <EmptyTitle>No project presets yet</EmptyTitle>
+            <EmptyDescription>
+              Save a project&apos;s setup and dev scripts once, and every canvas
+              you add it to starts from them.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>{newPreset}</EmptyContent>
+        </Empty>
       ) : (
-        <div className="flex flex-col gap-3">
-          {sortedGroups.map((group) => {
-            const items = group.items
-              .slice()
-              .sort((a, b) => a.name.localeCompare(b.name))
-            return (
-              <div key={group.key} className="flex min-w-0 flex-col gap-1">
-                <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                  {group.kind === "path" ? (
-                    <FolderOpen className="size-3.5 shrink-0" />
-                  ) : group.private ? (
-                    <FolderLock className="size-3.5 shrink-0" />
-                  ) : (
-                    <Folder className="size-3.5 shrink-0" />
-                  )}
-                  <span className="truncate">{group.heading}</span>
-                </div>
-                {group.subtext && (
-                  <div className="truncate pl-5 font-mono text-[11px] text-muted-foreground/70">
-                    {group.subtext}
-                  </div>
-                )}
-                {items.map((config) => (
-                  <div
+        <>
+          <SettingsRowList>
+            {sortedGroups.flatMap((group) =>
+              group.items
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((config) => (
+                  <SettingsRow
                     key={config.id}
-                    className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2"
-                  >
-                    <div className="min-w-0 flex-1 truncate text-sm">
-                      {config.name || (
-                        <span className="text-muted-foreground">default</span>
-                      )}
-                      {/* Desktop hides the port: it's a logical key there —
-                          portless assigns the real one. */}
-                      {!isLocalBuild && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          port {config.devServerPort}
-                        </span>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setMode({ kind: "edit", config })}
-                    >
-                      <Pencil className="size-3.5" />
-                      <span className="sr-only">Edit</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setPendingDelete(config)}
-                    >
-                      <Trash2 className="size-3.5" />
-                      <span className="sr-only">Delete</span>
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )
-          })}
-        </div>
+                    icon={
+                      group.kind === "path"
+                        ? FolderOpen
+                        : group.private
+                          ? FolderLock
+                          : Folder
+                    }
+                    title={group.heading}
+                    detail={
+                      <span className="block truncate">
+                        {presetDetail(config, group)}
+                      </span>
+                    }
+                    action={
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setMode({ kind: "edit", config })}
+                        >
+                          <Pencil className="size-3.5" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setPendingDelete(config)}
+                        >
+                          <Trash2 className="size-3.5" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      </>
+                    }
+                  />
+                ))
+            )}
+          </SettingsRowList>
+          <div className="flex justify-end">{newPreset}</div>
+        </>
       )}
+
+      <Dialog
+        open={mode.kind !== "list"}
+        onOpenChange={(open) => {
+          if (!open) setMode({ kind: "list" })
+        }}
+      >
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="px-4 pt-4 pb-3">
+            <DialogTitle>
+              {mode.kind === "edit" ? "Edit preset" : "New preset"}
+            </DialogTitle>
+            <DialogDescription>
+              Applied when you add this project to a canvas.
+            </DialogDescription>
+          </DialogHeader>
+          {mode.kind !== "list" && (
+            <RepoConfigForm
+              initial={mode.kind === "edit" ? mode.config : undefined}
+              existingConfigs={configs}
+              onSaved={(updated) => {
+                setConfigs(updated)
+                setMode({ kind: "list" })
+              }}
+              onCancel={() => setMode({ kind: "list" })}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!pendingDelete}
@@ -187,19 +223,6 @@ export function RepoConfigsPanel() {
         }
         onConfirm={() => handleDelete(pendingDelete!.id)}
       />
-
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={() => setMode({ kind: "new" })}
-          // The form checks a new preset against the loaded list, so it
-          // waits for one.
-          disabled={loading || loadFailed}
-        >
-          <Plus className="size-3.5" />
-          New preset
-        </Button>
-      </div>
     </div>
   )
 }
@@ -212,6 +235,21 @@ type ConfigGroup = {
   kind: "remote" | "path"
   private: boolean
   items: RepoConfig[]
+}
+
+/**
+ * A preset row's detail line: which preset of the project it is, then — for a
+ * remote-less folder — the full path its heading abbreviates. The web build adds
+ * the port; desktop hides it, since there it's a logical key portless remaps.
+ */
+function presetDetail(config: RepoConfig, group: ConfigGroup): string {
+  return [
+    config.name ? `${config.name} preset` : "Default preset",
+    !isLocalBuild && `port ${config.devServerPort}`,
+    group.subtext,
+  ]
+    .filter(Boolean)
+    .join(" · ")
 }
 
 /** A folder preset with no detected remote falls back to path identity. */

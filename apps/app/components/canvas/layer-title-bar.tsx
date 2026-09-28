@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { cn } from "@workspace/ui/lib/utils"
 import { EditableText } from "@workspace/ui/components/editable-text"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
+import { showsLayerDetail } from "@/lib/canvas/camera"
 import { GroupLabel } from "./group-label"
 
 interface LayerTitleBarProps {
@@ -103,7 +104,12 @@ export function LayerTitleBar({
 
   return (
     <div
-      className="canvas-frame-label absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
+      className={cn(
+        "canvas-frame-label absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap",
+        // At very low zoom the labels shrink to overlapping stubs; hide them
+        // (kept mounted so measurements and rename state survive).
+        !showsLayerDetail(zoom) && "invisible"
+      )}
       style={{
         // `--label-promote` resolves to `translateZ(0)`, which lifts the label
         // onto its own GPU layer so WebKit rasterizes this constant-size text at
