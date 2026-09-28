@@ -236,7 +236,7 @@ export function FrameRouteField({
   const field = (
     <span
       className={cn(
-        "flex h-6 min-w-0 flex-1 items-center pr-1 font-mono text-[11px]",
+        "flex h-6 min-w-0 flex-1 items-center pr-1 font-mono text-2xs",
         inset && "pl-2"
       )}
     >
@@ -314,7 +314,7 @@ export function FrameRouteField({
                     />
                     <Badge
                       variant="outline"
-                      className="border-transparent bg-muted px-1.5 py-0 font-mono text-[11px] text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
+                      className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
                     >
                       {r.route}
                     </Badge>
@@ -330,7 +330,7 @@ export function FrameRouteField({
                       <span className="text-xs">Go to</span>
                       <Badge
                         variant="outline"
-                        className="border-transparent bg-muted px-1.5 py-0 font-mono text-[11px] text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
+                        className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
                       >
                         {typedRoute}
                       </Badge>
