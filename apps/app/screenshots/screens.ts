@@ -1465,12 +1465,7 @@ export const SCREENS: Screen[] = [
       "Hovering a Workspace row: its frames are outlined on the Canvas and lit in the layer list (#793).",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await page
-        .locator(".group\\/branch-row")
-        .filter({ hasText: "Checkout polish" })
-        .first()
-        .locator("[data-sidebar=menu-sub-button]")
-        .hover({ timeout: 15_000 })
+      await hoverWorkspaceRow(page, "Checkout polish")
     },
     settleMs: 300,
   },
@@ -4120,6 +4115,5 @@ async function hoverWorkspaceRow(page: Page, name: string): Promise<void> {
     .locator(".group\\/branch-row")
     .filter({ hasText: name })
     .first()
-    .locator("[data-sidebar=menu-sub-button]")
     .hover({ timeout: 15_000 })
 }
