@@ -4,9 +4,18 @@
 }
 .sp-screenshot img {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  /* A detail of a tall menu or dialog shouldn't run past the screen. */
+  max-height: 36rem;
   height: auto;
-  border-radius: 14px;
+  margin-inline: auto;
+  border-radius: 12px;
+  /* Details are the bare UI, so a hairline keeps a white panel off a white page. */
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+html.dark .sp-screenshot img {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
 }
 .sp-screenshot .sp-screenshot-dark,
 html.dark .sp-screenshot .sp-screenshot-light {
