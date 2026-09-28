@@ -305,7 +305,7 @@ function ChatTabLabel({
       {isStreaming ? (
         <GripSpinner className="size-3 shrink-0 text-muted-foreground" />
       ) : hasUnread ? (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+        <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
       ) : null}
       <EditableText
         as="span"
@@ -942,7 +942,7 @@ export function ChatPanel({
           {isAgentTarget &&
             diffStats &&
             (diffStats.additions > 0 || diffStats.deletions > 0) && (
-              <span className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground tabular-nums">
+              <span className="flex items-center gap-1 font-mono text-3xs text-muted-foreground tabular-nums">
                 <span>+{diffStats.additions}</span>
                 <span>−{diffStats.deletions}</span>
               </span>
@@ -1154,7 +1154,7 @@ export function ChatPanel({
                       // name, since "New terminal" alone wouldn't say which.
                       <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+                        <DropdownMenuLabel className="text-2xs font-normal text-muted-foreground">
                           New terminal
                         </DropdownMenuLabel>
                         {installedHarnesses.map((h) => (
@@ -1307,7 +1307,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
         branch={target.agent.ref}
         colorKey={target.agent.id}
         colorIndex={target.agent.colorIndex}
-        className="px-1.5 py-0 text-[11px]"
+        className="px-1.5 py-0 text-2xs"
       />
     )
   }
@@ -1362,7 +1362,7 @@ function TargetPicker({
       <PopoverTrigger asChild>
         <button className="flex items-center gap-0.5">
           <TargetPill target={target} />
-          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" side="bottom" align="start">
@@ -1393,7 +1393,7 @@ function TargetPicker({
                         branch={a.ref}
                         colorKey={a.id}
                         colorIndex={a.colorIndex}
-                        className="px-1.5 py-0 text-[11px]"
+                        className="px-1.5 py-0 text-2xs"
                       />
                       {isBusy && <Spinner className="ml-auto size-3" />}
                     </CommandItem>

@@ -1615,9 +1615,11 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await openAddProject(page, "github")
-      await page.getByText("Connect GitHub in Settings").waitFor({
-        timeout: 15_000,
-      })
+      await page
+        .getByText("Connect GitHub to see your repositories here.")
+        .waitFor({
+          timeout: 15_000,
+        })
     },
     settleMs: 300,
   },
@@ -1921,16 +1923,18 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "confirm-delete-preset",
-    description: "Settings → a saved Project preset's Delete button.",
+    description: "Settings → a saved Project preset's … menu → Delete.",
     path: "/settings?section=project-presets",
     prepare: async (page) => {
       // Wait for the presets to load before holding server actions (the list
       // itself loads through one), then hold them so a build without the
       // confirm deletes nothing for real.
-      const del = page.getByRole("button", { name: "Delete", exact: true })
-      await del.first().waitFor({ timeout: 30_000 })
+      await page
+        .getByRole("button", { name: /^(Delete|More actions)$/ })
+        .first()
+        .waitFor({ timeout: 30_000 })
       await holdServerActions(page, "hang")
-      await del.first().click({ timeout: 15_000 })
+      await presetRowAction(page, "Delete")
     },
     settleMs: 300,
   },
@@ -2055,6 +2059,53 @@ export const SCREENS: Screen[] = [
       const edit = page.getByRole("button", { name: "Edit", exact: true })
       await edit.first().click({ timeout: 30_000 })
       await page.getByLabel("Preset name").waitFor({ timeout: 10_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "settings-new-preset",
+    description: "Settings → New preset: choosing the preset's source.",
+    path: "/settings?section=project-presets",
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New preset" })
+        .first()
+        .click({ timeout: 30_000 })
+      await page.getByRole("dialog").waitFor({ timeout: 10_000 })
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 500,
+  },
+  {
+    name: "settings-duplicate-preset",
+    description: "Settings → a saved Project preset's … menu → Duplicate.",
+    path: "/settings?section=project-presets",
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "More actions" })
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await presetRowAction(page, "Duplicate")
+      await page.getByLabel("Preset name").waitFor({ timeout: 10_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "settings-discard-preset",
+    description:
+      "Settings → editing a preset, then Cancel with unsaved changes.",
+    path: "/settings?section=project-presets",
+    prepare: async (page) => {
+      const edit = page.getByRole("button", { name: "Edit", exact: true })
+      await edit.first().click({ timeout: 30_000 })
+      const setup = page.getByLabel("Setup script")
+      await setup.waitFor({ timeout: 10_000 })
+      await setup.fill("pnpm install --frozen-lockfile")
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Cancel" })
+        .click()
+      await page.getByRole("alertdialog").waitFor({ timeout: 10_000 })
     },
     settleMs: 300,
   },
@@ -2373,6 +2424,22 @@ function isHomePath(url: string): boolean {
  * Open a menu from its trigger and pick an item, walking into submenus: pass
  * `["Restart", "Recreate from scratch"]` to hover the first and click the last.
  */
+/**
+ * Run a saved Project preset row's action: from its … menu (#784), or from a
+ * button of that name on builds before the menu, so "before" captures work.
+ */
+async function presetRowAction(page: Page, action: string): Promise<void> {
+  const more = page.getByRole("button", { name: "More actions" }).first()
+  if (await more.isVisible()) {
+    await chooseFromMenu(page, more, [action])
+    return
+  }
+  await page
+    .getByRole("button", { name: action, exact: true })
+    .first()
+    .click({ timeout: 15_000 })
+}
+
 export async function chooseFromMenu(
   page: Page,
   trigger: Locator,

@@ -1,9 +1,10 @@
 import "server-only"
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
 import type { ElementAnchor } from "@/lib/comment-anchor"
+import type { AgentStatus } from "@/lib/comments-agent"
 import { planBranchThreadMoves } from "@/lib/comment-migration"
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
@@ -47,6 +48,10 @@ export type ThreadRecord = {
   anchorStart: string | null
   anchorEnd: string | null
   quotedText: string | null
+  /** Sent to the Workspace's agent (#788): where that stands, and the commit
+   *  it made once addressed. */
+  agentStatus: AgentStatus | null
+  agentCommit: string | null
   resolved: boolean
   resolvedAt: number | null
   createdBy: string
@@ -61,6 +66,8 @@ export type CommentRecord = {
   authorName: string
   authorAvatar: string | null
   body: string
+  /** Written by the Workspace's agent in reply to a request (#788). */
+  fromAgent: boolean
   createdAt: number
   editedAt: number | null
 }
@@ -90,6 +97,8 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
     anchorStart: row.anchorStart,
     anchorEnd: row.anchorEnd,
     quotedText: row.quotedText,
+    agentStatus: row.agentStatus ?? null,
+    agentCommit: row.agentCommit,
     resolved: row.resolved,
     resolvedAt: row.resolvedAt?.getTime() ?? null,
     createdBy: row.createdBy,
@@ -106,9 +115,12 @@ function toComment(
     id: row.id,
     threadId: row.threadId,
     authorId: row.authorId,
-    authorName: author?.name ?? "Anonymous",
-    authorAvatar: author?.image ?? null,
+    // The agent's replies are stored under whoever sent the request, but are
+    // the agent's words.
+    authorName: row.agentChatId ? "Agent" : (author?.name ?? "Anonymous"),
+    authorAvatar: row.agentChatId ? null : (author?.image ?? null),
     body: row.body,
+    fromAgent: !!row.agentChatId,
     createdAt: row.createdAt.getTime(),
     editedAt: row.editedAt?.getTime() ?? null,
   }
@@ -380,7 +392,8 @@ export async function editComment(opts: {
     .where(
       and(
         eq(schema.comment.id, opts.commentId),
-        eq(schema.comment.authorId, opts.authorId)
+        eq(schema.comment.authorId, opts.authorId),
+        isNull(schema.comment.agentChatId)
       )
     )
     .returning({ threadId: schema.comment.threadId })
@@ -516,4 +529,141 @@ export async function markThreadUnread(opts: {
     .where(eq(schema.thread.id, opts.threadId))
     .limit(1)
   if (row) await signalReadChange(row.roomId, opts.userId)
+}
+
+/**
+ * Marks open threads as sent to a Workspace's agent (#788): `queued` on the
+ * chat that carries the request, remembering HEAD so the commit the agent
+ * makes can be told apart. Threads from another Canvas, or resolved since
+ * they were picked, are left alone.
+ */
+export async function queueThreadsForAgent(opts: {
+  roomId: string
+  threadIds: readonly string[]
+  chatId: string
+  baseCommit: string | null
+}): Promise<void> {
+  if (isLocalBuild || opts.threadIds.length === 0) return
+  const rows = await db
+    .update(schema.thread)
+    .set({
+      agentStatus: "queued",
+      agentChatId: opts.chatId,
+      agentBaseCommit: opts.baseCommit,
+      agentCommit: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.thread.roomId, opts.roomId),
+        inArray(schema.thread.id, [...opts.threadIds]),
+        eq(schema.thread.resolved, false)
+      )
+    )
+    .returning({ id: schema.thread.id })
+  if (rows.length > 0) await signalContentChange(opts.roomId)
+}
+
+/** The threads a chat's agent still owes a reply: queued or working. */
+export async function pendingAgentThreads(chatId: string): Promise<
+  {
+    id: string
+    roomId: string
+    agentStatus: AgentStatus | null
+    agentBaseCommit: string | null
+  }[]
+> {
+  if (isLocalBuild) return []
+  return db
+    .select({
+      id: schema.thread.id,
+      roomId: schema.thread.roomId,
+      agentStatus: schema.thread.agentStatus,
+      agentBaseCommit: schema.thread.agentBaseCommit,
+    })
+    .from(schema.thread)
+    .where(
+      and(
+        eq(schema.thread.agentChatId, chatId),
+        inArray(schema.thread.agentStatus, ["queued", "working"])
+      )
+    )
+}
+
+/** Moves a chat's queued threads to `working` as its agent's turn starts. */
+export async function startAgentThreads(
+  roomId: string,
+  chatId: string
+): Promise<void> {
+  if (isLocalBuild) return
+  const rows = await db
+    .update(schema.thread)
+    .set({ agentStatus: "working" })
+    .where(
+      and(
+        eq(schema.thread.agentChatId, chatId),
+        eq(schema.thread.agentStatus, "queued")
+      )
+    )
+    .returning({ id: schema.thread.id })
+  if (rows.length > 0) await signalContentChange(roomId)
+}
+
+/**
+ * Ends a request (#788): each addressed thread gets the agent's reply as a
+ * comment and, when HEAD moved, the commit; `replies` holds one per thread.
+ * Threads not in `replies` (the turn failed or was stopped) lose their status
+ * so they can be sent again.
+ */
+export async function settleAgentThreads(opts: {
+  roomId: string
+  chatId: string
+  /** Whoever sent the request; the agent's replies are stored under them. */
+  authorId: string
+  replies: ReadonlyMap<string, { body: string; commit: string | null }>
+  failed: readonly string[]
+}): Promise<void> {
+  if (isLocalBuild) return
+  const now = new Date()
+  for (const [threadId, reply] of opts.replies) {
+    if (reply.body) {
+      await db.insert(schema.comment).values({
+        id: nanoid(),
+        threadId,
+        authorId: opts.authorId,
+        body: reply.body,
+        agentChatId: opts.chatId,
+        createdAt: now,
+      })
+    }
+    await db
+      .update(schema.thread)
+      .set({
+        agentStatus: "addressed",
+        agentCommit: reply.commit,
+        updatedAt: now,
+      })
+      .where(eq(schema.thread.id, threadId))
+  }
+  if (opts.failed.length > 0) {
+    await db
+      .update(schema.thread)
+      .set({ agentStatus: null, agentChatId: null, agentBaseCommit: null })
+      .where(inArray(schema.thread.id, [...opts.failed]))
+  }
+  if (opts.replies.size > 0 || opts.failed.length > 0) {
+    await signalContentChange(opts.roomId)
+  }
+}
+
+/** Every thread's pin number in a Canvas (see `threadNumbers`). */
+export async function roomThreadOrder(
+  roomId: string
+): Promise<{ id: string; createdAt: number }[]> {
+  if (isLocalBuild) return []
+  const rows = await db
+    .select({ id: schema.thread.id, createdAt: schema.thread.createdAt })
+    .from(schema.thread)
+    .where(eq(schema.thread.roomId, roomId))
+  return rows.map((r) => ({ id: r.id, createdAt: r.createdAt.getTime() }))
 }

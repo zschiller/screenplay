@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Folder, Plus } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Copy, Folder, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -10,6 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -27,6 +34,7 @@ import {
 } from "@/components/home/settings-row"
 import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import { duplicateName, presetSummary } from "@/lib/preset-summary"
 import { isLocalBuild } from "@/lib/local-mode"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 
@@ -34,12 +42,19 @@ type Mode =
   | { kind: "list" }
   | { kind: "new" }
   | { kind: "edit"; config: RepoConfig }
+  | { kind: "duplicate"; config: RepoConfig }
+
+const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
+  new: "New preset",
+  edit: "Edit preset",
+  duplicate: "Duplicate preset",
+}
 
 /**
  * Manages saved Project presets (per-repo setup/dev/port/env), one settings row
- * each, sorted by project. Lives on the Settings page; new/edit opens the form
- * in a dialog over the list, so the editor never nests a scroll area inside the
- * page's own scroll.
+ * each, sorted by project. Lives on the Settings page; new/edit/duplicate opens
+ * the form in a dialog over the list, so the editor never nests a scroll area
+ * inside the page's own scroll.
  */
 export function RepoConfigsPanel() {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
@@ -48,6 +63,10 @@ export function RepoConfigsPanel() {
   const [mode, setMode] = useState<Mode>({ kind: "list" })
   // The preset awaiting delete confirmation; the confirm owns pending + error.
   const [pendingDelete, setPendingDelete] = useState<RepoConfig | null>(null)
+  // Whether the open form differs from what it opened with; closing a changed
+  // form asks first (#784). A ref, since only the close path reads it.
+  const formDirty = useRef(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -79,6 +98,23 @@ export function RepoConfigsPanel() {
     setPendingDelete(null)
   }
 
+  const openForm = (next: Exclude<Mode, { kind: "list" }>) => {
+    formDirty.current = false
+    setMode(next)
+  }
+
+  const closeForm = () => {
+    formDirty.current = false
+    setConfirmDiscard(false)
+    setMode({ kind: "list" })
+  }
+
+  // Cancel, Escape, the close button and an outside click all land here.
+  const requestCloseForm = () => {
+    if (formDirty.current) setConfirmDiscard(true)
+    else closeForm()
+  }
+
   // Grouping has two cases in one list (ADR 0013). A preset with a detected
   // git remote keeps *remote identity*: keyed/displayed by `repoFullName`, so a
   // folder-added preset for `owner/repo` lands in the same group as a GitHub- or
@@ -88,7 +124,7 @@ export function RepoConfigsPanel() {
   const sortedGroups = groupConfigs(configs)
 
   const newPreset = (
-    <Button size="sm" onClick={() => setMode({ kind: "new" })}>
+    <Button size="sm" onClick={() => openForm({ kind: "new" })}>
       <Plus className="size-3.5" />
       New preset
     </Button>
@@ -108,8 +144,11 @@ export function RepoConfigsPanel() {
             </EmptyMedia>
             <EmptyTitle>No project presets yet</EmptyTitle>
             <EmptyDescription>
-              Save a project&apos;s setup and dev scripts once, and every canvas
-              you add it to starts from them.
+              A preset remembers how to run a project:{" "}
+              {isLocalBuild
+                ? "its setup and run scripts, and the files to copy from your checkout."
+                : "its setup and run scripts, port and environment variables."}{" "}
+              Add the project to any canvas and its workspaces start from it.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>{newPreset}</EmptyContent>
@@ -124,27 +163,66 @@ export function RepoConfigsPanel() {
                 .map((config) => (
                   <SettingsRow
                     key={config.id}
-                    title={group.heading}
+                    title={
+                      <>
+                        {group.heading}
+                        {presetLabel(config) && (
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            {presetLabel(config)}
+                          </span>
+                        )}
+                      </>
+                    }
                     state={group.private ? "Private" : undefined}
-                    detail={presetDetail(config, group)}
+                    detail={<PresetDetail config={config} group={group} />}
                     action={
                       <>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setMode({ kind: "edit", config })}
+                          onClick={() => openForm({ kind: "edit", config })}
                         >
                           Edit
                         </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPendingDelete(config)}
-                        >
-                          Delete
-                        </Button>
+                        {/* Edit is the common action; the rest go in a menu
+                            so the row keeps one visible button (#784). */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon-sm"
+                              aria-label="More actions"
+                            >
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            // Both items open a dialog; handing focus back to
+                            // the trigger would pull it out of that dialog.
+                            onCloseAutoFocus={(event) => event.preventDefault()}
+                          >
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                openForm({ kind: "duplicate", config })
+                              }
+                            >
+                              <Copy />
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() => setPendingDelete(config)}
+                            >
+                              <Trash2 />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </>
                     }
                   />
@@ -158,31 +236,69 @@ export function RepoConfigsPanel() {
       <Dialog
         open={mode.kind !== "list"}
         onOpenChange={(open) => {
-          if (!open) setMode({ kind: "list" })
+          if (!open) requestCloseForm()
         }}
       >
-        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogContent
+          // With a source already set (Edit, Duplicate), start in the name
+          // field rather than on Change, the dialog's first control.
+          onOpenAutoFocus={(event) => {
+            const name = (
+              event.currentTarget as HTMLElement
+            ).querySelector<HTMLInputElement>("#config-name")
+            if (!name) return
+            event.preventDefault()
+            name.focus()
+          }}
+          className="gap-0 overflow-hidden p-0 sm:max-w-lg"
+        >
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>
-              {mode.kind === "edit" ? "Edit preset" : "New preset"}
+              {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
             </DialogTitle>
             <DialogDescription>
-              Applied when you add this project to a canvas.
+              A project&apos;s scripts, applied when you add it to a canvas.
             </DialogDescription>
           </DialogHeader>
           {mode.kind !== "list" && (
             <RepoConfigForm
+              // A fresh form per open, so switching presets never carries
+              // one's edits into another.
+              key={
+                mode.kind === "new" ? "new" : `${mode.kind}:${mode.config.id}`
+              }
               initial={mode.kind === "edit" ? mode.config : undefined}
+              template={
+                mode.kind === "duplicate"
+                  ? {
+                      ...mode.config,
+                      name: duplicateName(mode.config, configs),
+                    }
+                  : undefined
+              }
               existingConfigs={configs}
+              onDirtyChange={(dirty) => {
+                formDirty.current = dirty
+              }}
               onSaved={(updated) => {
                 setConfigs(updated)
-                setMode({ kind: "list" })
+                closeForm()
               }}
-              onCancel={() => setMode({ kind: "list" })}
+              onCancel={requestCloseForm}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        verb="Discard"
+        itemNoun="changes"
+        cancelLabel="Keep editing"
+        description="Your edits to this preset haven’t been saved."
+        onConfirm={closeForm}
+      />
 
       <ConfirmDialog
         open={!!pendingDelete}
@@ -221,18 +337,64 @@ type ConfigGroup = {
 }
 
 /**
- * A preset row's detail line: which preset of the project it is, then — for a
- * remote-less folder — the full path its heading abbreviates. The web build adds
- * the port; desktop hides it, since there it's a logical key portless remaps.
+ * The preset's own name beside its project heading, only when it tells the
+ * row apart: a default preset, or one named after its repo, would just repeat
+ * the heading (#784).
  */
-function presetDetail(config: RepoConfig, group: ConfigGroup): string {
-  return [
-    config.name ? `${config.name} preset` : "Default preset",
-    !isLocalBuild && `port ${config.devServerPort}`,
+function presetLabel(config: RepoConfig): string | null {
+  const name = config.name.trim()
+  if (!name || name === config.repoName || name === "default") return null
+  return name
+}
+
+/**
+ * A preset row's detail line (#784): what the preset sets — its scripts in
+ * mono, then the port and env var count (web) or copied files (desktop) — and,
+ * for a remote-less folder, the full path its heading abbreviates.
+ */
+function PresetDetail({
+  config,
+  group,
+}: {
+  config: RepoConfig
+  group: ConfigGroup
+}) {
+  const { commands, copies, facts } = presetSummary(config, isLocalBuild)
+  // Literal values (scripts, file patterns) are mono; the words around them
+  // stay in the row's own type.
+  const code = (text: string) => (
+    <code className="font-mono text-xs">{text}</code>
+  )
+  const parts: React.ReactNode[] = [
+    ...(commands.length ? commands.map(code) : ["No scripts set"]),
+    copies.length > 0 && (
+      <>
+        copies{" "}
+        {copies.map((pattern, i) => (
+          <span key={pattern}>
+            {i > 0 && ", "}
+            {code(pattern)}
+          </span>
+        ))}
+      </>
+    ),
+    ...facts,
     group.subtext,
-  ]
-    .filter(Boolean)
-    .join(" · ")
+  ].filter(Boolean)
+  return (
+    <span className="block truncate">
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i > 0 && (
+            <span className="mx-1.5" aria-hidden>
+              ·
+            </span>
+          )}
+          {part}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 /** A folder preset with no detected remote falls back to path identity. */

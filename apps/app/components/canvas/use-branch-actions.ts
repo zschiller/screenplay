@@ -79,6 +79,16 @@ export interface BranchActions {
    * it. Rejects with the failure so the confirm can show it inline.
    */
   recreate: (agentId: string) => Promise<void>
+  /**
+   * Ask the Workspace's agent to address comment threads (#788), in its chat
+   * without switching the chat panel to it. False when the Workspace has no
+   * running agent to ask.
+   */
+  sendComments: (
+    agentId: string,
+    message: string,
+    threadIds: string[]
+  ) => boolean
 }
 
 export function useBranchActions(deps: BranchActionsDeps): BranchActions {
@@ -114,7 +124,11 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
   // engine route → Module B's dispatch: reuse-or-bump the target chat, then send
   // the rebase prompt with the rename callbacks wired.
   const applyEngine = useCallback(
-    (prompt: string, agent: BranchData) => {
+    (
+      prompt: string,
+      agent: BranchData,
+      options: { commentThreadIds?: string[] } = {}
+    ): boolean => {
       const decision = resolveTargetChat({
         roomId,
         freshChatId: nanoid(),
@@ -127,15 +141,21 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
           chatStore.getSnapshot(chatId).isStreaming ||
           chatSessions.find((c) => c.id === chatId)?.isStreaming === true,
       })
-      if (decision.kind === "none") return
+      if (decision.kind === "none") return false
 
+      // A comment request stays out of the way: the comments panel shows its
+      // progress, so the chat panel keeps whatever it was showing.
+      const quiet = !!options.commentThreadIds
       dispatchPrompt(
         {
           session: decision.session,
           target: { kind: "agent", agentId: agent.id },
-          select: {},
-          expandPanel: true,
-          send: decision.send,
+          select: quiet ? false : {},
+          expandPanel: !quiet,
+          send: {
+            ...decision.send,
+            commentThreadIds: options.commentThreadIds,
+          },
         },
         {
           addChatSession,
@@ -145,6 +165,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
             updateAgentInStorage(id, { ref: branch, autoNamedBranch: false }),
         }
       )
+      return true
     },
     [
       roomId,
@@ -207,7 +228,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       if (route.kind === "none" || !agent) return
       switch (route.kind) {
         case "engine":
-          return applyEngine(route.prompt, agent)
+          return void applyEngine(route.prompt, agent)
         case "action":
           return applyCreatePr(agent)
         case "recovery":
@@ -233,7 +254,12 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
           | undefined
         if (outcome && !outcome.ok) throw new Error(outcome.error)
       },
+      sendComments: (agentId, message, threadIds) => {
+        const agent = agents.find((a) => a.id === agentId)
+        if (!agent) return false
+        return applyEngine(message, agent, { commentThreadIds: threadIds })
+      },
     }),
-    [run, recoveryDeps]
+    [run, recoveryDeps, agents, applyEngine]
   )
 }

@@ -12,6 +12,7 @@ import { resolvePlanGate } from "@/lib/agent/acp/resolution"
 import { livePlanResolutionPorts } from "@/lib/agent/acp/consumer-live"
 import { resolveLiveEngine } from "@/lib/agent/acp/resolve-live-engine"
 import { launchEngineTurn } from "@/lib/agent/launch-turn"
+import { settleCommentRequest } from "@/lib/agent/comment-request"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -91,8 +92,9 @@ export async function POST(req: Request) {
   // won't leave the chat stuck on the plan card with no progress.
   await broadcastSignal(roomId, chatId, "chat-stream-start")
 
-  after(() =>
-    launchEngineTurn({
+  // A comment request paused on its plan (#788) is settled by this turn.
+  after(async () => {
+    await launchEngineTurn({
       engine,
       roomId,
       chatId,
@@ -101,7 +103,14 @@ export async function POST(req: Request) {
       model: chat.model,
       tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
     })
-  )
+    await settleCommentRequest({
+      roomId,
+      chatId,
+      runId,
+      sandboxName: chat.sandboxName,
+      userId,
+    })
+  })
 
   return Response.json({ success: true, runId })
 }
