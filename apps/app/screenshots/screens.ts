@@ -798,14 +798,7 @@ export const SCREENS: Screen[] = [
       "A selected frame's floating toolbar, hovering its first button to show the tooltip.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await page
-        .getByText("Checkout · desktop", { exact: true })
-        .first()
-        .click({ timeout: 15_000 })
-      await page
-        .locator("#frame-toolbar-portal button")
-        .first()
-        .waitFor({ state: "visible", timeout: 15_000 })
+      await selectCheckoutFrame(page)
       // Positional, not by name, so the same step shoots a branch whose
       // buttons have no accessible name yet.
       await page
@@ -848,6 +841,42 @@ export const SCREENS: Screen[] = [
       await page.keyboard.press("Escape")
       // Park the pointer on empty canvas so no hover outline lingers.
       await page.mouse.move(5, 5)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-frame-toolbar-menu",
+    description:
+      "A selected frame's toolbar with its … menu open: frame actions and the Workspace submenu.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      // The menu trigger is the toolbar's last button, before and after #796.
+      await page
+        .locator("#frame-toolbar-portal button")
+        .last()
+        .click({ timeout: 15_000 })
+      await page
+        .getByRole("menu")
+        .first()
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-frame-knobs-empty",
+    description:
+      "A selected frame's Knobs popover for a prototype with no knobs yet.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      await page
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: "Knobs" })
+        .click({ timeout: 15_000 })
+      await page
+        .getByText("No knobs yet")
+        .waitFor({ state: "visible", timeout: 15_000 })
     },
     settleMs: 400,
   },
@@ -2425,4 +2454,16 @@ export function selectScreens(names: readonly string[]): Screen[] {
     )
   }
   return SCREENS.filter((screen) => names.includes(screen.name))
+}
+
+/** Select the Checkout Canvas's desktop frame and wait for its toolbar. */
+async function selectCheckoutFrame(page: Page): Promise<void> {
+  await page
+    .getByText("Checkout · desktop", { exact: true })
+    .first()
+    .click({ timeout: 15_000 })
+  await page
+    .locator("#frame-toolbar-portal button")
+    .first()
+    .waitFor({ state: "visible", timeout: 15_000 })
 }

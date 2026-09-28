@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
+  Copy,
+  GitBranch,
   Maximize2,
   MoreHorizontal,
   MousePointer,
@@ -10,6 +12,7 @@ import {
   Play,
   RotateCw,
   Route,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -17,6 +20,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -169,6 +175,10 @@ interface IframeLayerProps {
    * and Repo); absent until the frame has a live preview to open.
    */
   onOpenInBrowser?: () => void
+  /** Append a copy of this frame to its group (the frame menu's Duplicate). */
+  onDuplicate?: () => void
+  /** Start an "add a knob" request in this frame's Workspace chat. */
+  onAskForKnob?: () => void
   /** Resize the frame to match the iframe's documentElement scrollWidth/scrollHeight. */
   onFitToContent?: (id: string, width: number, height: number) => void
   /** Set the frame to an explicit width/height (used by the device-preset menu). */
@@ -286,8 +296,11 @@ export function IframeLayer({
   onKnobsDeclared,
   onKnobValuesChange,
   onSharedStateChanged,
+  onRemove,
   onPlay,
   onOpenInBrowser,
+  onDuplicate,
+  onAskForKnob,
   onFitToContent,
   onSetSize,
   multiSelected,
@@ -431,10 +444,10 @@ export function IframeLayer({
   // so its presence is the gate.
   const showOpenInBrowser = !!onOpenInBrowser
   const showReload = hmrStatus === "disconnected"
-  // The `…` drawer holds low-frequency frame config (Device Size, Fit) and
-  // Branch-scoped "open" actions (prototype player, open in browser). Hidden
-  // only while every item it would hold is absent.
-  const showOverflow = !!onSetSize || showFit || showPlay || showOpenInBrowser
+  // The `…` menu holds this frame's own actions (device size, fit,
+  // duplicate, delete); Workspace-scoped actions (prototype player, open in
+  // browser) sit in its Workspace submenu so they don't read as frame actions.
+  const showWorkspaceMenu = showPlay || showOpenInBrowser
 
   // Report content-ready transitions up to the thumbnail heartbeat (#474). The
   // first paint and the re-paint after a route/branch change (which drops
@@ -787,50 +800,73 @@ export function IframeLayer({
                   onChange={(values) =>
                     onKnobValuesChange?.(iframeLayer.id, values)
                   }
+                  onAskForKnob={onAskForKnob}
                 />
-                {showOverflow && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <FloatingToolbarButton label="More">
-                        <MoreHorizontal className="text-muted-foreground" />
-                      </FloatingToolbarButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      side="right"
-                      align="start"
-                      sideOffset={8}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <FloatingToolbarButton label="More">
+                      <MoreHorizontal className="text-muted-foreground" />
+                    </FloatingToolbarButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="min-w-44"
+                  >
+                    {onSetSize && (
+                      <DeviceSizeSubMenu
+                        width={iframeLayer.width}
+                        height={iframeLayer.height}
+                        onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
+                      />
+                    )}
+                    {showFit && (
+                      <DropdownMenuItem onSelect={handleFitToContent}>
+                        <Maximize2 />
+                        Fit to content
+                      </DropdownMenuItem>
+                    )}
+                    {onDuplicate && (
+                      <DropdownMenuItem onSelect={onDuplicate}>
+                        <Copy />
+                        Duplicate
+                      </DropdownMenuItem>
+                    )}
+                    {showWorkspaceMenu && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <GitBranch />
+                            Workspace
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {showPlay && (
+                              <DropdownMenuItem
+                                onSelect={() => onPlay?.(iframeLayer.id)}
+                              >
+                                <Play />
+                                Open prototype player
+                              </DropdownMenuItem>
+                            )}
+                            {onOpenInBrowser && (
+                              <OpenInBrowserItem onOpen={onOpenInBrowser} />
+                            )}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => onRemove(iframeLayer.id)}
                     >
-                      {onSetSize && (
-                        <DeviceSizeSubMenu
-                          width={iframeLayer.width}
-                          height={iframeLayer.height}
-                          onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
-                        />
-                      )}
-                      {showFit && (
-                        <DropdownMenuItem onSelect={handleFitToContent}>
-                          <Maximize2 />
-                          Fit to content
-                        </DropdownMenuItem>
-                      )}
-                      {(!!onSetSize || showFit) &&
-                        (showPlay || showOpenInBrowser) && (
-                          <DropdownMenuSeparator />
-                        )}
-                      {showPlay && (
-                        <DropdownMenuItem
-                          onSelect={() => onPlay?.(iframeLayer.id)}
-                        >
-                          <Play />
-                          Open prototype player
-                        </DropdownMenuItem>
-                      )}
-                      {onOpenInBrowser && (
-                        <OpenInBrowserItem onOpen={onOpenInBrowser} />
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                      <Trash2 />
+                      Delete frame
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </FloatingToolbar>,
               toolbarPortalTarget
             )}

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { nanoid } from "nanoid"
 import {
   TransformWrapper,
   TransformComponent,
@@ -31,6 +32,8 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { useAppSession } from "@/lib/auth-client"
 import { isLocalBuild } from "@/lib/local-mode"
+import { inputStore } from "@/lib/input-store"
+import { restoreAgentChatSelection } from "@/lib/chat/chat-target"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { withBasePath } from "@/lib/base-path"
 import { PanelRightOpen } from "lucide-react"
@@ -116,6 +119,9 @@ import { ShortcutSheet } from "./shortcut-sheet"
 import { CanvasEmptyState } from "./canvas-empty-state"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
+
+/** The request the empty Knobs popover starts in the chat composer. */
+const ASK_FOR_KNOB_PROMPT = "Add a knob to this prototype that controls "
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
@@ -962,6 +968,35 @@ export function Canvas({
 
   const handleSelectAgent = chatTarget.selectAgent
 
+  // The empty Knobs popover's "Ask the agent to add a knob": open the frame's
+  // Workspace chat (the one the panel would restore, or a fresh one) and start
+  // the request in its composer for the user to finish. Nothing is sent.
+  const handleAskForKnob = useCallback(
+    (branchId: string) => {
+      let chatId = restoreAgentChatSelection(
+        chatSessions,
+        branchId,
+        chatTarget.rememberedAgentChatId(branchId)
+      )
+      if (!chatId) {
+        chatId = nanoid()
+        addChatSession(chatId, {
+          id: chatId,
+          branchId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
+      }
+      chatTarget.selectAgentChat(branchId, chatId, {
+        expandPanel: true,
+        clearDocument: true,
+        remember: true,
+      })
+      inputStore.prefill(chatId, ASK_FOR_KNOB_PROMPT)
+    },
+    [chatSessions, chatTarget, addChatSession]
+  )
+
   // Repopulate the Element Reference controller's live inputs every render so
   // its placement verbs and `sendReference` read the current snapshots, the
   // Chat-Target controller, and the canvas ops seam — without re-binding the
@@ -1564,6 +1599,7 @@ export function Canvas({
                     setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
                     removeIframeLayer={removeIframeLayer}
                     handlePlayIframeLayer={handlePlayIframeLayer}
+                    onAskForKnob={handleAskForKnob}
                     handleCaptureReadyChange={handleCaptureReadyChange}
                     handleCaptureDirty={handleCaptureDirty}
                     layerMutations={layerMutations}

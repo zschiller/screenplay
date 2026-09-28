@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -33,13 +33,25 @@ interface KnobsPopoverProps {
   knobs: JsonValue[] | undefined
   values: JsonObject | undefined
   onChange: (values: KnobValues) => void
+  /**
+   * Start an "add a knob" request in the frame's Workspace chat. Shown as the
+   * empty state's action; absent for a frame with no Workspace.
+   */
+  onAskForKnob?: () => void
 }
 
-export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
+export function KnobsPopover({
+  knobs,
+  values,
+  onChange,
+  onAskForKnob,
+}: KnobsPopoverProps) {
   const defs = useMemo<KnobDef[]>(() => {
     if (!knobs) return []
     return knobs.filter(isKnobDef)
   }, [knobs])
+
+  const [open, setOpen] = useState(false)
 
   const hasOverrides = useMemo(() => {
     if (!values) return false
@@ -67,7 +79,7 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <FloatingToolbarButton label="Knobs" className="relative">
           <SlidersHorizontal />
@@ -90,32 +102,44 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
           <div className="flex flex-col gap-2 text-xs text-muted-foreground">
             <p className="font-medium text-foreground">No knobs yet</p>
             <p>
-              Ask the model to add a knob so you can tweak this prototype live.
-              For example:
+              Knobs let you tweak this prototype live, like a slider for the
+              card padding.
             </p>
-            <p className="rounded-sm border border-border bg-muted/50 p-2 text-foreground italic">
-              &ldquo;Add a slider knob to control the card padding.&rdquo;
-            </p>
+            {onAskForKnob ? (
+              <Button
+                size="xs"
+                variant="outline"
+                className="mt-1 self-start"
+                onClick={() => {
+                  setOpen(false)
+                  onAskForKnob()
+                }}
+              >
+                Ask the agent to add a knob
+              </Button>
+            ) : null}
           </div>
         ) : (
-          defs.map((def) => (
-            <KnobControl
-              key={def.id}
-              def={def}
-              value={coerceKnobValue(def, values?.[def.id])}
-              onChange={(v) => setValue(def.id, v)}
-            />
-          ))
+          <>
+            {defs.map((def) => (
+              <KnobControl
+                key={def.id}
+                def={def}
+                value={coerceKnobValue(def, values?.[def.id])}
+                onChange={(v) => setValue(def.id, v)}
+              />
+            ))}
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={!hasOverrides}
+              onClick={resetAll}
+              className="h-6 w-full text-xs"
+            >
+              Reset to defaults
+            </Button>
+          </>
         )}
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={!hasOverrides}
-          onClick={resetAll}
-          className="h-6 w-full text-xs"
-        >
-          Reset to defaults
-        </Button>
       </PopoverContent>
     </Popover>
   )
