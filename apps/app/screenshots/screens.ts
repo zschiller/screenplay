@@ -22,6 +22,7 @@ import { panelLayoutCookieName } from "@/lib/panel-layout"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
+import { COLD_WORKSPACE_PREFIX } from "./lib/preview-url"
 import { FIXTURE_IDS } from "./fixtures/world"
 import { settle } from "./lib/browser"
 
@@ -1150,6 +1151,100 @@ export const SCREENS: Screen[] = [
     viewport: { width: 1024, height: 768 },
   },
   {
+    name: "canvas-getting-started",
+    description:
+      "The first Canvas after setup: the getting-started checklist on Add a project.",
+    path: `/${ids.rooms.empty}`,
+    beforeNavigate: (page) => markGettingStarted(page, ids.rooms.empty),
+    settleMs: 400,
+  },
+  {
+    name: "canvas-getting-started-workspace",
+    description:
+      "The getting-started checklist once a Project is added with no Workspace.",
+    path: `/${ids.rooms.empty}`,
+    beforeNavigate: async (page) => {
+      await markGettingStarted(page, ids.rooms.empty)
+      await serveYjsDoc(page, (c) =>
+        c.repos.set(gettingStartedRepo.id, gettingStartedRepo)
+      )
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-getting-started-frame",
+    description:
+      "The getting-started checklist in the corner while the first Workspace starts.",
+    path: `/${ids.rooms.empty}`,
+    beforeNavigate: async (page) => {
+      await markGettingStarted(page, ids.rooms.empty)
+      await serveYjsDoc(page, (c) => {
+        c.repos.set(gettingStartedRepo.id, gettingStartedRepo)
+        c.branches.set("branch-first", {
+          id: "branch-first",
+          repoId: gettingStartedRepo.id,
+          sandboxName: `${COLD_WORKSPACE_PREFIX}first`,
+          gitUrl: gettingStartedRepo.cloneUrl,
+          ref: "quiet-harbor",
+          previewDomain: "",
+          port: 3000,
+          status: "starting",
+          statusMessage: "Installing dependencies…",
+          createdAt: Date.now() - 40_000,
+          colorIndex: 0,
+          sidebarOrder: 0,
+        })
+        c.iframeLayers.set("layer-first", {
+          id: "layer-first",
+          branchId: "branch-first",
+          width: 1280,
+          height: 800,
+          label: "storefront",
+          iframeState: {},
+          route: "/",
+        })
+        c.iframeLayerGroups.set("grp-first", {
+          id: "grp-first",
+          x: 0,
+          y: 0,
+          members: [{ kind: "iframe-layer", id: "layer-first" }],
+          sidebarOrder: 0,
+        })
+        c.savedViewport.set({ x: 180, y: 140, zoom: 0.55 })
+      })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-getting-started-done",
+    description:
+      "The getting-started checklist with every step done, on a Canvas with a running frame.",
+    path: `/${ids.rooms.frameStates}`,
+    beforeNavigate: (page) => markGettingStarted(page, ids.rooms.frameStates),
+    settleMs: 400,
+  },
+  {
+    name: "canvas-sidebar-no-projects",
+    description:
+      "The sidebar's no-projects state with its Add project menu open.",
+    path: `/${ids.rooms.tokens}`,
+    prepare: async (page) => {
+      const button = page
+        .getByRole("button", { name: "Add project", exact: true })
+        .filter({ hasText: "Add project" })
+        .first()
+      const menu = page.getByRole("menuitem", { name: "Open project" })
+      await button.waitFor({ timeout: 15_000 })
+      // The first click can land before hydration; retry until the menu opens.
+      for (let i = 0; i < 10 && !(await menu.isVisible()); i++) {
+        await button.click()
+        await page.waitForTimeout(300)
+      }
+      await menu.waitFor({ timeout: 5_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "canvas-chat-no-projects",
     description:
       "The chat panel's empty state on a Canvas with no Project attached.",
@@ -1603,6 +1698,31 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "setup-finish",
+    description: "Finish on the setup gate: the new first Canvas it opens.",
+    path: "/",
+    cookies: entryState("setup-agent-ready"),
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "Skip" })
+        .click({ timeout: 15_000 })
+      const finish = page.locator("button:not([disabled])", {
+        hasText: "Finish",
+      })
+      await finish.waitFor({ timeout: 15_000 })
+      await finish.click()
+      // Before #780 Finish stayed on home, so neither wait is required.
+      await page
+        .waitForURL((url) => !isHomePath(url.toString()), { timeout: 30_000 })
+        .catch(() => {})
+      await page
+        .locator("[data-slot=getting-started]")
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {})
+    },
+    settleMs: 500,
+  },
+  {
     name: "home-load-error",
     description: "Recents when the Canvas list fails to load.",
     path: "/",
@@ -1984,6 +2104,37 @@ export async function serveYjsDoc(
       ws.send(message)
     })
   })
+}
+
+/**
+ * Mark a Canvas as the first one after setup, as Finish does, so it shows the
+ * getting-started checklist (#780).
+ */
+export async function markGettingStarted(
+  page: Page,
+  roomId: string
+): Promise<void> {
+  await page.addInitScript(
+    ([key, id]) => localStorage.setItem(key!, id!),
+    ["screenplay:getting-started-canvas", roomId]
+  )
+}
+
+/** The Project the getting-started screens add, as a folder pick would. */
+const gettingStartedRepo = {
+  id: "repo-getting-started",
+  name: "storefront",
+  repoFullName: "acme/storefront",
+  repoOwner: "acme",
+  repoName: "storefront",
+  defaultBranch: "main",
+  cloneUrl: "https://github.com/acme/storefront.git",
+  setupScript: "pnpm install",
+  devScript: "pnpm dev --port $PORT",
+  devServerPort: 3000,
+  envVars: "",
+  createdAt: 0,
+  sidebarOrder: 0,
 }
 
 /** lib0's unsigned varint: 7 bits a byte, high bit set on all but the last. */

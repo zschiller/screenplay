@@ -107,7 +107,13 @@ export function CollapsedSetupStep({
  * A step's marker: its number while current or upcoming, a green tick once
  * done, a grey dash once skipped, so a skipped step never reads as finished.
  */
-function StepMarker({ step, state }: { step: number; state: SetupStepState }) {
+export function StepMarker({
+  step,
+  state,
+}: {
+  step: number
+  state: SetupStepState
+}) {
   const label = {
     current: `Step ${step}:`,
     upcoming: `Step ${step}:`,

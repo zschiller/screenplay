@@ -664,6 +664,11 @@ interface RoomSidebarProps {
    * once: the menu on desktop, the GitHub picker on web.
    */
   addProjectRequest?: number
+  /**
+   * Set by the Canvas to open New Workspace on a Project (the getting-started
+   * checklist, #780). Each new `seq` opens it once.
+   */
+  newWorkspaceRequest?: { repoId: string; seq: number } | null
 }
 
 function sanitizeBranchName(raw: string): string {
@@ -728,6 +733,7 @@ export function RoomSidebar({
   chatPanelBranchId,
   branchPrs,
   addProjectRequest = 0,
+  newWorkspaceRequest = null,
 }: RoomSidebarProps) {
   // The add-project popover moves through a small view-state machine: the
   // repo/URL picker, the folder-path fallback form (#604), or — once an
@@ -797,6 +803,20 @@ export function RoomSidebar({
       setPickerView("folder")
     }
   }, [])
+  // The desktop add-project menu's items: the header's trigger and the empty
+  // state's Add project button open the same two.
+  const addProjectMenuItems = (
+    <>
+      <DropdownMenuItem onSelect={openLocalFolder}>
+        <FolderOpen />
+        Open project
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => setPickerView("repos")}>
+        <Globe />
+        Open GitHub project
+      </DropdownMenuItem>
+    </>
+  )
   // The desktop add-project menu is controlled so the Canvas can open it
   // (`addProjectRequest`), not only its trigger.
   const [addProjectMenuOpen, setAddProjectMenuOpen] = useState(false)
@@ -822,6 +842,16 @@ export function RoomSidebar({
   const [newWorkspaceBaseBranch, setNewWorkspaceBaseBranch] = useState<
     string | null
   >(null)
+  // Adjusted during render, like the add-project request above.
+  const [seenNewWorkspaceRequest, setSeenNewWorkspaceRequest] =
+    useState(newWorkspaceRequest)
+  if (newWorkspaceRequest !== seenNewWorkspaceRequest) {
+    setSeenNewWorkspaceRequest(newWorkspaceRequest)
+    if (newWorkspaceRequest) {
+      setNewWorkspaceBaseBranch(null)
+      setNewWorkspaceRepoId(newWorkspaceRequest.repoId)
+    }
+  }
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
     string | null
   >(null)
@@ -1558,16 +1588,7 @@ export function RoomSidebar({
                         // dialog's own focus trap, so suppress the focus-return.
                         onCloseAutoFocus={(event) => event.preventDefault()}
                       >
-                        <DropdownMenuItem onSelect={openLocalFolder}>
-                          <FolderOpen />
-                          Open project
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => setPickerView("repos")}
-                        >
-                          <Globe />
-                          Open GitHub project
-                        </DropdownMenuItem>
+                        {addProjectMenuItems}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
@@ -1593,7 +1614,7 @@ export function RoomSidebar({
                         stepBack()
                       }
                     }}
-                    className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0"
+                    className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2"
                   >
                     <DialogHeader className="px-5 pt-5 pb-2">
                       <DialogTitle>
@@ -2195,8 +2216,37 @@ export function RoomSidebar({
                   </SidebarMenu>
 
                   {repos.length === 0 && !showPicker && (
-                    <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
-                      No projects yet
+                    <div className="flex flex-col items-center gap-3 py-8">
+                      <p className="text-center text-xs text-balance text-sidebar-foreground/50">
+                        No projects yet
+                      </p>
+                      {isLocalBuild ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button type="button" variant="outline" size="sm">
+                              <FolderPlus />
+                              Add project
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            side="bottom"
+                            align="center"
+                            onCloseAutoFocus={(event) => event.preventDefault()}
+                          >
+                            {addProjectMenuItems}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPickerView("repos")}
+                        >
+                          <FolderPlus />
+                          Add project
+                        </Button>
+                      )}
                     </div>
                   )}
                 </SidebarGroupContent>

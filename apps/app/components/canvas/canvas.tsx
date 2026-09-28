@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react"
 import { nanoid } from "nanoid"
 import {
@@ -117,6 +118,13 @@ import { CanvasZoomMenu } from "./canvas-zoom-menu"
 import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
 import { ShortcutSheet } from "./shortcut-sheet"
 import { CanvasEmptyState } from "./canvas-empty-state"
+import { GettingStartedChecklist } from "./getting-started-checklist"
+import {
+  clearGettingStartedCanvas,
+  gettingStartedProgress,
+  isGettingStartedCanvas,
+  subscribeGettingStarted,
+} from "@/lib/getting-started"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
 
@@ -1334,7 +1342,24 @@ export function Canvas({
     sidebarPanelRef.current?.expand()
     setAddProjectRequest((n) => n + 1)
   }, [])
+  // Bumped to open the sidebar's New Workspace dialog for a Project, from the
+  // getting-started checklist.
+  const [newWorkspaceRequest, setNewWorkspaceRequest] = useState<{
+    repoId: string
+    seq: number
+  } | null>(null)
   const isCanvasEmpty = iframeLayers.length === 0 && markdownLayers.length === 0
+  // The first Canvas after setup shows the getting-started checklist (#780)
+  // until it's dismissed. Read from this browser's storage after hydration.
+  const showGettingStarted = useSyncExternalStore(
+    subscribeGettingStarted,
+    () => isGettingStartedCanvas(roomId),
+    () => false
+  )
+  const gettingStarted = useMemo(
+    () => gettingStartedProgress({ repos, branches: agents, iframeLayers }),
+    [repos, agents, iframeLayers]
+  )
   // Desktop + non-fullscreen: the macOS traffic lights overlay the top-left,
   // so the collapsed-sidebar pills must shift right to clear them.
   const trafficLightsPresent = useTrafficLightsPresent()
@@ -1468,6 +1493,7 @@ export function Canvas({
             }
             branchPrs={branchPrs}
             addProjectRequest={addProjectRequest}
+            newWorkspaceRequest={newWorkspaceRequest}
           />
         </ResizablePanel>
         <ResizableHandle className="focus-visible:ring-0" />
@@ -1786,11 +1812,34 @@ export function Canvas({
                 onClose={closeCursorChat}
               />
             ) : null}
-            {isCanvasEmpty && (
-              <CanvasEmptyState
-                toolMode={toolMode}
+            {showGettingStarted &&
+            !(
+              isCanvasEmpty &&
+              (toolMode.frameMode || toolMode.documentMode)
+            ) ? (
+              <GettingStartedChecklist
+                progress={gettingStarted}
+                placement={isCanvasEmpty ? "center" : "corner"}
                 onAddProject={handleAddProject}
+                onNewWorkspace={() => {
+                  const repo = repos[0]
+                  if (!repo) return
+                  sidebarPanelRef.current?.expand()
+                  setNewWorkspaceRequest((prev) => ({
+                    repoId: repo.id,
+                    seq: (prev?.seq ?? 0) + 1,
+                  }))
+                }}
+                onShowFrame={handleSelectIframeLayer}
+                onDismiss={clearGettingStartedCanvas}
               />
+            ) : (
+              isCanvasEmpty && (
+                <CanvasEmptyState
+                  toolMode={toolMode}
+                  onAddProject={handleAddProject}
+                />
+              )
             )}
             {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
@@ -1924,6 +1973,7 @@ export function Canvas({
             onSetBranchPr={setBranchPr}
             onLogsReady={handleLogsReady}
             logsRequest={logsRequest}
+            onAddProject={handleAddProject}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

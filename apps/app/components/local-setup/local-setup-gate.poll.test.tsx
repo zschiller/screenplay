@@ -11,6 +11,18 @@ vi.mock("@/lib/local-setup/github-skip", () => ({ writeGitHubSkip: vi.fn() }))
 vi.mock("./agent-step", () => ({ AgentStep: () => null }))
 vi.mock("./github-step", () => ({ GitHubStep: () => null }))
 
+let pathname = "/"
+const push = vi.fn()
+vi.mock("next/navigation", () => ({
+  usePathname: () => pathname,
+  useRouter: () => ({ push }),
+}))
+const createRoom = vi.fn()
+vi.mock("@/lib/rooms-actions", () => ({
+  createRoom: (name: string) => createRoom(name),
+}))
+vi.mock("@/lib/yjs-host/client", () => ({ prewarmRoom: vi.fn() }))
+
 import { LocalSetupGate } from "./local-setup-gate"
 
 beforeEach(() => {
@@ -23,6 +35,10 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   getLocalSetupGateStatus.mockReset()
+  createRoom.mockReset()
+  push.mockReset()
+  pathname = "/"
+  localStorage.clear()
 })
 
 describe("LocalSetupGate polling", () => {
@@ -52,5 +68,34 @@ describe("LocalSetupGate polling", () => {
     await act(() => vi.advanceTimersByTimeAsync(2000))
     expect(getLocalSetupGateStatus).toHaveBeenCalledTimes(2)
     expect(finish).toHaveProperty("disabled", false)
+  })
+
+  it("Finish opens a new canvas marked for the getting-started checklist", async () => {
+    createRoom.mockResolvedValue({ id: "room-first" })
+    const gate = () => (
+      <LocalSetupGate
+        initiallyBlocked
+        initialStatus={{ harnessSatisfied: true, githubSatisfied: true }}
+        initiallyGithubSkipped={false}
+      >
+        <p>the app</p>
+      </LocalSetupGate>
+    )
+    const { rerender } = render(gate())
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Finish" }).click()
+    })
+    expect(createRoom).toHaveBeenCalledWith("Untitled")
+    expect(push).toHaveBeenCalledWith("/room-first")
+    expect(localStorage.getItem("screenplay:getting-started-canvas")).toBe(
+      "room-first"
+    )
+    // The gate holds until the route has moved, so home never flashes.
+    expect(screen.queryByText("the app")).toBeNull()
+
+    pathname = "/room-first"
+    rerender(gate())
+    expect(screen.getByText("the app")).toBeTruthy()
   })
 })
