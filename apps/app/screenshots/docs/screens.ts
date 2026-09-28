@@ -53,6 +53,15 @@ const ids = DOCS_IDS
 const ROOM = `/${ids.rooms.northwind}`
 const PLAY = `/play/${ids.rooms.northwind}/${ids.branches.hero}?route=/`
 
+/**
+ * Request play mode once before navigating to it: its first server render of
+ * a canvas nobody has open 404s (#834), and each screen shoots from a fresh
+ * browser, so every play screen would otherwise start on the not-found page.
+ */
+async function warmPlay(page: Page) {
+  await page.request.get(PLAY)
+}
+
 /** Camera presets for the Northwind canvas (canvas-container px and zoom). */
 const VIEW = {
   overview: { x: 48, y: 110, zoom: 0.262 },
@@ -384,8 +393,10 @@ async function scrollToPlan(page: Page) {
   await sleep(page, 800)
 }
 
-async function playHudButton(page: Page, icon: string) {
-  return centerOf(page, `button:has(svg.${icon})`)
+/** A play-mode HUD button, once the room has synced and the HUD is up. */
+async function playHudButton(page: Page, selector: string) {
+  await page.waitForSelector(selector, { state: "visible", timeout: 30_000 })
+  return centerOf(page, selector)
 }
 
 // ---------------------------------------------------------------------------
@@ -725,7 +736,10 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await hoverRow(page, "northwind-web", REPO_ROW)
-      await page.getByRole("button", { name: "New Workspace" }).first().click()
+      await page
+        .locator(`${REPO_ROW} button[aria-label='New workspace']`)
+        .first()
+        .click()
       await sleep(page, 1500)
       await page.locator("[role=dialog] [contenteditable=true]").first().click()
       await page.keyboard.type(
@@ -1034,15 +1048,19 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "play-desktop",
     description: "Play mode, desktop.",
     path: PLAY,
+    beforeNavigate: warmPlay,
   }),
   screen({
     name: "play-hud",
     description: "Play mode's HUD, hovered.",
     path: PLAY,
+    beforeNavigate: warmPlay,
     crop: [760, 440, 520, 360],
     prepare: async (page) => {
       await page.mouse.move(
-        ...xy(await playHudButton(page, "lucide-sliders-horizontal"))
+        ...xy(
+          await playHudButton(page, "button:has(svg.lucide-sliders-horizontal)")
+        )
       )
       await sleep(page, 900)
     },
@@ -1051,12 +1069,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "play-knobs",
     description: "Play mode's Knobs panel.",
     path: PLAY,
+    beforeNavigate: warmPlay,
     crop: [700, 300, 580, 500],
     focus: POPOVER,
     prepare: async (page) => {
       await clickAt(
         page,
-        await playHudButton(page, "lucide-sliders-horizontal"),
+        await playHudButton(page, "button:has(svg.lucide-sliders-horizontal)"),
         1200
       )
     },
@@ -1065,10 +1084,11 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "play-agent",
     description: "Play mode's agent panel.",
     path: PLAY,
+    beforeNavigate: warmPlay,
     prepare: async (page) => {
       await clickAt(
         page,
-        await playHudButton(page, "lucide-messages-square"),
+        await playHudButton(page, "button:has(svg.lucide-messages-square)"),
         2500
       )
     },
@@ -1077,12 +1097,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "play-device-menu",
     description: "Play mode's device menu.",
     path: PLAY,
+    beforeNavigate: warmPlay,
     crop: [760, 360, 520, 440],
     focus: MENU,
     prepare: async (page) => {
       await clickAt(
         page,
-        await centerOf(page, "button[aria-label^='Device']"),
+        await playHudButton(page, "button[aria-label^='Device']"),
         900
       )
     },
@@ -1091,11 +1112,12 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "play-mobile",
     description: "Play mode on an iPhone 17 Pro.",
     path: PLAY,
+    beforeNavigate: warmPlay,
     prepare: async (page) => {
       await unfreeze(page)
       await clickAt(
         page,
-        await centerOf(page, "button[aria-label^='Device']"),
+        await playHudButton(page, "button[aria-label^='Device']"),
         900
       )
       await page
