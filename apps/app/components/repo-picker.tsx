@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Folder, FolderLock, Link2, Plug } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
@@ -36,7 +36,7 @@ interface RepoPickerProps {
   onSelect: (pick: RepoPickerSelection) => void
   /**
    * Show the local build's no-auth add-by-URL entry point (folded into the
-   * search box) and, when no token has resolved, a "Connect GitHub in Settings"
+   * search box) and, when no token has resolved, a "Connect GitHub"
    * pointer. Connecting itself lives in Settings now (ADR 0014) — the picker no
    * longer hosts its own connect dialog. Only the in-Room add-Repo surface on
    * the local build sets this; the hosted build's account-backed picker is
@@ -44,17 +44,7 @@ interface RepoPickerProps {
    * this picker (#604), not in the picker itself.
    */
   localSources?: boolean
-  /** Extra rows for the picker's footer, e.g. another source ("Open a folder"). */
-  footer?: ReactNode
 }
-
-/**
- * DialogContent classes for a dialog whose body is a RepoPicker: the picker
- * sits flush in the dialog (no inner box), its search box, list and footer on
- * the header's 20px gutter. Shared by Add project and New preset.
- */
-export const REPO_PICKER_DIALOG_CLASS =
-  "[&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0"
 
 let cachedRepos: GitHubRepo[] | null = null
 
@@ -62,7 +52,6 @@ export function RepoPicker({
   configs,
   onSelect,
   localSources,
-  footer,
 }: RepoPickerProps) {
   const [repos, setRepos] = useState<GitHubRepo[]>(() => cachedRepos ?? [])
   const [loading, setLoading] = useState(cachedRepos === null)
@@ -220,18 +209,8 @@ export function RepoPicker({
 
             {/* Only once the list has loaded: while loading, or after a
                 failed load, the block below says why there is nothing. */}
-            {!loading && !loadFailed && (
-              <CommandEmpty>
-                {showConnectHint ? (
-                  // One short line: the search box already says a clone URL
-                  // can be pasted, and the Connect row sits right below.
-                  <span className="text-sm text-muted-foreground">
-                    GitHub isn&apos;t connected.
-                  </span>
-                ) : (
-                  "No GitHub repositories found."
-                )}
-              </CommandEmpty>
+            {!loading && !loadFailed && !showConnectHint && (
+              <CommandEmpty>No GitHub repositories found.</CommandEmpty>
             )}
 
             {!loading && !loadFailed && showGroups && (
@@ -261,6 +240,25 @@ export function RepoPicker({
                   )
                 })}
               </CommandGroup>
+            )}
+
+            {/* No token: point at Settings, the one canonical connection home
+                (ADR 0014). A plain block rather than CommandEmpty so it stays
+                under the presets too, whatever the search. Not gated on
+                `deviceFlowConfigured`: the `gh` path in Settings needs no
+                client id. */}
+            {showConnectHint && !cloneUrl && (
+              <div className="flex flex-col items-center gap-3 py-6">
+                <span className="text-sm text-muted-foreground">
+                  GitHub isn&apos;t connected.
+                </span>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/settings?section=github">
+                    <Plug />
+                    Connect GitHub
+                  </Link>
+                </Button>
+              </div>
             )}
 
             {loading || loadFailed ? (
@@ -311,32 +309,6 @@ export function RepoPicker({
           </CommandList>
         </div>
       </Command>
-
-      {/* No token on the local build: point at Settings, the one canonical
-          connection home (ADR 0014). Shown on `tokenSource === null` alone —
-          deliberately not gated on `deviceFlowConfigured`, since the primary
-          `gh` path in Settings needs no client id. */}
-      {((localSources && status?.tokenSource === null) || footer) && (
-        <div
-          data-slot="repo-picker-footer"
-          className="flex flex-col gap-1 border-t p-1"
-        >
-          {footer}
-          {localSources && status?.tokenSource === null && (
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="justify-start gap-2 font-normal"
-            >
-              <Link href="/settings?section=github">
-                <Plug className="size-4 text-muted-foreground" />
-                Connect GitHub in Settings →
-              </Link>
-            </Button>
-          )}
-        </div>
-      )}
     </div>
   )
 }

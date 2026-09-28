@@ -206,60 +206,68 @@ export function RepoConfigForm({
     }
   }
 
-  // Choosing the source. The picker is the dialog's whole body, as in Add
-  // project: search or paste a clone URL, pick a repo, or open a folder from
-  // its footer. The close button and Escape dismiss, so there's no Cancel.
   if (!repo) {
-    if (folderMode) {
-      return (
-        <LocalFolderForm
-          className="px-5 pt-2 pb-5"
-          initial={folderError}
-          onBack={() => setFolderMode(false)}
-          onResolved={applySource}
-        />
-      )
-    }
     return (
-      // Not a direct grid item of DialogContent: the Command's h-full would
-      // resolve against the stretched grid row and push the footer out.
-      <div>
-        <RepoPicker
-          // Same sources as the canvas add flow: a GitHub pick, or on the local
-          // build a pasted clone URL folded into the search box (#605) and a
-          // folder (#604/#606) from the footer.
-          localSources={isLocalBuild}
-          footer={
-            isLocalBuild && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="justify-start gap-2 font-normal"
-                onClick={openFolder}
-              >
-                <FolderOpen className="size-4 text-muted-foreground" />
-                Open a folder
-              </Button>
-            )
-          }
-          onSelect={(pick) => {
-            if (pick.kind === "repo") {
-              setRepo({
-                repoFullName: pick.repo.fullName,
-                repoOwner: pick.repo.owner,
-                repoName: pick.repo.name,
-                defaultBranch: pick.repo.defaultBranch,
-                cloneUrl: pick.repo.cloneUrl,
-                private: pick.repo.private,
-              })
-            } else if (pick.kind === "source") {
-              // A pasted clone URL. The picker here lists no saved configs, so
-              // `kind: "config"` never occurs.
-              applySource(pick.source)
-            }
-          }}
-        />
-      </div>
+      <>
+        <div className="flex min-w-0 flex-col gap-3 px-5 pb-5">
+          <p className="text-sm text-muted-foreground">
+            Choose a git repository for this preset.
+          </p>
+          {folderMode ? (
+            <div className="rounded-lg border">
+              <LocalFolderForm
+                initial={folderError}
+                onBack={() => setFolderMode(false)}
+                onResolved={applySource}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg border">
+                <RepoPicker
+                  // Same sources as the canvas add flow: a GitHub pick, or — on
+                  // the local build — a pasted clone URL folded into the search
+                  // box (#605). Folder sources come through the button below
+                  // (#604/#606), not the picker itself.
+                  localSources={isLocalBuild}
+                  onSelect={(pick) => {
+                    if (pick.kind === "repo") {
+                      setRepo({
+                        repoFullName: pick.repo.fullName,
+                        repoOwner: pick.repo.owner,
+                        repoName: pick.repo.name,
+                        defaultBranch: pick.repo.defaultBranch,
+                        cloneUrl: pick.repo.cloneUrl,
+                        private: pick.repo.private,
+                      })
+                    } else if (pick.kind === "source") {
+                      // A pasted clone URL. The picker here lists no saved
+                      // configs, so `kind: "config"` never occurs.
+                      applySource(pick.source)
+                    }
+                  }}
+                />
+              </div>
+              {isLocalBuild && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="justify-start gap-2 font-normal"
+                  onClick={openFolder}
+                >
+                  <FolderOpen className="size-4 text-muted-foreground" />
+                  Open a folder
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+        <DialogFooter className="px-5 pb-5">
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </DialogFooter>
+      </>
     )
   }
 

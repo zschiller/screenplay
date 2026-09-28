@@ -1544,7 +1544,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await openAddProject(page, "github")
-      await page.getByText("Connect GitHub in Settings").waitFor({
+      await page.getByText("GitHub isn't connected.").waitFor({
         timeout: 15_000,
       })
     },

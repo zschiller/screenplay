@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Copy, Folder, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import { cn } from "@workspace/ui/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -28,7 +27,6 @@ import {
 } from "@workspace/ui/components/empty"
 import { LoadErrorRow } from "@/components/home/load-error"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
-import { REPO_PICKER_DIALOG_CLASS } from "@/components/repo-picker"
 import {
   SettingsRow,
   SettingsRowList,
@@ -252,10 +250,7 @@ export function RepoConfigsPanel() {
             event.preventDefault()
             name.focus()
           }}
-          className={cn(
-            "gap-0 overflow-hidden p-0 sm:max-w-lg",
-            REPO_PICKER_DIALOG_CLASS
-          )}
+          className="gap-0 overflow-hidden p-0 sm:max-w-lg"
         >
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>
