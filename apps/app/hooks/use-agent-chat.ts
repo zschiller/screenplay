@@ -8,14 +8,10 @@ interface UseAgentChatOptions {
   roomId: string
   /** Sandbox-backed target. Mutually exclusive with `markdownLayerId`. */
   sandboxName?: string
-  branch?: string
   /** Document-layer target. Mutually exclusive with `sandboxName`. */
   markdownLayerId?: string
   isFirstChat?: boolean
-  autoNamedBranch?: boolean
   planMode?: boolean
-  onBranchRename?: (branch: string) => void
-  onChatRename?: (label: string) => void
   /** Whether the chat is on screen. Defaults to true. */
   isActive?: boolean
 }
@@ -30,13 +26,9 @@ export function useAgentChat({
   chatId,
   roomId,
   sandboxName,
-  branch,
   markdownLayerId,
   isFirstChat,
-  autoNamedBranch,
   planMode,
-  onBranchRename,
-  onChatRename,
   isActive = true,
 }: UseAgentChatOptions) {
   const state: ChatState = useSyncExternalStore(
@@ -50,12 +42,6 @@ export function useAgentChat({
   useEffect(() => {
     chatStore.loadHistory(chatId)
   }, [chatId])
-
-  // Register callbacks so broadcast events can trigger Liveblocks mutations
-  useEffect(() => {
-    chatStore.setCallbacks(chatId, { onBranchRename, onChatRename })
-    return () => chatStore.clearCallbacks(chatId)
-  }, [chatId, onBranchRename, onChatRename])
 
   // Mark as read when a run finishes while this chat is on screen, or when a
   // chat with an unread run comes on screen. Every open tab stays mounted, so
@@ -77,30 +63,15 @@ export function useAgentChat({
         roomId,
         chatId,
         sandboxName,
-        branch,
         markdownLayerId,
         message: text,
         isFirstChat,
-        autoNamedBranch,
         planMode,
         model: options?.model,
         draft: options?.draft,
-        onBranchRename,
-        onChatRename,
       })
     },
-    [
-      chatId,
-      roomId,
-      sandboxName,
-      branch,
-      markdownLayerId,
-      isFirstChat,
-      autoNamedBranch,
-      planMode,
-      onBranchRename,
-      onChatRename,
-    ]
+    [chatId, roomId, sandboxName, markdownLayerId, isFirstChat, planMode]
   )
 
   const stopMessage = useCallback(() => {

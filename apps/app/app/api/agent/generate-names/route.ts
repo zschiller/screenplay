@@ -2,6 +2,7 @@ import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { deriveFallbackName } from "@/lib/agent/fallback-name"
 import { runOneShotModel } from "@/lib/agent/one-shot-model"
 import { openRoomForRoute } from "@/lib/room-access"
+import { sanitizeBranchName } from "@/lib/branch-rename"
 
 export const runtime = "nodejs"
 
@@ -23,14 +24,6 @@ const NAMING_SYSTEM_PROMPT =
   "Line 1: branch name\nLine 2: chat label\n\n" +
   "Examples:\nfix-login-button\nFix Login Button\n\n" +
   "add-dark-mode\nAdd Dark Mode"
-
-function sanitizeBranch(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-}
 
 /**
  * Name one prompt: try the model through {@link runOneShotModel} (hosted API-key
@@ -58,7 +51,7 @@ export async function generateOne(
         .trim()
     )
     .filter(Boolean)
-  const branchRaw = sanitizeBranch(lines[0] ?? "")
+  const branchRaw = sanitizeBranchName(lines[0] ?? "")
   const labelRaw = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
   const branch =
     branchRaw.length >= 3 && branchRaw.length <= 50

@@ -6,7 +6,6 @@ import { PanelRightClose } from "lucide-react"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { ChatPanel } from "@/components/agent/chat-panel"
-import { renameAgentBranch } from "@/lib/sandbox/git"
 import { chatStore } from "@/lib/chat-store"
 import {
   useBranches,
@@ -67,13 +66,6 @@ function PlayerChatHostImpl({
   const removeChatSession = useCallback(
     (id: string) => {
       collections.chatSessions.delete(id)
-    },
-    [collections]
-  )
-
-  const updateAgent = useCallback(
-    (id: string, data: Partial<(typeof agents)[number]>) => {
-      collections.branches.update(id, data)
     },
     [collections]
   )
@@ -178,37 +170,6 @@ function PlayerChatHostImpl({
     [selectedChatId, chatSessions, removeChatSession]
   )
 
-  const handleBranchRename = useCallback(
-    async (newBranchRaw: string) => {
-      if (!agent || !repo) return
-      const newBranch = newBranchRaw
-        .toLowerCase()
-        .replace(/[^a-z0-9/_-]/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "")
-      if (
-        !newBranch ||
-        !agent.sandboxName ||
-        !agent.ref ||
-        agent.ref === newBranch
-      )
-        return
-      // Optimistic local rename — the sandbox roundtrip can take several
-      // seconds and leaving the old name on screen feels broken. Roll back
-      // if the sandbox rejects.
-      const previousBranch = agent.ref
-      updateAgent(agent.id, { ref: newBranch })
-      const result = await renameAgentBranch(
-        repo,
-        agent.sandboxName,
-        previousBranch,
-        newBranch
-      )
-      if (!result.success) updateAgent(agent.id, { ref: previousBranch })
-    },
-    [agent, repo, updateAgent]
-  )
-
   if (!agent) {
     return (
       <PlayerChatPlaceholder onCollapse={onCollapse}>
@@ -244,7 +205,6 @@ function PlayerChatHostImpl({
       onRemoveChat={handleRemoveChat}
       onCloseChat={handleCloseChat}
       onReopenChat={handleReopenChat}
-      onBranchRename={handleBranchRename}
       onPlanModeChange={(chatId, planMode) =>
         updateChatSession(chatId, { planMode })
       }

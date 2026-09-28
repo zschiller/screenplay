@@ -29,10 +29,10 @@ import type { BranchData, ChatSessionData } from "@/lib/types"
  * 2. {@link dispatchPrompt} — the apply verb. Create the Chat Session through the
  *    canvas ops seam (ADR 0001) *only* when the decision calls for a fresh chat;
  *    select the resolved target through the Chat-Target controller; call
- *    `chatStore.sendMessage` with `onBranchRename` / `onChatRename` wired.
+ *    `chatStore.sendMessage`. Names come back through the room doc (#910).
  */
 
-/** Which Chat Target a prompt lands on — drives selection and rename wiring. */
+/** Which Chat Target a prompt lands on — drives selection. */
 export type PromptTarget =
   | { kind: "agent"; agentId: string }
   | { kind: "document"; documentId: string }
@@ -59,7 +59,7 @@ export interface PromptDispatch {
   /** Expand the chat panel after dispatching (a target-selection side effect). */
   expandPanel: boolean
   /** The `sendMessage` arguments; the rename callbacks are wired by the verb. */
-  send: Omit<SendMessageOptions, "onBranchRename" | "onChatRename">
+  send: SendMessageOptions
 }
 
 /** The Chat-Target controller verbs the dispatch applies (structural). */
@@ -67,7 +67,11 @@ export interface PromptChatTarget {
   selectAgentChat: (
     branchId: string,
     chatId: string,
-    options?: { expandPanel?: boolean; clearDocument?: boolean; remember?: boolean }
+    options?: {
+      expandPanel?: boolean
+      clearDocument?: boolean
+      remember?: boolean
+    }
   ) => void
   selectDocChat: (
     markdownLayerId: string,
@@ -83,16 +87,13 @@ export interface DispatchPromptDeps {
   addChatSession: (id: string, data: ChatSessionData) => void
   /** Selection goes through the Chat-Target controller, not raw setters. */
   chatTarget: PromptChatTarget
-  /** Late-bound rename callbacks fired by the chat stream (auto-naming). */
-  onChatRename: (chatId: string, label: string) => void
-  onBranchRename: (agentId: string, branch: string) => void
 }
 
 /**
  * Apply a resolved {@link PromptDispatch}: create the fresh Chat Session when
  * one is called for, select the target through the Chat-Target controller, and
- * send the message with the rename callbacks wired. The single apply path the
- * Element Reference, Branch Intake, and Branch Actions controllers share.
+ * send the message. The single apply path the Element Reference, Branch Intake,
+ * and Branch Actions controllers share.
  */
 export function dispatchPrompt(
   dispatch: PromptDispatch,
@@ -113,18 +114,7 @@ export function dispatchPrompt(
     }
   }
 
-  if (target.kind === "agent") {
-    chatStore.sendMessage({
-      ...send,
-      onBranchRename: (branch) => deps.onBranchRename(target.agentId, branch),
-      onChatRename: (label) => deps.onChatRename(send.chatId, label),
-    })
-  } else {
-    chatStore.sendMessage({
-      ...send,
-      onChatRename: (label) => deps.onChatRename(send.chatId, label),
-    })
-  }
+  chatStore.sendMessage(send)
 
   if (expandPanel) deps.chatTarget.expandPanel()
 }
@@ -139,7 +129,7 @@ export type TargetChatDecision =
       session: ChatSessionData | null
       isFirstChat: boolean
       select: { kind: "agent"; agentId: string; chatId: string }
-      send: Omit<SendMessageOptions, "onBranchRename" | "onChatRename">
+      send: SendMessageOptions
     }
 
 export interface ResolveTargetChatInput {
@@ -150,7 +140,7 @@ export interface ResolveTargetChatInput {
   createdAt: number
   message: string
   /** The agent the prompt targets. */
-  agent: Pick<BranchData, "id" | "sandboxName" | "ref" | "autoNamedBranch">
+  agent: Pick<BranchData, "id" | "sandboxName" | "ref">
   /** All Chat Sessions — filtered to the agent's open chats internally. */
   chatSessions: readonly ChatSessionData[]
   /** The remembered chat id from the Chat-Target controller. */
@@ -232,10 +222,8 @@ export function resolveTargetChat(
       roomId,
       chatId,
       sandboxName: agent.sandboxName,
-      branch: agent.ref,
       message,
       isFirstChat,
-      autoNamedBranch: agent.autoNamedBranch,
       planMode,
       model,
     },

@@ -243,11 +243,6 @@ export function Canvas({
   // Terminal Tabs (`localTerminals`) and their seed / re-fetch-merge /
   // orphan-prune lifecycle are owned by the `useTerminalTabs` controller (#582),
   // created once `agents` is in scope below; the Tab Pool composes it.
-  const inspectHandlersRef = useRef<{
-    branchRename: (agentId: string, branch: string) => void
-    renameChat: (chatId: string, label: string) => void
-  }>({ branchRename: () => {}, renameChat: () => {} })
-
   // Element Reference controller (PRD #570): the single-user "anchor an element
   // / text span and Send to agent" reference path the local build keeps. It
   // owns the comment-mode placement state (`newCommentPos`, `activeThreadId`,
@@ -1073,8 +1068,7 @@ export function Canvas({
   // its placement verbs and `sendReference` read the current snapshots, the
   // Chat-Target controller, and the canvas ops seam — without re-binding the
   // controller on each change (mirrors `iframeLayerLayoutsRef` /
-  // `gestureInputsRef`). The rename callbacks read `inspectHandlersRef` so they
-  // stay current as the Tab Pool / Branch Intake wiring lands later.
+  // `gestureInputsRef`).
   useEffect(() => {
     referenceInputsRef.current = {
       roomId,
@@ -1083,10 +1077,6 @@ export function Canvas({
       iframeLayerLayouts,
       addChatSession,
       chatTarget,
-      onChatRename: (chatId, label) =>
-        inspectHandlersRef.current.renameChat(chatId, label),
-      onBranchRename: (agentId, branch) =>
-        inspectHandlersRef.current.branchRename(agentId, branch),
     }
   })
 
@@ -1128,7 +1118,6 @@ export function Canvas({
     agents,
     iframeLayers,
     roomId,
-    updateChatSession,
     createDefaultTabForBranch: tabPool.seed,
     getViewportCenter,
     setSelectedGroupIds,
@@ -1150,7 +1139,6 @@ export function Canvas({
     roomId,
     chatTarget,
     addChatSession,
-    updateChatSession,
     updateAgentInStorage,
     setBranchPr,
   })
@@ -1166,13 +1154,6 @@ export function Canvas({
     frameWorkspace: commentFrameWorkspace,
     agents,
     sendComments: branchActions.sendComments,
-  })
-
-  useEffect(() => {
-    inspectHandlersRef.current = {
-      branchRename: renameBranch,
-      renameChat: tabPool.rename,
-    }
   })
 
   // Chat history load, the streaming-heal hydration, and the `useChatStreamEvents`
@@ -2052,7 +2033,6 @@ export function Canvas({
             diffStats={diffStats}
             branchPrs={branchPrs}
             chatPanelRef={chatPanelRef}
-            onRenameBranch={renameBranch}
             onUpdateChatSession={updateChatSession}
             onSetBranchPr={setBranchPr}
             onLogsReady={handleLogsReady}

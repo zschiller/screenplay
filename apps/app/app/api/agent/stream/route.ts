@@ -14,12 +14,10 @@ interface RequestBody {
   chatId: string
   /** Required when the chat targets an agent (sandbox-backed flow). */
   sandboxName?: string
-  branch?: string
   /** Required when the chat targets a document layer (no sandbox). */
   markdownLayerId?: string
   message: string
   isFirstChat?: boolean
-  autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
   /** Comment threads this turn asks the agent to address (#788). */
@@ -53,9 +51,7 @@ export async function POST(req: Request) {
         sandboxName: sandboxName!,
         userId,
         message,
-        branch: body.branch,
         isFirstChat: body.isFirstChat,
-        autoNamedBranch: body.autoNamedBranch,
         planMode: body.planMode,
         model,
         commentThreadIds: body.commentThreadIds,

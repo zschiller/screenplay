@@ -58,7 +58,6 @@ function mountIntake(
       agents: [branch],
       iframeLayers: [],
       roomId: "room-1",
-      updateChatSession: vi.fn(),
       createDefaultTabForBranch: vi.fn(() => "chat-1"),
       getViewportCenter: () => ({ cx: 0, cy: 0 }),
       setSelectedGroupIds: vi.fn(),

@@ -84,13 +84,6 @@ export function useChatSync({
       updateChatSession(e.chatId, { isStreaming: true })
     } else if (e.type === "chat-stream-end") {
       updateChatSession(e.chatId, { isStreaming: false })
-    } else if (e.type === "chat-control" && e.control.kind === "chat_rename") {
-      // Apply the auto-generated label here, at the canvas level, rather than
-      // relying on the per-chat `onChatRename` callback: that callback is an
-      // inline arrow re-registered on every AgentChat render, so a rename
-      // broadcast landing during the clear/re-set window would be dropped.
-      // Writing the Y.Doc here is independent of which chat tab is mounted.
-      updateChatSession(e.chatId, { label: e.control.label })
     }
   })
 }

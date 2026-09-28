@@ -4,7 +4,10 @@
  * tests share one check.
  */
 
-/** Lowercase and hyphenate a typed name into a git-safe branch name. */
+/**
+ * Lowercase and hyphenate a typed name (or a model's suggestion) into a
+ * git-safe branch name. The one ref sanitizer (#910).
+ */
 export function sanitizeBranchName(raw: string): string {
   return raw
     .trim()
