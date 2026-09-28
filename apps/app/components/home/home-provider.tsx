@@ -71,6 +71,9 @@ export function defaultOrder(sort: SortKey): SortOrder {
   return sort === "name" ? "asc" : "desc"
 }
 
+/** A folder's direct contents, counted for its row and tile. */
+export type FolderContents = { folders: number; canvases: number }
+
 type HomeContextValue = {
   /**
    * The Rooms on screen, ordered by the current sort. In a folder view this is
@@ -153,6 +156,11 @@ type HomeContextValue = {
    * real current home, independent of which folder view is on screen.
    */
   folderOfRoom: (roomId: string) => string | null
+  /**
+   * What a folder directly holds — its sub-folders and the Canvases filed in it
+   * for this user — for the contents count on folder rows and tiles.
+   */
+  folderContents: (folderId: string) => FolderContents
   /**
    * Pin a Room to the sidebar (appends to the end); idempotent. The pin
    * mutations are fire-and-forget from menus and the drag list, so they report
@@ -670,6 +678,15 @@ export function HomeProvider({
     [placementByRoom]
   )
 
+  const folderContents = useCallback(
+    (folderId: string): FolderContents => ({
+      folders: folders.filter((f) => f.parentFolderId === folderId).length,
+      canvases: rooms.filter((r) => placementByRoom.get(r.id) === folderId)
+        .length,
+    }),
+    [folders, rooms, placementByRoom]
+  )
+
   // The pinned rows render ascending by position — the order pins were added.
   const sortedPins = useMemo(
     () => [...pins].sort((a, b) => a.position - b.position),
@@ -706,6 +723,7 @@ export function HomeProvider({
     foldersById,
     isPinned,
     folderOfRoom,
+    folderContents,
     pinRoom,
     pinFolder,
     unpin,
