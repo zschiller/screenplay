@@ -26,6 +26,7 @@ import {
   useSavedViewport,
   useSelfPresence,
   useSetPresence,
+  useMemories,
   useRepos,
   useYjsHistory,
 } from "@/lib/yjs/react"
@@ -128,6 +129,7 @@ import {
 } from "@/lib/getting-started"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
+import { addMemory, editMemory, removeMemory } from "@/lib/canvas/memory"
 import { ChatPanelHost } from "./chat-panel-host"
 import {
   useHoveredWorkspaceId,
@@ -695,6 +697,12 @@ export function Canvas({
   // projections owned by the Canvas Selection controller, aliased above.
   const repos = useRepos()
   const agents = useBranches()
+  // Canvas memory (#902), oldest first, edited in Canvas settings › Memory.
+  const memoryEntries = useMemories()
+  const memories = useMemo(
+    () => [...memoryEntries].sort((a, b) => a.createdAt - b.createdAt),
+    [memoryEntries]
+  )
 
   // Leaving the Room takes its Branches' dev servers with it on desktop:
   // local dev servers are host processes with no auto-stop timer, so without
@@ -1910,6 +1918,12 @@ export function Canvas({
               onCreateRepo={createRepo}
               onUpdateRepo={updateRepoInStorage}
               onRemoveRepo={removeRepoIntake}
+              memories={memories}
+              onAddMemory={(text) =>
+                addMemory(collections, { text, source: "member" })
+              }
+              onEditMemory={(id, text) => editMemory(collections, id, { text })}
+              onRemoveMemory={(id) => removeMemory(collections, id)}
             />
             <CanvasToolbar
               toolMode={toolMode}

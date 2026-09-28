@@ -667,6 +667,21 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "canvas-settings-memory",
+    description:
+      "Canvas settings on Memory: what every chat on the canvas reads.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await page.getByRole("button", { name: "Canvas options" }).click()
+      await clickMenuItem(page, "Settings", 1200)
+      await page.getByRole("button", { name: "Memory" }).click()
+      await page.getByText("Saved by the Coordinator").first().waitFor()
+    },
+  }),
+  screen({
     name: "add-project-menu",
     description: "Canvas settings' Add repository menu.",
     path: ROOM,

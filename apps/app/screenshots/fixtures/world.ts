@@ -9,6 +9,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MemoryData,
   PlanData,
   RepoData,
   ViewportData,
@@ -94,6 +95,8 @@ export interface FixtureRoom {
     markdownLayers?: MarkdownLayerData[]
     chatSessions?: ChatSessionData[]
     plans?: PlanData[]
+    /** Canvas memory entries (#902), shown in Canvas settings › Memory. */
+    memories?: MemoryData[]
     savedViewport?: ViewportData
     /** Markdown body per Markdown Layer id, written into its `markdown-layer-{id}` fragment. */
     markdownBodies?: Record<string, string>
@@ -801,6 +804,29 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       markdownLayers,
       chatSessions,
       plans,
+      memories: [
+        {
+          id: "mem-checkout-pnpm",
+          text: "Use pnpm, never npm: the lockfile is pnpm-lock.yaml.",
+          source: "coordinator",
+          createdAt: daysAgo(now, 6),
+          updatedAt: daysAgo(now, 6),
+        },
+        {
+          id: "mem-checkout-mobile",
+          text: "Design mobile-first. The summary rail becomes a sticky footer under 768px, and nothing on the checkout may shift when it pins.",
+          source: "coordinator",
+          createdAt: daysAgo(now, 3),
+          updatedAt: daysAgo(now, 3),
+        },
+        {
+          id: "mem-checkout-stripe",
+          text: "Payments go through Stripe test mode on every Workspace.",
+          source: "member",
+          createdAt: daysAgo(now, 1),
+          updatedAt: daysAgo(now, 1),
+        },
+      ],
       savedViewport: { x: 120, y: 80, zoom: 0.42 },
       markdownBodies: {
         "doc-checkout-brief": [

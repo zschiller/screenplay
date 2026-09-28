@@ -47,6 +47,25 @@ edits, never the Coordinator's.
 The Coordinator never works inside a sandbox and never edits a workspace's
 files: to change code, open a workspace and ask its agent.
 
+### Canvas memory
+
+Each canvas keeps a shared **memory**: preferences, decisions and facts about
+its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
+it, the Coordinator's and each workspace's and document's alike, so no chat has
+to ask the same thing twice. On the desktop app, a chat that runs through an
+external harness gets memory when the chat starts.
+
+The Coordinator saves to memory when you tell it something worth keeping or
+ask it to remember something, and it edits or removes entries when you ask.
+Workspace agents read memory but never write it.
+
+To read or change memory yourself, open **Canvas settings** from the **…**
+next to the canvas name and choose **Memory**. **Edit** changes an entry,
+**…** › **Delete** removes it, and **Add memory** adds one. Everyone on a
+shared canvas sees the same entries.
+
+<Screenshot name="canvas-settings-memory" alt="Canvas settings open on Memory, listing three entries with Edit and more actions" />
+
 ## Choosing a target
 
 Click a workspace in the sidebar to open its chat. The header then reads

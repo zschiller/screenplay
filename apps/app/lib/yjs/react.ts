@@ -29,6 +29,7 @@ import type {
   IframeLayerGroupData,
   ChatSessionData,
   MarkdownLayerData,
+  MemoryData,
   ViewportData,
   RepoData,
 } from "@/lib/types"
@@ -74,6 +75,11 @@ export function useMarkdownLayers(): Array<MarkdownLayerData> {
 
 export function useRepos(): Array<RepoData> {
   return useCollectionArray(useRoomCollections().repos)
+}
+
+/** Canvas memory entries (#902), in the Room doc's order; sort before showing. */
+export function useMemories(): Array<MemoryData> {
+  return useCollectionArray(useRoomCollections().memories)
 }
 
 export function useBranches(): Array<BranchData> {

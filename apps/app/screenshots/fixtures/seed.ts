@@ -536,6 +536,8 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
     for (const chat of fixture.chatSessions ?? [])
       c.chatSessions.set(chat.id, chat)
     for (const plan of fixture.plans ?? []) c.plans.set(plan.id, plan)
+    for (const memory of fixture.memories ?? [])
+      c.memories.set(memory.id, memory)
     if (fixture.savedViewport) c.savedViewport.set(fixture.savedViewport)
   })
 

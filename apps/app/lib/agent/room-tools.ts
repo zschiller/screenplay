@@ -11,6 +11,12 @@ import {
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
 import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import {
+  addMemory,
+  editMemory,
+  MEMORY_ENTRY_MAX_LENGTH,
+  removeMemory,
+} from "@/lib/canvas/memory"
 import type {
   BranchData,
   ChatSessionData,
@@ -30,7 +36,8 @@ import type {
  * so tests run every tool against a bare Room doc. Tools that change the canvas
  * write through Canvas Operations inside `mutateDoc` (a server-side room
  * mutation, ADR 0001), logged per turn so the Coordinator can undo a turn when
- * asked (`room-arrange-tools.ts`, `room-change-log.ts`).
+ * asked (`room-arrange-tools.ts`, `room-change-log.ts`). `write_memory` writes canvas
+ * memory (#902) through `lib/canvas/memory.ts`.
  */
 export interface RoomToolPorts extends WorkspaceReadPorts {
   /** Read-only access to the Room's doc, as `RoomAccess.readDoc`. */
@@ -66,6 +73,12 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   read_workspace_diff: { readOnlyHint: true, openWorldHint: false },
   read_workspace_file: { readOnlyHint: true, openWorldHint: false },
   view_frame: { readOnlyHint: true, openWorldHint: false },
+  // Writes only canvas memory (#902), which the spec lets act right away.
+  write_memory: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
   // Shared by every chat's toolset (`layer-read-tools.ts`).
   read_document: { readOnlyHint: true, openWorldHint: false },
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
@@ -108,7 +121,53 @@ export function buildRoomTools(
       },
     }),
     ...buildWorkspaceReadTools(ports),
+    write_memory: tool({
+      description: `Add, edit or remove an entry of canvas memory: the preferences, decisions and facts about the repositories that every chat on this canvas reads in its system prompt. Add one short, self-contained sentence per entry (at most ${MEMORY_ENTRY_MAX_LENGTH} characters). Edit or remove by the id shown in brackets in the Canvas memory block of your prompt. Never save secrets or credentials.`,
+      inputSchema: jsonSchema<WriteMemoryInput>({
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["add", "edit", "remove"] },
+          id: {
+            type: "string",
+            description: "The entry to edit or remove. Not used for add.",
+          },
+          text: {
+            type: "string",
+            description: "The entry's text, for add and edit.",
+          },
+        },
+        required: ["action"],
+      }),
+      execute: async (input) => writeMemory(ports, input),
+    }),
   }
+}
+
+type WriteMemoryInput = {
+  action: "add" | "edit" | "remove"
+  id?: string
+  text?: string
+}
+
+async function writeMemory(
+  ports: RoomToolPorts,
+  { action, id, text }: WriteMemoryInput
+): Promise<string> {
+  if (action === "add") {
+    if (!text?.trim()) return "Nothing saved: an entry needs text."
+    const entry = await ports.mutateDoc((c) =>
+      addMemory(c, { text, source: "coordinator" })
+    )
+    return entry ? `Saved [${entry.id}] ${entry.text}` : "Nothing saved."
+  }
+  if (!id) return `Nothing changed: ${action} needs the entry's id.`
+  if (action === "edit") {
+    if (!text?.trim()) return "Nothing changed: an edit needs text."
+    const edited = await ports.mutateDoc((c) => editMemory(c, id, { text }))
+    return edited ? `Updated [${id}].` : `No memory entry [${id}].`
+  }
+  const removed = await ports.mutateDoc((c) => removeMemory(c, id))
+  return removed ? `Removed [${id}].` : `No memory entry [${id}].`
 }
 
 /**

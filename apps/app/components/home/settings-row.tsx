@@ -30,6 +30,7 @@ export function SettingsRow({
   detail,
   action,
   role,
+  wrap = false,
 }: {
   icon?: LucideIcon
   iconClassName?: string
@@ -42,6 +43,11 @@ export function SettingsRow({
   detail?: React.ReactNode
   action?: React.ReactNode
   role?: React.AriaRole
+  /**
+   * Let a sentence-long title wrap at regular weight instead of truncating
+   * (a canvas memory entry), for rows titled by text rather than a name.
+   */
+  wrap?: boolean
 }) {
   return (
     <div className={ROW_FRAME} role={role}>
@@ -53,7 +59,14 @@ export function SettingsRow({
       {media}
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 truncate text-sm font-medium">{title}</span>
+          <span
+            className={cn(
+              "min-w-0 text-sm",
+              wrap ? "break-words whitespace-pre-wrap" : "truncate font-medium"
+            )}
+          >
+            {title}
+          </span>
           {state && (
             <Badge
               variant="secondary"

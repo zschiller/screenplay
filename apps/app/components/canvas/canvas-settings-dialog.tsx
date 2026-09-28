@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { FolderGit2, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import { Brain, FolderGit2, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -53,23 +53,28 @@ import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
 import { isLocalBuild } from "@/lib/local-mode"
 import { repoShortName, repoSource } from "@/lib/repo-identity"
 import { sortForSidebar } from "@/lib/sidebar-order"
-import type { BranchData, RepoData } from "@/lib/types"
+import type { BranchData, MemoryData, RepoData } from "@/lib/types"
+import { MemorySection } from "./canvas-memory-section"
 
-/** The sections of Canvas settings. Memory (#874) and Members may join later. */
-export type CanvasSettingsSection = "repositories"
+/** The sections of Canvas settings. Members may join later. */
+export type CanvasSettingsSection = "repositories" | "memory"
 
 const SECTIONS: {
   id: CanvasSettingsSection
   title: string
   icon: typeof FolderGit2
-}[] = [{ id: "repositories", title: "Repositories", icon: FolderGit2 }]
+}[] = [
+  { id: "repositories", title: "Repositories", icon: FolderGit2 },
+  { id: "memory", title: "Memory", icon: Brain },
+]
 
 /**
  * Canvas settings (#883): the canvas-wide setup, opened from the canvas name's
  * … menu. Built on shadcn's settings-dialog block (a sidebar of sections in a
  * dialog). Its first section, Repositories, lists the code the canvas runs and
  * adds, edits and removes it through the same flows as the sidebar. What it
- * edits lives in the Room's Y.Doc, so every collaborator shares it.
+ * edits lives in the Room's Y.Doc, so every collaborator shares it. Memory
+ * (#902) lists the canvas memory every chat reads.
  */
 export function CanvasSettingsDialog({
   open,
@@ -79,11 +84,20 @@ export function CanvasSettingsDialog({
   onCreateRepo,
   onUpdateRepo,
   onRemoveRepo,
+  memories,
+  onAddMemory,
+  onEditMemory,
+  onRemoveMemory,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   repos: RepoData[]
   branches: BranchData[]
+  /** Canvas memory entries, oldest first. */
+  memories: MemoryData[]
+  onAddMemory: (text: string) => void
+  onEditMemory: (id: string, text: string) => void
+  onRemoveMemory: (id: string) => void
   onCreateRepo: (
     pick: RepoPickerSelection,
     settings?: ResolvedRepoSettings
@@ -94,7 +108,9 @@ export function CanvasSettingsDialog({
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
 }) {
-  const active = SECTIONS[0]!
+  const [activeId, setActiveId] =
+    useState<CanvasSettingsSection>("repositories")
+  const active = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0]!
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -108,7 +124,7 @@ export function CanvasSettingsDialog({
       >
         <DialogTitle className="sr-only">Canvas settings</DialogTitle>
         <DialogDescription className="sr-only">
-          Set up the code this canvas runs.
+          Set up the code this canvas runs and what every chat on it remembers.
         </DialogDescription>
         <SidebarProvider className="min-h-0 items-start">
           <Sidebar collapsible="none" className="hidden w-48 md:flex">
@@ -118,7 +134,10 @@ export function CanvasSettingsDialog({
                   <SidebarMenu>
                     {SECTIONS.map((section) => (
                       <SidebarMenuItem key={section.id}>
-                        <SidebarMenuButton isActive={section.id === active.id}>
+                        <SidebarMenuButton
+                          isActive={section.id === active.id}
+                          onClick={() => setActiveId(section.id)}
+                        >
                           <section.icon />
                           <span>{section.title}</span>
                         </SidebarMenuButton>
@@ -146,13 +165,22 @@ export function CanvasSettingsDialog({
               </Breadcrumb>
             </header>
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
-              <RepositoriesSection
-                repos={repos}
-                branches={branches}
-                onCreateRepo={onCreateRepo}
-                onUpdateRepo={onUpdateRepo}
-                onRemoveRepo={onRemoveRepo}
-              />
+              {active.id === "memory" ? (
+                <MemorySection
+                  memories={memories}
+                  onAddMemory={onAddMemory}
+                  onEditMemory={onEditMemory}
+                  onRemoveMemory={onRemoveMemory}
+                />
+              ) : (
+                <RepositoriesSection
+                  repos={repos}
+                  branches={branches}
+                  onCreateRepo={onCreateRepo}
+                  onUpdateRepo={onUpdateRepo}
+                  onRemoveRepo={onRemoveRepo}
+                />
+              )}
             </div>
           </main>
         </SidebarProvider>

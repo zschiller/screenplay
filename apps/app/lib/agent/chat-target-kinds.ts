@@ -15,7 +15,9 @@ import { liveWorkspaceReadPorts } from "./room-read-ports"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
-import type { RoomDoc } from "@/lib/room-access"
+import type { RoomDoc, RoomReader } from "@/lib/room-access"
+import { readMemory } from "@/lib/canvas/memory"
+import type { MemoryData } from "@/lib/types"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -57,6 +59,16 @@ export interface ChatTargetSpec<TTarget, TContext> {
 }
 
 /**
+ * Canvas memory (#902) for a system prompt. Every kind reads it; a read that
+ * fails leaves the prompt without memory rather than failing the turn.
+ */
+export async function loadCanvasMemory(
+  room: RoomReader
+): Promise<MemoryData[]> {
+  return (await room.readDoc(readMemory).catch(() => null)) ?? []
+}
+
+/**
  * Snapshot the canvas's docs for the model's directory block. Cheap — the
  * collection is already in memory; we copy id + title only.
  */
@@ -89,31 +101,35 @@ interface AgentContext {
   layerDirectory: LayerDirectory
   /** Merged App ∪ Repo Skill index, enumerated once from this Branch's sandbox. */
   skills: OriginTaggedSkill[]
+  memory: MemoryData[]
 }
 
 export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   kind: "agent",
   async loadContext(room, target) {
-    const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
-      room
-        .readDoc(({ branches, repos }) => {
-          const branch = branches
-            .toArray()
-            .find((a) => a.sandboxName === target.sandboxName)
-          if (!branch) return undefined
-          return repos.get(branch.repoId)?.systemPrompt
-        })
-        .catch(() => undefined),
-      loadLayerDirectory(room),
-      getMergedSkillIndexForSandbox(target.sandboxName),
-    ])
-    return { repoSystemPrompt, layerDirectory, skills }
+    const [repoSystemPrompt, layerDirectory, skills, memory] =
+      await Promise.all([
+        room
+          .readDoc(({ branches, repos }) => {
+            const branch = branches
+              .toArray()
+              .find((a) => a.sandboxName === target.sandboxName)
+            if (!branch) return undefined
+            return repos.get(branch.repoId)?.systemPrompt
+          })
+          .catch(() => undefined),
+        loadLayerDirectory(room),
+        getMergedSkillIndexForSandbox(target.sandboxName),
+        loadCanvasMemory(room),
+      ])
+    return { repoSystemPrompt, layerDirectory, skills, memory }
   },
   buildSystemPrompt(ctx) {
     return buildAgentSystemPrompt({
       repoSystemPrompt: ctx.repoSystemPrompt ?? undefined,
       layerDirectory: ctx.layerDirectory,
       skills: ctx.skills,
+      memory: ctx.memory,
     })
   },
   buildTools(room, _target, sandbox) {
@@ -145,6 +161,7 @@ interface MarkdownLayerContext {
   title: string
   body: string
   layerDirectory: LayerDirectory
+  memory: MemoryData[]
 }
 
 export const markdownLayerChatTarget: ChatTargetSpec<
@@ -153,7 +170,7 @@ export const markdownLayerChatTarget: ChatTargetSpec<
 > = {
   kind: "markdown-layer",
   async loadContext(room, target) {
-    const [self, layerDirectory] = await Promise.all([
+    const [self, layerDirectory, memory] = await Promise.all([
       room.readDoc(({ markdownLayers, doc }) => {
         const layer = markdownLayers.get(target.markdownLayerId)
         if (!layer) return null
@@ -165,9 +182,10 @@ export const markdownLayerChatTarget: ChatTargetSpec<
         }
       }),
       loadLayerDirectory(room),
+      loadCanvasMemory(room),
     ])
     if (!self) return null
-    return { ...self, layerDirectory }
+    return { ...self, layerDirectory, memory }
   },
   buildSystemPrompt(ctx) {
     return buildMarkdownLayerSystemPrompt({
@@ -175,6 +193,7 @@ export const markdownLayerChatTarget: ChatTargetSpec<
       currentBody: ctx.body,
       layerDirectory: ctx.layerDirectory,
       selfId: ctx.id,
+      memory: ctx.memory,
     })
   },
   buildTools(room, target) {
@@ -214,6 +233,7 @@ export interface RoomTarget {
 
 interface RoomContext {
   canvasSummary: string
+  memory: MemoryData[]
 }
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
@@ -239,13 +259,19 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   async loadContext(room, target) {
     const ports = liveRoomToolPorts(room, target.userId)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-    const canvasSummary = await ports.readDoc((collections) =>
-      summarizeCanvas(collections, terminalTabs)
-    )
-    return { canvasSummary }
+    const [canvasSummary, memory] = await Promise.all([
+      ports.readDoc((collections) =>
+        summarizeCanvas(collections, terminalTabs)
+      ),
+      loadCanvasMemory(room),
+    ])
+    return { canvasSummary, memory }
   },
   buildSystemPrompt(ctx) {
-    return buildRoomSystemPrompt({ canvasSummary: ctx.canvasSummary })
+    return buildRoomSystemPrompt({
+      canvasSummary: ctx.canvasSummary,
+      memory: ctx.memory,
+    })
   },
   buildTools(room, target) {
     return toolsetFor({

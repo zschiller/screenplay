@@ -1,4 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+// The agent kind enumerates Skills from its sandbox and the room kind lists
+// the member's Terminal Tabs from the database; neither matters to memory.
+vi.mock("@/lib/skills/sandbox-index", () => ({
+  getMergedSkillIndexForSandbox: vi.fn().mockResolvedValue([]),
+}))
+vi.mock("@/lib/terminal-tabs", () => ({
+  listTerminalTabs: vi.fn().mockResolvedValue([]),
+}))
 
 import {
   agentChatTarget,
@@ -7,6 +16,14 @@ import {
   type ChatTargetSpec,
 } from "@/lib/agent/chat-target-kinds"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
+import { addMemory } from "@/lib/canvas/memory"
+import type { RoomDoc } from "@/lib/room-access"
+import {
+  baseBranch,
+  baseDoc,
+  baseRepo,
+  makeHarness,
+} from "@/test/canvas/harness"
 
 const MESSAGE = "bold the dates"
 
@@ -77,7 +94,7 @@ describe("room chat target", () => {
 
   it("bakes the canvas summary into its system prompt", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"' },
+      { canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"', memory: [] },
       {}
     )
 
@@ -114,6 +131,71 @@ describe("room chat target", () => {
       "rename",
       "undo_changes",
       "view_frame",
+      "write_memory",
     ])
+  })
+})
+
+/**
+ * Canvas memory (#902): every kind's system prompt carries it, read live from
+ * the Room doc, and only the Coordinator's carries the ids it writes with.
+ */
+describe("canvas memory in every kind's system prompt", () => {
+  function roomWithMemory(): RoomDoc {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { repoId: "repo-1", sandboxName: "sb-1" })
+    )
+    collections.markdownLayers.set(
+      "doc-1",
+      baseDoc("doc-1", { title: "Launch spec" })
+    )
+    addMemory(collections, { text: "Use pnpm, never npm.", source: "member" })
+    return {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+  }
+
+  it("includes memory in a Workspace agent's prompt", async () => {
+    const room = roomWithMemory()
+    const ctx = await agentChatTarget.loadContext(room, {
+      sandboxName: "sb-1",
+      branch: "main",
+    })
+    const prompt = agentChatTarget.buildSystemPrompt(ctx!, {})
+
+    expect(prompt).toContain("Canvas memory")
+    expect(prompt).toContain("- Use pnpm, never npm.")
+  })
+
+  it("includes memory in a document chat's prompt", async () => {
+    const room = roomWithMemory()
+    const ctx = await markdownLayerChatTarget.loadContext(room, {
+      markdownLayerId: "doc-1",
+    })
+    const prompt = markdownLayerChatTarget.buildSystemPrompt(ctx!, {})
+
+    expect(prompt).toContain("- Use pnpm, never npm.")
+  })
+
+  it("includes memory, with the ids it edits by, in the Coordinator's prompt", async () => {
+    const room = roomWithMemory()
+    const ctx = await roomChatTarget.loadContext(room, { userId: "user-1" })
+    const prompt = roomChatTarget.buildSystemPrompt(ctx!, {})
+
+    expect(prompt).toMatch(/- \[mem-[^\]]+\] Use pnpm, never npm\./)
+    expect(prompt).toContain("write_memory")
+  })
+
+  it("gives a document chat no memory write tool", () => {
+    const tools = markdownLayerChatTarget.buildTools(roomWithMemory(), {
+      markdownLayerId: "doc-1",
+    })
+
+    expect(Object.keys(tools)).not.toContain("write_memory")
   })
 })
