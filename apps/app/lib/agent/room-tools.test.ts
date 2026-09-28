@@ -24,9 +24,17 @@ function portsOver(
   collections: RoomCollections,
   terminalTabs: TerminalTabSummary[] = []
 ): RoomToolPorts {
+  const unused = async (): Promise<never> => {
+    throw new Error("not used by read_canvas")
+  }
   return {
     readDoc: async (fn) => fn(collections),
     listTerminalTabs: async () => terminalTabs,
+    readChatTranscript: unused,
+    readWorkspaceDiff: unused,
+    readWorkspaceFile: unused,
+    captureFrame: unused,
+    readFrameCapture: unused,
   }
 }
 

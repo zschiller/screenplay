@@ -3,6 +3,10 @@ import "server-only"
 import { tool, jsonSchema, type ToolSet } from "ai"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
 import { workspaceLabel } from "@/lib/workspace-label"
+import {
+  buildWorkspaceReadTools,
+  type WorkspaceReadPorts,
+} from "@/lib/agent/room-read-tools"
 import type {
   BranchData,
   ChatSessionData,
@@ -22,7 +26,7 @@ import type {
  * write through Canvas Operations inside `mutateDoc` (a server-side room
  * mutation, ADR 0001); the first tool, `read_canvas`, only reads.
  */
-export interface RoomToolPorts {
+export interface RoomToolPorts extends WorkspaceReadPorts {
   /** Read-only access to the Room's doc, as `RoomAccess.readDoc`. */
   readDoc<T>(fn: (collections: RoomCollections) => T | Promise<T>): Promise<T>
   /** The acting member's Terminal Tabs in this Room (tabs are per user). */
@@ -54,6 +58,7 @@ export function buildRoomTools(roomId: string, ports: RoomToolPorts): ToolSet {
         return summary || `Canvas ${roomId} is empty.`
       },
     }),
+    ...buildWorkspaceReadTools(ports),
   }
 }
 
