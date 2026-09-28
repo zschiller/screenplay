@@ -1,0 +1,1162 @@
+import type { Page } from "playwright-core"
+
+import { stubLogs, stubTerminal } from "../fixtures/streams"
+import { settle } from "../lib/browser"
+import {
+  canvasPanels,
+  entryState,
+  homeView,
+  showTooltip,
+  unfreeze,
+  type Screen,
+} from "../screens"
+import { DOCS_IDS } from "./world"
+
+/**
+ * The **docs screen list** — every screenshot the product docs embed
+ * (`<Screenshot name="…">` in `apps/docs/content`), in the docs world.
+ *
+ * Same shape as the design-review list (`../screens.ts`), plus a `crop`: a
+ * detail screen names the region worth reading, in CSS px of the capture, and
+ * `./frame.ts` magnifies it; a screen without one is framed as the whole
+ * window. Every screen is shot at {@link DOCS_VIEWPORT}, the size the crops are
+ * measured against.
+ */
+export interface DocsScreen extends Screen {
+  /** A fixed detail region, in CSS px of the capture. */
+  crop?: Crop
+  /**
+   * What a detail screen is *about* — a menu, a dialog, a popover — as
+   * selectors. After `prepare`, the union of the visible matches (padded) is
+   * measured and becomes the crop, so a menu that moves in a UI change is still
+   * framed whole without anyone re-measuring it. Wins over `crop` when anything
+   * matches.
+   */
+  focus?: readonly string[]
+}
+
+export type Crop = [x: number, y: number, width: number, height: number]
+
+/** Crops measured from `focus` during the last capture, by `<name>.<theme>`. */
+export const measuredCrops = new Map<string, Crop>()
+
+// Focus presets: the open surface plus the control that opened it.
+const MENU = ["[role=menu]", "button[data-state=open]"]
+const DIALOG = ["[role=dialog]", "[role=alertdialog]"]
+const POPOVER = ["[data-slot=popover-content]", "button[data-state=open]"]
+
+export const DOCS_VIEWPORT = { width: 1280, height: 800 } as const
+/** For a dialog or menu too tall for {@link DOCS_VIEWPORT} to show unscrolled. */
+const TALL_VIEWPORT = { width: 1280, height: 1200 } as const
+
+const ids = DOCS_IDS
+const ROOM = `/${ids.rooms.northwind}`
+const PLAY = `/play/${ids.rooms.northwind}/${ids.branches.hero}?route=/`
+
+/** Camera presets for the Northwind canvas (canvas-container px and zoom). */
+const VIEW = {
+  overview: { x: 48, y: 110, zoom: 0.262 },
+  hero: { x: 16, y: 80, zoom: 0.31 },
+  frameCloseUp: { x: 60, y: 96, zoom: 0.62 },
+  pricing: { x: 16, y: -250, zoom: 0.31 },
+  document: { x: -1080, y: -600, zoom: 0.62 },
+  documentEdit: { x: -1150, y: -700, zoom: 0.8 },
+} as const
+
+// Panel widths are percentages of the window: a 240px sidebar and a 420px chat.
+const SIDEBAR_ONLY = canvasPanels({ sidebarPct: 18.75 })
+const WITH_CHAT = canvasPanels({ sidebarPct: 18.75, chatPct: 32.8 })
+
+/** A docs screen: the docs viewport, and a `focus` measured after `prepare`. */
+const screen = (s: DocsScreen): DocsScreen => {
+  if (!s.focus) return { viewport: DOCS_VIEWPORT, ...s }
+  const focus = s.focus
+  return {
+    viewport: DOCS_VIEWPORT,
+    ...s,
+    prepare: async (page) => {
+      await s.prepare?.(page)
+      await sleep(page, 300)
+      const measured = await measureFocus(page, focus)
+      // Grow the hand-set crop to take in the focus, never shrink it: the
+      // hand-set region carries the context around the surface.
+      const crop = measured && s.crop ? union(measured, s.crop) : measured
+      const theme = (await page.evaluate(
+        `document.documentElement.classList.contains("dark") ? "dark" : "light"`
+      )) as string
+      if (crop) measuredCrops.set(`${s.name}.${theme}`, crop)
+    },
+  }
+}
+
+function union(a: Crop, b: Crop): Crop {
+  const x = Math.min(a[0], b[0])
+  const y = Math.min(a[1], b[1])
+  return [
+    x,
+    y,
+    Math.max(a[0] + a[2], b[0] + b[2]) - x,
+    Math.max(a[1] + a[3], b[1] + b[3]) - y,
+  ]
+}
+
+/** Padding around a measured focus, and the smallest crop worth magnifying. */
+const FOCUS_PAD = 40
+const MIN_CROP = { width: 440, height: 280 }
+
+async function measureFocus(
+  page: Page,
+  selectors: readonly string[]
+): Promise<Crop | null> {
+  const rect = (await page.evaluate(
+    `(() => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+      for (const el of document.querySelectorAll(${JSON.stringify(selectors.join(","))})) {
+        const r = el.getBoundingClientRect()
+        const style = getComputedStyle(el)
+        if (!r.width || !r.height || style.visibility === "hidden" || style.opacity === "0") continue
+        x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top)
+        x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom)
+      }
+      return x0 === Infinity ? null : [x0, y0, x1, y1]
+    })()`
+  )) as [number, number, number, number] | null
+  if (!rect) return null
+  const { width: W, height: H } = page.viewportSize() ?? DOCS_VIEWPORT
+  let [x0, y0, x1, y1] = [
+    rect[0] - FOCUS_PAD,
+    rect[1] - FOCUS_PAD,
+    rect[2] + FOCUS_PAD,
+    rect[3] + FOCUS_PAD,
+  ]
+  // Grow a small region evenly to the minimum, then keep it on the canvas.
+  const grow = (lo: number, hi: number, min: number, max: number) => {
+    const extra = Math.max(0, min - (hi - lo)) / 2
+    lo -= extra
+    hi += extra
+    if (lo < 0) [lo, hi] = [0, hi - lo]
+    if (hi > max) [lo, hi] = [Math.max(0, lo - (hi - max)), max]
+    return [Math.round(lo), Math.round(hi)]
+  }
+  ;[x0, x1] = grow(x0, x1, MIN_CROP.width, W)
+  ;[y0, y1] = grow(y0, y1, MIN_CROP.height, H)
+  return [x0, y0, x1 - x0, y1 - y0]
+}
+
+// ---------------------------------------------------------------------------
+// Steps
+// ---------------------------------------------------------------------------
+
+const sleep = (page: Page, ms: number) => page.waitForTimeout(ms)
+
+/** Move the canvas camera (see `window.__canvasCamera` in `use-canvas-camera.ts`). */
+async function camera(
+  page: Page,
+  view: { x: number; y: number; zoom: number }
+) {
+  await page.waitForFunction("!!window.__canvasCamera", undefined, {
+    timeout: 15_000,
+  })
+  await page.evaluate(
+    `window.__canvasCamera.setTransform(${view.x}, ${view.y}, ${view.zoom})`
+  )
+  // Frames that just came into view mount and load their previews.
+  await settle(page, { freeze: false })
+}
+
+/** Centre of the first element matching `selector` whose text satisfies `match`. */
+async function centerOf(
+  page: Page,
+  selector: string,
+  match: string | null = null,
+  within?: { minX?: number; maxX?: number; maxY?: number }
+): Promise<{ x: number; y: number }> {
+  const found = await page.evaluate(
+    `(() => {
+      const match = ${JSON.stringify(match)}
+      const within = ${JSON.stringify(within ?? {})}
+      const el = [...document.querySelectorAll(${JSON.stringify(selector)})].find((e) => {
+        const r = e.getBoundingClientRect()
+        if (!r.width || !r.height) return false
+        if (within.minX != null && r.x < within.minX) return false
+        if (within.maxX != null && r.x > within.maxX) return false
+        if (within.maxY != null && r.y > within.maxY) return false
+        const text = (e.innerText || e.textContent || "").trim()
+        return match === null || text === match || text.startsWith(match)
+      })
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })()`
+  )
+  if (!found) throw new Error(`nothing matches ${selector} ${match ?? ""}`)
+  return found as { x: number; y: number }
+}
+
+async function clickAt(page: Page, at: { x: number; y: number }, wait = 800) {
+  await page.mouse.move(at.x, at.y)
+  await sleep(page, 150)
+  await page.mouse.click(at.x, at.y)
+  await sleep(page, wait)
+}
+
+async function clickMenuItem(page: Page, name: string, wait = 800) {
+  await page.getByRole("menuitem", { name }).first().click({ timeout: 10_000 })
+  await sleep(page, wait)
+}
+
+async function hoverMenuItem(page: Page, name: string) {
+  await page.getByRole("menuitem", { name }).first().hover({ timeout: 10_000 })
+  await sleep(page, 900)
+}
+
+/** Hover a home card, then open its ⋯ menu. */
+async function openCardMenu(page: Page, name: string, label: string) {
+  const at = (await page.evaluate(
+    `(() => {
+      const leaf = [...document.querySelectorAll("main *")].find(
+        (e) => e.childElementCount === 0 && e.textContent.trim() === ${JSON.stringify(name)}
+      )
+      let card = leaf
+      while (card && !card.querySelector(${JSON.stringify(`button[aria-label='${label}']`)})) card = card.parentElement
+      if (!card) return null
+      const r = card.getBoundingClientRect()
+      const b = card.querySelector(${JSON.stringify(`button[aria-label='${label}']`)}).getBoundingClientRect()
+      return { card: { x: r.x + r.width / 2, y: r.y + r.height / 2 }, button: { x: b.x + b.width / 2, y: b.y + b.height / 2 } }
+    })()`
+  )) as {
+    card: { x: number; y: number }
+    button: { x: number; y: number }
+  } | null
+  if (!at) throw new Error(`no card "${name}"`)
+  await page.mouse.move(at.card.x, at.card.y)
+  await sleep(page, 400)
+  await clickAt(page, at.button, 900)
+}
+
+const BRANCH_ROW = "[class*='group/branch-row']"
+const REPO_ROW = "[class*='group/workspace-row']"
+
+/** Hover a sidebar row whose text contains `text`. */
+async function hoverRow(page: Page, text: string, rowSelector = BRANCH_ROW) {
+  const at = (await page.evaluate(
+    `(() => {
+      const row = [...document.querySelectorAll(${JSON.stringify(rowSelector)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
+      if (!row) return null
+      const r = row.getBoundingClientRect()
+      return { x: r.x + 60, y: r.y + r.height / 2 }
+    })()`
+  )) as { x: number; y: number } | null
+  if (!at) throw new Error(`no sidebar row "${text}"`)
+  await page.mouse.move(at.x, at.y)
+  await sleep(page, 500)
+}
+
+/** Open a sidebar row's ⋯ menu. */
+async function openRowMenu(page: Page, text: string, rowSelector = BRANCH_ROW) {
+  await hoverRow(page, text, rowSelector)
+  const at = (await page.evaluate(
+    `(() => {
+      const row = [...document.querySelectorAll(${JSON.stringify(rowSelector)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
+      const btn = [...row.querySelectorAll("button")].find((b) => b.querySelector("svg.lucide-ellipsis"))
+      if (!btn) return null
+      const r = btn.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })()`
+  )) as { x: number; y: number } | null
+  if (!at) throw new Error(`no menu on row "${text}"`)
+  await clickAt(page, at, 900)
+}
+
+/** Point the chat panel at a Workspace by clicking its sidebar row. */
+async function selectWorkspace(page: Page, text: string) {
+  const at = (await page.evaluate(
+    `(() => {
+      const row = [...document.querySelectorAll(${JSON.stringify(BRANCH_ROW)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
+      if (!row) return null
+      const r = row.getBoundingClientRect()
+      return { x: r.x + 40, y: r.y + r.height / 2 }
+    })()`
+  )) as { x: number; y: number } | null
+  if (!at) throw new Error(`no Workspace "${text}"`)
+  await clickAt(page, at, 1500)
+  await settle(page, { freeze: false })
+}
+
+/** Select a frame or document by clicking its title on the canvas. */
+async function selectLayer(page: Page, title: string) {
+  await clickAt(
+    page,
+    await centerOf(page, "span,div", title, { minX: 250 }),
+    900
+  )
+}
+
+/** The selected frame's floating toolbar button, by its label. */
+const frameToolbar = (label: string) =>
+  `button[data-size='icon-xs'][aria-label='${label}']`
+
+async function clickFrameToolbar(page: Page, label: string, wait = 900) {
+  const at = await centerOf(page, frameToolbar(label), null, { minX: 250 })
+  await clickAt(page, at, wait)
+}
+
+/** A button in a frame's title bar on the canvas, by its text. */
+async function titleBarButton(page: Page, match: (text: string) => boolean) {
+  const all = (await page.evaluate(
+    `[...document.querySelectorAll("button")].map((b) => {
+      const r = b.getBoundingClientRect()
+      return { text: b.innerText.trim(), x: r.x + r.width / 2, y: r.y + r.height / 2, left: r.x, top: r.y }
+    }).filter((b) => b.left > 250 && b.left < 700 && b.top > 40 && b.top < 110)`
+  )) as Array<{ text: string; x: number; y: number }>
+  const hit = all.find((b) => match(b.text))
+  if (!hit) throw new Error("title bar button not found")
+  return hit
+}
+
+/** Click into the chat composer. */
+async function focusComposer(page: Page) {
+  const at = (await page.evaluate(
+    `(() => {
+      const r = [...document.querySelectorAll("[contenteditable=true]")]
+        .map((e) => e.getBoundingClientRect())
+        .filter((r) => r.x > 800 && r.width)
+        .pop()
+      return r ? { x: r.x + 60, y: r.y + 10 } : null
+    })()`
+  )) as { x: number; y: number } | null
+  if (!at) throw new Error("no composer")
+  await clickAt(page, at, 300)
+}
+
+/** Open the chat panel's target picker, optionally picking a target. */
+async function pickTarget(page: Page, label?: string) {
+  const at = await centerOf(
+    page,
+    "button:has(svg.lucide-chevrons-up-down)",
+    null,
+    {
+      minX: 800,
+      maxY: 40,
+    }
+  )
+  await clickAt(page, at, 1000)
+  if (label) {
+    await page
+      .locator("[cmdk-item],[role=option]")
+      .filter({ hasText: label })
+      .first()
+      .click({ timeout: 10_000 })
+    await sleep(page, 1500)
+  }
+}
+
+/** The widest preview iframe showing `pathname` (the desktop frame). */
+async function previewFrame(page: Page, pathname: string) {
+  let best:
+    | {
+        frame: import("playwright-core").Frame
+        box: { x: number; y: number; width: number; height: number }
+      }
+    | undefined
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue
+    try {
+      if (new URL(frame.url()).pathname !== pathname) continue
+      const box = await (await frame.frameElement()).boundingBox()
+      if (box && (!best || box.width > best.box.width)) best = { frame, box }
+    } catch {
+      /* a frame mid-navigation */
+    }
+  }
+  if (!best) throw new Error(`no preview frame for ${pathname}`)
+  return best
+}
+
+/** Scroll the docs world's plan card into view in the FAQ chat. */
+async function scrollToPlan(page: Page) {
+  await page.evaluate(`(() => {
+    const el = [...document.querySelectorAll("*")].find(
+      (e) => e.childElementCount === 0 && e.textContent.trim().startsWith("Add an FAQ section")
+    )
+    el && el.scrollIntoView({ block: "start" })
+  })()`)
+  await sleep(page, 800)
+}
+
+async function playHudButton(page: Page, icon: string) {
+  return centerOf(page, `button:has(svg.${icon})`)
+}
+
+// ---------------------------------------------------------------------------
+// Stream samples: a Workspace's dev server, as its logs and a terminal see it
+// ---------------------------------------------------------------------------
+
+const ESC = "\x1b["
+const sgr = (codes: string, text: string) => `${ESC}${codes}m${text}${ESC}0m`
+
+const TERMINAL_SAMPLE = [
+  `${sgr("32", "~/customer-stories")} ${sgr("1", "$")} git status -sb`,
+  `## customer-stories...origin/customer-stories`,
+  `${sgr("32", "~/customer-stories")} ${sgr("1", "$")} npm run build`,
+  "",
+  `> northwind-web@0.0.0 build`,
+  `> vite build`,
+  "",
+  `${sgr("36", "vite v7.1.3")} ${sgr("32", "building for production...")}`,
+  `${sgr("32", "✓")} 42 modules transformed.`,
+  `${sgr("90", "dist/")}index.html                 ${sgr("1;90", "0.46 kB")}`,
+  `${sgr("90", "dist/")}${sgr("35", "assets/index-C3k9aQ1x.css")}  ${sgr("1;90", "4.71 kB")}`,
+  `${sgr("90", "dist/")}${sgr("36", "assets/index-DpW2nB7e.js")}   ${sgr("1;90", "198.12 kB")}`,
+  `${sgr("32", "✓ built in 812ms")}`,
+  `${sgr("32", "~/customer-stories")} ${sgr("1", "$")} `,
+].join("\r\n")
+
+const LOGS_SAMPLE =
+  [
+    `${sgr("90", "10:42:07")} ${sgr("36", "[setup]")} ${sgr("1", "npm install")}`,
+    `${sgr("90", "10:42:19")} ${sgr("36", "[setup]")} added 64 packages in 11s`,
+    `${sgr("90", "10:42:19")} ${sgr("36", "[dev]")} ${sgr("1", "npm run dev -- --port 5174")}`,
+    `${sgr("90", "10:42:20")} ${sgr("36", "[dev]")}   ${sgr("32", "VITE v7.1.3")}  ready in ${sgr("1", "412 ms")}`,
+    `${sgr("90", "10:42:20")} ${sgr("36", "[dev]")}   ${sgr("32", "➜")}  ${sgr("1", "Local:")}   ${sgr("36", "http://localhost:5174/")}`,
+    `${sgr("90", "10:43:02")} ${sgr("36", "[dev]")} ${sgr("90", "10:43:02 AM")} ${sgr("36", "[vite]")} ${sgr("32", "hmr update")} ${sgr("90", "/src/pages/Home.jsx")}`,
+    `${sgr("90", "10:43:05")} ${sgr("36", "[dev]")} ${sgr("90", "10:43:05 AM")} ${sgr("36", "[vite]")} ${sgr("32", "hmr update")} ${sgr("90", "/src/styles.css")}`,
+  ].join("\n") + "\n"
+
+// ---------------------------------------------------------------------------
+// The list
+// ---------------------------------------------------------------------------
+
+export const DOCS_SCREENS: DocsScreen[] = [
+  // --- Home -----------------------------------------------------------------
+  screen({ name: "home-recents", description: "Home → Recents.", path: "/" }),
+  screen({
+    name: "home-all-files",
+    description: "Home → All files.",
+    path: "/files",
+  }),
+  screen({
+    name: "home-canvas-menu",
+    description: "A Canvas card's ⋯ menu.",
+    path: "/files",
+    crop: [280, 120, 640, 480],
+    focus: MENU,
+    prepare: (page) =>
+      openCardMenu(page, "Northwind marketing site", "Canvas actions"),
+  }),
+  screen({
+    name: "home-folder-menu",
+    description: "A Folder card's ⋯ menu.",
+    path: "/files",
+    crop: [560, 60, 620, 300],
+    focus: MENU,
+    prepare: (page) => openCardMenu(page, "Marketing", "Folder actions"),
+  }),
+  screen({
+    name: "home-sort-menu",
+    description: "The home sort menu.",
+    path: "/files",
+    crop: [560, 0, 720, 340],
+    focus: MENU,
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: /Last edited/ })
+        .first()
+        .click()
+      await sleep(page, 800)
+    },
+  }),
+  screen({
+    name: "home-table",
+    description: "The home grid in its table layout.",
+    path: "/files",
+    cookies: homeView("table"),
+  }),
+  screen({
+    name: "home-folder",
+    description: "Inside the Marketing folder.",
+    path: `/files/${ids.folders.marketing}`,
+  }),
+  screen({
+    name: "new-canvas-dialog",
+    description: "The New canvas dialog, with a name typed.",
+    path: "/",
+    focus: DIALOG,
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "New canvas" }).first().click()
+      await sleep(page, 900)
+      await page.keyboard.type("Q4 campaign", { delay: 20 })
+    },
+  }),
+
+  // --- Settings -------------------------------------------------------------
+  screen({
+    name: "settings",
+    description: "Settings, top.",
+    path: "/settings",
+  }),
+  screen({
+    name: "settings-bottom",
+    description: "Settings, scrolled to the end.",
+    path: "/settings",
+    prepare: async (page) => {
+      await page.mouse.move(700, 400)
+      await page.mouse.wheel(0, 2000)
+      await sleep(page, 800)
+    },
+  }),
+  screen({
+    name: "settings-presets",
+    description: "Settings → Projects: the saved presets.",
+    path: "/settings",
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New preset" })
+        .first()
+        .scrollIntoViewIfNeeded()
+      await page.evaluate(
+        `[...document.querySelectorAll("main button")].find((b) => b.innerText.trim() === "New preset")?.scrollIntoView({ block: "end" })`
+      )
+      await sleep(page, 600)
+    },
+  }),
+  screen({
+    name: "preset-form",
+    description: "Editing a Project preset.",
+    path: "/settings",
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Edit" }).first().click()
+      await sleep(page, 1200)
+      await page.evaluate(
+        `document.querySelector("main input")?.scrollIntoView({ block: "start" })`
+      )
+      await page.mouse.move(700, 400)
+      await page.mouse.wheel(0, -120)
+      await sleep(page, 600)
+    },
+  }),
+  screen({
+    name: "setup-gate",
+    description: "The first-run setup gate, with Claude Code ready.",
+    path: "/",
+    cookies: entryState("setup-agent-ready"),
+  }),
+
+  // --- Canvas and sidebar ---------------------------------------------------
+  screen({
+    name: "hero",
+    description: "The Northwind canvas with the hero Workspace's chat open.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+    },
+  }),
+  screen({
+    name: "canvas-overview",
+    description: "The whole Northwind canvas.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    prepare: (page) => camera(page, VIEW.overview),
+  }),
+  screen({
+    name: "canvas-menu",
+    description: "The Canvas breadcrumb's ⋯ menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [0, 0, 640, 300],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      const at = await centerOf(page, "button:has(svg.lucide-ellipsis)", null, {
+        minX: 250,
+        maxX: 700,
+        maxY: 40,
+      })
+      await clickAt(page, at)
+    },
+  }),
+  screen({
+    name: "add-project-menu",
+    description: "The sidebar's Add project menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [0, 0, 560, 340],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await clickAt(
+        page,
+        await centerOf(page, "button:has(svg.lucide-folder-plus)"),
+        900
+      )
+    },
+  }),
+  screen({
+    name: "configure-project",
+    viewport: TALL_VIEWPORT,
+    description: "Configure project, after picking the demo checkout.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await unfreeze(page)
+      await clickAt(
+        page,
+        await centerOf(page, "button:has(svg.lucide-folder-plus)"),
+        900
+      )
+      await clickMenuItem(page, "Open project", 1500)
+      const input = page.locator("[role=dialog] input").first()
+      await input.fill(DEMO_CHECKOUT_PATH())
+      await page
+        .locator("[role=dialog] button")
+        .filter({ hasText: /^Add$/ })
+        .first()
+        .click()
+      await page.getByText("Configure project").waitFor({ timeout: 15_000 })
+      await page
+        .getByText("Detecting settings")
+        .waitFor({ state: "detached", timeout: 15_000 })
+        .catch(() => {})
+      await sleep(page, 800)
+    },
+  }),
+  screen({
+    name: "project-menu",
+    description: "A Project row's ⋯ menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [0, 0, 640, 380],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await openRowMenu(page, "northwind-web", REPO_ROW)
+    },
+  }),
+  screen({
+    name: "project-settings",
+    viewport: TALL_VIEWPORT,
+    description: "Project settings.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await unfreeze(page)
+      await openRowMenu(page, "northwind-web", REPO_ROW)
+      await clickMenuItem(page, "Settings", 1500)
+    },
+  }),
+  screen({
+    name: "ws-menu",
+    description: "A Workspace row's ⋯ menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [0, 40, 620, 480],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await openRowMenu(page, "hero-gradient")
+    },
+  }),
+  screen({
+    name: "ws-restart",
+    description: "The Workspace menu's Restart submenu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [0, 40, 720, 460],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await openRowMenu(page, "hero-gradient")
+      await hoverMenuItem(page, "Restart")
+    },
+  }),
+  screen({
+    name: "recreate-dialog",
+    description: "Recreate from scratch, confirming.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await unfreeze(page)
+      await openRowMenu(page, "hero-gradient")
+      await hoverMenuItem(page, "Restart")
+      await clickMenuItem(page, "Recreate from scratch", 1200)
+    },
+  }),
+  screen({
+    name: "ws-color",
+    viewport: TALL_VIEWPORT,
+    description: "The Workspace menu's Color submenu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [0, 40, 700, 500],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await openRowMenu(page, "hero-gradient")
+      await hoverMenuItem(page, "Color")
+    },
+  }),
+  screen({
+    name: "delete-branch-dialog",
+    description: "Deleting a Workspace.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await unfreeze(page)
+      await openRowMenu(page, "customer-stories")
+      await clickMenuItem(page, "Delete", 1200)
+    },
+  }),
+  screen({
+    name: "new-workspace-multi",
+    description: "New Workspace, with two branches to create.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await hoverRow(page, "northwind-web", REPO_ROW)
+      await page.getByRole("button", { name: "New Workspace" }).first().click()
+      await sleep(page, 1500)
+      await page.locator("[role=dialog] [contenteditable=true]").first().click()
+      await page.keyboard.type(
+        "Add a monthly/annual toggle to the pricing page with 20% off annual plans",
+        { delay: 2 }
+      )
+      await page
+        .locator("[role=dialog] button")
+        .filter({ hasText: "Add another" })
+        .first()
+        .click()
+      await sleep(page, 800)
+      await page.keyboard.type("Redesign the customer quotes as a carousel", {
+        delay: 2,
+      })
+      await sleep(page, 400)
+    },
+  }),
+
+  // --- Frames ---------------------------------------------------------------
+  screen({
+    name: "frame-selected",
+    description: "A selected frame, with its toolbar.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+    },
+  }),
+  screen({
+    name: "frame-tooltip-interact",
+    description: "The frame toolbar's Interact tooltip.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [760, 40, 520, 340],
+    focus: ["[data-slot=tooltip-content]", "button[aria-label=Interact]"],
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+      await page.mouse.move(
+        ...xy(await centerOf(page, frameToolbar("Interact")))
+      )
+      await showTooltip(page)
+    },
+  }),
+  screen({
+    name: "frame-more-menu",
+    description: "The frame toolbar's ⋯ menu.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [560, 60, 640, 420],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+      await clickFrameToolbar(page, "More")
+    },
+  }),
+  screen({
+    name: "device-size-menu",
+    viewport: TALL_VIEWPORT,
+    description: "The frame menu's Device size submenu.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [560, 40, 640, 440],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+      await clickFrameToolbar(page, "More")
+      await hoverMenuItem(page, "Device size")
+    },
+  }),
+  screen({
+    name: "knobs-popover",
+    description: "The Knobs popover for the Home frame.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [560, 60, 620, 460],
+    focus: POPOVER,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+      await clickFrameToolbar(page, "Knobs", 1500)
+    },
+  }),
+  screen({
+    name: "route-picker",
+    description: "A frame's route picker.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [250, 40, 560, 340],
+    focus: POPOVER,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+      await clickAt(page, await titleBarButton(page, (t) => t === "/"), 900)
+    },
+  }),
+  screen({
+    name: "frame-branch-picker",
+    description: "A frame's Workspace picker.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [250, 40, 560, 340],
+    focus: POPOVER,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+      await clickAt(
+        page,
+        await titleBarButton(page, (t) => t.startsWith("h")),
+        900
+      )
+    },
+  }),
+  screen({
+    name: "frame-tool",
+    description: "The Frame tool, about to draw.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await page.keyboard.press("f")
+      await page.mouse.move(640, 700)
+      await sleep(page, 400)
+    },
+  }),
+
+  // --- Agent panel ------------------------------------------------------------
+  screen({
+    name: "target-picker",
+    description: "The chat panel's target picker.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [700, 0, 580, 380],
+    focus: POPOVER,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+      await pickTarget(page)
+    },
+  }),
+  screen({
+    name: "new-tab-menu",
+    description: "The chat panel's New chat or terminal menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [820, 0, 460, 260],
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+      await page
+        .getByRole("button", { name: "New chat or terminal" })
+        .first()
+        .click()
+      await sleep(page, 900)
+    },
+  }),
+  screen({
+    name: "composer-mention",
+    description: "The composer's @ mention menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [850, 480, 430, 320],
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+      await focusComposer(page)
+      await page.keyboard.type("Match the headline style on ", { delay: 5 })
+      await page.keyboard.type("@")
+      await sleep(page, 1200)
+    },
+  }),
+  screen({
+    name: "composer-skills",
+    description: "The composer's / skills menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [860, 440, 420, 360],
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+      await focusComposer(page)
+      await page.keyboard.type("/")
+      await sleep(page, 1500)
+    },
+  }),
+  screen({
+    name: "target-picking",
+    description: "Element targeting: hovering a button in the Home frame.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+      await focusComposer(page)
+      await page.keyboard.type("Make ", { delay: 5 })
+      await pointAtStartTrial(page, false)
+    },
+  }),
+  screen({
+    name: "composer-element-hover",
+    description: "A targeted element in the composer, hovered.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [850, 480, 430, 320],
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+      await focusComposer(page)
+      await page.keyboard.type("Make ", { delay: 5 })
+      await pointAtStartTrial(page, true)
+      await page.keyboard.type(
+        " bigger and add an arrow icon after the label",
+        { delay: 8 }
+      )
+      await sleep(page, 600)
+      const token = page
+        .locator(
+          "[data-type='element-token'], span[data-element-token], .element-token"
+        )
+        .first()
+      if (await token.count()) {
+        await token.hover()
+        await sleep(page, 1000)
+      }
+    },
+  }),
+  screen({
+    name: "logs",
+    description: "A Workspace's sandbox logs.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    beforeNavigate: (page) => stubLogs(page, "reconnecting", LOGS_SAMPLE),
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "hero-gradient")
+      await page.getByRole("tab", { name: "Sandbox logs" }).first().click()
+      await sleep(page, 2500)
+    },
+  }),
+  screen({
+    name: "plan-card",
+    description: "The approved plan in the Pricing FAQ chat.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    prepare: async (page) => {
+      await camera(page, VIEW.pricing)
+      await selectWorkspace(page, "pricing-faq")
+      await scrollToPlan(page)
+    },
+  }),
+  screen({
+    name: "doc-chat",
+    description: "A chat about the launch checklist document.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    prepare: async (page) => {
+      await camera(page, VIEW.document)
+      await pickTarget(page, "Pricing launch checklist")
+    },
+  }),
+  screen({
+    name: "doc-selection-toolbar",
+    description: "Editing the document: the selection toolbar.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [400, 150, 860, 480],
+    prepare: async (page) => {
+      await camera(page, VIEW.documentEdit)
+      const line = await centerOf(page, "li p, li", "Annual toggle QA")
+      const at = { x: line.x - 120, y: line.y }
+      await page.mouse.click(at.x, at.y, { clickCount: 2 })
+      await sleep(page, 1200)
+      await page.mouse.click(at.x, at.y, { clickCount: 3 })
+      await sleep(page, 1000)
+    },
+  }),
+  screen({
+    name: "terminal",
+    description: "A terminal tab in a Workspace.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    beforeNavigate: (page) => stubTerminal(page, TERMINAL_SAMPLE),
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await selectWorkspace(page, "customer-stories")
+      await page
+        .getByRole("button", { name: "New chat or terminal" })
+        .first()
+        .click()
+      await page
+        .getByRole("menuitem")
+        .filter({ hasNotText: "New chat" })
+        .first()
+        .click()
+      await page.mouse.move(0, 0)
+      await sleep(page, 2500)
+    },
+  }),
+
+  // --- Play mode --------------------------------------------------------------
+  screen({
+    name: "play-desktop",
+    description: "Play mode, desktop.",
+    path: PLAY,
+  }),
+  screen({
+    name: "play-hud",
+    description: "Play mode's HUD, hovered.",
+    path: PLAY,
+    crop: [760, 440, 520, 360],
+    prepare: async (page) => {
+      await page.mouse.move(
+        ...xy(await playHudButton(page, "lucide-sliders-horizontal"))
+      )
+      await sleep(page, 900)
+    },
+  }),
+  screen({
+    name: "play-knobs",
+    description: "Play mode's Knobs panel.",
+    path: PLAY,
+    crop: [700, 300, 580, 500],
+    focus: POPOVER,
+    prepare: async (page) => {
+      await clickAt(
+        page,
+        await playHudButton(page, "lucide-sliders-horizontal"),
+        1200
+      )
+    },
+  }),
+  screen({
+    name: "play-agent",
+    description: "Play mode's agent panel.",
+    path: PLAY,
+    prepare: async (page) => {
+      await clickAt(
+        page,
+        await playHudButton(page, "lucide-messages-square"),
+        2500
+      )
+    },
+  }),
+  screen({
+    name: "play-device-menu",
+    description: "Play mode's device menu.",
+    path: PLAY,
+    crop: [760, 360, 520, 440],
+    focus: MENU,
+    prepare: async (page) => {
+      await clickAt(
+        page,
+        await centerOf(page, "button[aria-label^='Device']"),
+        900
+      )
+    },
+  }),
+  screen({
+    name: "play-mobile",
+    description: "Play mode on an iPhone 17 Pro.",
+    path: PLAY,
+    prepare: async (page) => {
+      await unfreeze(page)
+      await clickAt(
+        page,
+        await centerOf(page, "button[aria-label^='Device']"),
+        900
+      )
+      await page
+        .locator("[role=option],[role=menuitem],[role=menuitemradio]")
+        .filter({ hasText: "iPhone 17 Pro" })
+        .first()
+        .click()
+      await sleep(page, 3000)
+      await page.mouse.move(640, 790)
+      await sleep(page, 500)
+    },
+  }),
+]
+
+/** Pick the Home frame's "Start free trial" button with the element-target tool. */
+async function pointAtStartTrial(page: Page, click: boolean) {
+  await clickAt(
+    page,
+    await centerOf(page, "button:has(svg.lucide-crosshair)"),
+    1000
+  )
+  const { frame, box } = await previewFrame(page, "/")
+  const target = (await frame.evaluate(
+    `(() => {
+      const a = [...document.querySelectorAll("a")].find((a) => a.textContent.includes("Start free trial"))
+      const r = a.getBoundingClientRect()
+      return [r.x + r.width / 2, r.y + r.height / 2]
+    })()`
+  )) as [number, number]
+  const scale = box.width / 1280
+  const at = { x: box.x + target[0] * scale, y: box.y + target[1] * scale }
+  await page.mouse.move(at.x, at.y)
+  await sleep(page, 900)
+  if (click) {
+    await page.mouse.click(at.x, at.y)
+    await sleep(page, 1200)
+  }
+}
+
+const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y]
+
+/**
+ * The demo checkout the Configure project screen opens. Set by the docs run
+ * (`../bin/docs.ts`), which creates it under the docs state dir.
+ */
+let demoCheckoutPath = ""
+export function setDemoCheckoutPath(path: string): void {
+  demoCheckoutPath = path
+}
+const DEMO_CHECKOUT_PATH = () => demoCheckoutPath
+
+/** Look up screens by name, preserving list order. Throws on an unknown name. */
+export function selectDocsScreens(names: readonly string[]): DocsScreen[] {
+  if (names.length === 0) return DOCS_SCREENS
+  const unknown = names.filter(
+    (name) => !DOCS_SCREENS.some((s) => s.name === name)
+  )
+  if (unknown.length > 0) {
+    throw new Error(
+      `unknown screen(s): ${unknown.join(", ")}\nknown screens: ${DOCS_SCREENS.map((s) => s.name).join(", ")}`
+    )
+  }
+  return DOCS_SCREENS.filter((s) => names.includes(s.name))
+}

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process"
 
 import { captureEnv, type CaptureProfile } from "../profile"
-import { startPreviewServer } from "./preview-server"
+import { startPreviewServer, type PreviewServerHandle } from "./preview-server"
 
 /**
  * Booting and reaching the local build for a capture run.
@@ -186,15 +186,21 @@ export interface CaptureStack {
  */
 export async function startCaptureStack(
   profile: CaptureProfile,
-  opts: { log?: (message: string) => void; quiet?: boolean } = {}
+  opts: {
+    log?: (message: string) => void
+    quiet?: boolean
+    /**
+     * Starts whatever serves the Workspaces' previews. Defaults to the fixture
+     * preview server; the docs set serves its demo site instead.
+     */
+    startPreview?: (profile: CaptureProfile) => Promise<PreviewServerHandle>
+  } = {}
 ): Promise<CaptureStack> {
   const log = opts.log ?? ((m: string) => console.log(m))
-  const preview = await startPreviewServer(
-    profile.previewOrigin,
-    profile.previewPort
-  )
-  if (preview.started)
-    log(`• serving fixture previews on ${profile.previewOrigin}`)
+  const preview = opts.startPreview
+    ? await opts.startPreview(profile)
+    : await startPreviewServer(profile.previewOrigin, profile.previewPort)
+  if (preview.started) log(`• serving previews on ${preview.origin}`)
 
   try {
     const app = await startServer(profile, opts)

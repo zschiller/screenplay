@@ -1,3 +1,0 @@
-#!/bin/sh
-# Thumbnail capture launches Chromium; when running as root it needs --no-sandbox.
-exec "$DOCS_CHROME" --no-sandbox "$@"

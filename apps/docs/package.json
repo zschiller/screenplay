@@ -10,7 +10,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "screenshots": "node scripts/screenshots/run.mjs all"
+    "screenshots": "pnpm --filter app screenshots:docs"
   },
   "dependencies": {
     "next": "16.2.9",

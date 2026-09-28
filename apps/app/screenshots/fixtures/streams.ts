@@ -77,7 +77,10 @@ export const LOGS_SAMPLE =
  * a WebSocket to it answers the client's handshake with {@link TERMINAL_SAMPLE}
  * — ttyd's wire protocol, spoken by the page's own stub instead of a PTY.
  */
-export async function stubTerminal(page: Page): Promise<void> {
+export async function stubTerminal(
+  page: Page,
+  sample: string = TERMINAL_SAMPLE
+): Promise<void> {
   // Never dialled: the WebSocket route below answers without connecting out.
   const fakeUrl = "http://127.0.0.1:1/__fixture-terminal"
   await page.route("**/api/terminal/url", (route) =>
@@ -89,7 +92,7 @@ export async function stubTerminal(page: Page): Promise<void> {
       // The first frame is the handshake; answer it once with the sample.
       if (greeted) return
       greeted = true
-      ws.send(Buffer.from(encodeOutput(TERMINAL_SAMPLE)))
+      ws.send(Buffer.from(encodeOutput(sample)))
     })
   })
 }
@@ -105,7 +108,11 @@ export async function stubTerminal(page: Page): Promise<void> {
  */
 export type LogsStub = "reconnecting" | "error"
 
-export async function stubLogs(page: Page, mode: LogsStub): Promise<void> {
+export async function stubLogs(
+  page: Page,
+  mode: LogsStub,
+  sample: string = LOGS_SAMPLE
+): Promise<void> {
   await page.route("**/api/sandbox/*/logs**", (route) => {
     if (mode === "error") {
       return route.fulfill({ status: 502, body: "Bad Gateway" })
@@ -114,7 +121,7 @@ export async function stubLogs(page: Page, mode: LogsStub): Promise<void> {
       return route.fulfill({
         status: 200,
         contentType: "text/plain; charset=utf-8",
-        body: LOGS_SAMPLE,
+        body: sample,
       })
     }
     // Leave it pending: the reconnect never lands while the shot is taken.

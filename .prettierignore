@@ -5,3 +5,6 @@ node_modules/
 coverage/
 pnpm-lock.yaml
 .pnpm-store/
+# The docs demo site: its Workspace edits find-and-replace exact source text
+# (apps/app/screenshots/docs/demo-site.ts), so reformatting would break them.
+apps/app/screenshots/docs/northwind/

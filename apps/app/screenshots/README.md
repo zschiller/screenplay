@@ -10,6 +10,7 @@ pnpm screenshots:boot       # seed a fresh world, serve it at :3947
 pnpm screenshots:shots      # every named screen, light and dark
 pnpm screenshots:video open-canvas
 pnpm screenshots:shots --hosted   # the hosted build's screens (comments)
+pnpm screenshots:docs       # regenerate the product docs' screenshots
 ```
 
 ## What's here
@@ -26,7 +27,8 @@ pnpm screenshots:shots --hosted   # the hosted build's screens (comments)
 | `lib/capture.ts`             | Runs a capture set; one context per screen-and-theme.                                                           |
 | `lib/hosted.ts`              | The signed-in session a `--hosted` capture runs as (comments live only in the hosted build).                    |
 | `lib/server.ts`              | Boots (or reuses) the app and the preview server.                                                               |
-| `bin/`                       | The four entry points behind the `screenshots:*` package scripts.                                               |
+| `bin/`                       | The entry points behind the `screenshots:*` package scripts.                                                    |
+| `docs/`                      | The **docs set**: the Northwind world, its demo-site previews, the docs screen list, and the framing step.      |
 | `sample/`                    | A committed sample capture set — proof the harness works, not an input.                                         |
 
 Runtime state and capture output land in `apps/app/.screenshots/`, which is
