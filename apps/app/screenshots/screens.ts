@@ -977,13 +977,17 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-frame-interacting",
     description:
-      "Double-clicking a frame's body: the frame enters interaction, with its ring and the Esc hint under it.",
+      "Double-clicking a frame's body: the frame enters interaction, with its ring and the toolbar's pressed Interact button, hovered for its Back to canvas (Esc) tooltip.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       const frame = checkoutDesktopFrame(page)
       await frame.waitFor({ state: "visible", timeout: 15_000 })
       await frame.dblclick({ timeout: 15_000 })
-      await page.mouse.move(5, 5)
+      await page
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: "Back to canvas" })
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
     },
     settleMs: 400,
   },

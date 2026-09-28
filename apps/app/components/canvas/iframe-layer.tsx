@@ -29,7 +29,6 @@ import {
   FloatingToolbarButton,
   FloatingToolbarSeparator,
 } from "@workspace/ui/components/floating-toolbar"
-import { Kbd } from "@workspace/ui/components/kbd"
 import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
@@ -97,11 +96,9 @@ const MAX_PLACEHOLDER_RELOADS = 10
 
 // A selected frame's floating toolbar hangs centred under the frame, like
 // Safari's bottom bar (issue #795). Screen px: its gap below the frame, the
-// extra drop that clears the Interacting tag (8px margin + 20px tag + gap),
-// the canvas toolbar strip it stays above when the frame runs off screen, and
-// its inset from the canvas's side edges.
+// canvas toolbar strip it stays above when the frame runs off screen, and its
+// inset from the canvas's side edges.
 const FRAME_TOOLBAR_GAP = 8
-const INTERACTING_TAG_CLEARANCE = 28
 const CANVAS_TOOLBAR_STRIP = 48
 const FRAME_TOOLBAR_INSET = 8
 
@@ -506,9 +503,9 @@ export function IframeLayer({
   const toolbarVisible =
     !!iframeLayer.branchId && showToolbar && !!toolbarPortalTarget
 
-  // Keep the portaled toolbar centred under the frame (below the Interacting
-  // tag while it shows). When the frame's bottom is off screen the toolbar
-  // stops above the canvas toolbar, and it never slides off the sides.
+  // Keep the portaled toolbar centred under the frame. When the frame's bottom
+  // is off screen the toolbar stops above the canvas toolbar, and it never
+  // slides off the sides.
   useCanvasAnchoredPortal({
     enabled: toolbarVisible,
     anchorRef: frameRef,
@@ -516,7 +513,6 @@ export function IframeLayer({
     getOffset: (fr, cw) => {
       const width = toolbarRef.current?.offsetWidth ?? 0
       const height = toolbarRef.current?.offsetHeight ?? 0
-      const drop = FRAME_TOOLBAR_GAP + (focused ? INTERACTING_TAG_CLEARANCE : 0)
       const centred = fr.left - cw.left + (fr.width - width) / 2
       return {
         x: Math.max(
@@ -524,7 +520,7 @@ export function IframeLayer({
           Math.min(centred, cw.width - width - FRAME_TOOLBAR_INSET)
         ),
         y: Math.min(
-          fr.bottom - cw.top + drop,
+          fr.bottom - cw.top + FRAME_TOOLBAR_GAP,
           cw.height - CANVAS_TOOLBAR_STRIP - height
         ),
       }
@@ -906,6 +902,7 @@ export function IframeLayer({
               >
                 <FloatingToolbarButton
                   label={focused ? "Back to canvas" : "Interact"}
+                  shortcut={focused ? ["Esc"] : undefined}
                   pressed={focused}
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
                 >
@@ -1139,29 +1136,6 @@ export function IframeLayer({
               />
             )}
           </div>
-          {focused && (
-            // The interacting tag: a small label in the selection colour,
-            // hung under the ring like a canvas size tag, so the mode reads
-            // as part of the selection rather than another floating control.
-            // Counter-scaled like the title bar so it stays one screen size
-            // at any zoom; the margin clears the bottom resize handle. The key
-            // sits 2px in from the tag's edge, so its radius is the tag's
-            // minus 2px and the corners stay concentric.
-            <div
-              data-interacting-hint=""
-              className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-2xs leading-4 font-medium whitespace-nowrap text-white"
-              style={{
-                transform: `translateX(-50%) scale(${1 / zoom})`,
-                transformOrigin: "top center",
-                marginTop: 8 / zoom,
-              }}
-            >
-              Interacting
-              <Kbd className="h-4 min-w-4 rounded-[calc(var(--radius-sm)-2px)] bg-white/20 px-1 text-3xs text-white">
-                Esc
-              </Kbd>
-            </div>
-          )}
         </>
       )}
     </LayerShell>
