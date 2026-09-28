@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   // feedback.
   const message = planResolutionText({ approved, feedback })
   const result = await launchTurn(
-    liveTurnLaunchDeps,
+    liveTurnLaunchDeps(room),
     {
       roomId,
       chatId,
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       model: chat.model,
       planDecision: { planId, approved, feedback },
     },
-    planResumeTurn({ roomId, userId, message, chat })
+    planResumeTurn({ room, userId, message, chat })
   )
   // Nothing was still pending: a double-submit, or a gate a /stop or a
   // follow-up message already resolved.

@@ -1,7 +1,7 @@
 import "server-only"
 
 import { tool, jsonSchema } from "ai"
-import { mutateRoomDoc } from "@/lib/yjs/server"
+import type { RoomDoc } from "@/lib/room-access"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -15,13 +15,14 @@ import {
  * longer kind-private; it lives in `layer-read-tools.ts` and is mixed into
  * every chat target's toolset so any chat can follow `@<title>` mentions.
  *
- * Every mutation goes through `mutateRoomDoc` so concurrent edits from the
+ * Every mutation goes through the turn's `room.mutateDoc` so concurrent edits from the
  * agent and the human sit on the same Yjs CRDT — the human's keystrokes
  * never get clobbered, and a write applied while the user is typing just
  * merges in.
  */
 export interface MarkdownLayerToolContext {
-  roomId: string
+  /** The turn's Room, opened through Room Access by the agent route. */
+  room: RoomDoc
   /** The document the chat is targeting. */
   markdownLayerId: string
 }
@@ -38,7 +39,7 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
       }),
       execute: async (input) => {
         const content = (input as { content: string }).content
-        await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
+        await ctx.room.mutateDoc(({ doc, markdownLayers }) => {
           if (!markdownLayers.get(ctx.markdownLayerId)) return
           const fragment = documentFragment(doc, ctx.markdownLayerId)
           replaceFragmentBodyPreservingTitle(fragment, content)
@@ -57,7 +58,7 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
       }),
       execute: async (input) => {
         const content = (input as { content: string }).content
-        await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
+        await ctx.room.mutateDoc(({ doc, markdownLayers }) => {
           if (!markdownLayers.get(ctx.markdownLayerId)) return
           const fragment = documentFragment(doc, ctx.markdownLayerId)
           // Re-derive the existing body (excluding the title) and concatenate.
@@ -83,7 +84,7 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
       }),
       execute: async (input) => {
         const title = (input as { title: string }).title
-        await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
+        await ctx.room.mutateDoc(({ doc, markdownLayers }) => {
           if (!markdownLayers.get(ctx.markdownLayerId)) return
           // The title heading inside the body is the source of truth — write
           // there and mirror onto the cached `title` field so non-editor

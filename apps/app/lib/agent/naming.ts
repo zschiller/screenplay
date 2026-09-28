@@ -1,7 +1,7 @@
 import "server-only"
 
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomReader } from "@/lib/room-access"
 import { deriveFallbackName } from "./fallback-name"
 import { runOneShotModel } from "./one-shot-model"
 
@@ -96,12 +96,12 @@ export async function generateChatNames(
  * just lifted out so we don't reach into the v1 route file.
  */
 export async function deduplicateBranchName(
-  roomId: string,
+  room: RoomReader,
   branchName: string,
   userId: string
 ): Promise<string> {
   try {
-    const repo = await readRoomDoc(roomId, ({ repos }) => {
+    const repo = await room.readDoc(({ repos }) => {
       const firstRepo = repos.toArray()[0]
       if (!firstRepo) return null
       return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }

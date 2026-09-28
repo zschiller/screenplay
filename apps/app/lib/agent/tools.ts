@@ -6,7 +6,11 @@ import { z } from "zod"
 import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
 import { createGitHubPr } from "@/lib/github-pr"
-import { getGitHubTokenForUser, getGitIdentityForUser } from "@/lib/auth-helpers"
+import type { RoomDoc } from "@/lib/room-access"
+import {
+  getGitHubTokenForUser,
+  getGitIdentityForUser,
+} from "@/lib/auth-helpers"
 import { getSkill, getSkillIndex } from "@/lib/skills"
 import {
   enumerateRepoSkills,
@@ -35,7 +39,8 @@ import {
  */
 export interface ToolContext {
   sandboxName: string
-  roomId: string
+  /** The turn's Room, opened through Room Access by the agent route. */
+  room: RoomDoc
   userId: string
 }
 
@@ -243,7 +248,7 @@ export function buildSandboxTools(ctx: ToolContext) {
         try {
           const { url, number } = await createGitHubPr({
             userId: ctx.userId,
-            roomId: ctx.roomId,
+            room: ctx.room,
             sandboxName: ctx.sandboxName,
             title,
             body,

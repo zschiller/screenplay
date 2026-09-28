@@ -8,6 +8,7 @@ import {
   type FrameCapture,
   type ThumbnailManifest,
 } from "./manifest"
+import type { RoomReader } from "@/lib/room-access"
 import { readRoomCaptureLayout } from "./room-layout"
 import { thumbnailCapturer, type ThumbnailCapturer } from "./capturer"
 
@@ -88,12 +89,13 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
  * opening no browser at all.
  */
 export async function captureRoomThumbnail(
-  roomId: string,
+  room: RoomReader,
   capturer: ThumbnailCapturer = thumbnailCapturer,
   options?: { frameIds?: readonly string[] }
 ): Promise<ThumbnailManifest> {
+  const { roomId } = room
   const [{ layouts, frames }, previousRoom] = await Promise.all([
-    readRoomCaptureLayout(roomId),
+    readRoomCaptureLayout(room),
     getRoom(roomId),
   ])
 
@@ -166,7 +168,12 @@ export async function captureRoomThumbnail(
   }
 
   const previousManifest = previousRoom?.thumbnailManifest ?? null
-  const manifest = buildThumbnailManifest(layouts, frames, captures, previousManifest)
+  const manifest = buildThumbnailManifest(
+    layouts,
+    frames,
+    captures,
+    previousManifest
+  )
   // A layout-only round (empty subset, no browser) rewrites just the rects, so
   // it must not bump the capture clock — otherwise a stream of layout writes
   // would starve the route's capture cooldown (#474). Any round that could have
@@ -181,7 +188,11 @@ export async function captureRoomThumbnail(
   // — doesn't bump the revision and thrash the home grid's poll on every chat
   // token. (The local watcher already filters to layout collections; this is the
   // matching guard for the webhook.)
-  if (layoutOnly && previousManifest && sameLayout(previousManifest, manifest)) {
+  if (
+    layoutOnly &&
+    previousManifest &&
+    sameLayout(previousManifest, manifest)
+  ) {
     return previousManifest
   }
 

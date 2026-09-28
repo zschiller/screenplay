@@ -1,7 +1,7 @@
-import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
+import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { deriveFallbackName } from "@/lib/agent/fallback-name"
 import { runOneShotModel } from "@/lib/agent/one-shot-model"
-import { readRoomDoc } from "@/lib/yjs/server"
+import { openRoomForRoute } from "@/lib/room-access"
 
 export const runtime = "nodejs"
 
@@ -93,22 +93,25 @@ async function branchExistsOnGitHub(
 }
 
 export async function POST(req: Request) {
-  const userId = await getUserId()
-  if (!userId) return new Response("Unauthorized", { status: 401 })
-
   const body = (await req.json()) as RequestBody
   const { roomId, prompts } = body
   if (!roomId || !Array.isArray(prompts) || prompts.length === 0) {
     return new Response("Missing required fields", { status: 400 })
   }
 
+  const room = await openRoomForRoute(roomId)
+  if (room instanceof Response) return room
+  const { userId } = room
+
   const generated = await Promise.all(prompts.map((p) => generateOne(p.trim())))
 
-  const repo = await readRoomDoc(roomId, ({ repos }) => {
-    const firstRepo = repos.toArray()[0]
-    if (!firstRepo) return null
-    return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }
-  }).catch(() => null)
+  const repo = await room
+    .readDoc(({ repos }) => {
+      const firstRepo = repos.toArray()[0]
+      if (!firstRepo) return null
+      return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }
+    })
+    .catch(() => null)
   const token = await getGitHubTokenForUser(userId)
 
   const taken = new Set<string>()

@@ -4,7 +4,7 @@ import {
   computeIframeLayerLayouts,
   type IframeLayerLayoutMap,
 } from "@/lib/canvas/layout"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomReader } from "@/lib/room-access"
 
 /**
  * One layer as the capture path sees it: its label (for the manifest), the live
@@ -41,14 +41,18 @@ export type RoomCaptureLayout = {
 }
 
 export async function readRoomCaptureLayout(
-  roomId: string
+  room: RoomReader
 ): Promise<RoomCaptureLayout> {
-  return readRoomDoc(roomId, (c) => {
+  return room.readDoc((c) => {
     const branches = c.branches.toMap()
     const iframeLayers = c.iframeLayers.toArray()
     const markdownLayers = c.markdownLayers.toArray()
     const groups = c.iframeLayerGroups.toArray()
-    const layouts = computeIframeLayerLayouts(groups, iframeLayers, markdownLayers)
+    const layouts = computeIframeLayerLayouts(
+      groups,
+      iframeLayers,
+      markdownLayers
+    )
     const iframeFrames: CaptureFrame[] = iframeLayers.map((a) => {
       const branch = a.branchId ? branches.get(a.branchId) : undefined
       const previewDomain = branch?.previewDomain

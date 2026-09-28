@@ -1,7 +1,7 @@
 import "server-only"
 
 import { tool, jsonSchema } from "ai"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomReader } from "@/lib/room-access"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -18,7 +18,7 @@ import {
  * write-side mutators stay private to each target's own toolset.
  */
 export interface LayerReadToolContext {
-  roomId: string
+  room: RoomReader
 }
 
 export function buildLayerReadTools(ctx: LayerReadToolContext) {
@@ -33,19 +33,16 @@ export function buildLayerReadTools(ctx: LayerReadToolContext) {
       }),
       execute: async (input) => {
         const id = (input as { id: string }).id
-        const result = await readRoomDoc(
-          ctx.roomId,
-          ({ markdownLayers, doc }) => {
-            const layer = markdownLayers.get(id)
-            if (!layer) return null
-            const fragment = documentFragment(doc, id)
-            return {
-              id,
-              title: layer.title,
-              body: fragmentBodyToPlainText(fragment),
-            }
+        const result = await ctx.room.readDoc(({ markdownLayers, doc }) => {
+          const layer = markdownLayers.get(id)
+          if (!layer) return null
+          const fragment = documentFragment(doc, id)
+          return {
+            id,
+            title: layer.title,
+            body: fragmentBodyToPlainText(fragment),
           }
-        )
+        })
         if (!result) return `Document not found: ${id}`
         return [
           `# ${result.title || "Untitled"}`,

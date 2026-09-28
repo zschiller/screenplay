@@ -14,8 +14,7 @@ import {
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
 import { isLocalBuild } from "@/lib/local-mode"
-import { openRoom, type RoomAccess } from "@/lib/room-access"
-import { mutateRoomDoc } from "@/lib/yjs/server"
+import { openRoom, type RoomAccess, type RoomDoc } from "@/lib/room-access"
 
 /**
  * **Comments**: the server side of comment threads. Every operation opens the
@@ -159,8 +158,8 @@ type ThreadRow = typeof schema.thread.$inferSelect
  * the thread list. Used for create/edit/delete/resolve. Server-side only so
  * we never trust client-bumped versions.
  */
-async function signalContentChange(roomId: string) {
-  await mutateRoomDoc(roomId, ({ doc }) => bumpCommentsRevision(doc))
+async function signalContentChange(room: RoomDoc) {
+  await room.mutateDoc(({ doc }) => bumpCommentsRevision(doc))
 }
 
 /**
@@ -396,7 +395,7 @@ export async function createThread(
     .insert(schema.threadRead)
     .values({ threadId, userId: room.userId, lastReadAt: now })
 
-  await signalContentChange(room.roomId)
+  await signalContentChange(room)
 
   const [[threadRow], [commentRow]] = await Promise.all([
     db.select().from(schema.thread).where(eq(schema.thread.id, threadId)),
@@ -432,7 +431,7 @@ export async function appendComment(opts: {
     .update(schema.thread)
     .set({ updatedAt: new Date() })
     .where(eq(schema.thread.id, opts.threadId))
-  await signalContentChange(room.roomId)
+  await signalContentChange(room)
 
   return toComment(row, await authorOf(room.userId))
 }
@@ -458,7 +457,7 @@ export async function editComment(opts: {
         isNull(schema.comment.agentChatId)
       )
     )
-  await signalContentChange(room.roomId)
+  await signalContentChange(room)
 }
 
 /**
@@ -501,7 +500,7 @@ export async function deleteComment(opts: {
         )
       )
     )
-  await signalContentChange(room.roomId)
+  await signalContentChange(room)
 }
 
 /** Resolves or reopens a thread. Any member may. */
@@ -518,7 +517,7 @@ export async function setThreadResolved(opts: {
       updatedAt: new Date(),
     })
     .where(eq(schema.thread.id, opts.threadId))
-  await signalContentChange(room.roomId)
+  await signalContentChange(room)
 }
 
 /** Deletes a thread and its comments. Only its starter may
@@ -527,7 +526,7 @@ export async function deleteThread(threadId: string): Promise<void> {
   const { room, thread } = await openThread(threadId)
   if (!canDeleteThread(thread, room.userId)) throw new NotYourCommentError()
   await db.delete(schema.thread).where(eq(schema.thread.id, threadId))
-  await signalContentChange(room.roomId)
+  await signalContentChange(room)
 }
 
 export async function markThreadRead(threadId: string): Promise<void> {
@@ -574,7 +573,7 @@ function requireBody(body: string): string {
  * picked, are left alone.
  */
 export async function queueThreadsForAgent(opts: {
-  roomId: string
+  room: RoomDoc
   threadIds: readonly string[]
   chatId: string
   readBaseCommit: () => Promise<string | null>
@@ -592,13 +591,13 @@ export async function queueThreadsForAgent(opts: {
     })
     .where(
       and(
-        eq(schema.thread.roomId, opts.roomId),
+        eq(schema.thread.roomId, opts.room.roomId),
         inArray(schema.thread.id, [...opts.threadIds]),
         eq(schema.thread.resolved, false)
       )
     )
     .returning({ id: schema.thread.id })
-  if (rows.length > 0) await signalContentChange(opts.roomId)
+  if (rows.length > 0) await signalContentChange(opts.room)
 }
 
 /** The threads a chat's agent still owes a reply: queued or working. */
@@ -629,7 +628,7 @@ export async function pendingAgentThreads(chatId: string): Promise<
 
 /** Moves a chat's queued threads to `working` as its agent's turn starts. */
 export async function startAgentThreads(
-  roomId: string,
+  room: RoomDoc,
   chatId: string
 ): Promise<void> {
   if (!commentsEnabled) return
@@ -643,7 +642,7 @@ export async function startAgentThreads(
       )
     )
     .returning({ id: schema.thread.id })
-  if (rows.length > 0) await signalContentChange(roomId)
+  if (rows.length > 0) await signalContentChange(room)
 }
 
 /**
@@ -653,7 +652,7 @@ export async function startAgentThreads(
  * so they can be sent again.
  */
 export async function settleAgentThreads(opts: {
-  roomId: string
+  room: RoomDoc
   chatId: string
   /** Whoever sent the request; the agent's replies are stored under them. */
   authorId: string
@@ -689,7 +688,7 @@ export async function settleAgentThreads(opts: {
       .where(inArray(schema.thread.id, [...opts.failed]))
   }
   if (opts.replies.size > 0 || opts.failed.length > 0) {
-    await signalContentChange(opts.roomId)
+    await signalContentChange(opts.room)
   }
 }
 

@@ -46,9 +46,9 @@ export async function POST(req: Request) {
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,
   // drive after the response); this route only picks the Chat Target.
   const target = markdownLayerId
-    ? markdownLayerTurn({ roomId, chatId, markdownLayerId, message, model })
+    ? markdownLayerTurn({ room, chatId, markdownLayerId, message, model })
     : sandboxTurn({
-        roomId,
+        room,
         chatId,
         sandboxName: sandboxName!,
         userId,
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       })
 
   const result = await launchTurn(
-    liveTurnLaunchDeps,
+    liveTurnLaunchDeps(room),
     { roomId, chatId, message, sandboxName, model },
     target
   )

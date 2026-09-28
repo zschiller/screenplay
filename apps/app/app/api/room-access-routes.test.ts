@@ -14,7 +14,8 @@ import {
   type SharedPgliteDb,
 } from "@/test/pglite"
 
-// Room Access on the agent turn and Branch-create routes (#904), against real
+// Room Access on the agent turn, naming, heal and Branch-create routes (#904,
+// #906), against real
 // SQL: the hosted migrations on PGlite supply `room_member` and `agent_chat`.
 // The session is faked, and every side effect a route can reach (launch,
 // broadcast, run state, the room doc, the create lock) is a spy, so a
@@ -23,6 +24,7 @@ const session = vi.hoisted(() => ({ userId: null as string | null }))
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: async () => session.userId,
   getGitHubToken: async () => "gh-token",
+  getGitHubTokenForUser: async () => null,
 }))
 
 const fx = vi.hoisted(() => ({
@@ -36,6 +38,7 @@ const fx = vi.hoisted(() => ({
   after: vi.fn(),
   mutateDoc: vi.fn(async () => {}),
   readDoc: vi.fn(async () => null),
+  runOneShotModel: vi.fn(async () => null),
 }))
 
 vi.mock("@/lib/agent/turn-launch", async (importOriginal) => ({
@@ -45,7 +48,7 @@ vi.mock("@/lib/agent/turn-launch", async (importOriginal) => ({
 vi.mock("@/lib/agent/turn-launch-live", async () => {
   const { findActiveRun } = await import("@/lib/agent/persistence")
   return {
-    liveTurnLaunchDeps: {},
+    liveTurnLaunchDeps: () => ({}),
     liveTurnStopDeps: {
       findActiveRun,
       transition: fx.transition,
@@ -79,6 +82,9 @@ vi.mock("@/lib/agent/comment-request", () => ({
   settleCommentRequest: vi.fn(),
 }))
 vi.mock("@/lib/agent/toolset", () => ({ toolsetFor: () => ({}) }))
+vi.mock("@/lib/agent/one-shot-model", () => ({
+  runOneShotModel: fx.runOneShotModel,
+}))
 vi.mock("@/lib/kv", () => ({ kv: { acquireLock: fx.acquireLock } }))
 vi.mock("@/lib/sandbox/provisioning", () => ({ provisionSandbox: vi.fn() }))
 vi.mock("@/lib/sandbox/inspect", () => ({ crawlRoutes: vi.fn() }))
@@ -151,6 +157,7 @@ const streamBody = {
 }
 const planBody = { roomId: ROOM, chatId: "chat-1", planId: "p", approved: true }
 const stopBody = { roomId: ROOM, chatId: "chat-1" }
+const namesBody = { roomId: ROOM, prompts: ["fix the login button"] }
 const branchBody = {
   flow: "new",
   roomId: ROOM,
@@ -173,6 +180,10 @@ const routes = {
     ),
   branchCreate: async (body: unknown) =>
     (await import("./branch/create/route")).POST(post(body)),
+  heal: async (body: unknown) =>
+    (await import("./branch/heal/route")).POST(post(body)),
+  generateNames: async (body: unknown) =>
+    (await import("./agent/generate-names/route")).POST(post(body)),
 }
 
 function expectNoSideEffects() {
@@ -185,6 +196,8 @@ function expectNoSideEffects() {
   expect(fx.acquireLock).not.toHaveBeenCalled()
   expect(fx.after).not.toHaveBeenCalled()
   expect(fx.mutateDoc).not.toHaveBeenCalled()
+  expect(fx.readDoc).not.toHaveBeenCalled()
+  expect(fx.runOneShotModel).not.toHaveBeenCalled()
 }
 
 describe("a signed-in non-member gets a 403 and nothing runs", () => {
@@ -211,6 +224,16 @@ describe("a signed-in non-member gets a 403 and nothing runs", () => {
     expect((await routes.history("chat-1")).status).toBe(403)
   })
 
+  it("healing a chat's stream", async () => {
+    expect((await routes.heal(stopBody)).status).toBe(403)
+    expectNoSideEffects()
+  })
+
+  it("naming Branches", async () => {
+    expect((await routes.generateNames(namesBody)).status).toBe(403)
+    expectNoSideEffects()
+  })
+
   it("creating a Branch", async () => {
     const res = await routes.branchCreate(branchBody)
     expect(res.status).toBe(403)
@@ -230,6 +253,7 @@ describe("a member can't reach another Room's chat through their own Room", () =
     ["stream", () => routes.stream({ ...streamBody, chatId: "chat-other" })],
     ["plan", () => routes.plan({ ...planBody, chatId: "chat-other" })],
     ["stop", () => routes.stop({ ...stopBody, chatId: "chat-other" })],
+    ["heal", () => routes.heal({ ...stopBody, chatId: "chat-other" })],
     ["history", () => routes.history("chat-other")],
   ])("%s", async (_, call) => {
     expect((await call()).status).toBe(403)
@@ -240,6 +264,8 @@ describe("a member can't reach another Room's chat through their own Room", () =
 it("no session gets a 401", async () => {
   expect((await routes.stop(stopBody)).status).toBe(401)
   expect((await routes.branchCreate(branchBody)).status).toBe(401)
+  expect((await routes.heal(stopBody)).status).toBe(401)
+  expect((await routes.generateNames(namesBody)).status).toBe(401)
   expectNoSideEffects()
 })
 
@@ -267,6 +293,21 @@ describe("a member is let through", () => {
       "chat-1",
       "chat-stream-end"
     )
+  })
+
+  it("heals a chat's stream", async () => {
+    expect((await routes.heal(stopBody)).status).toBe(200)
+    expect(fx.broadcastSignal).toHaveBeenCalledWith(
+      ROOM,
+      "chat-1",
+      "chat-stream-end"
+    )
+  })
+
+  it("names Branches", async () => {
+    const res = await routes.generateNames(namesBody)
+    expect(res.status).toBe(200)
+    expect(fx.readDoc).toHaveBeenCalledOnce()
   })
 
   it("reads a chat's history", async () => {

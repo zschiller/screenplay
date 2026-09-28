@@ -7,12 +7,12 @@ import type {
   MarkdownLayerData,
 } from "@/lib/types"
 
-// `readRoomCaptureLayout` reads the room Y.Doc through this one seam; stub it so
-// the test drives the frame-building logic with plain fixtures instead of a Yjs
-// round-trip. `computeIframeLayerLayouts` runs for real, so a member only gets a
-// layout when it actually sits in a group.
-const { readRoomDoc } = vi.hoisted(() => ({ readRoomDoc: vi.fn() }))
-vi.mock("@/lib/yjs/server", () => ({ readRoomDoc }))
+// `readRoomCaptureLayout` reads the room Y.Doc through the Room's reader; stub
+// it so the test drives the frame-building logic with plain fixtures instead of
+// a Yjs round-trip. `computeIframeLayerLayouts` runs for real, so a member only
+// gets a layout when it actually sits in a group.
+const readDoc = vi.fn()
+const ROOM = { roomId: "room-1", readDoc }
 
 import { readRoomCaptureLayout } from "./room-layout"
 
@@ -23,20 +23,21 @@ function withDoc(snapshot: {
   markdownLayers?: MarkdownLayerData[]
   groups?: IframeLayerGroupData[]
 }) {
-  readRoomDoc.mockImplementation(
-    (_roomId: string, fn: (c: unknown) => unknown) =>
-      Promise.resolve(
-        fn({
-          branches: { toMap: () => snapshot.branches ?? new Map() },
-          iframeLayers: { toArray: () => snapshot.iframeLayers ?? [] },
-          markdownLayers: { toArray: () => snapshot.markdownLayers ?? [] },
-          iframeLayerGroups: { toArray: () => snapshot.groups ?? [] },
-        })
-      )
+  readDoc.mockImplementation((fn: (c: unknown) => unknown) =>
+    Promise.resolve(
+      fn({
+        branches: { toMap: () => snapshot.branches ?? new Map() },
+        iframeLayers: { toArray: () => snapshot.iframeLayers ?? [] },
+        markdownLayers: { toArray: () => snapshot.markdownLayers ?? [] },
+        iframeLayerGroups: { toArray: () => snapshot.groups ?? [] },
+      })
+    )
   )
 }
 
-function iframeLayer(over: Partial<IframeLayerData> & { id: string }): IframeLayerData {
+function iframeLayer(
+  over: Partial<IframeLayerData> & { id: string }
+): IframeLayerData {
   return { width: 100, height: 100, label: "", iframeState: {}, ...over }
 }
 
@@ -64,7 +65,7 @@ describe("readRoomCaptureLayout", () => {
       ],
     })
 
-    const { frames, layouts } = await readRoomCaptureLayout("room-1")
+    const { frames, layouts } = await readRoomCaptureLayout(ROOM)
 
     // The document layer is placed in the layout alongside the iframe layer...
     expect(layouts.has("d1")).toBe(true)
@@ -81,10 +82,18 @@ describe("readRoomCaptureLayout", () => {
   it("keeps iframe-layer frames bound to their Branch's preview URL and palette", async () => {
     withDoc({
       branches: new Map([
-        ["b1", { previewDomain: "https://b1.example", colorIndex: 3 } as BranchData],
+        [
+          "b1",
+          { previewDomain: "https://b1.example", colorIndex: 3 } as BranchData,
+        ],
       ]),
       iframeLayers: [
-        iframeLayer({ id: "a1", label: "Frame", branchId: "b1", route: "/home" }),
+        iframeLayer({
+          id: "a1",
+          label: "Frame",
+          branchId: "b1",
+          route: "/home",
+        }),
       ],
       markdownLayers: [markdownLayer({ id: "d1", title: "Spec" })],
       groups: [
@@ -100,7 +109,7 @@ describe("readRoomCaptureLayout", () => {
       ],
     })
 
-    const { frames } = await readRoomCaptureLayout("room-1")
+    const { frames } = await readRoomCaptureLayout(ROOM)
 
     expect(frames.find((f) => f.id === "a1")).toEqual({
       id: "a1",
