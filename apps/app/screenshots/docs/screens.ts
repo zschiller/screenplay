@@ -36,6 +36,12 @@ export interface DocsScreen extends Screen {
    * a detail no selector pins down. Used when `focus` matches nothing.
    */
   crop?: Crop
+  /**
+   * For a full-window screen of a page that opens in the user's browser
+   * rather than the app (the prototype player): the address `./frame.ts`
+   * shows in the browser window it draws around the capture.
+   */
+  browser?: string
 }
 
 export type Crop = [x: number, y: number, width: number, height: number]
@@ -82,6 +88,8 @@ const TALL_VIEWPORT = { width: 1280, height: 1200 } as const
 const ids = DOCS_IDS
 const ROOM = `/${ids.rooms.northwind}`
 const PLAY = `/play/${ids.rooms.northwind}/${ids.branches.hero}?route=/`
+/** The player's address as the browser shows it (`openExternal` in `use-frame-actions.ts`). */
+const PLAY_ADDRESS = `screenplay.example.com/play/${ids.rooms.northwind}/${ids.branches.hero}`
 
 /**
  * Request play mode once before navigating to it: its first server render of
@@ -1111,6 +1119,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   // --- Play mode --------------------------------------------------------------
   screen({
     name: "play-desktop",
+    browser: PLAY_ADDRESS,
     description: "Play mode, desktop.",
     path: PLAY,
     beforeNavigate: warmPlay,
@@ -1152,6 +1161,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "play-agent",
+    browser: PLAY_ADDRESS,
     description: "Play mode's agent panel.",
     path: PLAY,
     beforeNavigate: warmPlay,
@@ -1173,6 +1183,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "play-mobile",
+    browser: PLAY_ADDRESS,
     description: "Play mode on an iPhone 17 Pro.",
     path: PLAY,
     beforeNavigate: warmPlay,
@@ -1181,10 +1192,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await openHud(page, "button[aria-label^='Device']", "[role=option]")
       await page
         .locator("[role=option],[role=menuitem],[role=menuitemradio]")
-        .filter({ hasText: "iPhone 17 Pro" })
+        .filter({ hasText: /iPhone 17 Pro(?! Max)/ })
         .first()
         .click()
       await sleep(page, 3000)
+      // The closed menu hands focus back to the Device button, whose tooltip
+      // would otherwise sit over the stage.
+      await page.evaluate("document.activeElement?.blur()")
       await page.mouse.move(640, 790)
       await sleep(page, 500)
     },

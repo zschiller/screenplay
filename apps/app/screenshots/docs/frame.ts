@@ -20,7 +20,10 @@ export const DOCS_SCREENSHOT_DIR = resolve(
  * - **Full-window** screens (`crop` unset) are drawn as a Screenplay desktop
  *   window on a light or dark gradient that matches the docs theme: the
  *   Tauri overlay title bar's traffic lights at the app's
- *   `trafficLightPosition`, rounded corners, and a soft shadow.
+ *   `trafficLightPosition`, rounded corners, and a soft shadow. A screen
+ *   with a `browser` address is drawn as a plain browser window instead (the
+ *   prototype player opens in the user's browser, not the app): a title bar
+ *   with the traffic lights and that address, and the page below it.
  * - **Detail** screens are cropped around their focus (measured from the
  *   screen's `focus` during capture, else its fixed `crop`): the focus centred
  *   with room around it, as the bare UI with no chrome, shadow or backdrop.
@@ -61,7 +64,8 @@ export async function frameScreens(
           img,
           screen.viewport ?? DOCS_VIEWPORT,
           measured[`${screen.name}.${theme}`] ?? screen.crop,
-          theme === "dark"
+          theme === "dark",
+          screen.browser
         )
         await page.setViewportSize({ width, height })
         await page.setContent(html, { waitUntil: "load" })
@@ -175,7 +179,8 @@ function framePage(
   img: string,
   viewport: { width: number; height: number },
   focus: Crop | undefined,
-  dark: boolean
+  dark: boolean,
+  browser?: string
 ): { width: number; height: number; html: string } {
   const { width: W0, height: H0 } = viewport
   const bg = dark
@@ -202,18 +207,33 @@ function framePage(
     }
   }
   const width = 1600
-  const height = Math.round(dh + 210)
+  // A browser window's title bar, in capture px, above the page.
+  const bar = browser ? BROWSER_BAR : 0
+  const height = Math.round(dh + bar * s + 210)
   // The Tauri overlay title bar: macOS traffic lights drawn over the webview
-  // at the window's `trafficLightPosition` (x 16, y 26 in the app config).
+  // at the window's `trafficLightPosition` (x 16, y 26 in the app config). A
+  // browser's sit in the middle of its own title bar.
+  const cy = browser ? bar / 2 : 24
   const light = (cx: number, color: string) =>
-    `<i style="position:absolute;left:${(cx - 6) * s}px;top:${(24 - 6) * s}px;width:${12 * s}px;height:${12 * s}px;border-radius:50%;background:${color};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></i>`
+    `<i style="position:absolute;left:${(cx - 6) * s}px;top:${(cy - 6) * s}px;width:${12 * s}px;height:${12 * s}px;border-radius:50%;background:${color};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></i>`
   const lights =
     light(22, "#ff5f57") + light(42, "#febc2e") + light(62, "#28c840")
-  const inner = `<div style="position:relative;width:${dw}px;height:${dh}px;overflow:hidden;border-radius:12px;box-shadow:${shadow}">
-    <img src="${img}" style="position:absolute;left:0;top:0;width:${W0 * s}px;height:${H0 * s}px">${lights}</div>`
+  const titleBar = browser
+    ? `<div style="position:absolute;left:0;top:0;width:${dw}px;height:${bar * s}px;background:${dark ? "#232326" : "#f4f4f5"};box-shadow:inset 0 -1px 0 ${border};display:flex;align-items:center;justify-content:center">
+      <div style="width:${460 * s}px;height:${26 * s}px;border-radius:${7 * s}px;background:${dark ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.05)"};color:${dark ? "#a1a1aa" : "#52525b"};font:${12 * s}px/${26 * s}px -apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 ${12 * s}px;box-sizing:border-box">${escapeHtml(browser)}</div>${lights}</div>`
+    : lights
+  const inner = `<div style="position:relative;width:${dw}px;height:${dh + bar * s}px;overflow:hidden;border-radius:12px;box-shadow:${shadow}">
+    <img src="${img}" style="position:absolute;left:0;top:${bar * s}px;width:${W0 * s}px;height:${H0 * s}px">${titleBar}</div>`
   return {
     width,
     height,
     html: `<!doctype html><body style="margin:0;width:${width}px;height:${height}px;background:${bg};display:flex;align-items:center;justify-content:center">${inner}</body>`,
   }
+}
+
+/** A browser window's title bar height, in CSS px of the capture. */
+const BROWSER_BAR = 40
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
