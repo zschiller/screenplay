@@ -72,6 +72,18 @@ export function canvasShortcutGroups({
         { label: "Keyboard shortcuts", keys: [SHORTCUT_SHEET_KEY] },
       ],
     },
+    ...(comments
+      ? [
+          {
+            title: "Comments panel",
+            shortcuts: [
+              { label: "Next comment", keys: ["J"] },
+              { label: "Previous comment", keys: ["K"] },
+              { label: "Resolve or reopen", keys: ["E"] },
+            ],
+          },
+        ]
+      : []),
     {
       title: "Edit",
       shortcuts: [

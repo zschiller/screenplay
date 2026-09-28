@@ -17,7 +17,9 @@ import type { BranchData, RepoData } from "@/lib/types"
 import {
   BRANCH_MENU_SECTIONS,
   BranchOverflowMenuContent,
+  workspaceMenuLead,
 } from "./branch-overflow-menu"
+import type { BranchPrInfo } from "@/lib/github-actions"
 
 // The create dialog's base picker reaches GitHub through `github-actions`,
 // which transitively imports the server-only auth/db stack (needs DATABASE_URL).
@@ -87,11 +89,17 @@ function renderMenu(
   overrides: Partial<BranchData> = {},
   {
     isBusy = false,
+    hasChanges = false,
+    pr,
+    onRetry,
     onRestartDevServer,
     onRestart,
     onRecreate,
   }: {
     isBusy?: boolean
+    hasChanges?: boolean
+    pr?: BranchPrInfo | null
+    onRetry?: () => void
     onRestartDevServer?: () => void
     onRestart?: () => void
     onRecreate?: () => void
@@ -104,6 +112,9 @@ function renderMenu(
         branch={{ ...branch, ...overrides }}
         repo={repo}
         onPlay={vi.fn()}
+        onRetry={onRetry ?? vi.fn()}
+        hasChanges={hasChanges}
+        pr={pr}
         onRename={vi.fn()}
         onUpdateBranch={vi.fn()}
         onNewBranchFromHere={vi.fn()}
@@ -130,35 +141,13 @@ afterEach(() => {
 })
 
 describe("BRANCH_MENU_SECTIONS skeleton", () => {
-  it("declares the five sections in order", () => {
-    expect(BRANCH_MENU_SECTIONS.map((s) => s.id)).toEqual([
-      "identity",
-      "preview",
-      "branch-sandbox",
-      "git",
-      "danger",
+  it("declares View, Git, Manage, then Delete", () => {
+    expect(BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])).toEqual([
+      ["view", ["play", "open-in-browser", "routes"]],
+      ["git", ["create-pr", "rebase", "open-github", "new-branch-from-here"]],
+      ["manage", ["rename", "color", "restart"]],
+      ["danger", ["delete"]],
     ])
-    expect(BRANCH_MENU_SECTIONS.map((s) => s.label)).toEqual([
-      "Identity",
-      "Preview",
-      "Workspace & sandbox",
-      "Git",
-      "Danger",
-    ])
-  })
-
-  it("assigns each existing item to its section", () => {
-    const bySection = Object.fromEntries(
-      BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])
-    )
-    expect(bySection.identity).toEqual(["rename", "color"])
-    expect(bySection.preview).toEqual(["play", "open-in-browser", "routes"])
-    expect(bySection["branch-sandbox"]).toEqual([
-      "new-branch-from-here",
-      "restart",
-    ])
-    expect(bySection.git).toEqual(["create-pr", "rebase", "open-github"])
-    expect(bySection.danger).toEqual(["delete"])
   })
 
   it("contains no git fetch/pull/push/sync items", () => {
@@ -169,45 +158,102 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
   })
 })
 
+describe("workspaceMenuLead", () => {
+  const ready = { status: "running" as const, previewDomain: "foo.dev" }
+  const lead = (over: Partial<Parameters<typeof workspaceMenuLead>[0]> = {}) =>
+    workspaceMenuLead({
+      branch: ready,
+      pr: null,
+      hasChanges: false,
+      isBusy: false,
+      ...over,
+    })
+
+  it("leads with Retry when setup failed", () => {
+    expect(lead({ branch: { ...ready, status: "error" } })).toBe("retry")
+    expect(lead({ branch: { ...ready, error: "boom" } })).toBe("retry")
+  })
+
+  it("has no lead while the Workspace is being set up or stopped", () => {
+    for (const status of ["creating", "starting", "stopped"] as const) {
+      expect(lead({ branch: { ...ready, status }, hasChanges: true })).toBe(
+        null
+      )
+    }
+  })
+
+  it("leads with the PR when one is open, or when there are changes", () => {
+    expect(lead({ pr: { state: "open" } })).toBe("create-pr")
+    expect(lead({ hasChanges: true })).toBe("create-pr")
+  })
+
+  it("leads with the player when there's nothing to propose", () => {
+    expect(lead()).toBe("play")
+    expect(lead({ pr: { state: "merged" } })).toBe("play")
+    // Create pull request is disabled mid-turn, so it doesn't lead then.
+    expect(lead({ hasChanges: true, isBusy: true })).toBe("play")
+  })
+})
+
 describe("BranchOverflowMenuContent rendering", () => {
   it("does not render section labels", () => {
     renderMenu()
     // The section skeleton still drives item grouping and separators, but the
     // labels themselves are no longer surfaced in the menu.
-    expect(
-      screen.queryByText(/^(Identity|Preview|Workspace & sandbox|Git|Danger)$/)
-    ).toBeNull()
+    expect(screen.queryByText(/^(View|Git|Manage|Danger)$/)).toBeNull()
   })
 
-  it("renders each action in section order", () => {
+  function menuLabels() {
+    // Every item and submenu trigger, top to bottom.
+    return within(screen.getByRole("menu"))
+      .getAllByRole("menuitem")
+      .map((el) => el.textContent?.trim())
+  }
+
+  it("groups a ready Workspace with the player first", () => {
     renderMenu()
-    // The whole menu is one flat DOM order, sections rendered back-to-back
-    // (separators between them, no labels). Reading every item top-to-bottom
-    // should reproduce the skeleton's item order exactly.
-    const expectedSequence = [
-      "Rename",
-      "Color",
+    expect(menuLabels()).toEqual([
       "Open prototype player",
       "Open in browser",
       "Show all routes",
-      "New workspace from here…",
-      "Restart",
       "Create pull request",
       "Rebase on main",
       "Open branch on GitHub",
+      "New workspace from here…",
+      "Rename",
+      "Color",
+      "Restart",
       "Delete",
-    ]
-    const menu = screen.getByRole("menu")
-    const seen = within(menu)
-      .getAllByText(
-        new RegExp(
-          `^(${expectedSequence
-            .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-            .join("|")})$`
-        )
-      )
-      .map((el) => el.textContent)
-    expect(seen).toEqual(expectedSequence)
+    ])
+  })
+
+  it("leads with Create pull request once there are changes, listed once", () => {
+    renderMenu({}, { hasChanges: true })
+    const labels = menuLabels()
+    expect(labels[0]).toBe("Create pull request")
+    expect(labels.filter((l) => l === "Create pull request")).toHaveLength(1)
+    expect(labels[1]).toBe("Open prototype player")
+  })
+
+  it("leads with the open PR and doesn't offer to create another", () => {
+    renderMenu(
+      {},
+      {
+        hasChanges: true,
+        pr: { number: 42, state: "open", url: "https://x" },
+      }
+    )
+    const labels = menuLabels()
+    expect(labels[0]).toBe("Open pull request #42")
+    expect(labels).not.toContain("Create pull request")
+  })
+
+  it("leads a failed Workspace with Retry setup, not Rename", () => {
+    const onRetry = vi.fn()
+    renderMenu({ status: "error", error: "npm ERR!" }, { onRetry })
+    expect(menuLabels()[0]).toBe("Retry setup")
+    fireEvent.click(screen.getByText("Retry setup"))
+    expect(onRetry).toHaveBeenCalledWith("branch-1")
   })
 
   it("does not surface git fetch/pull/push/sync actions", () => {
@@ -300,6 +346,7 @@ function MenuToDialogHarness() {
           branch={branch}
           repo={repo}
           onPlay={vi.fn()}
+          onRetry={vi.fn()}
           onRename={vi.fn()}
           onUpdateBranch={vi.fn()}
           onNewBranchFromHere={() => {
