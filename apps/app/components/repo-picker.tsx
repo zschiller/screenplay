@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { Folder, FolderLock, Link2, Plug } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
@@ -44,7 +44,23 @@ interface RepoPickerProps {
    * this picker (#604), not in the picker itself.
    */
   localSources?: boolean
+  /**
+   * Show the "Connect GitHub in Settings" row when no token has resolved.
+   * Off inside Settings itself, where the GitHub section is on the page
+   * behind the dialog and the link would lead back to where you are.
+   */
+  connectLink?: boolean
+  /** Extra rows for the picker's footer, e.g. another source ("Open a folder"). */
+  footer?: ReactNode
 }
+
+/**
+ * DialogContent classes for a dialog whose body is a RepoPicker: the picker
+ * sits flush in the dialog (no inner box), its search box, list and footer on
+ * the header's 20px gutter. Shared by Add project and New preset.
+ */
+export const REPO_PICKER_DIALOG_CLASS =
+  "[&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0"
 
 let cachedRepos: GitHubRepo[] | null = null
 
@@ -52,6 +68,8 @@ export function RepoPicker({
   configs,
   onSelect,
   localSources,
+  connectLink = true,
+  footer,
 }: RepoPickerProps) {
   const [repos, setRepos] = useState<GitHubRepo[]>(() => cachedRepos ?? [])
   const [loading, setLoading] = useState(cachedRepos === null)
@@ -212,9 +230,10 @@ export function RepoPicker({
             {!loading && !loadFailed && (
               <CommandEmpty>
                 {showConnectHint ? (
+                  // One short line: the search box already says a clone URL
+                  // can be pasted, and the Connect row sits right below.
                   <span className="text-sm text-muted-foreground">
-                    Connect GitHub to browse your repositories, or paste a clone
-                    URL above or add a local folder below.
+                    GitHub isn&apos;t connected.
                   </span>
                 ) : (
                   "No GitHub repositories found."
@@ -304,22 +323,26 @@ export function RepoPicker({
           connection home (ADR 0014). Shown on `tokenSource === null` alone —
           deliberately not gated on `deviceFlowConfigured`, since the primary
           `gh` path in Settings needs no client id. */}
-      {localSources && status?.tokenSource === null && (
+      {((connectLink && localSources && status?.tokenSource === null) ||
+        footer) && (
         <div
           data-slot="repo-picker-footer"
           className="flex flex-col gap-1 border-t p-1"
         >
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="justify-start gap-2 font-normal"
-          >
-            <Link href="/settings">
-              <Plug className="size-4 text-muted-foreground" />
-              Connect GitHub in Settings →
-            </Link>
-          </Button>
+          {footer}
+          {connectLink && localSources && status?.tokenSource === null && (
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="justify-start gap-2 font-normal"
+            >
+              <Link href="/settings">
+                <Plug className="size-4 text-muted-foreground" />
+                Connect GitHub in Settings →
+              </Link>
+            </Button>
+          )}
         </div>
       )}
     </div>

@@ -97,7 +97,11 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import { Input } from "@workspace/ui/components/input"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
-import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
+import {
+  REPO_PICKER_DIALOG_CLASS,
+  RepoPicker,
+  type RepoPickerSelection,
+} from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
 import {
   detectFolderSettings,
@@ -1593,7 +1597,10 @@ export function RoomSidebar({
                         stepBack()
                       }
                     }}
-                    className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0"
+                    className={cn(
+                      "gap-0 overflow-hidden p-0 sm:max-w-md",
+                      REPO_PICKER_DIALOG_CLASS
+                    )}
                   >
                     <DialogHeader className="px-5 pt-5 pb-2">
                       <DialogTitle>

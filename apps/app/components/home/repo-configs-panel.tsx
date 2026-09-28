@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
 } from "@workspace/ui/components/empty"
 import { LoadErrorRow } from "@/components/home/load-error"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
+import { REPO_PICKER_DIALOG_CLASS } from "@/components/repo-picker"
 import {
   SettingsRow,
   SettingsRowList,
@@ -227,13 +229,18 @@ export function RepoConfigsPanel() {
           if (!open) requestCloseForm()
         }}
       >
-        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogContent
+          className={cn(
+            "gap-0 overflow-hidden p-0 sm:max-w-lg",
+            REPO_PICKER_DIALOG_CLASS
+          )}
+        >
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>
               {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
             </DialogTitle>
             <DialogDescription>
-              Applied when you add this project to a canvas.
+              A project&apos;s scripts, applied when you add it to a canvas.
             </DialogDescription>
           </DialogHeader>
           {mode.kind !== "list" && (
