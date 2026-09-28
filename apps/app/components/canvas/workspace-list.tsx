@@ -6,6 +6,7 @@ import {
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
+  Undo2,
 } from "lucide-react"
 import {
   Command,
@@ -14,12 +15,14 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@workspace/ui/components/command"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { BranchBadge } from "@/components/branch-badge"
 import { prStateColor } from "@/components/pr-state-color"
 import type { BranchData } from "@/lib/types"
+import type { FrameWorkspace } from "./frame-nav"
 
 /**
  * Workspaces a frame can be switched to: ones with a ref that haven't failed
@@ -56,26 +59,57 @@ function WorkspaceIcon({ branch }: { branch: BranchData }) {
   return <span className="flex shrink-0">{icon}</span>
 }
 
+/** An exception frame's way back to its Group's Workspace (#868). */
+export interface FollowGroup {
+  /** The Group's name. */
+  name: string
+  workspace: FrameWorkspace
+}
+
 /**
  * The searchable Workspace list a frame's Workspace switchers open (the label
  * picker and the address bar's host, issue #867): status icon, pill, diff and
- * a check on the current one.
+ * a check on the current one. For a frame on another Workspace than its Group
+ * (#868), it leads with "Follow <Group>", which picks the Group's.
  */
 export function WorkspaceCommandList({
   branches,
   currentBranchId,
   onPick,
+  followGroup,
 }: {
   branches: BranchData[]
   currentBranchId?: string
   onPick: (branchId: string) => void
+  followGroup?: FollowGroup
 }) {
   return (
     <Command>
       <CommandInput placeholder="Search workspaces…" />
       <CommandList>
         <CommandEmpty>No workspaces found.</CommandEmpty>
-        <CommandGroup>
+        {followGroup && (
+          <>
+            <CommandGroup heading="Group">
+              <CommandItem
+                value={`Follow ${followGroup.name}`}
+                onSelect={() => onPick(followGroup.workspace.branchId)}
+              >
+                <Undo2 />
+                <span className="truncate">Follow {followGroup.name}</span>
+                <BranchBadge
+                  branch={followGroup.workspace.ref}
+                  title={followGroup.workspace.title}
+                  colorKey={followGroup.workspace.branchId}
+                  colorIndex={followGroup.workspace.colorIndex}
+                  className="ml-auto min-w-0 px-1.5 py-0 text-2xs"
+                />
+              </CommandItem>
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+        <CommandGroup heading={followGroup ? "This frame only" : undefined}>
           {pickableWorkspaces(branches).map((a) => {
             const hasDiff =
               a.status === "running" &&

@@ -36,7 +36,7 @@ const MAX_INLINE_ANCESTORS = 3
 // ancestors ("All files" included) first, four times as fast, then the current
 // folder, which keeps its leading characters to the last.
 const LIST_CLASS = "min-w-0 flex-nowrap gap-1.5 text-2xl font-normal sm:gap-2.5"
-const ANCESTOR_ITEM_CLASS = "min-w-8 shrink-[4]"
+const ANCESTOR_ITEM_CLASS = "min-w-8 shrink-[100]"
 const CURRENT_ITEM_CLASS = "min-w-0"
 const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
 // A parent crumb is a drop target (issue #808): drop a canvas or folder on it

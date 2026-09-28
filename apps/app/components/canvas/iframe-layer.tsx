@@ -53,8 +53,13 @@ import {
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
-import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
+import {
+  FrameAddressBar,
+  type FramePreviewStatus,
+  type FrameWorkspace,
+} from "./frame-nav"
 import { IframeLayerLabel } from "./iframe-layer-label"
+import type { FollowGroup } from "./workspace-list"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -268,6 +273,13 @@ interface IframeLayerProps {
   ) => void
   /** Group label shown above the branch — only on the leftmost iframeLayer of a multi-iframeLayer group. */
   groupLabel?: string
+  /** The Group's Workspace, named after the group label (#868). */
+  groupWorkspace?: FrameWorkspace
+  /** The frame names its own Workspace on its label: it differs from its
+   *  Group's, or the frame is a Group of one with no group label (#868). */
+  showWorkspace?: boolean
+  /** Set on an exception: its Workspace lists lead with "Follow <Group>". */
+  followGroup?: FollowGroup
   /** True when the parent group is selected. Drives label color + group-pink frame. */
   groupSelected?: boolean
   /** Color of a remote user who has this frame selected — tints the name to
@@ -356,6 +368,9 @@ export function IframeLayer({
   discoveredRoutes,
   onSelectRoute,
   groupLabel,
+  groupWorkspace,
+  showWorkspace,
+  followGroup,
   groupSelected,
   remoteSelectedColor,
   remoteGroupSelectedColor,
@@ -854,6 +869,7 @@ export function IframeLayer({
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}
       groupLabel={groupLabel}
+      groupWorkspace={groupWorkspace}
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
@@ -863,21 +879,14 @@ export function IframeLayer({
           branch={iframeLayer.branch}
           branchTitle={iframeLayer.branchTitle}
           branchId={iframeLayer.branchId}
-          route={iframeLayer.route}
-          sharedState={iframeLayer.sharedState}
+          showWorkspace={showWorkspace}
+          followGroup={followGroup}
           assignableBranches={assignableBranches}
           onAssignBranch={
             onAssignBranch
               ? (branchId) => onAssignBranch(iframeLayer.id, branchId)
               : undefined
           }
-          discoveredRoutes={discoveredRoutes}
-          onSelectRoute={
-            onSelectRoute && iframeLayer.branchId
-              ? (route) => onSelectRoute(iframeLayer.id, route)
-              : undefined
-          }
-          hideRoute={toolbarVisible}
           selected={selected || groupSelected}
           remoteSelectedColor={remoteSelectedColor}
           onSelectFrame={api.deferSelect}
@@ -946,6 +955,7 @@ export function IframeLayer({
                       : undefined
                   }
                   workspaces={assignableBranches ?? []}
+                  followGroup={followGroup}
                   onAssignWorkspace={
                     onAssignBranch
                       ? (branchId) => onAssignBranch(iframeLayer.id, branchId)

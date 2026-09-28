@@ -18,6 +18,7 @@ import { EditableText } from "@workspace/ui/components/editable-text"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 import { BranchBadge } from "@/components/branch-badge"
+import { isWorkspaceException } from "@/lib/canvas/group-workspace"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
 import {
@@ -32,6 +33,9 @@ import type { LayerRowMenuProps, LayerRowProps } from "./types"
 export interface IframeLayerRowExtraProps {
   /** Branches indexed by id, for fast branch-badge lookup. */
   branchesById: ReadonlyMap<string, BranchData>
+  /** Each frame's Group's Workspace, by frame id (#868). A row inside a Group
+   *  names its Workspace only when it differs from this. */
+  groupBranchIdByLayerId: ReadonlyMap<string, string | undefined>
 }
 
 export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
@@ -49,6 +53,22 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
       : undefined
     const Icon = iframeLayerKind.Icon
     const label = iframeLayerKind.getLabel(item)
+    // A Group of one's row names its Workspace; a row inside a Group names it
+    // only when it differs from the Group's, whose row names it once (#868).
+    const showWorkspace =
+      variant === "flat" ||
+      isWorkspaceException(item, extras.groupBranchIdByLayerId.get(item.id))
+    const workspacePill =
+      showWorkspace && branch?.ref ? (
+        <BranchBadge
+          branch={branch.ref}
+          title={branch.title}
+          colorKey={branch.id}
+          colorIndex={branch.colorIndex}
+          // Names win: the pill gives up its width first.
+          className="ml-auto min-w-10 shrink-[100] px-1 py-0 text-3xs"
+        />
+      ) : null
 
     // Hovering this row lights up its Workspace in the sidebar; hovering the
     // Workspace lights up this row (#793). The highlight is the row's own
@@ -103,17 +123,8 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
           }}
         >
           <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {branch?.ref && (
-            <BranchBadge
-              branch={branch.ref}
-              title={branch.title}
-              colorKey={branch.id}
-              colorIndex={branch.colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
-            />
-          )}
           {nameEditable}
-          {iframeLayerKind.renderRowAccessory?.(item)}
+          {workspacePill}
         </SidebarMenuButton>
       )
     }
@@ -136,17 +147,8 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
           }}
         >
           <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {branch?.ref && (
-            <BranchBadge
-              branch={branch.ref}
-              title={branch.title}
-              colorKey={branch.id}
-              colorIndex={branch.colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
-            />
-          )}
           {nameEditable}
-          {iframeLayerKind.renderRowAccessory?.(item)}
+          {workspacePill}
         </button>
       </SidebarMenuSubButton>
     )

@@ -622,10 +622,10 @@ describe("createFramesForAgents", () => {
     const { ops, collections } = makeHarness()
     collections.branches.set("agent-1", baseBranch("agent-1"))
 
-    const result = ops.createFramesForAgents(
-      [{ agentId: "agent-1" }],
-      { x: 0, y: 0 }
-    )
+    const result = ops.createFramesForAgents([{ agentId: "agent-1" }], {
+      x: 0,
+      y: 0,
+    })
 
     const { groupId, layerIds } = result!
     expect(layerIds).toHaveLength(1)
@@ -948,7 +948,10 @@ describe("addDocumentToGroup", () => {
   it("is a no-op returning undefined when the Group is missing", () => {
     const { ops, collections } = makeHarness()
 
-    const result = ops.addDocumentToGroup("missing", { width: 400, height: 300 })
+    const result = ops.addDocumentToGroup("missing", {
+      width: 400,
+      height: 300,
+    })
 
     expect(result).toBeUndefined()
     expect(collections.markdownLayers.toArray()).toEqual([])
@@ -1224,5 +1227,122 @@ describe("reorderBranches", () => {
     ops.reorderBranches("ws-1", ["ag-b", "ag-a"])
 
     expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+})
+
+describe("Group Workspace (#868)", () => {
+  it("gives a Group created for Branches its first frame's Workspace", () => {
+    const { ops, collections } = makeHarness()
+    collections.branches.set("agent-1", baseBranch("agent-1"))
+    collections.branches.set("agent-2", baseBranch("agent-2"))
+
+    const { groupId } = ops.createFramesForAgents(
+      [{ agentId: "agent-1" }, { agentId: "agent-2" }],
+      { x: 0, y: 0 }
+    )!
+
+    expect(collections.iframeLayerGroups.get(groupId)?.branchId).toBe("agent-1")
+  })
+
+  it("makes a frame an exception without moving its Group's Workspace", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { branchId: "agent-1", route: "/cart" })
+    )
+    collections.iframeLayers.set(
+      "layer-2",
+      baseLayer("layer-2", { branchId: "agent-1" })
+    )
+    seedGroup(collections, "group-1", [
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "iframe-layer", id: "layer-2" },
+    ])
+    collections.iframeLayerGroups.update("group-1", { branchId: "agent-1" })
+
+    ops.assignBranch("layer-1", "agent-2")
+    expect(collections.iframeLayers.get("layer-1")?.branchId).toBe("agent-2")
+    expect(collections.iframeLayers.get("layer-1")?.route).toBe("/cart")
+    expect(collections.iframeLayerGroups.get("group-1")?.branchId).toBe(
+      "agent-1"
+    )
+
+    // Following the Group again is picking the Group's Workspace.
+    ops.assignBranch("layer-1", "agent-1")
+    expect(collections.iframeLayers.get("layer-1")?.branchId).toBe("agent-1")
+  })
+
+  it("moves a Group of one's Workspace with its frame, and sets an unassigned Group's", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { branchId: "agent-1" })
+    )
+    collections.markdownLayers.set("doc-1", baseDoc("doc-1"))
+    seedGroup(collections, "group-1", [
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "markdown-layer", id: "doc-1" },
+    ])
+    collections.iframeLayerGroups.update("group-1", { branchId: "agent-1" })
+    collections.iframeLayers.set("layer-2", baseLayer("layer-2"))
+    collections.iframeLayers.set("layer-3", baseLayer("layer-3"))
+    seedGroup(collections, "group-2", [
+      { kind: "iframe-layer", id: "layer-2" },
+      { kind: "iframe-layer", id: "layer-3" },
+    ])
+
+    ops.assignBranch("layer-1", "agent-2")
+    ops.assignBranch("layer-2", "agent-3")
+
+    expect(collections.iframeLayerGroups.get("group-1")?.branchId).toBe(
+      "agent-2"
+    )
+    expect(collections.iframeLayerGroups.get("group-2")?.branchId).toBe(
+      "agent-3"
+    )
+  })
+
+  it("clears a removed Branch from the Groups that showed it", () => {
+    const { ops, collections } = makeHarness()
+    collections.branches.set("agent-1", baseBranch("agent-1"))
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { branchId: "agent-1" })
+    )
+    collections.iframeLayers.set(
+      "layer-2",
+      baseLayer("layer-2", { branchId: "agent-2" })
+    )
+    seedGroup(collections, "group-1", [
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "iframe-layer", id: "layer-2" },
+    ])
+    collections.iframeLayerGroups.update("group-1", { branchId: "agent-1" })
+
+    ops.removeBranch("agent-1")
+
+    expect(
+      collections.iframeLayerGroups.get("group-1")?.branchId
+    ).toBeUndefined()
+  })
+
+  it("gives a split-off Group its leftmost frame's Workspace", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { branchId: "agent-1" })
+    )
+    collections.iframeLayers.set(
+      "layer-2",
+      baseLayer("layer-2", { branchId: "agent-2" })
+    )
+    seedGroup(collections, "group-1", [
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "iframe-layer", id: "layer-2" },
+    ])
+
+    const groupId = ops.splitToNewGroup(["layer-2"], { x: 0, y: 0 })
+
+    expect(collections.iframeLayerGroups.get(groupId)?.branchId).toBe("agent-2")
   })
 })

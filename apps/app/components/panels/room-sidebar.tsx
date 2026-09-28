@@ -107,6 +107,8 @@ import type {
   RepoData,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/canvas/layout"
+import { BranchBadge } from "@/components/branch-badge"
+import { groupBranchId } from "@/lib/canvas/group-workspace"
 import { sortForSidebar } from "@/lib/sidebar-order"
 import {
   parseSidebarRowId,
@@ -776,9 +778,24 @@ export function RoomSidebar({
    * kind, drop another entry here keyed by `kind` — the dispatch loop
    * below picks the right components automatically.
    */
+  // Each Group's Workspace (#868): its row names it, and its frame rows name
+  // theirs only when they differ.
+  const groupBranchById = useMemo(() => {
+    const m = new Map<string, string | undefined>()
+    for (const g of iframeLayerGroups)
+      m.set(g.id, groupBranchId(g, iframeLayersById))
+    return m
+  }, [iframeLayerGroups, iframeLayersById])
+  const groupBranchIdByLayerId = useMemo(() => {
+    const m = new Map<string, string | undefined>()
+    for (const g of iframeLayerGroups)
+      for (const member of getGroupMembers(g))
+        m.set(member.id, groupBranchById.get(g.id))
+    return m
+  }, [iframeLayerGroups, groupBranchById])
   const IframeLayerRow = useMemo(
-    () => makeIframeLayerRow({ branchesById }),
-    [branchesById]
+    () => makeIframeLayerRow({ branchesById, groupBranchIdByLayerId }),
+    [branchesById, groupBranchIdByLayerId]
   )
   type AnyRowDispatcher = {
     Row: React.ComponentType<
@@ -1803,7 +1820,7 @@ export function RoomSidebar({
                                         className="group/frame-group-row cursor-grab active:cursor-grabbing"
                                       >
                                         <SidebarMenuButton
-                                          className="!pr-2 !transition-[width,height] group-focus-within/frame-group-row:!pr-7 group-hover/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+                                          className="!pr-2 !transition-[width,height] group-focus-within/frame-group-row:!pr-7 group-hover/frame-group-row:!pr-7 group-has-[[data-sidebar=menu-action][data-state=open]]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
                                           isActive={selectedGroupIds.has(
                                             group.id
                                           )}
@@ -1844,6 +1861,24 @@ export function RoomSidebar({
                                             viewClassName="truncate"
                                             editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
                                           />
+                                          {(() => {
+                                            const id = groupBranchById.get(
+                                              group.id
+                                            )
+                                            const branch = id
+                                              ? branchesById.get(id)
+                                              : undefined
+                                            return branch?.ref ? (
+                                              <BranchBadge
+                                                branch={branch.ref}
+                                                title={branch.title}
+                                                colorKey={branch.id}
+                                                colorIndex={branch.colorIndex}
+                                                // Names win: the pill gives up its width first.
+                                                className="ml-auto min-w-10 shrink-[100] px-1 py-0 text-3xs"
+                                              />
+                                            ) : null
+                                          })()}
                                         </SidebarMenuButton>
                                         <DropdownMenu>
                                           <DropdownMenuTrigger asChild>

@@ -1,8 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Braces, Check, ChevronsUpDown } from "lucide-react"
-import { Badge } from "@workspace/ui/components/badge"
+import { Braces, ChevronsUpDown } from "lucide-react"
 import { BranchBadge } from "@/components/branch-badge"
 import {
   Popover,
@@ -15,19 +14,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@workspace/ui/components/command"
 import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
-import { normalizeRoute } from "@/lib/route-utils"
+import { workspaceLabel } from "@/lib/workspace-label"
 import { LayerLabelRow } from "./layer-title-bar"
-import { WorkspaceCommandList } from "./workspace-list"
+import { WorkspaceCommandList, type FollowGroup } from "./workspace-list"
 
 interface IframeLayerLabelProps {
   label: string
@@ -35,16 +26,15 @@ interface IframeLayerLabelProps {
   /** The Workspace's title (#881); the badge shows it over `branch`. */
   branchTitle?: string
   branchId?: string
-  route?: string
-  /** Bidirectional shared state from `@screenplay.space/state`. When present
-   *  with non-empty keys, a tiny indicator renders inside the route pill. */
-  sharedState?: JsonObject
+  /** Name the frame's Workspace after its name: the frame differs from its
+   *  Group's Workspace, or it is a Group of one with no group label (#868).
+   *  Every other frame leaves its Workspace to the group label. */
+  showWorkspace?: boolean
+  /** Set on an exception: the pill's list leads with "Follow <Group>". */
+  followGroup?: FollowGroup
   /** Agents the user can pick from (typically all running agents in the room). */
   assignableBranches?: BranchData[]
   onAssignBranch?: (branchId: string) => void
-  /** Routes known for the agent backing this iframeLayer. Drives the route picker. */
-  discoveredRoutes?: { route: string; label: string }[]
-  onSelectRoute?: (route: string) => void
   /** True when this frame is selected (directly or because its group is). */
   selected?: boolean
   /** Remote selector's color for the name. Ignored while locally selected. */
@@ -54,15 +44,13 @@ interface IframeLayerLabelProps {
   /** Inline rename for the frame name. When provided, double-clicking the
    *  name swaps it into a contenteditable. */
   onRename?: (next: string) => void
-  /** Leave the route out: the selected frame's toolbar shows it in its route
-   *  field instead (issue #795). */
-  hideRoute?: boolean
 }
 
 /**
- * The Iframe Layer's title row — the branch picker/badge, the frame name, and
- * the route picker/badge. Rendered inside the shared `LayerTitleBar` (owned by
- * the Layer Shell), which supplies the drag-handle routing and group label;
+ * The Iframe Layer's title row: the frame name, then its Workspace when the
+ * frame names one (#868). The route lives in the selected frame's address bar
+ * and in the frame itself. Rendered inside the shared `LayerTitleBar` (owned
+ * by the Layer Shell), which supplies the drag-handle routing and group label;
  * this component is purely the content-specific row.
  */
 export function IframeLayerLabel({
@@ -70,18 +58,50 @@ export function IframeLayerLabel({
   branch,
   branchTitle,
   branchId,
-  route,
-  sharedState,
+  showWorkspace,
+  followGroup,
   assignableBranches,
   onAssignBranch,
-  discoveredRoutes,
-  onSelectRoute,
   selected,
   remoteSelectedColor,
   onSelectFrame,
   onRename,
-  hideRoute,
 }: IframeLayerLabelProps) {
+  const colorIndex = assignableBranches?.find(
+    (a) => a.id === branchId
+  )?.colorIndex
+  let trailing: React.ReactNode = null
+  if (!branch) {
+    // An unassigned frame offers the list, as its body does.
+    if (onAssignBranch) {
+      trailing = (
+        <BranchPicker
+          assignableBranches={assignableBranches ?? []}
+          onAssignBranch={onAssignBranch}
+        />
+      )
+    }
+  } else if (showWorkspace) {
+    trailing = onAssignBranch ? (
+      <BranchPicker
+        branch={branch}
+        branchTitle={branchTitle}
+        currentBranchId={branchId}
+        colorIndex={colorIndex}
+        followGroup={followGroup}
+        assignableBranches={assignableBranches ?? []}
+        onAssignBranch={onAssignBranch}
+      />
+    ) : (
+      <BranchBadge
+        branch={branch}
+        title={branchTitle}
+        colorKey={branchId}
+        colorIndex={colorIndex}
+        className="min-w-10 shrink-[100] px-1 py-0 text-3xs"
+      />
+    )
+  }
   return (
     <LayerLabelRow
       title={label}
@@ -90,187 +110,8 @@ export function IframeLayerLabel({
       onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
       onRename={onRename}
       placeholder="Untitled"
-      leading={
-        onAssignBranch ? (
-          <BranchPicker
-            branch={branch}
-            branchTitle={branchTitle}
-            currentBranchId={branchId}
-            colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
-            assignableBranches={assignableBranches ?? []}
-            onAssignBranch={onAssignBranch}
-          />
-        ) : branch ? (
-          <BranchBadge
-            branch={branch}
-            title={branchTitle}
-            colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
-            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
-          />
-        ) : null
-      }
-      trailing={
-        branch &&
-        !hideRoute &&
-        (onSelectRoute ? (
-          <RoutePicker
-            route={route}
-            discoveredRoutes={discoveredRoutes ?? []}
-            onSelectRoute={onSelectRoute}
-            sharedState={sharedState}
-          />
-        ) : (
-          <Badge
-            variant="outline"
-            className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-3xs text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
-          >
-            <span className="truncate">{route || "/"}</span>
-            <SharedStateIndicator sharedState={sharedState} />
-          </Badge>
-        ))
-      }
+      trailing={trailing}
     />
-  )
-}
-
-interface RoutePickerProps {
-  route?: string
-  discoveredRoutes: { route: string; label: string }[]
-  onSelectRoute: (route: string) => void
-  sharedState?: JsonObject
-}
-
-function RoutePicker({
-  route,
-  discoveredRoutes,
-  onSelectRoute,
-  sharedState,
-}: RoutePickerProps) {
-  const [open, setOpen] = useState(false)
-  const [input, setInput] = useState("")
-
-  const currentRoute = route || "/"
-  const trimmed = input.trim()
-  const typedRoute = trimmed ? normalizeRoute(trimmed) : ""
-  const hasExactMatch = typedRoute
-    ? discoveredRoutes.some((r) => r.route === typedRoute)
-    : true
-  const filteredRoutes = (
-    trimmed
-      ? discoveredRoutes.filter((r) =>
-          r.route.toLowerCase().includes(trimmed.toLowerCase())
-        )
-      : discoveredRoutes
-  )
-    .slice()
-    .sort((a, b) => a.route.localeCompare(b.route))
-
-  const handleSelect = (next: string) => {
-    onSelectRoute(next)
-    setOpen(false)
-  }
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setInput("")
-        setOpen(next)
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="group flex shrink-0 items-center outline-none focus-visible:outline-none"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Badge
-            variant="outline"
-            // `delay-300` on the collapse keeps the pill from visibly
-            // shrinking when the cursor crosses onto the trailing `{}`
-            // indicator and momentarily drops `group-hover` before the
-            // tooltip's delayed-open re-grants it. Expansion waits `delay-500`
-            // to match the branch pill.
-            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-3xs text-foreground/50 transition-[max-width] delay-300 duration-200 group-hover:max-w-full group-hover:delay-500 group-data-[state=open]:max-w-full group-data-[state=open]:delay-0"
-          >
-            <span className="truncate">{currentRoute}</span>
-            <SharedStateIndicator sharedState={sharedState} />
-          </Badge>
-          <ChevronsUpDown
-            aria-hidden
-            // Mirror the route badge's `delay-300` collapse / `delay-500`
-            // expand so a one-frame `group-hover` drop — which happens as the
-            // cursor crosses onto the trailing `{}` indicator — doesn't snap
-            // the chevron closed and flicker it.
-            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all delay-300 duration-200 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100 group-data-[state=open]:delay-0"
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-72 p-0"
-        side="bottom"
-        align="start"
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder="Search or type a route…"
-            value={input}
-            onValueChange={setInput}
-          />
-          <CommandList>
-            {filteredRoutes.length === 0 && !typedRoute && (
-              <CommandEmpty>No routes yet.</CommandEmpty>
-            )}
-            {(filteredRoutes.length > 0 || (typedRoute && !hasExactMatch)) && (
-              <CommandGroup>
-                {filteredRoutes.map((r) => (
-                  <CommandItem
-                    key={r.route}
-                    value={r.route}
-                    onSelect={() => handleSelect(r.route)}
-                  >
-                    <Check
-                      className={`shrink-0 ${r.route === currentRoute ? "" : "opacity-0"}`}
-                    />
-                    <Badge
-                      variant="outline"
-                      className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
-                    >
-                      {r.route}
-                    </Badge>
-                  </CommandItem>
-                ))}
-                {typedRoute && !hasExactMatch && (
-                  <CommandItem
-                    value={`__create__ ${typedRoute}`}
-                    onSelect={() => handleSelect(typedRoute)}
-                  >
-                    <Check className="shrink-0 opacity-0" />
-                    <span className="flex items-center gap-1">
-                      <span className="text-xs">Go to</span>
-                      <Badge
-                        variant="outline"
-                        className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
-                      >
-                        {typedRoute}
-                      </Badge>
-                    </span>
-                  </CommandItem>
-                )}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   )
 }
 
@@ -278,8 +119,8 @@ interface BranchPickerProps {
   branch?: string
   branchTitle?: string
   currentBranchId?: string
-  colorKey?: string
   colorIndex?: number
+  followGroup?: FollowGroup
   assignableBranches: BranchData[]
   onAssignBranch: (branchId: string) => void
 }
@@ -333,12 +174,17 @@ export function SharedStateIndicator({
   )
 }
 
+/**
+ * The Workspace a frame names on its label, as a switcher: its pill (the one
+ * the Workspace list uses), with the up-down chevron on hover. An unassigned
+ * frame shows "Choose a workspace" instead.
+ */
 function BranchPicker({
   branch,
   branchTitle,
   currentBranchId,
-  colorKey,
   colorIndex,
+  followGroup,
   assignableBranches,
   onAssignBranch,
 }: BranchPickerProps) {
@@ -349,7 +195,13 @@ function BranchPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex shrink-0 items-center outline-none focus-visible:outline-none"
+          aria-label={
+            branch
+              ? `Workspace: ${workspaceLabel({ ref: branch, title: branchTitle })}`
+              : "Choose a workspace"
+          }
+          // Names win: the pill gives up its width first.
+          className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
@@ -357,9 +209,9 @@ function BranchPicker({
             <BranchBadge
               branch={branch}
               title={branchTitle}
-              colorKey={colorKey}
+              colorKey={currentBranchId}
               colorIndex={colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"
+              className="px-1 py-0 text-3xs"
             />
           ) : (
             <span className="truncate text-xs text-muted-foreground">
@@ -370,7 +222,7 @@ function BranchPicker({
             aria-hidden
             className={
               branch
-                ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+                ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
                 : "ml-1 size-3 shrink-0 text-muted-foreground"
             }
           />
@@ -385,8 +237,9 @@ function BranchPicker({
         <WorkspaceCommandList
           branches={assignableBranches}
           currentBranchId={currentBranchId}
+          followGroup={followGroup}
           onPick={(id) => {
-            onAssignBranch(id)
+            if (id !== currentBranchId) onAssignBranch(id)
             setOpen(false)
           }}
         />

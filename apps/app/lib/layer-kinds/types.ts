@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react"
+import type { ComponentType } from "react"
 
 /**
  * Per-kind descriptor for canvas layers (frames, documents, future kinds
@@ -35,7 +35,4 @@ export interface LayerKindDescriptor<T = unknown> {
    * the chat panel's picker shows it as a selectable target.
    */
   canBeChatTarget: boolean
-  /** Optional accessory rendered to the right of the row label in the
-   *  sidebar — e.g. a route badge for iframe layers. */
-  renderRowAccessory?: (item: T) => ReactNode
 }

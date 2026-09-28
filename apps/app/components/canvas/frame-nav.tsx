@@ -31,7 +31,7 @@ import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
 import type { BranchData } from "@/lib/types"
 import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
-import { WorkspaceCommandList } from "./workspace-list"
+import { WorkspaceCommandList, type FollowGroup } from "./workspace-list"
 
 /**
  * The address field in a selected frame's floating toolbar (issue #795), like
@@ -106,6 +106,8 @@ interface FrameAddressBarProps {
   workspace?: FrameWorkspace
   /** Workspaces the frame can switch to. */
   workspaces: BranchData[]
+  /** Set on an exception: the list leads with "Follow <Group>" (#868). */
+  followGroup?: FollowGroup
   /** Unset while the frame can't switch (a read-only viewer). */
   onAssignWorkspace?: (branchId: string) => void
   route?: string
@@ -124,6 +126,7 @@ interface FrameAddressBarProps {
 export function FrameAddressBar({
   workspace,
   workspaces,
+  followGroup,
   onAssignWorkspace,
   route,
   discoveredRoutes,
@@ -162,6 +165,7 @@ export function FrameAddressBar({
         <FrameWorkspaceHost
           workspace={workspace}
           workspaces={workspaces}
+          followGroup={followGroup}
           onAssignWorkspace={onAssignWorkspace}
         />
       )}
@@ -228,10 +232,12 @@ export interface FrameWorkspace {
 function FrameWorkspaceHost({
   workspace,
   workspaces,
+  followGroup,
   onAssignWorkspace,
 }: {
   workspace?: FrameWorkspace
   workspaces: BranchData[]
+  followGroup?: FollowGroup
   onAssignWorkspace?: (branchId: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -287,6 +293,7 @@ function FrameWorkspaceHost({
         <WorkspaceCommandList
           branches={workspaces}
           currentBranchId={workspace?.branchId}
+          followGroup={followGroup}
           onPick={(id) => {
             if (id !== workspace?.branchId) onAssignWorkspace(id)
             setOpen(false)

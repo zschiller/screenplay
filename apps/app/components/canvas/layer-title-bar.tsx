@@ -6,6 +6,7 @@ import { EditableText } from "@workspace/ui/components/editable-text"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { showsLayerDetail } from "@/lib/canvas/camera"
 import { GroupLabel } from "./group-label"
+import type { FrameWorkspace } from "./frame-nav"
 
 interface LayerTitleBarProps {
   /** Identifies which layer to lift when the user starts a reorder gesture
@@ -26,6 +27,8 @@ interface LayerTitleBarProps {
   /** Group display name — only set on the leftmost member of a multi-member
    *  group (rendered above the layer-specific row). */
   groupLabel?: string
+  /** The Group's Workspace, named after the group label (#868). */
+  groupWorkspace?: FrameWorkspace
   groupSelected?: boolean
   /** Color for the group label when it's selected by a *remote* user. When
    *  set (and not locally `groupSelected`), the label is tinted to this
@@ -76,6 +79,7 @@ export function LayerTitleBar({
   dragHandlers,
   onRequestReorderDrag,
   groupLabel,
+  groupWorkspace,
   groupSelected,
   groupSelectedColor,
   onSelectGroup,
@@ -148,6 +152,7 @@ export function LayerTitleBar({
         >
           <GroupLabel
             label={groupLabel}
+            workspace={groupWorkspace}
             groupSelected={groupSelected}
             color={groupSelectedColor}
             onSelectGroup={onSelectGroup}

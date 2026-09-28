@@ -12,7 +12,8 @@ Change it in one person's frame and every other viewer's frame updates too.
 It's useful for things like the signed-in user, the selected plan, or a
 billing toggle, so a whole team can look at the same screen in the same state.
 
-The frame's route pill shows a `{}` when shared state is present. Hover it to
+The route in the selected frame's address bar shows a `{}` when shared state
+is present. Hover it to
 see the JSON. Screenplay doesn't edit shared state from the canvas; it only
 displays it.
 
@@ -41,7 +42,7 @@ import { useSharedState } from "@screenplay.space/state"
 export function BillingToggle() {
   const [annual, setAnnual] = useState(false)
   useSharedState("billing", annual ? "annual" : "monthly", (v) =>
-    setAnnual(v === "annual"),
+    setAnnual(v === "annual")
   )
   return <Toggle value={annual} onChange={setAnnual} />
 }
@@ -74,7 +75,7 @@ const unsubscribe = subscribeSharedState("session", (next) => {
   console.log("session changed", next)
 })
 
-remove()                    // or clearSharedState("session")
+remove() // or clearSharedState("session")
 unsubscribe()
 ```
 
