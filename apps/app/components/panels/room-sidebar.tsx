@@ -743,6 +743,37 @@ export function RoomSidebar({
   const [pendingPick, setPendingPick] = useState<RepoPickerSelection | null>(
     null
   )
+  // The view the settings stage steps Back to (#781): the list or folder form
+  // the pick came from, or `null` when it came straight from the native folder
+  // dialog, where Back has nothing to return to and closes.
+  const [settingsBackTo, setSettingsBackTo] = useState<
+    "repos" | "folder" | null
+  >(null)
+  // What the folder form opens with: a folder the native dialog picked but
+  // couldn't use, and why (#781), or the folder you stepped Back from.
+  const [folderInitial, setFolderInitial] = useState<
+    { path: string; error?: string } | undefined
+  >(undefined)
+  const closePicker = useCallback(() => {
+    setPickerView(null)
+    setPendingPick(null)
+  }, [])
+  // One step back from the current view (Back, Cancel and Escape, #781).
+  const stepBack = useCallback(() => {
+    if (pickerView === "settings" && settingsBackTo) {
+      if (
+        settingsBackTo === "folder" &&
+        pendingPick?.kind === "source" &&
+        pendingPick.source.localPath
+      ) {
+        setFolderInitial({ path: pendingPick.source.localPath })
+      }
+      setPendingPick(null)
+      setPickerView(settingsBackTo)
+    } else {
+      closePicker()
+    }
+  }, [pickerView, settingsBackTo, pendingPick, closePicker])
 
   // "Open a folder" fires the native OS directory dialog directly; only when no
   // native picker is reachable (sidecar driven from a browser) do we open the
@@ -754,8 +785,15 @@ export function RoomSidebar({
       // every other unconfigured add (#682): store the pick and flip the dialog
       // so behavior doesn't depend on how the folder was picked.
       setPendingPick({ kind: "source", source: result.source })
+      setSettingsBackTo(null)
       setPickerView("settings")
+    } else if (result.kind === "error") {
+      // Not a usable folder (not a git checkout, say): open the path form on
+      // it with the reason, rather than losing both (#781).
+      setFolderInitial({ path: result.path, error: result.error })
+      setPickerView("folder")
     } else if (result.kind === "fallback") {
+      setFolderInitial(undefined)
       setPickerView("folder")
     }
   }, [])
@@ -1489,10 +1527,8 @@ export function RoomSidebar({
                     // sets `pickerView`); web's trigger opens the GitHub modal
                     // straight away. Either way, dismissing closes it and drops
                     // any pick left waiting in the settings stage (adds nothing).
-                    if (!open) {
-                      setPickerView(null)
-                      setPendingPick(null)
-                    } else if (!isLocalBuild) setPickerView("repos")
+                    if (!open) closePicker()
+                    else if (!isLocalBuild) setPickerView("repos")
                   }}
                 >
                   {isLocalBuild ? (
@@ -1549,7 +1585,16 @@ export function RoomSidebar({
                       </IconButton>
                     </DialogTrigger>
                   )}
-                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-4 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-3 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0">
+                  <DialogContent
+                    onEscapeKeyDown={(event) => {
+                      // Escape steps back one screen, like Back (#781).
+                      if (pickerView === "settings" && settingsBackTo) {
+                        event.preventDefault()
+                        stepBack()
+                      }
+                    }}
+                    className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0"
+                  >
                     <DialogHeader className="px-5 pt-5 pb-2">
                       <DialogTitle>
                         {pickerView === "settings"
@@ -1628,45 +1673,57 @@ export function RoomSidebar({
                           setPendingPick(null)
                           setPickerView(null)
                         }}
-                        onCancel={() => {
-                          // Cancel adds nothing — drop the pick, close.
-                          setPendingPick(null)
-                          setPickerView(null)
-                        }}
+                        // Adds nothing. Steps back to the list or folder the
+                        // pick came from (#781); closes only when there is
+                        // nothing to go back to.
+                        cancelLabel={settingsBackTo ? "Back" : "Cancel"}
+                        onCancel={stepBack}
                       />
                     ) : pickerView === "folder" ? (
                       <LocalFolderForm
-                        onBack={() => setPickerView(null)}
+                        // On the header's 20px gutter.
+                        className="px-5 pt-2 pb-5"
+                        initial={folderInitial}
+                        onBack={closePicker}
                         onResolved={(source) => {
                           // The folder-path fallback funnels through the settings
                           // stage too (#682), so behavior doesn't depend on how
                           // the folder was picked.
                           setPendingPick({ kind: "source", source })
+                          setSettingsBackTo("folder")
                           setPickerView("settings")
                         }}
                       />
-                    ) : (
-                      <RepoPicker
-                        configs={savedConfigs}
-                        // The local build can add a Repo with no GitHub auth at
-                        // all — by clone URL — and offers the on-demand
-                        // device-flow connect (PRD #428).
-                        localSources={isLocalBuild}
-                        onSelect={(pick) => {
-                          // Every unconfigured pick — a GitHub repo or a pasted
-                          // clone-URL source — is interposed with the
-                          // confirm-and-configure settings stage (#676, #682)
-                          // instead of provisioning on select. Only a
-                          // saved-preset pick keeps today's one-click add.
-                          if (pick.kind === "config") {
-                            onCreateRepo(pick)
-                            setPickerView(null)
-                            return
-                          }
-                          setPendingPick(pick)
-                          setPickerView("settings")
-                        }}
-                      />
+                    ) : null}
+                    {/* Stays mounted under the settings stage so Back returns
+                        to the list with its search and scroll intact (#781). */}
+                    {(pickerView === "repos" ||
+                      (pickerView === "settings" &&
+                        settingsBackTo === "repos")) && (
+                      <div hidden={pickerView !== "repos"}>
+                        <RepoPicker
+                          configs={savedConfigs}
+                          // The local build can add a Repo with no GitHub auth at
+                          // all — by clone URL — and offers the on-demand
+                          // device-flow connect (PRD #428).
+                          localSources={isLocalBuild}
+                          onSelect={(pick) => {
+                            // Every unconfigured pick — a GitHub repo or a pasted
+                            // clone-URL source — is interposed with the
+                            // confirm-and-configure settings stage (#676, #682)
+                            // instead of provisioning on select. Only a
+                            // saved-preset pick keeps today's one-click add.
+                            if (pick.kind === "config") {
+                              onCreateRepo(pick)
+                              setPickerView(null)
+                              return
+                            }
+                            setPendingPick(pick)
+                            setSettingsBackTo("repos")
+                            setPickerView("settings")
+                          }}
+                        />
+                      </div>
                     )}
                   </DialogContent>
                 </Dialog>

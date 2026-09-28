@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { cn } from "@workspace/ui/lib/utils"
 import { withBasePath } from "@/lib/base-path"
 import { inspectLocalRepoPath } from "@/lib/github-local/actions"
 import type { NewRepoSource } from "@/lib/github-local/types"
@@ -11,13 +12,17 @@ import type { NewRepoSource } from "@/lib/github-local/types"
 /**
  * Outcome of firing the native directory dialog:
  *  - `source`    the user picked a folder that resolved to a Repo
+ *  - `error`     the user picked a folder that isn't a usable Repo (not a git
+ *                checkout, say); the caller shows `error` with `path` kept, so
+ *                the reason isn't lost (#781)
  *  - `fallback`  no native picker is reachable (sidecar driven from a browser
- *                in development) or the pick failed to resolve — the caller
- *                should swap in the path-input form (story 27)
+ *                in development) — the caller should offer the path input
+ *                (story 27)
  *  - `cancelled` the dialog opened but the user dismissed it
  */
 export type ChooseLocalFolderResult =
   | { kind: "source"; source: NewRepoSource }
+  | { kind: "error"; path: string; error: string }
   | { kind: "fallback" }
   | { kind: "cancelled" }
 
@@ -40,8 +45,7 @@ export async function chooseLocalFolder(): Promise<ChooseLocalFolderResult> {
     if (!data.path) return { kind: "cancelled" }
     const result = await inspectLocalRepoPath(data.path)
     if (result.ok) return { kind: "source", source: result.source }
-    // Surface the resolve error through the path form.
-    return { kind: "fallback" }
+    return { kind: "error", path: data.path, error: result.error }
   } catch {
     return { kind: "fallback" }
   }
@@ -55,12 +59,19 @@ export async function chooseLocalFolder(): Promise<ChooseLocalFolderResult> {
 export function LocalFolderForm({
   onBack,
   onResolved,
+  initial,
+  className,
 }: {
   onBack: () => void
   onResolved: (source: NewRepoSource) => void
+  /** The folder to start on: one the native dialog picked but couldn't use
+   *  (with why), or one you stepped Back from. */
+  initial?: { path: string; error?: string }
+  /** Overrides the default padding, e.g. to sit on a dialog's gutter. */
+  className?: string
 }) {
-  const [value, setValue] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [value, setValue] = useState(initial?.path ?? "")
+  const [error, setError] = useState<string | null>(initial?.error ?? null)
   const [busy, setBusy] = useState(false)
 
   const submit = async () => {
@@ -77,7 +88,7 @@ export function LocalFolderForm({
 
   return (
     <form
-      className="flex flex-col gap-2 p-3"
+      className={cn("flex flex-col gap-2 p-3", className)}
       onSubmit={(e) => {
         e.preventDefault()
         if (!busy) submit()

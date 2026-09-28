@@ -9,7 +9,10 @@ import { FIXTURE_IDS } from "./fixtures/world"
 import {
   canvasPanels,
   DEFAULT_VIEWPORT,
+  fixtureCheckouts,
+  fixtureGitHub,
   homeView,
+  openAddProject,
   openChatTab,
   openTerminalTab,
   replayRun,
@@ -283,6 +286,36 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1500)
       await page.goBack()
       await page.waitForTimeout(1200)
+    },
+  },
+  {
+    name: "add-project",
+    description:
+      "Add project: pick a GitHub repo, step Back to the list with the search kept, then add a folder and step Back to its path.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    run: async (page) => {
+      const { checkout } = fixtureCheckouts()
+      await step(() => openAddProject(page, "github"))
+      await page.waitForTimeout(1000)
+      await step(() => page.keyboard.type("docs", { delay: 80 }))
+      await page.waitForTimeout(600)
+      await click(page, page.getByText("acme/docs").first())
+      await page.waitForTimeout(1800)
+      await click(page, page.getByRole("button", { name: "Back" }))
+      await page.waitForTimeout(1500)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(800)
+      await step(() => openAddProject(page, "folder"))
+      await step(() =>
+        page
+          .getByPlaceholder("/path/to/your/clone")
+          .pressSequentially(checkout, { delay: 15 })
+      )
+      await click(page, page.getByRole("button", { name: "Add", exact: true }))
+      await page.waitForTimeout(1800)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(1500)
     },
   },
   {

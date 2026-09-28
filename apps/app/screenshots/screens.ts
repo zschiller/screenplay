@@ -1,3 +1,8 @@
+import { execFileSync } from "node:child_process"
+import { mkdirSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { Locator, Page } from "playwright-core"
 import * as Y from "yjs"
 
@@ -12,6 +17,7 @@ import {
   type FixtureEntryState,
 } from "@/lib/fixture-entry"
 import { fixtureFaultCookieName, type FixtureFault } from "@/lib/fixture-faults"
+import { fixtureGitHubCookieName } from "@/lib/fixture-github"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
@@ -1158,6 +1164,94 @@ export const SCREENS: Screen[] = [
         .click({ timeout: 15_000 })
     },
     settleMs: 400,
+  },
+  {
+    name: "add-project-github",
+    description:
+      "Add project → Open GitHub project: presets named once over the signed-in account's repos.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openAddProject(page, "github")
+      await page.getByText("acme/docs").first().waitFor({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-github-loading",
+    description: "Open GitHub project while the repo list is still loading.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await holdServerActions(page, "hang")
+      await openAddProject(page, "github")
+      await page.waitForTimeout(500)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-github-error",
+    description: "Open GitHub project after the repo list fails to load.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await holdServerActions(page, "fail")
+      await openAddProject(page, "github")
+      await page.getByText(/Couldn.t load your GitHub/).waitFor({
+        timeout: 15_000,
+      })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-github-disconnected",
+    description:
+      "Open GitHub project with no GitHub connection on this device.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openAddProject(page, "github")
+      await page.getByText("Connect GitHub in Settings").waitFor({
+        timeout: 15_000,
+      })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-folder-error",
+    description:
+      "Add project → Open project on a folder that isn't a git checkout: the path stays, with why.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const { plain } = fixtureCheckouts()
+      await openAddProject(page, "folder")
+      await page.getByPlaceholder("/path/to/your/clone").fill(plain)
+      await page.getByRole("button", { name: "Add", exact: true }).click()
+      await page.getByText("Not a git repository").waitFor({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-settings",
+    description:
+      "Configure project for a folder, with Back to the folder it came from.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await addFixtureFolder(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "add-project-settings-github",
+    description:
+      "Configure project for a GitHub repo, with Back to the list it came from.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openAddProject(page, "github")
+      await page.getByText("acme/docs").first().click({ timeout: 15_000 })
+      await page.getByText(/Couldn.t auto-detect/).waitFor({ timeout: 15_000 })
+    },
+    settleMs: 300,
   },
   {
     name: "dialog-remove-project",
@@ -2538,4 +2632,81 @@ async function selectCheckoutFrame(page: Page): Promise<void> {
     .locator("#frame-toolbar-portal button")
     .first()
     .waitFor({ state: "visible", timeout: 15_000 })
+}
+
+/**
+ * The cookie that signs the Fixture World in to GitHub (`@/lib/fixture-github`),
+ * so GitHub-backed lists answer with the fixture account's repositories.
+ */
+export function fixtureGitHub(): Array<{ name: string; value: string }> {
+  return [{ name: fixtureGitHubCookieName(), value: "connected" }]
+}
+
+/**
+ * Open Add project from the sidebar's Projects header and pick one of its two
+ * entries: `github` (the repo list) or `folder` (the native folder dialog, which
+ * a capture browser can't reach, so it falls back to the path form). The first
+ * click can land before hydration, so retry until the menu is up.
+ */
+export async function openAddProject(
+  page: Page,
+  entry: "github" | "folder"
+): Promise<void> {
+  await unfreeze(page)
+  const menu = page.getByRole("menu")
+  for (let i = 0; i < 5 && !(await menu.count()); i++) {
+    await page
+      .getByRole("button", { name: "Add project" })
+      .first()
+      .click({ timeout: 15_000 })
+    await page.waitForTimeout(500)
+  }
+  await page
+    .getByRole("menuitem", {
+      name: entry === "github" ? "Open GitHub project" : "Open project",
+    })
+    .click()
+  await page.getByRole("dialog").waitFor({ timeout: 15_000 })
+}
+
+/**
+ * Two folders on this machine for the Local folder tab: `checkout`, a git
+ * checkout of a pnpm app (so detection has something to find), and `plain`, a
+ * folder that isn't a repository. Rebuilt on every call; cheap and idempotent.
+ */
+export function fixtureCheckouts(): { checkout: string; plain: string } {
+  const root = join(tmpdir(), "screenplay-fixture-folders")
+  const checkout = join(root, "storefront")
+  const plain = join(root, "sketches")
+  mkdirSync(checkout, { recursive: true })
+  mkdirSync(plain, { recursive: true })
+  writeFileSync(
+    join(checkout, "package.json"),
+    JSON.stringify(
+      {
+        name: "storefront",
+        packageManager: "pnpm@10.0.0",
+        scripts: { dev: "next dev" },
+        dependencies: { next: "15.0.0" },
+      },
+      null,
+      2
+    )
+  )
+  writeFileSync(join(checkout, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: checkout })
+  return { checkout, plain }
+}
+
+/** Add the fixture checkout through the folder form, landing on its settings. */
+export async function addFixtureFolder(page: Page): Promise<void> {
+  const { checkout } = fixtureCheckouts()
+  await openAddProject(page, "folder")
+  await page.getByPlaceholder("/path/to/your/clone").fill(checkout)
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByText("Configure project").waitFor({ timeout: 15_000 })
+  // Let detection land so the form shows what it found.
+  await page
+    .getByText("Detecting settings…")
+    .waitFor({ state: "detached", timeout: 15_000 })
 }

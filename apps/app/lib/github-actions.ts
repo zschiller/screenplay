@@ -1,6 +1,7 @@
 "use server"
 
 import { getGitHubToken } from "@/lib/auth-helpers"
+import { FIXTURE_GITHUB_REPOS, hasFixtureGitHub } from "@/lib/fixture-github"
 import { mutateRoomDoc } from "@/lib/yjs/server"
 
 export interface GitHubRepo {
@@ -30,6 +31,7 @@ export async function hasGitHubToken(): Promise<boolean> {
 }
 
 export async function listUserRepos(): Promise<GitHubRepo[]> {
+  if (await hasFixtureGitHub()) return FIXTURE_GITHUB_REPOS
   const token = await getGitHubToken()
   if (!token) return []
 
@@ -47,7 +49,12 @@ export async function listUserRepos(): Promise<GitHubRepo[]> {
       }
     )
 
-    if (!res.ok) break
+    // A failed first page is an error the picker shows with a retry; a failed
+    // later page keeps what already loaded.
+    if (!res.ok) {
+      if (page === 1) throw new Error(`GitHub returned ${res.status}`)
+      break
+    }
 
     const data = await res.json()
     if (data.length === 0) break
