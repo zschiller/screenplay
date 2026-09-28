@@ -9,6 +9,7 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core"
 import type { ElementAnchor } from "../comment-anchor"
+import type { AgentStatus } from "../comments-agent"
 import { room, user, type RoomRole } from "./schema-core"
 
 // The **multi-user surface** (PRD #404, issue #417). These tables back GitHub
@@ -129,6 +130,14 @@ export const thread = pgTable(
     // threads moves any left over onto `workspace_id` and clears it (see
     // `lib/comment-migration.ts`).
     branch: text("branch"),
+    // Sent to the Workspace's agent (#788): where the request stands
+    // (`queued`, `working`, `addressed`; null when never sent or the run
+    // failed), the chat that carries it, HEAD when it was sent, and the
+    // commit the agent made for it once addressed.
+    agentStatus: text("agent_status").$type<AgentStatus>(),
+    agentChatId: text("agent_chat_id"),
+    agentBaseCommit: text("agent_base_commit"),
+    agentCommit: text("agent_commit"),
     resolved: boolean("resolved").notNull().default(false),
     resolvedAt: timestamp("resolved_at"),
     createdBy: text("created_by")
@@ -155,6 +164,9 @@ export const comment = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
+    // Set when the Workspace's agent wrote this reply (#788): the chat it came
+    // from. `author_id` is then whoever sent the thread to the agent.
+    agentChatId: text("agent_chat_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     editedAt: timestamp("edited_at"),
   },

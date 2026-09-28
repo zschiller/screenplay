@@ -40,6 +40,7 @@ import {
   type CommentMember,
 } from "./comment-thread-card"
 import type { CommentThreads } from "./use-comment-threads"
+import type { CommentRequests } from "./use-comment-requests"
 
 export { formatRelative, PillAvatar } from "./comment-thread-card"
 
@@ -137,6 +138,9 @@ export interface CommentsProps {
   numbers?: ReadonlyMap<string, number>
   /** Hide the pins (the comments panel's toggle), all but the open one's. */
   hidePins?: boolean
+  /** Sending threads to their Workspace's agent (#788); the card offers it
+   *  when given. */
+  requests?: CommentRequests
 }
 
 export function Comments({
@@ -157,6 +161,7 @@ export function Comments({
   describeLayer,
   numbers,
   hidePins = false,
+  requests,
 }: CommentsProps) {
   const { threads, markRead } = commentThreads
   const [internalActiveThreadId, setInternalActiveThreadId] = useState<
@@ -331,6 +336,7 @@ export function Comments({
                 members={members}
                 describeLayer={describeLayer}
                 getDocumentEditor={getDocumentEditor}
+                requests={requests}
                 onClose={() => setActiveThreadId(null)}
               />
             </CommentPin>
@@ -475,6 +481,7 @@ export function OpenThreadCard({
   members,
   describeLayer,
   getDocumentEditor,
+  requests,
   onClose,
 }: {
   thread: ThreadWithComments
@@ -482,6 +489,7 @@ export function OpenThreadCard({
   members: CommentMember[]
   describeLayer: CommentsProps["describeLayer"]
   getDocumentEditor?: (id: string) => Editor | undefined
+  requests?: CommentRequests
   onClose: () => void
 }) {
   const { data: session } = useAppSession()
@@ -502,6 +510,9 @@ export function OpenThreadCard({
         setResolved(thread.id, true)
       }}
       onReopen={() => setResolved(thread.id, false)}
+      onSendToAgent={
+        requests?.canSend(thread) ? () => requests.send([thread.id]) : undefined
+      }
       onMarkUnread={() => {
         setThreadUnread(thread.id, true)
         onClose()

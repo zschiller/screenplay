@@ -19,6 +19,17 @@ export interface CommentGroup {
   threads: ThreadWithComments[]
 }
 
+/**
+ * Each thread's pin number: its place in the order threads were started,
+ * counting resolved ones, so a thread keeps its number for its whole life.
+ */
+export function threadNumbers(
+  threads: readonly { id: string; createdAt: number }[]
+): Map<string, number> {
+  const ordered = [...threads].sort((a, b) => a.createdAt - b.createdAt)
+  return new Map(ordered.map((t, i) => [t.id, i + 1]))
+}
+
 export function lastActivity(thread: ThreadWithComments): number {
   return thread.comments.at(-1)?.createdAt ?? thread.createdAt
 }
