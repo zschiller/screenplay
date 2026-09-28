@@ -246,8 +246,7 @@ body {
    editor's chip above; fenced code gets a header (language + copy) and
    theme-aware highlight.js token colours; code and tables scroll inside the
    message instead of widening the panel. Colours are custom properties so the
-   inverted user bubble can take the opposite theme's palette: its fill is the
-   `primary` colour, dark in light mode and light in dark mode. */
+   user bubble can deepen its code fills against its own `muted` fill. */
 .chat-markdown {
   --chat-code-bg: var(--muted);
   --chat-code-fg: var(--foreground);
@@ -266,8 +265,7 @@ body {
   --hl-deletion-bg: #ffebe9;
   overflow-wrap: anywhere;
 }
-.dark .chat-markdown,
-.chat-markdown-inverted {
+.dark .chat-markdown {
   --hl-keyword: #ff7b72;
   --hl-string: #a5d6ff;
   --hl-title: #d2a8ff;
@@ -278,40 +276,9 @@ body {
   --hl-addition-bg: rgba(46, 160, 67, 0.15);
   --hl-deletion-bg: rgba(248, 81, 73, 0.15);
 }
-.dark .chat-markdown-inverted {
-  --hl-keyword: #cf222e;
-  --hl-string: #0a3069;
-  --hl-title: #8250df;
-  --hl-number: #0550ae;
-  --hl-comment: #6e7781;
-  --hl-builtin: #953800;
-  --hl-tag: #116329;
-  --hl-addition-bg: #dafbe1;
-  --hl-deletion-bg: #ffebe9;
-}
-.chat-markdown-inverted {
-  --chat-code-bg: color-mix(
-    in oklab,
-    var(--primary-foreground) 16%,
-    transparent
-  );
-  --chat-code-fg: var(--primary-foreground);
-  --chat-block-bg: color-mix(
-    in oklab,
-    var(--primary-foreground) 10%,
-    transparent
-  );
-  --chat-block-border: color-mix(
-    in oklab,
-    var(--primary-foreground) 18%,
-    transparent
-  );
-  --chat-block-muted: color-mix(
-    in oklab,
-    var(--primary-foreground) 65%,
-    transparent
-  );
-  --chat-rule: color-mix(in oklab, var(--primary-foreground) 25%, transparent);
+.chat-markdown-bubble {
+  --chat-code-bg: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --chat-block-bg: var(--background);
 }
 
 .chat-markdown code::before,
@@ -430,10 +397,6 @@ body {
   vertical-align: -0.1em;
   accent-color: var(--primary);
 }
-.chat-markdown-inverted li.task-list-item input[type="checkbox"] {
-  accent-color: var(--primary-foreground);
-}
-
 .chat-markdown del {
   color: var(--chat-block-muted);
 }

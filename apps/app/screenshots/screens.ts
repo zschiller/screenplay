@@ -354,11 +354,23 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-agent-chat",
     description:
-      "The agent chat panel: a finished turn with diff, terminal, subagent, and failed tool calls.",
+      "The agent chat panel: a finished turn's steps folded into one summary line, with a failure chip.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-turn-expanded",
+    description:
+      "A finished turn's summary opened: diff, terminal, subagent, and failed tool calls.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await expandTurnSummaries(page)
     },
     settleMs: 400,
   },
@@ -370,6 +382,7 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Breakpoint audit")
+      await expandTurnSummaries(page)
       await page
         .getByRole("button", { name: /^Reasoning$/ })
         .first()
@@ -578,6 +591,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, toolStatesRun())
+      await expandTurnSummaries(page)
       await expandToolCall(page, /^Edit/)
     },
     settleMs: 400,
@@ -591,6 +605,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, toolStatesRun())
+      await expandTurnSummaries(page)
       // Hover the row, not the path text: hovering the text scrolls the
       // clipped title sideways to bring it into view.
       await page
@@ -609,6 +624,7 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+      await expandTurnSummaries(page)
       // Reach it with the keyboard (focus back, then Tab onto it) so the
       // browser treats the focus as keyboard focus and paints the ring.
       await page
@@ -1616,6 +1632,12 @@ export async function openChatTab(page: Page, label: string): Promise<void> {
     .getByRole("tab", { name: new RegExp(label, "i") })
     .first()
     .click({ timeout: 15_000 })
+  // A cold dev server can hold the history load past the settle delay.
+  await page
+    .getByText("Loading chat…")
+    .first()
+    .waitFor({ state: "hidden", timeout: 30_000 })
+    .catch(() => {})
 }
 
 /**
@@ -1801,6 +1823,24 @@ export function streamingRun(): RunEvent[] {
  * a row that already reports itself open, so a row that opens by default (a
  * failed call showing its reason) isn't toggled shut.
  */
+/**
+ * Open every finished turn's summary line, so the steps folded behind it show.
+ * Tolerates a transcript with none (a build from before #800), so the same
+ * screens shoot a "before" set.
+ */
+export async function expandTurnSummaries(page: Page): Promise<void> {
+  await page
+    .locator('[data-testid="turn-summary-trigger"]:visible')
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {})
+  // Other chat tabs stay mounted but hidden, so only the visible ones count.
+  const closed = page.locator(
+    '[data-testid="turn-summary-trigger"][aria-expanded="false"]:visible'
+  )
+  while ((await closed.count()) > 0) await closed.first().click()
+}
+
 export async function expandToolCall(page: Page, name: RegExp): Promise<void> {
   const row = page.getByRole("button", { name }).first()
   await row.waitFor({ timeout: 10_000 })
