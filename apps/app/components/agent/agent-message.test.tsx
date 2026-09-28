@@ -674,3 +674,51 @@ describe("TurnSummaryRow (issue #800)", () => {
     expect(screen.queryByTestId("turn-summary-failure")).toBeNull()
   })
 })
+
+describe("AgentMessageItem — a Coordinator canvas change (#894)", () => {
+  const result = (text: string): ToolCallContent[] => [
+    { type: "content", content: { type: "text", text } },
+  ]
+
+  it("names what it changed from the result's first line, ids left out", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "undo_changes",
+          status: "completed",
+          content: result(
+            'Undid: removed frame "Settings", document "Launch spec".\nIds: turn-1'
+          ),
+        })}
+      />
+    )
+    const row = screen.getByTestId("tool-call")
+    expect(row.textContent).toContain(
+      'Undid: removed frame "Settings", document "Launch spec"'
+    )
+    expect(row.textContent).not.toContain("turn-1")
+  })
+
+  it("keeps the verb while running and for an error", () => {
+    const { rerender } = render(
+      <AgentMessageItem
+        message={toolCall({ title: "remove", status: "in_progress" })}
+      />
+    )
+    expect(screen.getByTestId("tool-call").textContent).toContain("Remove")
+
+    rerender(
+      <AgentMessageItem
+        message={toolCall({
+          title: "remove",
+          status: "completed",
+          content: result(
+            "Error: no frame or document x. Nothing was removed."
+          ),
+        })}
+      />
+    )
+    expect(screen.getByTestId("tool-call").textContent).toContain("Remove")
+    expect(screen.getByTestId("tool-call").textContent).not.toContain("Error")
+  })
+})

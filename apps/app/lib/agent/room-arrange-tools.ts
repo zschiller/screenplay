@@ -11,6 +11,8 @@ import { routeToLabel } from "@/lib/route-utils"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { listTurns, recordChange, undoTurn } from "@/lib/agent/room-change-log"
 import type { RoomDoc } from "@/lib/room-access"
+import type { BranchData } from "@/lib/types"
+import { workspaceLabel } from "@/lib/workspace-label"
 
 /** A new document's size, as a click with the Document tool makes it. */
 const DOCUMENT_SIZE = { width: 480, height: 640 }
@@ -79,7 +81,10 @@ export function buildArrangeTools(
                   ...(f.route ? { route: f.route } : {}),
                 })!
             )
-            return `Added ${frameList(ids, frames)} to Group "${group.name ?? group_id}".`
+            return withIds(
+              `Added ${frameNames(frames)}${forWorkspace(branch)} to Group "${group.name ?? group_id}".`,
+              ids
+            )
           }
 
           if (!workspace_id) {
@@ -88,14 +93,17 @@ export function buildArrangeTools(
               height: DEFAULT_IFRAME_LAYER_HEIGHT,
             }
             const id = ops.createBlankFrame(newGroupAnchor(c, size), size)
-            return `Created blank frame [${id}] in a new Group.`
+            return withIds("Created a blank frame.", [id])
           }
           if (routes.length === 0) {
             const { layerId, groupId } = ops.createFrameForAgent(
               workspace_id,
               ORIGIN
             )
-            return `Created frame [${layerId}] for Workspace ${workspace_id} in new Group [${groupId}].`
+            return withIds(`Created a frame${forWorkspace(branch)}.`, [
+              layerId,
+              groupId,
+            ])
           }
           const created = ops.createFramesForRoutes(
             workspace_id,
@@ -104,7 +112,10 @@ export function buildArrangeTools(
           )!
           const group = freshOps(doc).c.iframeLayerGroups.get(created.groupId)
           const ids = group ? getGroupMembers(group).map((m) => m.id) : []
-          return `Created ${frameList(ids, frames)} for Workspace ${workspace_id} in new Group [${created.groupId}].`
+          return withIds(
+            `Created ${frameNames(frames)}${forWorkspace(branch)} in a new Group.`,
+            [...ids, created.groupId]
+          )
         }),
     }),
 
@@ -133,7 +144,7 @@ export function buildArrangeTools(
             ).docId
           }
           if (title) freshOps(doc).ops.renameDocument(docId, title)
-          return `Created document "${title || "Untitled"}" [${docId}].`
+          return withIds(`Created document "${title || "Untitled"}".`, [docId])
         }),
     }),
 
@@ -185,13 +196,14 @@ export function buildArrangeTools(
           if (missing.length) {
             return `Error: no frame or document ${missing.join(", ")} on the canvas.`
           }
+          const names = memberNames(c, ids)
           if (!group_id) {
             const size = {
               width: DEFAULT_IFRAME_LAYER_WIDTH,
               height: DEFAULT_IFRAME_LAYER_HEIGHT,
             }
             const newId = ops.splitToNewGroup(ids, newGroupAnchor(c, size))
-            return `Gathered ${ids.length} into new Group [${newId}].`
+            return withIds(`Gathered ${names} into a new Group.`, [newId])
           }
           const target = c.iframeLayerGroups.get(group_id)
           if (!target) return `Error: no Group ${group_id}.`
@@ -202,7 +214,7 @@ export function buildArrangeTools(
               index === undefined ? undefined : index + i
             )
           )
-          return `Moved ${ids.length} into Group "${target.name ?? group_id}".`
+          return `Moved ${names} into Group "${target.name ?? group_id}".`
         }),
     }),
 
@@ -336,7 +348,9 @@ export function buildArrangeTools(
           if (!target) return "Nothing to undo."
           const undone = undoTurn(d, target, turnId)
           if (!undone.ok) return `Error: ${undone.error}`
-          return `Undid turn [${target}]: ${undone.actions.join(" ")}`
+          return withIds(`Undid: ${undone.actions.map(lowerFirst).join(" ")}`, [
+            target,
+          ])
         }),
     }),
   }
@@ -402,13 +416,39 @@ function memberGroup(c: RoomCollections, id: string): string | undefined {
     .find((g) => getGroupMembers(g).some((m) => m.id === id))?.id
 }
 
-function frameList(
-  ids: string[],
-  frames: { route?: string; label: string }[]
-): string {
-  const lines = ids.map((id, i) => {
-    const route = frames[i]?.route
-    return route ? `[${id}] ${route}` : `[${id}]`
-  })
-  return `${ids.length === 1 ? "frame" : "frames"} ${lines.join(", ")}`
+/**
+ * A tool result: one line naming what changed, the way the chat's tool row
+ * shows it, then the ids the model needs for a follow-up call.
+ */
+function withIds(line: string, ids: string[]): string {
+  return `${line}\nIds: ${ids.join(", ")}`
+}
+
+/** The line a result shows in the chat, without its ids. */
+export function resultLine(result: string): string {
+  return result.split("\n")[0]!
+}
+
+function forWorkspace(branch: BranchData | undefined): string {
+  return branch ? ` for ${workspaceLabel(branch)}` : ""
+}
+
+function frameNames(frames: { label: string }[]): string {
+  const names = frames.map((f) => `"${f.label}"`).join(", ")
+  return `${frames.length === 1 ? "frame" : "frames"} ${names}`
+}
+
+/** Frames and documents by name: `frame "Settings", document "Launch spec"`. */
+function memberNames(c: RoomCollections, ids: string[]): string {
+  return ids
+    .map((id) => {
+      const frame = c.iframeLayers.get(id)
+      if (frame) return `frame "${frame.label}"`
+      return `document "${c.markdownLayers.get(id)?.title || "Untitled"}"`
+    })
+    .join(", ")
+}
+
+function lowerFirst(text: string): string {
+  return text.charAt(0).toLowerCase() + text.slice(1)
 }

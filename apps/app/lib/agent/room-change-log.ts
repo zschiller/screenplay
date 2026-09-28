@@ -118,7 +118,8 @@ export function recordChange(
   doc.transact(() => {
     log.set(turnId, {
       ...entry,
-      actions: [...entry.actions, action],
+      // The first line names the change; any lines after it are ids.
+      actions: [...entry.actions, action.split("\n")[0]!],
       changes: [...entry.changes, ...changes],
     })
     const turns = listTurns(doc)

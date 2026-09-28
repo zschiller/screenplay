@@ -3496,7 +3496,12 @@ export function coordinatorRun(): RunEvent[] {
 export function coordinatorUndoRun(): RunEvent[] {
   const turn = (
     ask: string,
-    tool: { id: string; title: string; kind: "delete" | "edit" },
+    tool: {
+      id: string
+      title: string
+      kind: "delete" | "edit"
+      result: string
+    },
     answer: string
   ): RunEvent[] => [
     {
@@ -3512,6 +3517,7 @@ export function coordinatorUndoRun(): RunEvent[] {
         title: tool.title,
         kind: tool.kind,
         status: "completed",
+        content: [{ type: "content", content: text(tool.result) }],
       },
     },
     {
@@ -3523,12 +3529,23 @@ export function coordinatorUndoRun(): RunEvent[] {
   return [
     ...turn(
       "Clear out the frame with no Workspace and the Checkout brief.",
-      { id: "fixture-remove", title: "remove", kind: "delete" },
+      {
+        id: "fixture-remove",
+        title: "remove",
+        kind: "delete",
+        result: 'Removed frame "Untitled frame", document "Checkout brief".',
+      },
       "Removed the blank frame and the Checkout brief."
     ),
     ...turn(
       "Actually, undo that.",
-      { id: "fixture-undo", title: "undo_changes", kind: "edit" },
+      {
+        id: "fixture-undo",
+        title: "undo_changes",
+        kind: "edit",
+        result:
+          'Undid: removed frame "Untitled frame", document "Checkout brief".\nIds: fixture-turn',
+      },
       "Put the blank frame and the Checkout brief back, exactly as they were."
     ),
   ]

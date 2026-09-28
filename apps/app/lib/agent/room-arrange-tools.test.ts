@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 
+import { resultLine } from "@/lib/agent/room-arrange-tools"
 import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
 import { CHANGE_LOG_KEY, MAX_LOGGED_TURNS } from "@/lib/agent/room-change-log"
 import { getGroupMembers } from "@/lib/canvas/layout"
@@ -38,6 +39,13 @@ function room() {
     readDoc: async (fn) => fn(getRoomCollections(doc)),
     mutateDoc: async (fn) => fn(getRoomCollections(doc)),
     listTerminalTabs: async () => [],
+    readChatTranscript: async () => [],
+    readWorkspaceDiff: async () => "",
+    readWorkspaceFile: async () => null,
+    captureFrame: async () => {
+      throw new Error("no browser")
+    },
+    readFrameCapture: async () => null,
   }
   const turn = () => {
     const tools = buildRoomTools("room-1", ports)
@@ -57,6 +65,11 @@ function room() {
   }
 }
 
+/** The last id a tool result lists for the model. */
+function lastId(result: string): string {
+  return result.split("\nIds: ")[1]!.split(", ").at(-1)!
+}
+
 /** Every record the arrange tools can touch, plus document bodies, as JSON. */
 function canvasState(doc: Y.Doc) {
   const maps = [
@@ -74,7 +87,10 @@ function canvasState(doc: Y.Doc) {
 /** A Group holding a Workspace frame and a document with a title and body. */
 function seedCanvas(r: ReturnType<typeof room>) {
   const { doc, collections } = r
-  collections.branches.set("ws-1", baseBranch("ws-1"))
+  collections.branches.set(
+    "ws-1",
+    baseBranch("ws-1", { title: "Checkout polish" })
+  )
   collections.iframeLayers.set(
     "frame-1",
     baseLayer("frame-1", {
@@ -123,7 +139,9 @@ describe("remove and undo", () => {
     expect(r.collections.iframeLayerGroups.get("group-1")).toBeUndefined()
 
     const undo = await r.turn()("undo_changes")
-    expect(undo).toMatch(/^Undid turn \[.+\]: Removed frame "Settings"/)
+    expect(undo).toMatch(
+      /^Undid: removed frame "Settings", document "Launch spec"\.\nIds: /
+    )
     expect(canvasState(r.doc)).toEqual(original)
     expect(fragmentBodyToPlainText(documentFragment(r.doc, "doc-1"))).toMatch(
       /Friday[\s\S]*QA/
@@ -215,7 +233,10 @@ describe("arrange tools", () => {
       workspace_id: "ws-1",
       routes: ["/", "/checkout"],
     })
-    const groupId = result.match(/new Group \[([^\]]+)\]/)![1]!
+    expect(resultLine(result)).toBe(
+      'Created frames "Home", "Checkout" for Checkout polish in a new Group.'
+    )
+    const groupId = lastId(result)
     const group = r.collections.iframeLayerGroups.get(groupId)!
     const frames = getGroupMembers(group).map(
       (m) => r.collections.iframeLayers.get(m.id)!
@@ -224,7 +245,6 @@ describe("arrange tools", () => {
       ["/", "ws-1"],
       ["/checkout", "ws-1"],
     ])
-    expect(result).toContain("/checkout")
   })
 
   it("adds blank frames and documents to an existing Group", async () => {
@@ -252,7 +272,10 @@ describe("arrange tools", () => {
     const call = r.turn()
 
     const gathered = await call("move_to_group", { ids: ["doc-1"] })
-    const newGroup = gathered.match(/new Group \[([^\]]+)\]/)![1]!
+    expect(resultLine(gathered)).toBe(
+      'Gathered document "Launch spec" into a new Group.'
+    )
+    const newGroup = lastId(gathered)
     expect(
       getGroupMembers(r.collections.iframeLayerGroups.get(newGroup)!)
     ).toEqual([{ kind: "markdown-layer", id: "doc-1" }])
