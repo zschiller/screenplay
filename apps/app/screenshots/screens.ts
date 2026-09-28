@@ -385,6 +385,47 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
+    name: "chat-tabs-overflow",
+    description:
+      "A narrow chat panel with more open chats than fit: the tab strip's overflow.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 22 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-tabs-unread",
+    description:
+      "A background chat whose run just finished, marked unread in the tab strip.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await replayRun(page, ids.chats.markdown, [
+        { type: "chat-stream-start" },
+        { type: "chat-stream-end" },
+      ])
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-history",
+    description:
+      "The chat history: closed chats with dates, first lines, one still running.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await replayRun(page, ids.chats.stickySummary, [
+        { type: "chat-stream-start" },
+      ])
+      await openChatHistory(page)
+    },
+    settleMs: 600,
+  },
+  {
     name: "logs-reconnecting",
     description:
       "The sandbox logs panel with coloured output, dropped and reconnecting.",
@@ -1406,31 +1447,33 @@ export async function openChatTab(page: Page, label: string): Promise<void> {
 }
 
 /**
- * Open a fresh terminal tab from the tab strip's "New chat or terminal" menu.
- *
- * Opened rather than restored: the fixture world does seed two terminal tabs,
- * but a cold room load currently prunes them as orphans before its Workspaces
- * arrive, so they can't be relied on to be there.
+ * Open the chat panel's terminal drawer on a terminal. Opening an empty drawer
+ * starts a terminal; the fixture world does seed two terminal tabs, but a cold
+ * room load currently prunes them as orphans before its Workspaces arrive, so
+ * either way the drawer ends up showing one.
  */
 export async function openTerminalTab(page: Page): Promise<void> {
   await page
-    .getByRole("button", { name: "New chat or terminal" })
+    .getByRole("button", { name: /^Terminal/ })
     .first()
     .click({ timeout: 15_000 })
-  // One harness reads "New terminal"; several list each harness by name under
-  // a "New terminal" label — either way the first item after "New chat".
   await page
-    .getByRole("menuitem")
-    .filter({ hasNotText: "New chat" })
+    .getByRole("tablist", { name: "Terminals" })
+    .getByRole("tab")
+    .first()
+    .waitFor({ timeout: 15_000 })
+}
+
+/**
+ * Open the chat panel's history. Today's panel calls it "All chats" (the menu
+ * that also lists overflowed tabs); the earlier panel's "Closed chats" button is
+ * matched too so a before capture of this screen still opens it.
+ */
+export async function openChatHistory(page: Page): Promise<void> {
+  await page
+    .getByRole("button", { name: /^(All chats|Closed chats)$/ })
     .first()
     .click({ timeout: 15_000 })
-  // Let the menu's exit animation finish before the shot: the settle step
-  // pins animations where they stand, which would freeze it half-closed.
-  await page.mouse.move(0, 0)
-  await page
-    .getByRole("menu")
-    .waitFor({ state: "detached", timeout: 5_000 })
-    .catch(() => {})
 }
 
 /** Select the chat panel's sandbox logs tab (an icon-only tab, named by its label). */

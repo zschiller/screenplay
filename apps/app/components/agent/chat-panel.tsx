@@ -11,26 +11,20 @@ import {
 import {
   Plus,
   X,
-  Archive,
-  RotateCcw,
   PanelRightClose,
   ChevronsUpDown,
-  ChevronDown,
   Check,
   GitPullRequest,
   GitPullRequestClosed,
   GitMerge,
   ArrowUpRight,
   Logs,
-  MessageCircle,
-  SquareTerminal,
 } from "lucide-react"
 import { AnimatePresence, motion, Reorder } from "motion/react"
 import { toast } from "sonner"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { GripSpinner } from "@/components/grip-spinner"
 import { EditableText } from "@workspace/ui/components/editable-text"
 import {
   Tabs,
@@ -40,8 +34,6 @@ import {
 } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
-import { ButtonGroup } from "@workspace/ui/components/button-group"
-import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
   Tooltip,
   TooltipContent,
@@ -49,14 +41,6 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
 import {
   Popover,
   PopoverContent,
@@ -72,20 +56,21 @@ import {
 } from "@workspace/ui/components/command"
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
-import { TerminalTab } from "./terminal-tab"
+import { ChatHistoryMenu, ChatRunIndicator } from "./chat-history-menu"
+import { TAB_LABEL_CLASS, TAB_LABEL_EDIT_CLASS } from "./tab-label"
+import { TerminalDrawer } from "./terminal-drawer"
+import { useOverflowingTabs } from "./use-overflowing-tabs"
 import { BranchBadge } from "@/components/branch-badge"
 import type {
   BranchData,
   ChatSessionData,
   MarkdownLayerData,
-  TabKind,
   TerminalTabData,
 } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import {
   DEFAULT_HARNESS_KEY,
   readLastHarnessKey,
-  readLastTabKind,
   readTabOrder,
   writeLastHarnessKey,
   writeLastTabKind,
@@ -99,29 +84,6 @@ import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
-
-// Horizontal scrolling for the tab strip is driven imperatively (sticky
-// right-edge, reveal-on-add) against the Radix ScrollArea's viewport. We reach
-// it through this stable data-attribute rather than threading a ref through the
-// shared ScrollArea wrapper (which forwards to its Root, not the viewport).
-const SCROLL_VIEWPORT_SELECTOR = '[data-slot="scroll-area-viewport"]'
-
-// Within how many px of the right edge counts as "pinned right". A couple of
-// px of slack absorbs sub-pixel rounding from fractional widths/zoom.
-const RIGHT_EDGE_SLACK_PX = 2
-
-// Scroll `viewport` the minimum amount so `el` is fully visible, with a little
-// padding so a revealed tab isn't flush against the edge.
-function ensureTabVisible(viewport: HTMLElement, el: HTMLElement) {
-  const vpRect = viewport.getBoundingClientRect()
-  const elRect = el.getBoundingClientRect()
-  const pad = 8
-  if (elRect.left < vpRect.left) {
-    viewport.scrollLeft -= vpRect.left - elRect.left + pad
-  } else if (elRect.right > vpRect.right) {
-    viewport.scrollLeft += elRect.right - vpRect.right + pad
-  }
-}
 
 // Scan a chat's messages newest-first for the most recent completed
 // `create_pr` tool call and pull the PR url/number out of its output. Pure over
@@ -179,124 +141,6 @@ function useAnyChatStreaming(chatIds: string[]): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, () => false)
 }
 
-function useChatStatus(chatId: string) {
-  const isStreaming = useSyncExternalStore(
-    (cb) => chatStore.subscribe(chatId, cb),
-    () => chatStore.getSnapshot(chatId).isStreaming,
-    () => false
-  )
-  const hasUnread = useSyncExternalStore(
-    (cb) => chatStore.subscribe(chatId, cb),
-    () => chatStore.hasUnread(chatId),
-    () => false
-  )
-  return { isStreaming, hasUnread }
-}
-
-// Width of the OS's native scrollbar, in px. 0 means overlay scrollbars (the
-// macOS trackpad default); > 0 means classic space-taking scrollbars, which
-// macOS switches to when a mouse is connected, and which Windows/Linux use
-// always. So a positive width is a proactive "a mouse is (probably) present"
-// signal available at load — no scroll required.
-function measureScrollbarWidth(): number {
-  const probe = document.createElement("div")
-  probe.style.cssText =
-    "position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll"
-  document.body.appendChild(probe)
-  const width = probe.offsetWidth - probe.clientWidth
-  probe.remove()
-  return width
-}
-
-// A physical mouse wheel scrolls in discrete notches; a trackpad scrolls
-// smoothly. There's no direct API for the device (a trackpad is also
-// `pointer: fine`), so as a secondary signal we sniff the wheel event: Firefox
-// reports line/page deltas for a real wheel (`deltaMode !== 0`), while
-// Chromium/WebKit expose a legacy `wheelDeltaY` that's a multiple of 120 per
-// notch.
-//
-// The 120 heuristic isn't airtight, though: in Chromium `wheelDeltaY ≈ -1.2 ·
-// deltaY`, so a clean 120-multiple just means `deltaY` is a multiple of 100 —
-// which a *fast* trackpad pan hits routinely (deltaY 100, 200, …), and a
-// pinch-zoom (synthesized as ctrl-wheel) can hit too. A real wheel lands on a
-// clean multiple on *every* notch; a trackpad only does so by coincidence and
-// can't sustain it. So we ignore modifier-held (zoom) wheels and require a run
-// of consecutive notch-looking events before trusting the signal.
-const MOUSE_NOTCH_RUN = 3
-
-// One pixel-mode wheel event: true if it looks like a discrete mouse notch.
-// Line/page mode (Firefox real wheel) is handled by the caller as an immediate,
-// unambiguous latch.
-function wheelNotchLooksLikeMouse(e: WheelEvent): boolean {
-  const wheelDeltaY = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY
-  return (
-    typeof wheelDeltaY === "number" &&
-    wheelDeltaY !== 0 &&
-    Math.abs(wheelDeltaY) % 120 === 0
-  )
-}
-
-// Whether to treat the user as a mouse user — drives showing the tab strip's
-// scrollbar (trackpad users two-finger scroll and don't need it; matches the
-// macOS "based on mouse or trackpad" scrollbar default). Primary signal is the
-// native scrollbar width, re-checked on window focus so connecting/removing a
-// mouse mid-session is picked up (macOS swaps scrollbar style live). A detected
-// mouse wheel latches it on too, covering the macOS "show scrollbars only when
-// scrolling" config where the gutter stays overlay (width 0) even with a mouse.
-function useUsingMouse(): boolean {
-  const [usingMouse, setUsingMouse] = useState(false)
-  useEffect(() => {
-    let sawWheel = false
-    let notchRun = 0
-    const latch = () => {
-      sawWheel = true
-      setUsingMouse(true)
-    }
-    const sync = () => setUsingMouse(sawWheel || measureScrollbarWidth() > 0)
-    sync()
-    const onWheel = (e: WheelEvent) => {
-      if (sawWheel) return
-      // Pinch-zoom (trackpad) and modifier-wheel zoom synthesize wheel events
-      // that aren't clean notch signals — never infer a mouse from them.
-      if (e.ctrlKey || e.metaKey) return
-      // Firefox reports line/page deltas only for a real wheel — unambiguous,
-      // latch on the first one.
-      if (e.deltaMode !== 0) {
-        latch()
-        return
-      }
-      // Pixel mode: a single 120-multiple can be a fast-pan coincidence, so
-      // require a sustained run; any non-notch event resets it.
-      if (!wheelNotchLooksLikeMouse(e)) {
-        notchRun = 0
-        return
-      }
-      notchRun += 1
-      if (notchRun >= MOUSE_NOTCH_RUN) latch()
-    }
-    window.addEventListener("focus", sync)
-    window.addEventListener("wheel", onWheel, { passive: true })
-    return () => {
-      window.removeEventListener("focus", sync)
-      window.removeEventListener("wheel", onWheel)
-    }
-  }, [])
-  return usingMouse
-}
-
-// A tab's inline-rename field. ALL geometry — the padding and the negative
-// margins that cancel it — is reserved in BOTH modes (transparent in view) so
-// the box is identical whether or not we're editing. Entering edit mode then
-// only toggles paint (bg/shadow/ring), never layout, so the tab can't shift or
-// resize. The negative margins cancel the padding so the popped box doesn't
-// widen the tab's footprint.
-const TAB_LABEL_CLASS =
-  "max-w-[100px] min-w-0 rounded-xs px-0.5 py-0.5 -mx-0.5 -my-0.5"
-// Edit-mode-only decoration. Uses theme tokens (not the sidebar rows' hardcoded
-// white) so it reads against the tab strip.
-const TAB_LABEL_EDIT_CLASS =
-  "relative z-10 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-background text-foreground shadow-sm ring-[0.5px] ring-border"
-
 function ChatTabLabel({
   chat,
   onRename,
@@ -304,14 +148,9 @@ function ChatTabLabel({
   chat: ChatSessionData
   onRename: (label: string) => void
 }) {
-  const { isStreaming, hasUnread } = useChatStatus(chat.id)
   return (
     <span className="flex items-center gap-1.5">
-      {isStreaming ? (
-        <GripSpinner className="size-3 shrink-0 text-muted-foreground" />
-      ) : hasUnread ? (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-      ) : null}
+      <ChatRunIndicator chatId={chat.id} />
       <EditableText
         as="span"
         value={chat.label}
@@ -324,61 +163,6 @@ function ChatTabLabel({
     </span>
   )
 }
-
-/**
- * Tab label for a terminal tab. Visibly distinct from chat tabs — a terminal
- * glyph and a monospace label — so it's obvious which guarantees apply
- * (ephemeral + BYO harness, not durable + shared chat). Reads no chat-store
- * status: a terminal tab has no streaming/unread conversation state.
- */
-function TerminalTabLabel({
-  terminal,
-  onRename,
-}: {
-  terminal: TerminalTabData
-  onRename: (label: string) => void
-}) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <SquareTerminal
-        aria-hidden
-        className="size-3 shrink-0 text-muted-foreground"
-      />
-      <EditableText
-        as="span"
-        value={terminal.label}
-        onCommit={onRename}
-        placeholder="Untitled"
-        className={cn(TAB_LABEL_CLASS, "font-mono text-xs")}
-        viewClassName="truncate"
-        editClassName={TAB_LABEL_EDIT_CLASS}
-      />
-    </span>
-  )
-}
-
-/**
- * One entry in the panel's tab strip. A tagged union over the two distinct tab
- * types so the strip can render both in a single createdAt-ordered row while
- * the underlying chat/terminal collections stay separate. `id`, `label`, and
- * `createdAt` are lifted out so ordering and the shared tab chrome (rename,
- * close) don't have to branch on `kind`.
- */
-type OpenTab =
-  | {
-      kind: "chat"
-      id: string
-      label: string
-      createdAt: number
-      chat: ChatSessionData
-    }
-  | {
-      kind: "terminal"
-      id: string
-      label: string
-      createdAt: number
-      terminal: TerminalTabData
-    }
 
 /**
  * The chat panel can target one of two top-level kinds:
@@ -466,6 +250,7 @@ export function ChatPanel({
   onCreateChat,
   onCreateTerminal,
   onRenameChat,
+  onRemoveChat,
   onCloseChat,
   onReopenChat,
   onBranchRename,
@@ -486,31 +271,20 @@ export function ChatPanel({
   // without changes to this file.
   const layerTarget = target.kind === "layer" ? target : null
 
-  // The tab strip interleaves two distinct tab types — durable chats and
-  // ephemeral terminals — in one createdAt-ordered row. We model each as a
-  // tagged item rather than a shared base type so the conversation model can
-  // never structurally hold a terminal.
-  const openTabs = useMemo<OpenTab[]>(() => {
-    const items: OpenTab[] = [
-      ...chatSessions
+  // The tab strip holds only the durable chats, createdAt-ordered. Terminals
+  // are ephemeral shells, not conversations, so they live in their own drawer
+  // under the composer (`TerminalDrawer`) with their own tabs.
+  const openTabs = useMemo(
+    () =>
+      chatSessions
         .filter((c) => !c.closedAt)
-        .map((c) => ({
-          kind: "chat" as const,
-          id: c.id,
-          label: c.label,
-          createdAt: c.createdAt,
-          chat: c,
-        })),
-      ...(terminalTabs ?? []).map((t) => ({
-        kind: "terminal" as const,
-        id: t.id,
-        label: t.label,
-        createdAt: t.createdAt,
-        terminal: t,
-      })),
-    ]
-    return items.sort((a, b) => a.createdAt - b.createdAt)
-  }, [chatSessions, terminalTabs])
+        .sort((a, b) => a.createdAt - b.createdAt),
+    [chatSessions]
+  )
+  const terminals = useMemo(
+    () => [...(terminalTabs ?? [])].sort((a, b) => a.createdAt - b.createdAt),
+    [terminalTabs]
+  )
 
   const closedChats = useMemo(
     () =>
@@ -520,14 +294,48 @@ export function ChatPanel({
     [chatSessions]
   )
 
-  // Auto-select the first open tab (chat or terminal) if none selected
+  // Auto-select the first open chat (or, with none, the first terminal) if
+  // nothing is selected.
   useEffect(() => {
-    if (!selectedChatId && openTabs.length > 0) {
-      onSelectChat(openTabs[0].id)
-    }
-  }, [selectedChatId, openTabs, onSelectChat])
+    if (selectedChatId) return
+    const first = openTabs[0]?.id ?? terminals[0]?.id
+    if (first) onSelectChat(first)
+  }, [selectedChatId, openTabs, terminals, onSelectChat])
 
-  const activeTab = selectedChatId ?? openTabs[0]?.id ?? ""
+  // The panel's selection is one id shared by chats and terminals (the Tab
+  // Pool selects a new terminal the same way it selects a new chat). A chat id
+  // picks the strip's tab; a terminal id opens the drawer on that terminal and
+  // leaves the strip on the last chat shown. Tracked with the previous-value
+  // pattern so a selection change is handled once, during render.
+  const selectedTerminal = terminals.find((t) => t.id === selectedChatId)
+  const selectionKey = selectedTerminal
+    ? `terminal:${selectedTerminal.id}`
+    : (selectedChatId ?? "")
+  const [lastSelectionKey, setLastSelectionKey] = useState(selectionKey)
+  const [drawerOpen, setDrawerOpen] = useState(!!selectedTerminal)
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(
+    selectedTerminal?.id ?? null
+  )
+  const [lastChatId, setLastChatId] = useState<string | null>(
+    selectedTerminal ? null : selectedChatId
+  )
+  if (selectionKey !== lastSelectionKey) {
+    setLastSelectionKey(selectionKey)
+    if (selectedTerminal) {
+      setActiveTerminalId(selectedTerminal.id)
+      setDrawerOpen(true)
+    } else if (selectedChatId) {
+      setLastChatId(selectedChatId)
+    }
+  }
+  const activeTab =
+    (lastChatId && openTabs.some((c) => c.id === lastChatId)
+      ? lastChatId
+      : openTabs[0]?.id) ?? ""
+  const shownTerminalId =
+    activeTerminalId && terminals.some((t) => t.id === activeTerminalId)
+      ? activeTerminalId
+      : (terminals[0]?.id ?? null)
   const chatHistoryPr = useLatestPr(activeTab)
   const displayPr: {
     url: string
@@ -569,29 +377,18 @@ export function ChatPanel({
   const [creatingPr, setCreatingPr] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
-  // Sticky new-tab action. Read the last-used kind from localStorage during
-  // render (SSR-safe — `readLastTabKind` returns "chat" when `window` is
-  // undefined) rather than syncing it in via an effect, which would trigger a
-  // cascading render on mount. `onCreateTerminal` is absent for layer targets,
-  // so the sticky kind can only ever be "terminal" when terminals are actually
-  // creatable here.
-  const [lastTabKind, setLastTabKind] = useState<TabKind>(readLastTabKind)
-  const stickyTabKind: TabKind =
-    onCreateTerminal && lastTabKind === "terminal" ? "terminal" : "chat"
-
   // The harnesses installed in this deployment's sandboxes — the menu the caret
   // draws (#290). Only fetched when terminals are creatable here (agent target).
   const { data: session } = useAppSession()
   const userId = session?.user.id
   const installedHarnesses = useInstalledHarnesses(!!onCreateTerminal)
 
-  // The harness the sticky "+" launches when its kind is "terminal": the
-  // operator's last pick if it's still installed, else the first installed
-  // harness, else the catalog default (list not loaded yet / none installed).
-  // Read per-User from localStorage during render — a hint only, never
-  // authoritative (a tab's harness lives on its `terminal_tab.harnessKey` row),
-  // so a stale value can't change an existing tab. A harness pick flips
-  // `lastTabKind` (a state update), which re-renders and re-reads this fresh.
+  // The harness the drawer's "+" launches: the operator's last pick if it's
+  // still installed, else the first installed harness, else the catalog default
+  // (list not loaded yet / none installed). Read per-User from localStorage
+  // during render — a hint only, never authoritative (a tab's harness lives on
+  // its `terminal_tab.harnessKey` row), so a stale value can't change an
+  // existing tab.
   const storedHarnessKey = userId ? readLastHarnessKey(userId) : null
   const defaultHarnessKey =
     storedHarnessKey &&
@@ -599,17 +396,18 @@ export function ChatPanel({
       ? storedHarnessKey
       : (installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY)
 
+  // The last-used kind is still recorded: it's the per-user pref a fresh
+  // Workspace seeds its first tab from.
   const createChatTab = useCallback(() => {
-    setLastTabKind("chat")
     writeLastTabKind("chat")
     onCreateChat()
   }, [onCreateChat])
 
-  // Launch a terminal with `harnessKey` and make it the sticky default: the "+"
-  // button now repeats *this* harness, and (keyed per User) it survives reload.
+  // Launch a terminal with `harnessKey` and remember it, so the drawer's "+"
+  // repeats *this* harness (keyed per User, it survives reload). The Tab Pool
+  // selects the new terminal, which opens the drawer on it.
   const createTerminalTab = useCallback(
     (harnessKey: string) => {
-      setLastTabKind("terminal")
       writeLastTabKind("terminal")
       if (userId) writeLastHarnessKey(userId, harnessKey)
       onCreateTerminal?.(harnessKey)
@@ -617,12 +415,43 @@ export function ChatPanel({
     [onCreateTerminal, userId]
   )
 
-  // The sticky "+" action: repeat the last-used kind, and for terminals the
-  // last-used (or default) harness.
-  const createStickyTab = useCallback(() => {
-    if (stickyTabKind === "terminal") createTerminalTab(defaultHarnessKey)
-    else createChatTab()
-  }, [stickyTabKind, defaultHarnessKey, createTerminalTab, createChatTab])
+  // Opening an empty drawer starts a terminal rather than showing nothing.
+  const toggleDrawer = useCallback(() => {
+    if (!drawerOpen && terminals.length === 0) {
+      createTerminalTab(defaultHarnessKey)
+      return
+    }
+    setDrawerOpen((o) => !o)
+  }, [drawerOpen, terminals.length, createTerminalTab, defaultHarnessKey])
+
+  // ⌃` toggles the drawer, from anywhere — a focused terminal included, which
+  // is why it listens in the capture phase.
+  useEffect(() => {
+    if (!onCreateTerminal) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== "Backquote" || !e.ctrlKey) return
+      if (e.metaKey || e.altKey || e.shiftKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      toggleDrawer()
+    }
+    window.addEventListener("keydown", onKeyDown, { capture: true })
+    return () =>
+      window.removeEventListener("keydown", onKeyDown, { capture: true })
+  }, [onCreateTerminal, toggleDrawer])
+
+  // Close a terminal from the drawer. The drawer moves to its neighbour, and
+  // the panel's selection (if it was on this terminal) goes back to the chat.
+  const closeTerminal = useCallback(
+    (id: string) => {
+      const idx = terminals.findIndex((t) => t.id === id)
+      const neighbour = (terminals[idx + 1] ?? terminals[idx - 1])?.id
+      if (id === shownTerminalId) setActiveTerminalId(neighbour ?? null)
+      if (!neighbour) setDrawerOpen(false)
+      onCloseChat(id, activeTab || neighbour)
+    },
+    [terminals, shownTerminalId, onCloseChat, activeTab]
+  )
 
   // Reset the logs-visible flag whenever the chat target changes so a
   // freshly-selected target (whose LogsPanel is still fetching, if any)
@@ -667,10 +496,10 @@ export function ChatPanel({
   // that have since closed), then any tabs not yet in the saved order appended
   // in their createdAt order. So a brand-new tab always lands at the end and a
   // never-reordered target falls back to pure createdAt order.
-  const orderedTabs = useMemo<OpenTab[]>(() => {
+  const orderedTabs = useMemo<ChatSessionData[]>(() => {
     if (tabOrder.length === 0) return openTabs
     const byId = new Map(openTabs.map((t) => [t.id, t] as const))
-    const result: OpenTab[] = []
+    const result: ChatSessionData[] = []
     for (const id of tabOrder) {
       const tab = byId.get(id)
       if (tab) {
@@ -730,10 +559,6 @@ export function ChatPanel({
     }
   }, [])
 
-  // Show the tab strip's scrollbar only once we've seen a real mouse wheel;
-  // trackpad users two-finger scroll and don't need it.
-  const usingMouse = useUsingMouse()
-
   // The tab to select when `closingId` is closed: its neighbour in the *displayed*
   // order — the next tab, or the previous one when closing the last tab. Undefined
   // when it's the only tab. The parent prefers this over its own createdAt-ordered
@@ -747,77 +572,35 @@ export function ChatPanel({
     [orderedTabs]
   )
 
-  // Imperative horizontal scrolling of the tab strip. `tabBarRef` wraps the
-  // ScrollArea; we look up its viewport on demand rather than holding a ref the
-  // shared wrapper doesn't expose. `pinnedRightRef` tracks whether the operator
-  // is parked at the right edge (so we can keep them there as tabs are added).
+  // The strip clips rather than scrolls: a tab that doesn't fully fit is
+  // hidden (never shown half-cut) and reachable from the "All chats" menu.
   const tabBarRef = useRef<HTMLDivElement>(null)
-  const pinnedRightRef = useRef(false)
-  const prevTabCountRef = useRef(openTabs.length)
-  const getViewport = useCallback(
-    () =>
-      tabBarRef.current?.querySelector<HTMLElement>(SCROLL_VIEWPORT_SELECTOR) ??
-      null,
-    []
+  const orderedIds = useMemo(() => orderedTabs.map((t) => t.id), [orderedTabs])
+  const overflowingIds = useOverflowingTabs(
+    tabBarRef,
+    orderedIds,
+    reRegisterKey
   )
 
-  // Keep `pinnedRightRef` current as the operator scrolls, and re-pin to the
-  // right edge whenever the strip's content grows while they're parked there
-  // (e.g. a tab added by another client in the room). The ResizeObserver
-  // watches the viewport's content wrapper, which widens as tabs are added.
-  useEffect(() => {
-    const vp = getViewport()
-    if (!vp) return
-    const updatePinned = () => {
-      // Only "pinned right" when the strip actually overflows *and* the operator
-      // is parked at that right edge. Without the overflow guard, a strip that
-      // fits (or isn't laid out yet on mount) reads as pinned — and the
-      // ResizeObserver's initial fire would then jump scrollLeft to the end,
-      // landing a freshly-loaded strip scrolled all the way right.
-      const overflow = vp.scrollWidth - vp.clientWidth
-      pinnedRightRef.current =
-        overflow > RIGHT_EDGE_SLACK_PX &&
-        overflow - vp.scrollLeft <= RIGHT_EDGE_SLACK_PX
+  // Keep the active chat on screen: if it's one of the hidden tabs (picked
+  // from the menu, or just created at the end of a full strip), move it into
+  // the last visible slot. Done during render, like the target switch above;
+  // once moved it sits at or before the last visible slot, so this runs once
+  // per measurement. If it's still too wide the next measurement moves it one
+  // slot further left, so it settles. The move isn't saved as the operator's
+  // order — only a drag is.
+  if (activeTab && overflowingIds.has(activeTab)) {
+    const from = orderedIds.indexOf(activeTab)
+    let to = -1
+    orderedIds.forEach((id, i) => {
+      if (!overflowingIds.has(id)) to = i
+    })
+    if (to >= 0 && to < from) {
+      const next = orderedIds.filter((id) => id !== activeTab)
+      next.splice(to, 0, activeTab)
+      setTabOrder(next)
     }
-    updatePinned()
-    vp.addEventListener("scroll", updatePinned, { passive: true })
-    const content = vp.firstElementChild
-    const ro = content
-      ? new ResizeObserver(() => {
-          if (pinnedRightRef.current) vp.scrollLeft = vp.scrollWidth
-        })
-      : null
-    if (content && ro) ro.observe(content)
-    return () => {
-      vp.removeEventListener("scroll", updatePinned)
-      ro?.disconnect()
-    }
-  }, [getViewport])
-
-  // When a tab is added, reveal the right end — the new tab lands there, and
-  // this also brings the "+" button back into view.
-  useEffect(() => {
-    const prev = prevTabCountRef.current
-    prevTabCountRef.current = openTabs.length
-    if (openTabs.length > prev) {
-      const vp = getViewport()
-      if (!vp) return
-      vp.scrollLeft = vp.scrollWidth
-      pinnedRightRef.current = true
-    }
-  }, [openTabs.length, getViewport])
-
-  // Reveal the active tab whenever the selection changes (e.g. picking a tab
-  // that's scrolled off-screen, or the freshly-created tab becoming active).
-  useEffect(() => {
-    if (!selectedChatId) return
-    const vp = getViewport()
-    if (!vp) return
-    const el = vp.querySelector<HTMLElement>(
-      `[data-tab-id="${CSS.escape(selectedChatId)}"]`
-    )
-    if (el) ensureTabVisible(vp, el)
-  }, [selectedChatId, getViewport])
+  }
 
   // Fired by LogsPanel the first time it successfully connects to the stream.
   // We only auto-open logs at this point (not on agent.status === "starting")
@@ -970,34 +753,22 @@ export function ChatPanel({
             ))}
         </div>
       </div>
-      <div
-        ref={tabBarRef}
-        className="flex border-b border-border bg-background"
-      >
-        <ScrollArea
-          orientation="horizontal"
-          // Scrollbar styling, scoped to the bar via its data-slot:
-          // - z-10 keeps it above a tab being dragged (motion gives the dragged
-          //   Reorder.Item `z-index: 1`, which would otherwise cover the bar).
-          // - hidden until a mouse is detected, so trackpad users never see it.
-          className={`min-w-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:z-10 ${
-            usingMouse ? "" : "[&_[data-slot=scroll-area-scrollbar]]:hidden"
-          }`}
-        >
-          <TabsList variant="line" className="h-9 px-2">
+      <div className="flex h-9 items-stretch border-b border-border bg-background pr-1.5">
+        <div ref={tabBarRef} className="flex min-w-0 flex-1 overflow-hidden">
+          <TabsList variant="line" className="h-full! gap-3 px-2 py-0">
             {isAgentTarget && (
               <TabsTrigger
                 value={LOGS_TAB_VALUE}
-                className="shrink-0 px-1.5"
+                className="h-full! shrink-0 px-1 after:bottom-0!"
                 aria-label="Sandbox logs"
                 title="Sandbox logs"
               >
                 <Logs className="size-3.5" />
               </TabsTrigger>
             )}
-            {/* Drag-reorderable chat/terminal tabs. The logs trigger and the
-                "+" button stay fixed (outside the group); only these tabs
-                reorder. `values`/`onReorder` are controlled by `tabOrder`. */}
+            {/* Drag-reorderable chat tabs. The logs trigger stays fixed
+                (outside the group); only these tabs reorder.
+                `values`/`onReorder` are controlled by `tabOrder`. */}
             <Reorder.Group
               // Keyed by the target so switching branches/layers REMOUNTS the
               // whole group instead of diffing this target's tab ids against the
@@ -1035,7 +806,13 @@ export function ChatPanel({
                     // aside while leaving width to the wrapper alone.
                     layout="position"
                     data-tab-id={tab.id}
-                    className="flex shrink-0 items-stretch"
+                    // A tab that doesn't fully fit is hidden, not cut off; the
+                    // "All chats" menu lists it.
+                    aria-hidden={overflowingIds.has(tab.id) || undefined}
+                    className={cn(
+                      "flex shrink-0 items-stretch",
+                      overflowingIds.has(tab.id) && "invisible"
+                    )}
                   >
                     {/* Enter/exit lives on this inner wrapper, NOT the
                         Reorder.Item: the item runs a layout animation while
@@ -1059,19 +836,12 @@ export function ChatPanel({
                     >
                       <TabsTrigger
                         value={tab.id}
-                        className="group/tab relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-xs active:cursor-grabbing"
+                        className="group/tab relative h-full! min-w-[72px] cursor-grab px-2 text-[13px] after:bottom-0! active:cursor-grabbing"
                       >
-                        {tab.kind === "terminal" ? (
-                          <TerminalTabLabel
-                            terminal={tab.terminal}
-                            onRename={(label) => onRenameChat(tab.id, label)}
-                          />
-                        ) : (
-                          <ChatTabLabel
-                            chat={tab.chat}
-                            onRename={(label) => onRenameChat(tab.id, label)}
-                          />
-                        )}
+                        <ChatTabLabel
+                          chat={tab}
+                          onRename={(label) => onRenameChat(tab.id, label)}
+                        />
                         <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100">
                           <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
                           <span
@@ -1114,136 +884,38 @@ export function ChatPanel({
                 ))}
               </AnimatePresence>
             </Reorder.Group>
-            {onCreateTerminal ? (
-              <ButtonGroup
-                className={`${isAgentBusy ? "" : "group/newtab"} ml-1 shrink-0`}
-              >
-                <TooltipProvider delayDuration={500}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                        onClick={createStickyTab}
-                        disabled={isAgentBusy}
-                        aria-label={
-                          stickyTabKind === "terminal"
-                            ? "New terminal"
-                            : "New chat"
-                        }
-                      >
-                        <Plus className="size-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {isAgentBusy
-                        ? "Sandbox still starting…"
-                        : stickyTabKind === "terminal"
-                          ? "New terminal"
-                          : "New chat"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                      disabled={isAgentBusy}
-                      title="New chat or terminal"
-                      aria-label="New chat or terminal"
-                    >
-                      <ChevronDown className="size-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => createChatTab()}>
-                      <MessageCircle className="size-3 shrink-0 text-muted-foreground" />
-                      New chat
-                    </DropdownMenuItem>
-                    {installedHarnesses.length > 1 ? (
-                      // Multiple harnesses — a labelled section listing each by
-                      // name, since "New terminal" alone wouldn't say which.
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
-                          New terminal
-                        </DropdownMenuLabel>
-                        {installedHarnesses.map((h) => (
-                          <DropdownMenuItem
-                            key={h.key}
-                            onSelect={() => createTerminalTab(h.key)}
-                          >
-                            <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
-                            <span className="truncate">{h.label}</span>
-                          </DropdownMenuItem>
-                        ))}
-                      </>
-                    ) : (
-                      // One harness (or the list isn't loaded / none installed) —
-                      // there's nothing to choose between, so collapse to a single
-                      // "New terminal" with no section header. Opens the lone
-                      // harness, else the default, so the menu never strands the
-                      // operator.
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          createTerminalTab(
-                            installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY
-                          )
-                        }
-                      >
-                        <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
-                        New terminal
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </ButtonGroup>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="ml-1 shrink-0"
-                onClick={onCreateChat}
-                disabled={isAgentBusy}
-                title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
-              >
-                <Plus className="size-3" />
-              </Button>
-            )}
           </TabsList>
-        </ScrollArea>
-        {closedChats.length > 0 && (
-          <div className="flex shrink-0 items-center px-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-xs" title="Closed chats">
-                  <Archive className="size-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {closedChats.map((chat) => (
-                  <DropdownMenuItem
-                    key={chat.id}
-                    className="flex items-center gap-2"
-                    onSelect={() => onReopenChat(chat.id)}
-                  >
-                    <RotateCcw className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{chat.label}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+        </div>
+        {/* Pinned outside the clipping strip, so however many tabs are open,
+            "+" and the menu stay on screen. */}
+        <div className="flex shrink-0 items-center gap-0.5 pl-1">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground"
+            onClick={createChatTab}
+            disabled={isAgentBusy}
+            aria-label="New chat"
+            title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
+          >
+            <Plus className="size-3" />
+          </Button>
+          <ChatHistoryMenu
+            openChats={orderedTabs}
+            overflowingIds={overflowingIds}
+            activeChatId={showLogs ? "" : activeTab}
+            closedChats={closedChats}
+            onSelect={handleTabChange}
+            onReopen={onReopenChat}
+            onDelete={onRemoveChat}
+          />
+        </div>
       </div>
 
       {agent && (
         <TabsContent
           value={LOGS_TAB_VALUE}
-          className="flex-1 overflow-hidden data-[state=inactive]:hidden"
+          className="min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden"
           forceMount
         >
           <LogsPanel
@@ -1253,30 +925,22 @@ export function ChatPanel({
         </TabsContent>
       )}
 
-      {openTabs.map((tab) => {
-        // A terminal tab renders the in-sandbox web terminal, not the Engine
-        // chat — its scrollback never enters the conversation model. It's keyed
-        // by its own id (the shared live-view session) so a second client in
-        // the room co-views the same live PTY.
-        if (tab.kind === "terminal") {
-          return (
-            <TabsContent
-              key={tab.id}
-              value={tab.id}
-              className="flex-1 overflow-hidden data-[state=inactive]:hidden"
-              forceMount
-            >
-              <TerminalTab
-                sessionId={tab.terminal.terminalSessionId}
-                roomId={roomId}
-                sandboxName={agent?.sandboxName}
-                sandboxStatus={agent?.status}
-                harnessKey={tab.terminal.harnessKey}
-              />
-            </TabsContent>
-          )
-        }
-        const chat = tab.chat
+      {openTabs.length === 0 && !showLogs && (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6">
+          <p className="text-sm text-muted-foreground">No open chats</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={createChatTab}
+            disabled={isAgentBusy}
+          >
+            <Plus />
+            New chat
+          </Button>
+        </div>
+      )}
+
+      {openTabs.map((chat) => {
         // First chat for this target — drives auto branch/chat naming on the
         // agent flow; for doc chats it's just used to skip naming logic.
         const isFirst = !chatSessions.some(
@@ -1290,7 +954,7 @@ export function ChatPanel({
           <TabsContent
             key={chat.id}
             value={chat.id}
-            className="flex-1 overflow-hidden data-[state=inactive]:hidden"
+            className="min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden"
             forceMount
           >
             <AgentChat
@@ -1313,10 +977,31 @@ export function ChatPanel({
               onModelChange={(m) => onModelChange(chat.id, m)}
               onBranchRename={onBranchRename}
               onChatRename={(label) => onRenameChat(chat.id, label)}
+              isActive={!showLogs && chat.id === activeTab}
             />
           </TabsContent>
         )
       })}
+
+      {/* Terminals only exist against an agent's sandbox. */}
+      {onCreateTerminal && (
+        <TerminalDrawer
+          terminals={terminals}
+          open={drawerOpen}
+          onToggle={toggleDrawer}
+          activeId={shownTerminalId}
+          onActiveChange={setActiveTerminalId}
+          onClose={closeTerminal}
+          onRename={onRenameChat}
+          onCreate={createTerminalTab}
+          harnesses={installedHarnesses}
+          defaultHarnessKey={defaultHarnessKey}
+          disabled={isAgentBusy}
+          roomId={roomId}
+          sandboxName={agent?.sandboxName}
+          sandboxStatus={agent?.status}
+        />
+      )}
     </Tabs>
   )
 }
