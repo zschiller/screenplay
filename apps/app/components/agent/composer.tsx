@@ -60,7 +60,7 @@ import {
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 import type { ModelInfo } from "@/lib/models-store"
-import { groupModelsByProvider } from "@/lib/model-selection"
+import { groupModelsByProvider, modelDisplayLabel } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
@@ -324,6 +324,11 @@ export interface ComposerProps {
   modelsLoaded?: boolean
   /** The currently-selected model id (already resolved by the caller). */
   model: string
+  /**
+   * The user's default model (Settings). When given and {@link model} differs,
+   * the picker says the chat is off the default.
+   */
+  defaultModel?: string
   /** Called when the user picks a different model from the dropdown. */
   onModelChange: (model: string) => void
   /**
@@ -429,6 +434,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       models,
       modelsLoaded = false,
       model,
+      defaultModel,
       onModelChange,
       modelLocked = false,
       planMode,
@@ -780,18 +786,41 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       () => ({
         insertText: (text: string) => {
           if (!editor) return
-          const prefix = editor.isEmpty ? "" : "\n\n"
-          editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+          if (!text.includes("\n")) {
+            const prefix = editor.isEmpty ? "" : "\n\n"
+            editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+            return
+          }
+          // A plain string's newlines collapse to spaces, so multi-line text
+          // (a quoted plan) goes in as one paragraph per line. The leading
+          // empty paragraph starts it on its own line after an existing draft.
+          const lines = text
+            .split("\n")
+            .map((line) =>
+              line
+                ? { type: "paragraph", content: [{ type: "text", text: line }] }
+                : { type: "paragraph" }
+            )
+          editor
+            .chain()
+            .focus("end")
+            .insertContent(
+              editor.isEmpty ? lines : [{ type: "paragraph" }, ...lines]
+            )
+            .run()
         },
         focus: () => editor?.chain().focus("end").run(),
       }),
       [editor]
     )
 
-    const currentModel = models.find((m) => m.id === model) ?? {
-      id: model,
-      label: model || "Loading…",
-    }
+    const currentModel = models.find((m) => m.id === model)
+    const currentModelLabel = currentModel
+      ? modelDisplayLabel(currentModel)
+      : model || "Loading…"
+    const defaultModelInfo = models.find((m) => m.id === defaultModel)
+    const offDefault =
+      !!currentModel && !!defaultModelInfo && model !== defaultModel
 
     const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
@@ -821,7 +850,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                             className="text-xs"
                             disabled={modelLocked}
                           >
-                            {currentModel.label}
+                            {currentModelLabel}
+                            {offDefault && (
+                              <span className="font-normal text-muted-foreground">
+                                · not default
+                              </span>
+                            )}
                             <ChevronDown />
                           </InputGroupButton>
                         </DropdownMenuTrigger>
@@ -850,6 +884,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                             onSelect={() => onModelChange(m.id)}
                           >
                             <span className="flex-1">{m.label}</span>
+                            {m.id === defaultModel && (
+                              <span className="text-xs text-muted-foreground">
+                                Default
+                              </span>
+                            )}
                             {m.id === model && <Check className="size-3.5" />}
                           </DropdownMenuItem>
                         ))}
