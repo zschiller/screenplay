@@ -142,7 +142,7 @@ function WorkspaceHoverDetail({ branchId }: { branchId: string }) {
           )}
           {details.branch && (
             <>
-              <dt className="text-muted-foreground">Branch</dt>
+              <dt className="text-muted-foreground">Git branch</dt>
               <dd className="min-w-0 font-mono break-words">
                 {details.branch}
               </dd>

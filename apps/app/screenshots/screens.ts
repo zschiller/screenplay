@@ -956,7 +956,7 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspace-hover-card",
     description:
-      "Hovering a Workspace row: title, status, repository, branch, base and changes (#882).",
+      "Hovering a Workspace row: title, status, repository, git branch, base and changes (#882).",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await page
