@@ -17,6 +17,7 @@ import {
   launchTurn,
   type PreparedTurn,
   type TurnLaunchDeps,
+  type TurnRequest,
 } from "../turn-launch"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import {
@@ -27,6 +28,7 @@ import {
 } from "../run-state"
 import { renderHistory, type HistoryEntry } from "@/lib/agent/history-render"
 import { wireToContentBlocks } from "./markers"
+import { planResolutionText } from "./resolution"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -60,6 +62,9 @@ function liveHarness() {
     string,
     { plan: string; status: "pending" | "approved" | "rejected" }
   >()
+  // Where each plan gate falls in the durable log (its row's `createdAt`), so a
+  // reload interleaves the card the way the history route does.
+  const planAt = new Map<string, number>()
   const broadcasts: ChatBroadcastEvent[] = []
   let n = 0
   const mintId = () => `evt_${++n}`
@@ -72,10 +77,17 @@ function liveHarness() {
     async applyTransition(id, to) {
       rows.set(id, to)
     },
-    async supersedeActiveRuns() {},
+    async supersedeActiveRuns() {
+      for (const [id, status] of rows) {
+        if (status === "running" || status === "paused_for_plan") {
+          rows.set(id, "superseded")
+        }
+      }
+    },
     async insertRunning() {
-      rows.set(RUN_ID, "running")
-      return RUN_ID
+      const id = `run_${rows.size + 1}`
+      rows.set(id, "running")
+      return id
     },
     async pauseForPlan(id: string, planCall: PendingPlanCall) {
       rows.set(id, "paused_for_plan")
@@ -83,14 +95,22 @@ function liveHarness() {
         plan: String((planCall.input as { plan?: unknown }).plan ?? ""),
         status: "pending",
       })
+      planAt.set(planCall.toolCallId, records.length)
+      planRuns.set(planCall.toolCallId, id)
     },
-    async resolvePlan() {
-      return null
+    async resolvePlan(planId, resolution) {
+      const row = planRows.get(planId)
+      if (row?.status !== "pending") return null
+      row.status = resolution.approved ? "approved" : "rejected"
+      const runId = planRuns.get(planId)!
+      rows.set(runId, "superseded")
+      return { runId }
     },
   }
+  const planRuns = new Map<string, string>()
   const runState = createRunState(repo)
 
-  const ports: AcpConsumerPorts = {
+  const portsFor = (runId: string): AcpConsumerPorts => ({
     async broadcastUpdate(update) {
       broadcasts.push({
         type: "chat-acp-update",
@@ -121,7 +141,7 @@ function liveHarness() {
       toolCalls.set(record.toolCallId, record)
     },
     async transition(to) {
-      await runState.transition(RUN_ID, to)
+      await runState.transition(runId, to)
     },
     async broadcastPermissionRequest(request) {
       broadcasts.push({
@@ -132,11 +152,9 @@ function liveHarness() {
       })
     },
     async pauseForPlan(planCall) {
-      await runState.pauseForPlan(RUN_ID, { ...planCall, chatId: CHAT_ID })
+      await runState.pauseForPlan(runId, { ...planCall, chatId: CHAT_ID })
     },
-  }
-
-  const consumer = new AcpUpdateConsumer(ports)
+  })
 
   /**
    * Turn Launch over the in-memory boundary. The Engine turn is held back until
@@ -146,11 +164,18 @@ function liveHarness() {
   const launch = async (
     text: string,
     driver: StreamDriver,
-    prepared: Partial<PreparedTurn> = {}
+    prepared: Partial<PreparedTurn> = {},
+    request: Partial<TurnRequest> = {}
   ) => {
     const afterResponse: Array<() => Promise<void>> = []
     const deps: TurnLaunchDeps = {
       resolveEngine: async () => new InProcessEngine(driver),
+      async findPendingPlan() {
+        const pending = [...planRows].find(([, r]) => r.status === "pending")
+        return pending ? { id: pending[0] } : null
+      },
+      resolvePlan: (planId, resolution) =>
+        runState.resolvePlan(planId, resolution),
       async persistUserTurn(_chatId, userText) {
         records.push({ role: "user", content: wireToContentBlocks(userText) })
       },
@@ -163,7 +188,7 @@ function liveHarness() {
         })
       },
       broadcastUpdate: (_roomId, _chatId, update) =>
-        ports.broadcastUpdate(update),
+        portsFor(RUN_ID).broadcastUpdate(update),
       async broadcastControl(_roomId, _chatId, control) {
         broadcasts.push({
           type: "chat-control",
@@ -186,7 +211,7 @@ function liveHarness() {
             model: turn.model,
             history: records.slice(),
           },
-          consumer,
+          new AcpUpdateConsumer(portsFor(turn.runId)),
           { isRunActive: (id) => runState.isRunActive(id) }
         ),
       runAfterResponse: (task) => {
@@ -195,7 +220,7 @@ function liveHarness() {
     }
     const result = await launchTurn(
       deps,
-      { roomId: ROOM_ID, chatId: CHAT_ID, message: text },
+      { roomId: ROOM_ID, chatId: CHAT_ID, message: text, ...request },
       {
         prepare: async () => ({
           systemPrompt: "sys",
@@ -215,15 +240,21 @@ function liveHarness() {
   }
 
   /** Launch a turn and drive it to the end, as the request plus `after()` do. */
-  const run = async (text: string, driver: StreamDriver) => {
-    const { afterResponse } = await launch(text, driver)
+  const run = async (
+    text: string,
+    driver: StreamDriver,
+    request: Partial<TurnRequest> = {}
+  ) => {
+    const { result, afterResponse } = await launch(text, driver, {}, request)
     await afterResponse()
+    return result
   }
 
   return {
     records,
     toolCalls,
     planRows,
+    planAt,
     broadcasts,
     rows,
     runState,
@@ -249,16 +280,63 @@ function reloadMessages(
   planRows: Map<
     string,
     { plan: string; status: "pending" | "approved" | "rejected" }
-  >
+  >,
+  planAt: Map<string, number> = new Map()
 ): AgentMessage[] {
-  const entries: HistoryEntry[] = records.map((record) => ({
-    kind: "record",
-    record,
-  }))
-  for (const [planId, row] of planRows) {
-    entries.push({ kind: "plan", planId, plan: row.plan, status: row.status })
+  const entries: HistoryEntry[] = []
+  const plansAt = (i: number) => {
+    for (const [planId, row] of planRows) {
+      if ((planAt.get(planId) ?? records.length) === i) {
+        entries.push({
+          kind: "plan",
+          planId,
+          plan: row.plan,
+          status: row.status,
+        })
+      }
+    }
   }
+  records.forEach((record, i) => {
+    plansAt(i)
+    entries.push({ kind: "record", record })
+  })
+  plansAt(records.length)
   return renderHistory(entries)
+}
+
+/** A turn that narrates, then submits a plan and pauses on it. */
+const planDriver: StreamDriver = (config) => ({
+  consumeStream: async () => {
+    await config.onChunk?.({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chunk: { type: "text-delta", id: "t1", text: "My plan:" } as any,
+    })
+    await config.onChunk?.({
+      chunk: {
+        type: "tool-call",
+        toolCallId: "toolu_plan_1",
+        toolName: "submit_plan",
+        input: { plan: "1. ship it" },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await config.onFinish?.({ finishReason: "tool-calls" } as any)
+  },
+})
+
+/** A turn that replies with one text block and completes. */
+function replyDriver(text: string): StreamDriver {
+  return (config) => ({
+    consumeStream: async () => {
+      await config.onChunk?.({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        chunk: { type: "text-delta", id: "t2", text } as any,
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await config.onFinish?.({ finishReason: "stop" } as any)
+    },
+  })
 }
 
 describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdateConsumer)", () => {
@@ -403,5 +481,133 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
       { role: "user", content: [{ type: "text", text: "hi" }] },
     ])
     expect(h.broadcasts.at(-1)?.type).toBe("chat-stream-end")
+  })
+
+  describe("plan resume: accept, reject and implicit reject share one resolution path", () => {
+    /** Pause a turn on a plan, then return the broadcasts it produced. */
+    const pausedOnPlan = async () => {
+      const h = liveHarness()
+      await h.run("plan it", planDriver)
+      expect(h.rows.get("run_1")).toBe("paused_for_plan")
+      return { h, before: h.broadcasts.length }
+    }
+
+    const cases = [
+      {
+        name: "accept (plan route)",
+        text: planResolutionText({ approved: true }),
+        planDecision: { planId: "toolu_plan_1", approved: true },
+        status: "approved" as const,
+      },
+      {
+        name: "reject with feedback (plan route)",
+        text: planResolutionText({
+          approved: false,
+          feedback: "Use a queue instead.",
+        }),
+        planDecision: {
+          planId: "toolu_plan_1",
+          approved: false,
+          feedback: "Use a queue instead.",
+        },
+        status: "rejected" as const,
+      },
+      {
+        name: "implicit reject (a follow-up message on the stream route)",
+        text: "Use a queue instead.",
+        planDecision: undefined,
+        status: "rejected" as const,
+      },
+    ]
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const { h, before } = await pausedOnPlan()
+
+        const result = await h.run(c.text, replyDriver("On it."), {
+          planDecision: c.planDecision,
+        })
+        expect(result).toEqual({ kind: "started", runId: "run_2" })
+
+        // The plan is resolved once, its paused run superseded, and the
+        // resumed run completes.
+        expect(h.planRows.get("toolu_plan_1")?.status).toBe(c.status)
+        expect(h.rows.get("run_1")).toBe("superseded")
+        expect(h.rows.get("run_2")).toBe("completed")
+
+        // The decision lands as the next user turn: the continuation the agent
+        // acts on.
+        expect(h.records.slice(-2)).toEqual<AcpMessageRecord[]>([
+          { role: "user", content: [{ type: "text", text: c.text }] },
+          { role: "agent", content: [{ type: "text", text: "On it." }] },
+        ])
+
+        // Live clients get the card flip inside the replay window: after the
+        // start marker, before the user echo.
+        const resumed = h.broadcasts.slice(before)
+        expect(resumed.map((e) => e.type)).toEqual([
+          "chat-stream-start",
+          "chat-control", // plan_resolved
+          "chat-acp-update", // user echo
+          "chat-acp-update", // "On it."
+          "chat-stream-end",
+        ])
+        expect(resumed[1]).toMatchObject({
+          control: {
+            kind: "plan_resolved",
+            planId: "toolu_plan_1",
+            approved: c.status === "approved",
+          },
+        })
+
+        // A reload shows what live clients saw: the resolved card, then the
+        // decision and the reply.
+        const live = liveMessages(h.broadcasts)
+        const reload = reloadMessages(h.records, h.planRows, h.planAt)
+        expect(reload).toEqual<AgentMessage[]>([
+          { role: "user", content: "plan it" },
+          { role: "assistant", content: "My plan:" },
+          {
+            role: "plan",
+            content: "1. ship it",
+            status: c.status,
+            planId: "toolu_plan_1",
+          },
+          { role: "user", content: c.text },
+          { role: "assistant", content: "On it." },
+        ])
+        expect(live).toEqual(reload)
+      })
+    }
+
+    it("a decision on a plan a follow-up already rejected changes nothing", async () => {
+      const { h } = await pausedOnPlan()
+      await h.run("Use a queue instead.", replyDriver("On it."))
+      const records = h.records.length
+      const broadcasts = h.broadcasts.length
+
+      const { result } = await h.launch(
+        planResolutionText({ approved: true }),
+        replyDriver("never"),
+        {},
+        { planDecision: { planId: "toolu_plan_1", approved: true } }
+      )
+
+      expect(result).toEqual({ kind: "plan-already-resolved" })
+      expect(h.planRows.get("toolu_plan_1")?.status).toBe("rejected")
+      expect(h.records).toHaveLength(records)
+      expect(h.broadcasts).toHaveLength(broadcasts)
+      expect(h.rows.has("run_3")).toBe(false)
+    })
+
+    it("a follow-up with no pending plan resolves nothing", async () => {
+      const h = liveHarness()
+      await h.run("hi", replyDriver("Hello"))
+      expect(
+        h.broadcasts.some(
+          (e) => e.type === "chat-control" && e.control.kind === "plan_resolved"
+        )
+      ).toBe(false)
+    })
   })
 })

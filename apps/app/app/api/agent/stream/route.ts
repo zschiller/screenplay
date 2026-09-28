@@ -69,5 +69,9 @@ export async function POST(req: Request) {
   if (result.kind === "target-not-found") {
     return new Response("Layer not found", { status: 404 })
   }
+  // Only a plan decision can find its plan resolved; this route sends none.
+  if (result.kind === "plan-already-resolved") {
+    return new Response("Plan already resolved", { status: 409 })
+  }
   return Response.json({ chatId, runId: result.runId })
 }

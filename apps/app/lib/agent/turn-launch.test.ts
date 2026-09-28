@@ -9,7 +9,15 @@ import {
 const ENGINE = { run: async () => {} } as unknown as Engine
 
 /** Turn Launch deps that record every side effect, in order, as one line each. */
-function recordingDeps(opts: { engineFails?: boolean } = {}) {
+function recordingDeps(
+  opts: {
+    engineFails?: boolean
+    /** A plan still pending on the chat. */
+    pendingPlan?: string
+    /** Whether resolving a plan finds it still pending (default true). */
+    planStillPending?: boolean
+  } = {}
+) {
   const log: string[] = []
   const afterResponse: Array<() => Promise<void>> = []
   const deps: TurnLaunchDeps = {
@@ -17,6 +25,16 @@ function recordingDeps(opts: { engineFails?: boolean } = {}) {
       log.push("resolve engine")
       if (opts.engineFails) throw new Error("AGENT_ENGINE misconfigured")
       return ENGINE
+    },
+    async findPendingPlan() {
+      return opts.pendingPlan ? { id: opts.pendingPlan } : null
+    },
+    async resolvePlan(planId, { approved, feedback }) {
+      log.push(
+        `resolve plan ${planId} ${approved ? "approved" : "rejected"}` +
+          (feedback ? ` (${feedback})` : "")
+      )
+      return opts.planStillPending === false ? null : { runId: "run_0" }
     },
     async persistUserTurn(_chatId, userText) {
       log.push(`persist ${userText}`)
@@ -32,7 +50,11 @@ function recordingDeps(opts: { engineFails?: boolean } = {}) {
       log.push(`broadcast ${update.sessionUpdate}`)
     },
     async broadcastControl(_roomId, _chatId, control) {
-      log.push(`broadcast ${control.kind}`)
+      log.push(
+        control.kind === "plan_resolved"
+          ? `broadcast plan_resolved ${control.approved ? "approved" : "rejected"}`
+          : `broadcast ${control.kind}`
+      )
     },
     async queueCommentRequest({ threadIds }) {
       log.push(`queue comments ${threadIds.join(",")}`)
@@ -171,5 +193,82 @@ describe("Turn Launch", () => {
       "AGENT_ENGINE misconfigured"
     )
     expect(log).toEqual(["resolve engine"])
+  })
+
+  describe("resolving a plan", () => {
+    it("a follow-up implicitly rejects the pending plan with the message as feedback, flipping the card inside the replay window", async () => {
+      const { deps, log, flush } = recordingDeps({ pendingPlan: "plan_1" })
+      await launchTurn(deps, request, target(log))
+      await flush()
+
+      expect(log).toEqual([
+        "resolve engine",
+        "prepare target",
+        "resolve plan plan_1 rejected (fix it)",
+        "persist fix it",
+        "start run",
+        "broadcast chat-stream-start",
+        "broadcast plan_resolved rejected",
+        "broadcast user_message_chunk",
+        "response sent",
+        "drive run_1 planMode=false",
+      ])
+    })
+
+    it("a plan decision resolves that plan and resumes with its continuation", async () => {
+      const { deps, log } = recordingDeps({ pendingPlan: "plan_other" })
+      const result = await launchTurn(
+        deps,
+        {
+          ...request,
+          message: "Approved the plan. Proceed with the implementation.",
+          planDecision: { planId: "plan_1", approved: true },
+        },
+        target(log, {
+          userText: "Approved the plan. Proceed with the implementation.",
+        })
+      )
+
+      expect(result).toEqual({ kind: "started", runId: "run_1" })
+      expect(log.slice(0, 7)).toEqual([
+        "resolve engine",
+        "prepare target",
+        "resolve plan plan_1 approved",
+        "persist Approved the plan. Proceed with the implementation.",
+        "start run",
+        "broadcast chat-stream-start",
+        "broadcast plan_resolved approved",
+      ])
+    })
+
+    it("a decision on a plan that is no longer pending stops before any write", async () => {
+      const { deps, log } = recordingDeps({ planStillPending: false })
+      const result = await launchTurn(
+        deps,
+        {
+          ...request,
+          planDecision: { planId: "plan_1", approved: false, feedback: "no" },
+        },
+        target(log)
+      )
+
+      expect(result).toEqual({ kind: "plan-already-resolved" })
+      expect(log).toEqual([
+        "resolve engine",
+        "prepare target",
+        "resolve plan plan_1 rejected (no)",
+      ])
+    })
+
+    it("a follow-up whose pending plan was resolved meanwhile runs without a card flip", async () => {
+      const { deps, log } = recordingDeps({
+        pendingPlan: "plan_1",
+        planStillPending: false,
+      })
+      const result = await launchTurn(deps, request, target(log))
+
+      expect(result).toEqual({ kind: "started", runId: "run_1" })
+      expect(log).not.toContain("broadcast plan_resolved rejected")
+    })
   })
 })
