@@ -227,7 +227,7 @@ export function RepoSettingsFields({
               id={`${idPrefix}-system-prompt`}
               value={systemPrompt}
               onChange={(e) => onSystemPromptChange(e.target.value)}
-              placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the project root."
+              placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the app root."
               rows={4}
               className="[field-sizing:fixed] max-w-full resize-y text-xs"
             />
@@ -252,8 +252,8 @@ export function RepoSettingsFields({
                 placeholder="default"
               />
               <FieldDescription>
-                Optional, e.g. “web” or “api” — tells apart projects from the
-                same git repository
+                Optional, e.g. “web” or “api” — tells apart presets for the same
+                git repository
               </FieldDescription>
             </Field>
           )}

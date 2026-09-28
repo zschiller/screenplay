@@ -71,7 +71,7 @@ export function CanvasSkeleton({
             >
               <PanelLeftClose className="size-4 text-sidebar-foreground/40" />
             </div>
-            <SidebarSection label="Projects" rows={2} className="pt-0" />
+            <SidebarSection label="Repositories" rows={2} className="pt-0" />
             <SidebarSection label="Canvas" rows={3} />
           </aside>
           <div className="w-px bg-border" />

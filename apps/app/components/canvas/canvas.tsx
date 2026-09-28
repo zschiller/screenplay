@@ -127,6 +127,7 @@ import {
   subscribeGettingStarted,
 } from "@/lib/getting-started"
 import { CanvasTopBar } from "./canvas-top-bar"
+import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 import { ChatPanelHost } from "./chat-panel-host"
 import {
   useHoveredWorkspaceId,
@@ -210,6 +211,7 @@ export function Canvas({
 }) {
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [canvasSettingsOpen, setCanvasSettingsOpen] = useState(false)
   // Inline rename of the room name in the floating breadcrumb. The menu's
   // "Rename" item flags a pending edit and `onCloseAutoFocus` starts it once
   // the menu's focus trap has released (see iframe-layer-row for the pattern).
@@ -1923,8 +1925,18 @@ export function Canvas({
               onRoomMenuCloseAutoFocus={onRoomMenuCloseAutoFocus}
               deleteDialogOpen={deleteDialogOpen}
               onDeleteDialogOpenChange={setDeleteDialogOpen}
+              onOpenSettings={() => setCanvasSettingsOpen(true)}
               stopRoomDevServers={stopRoomDevServers}
               flushLayout={flushLayout}
+            />
+            <CanvasSettingsDialog
+              open={canvasSettingsOpen}
+              onOpenChange={setCanvasSettingsOpen}
+              repos={repos}
+              branches={agents}
+              onCreateRepo={createRepo}
+              onUpdateRepo={updateRepoInStorage}
+              onRemoveRepo={removeRepoIntake}
             />
             <CanvasToolbar
               toolMode={toolMode}

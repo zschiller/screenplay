@@ -69,7 +69,7 @@ export function CanvasEmptyState({
           <EmptyTitle>This canvas is empty</EmptyTitle>
           <EmptyDescription>
             Frames preview a Workspace, Documents hold notes and specs, and a
-            Project connects the code they run.
+            repository holds the code they run.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="pointer-events-auto w-56 gap-1">
@@ -87,7 +87,7 @@ export function CanvasEmptyState({
           />
           <EmptyAction
             icon={<FolderPlus />}
-            label="Add a Project"
+            label="Add a repository"
             onClick={onAddProject}
           />
         </EmptyContent>

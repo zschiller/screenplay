@@ -1,7 +1,7 @@
 const meta = {
   home: "Home & organizing",
   canvas: "The canvas",
-  projects: "Projects",
+  repositories: "Repositories",
   workspaces: "Workspaces",
   frames: "Frames",
   documents: "Documents",

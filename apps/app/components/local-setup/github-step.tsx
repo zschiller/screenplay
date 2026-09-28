@@ -95,7 +95,7 @@ export function GitHubStep({
           ? status?.ghHandle
             ? `Connected as @${status.ghHandle}.`
             : "Connected."
-          : "Browse your repositories and open pull requests from Screenplay. You can add a project from a folder or clone URL without it."}
+          : "Browse your repositories and open pull requests from Screenplay. You can add a repository from a folder or clone URL without it."}
       </p>
       {connection.working ? (
         <div className="space-y-2">

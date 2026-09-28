@@ -75,7 +75,7 @@ export function RepoConfigsPanel() {
         if (!cancelled) setConfigs(list)
       })
       .catch((err) => {
-        console.error("Failed to load project presets", err)
+        console.error("Failed to load repository presets", err)
         if (!cancelled) setLoadFailed(true)
       })
       .finally(() => {
@@ -133,22 +133,25 @@ export function RepoConfigsPanel() {
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {loading ? (
-        <SettingsRowSkeleton label="Loading project presets…" count={2} />
+        <SettingsRowSkeleton label="Loading repository presets…" count={2} />
       ) : loadFailed ? (
-        <LoadErrorRow title="Couldn't load project presets" onRetry={reload} />
+        <LoadErrorRow
+          title="Couldn't load repository presets"
+          onRetry={reload}
+        />
       ) : configs.length === 0 ? (
         <Empty className="border py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <Folder />
             </EmptyMedia>
-            <EmptyTitle>No project presets yet</EmptyTitle>
+            <EmptyTitle>No repository presets yet</EmptyTitle>
             <EmptyDescription>
-              A preset remembers how to run a project:{" "}
+              A preset remembers how to run a repository:{" "}
               {isLocalBuild
                 ? "its setup and run scripts, and the files to copy from your checkout."
                 : "its setup and run scripts, port and environment variables."}{" "}
-              Add the project to any canvas and its workspaces start from it.
+              Add the repository to any canvas and its workspaces start from it.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>{newPreset}</EmptyContent>
@@ -257,7 +260,7 @@ export function RepoConfigsPanel() {
               {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
             </DialogTitle>
             <DialogDescription>
-              A project&apos;s scripts, applied when you add it to a canvas.
+              A repository&apos;s scripts, applied when you add it to a canvas.
             </DialogDescription>
           </DialogHeader>
           {mode.kind !== "list" && (
@@ -315,7 +318,7 @@ export function RepoConfigsPanel() {
               <span className="font-mono">
                 {presetOwnerLabel(pendingDelete)}
               </span>{" "}
-              to a canvas will no longer start from this preset. Projects
+              to a canvas will no longer start from this preset. Repositories
               already on a canvas keep their settings.
             </>
           ) : null

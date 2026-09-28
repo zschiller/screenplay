@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { hasGitHubRemote } from "./repo-identity"
+import { hasGitHubRemote, repoShortName, repoSource } from "./repo-identity"
 
 describe("hasGitHubRemote", () => {
   it("accepts a Repo whose identity came from a GitHub remote", () => {
@@ -23,5 +23,43 @@ describe("hasGitHubRemote", () => {
   it("rejects a missing Repo — a lookup that lost its race offers nothing", () => {
     expect(hasGitHubRemote(undefined)).toBe(false)
     expect(hasGitHubRemote(null)).toBe(false)
+  })
+})
+
+const storefront = {
+  name: "",
+  repoOwner: "acme",
+  repoName: "storefront",
+  repoFullName: "acme/storefront",
+}
+
+describe("repoShortName", () => {
+  it("uses the repository's label when it has one", () => {
+    expect(repoShortName({ ...storefront, name: "web" })).toBe("web")
+  })
+
+  it("falls back to the repository name, ignoring a blank label", () => {
+    expect(repoShortName(storefront)).toBe("storefront")
+    expect(repoShortName({ ...storefront, name: "  " })).toBe("storefront")
+  })
+
+  it("names a remote-less folder after the folder", () => {
+    expect(
+      repoShortName({
+        repoOwner: "",
+        repoName: "",
+        repoFullName: "",
+        localPath: "/Users/me/code/notes-app/",
+      })
+    ).toBe("notes-app")
+  })
+})
+
+describe("repoSource", () => {
+  it("is the folder for a Repo added from disk, else owner/name", () => {
+    expect(repoSource(storefront)).toBe("acme/storefront")
+    expect(repoSource({ ...storefront, localPath: "/code/storefront" })).toBe(
+      "/code/storefront"
+    )
   })
 })

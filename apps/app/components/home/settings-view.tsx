@@ -81,10 +81,10 @@ const SECTIONS: SettingsSection[] = [
         },
       ]),
   {
-    id: "project-presets",
-    title: "Project presets",
+    id: "repository-presets",
+    title: "Repository presets",
     description:
-      "Saved setup, dev, port, and env vars for each project. Applied when you add a project to a canvas.",
+      "Saved setup, dev, port, and env vars for each repository. Applied when you add it to a canvas.",
     content: () => <RepoConfigsPanel />,
   },
   {

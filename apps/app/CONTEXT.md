@@ -9,7 +9,7 @@ use the same words.
 **Naming convention — code = concept, UI = label.** Code uses the structural
 term; the UI shows a friendlier label, and the two are deliberately decoupled.
 The three nested concepts are **Room** (shown to users as "Canvas") → **Repo**
-(shown as "Project") → **Branch** (shown as "Workspace"). Code — types, files,
+(shown as "Repository") → **Branch** (shown as "Workspace"). Code — types, files,
 Y.Doc keys, props, routes — always uses the structural term; the UI labels
 appear only in rendered user-facing strings, never as identifiers. The word
 **agent** in code refers to the AI runtime (the Engine), never to a Branch.
@@ -23,8 +23,11 @@ Holds one or more Repos. Backed by the `room` Postgres table. In the local
 desktop build the member list collapses to a single seeded local user (see
 **Multi-user surface**): there is no sharing, and every Room belongs to that one
 user.
-_Shown to users as_: "Canvas".
-_Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
+_Shown to users as_: "Canvas". It is what the UI treats as the project (#880):
+its chat works like a project chat, its Workspaces like threads, and its
+canvas-wide setup lives in Canvas settings.
+_Avoid_: project as a UI word (it once labelled a Repo; since #880 the UI uses
+neither); "canvas" in code
 (reserve that for the spatial surface below); "file" as a label for a Room (a
 Room is shown as "Canvas" and is `Room*` in code, never "a file"). This bans
 only the noun: _filing_ a Room into a Folder is the canonical verb, and the
@@ -66,15 +69,15 @@ local `.git` two ways — point at an existing local clone, or app-managed `git
 clone` of the URL into a managed dir — after which both converge on one
 **worktree manager** that adds/removes one worktree per Branch ref
 (`lib/sandbox/local/worktree.ts`); the paths diverge only at acquisition. `Repo`
-is the code identifier everywhere it denotes this entity; the user-facing label
-still reads "Workspace" until the separate UI-string pass renames it to
-"Project".
-_Shown to users as_: "Project".
+is the code identifier everywhere it denotes this entity. Its run settings are
+edited in Canvas settings › Repositories (#883). Its short name is its label
+(`name`) when set, else the repository's name (`repoShortName`).
+_Shown to users as_: "Repository" (it read "Project" until #883).
 _Avoid_ as a code identifier: workspace (collides with the `@workspace/ui`
 package and the everyday meaning), project; "agent" (an agent is the AI, not a
 Repo).
 
-**Repo Config** (Project preset):
+**Repo Config** (Repository preset):
 A saved, reusable bundle of a repo's run settings — setup/dev scripts, Dev
 Server Port (hosted) or files-to-copy globs (desktop), env vars, default Iframe
 Layer size, and system prompt. Sourced three ways through one shared picker — a
@@ -94,9 +97,8 @@ is to **seed** a live Repo when that repo is added to a Room: the copy is
 **one-way** — afterwards the Repo (`RepoData`) and the preset diverge, and
 editing either never touches the other. Managed on the homescreen Settings
 surface; `RepoConfig` is the code identifier everywhere. The user-facing label
-tracks the Repo's own label, so a later "Project" → "Repository" UI pass renames
-this to "Repository preset" in lockstep.
-_Shown to users as_: "Project preset".
+tracks the Repo's own label, so it was renamed with it (#883).
+_Shown to users as_: "Repository preset".
 _Avoid_: template (implies scaffolding or cloning the repo's source — a preset
 carries only run settings, not code); calling the live in-Room Repo settings a
 "preset" (the preset is the reusable seed, `RepoData` is the instance it seeds);

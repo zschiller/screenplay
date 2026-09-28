@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Install the desktop app, add a project, and ship your first agent change in a few minutes.
+description: Install the desktop app, add a repository, and ship your first agent change in a few minutes.
 ---
 
 import { Callout, Steps } from "nextra/components"
@@ -23,7 +23,7 @@ change running in it.
   [GitHub Releases](https://github.com/zschiller/screenplay/releases).
 - **A coding CLI** such as [Claude Code](https://code.claude.com) or Codex.
   Screenplay can install it for you during setup.
-- **A project** with a dev server: a local folder or any git repository. If
+- **A repository** with a dev server: a local folder or any git repository. If
   the folder has a `package.json` with a `dev` script, you're set.
 
 <Steps>
@@ -41,7 +41,7 @@ steps:
 2. **Connect GitHub.** This one is optional. It lets you browse your
    repositories and open pull requests from Screenplay. **Sign in to GitHub**
    uses the `gh` CLI (**Install GitHub CLI and connect** if you don't have
-   it), or pick **Use a device code**. Click **Skip** to add projects by local
+   it), or pick **Use a device code**. Click **Skip** to add repositories by local
    folder or clone URL instead. You can connect later in
    [Settings](/guides/settings).
 
@@ -56,23 +56,25 @@ seconds, so there's no need to reload.
 **Finish** creates your first canvas and opens it, with a **Get started**
 checklist. Later, **New canvas** on the home screen (or
 <kbd>N</kbd>) creates and opens another one; rename it from its title. A
-canvas holds one piece of work: one or more projects, their workspaces, and
+canvas holds one piece of work: one or more repositories, their workspaces, and
 everything you lay out around them.
 
-### Add a project
+### Add a repository
 
-In the canvas sidebar, click the **Add project** icon next to **Projects**:
+In the canvas sidebar, click the **Add repository** icon next to
+**Repositories**:
 
-- **Open project** adds a folder on disk, such as your existing clone.
-- **Open GitHub project** lets you pick a repository, or paste a clone URL.
+- **Open folder** adds a folder on disk, such as your existing clone.
+- **Open GitHub repository** lets you pick a repository, or paste a clone URL.
 
-<Screenshot name="add-project-menu" alt="The Add project menu with Open project and Open GitHub project" />
+<Screenshot name="add-project-menu" alt="The Add repository menu with Open folder and Open GitHub repository" />
 
 Screenplay detects your setup and run scripts and shows them for review in
-**Configure project**. Check **Save these settings for next time** to reuse
-them on other canvases. See [Projects](/guides/projects) for every field.
+**Configure repository**. Check **Save these settings for next time** to reuse
+them on other canvases. See [Repositories](/guides/repositories) for every
+field; you can change them later in the canvas's **Settings**.
 
-Adding a project creates your first **workspace**: a fresh branch checked out
+Adding a repository creates your first **workspace**: a fresh branch checked out
 in its own worktree, with its dev server running and a frame showing it.
 
 ### Ask the agent for a change

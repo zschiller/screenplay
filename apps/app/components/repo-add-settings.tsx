@@ -325,7 +325,7 @@ export function RepoAddSettings({
             {cancelLabel}
           </Button>
           <Button size="sm" onClick={handleConfirm} disabled={!portIsValid}>
-            Add project
+            Add repository
           </Button>
         </div>
       </div>

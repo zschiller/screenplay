@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   PanelLeftOpen,
   Pencil,
+  Settings,
   Trash2,
 } from "lucide-react"
 
@@ -60,6 +61,7 @@ export function CanvasTopBar({
   onRoomMenuCloseAutoFocus,
   deleteDialogOpen,
   onDeleteDialogOpenChange,
+  onOpenSettings,
   stopRoomDevServers,
   flushLayout,
 }: {
@@ -77,6 +79,8 @@ export function CanvasTopBar({
   onRoomMenuCloseAutoFocus: (e: Event) => void
   deleteDialogOpen: boolean
   onDeleteDialogOpenChange: (open: boolean) => void
+  /** Opens Canvas settings (#883). */
+  onOpenSettings: () => void
   stopRoomDevServers: () => void
   flushLayout: () => Promise<unknown>
 }) {
@@ -168,24 +172,30 @@ export function CanvasTopBar({
                   {/* Only the owner can rename; a collaborator's
                       rename would be refused server-side. */}
                   {isOwner && (
-                    <>
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          pendingRoomRenameRef.current = true
-                        }}
-                      >
-                        <Pencil />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => onDeleteDialogOpenChange(true)}
-                      >
-                        <Trash2 />
-                        Delete
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        pendingRoomRenameRef.current = true
+                      }}
+                    >
+                      <Pencil />
+                      Rename
+                    </DropdownMenuItem>
+                  )}
+                  {/* Everyone on the canvas can edit its repositories, as
+                      from the sidebar. */}
+                  <DropdownMenuItem onSelect={onOpenSettings}>
+                    <Settings />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {isOwner && (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => onDeleteDialogOpenChange(true)}
+                    >
+                      <Trash2 />
+                      Delete
+                    </DropdownMenuItem>
                   )}
                   {/* A shared Room the user doesn't own: they leave it
                       rather than destroy it for everyone else. */}

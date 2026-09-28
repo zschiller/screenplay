@@ -49,12 +49,12 @@ describe("UI copy uses the glossary's UI labels", () => {
 
 describe("findCopyViolations", () => {
   it.each([
-    ["Remove repo?", "repo → project (or “git repository”)"],
+    ["Remove repo?", "repo → repository"],
+    ["Add project", "project → repository (or canvas)"],
     ["Each iframeLayer runs a live preview", "iframeLayer → frame"],
     ["Back to room", "room → canvas"],
     ["Search workspaces...", "use the … character"],
     ["Choose a branch", "branch → workspace"],
-    ["No repositories found.", "repository → project"],
   ])("flags %j", (text, rule) => {
     expect(findCopyViolations(text).map((v) => v.rule)).toContain(rule)
   })
@@ -66,6 +66,8 @@ describe("findCopyViolations", () => {
     "Open branch on GitHub",
     "Search GitHub repositories…",
     "Restart sandbox",
+    "No repositories found.",
+    "Add repository",
   ])("passes %j", (text) => {
     expect(findCopyViolations(text)).toEqual([])
   })

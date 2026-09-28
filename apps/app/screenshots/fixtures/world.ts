@@ -843,6 +843,21 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     createdAt: daysAgo(now, 8),
     sidebarOrder: 0,
   }
+  const apiRepo: RepoData = {
+    id: "repo-pricing-api",
+    name: "api",
+    repoFullName: "acme/platform",
+    repoOwner: "acme",
+    repoName: "platform",
+    defaultBranch: "main",
+    cloneUrl: "https://github.com/acme/platform.git",
+    setupScript: "pnpm install",
+    devScript: "pnpm --filter api dev --port $PORT",
+    devServerPort: 3000,
+    envVars: "",
+    createdAt: daysAgo(now, 7),
+    sidebarOrder: 1,
+  }
   const branch: BranchData = {
     id: "branch-pricing-tiers",
     repoId: repo.id,
@@ -868,7 +883,9 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     lastOpenedAt: daysAgo(now, 1),
     folderId: FIXTURE_IDS.folders.marketing,
     doc: {
-      repos: [repo],
+      // A second repository with no Workspaces yet, so Canvas settings (#883)
+      // has a two-repository canvas to show.
+      repos: [repo, apiRepo],
       branches: [branch],
       iframeLayers: [
         {
