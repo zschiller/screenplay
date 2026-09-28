@@ -52,6 +52,7 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { chatStore } from "@/lib/chat-store"
+import { inputStore } from "@/lib/input-store"
 import { diffLines, foldContext } from "@/lib/agent/line-diff"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { useElementHighlight } from "./use-element-highlight"
@@ -660,6 +661,20 @@ export function TurnSummaryRow({
   )
 }
 
+/**
+ * The plan quoted as markdown, with an empty line after it for the feedback.
+ * Sending a message while a plan waits is how the server takes a rejection, so
+ * this is all Request changes needs to do.
+ */
+export function quotePlan(content: string): string {
+  const quoted = content
+    .trim()
+    .split("\n")
+    .map((line) => (line ? `> ${line}` : ">"))
+    .join("\n")
+  return `${quoted}\n\n`
+}
+
 function PlanMessage({
   message,
   roomId,
@@ -675,6 +690,10 @@ function PlanMessage({
     setIsSubmitting(true)
     await chatStore.approvePlan(roomId, chatId, message.planId)
     setIsSubmitting(false)
+  }
+
+  const handleRequestChanges = () => {
+    inputStore.append(chatId, quotePlan(message.content))
   }
 
   const statusBadge = {
@@ -709,9 +728,13 @@ function PlanMessage({
       }
     >
       <div className="px-3 py-2.5">
-        <ChatMarkdown>{message.content}</ChatMarkdown>
+        {/* The reply's type scale: a plan's headings are body-sized and
+            semibold, so its title doesn't outshout the reply around it. */}
+        <ChatMarkdown className="prose-headings:text-sm prose-headings:font-semibold">
+          {message.content}
+        </ChatMarkdown>
         {message.status === "pending" && (
-          <div className="mt-3">
+          <div className="mt-3 flex items-center gap-2">
             <Button
               size="sm"
               variant="default"
@@ -719,8 +742,16 @@ function PlanMessage({
               onClick={handleApprove}
               disabled={isSubmitting}
             >
-              <CheckCircle2 className="mr-1 h-3 w-3" />
               Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={handleRequestChanges}
+              disabled={isSubmitting}
+            >
+              Request changes
             </Button>
           </div>
         )}

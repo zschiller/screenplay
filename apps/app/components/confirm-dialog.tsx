@@ -117,7 +117,7 @@ export function ConfirmDialog({
         }}
       >
         <AlertDialogHeader>
-          <AlertDialogTitle className="leading-snug break-words">
+          <AlertDialogTitle className="break-words">
             {confirmTitle(verb, itemName, itemNoun)}
           </AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
@@ -194,13 +194,19 @@ export function ConfirmOption({
         checked={checked}
         onCheckedChange={(next) => onCheckedChange(next === true)}
         disabled={disabled}
-        className="mt-px"
+        className="mt-0.5"
       />
-      <div className="grid gap-1.5">
-        <Label htmlFor={id} className="leading-4">
+      {/* Left-aligned text in the body's own size and weight: the option is
+          part of the sentence above it, not a heading over its hint. */}
+      <div className="grid gap-0.5">
+        <Label htmlFor={id} className="leading-5 font-normal">
           {label}
         </Label>
-        {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+        {hint && (
+          <div className="text-[13px] leading-5 text-muted-foreground">
+            {hint}
+          </div>
+        )}
       </div>
     </div>
   )
