@@ -24,6 +24,7 @@ import {
   FloatingToolbarButton,
   FloatingToolbarSeparator,
 } from "@workspace/ui/components/floating-toolbar"
+import { Kbd } from "@workspace/ui/components/kbd"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -33,6 +34,7 @@ import {
   type ScreenplayDom,
   type WheelForward,
 } from "@/hooks/use-screenplay-dom"
+import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
@@ -493,9 +495,32 @@ export function IframeLayer({
     onSharedStateChanged,
   })
 
+  // Both interact mode and Create Flow mode forward pointer events to the
+  // iframe and hide the canvas overlay. Create Flow additionally captures
+  // navigation events into a history trail (handled in canvas.tsx).
+  const interactive = focused || createFlow
+
   const dom = useScreenplayDom(iframeRef, {
     onWheel: (wheel) => onWheel?.(iframeLayer.id, wheel),
+    // Esc the page didn't claim, forwarded by the bridge because keydowns
+    // never leave the iframe. Replay it on the canvas's own window so it
+    // walks the same Escape precedence (lib/canvas/escape.ts) as an Esc
+    // pressed on the canvas: an armed pick cancels first, otherwise the frame
+    // leaves interaction.
+    onEscape: () => {
+      if (!interactive) return
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    },
   })
+
+  // Leaving interaction (Esc, the toolbar, or a deselect) hands keyboard focus
+  // back to the canvas. Otherwise it stays inside the iframe, and canvas
+  // shortcuts, a second Esc included, go to the preview instead.
+  useEffect(() => {
+    if (interactive) return
+    const iframe = iframeRef.current
+    if (iframe && document.activeElement === iframe) iframe.blur()
+  }, [interactive])
 
   const handleFitToContent = useCallback(async () => {
     try {
@@ -646,11 +671,6 @@ export function IframeLayer({
     return () => clearTimeout(id)
   }, [probeState, contentReady, recoveryTick, reloadIframe])
 
-  // Both interact mode and Create Flow mode forward pointer events to the
-  // iframe and hide the canvas overlay. Create Flow additionally captures
-  // navigation events into a history trail (handled in canvas.tsx).
-  const interactive = focused || createFlow
-
   return (
     <LayerShell
       layerId={iframeLayer.id}
@@ -680,6 +700,9 @@ export function IframeLayer({
       // Interactive (focus / Create Flow) frames forward pointers to the iframe,
       // so the title bar's drag is detached just like the body overlay is hidden.
       titleDragDisabled={interactive}
+      // No resize handles while interacting: the Selection Overlay hides its
+      // drawn ones, and the edge hit areas would steal clicks from the page.
+      resizable={!focused}
       onResize={onResize}
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}
@@ -912,9 +935,51 @@ export function IframeLayer({
                     }
                   : {})}
                 onPointerDownCapture={api.onBodyPointerDownCapture}
+                onDoubleClick={(e) => {
+                  if (
+                    !canInteractOnDoubleClick({
+                      hasPreview: !!iframeLayer.branchId,
+                      commentMode: !!commentMode,
+                      // A dimmed frame is ineligible for an armed pick, but
+                      // the pick still owns the pointer.
+                      pickActive: !!pickActive || !!dimmed,
+                      spaceHeld,
+                    })
+                  )
+                    return
+                  e.stopPropagation()
+                  // Interaction lives only while its frame is selected, so a
+                  // double-click on a member of a selected group narrows the
+                  // selection to this frame first.
+                  onSelect(iframeLayer.id, false)
+                  onFocus(iframeLayer.id)
+                }}
               />
             )}
           </div>
+          {focused && (
+            // The interacting tag: a small label in the selection colour,
+            // hung under the ring like a canvas size tag, so the mode reads
+            // as part of the selection rather than another floating control.
+            // Counter-scaled like the title bar so it stays one screen size
+            // at any zoom; the margin clears the bottom resize handle. The key
+            // sits 2px in from the tag's edge, so its radius is the tag's
+            // minus 2px and the corners stay concentric.
+            <div
+              data-interacting-hint=""
+              className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-[11px] leading-4 font-medium whitespace-nowrap text-white"
+              style={{
+                transform: `translateX(-50%) scale(${1 / zoom})`,
+                transformOrigin: "top center",
+                marginTop: 8 / zoom,
+              }}
+            >
+              Interacting
+              <Kbd className="h-4 min-w-4 rounded-[calc(var(--radius-sm)-2px)] bg-white/20 px-1 text-[10px] text-white">
+                Esc
+              </Kbd>
+            </div>
+          )}
         </>
       )}
     </LayerShell>

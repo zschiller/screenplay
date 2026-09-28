@@ -1602,7 +1602,10 @@ export function Canvas({
               hideResizeHandles={
                 editingDocumentLayerId !== null ||
                 selectedGroupIds.size > 0 ||
-                !showsLayerDetail(zoom)
+                !showsLayerDetail(zoom) ||
+                // An interacting frame is for using the preview, not
+                // resizing it: its edges belong to the page.
+                focusedIframeLayerId !== null
               }
               gapHandles={gapHandles}
               reorderHandles={reorderHandles}
