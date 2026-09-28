@@ -1,4 +1,4 @@
-import { getUserId } from "@/lib/auth-helpers"
+import { openRoomForRoute } from "@/lib/room-access"
 import { launchTurn } from "@/lib/agent/turn-launch"
 import {
   liveTurnLaunchDeps,
@@ -27,9 +27,6 @@ interface RequestBody {
 }
 
 export async function POST(req: Request) {
-  const userId = await getUserId()
-  if (!userId) return new Response("Unauthorized", { status: 401 })
-
   const body: RequestBody = await req.json()
   const { roomId, chatId, sandboxName, markdownLayerId, message, model } = body
   if (!roomId || !chatId || !message) {
@@ -40,6 +37,11 @@ export async function POST(req: Request) {
       status: 400,
     })
   }
+
+  // Room Access before anything is persisted, broadcast or launched.
+  const room = await openRoomForRoute(roomId, chatId)
+  if (room instanceof Response) return room
+  const { userId } = room
 
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,
   // drive after the response); this route only picks the Chat Target.

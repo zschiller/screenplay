@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server"
-import { getGitHubToken, getUserId } from "@/lib/auth-helpers"
+import { getGitHubToken } from "@/lib/auth-helpers"
 import { isLocalBuild } from "@/lib/local-mode"
 import { nanoid } from "nanoid"
 import { kv } from "@/lib/kv"
@@ -9,7 +9,7 @@ import {
   type ProvisionMode,
 } from "@/lib/sandbox/provisioning"
 import type { BranchData, RepoData } from "@/lib/types"
-import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
+import { openRoomForRoute, type RoomAccess } from "@/lib/room-access"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -43,20 +43,20 @@ interface CreateRequest {
 // ---------------------------------------------------------------------------
 
 async function updateBranch(
-  roomId: string,
+  room: RoomAccess,
   branchId: string,
   data: Partial<BranchData>
 ) {
-  await mutateRoomDoc(roomId, ({ branches }) => {
+  await room.mutateDoc(({ branches }) => {
     branches.update(branchId, data)
   })
 }
 
 async function getRepoFromStorage(
-  roomId: string,
+  room: RoomAccess,
   repoId: string
 ): Promise<RepoData | null> {
-  return readRoomDoc(roomId, ({ repos }) => repos.get(repoId) ?? null)
+  return room.readDoc(({ repos }) => repos.get(repoId) ?? null)
 }
 
 /**
@@ -67,8 +67,8 @@ async function getRepoFromStorage(
  * snapshot-then-write rather than a serialized transaction. Chats stay
  * server-created for single-branch flows that don't pre-seed them.
  */
-async function ensureChatForBranch(roomId: string, branchId: string) {
-  await mutateRoomDoc(roomId, ({ branches, chatSessions, transact }) => {
+async function ensureChatForBranch(room: RoomAccess, branchId: string) {
+  await room.mutateDoc(({ branches, chatSessions, transact }) => {
     if (!branches.get(branchId)) return
     transact(() => {
       const hasChat = chatSessions
@@ -89,8 +89,8 @@ async function ensureChatForBranch(roomId: string, branchId: string) {
 
 /** Mark the Branch failed. The status message is left as it was: it names the
  *  step that was running, which titles the sidebar's failure card. */
-function markError(roomId: string, branchId: string, error?: string) {
-  return updateBranch(roomId, branchId, {
+function markError(room: RoomAccess, branchId: string, error?: string) {
+  return updateBranch(room, branchId, {
     status: "error",
     error: error || "Unknown error",
   })
@@ -113,10 +113,11 @@ const MODES: Record<CreateRequest["flow"], ProvisionMode> = {
  */
 async function provisionBranch(
   req: CreateRequest,
+  room: RoomAccess,
   repo: RepoData,
   ghToken: string | undefined
 ) {
-  const { roomId, branchId } = req
+  const { branchId } = req
   const result = await provisionSandbox({
     mode: MODES[req.flow],
     repo,
@@ -126,15 +127,15 @@ async function provisionBranch(
     retry: req.retry,
     ghToken,
     onStatus: (statusMessage) =>
-      updateBranch(roomId, branchId, { statusMessage }),
+      updateBranch(room, branchId, { statusMessage }),
   })
   if (!result.success) {
-    await markError(roomId, branchId, result.error)
+    await markError(room, branchId, result.error)
     return
   }
   const { sandboxName, previewDomain } = result.value
 
-  await updateBranch(roomId, branchId, {
+  await updateBranch(room, branchId, {
     previewDomain,
     status: "running",
     statusMessage: undefined,
@@ -144,7 +145,7 @@ async function provisionBranch(
   // terminal — itself (seedChat === false) so the branch isn't also given an
   // extra auto chat.
   if (req.seedChat !== false) {
-    await ensureChatForBranch(roomId, branchId)
+    await ensureChatForBranch(room, branchId)
   }
 
   // Best-effort: crawl routes so the iframeLayer route picker has options without
@@ -152,7 +153,7 @@ async function provisionBranch(
   crawlRoutes(sandboxName)
     .then((result) => {
       if (result.success) {
-        return updateBranch(roomId, branchId, {
+        return updateBranch(room, branchId, {
           discoveredRoutes: result.value,
         })
       }
@@ -165,9 +166,18 @@ async function provisionBranch(
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
-  const userId = await getUserId()
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const body = (await request.json()) as CreateRequest
+  const { roomId, branchId, repoId } = body
+
+  // Room Access before the token, the lock or any provisioning: every write
+  // below reaches the room through this handle.
+  const room = await openRoomForRoute(roomId)
+  if (room instanceof Response) {
+    // The sidebar's failure card reads `{ error }` (use-branch-intake).
+    return NextResponse.json(
+      { error: await room.text() },
+      { status: room.status }
+    )
   }
 
   // The hosted build can't do anything without a token (branches are created
@@ -182,9 +192,6 @@ export async function POST(request: Request) {
     )
   }
 
-  const body = (await request.json()) as CreateRequest
-  const { roomId, branchId, repoId } = body
-
   // Distributed lock — prevent duplicate creation (page reload, multiplayer)
   const lock = await kv.acquireLock(`branch-create:${branchId}`, 300)
   if (!lock) {
@@ -194,16 +201,16 @@ export async function POST(request: Request) {
 
   after(async () => {
     try {
-      const repo = await getRepoFromStorage(roomId, repoId)
+      const repo = await getRepoFromStorage(room, repoId)
       if (!repo) {
-        await markError(roomId, branchId, "Repository not found")
+        await markError(room, branchId, "Repository not found")
         return
       }
 
-      await provisionBranch(body, repo, ghToken)
+      await provisionBranch(body, room, repo, ghToken)
     } catch (e) {
       await markError(
-        roomId,
+        room,
         branchId,
         e instanceof Error
           ? e.message

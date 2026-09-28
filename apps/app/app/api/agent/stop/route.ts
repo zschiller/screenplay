@@ -1,4 +1,4 @@
-import { getUserId } from "@/lib/auth-helpers"
+import { openRoomForRoute } from "@/lib/room-access"
 import { findActiveRun } from "@/lib/agent/persistence"
 import { transition } from "@/lib/agent/run-state"
 import { broadcastControl, broadcastSignal } from "@/lib/agent/broadcast"
@@ -11,14 +11,14 @@ interface RequestBody {
 }
 
 export async function POST(req: Request) {
-  const userId = await getUserId()
-  if (!userId) return new Response("Unauthorized", { status: 401 })
-
   const body: RequestBody = await req.json()
   const { roomId, chatId } = body
   if (!roomId || !chatId) {
     return new Response("Missing required fields", { status: 400 })
   }
+
+  const room = await openRoomForRoute(roomId, chatId)
+  if (room instanceof Response) return room
 
   const active = await findActiveRun(chatId)
   if (active) {

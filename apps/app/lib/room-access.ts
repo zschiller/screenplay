@@ -1,7 +1,10 @@
 import "server-only"
 
+import { eq } from "drizzle-orm"
 import { getUserId } from "@/lib/auth-helpers"
-import { requireMember, type RoomRole } from "@/lib/rooms"
+import { db } from "@/lib/db"
+import { agentChat } from "@/lib/db/schema"
+import { NOT_A_MEMBER, requireMember, type RoomRole } from "@/lib/rooms"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import type { RoomCollections } from "@/lib/yjs/schema"
 
@@ -42,4 +45,46 @@ export async function openRoom(roomId: string): Promise<RoomAccess> {
     mutateDoc: (fn) => mutateRoomDoc(roomId, fn),
     readDoc: (fn) => readRoomDoc(roomId, fn),
   }
+}
+
+/** The chat's Room, or `null` when no turn has recorded the chat yet. */
+export async function chatRoomId(chatId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ roomId: agentChat.roomId })
+    .from(agentChat)
+    .where(eq(agentChat.id, chatId))
+    .limit(1)
+  return row?.roomId ?? null
+}
+
+/**
+ * {@link openRoom} for a route handler: the {@link RoomAccess}, or the
+ * response to return instead (401 with no session, 403 for a non-member).
+ * Passing a `chatId` also rejects a chat recorded under a different Room, so
+ * a member of one Room can't reach another Room's chat by naming their own.
+ */
+export async function openRoomForRoute(
+  roomId: string,
+  chatId?: string
+): Promise<RoomAccess | Response> {
+  let room: RoomAccess
+  try {
+    room = await openRoom(roomId)
+  } catch (e) {
+    if (!(e instanceof Error)) throw e
+    if (e.message === "Unauthorized") {
+      return new Response("Unauthorized", { status: 401 })
+    }
+    if (e.message === NOT_A_MEMBER) {
+      return new Response(NOT_A_MEMBER, { status: 403 })
+    }
+    throw e
+  }
+  if (chatId) {
+    const owner = await chatRoomId(chatId)
+    if (owner && owner !== roomId) {
+      return new Response(NOT_A_MEMBER, { status: 403 })
+    }
+  }
+  return room
 }
