@@ -1,0 +1,111 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  DeleteRepoDialog,
+  type DeleteRepoWorkspace,
+} from "./delete-repo-dialog"
+
+// Radix's AlertDialog uses pointer-capture / scroll APIs jsdom doesn't
+// implement, plus a ResizeObserver. Polyfill the bare minimum.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??=
+  ResizeObserverStub as unknown as typeof ResizeObserver
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.releasePointerCapture = () => {}
+  Element.prototype.scrollIntoView = () => {}
+}
+
+afterEach(cleanup)
+
+const clean = { onOrigin: true, unpushedCommits: 0, uncommittedFiles: 0 }
+const WORKSPACES: DeleteRepoWorkspace[] = [
+  { id: "a", ref: "checkout-polish", openPrNumber: 482, work: clean },
+  {
+    id: "b",
+    ref: "empty-cart-state",
+    work: { onOrigin: true, unpushedCommits: 2, uncommittedFiles: 0 },
+  },
+  { id: "c", ref: "apple-pay-button", work: clean },
+]
+
+function renderDialog(
+  props: Partial<React.ComponentProps<typeof DeleteRepoDialog>> = {}
+) {
+  const onConfirm = vi.fn().mockResolvedValue(undefined)
+  render(
+    <DeleteRepoDialog
+      open
+      onOpenChange={vi.fn()}
+      repoName="storefront"
+      workspaces={WORKSPACES}
+      canDeleteOnRemote
+      localBranchKept={false}
+      onConfirm={onConfirm}
+      {...props}
+    />
+  )
+  return { onConfirm: props.onConfirm ?? onConfirm }
+}
+
+describe("DeleteRepoDialog", () => {
+  it("lists each workspace with its state", () => {
+    renderDialog()
+
+    const rows = screen.getAllByRole("listitem").map((li) => li.textContent)
+    expect(rows).toEqual([
+      "checkout-polishPR #482",
+      "empty-cart-state2 unpushed",
+      "apple-pay-buttonClean",
+    ])
+  })
+
+  it("warns about unpushed work only when some would be lost", () => {
+    renderDialog()
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Unpushed work in 1 workspace will be lost."
+    )
+    cleanup()
+
+    renderDialog({ localBranchKept: true })
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("defaults the GitHub delete off", () => {
+    const { onConfirm } = renderDialog()
+
+    expect(screen.getByRole("checkbox")).toHaveProperty(
+      "dataset.state",
+      "unchecked"
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Remove project" }))
+
+    expect(onConfirm).toHaveBeenCalledWith({ deleteBranchesOnRemote: false })
+  })
+
+  it("names the GitHub branches on the button once ticked", () => {
+    const { onConfirm } = renderDialog()
+
+    expect(
+      screen.getByText("Also delete these 3 branches on GitHub")
+    ).toBeDefined()
+    expect(screen.getByText("Closes PR #482")).toBeDefined()
+    fireEvent.click(screen.getByRole("checkbox"))
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove project and GitHub branches" })
+    )
+
+    expect(onConfirm).toHaveBeenCalledWith({ deleteBranchesOnRemote: true })
+  })
+
+  it("doesn't offer the GitHub delete when it can't work", () => {
+    renderDialog({ canDeleteOnRemote: false })
+
+    expect(screen.queryByRole("checkbox")).toBeNull()
+  })
+})

@@ -27,6 +27,8 @@ export interface GitHubRepo {
  * has to be prepared to stay dark.
  */
 export async function hasGitHubToken(): Promise<boolean> {
+  // A capture signed in to the fixture account has API access to offer.
+  if (await hasFixtureGitHub()) return true
   return (await getGitHubToken()) !== null
 }
 
