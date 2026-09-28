@@ -118,21 +118,26 @@ export function UnassignedFramePicker({
               onClick={(e) => e.stopPropagation()}
               onDoubleClick={(e) => e.stopPropagation()}
             >
-              <CommandList className="max-h-48">
+              {/* Only the Workspaces scroll, so New workspace stays in view. */}
+              <CommandList className="max-h-none overflow-visible">
                 {pickable.length > 0 && (
-                  <CommandGroup>
+                  <CommandGroup className="no-scrollbar max-h-44 overflow-y-auto">
                     {pickable.map((b) => (
                       <CommandItem
                         key={b.id}
                         value={b.id}
                         onSelect={() => onAssign(b.id)}
                       >
-                        <WorkspaceStatusIcon
-                          branch={b}
-                          context={statusContext(b.id)}
-                          onRetry={noop}
-                          onRecreate={noop}
-                        />
+                        {/* The status glyphs differ in width (a 14px spinner, a
+                        16px branch), so a fixed slot keeps the pills lined up. */}
+                        <span className="flex size-4 shrink-0 items-center justify-center">
+                          <WorkspaceStatusIcon
+                            branch={b}
+                            context={statusContext(b.id)}
+                            onRetry={noop}
+                            onRecreate={noop}
+                          />
+                        </span>
                         <BranchBadge
                           branch={b.ref}
                           colorKey={b.id}
