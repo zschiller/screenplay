@@ -4,6 +4,7 @@ import type { GhCli, GhStatus } from "@/lib/github-local/gh-cli"
 import {
   makeGitHubTokenResolver,
   makeLocalGitHubConnectionReader,
+  makeLocalGitHubTokenSourceReader,
 } from "@/lib/github-local/token-resolver"
 import {
   makeKeychainTokenStore,
@@ -177,5 +178,25 @@ describe("token store", () => {
 
     expect(await primary.get()).toBeNull()
     expect(await fallback.get()).toBeNull()
+  })
+})
+
+describe("local GitHub token source reader", () => {
+  const read = (ghToken: string | null, store = memoryStore()) =>
+    makeLocalGitHubTokenSourceReader({
+      gh: fakeGh(ghToken),
+      store: async () => store,
+    })()
+
+  it("prefers gh over a stored device token, like the resolver", async () => {
+    expect(await read("gh-tok", memoryStore("device-tok"))).toBe("gh")
+  })
+
+  it("falls back to a stored device token", async () => {
+    expect(await read(null, memoryStore("device-tok"))).toBe("device")
+  })
+
+  it("is null with no token anywhere", async () => {
+    expect(await read(null)).toBeNull()
   })
 })

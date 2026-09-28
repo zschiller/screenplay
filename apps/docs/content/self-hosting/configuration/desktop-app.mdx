@@ -44,14 +44,20 @@ at runtime and re-injected by the shell when it spawns the sidecar.
 
 ## Lifecycle
 
-Tauri owns the sidecar end-to-end:
+Tauri owns the sidecar end-to-end. All of this runs off the main thread, so the
+window paints a loading screen (the logo, on the app's own light or dark
+background) the moment the app opens:
 
 1. **Port** — binds `127.0.0.1:0` for a free port and hands it to the sidecar.
-2. **Spawn** — extracts the bundled tree and runs `node apps/app/server.js` with
+2. **Spawn** — extracts the bundled tree (while recovering the login shell's
+   `PATH` in parallel) and runs `node apps/app/server.js` with
    the desktop profile, the machine-specific data dirs (under the OS app-data
    directory), and the per-install secrets.
 3. **Health gate** — polls `/api/health` and only navigates the webview to the
-   local server once it 200s, so first paint never races the boot.
+   local server once it 200s, so first paint never races the boot. A spinner
+   joins the logo only if the boot runs long; if the sidecar exits or never
+   answers, the loading screen says Screenplay couldn't start instead of
+   spinning forever.
 4. **Shutdown** — kills and reaps the sidecar on quit (no orphan).
 
 ## Secrets

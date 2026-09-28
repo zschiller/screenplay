@@ -1,7 +1,7 @@
 "use server"
 
-import { listHarnessSetupRows } from "@/lib/agent/harnesses/setup-actions"
-import { getGitHubLocalStatus } from "@/lib/github-local/actions"
+import { listHarnessReadiness } from "@/lib/agent/harnesses/setup-actions"
+import { readLocalGitHubTokenSource } from "@/lib/github-local/token-resolver"
 import { isFixtureWorld } from "@/lib/fixture-world"
 import { readFixtureEntryState } from "@/lib/fixture-entry"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -14,6 +14,11 @@ import { deriveGateStatus } from "./is-complete"
  * status reads the setup panels are built on (`listHarnessSetupRows()`,
  * `getGitHubLocalStatus()`) and folds them through the shared pure
  * {@link deriveGateStatus}.
+ *
+ * It reads only what the release predicate folds (install/auth per harness,
+ * where a GitHub token resolves), not the Settings rows' facts line or the
+ * `gh` handle: the root layout awaits this on every hard load, app launch
+ * included, so each extra CLI spawn or network call delays the first paint.
  *
  * Returns **only** `{ harnessSatisfied, githubSatisfied }` — the raw credential
  * shapes behind those reads (tokens, the GitHub handle, device-token presence)
@@ -44,9 +49,9 @@ export async function getLocalSetupGateStatus(): Promise<{
         entry !== "setup-pending" && entry !== "setup-agent-ready",
     }
   }
-  const [harnesses, github] = await Promise.all([
-    listHarnessSetupRows(),
-    getGitHubLocalStatus(),
+  const [harnesses, tokenSource] = await Promise.all([
+    listHarnessReadiness(),
+    readLocalGitHubTokenSource(),
   ])
-  return deriveGateStatus({ harnesses, github })
+  return deriveGateStatus({ harnesses, github: { tokenSource } })
 }

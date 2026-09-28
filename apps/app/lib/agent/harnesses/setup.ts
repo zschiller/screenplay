@@ -118,6 +118,13 @@ export interface HarnessSetup {
    */
   rows(): Promise<HarnessSetupRow[]>
   /**
+   * Just each row's install/auth pair — what the first-run gate folds — probed
+   * live like {@link rows} but without the facts line's `--version` and
+   * `command -v` reads. The gate runs on every hard load (app launch
+   * included), so it skips work only Settings displays.
+   */
+  readiness(): Promise<Pick<HarnessSetupRow, "installed" | "authenticated">[]>
+  /**
    * What harness `key`'s `kind` action runs in the inline terminal, resolved
    * against live host facts. `null` when the key is unknown or the harness has
    * no sign-in path (nothing this surface can run).
@@ -179,8 +186,19 @@ export function createHarnessSetup(
     return { ...describeRow(harness, installed, authenticated), version, path }
   }
 
+  const readiness = () =>
+    Promise.all(
+      distinctByHostBinary(harnesses).map(async (harness) => {
+        const installed = await probe(harness.hostBinary)
+        const authenticated =
+          installed && harness.probeAuth ? await harness.probeAuth(run) : null
+        return { installed, authenticated }
+      })
+    )
+
   return {
     rows,
+    readiness,
 
     async commandsFor(key, kind) {
       const harness = harnesses.find((h) => h.key === key)

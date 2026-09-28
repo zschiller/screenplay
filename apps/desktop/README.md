@@ -22,6 +22,10 @@ on quit: kill + wait child
 control server (thumbnails) ◀──POST /thumbnail── TauriWebviewCapturer
 ```
 
+- **Boot runs off the main thread** (`boot` in `main.rs`), so the window paints
+  `dist/index.html` immediately: the logo on the app's theme background, a
+  spinner only after ~0.8s, and an error state (`window.showBootError`) if the
+  sidecar dies or never answers.
 - **Port** is OS-assigned (`TcpListener::bind("127.0.0.1:0")`) and handed to the
   sidecar; the first-paint race is closed by gating `navigate()` on `/api/health`.
 - **The single build-time switch** lives in [`desktop.env`](./desktop.env): the

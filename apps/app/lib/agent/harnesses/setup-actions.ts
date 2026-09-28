@@ -32,6 +32,18 @@ export async function listHarnessSetupRows(): Promise<HarnessSetupRow[]> {
 }
 
 /**
+ * Each row's install/auth pair only, for the first-run gate: the same live
+ * probes as {@link listHarnessSetupRows} minus the facts line. `[]` off the
+ * desktop build.
+ */
+export async function listHarnessReadiness(): Promise<
+  Pick<HarnessSetupRow, "installed" | "authenticated">[]
+> {
+  if (!isLocalBuild) return []
+  return (await setupFor()).readiness()
+}
+
+/**
  * What harness `key`'s `kind` action runs in the inline host terminal — the
  * descriptor's install command (against live host facts) chained into its own
  * sign-in, or the bare sign-in. `null` when the key is unknown or the harness
