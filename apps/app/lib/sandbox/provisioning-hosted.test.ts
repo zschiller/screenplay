@@ -378,6 +378,47 @@ describe("provisionSandbox in recreate mode", () => {
   })
 })
 
+describe("provisionSandbox retrying a failed create", () => {
+  it("frees the failed attempt's Sandbox and accepts the branch it created", async () => {
+    createBranch.mockResolvedValueOnce({
+      success: false,
+      error: "Reference already exists",
+    })
+    const result = await provisionSandbox({
+      mode: "new",
+      retry: true,
+      repo: repo(),
+      branch: "agent/x",
+      sandboxName: "sandbox-a",
+      ghToken: GH_TOKEN,
+    })
+
+    expect(result.success).toBe(true)
+    expect(fake.deletes()).toBe(1)
+    expect(fake.createCalls).toHaveLength(1)
+  })
+
+  it("still fails a first attempt whose branch already exists", async () => {
+    createBranch.mockResolvedValueOnce({
+      success: false,
+      error: "Reference already exists",
+    })
+    const result = await provisionSandbox({
+      mode: "new",
+      repo: repo(),
+      branch: "agent/x",
+      sandboxName: "sandbox-a",
+      ghToken: GH_TOKEN,
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: "Reference already exists",
+    })
+    expect(fake.createCalls).toHaveLength(0)
+  })
+})
+
 describe("provisionSandbox where the host owns git auth", () => {
   it("never calls the GitHub API and creates the branch from the default branch at provision time", async () => {
     backend.hostGitAuth = true

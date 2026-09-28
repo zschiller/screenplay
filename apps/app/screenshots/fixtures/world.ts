@@ -433,6 +433,8 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       previewDomain: previewDomainFor(previewOrigin, "gift-cards"),
       port: 3003,
       status: "error",
+      // The step that was running when setup failed; it titles the error card.
+      statusMessage: "Installing dependencies…",
       error:
         'setup script exited with code 1: ERR_PNPM_NO_LOCKFILE  Cannot install with "frozen-lockfile" because pnpm-lock.yaml is absent',
       createdAt: daysAgo(now, 3),
