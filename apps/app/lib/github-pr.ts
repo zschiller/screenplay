@@ -1,9 +1,10 @@
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomReader } from "@/lib/room-access"
 
 export interface CreateGitHubPrInput {
   userId: string
-  roomId: string
+  /** The Branch's Room, opened through Room Access. */
+  room: RoomReader
   sandboxName: string
   title?: string
   body?: string
@@ -38,7 +39,11 @@ export function buildPrContent(
 
   if (subjects.length === 0) return { title: fallbackTitle, body: "" }
   if (subjects.length === 1) {
-    const body = commits[0].commit.message.split("\n").slice(1).join("\n").trim()
+    const body = commits[0].commit.message
+      .split("\n")
+      .slice(1)
+      .join("\n")
+      .trim()
     return { title: subjects[0], body }
   }
   return { title: subjects[0], body: subjects.map((s) => `- ${s}`).join("\n") }
@@ -80,10 +85,9 @@ async function fetchPrContent(
 export async function createGitHubPr(
   input: CreateGitHubPrInput
 ): Promise<CreateGitHubPrResult> {
-  const { userId, roomId, sandboxName, title, body } = input
+  const { userId, room, sandboxName, title, body } = input
 
-  const { branch, repoOwner, repoName, defaultBranch } = await readRoomDoc(
-    roomId,
+  const { branch, repoOwner, repoName, defaultBranch } = await room.readDoc(
     ({ branches, repos }) => {
       const agent = branches
         .toArray()

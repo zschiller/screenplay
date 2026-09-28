@@ -1,8 +1,8 @@
 "use server"
 
 import { redactSensitiveInfo } from "@/lib/agent/redact"
-import { requireUserId } from "@/lib/auth-helpers"
 import { createGitHubPr } from "@/lib/github-pr"
+import { openRoom } from "@/lib/room-access"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 
 /**
@@ -21,8 +21,12 @@ export async function createPullRequestAction(
   sandboxName: string
 ): Promise<SandboxActionResult<{ url: string; number: number }>> {
   try {
-    const userId = await requireUserId()
-    const { url, number } = await createGitHubPr({ userId, roomId, sandboxName })
+    const room = await openRoom(roomId)
+    const { url, number } = await createGitHubPr({
+      userId: room.userId,
+      room,
+      sandboxName,
+    })
     return { success: true, value: { url, number } }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

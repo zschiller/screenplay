@@ -11,7 +11,7 @@ import { prependTurnMarkers } from "./message-markers"
 import type { ToolContext } from "./tools"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
-import { readRoomDoc } from "@/lib/yjs/server"
+import type { RoomDoc } from "@/lib/room-access"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -38,10 +38,10 @@ import {
  */
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
-  loadContext(roomId: string, target: TTarget): Promise<TContext | null>
+  loadContext(room: RoomDoc, target: TTarget): Promise<TContext | null>
   buildSystemPrompt(ctx: TContext, opts: { repoSystemPrompt?: string }): string
   buildTools(
-    roomId: string,
+    room: RoomDoc,
     target: TTarget,
     sandbox?: ToolContext
   ): Record<string, Tool>
@@ -56,14 +56,16 @@ export interface ChatTargetSpec<TTarget, TContext> {
  * collection is already in memory; we copy id + title only.
  */
 export async function loadLayerDirectory(
-  roomId: string
+  room: RoomDoc
 ): Promise<LayerDirectory> {
   return (
-    (await readRoomDoc(roomId, ({ markdownLayers }) => ({
-      documents: markdownLayers
-        .toArray()
-        .map((d) => ({ id: d.id, title: d.title })),
-    })).catch(() => null)) ?? { documents: [] }
+    (await room
+      .readDoc(({ markdownLayers }) => ({
+        documents: markdownLayers
+          .toArray()
+          .map((d) => ({ id: d.id, title: d.title })),
+      }))
+      .catch(() => null)) ?? { documents: [] }
   )
 }
 
@@ -86,16 +88,18 @@ interface AgentContext {
 
 export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   kind: "agent",
-  async loadContext(roomId, target) {
+  async loadContext(room, target) {
     const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
-      readRoomDoc(roomId, ({ branches, repos }) => {
-        const branch = branches
-          .toArray()
-          .find((a) => a.sandboxName === target.sandboxName)
-        if (!branch) return undefined
-        return repos.get(branch.repoId)?.systemPrompt
-      }).catch(() => undefined),
-      loadLayerDirectory(roomId),
+      room
+        .readDoc(({ branches, repos }) => {
+          const branch = branches
+            .toArray()
+            .find((a) => a.sandboxName === target.sandboxName)
+          if (!branch) return undefined
+          return repos.get(branch.repoId)?.systemPrompt
+        })
+        .catch(() => undefined),
+      loadLayerDirectory(room),
       getMergedSkillIndexForSandbox(target.sandboxName),
     ])
     return { repoSystemPrompt, layerDirectory, skills }
@@ -107,11 +111,11 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
       skills: ctx.skills,
     })
   },
-  buildTools(roomId, _target, sandbox) {
+  buildTools(room, _target, sandbox) {
     if (!sandbox) {
       throw new Error("agent chat target requires a sandbox ToolContext")
     }
-    return toolsetFor({ kind: "sandbox", roomId, sandbox })
+    return toolsetFor({ kind: "sandbox", room, sandbox })
   },
   decorateUserMessage(message, { planMode, branch, isFirstMessage }) {
     // Policy lives here (branch only on the first message); the codec owns
@@ -143,9 +147,9 @@ export const markdownLayerChatTarget: ChatTargetSpec<
   MarkdownLayerContext
 > = {
   kind: "markdown-layer",
-  async loadContext(roomId, target) {
+  async loadContext(room, target) {
     const [self, layerDirectory] = await Promise.all([
-      readRoomDoc(roomId, ({ markdownLayers, doc }) => {
+      room.readDoc(({ markdownLayers, doc }) => {
         const layer = markdownLayers.get(target.markdownLayerId)
         if (!layer) return null
         const fragment = documentFragment(doc, target.markdownLayerId)
@@ -155,7 +159,7 @@ export const markdownLayerChatTarget: ChatTargetSpec<
           body: fragmentBodyToPlainText(fragment),
         }
       }),
-      loadLayerDirectory(roomId),
+      loadLayerDirectory(room),
     ])
     if (!self) return null
     return { ...self, layerDirectory }
@@ -168,10 +172,10 @@ export const markdownLayerChatTarget: ChatTargetSpec<
       selfId: ctx.id,
     })
   },
-  buildTools(roomId, target) {
+  buildTools(room, target) {
     return toolsetFor({
       kind: "markdown-layer",
-      roomId,
+      room,
       markdownLayerId: target.markdownLayerId,
     })
   },
@@ -204,17 +208,17 @@ export type PreparedChatTarget = {
  * deleted) so the caller can return a 404 cleanly.
  */
 export async function prepareChatTarget<TTarget, TContext>(
-  roomId: string,
+  room: RoomDoc,
   spec: ChatTargetSpec<TTarget, TContext>,
   target: TTarget,
   toolCtx?: ToolContext
 ): Promise<PreparedChatTarget | null> {
-  const ctx = await spec.loadContext(roomId, target)
+  const ctx = await spec.loadContext(room, target)
   if (!ctx) return null
   return {
     kind: spec.kind,
     systemPrompt: spec.buildSystemPrompt(ctx, {}),
-    tools: spec.buildTools(roomId, target, toolCtx),
+    tools: spec.buildTools(room, target, toolCtx),
     decorateUserMessage: (message, opts) =>
       spec.decorateUserMessage?.(message, opts) ?? message,
   }

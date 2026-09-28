@@ -20,6 +20,7 @@ import {
   requireOwner,
 } from "@/lib/rooms"
 import { decideRoomDeletion } from "@/lib/room-deletion"
+import { openRoom } from "@/lib/room-access"
 import { leaveRoom, teardownRoom } from "@/lib/room-teardown"
 import { yjsHost } from "@/lib/yjs-host"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -157,7 +158,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
 
   // hard-delete (sole member) or delete-for-all (shared owner): identical
   // teardown — the Room is gone for everyone who could see it.
-  await teardownRoom(roomId, userId)
+  await teardownRoom(await openRoom(roomId))
 }
 
 export async function listCollaborators(

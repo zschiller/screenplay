@@ -185,8 +185,9 @@ describe("author scoping", () => {
     const thread = await startThread()
     const { settleAgentThreads, editComment, deleteComment, listThreads } =
       await comments()
+    const { openRoom } = await import("@/lib/room-access")
     await settleAgentThreads({
-      roomId: ROOM,
+      room: await openRoom(ROOM),
       chatId: "chat-1",
       authorId: "ann",
       replies: new Map([[thread.id, { body: "Done.", commit: null }]]),

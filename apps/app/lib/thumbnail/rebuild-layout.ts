@@ -1,5 +1,6 @@
 import "server-only"
 
+import { readRoomForServer } from "@/lib/room-access"
 import { captureRoomThumbnail } from "./capture"
 
 /**
@@ -18,6 +19,10 @@ import { captureRoomThumbnail } from "./capture"
  * client-driven via the heartbeat's capture lane; the server can't know when an
  * iframe's content has settled.
  */
-export async function rebuildRoomLayoutThumbnail(roomId: string): Promise<void> {
-  await captureRoomThumbnail(roomId, undefined, { frameIds: [] })
+export async function rebuildRoomLayoutThumbnail(
+  roomId: string
+): Promise<void> {
+  await captureRoomThumbnail(readRoomForServer(roomId), undefined, {
+    frameIds: [],
+  })
 }

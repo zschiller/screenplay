@@ -5,7 +5,7 @@ import { buildAgentSystemPrompt } from "./config"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import { toolsetFor } from "./toolset"
 import type { ToolContext } from "./tools"
-import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
+import type { RoomDoc } from "@/lib/room-access"
 import {
   agentChatTarget,
   loadLayerDirectory,
@@ -37,8 +37,12 @@ import {
 } from "./comment-request"
 import type { TurnLaunchDeps, TurnStopDeps, TurnTarget } from "./turn-launch"
 
-/** Turn Launch over the live database, Room broadcast and `after()`. */
-export const liveTurnLaunchDeps: TurnLaunchDeps = {
+/**
+ * Turn Launch over the live database, Room broadcast and `after()`, for a turn
+ * in `room` (the route's Room Access). The comment hooks write the room's
+ * doorbell through it; their `roomId` is the same Room.
+ */
+export const liveTurnLaunchDeps = (room: RoomDoc): TurnLaunchDeps => ({
   resolveEngine: resolveLiveEngine,
   findPendingPlan: findPendingPlanForChat,
   resolvePlan,
@@ -54,12 +58,12 @@ export const liveTurnLaunchDeps: TurnLaunchDeps = {
     broadcastSignal(roomId, chatId, "chat-stream-start"),
   broadcastUpdate: broadcastAcpUpdate,
   broadcastControl,
-  queueCommentRequest,
-  startCommentRequest,
-  settleCommentRequest,
+  queueCommentRequest: (input) => queueCommentRequest({ ...input, room }),
+  startCommentRequest: (_roomId, chatId) => startCommentRequest(room, chatId),
+  settleCommentRequest: (input) => settleCommentRequest({ ...input, room }),
   driveTurn: launchEngineTurn,
   runAfterResponse: (task) => after(task),
-}
+})
 
 /** Stopping a turn over the live database and Room broadcast. */
 export const liveTurnStopDeps: TurnStopDeps = {
@@ -75,7 +79,7 @@ export const liveTurnStopDeps: TurnStopDeps = {
  * prompt, tools, message decoration) come from the layer's `ChatTargetSpec`.
  */
 export function markdownLayerTurn(input: {
-  roomId: string
+  room: RoomDoc
   chatId: string
   markdownLayerId: string
   message: string
@@ -84,7 +88,7 @@ export function markdownLayerTurn(input: {
   return {
     async prepare() {
       const prepared = await prepareChatTarget(
-        input.roomId,
+        input.room,
         // Cast through `never` so prepareChatTarget's generic doesn't try to
         // unify the spec with its target.
         markdownLayerChatTarget as unknown as Parameters<
@@ -97,7 +101,7 @@ export function markdownLayerTurn(input: {
       const model = input.model || DEFAULT_MODEL
       await upsertChat({
         chatId: input.chatId,
-        roomId: input.roomId,
+        roomId: input.room.roomId,
         // No sandbox: an empty string satisfies the NOT NULL constraint; it's
         // never read back for layer chats.
         sandboxName: "",
@@ -124,7 +128,7 @@ export function markdownLayerTurn(input: {
 
 /** A chat on a Branch's sandbox. */
 export function sandboxTurn(input: {
-  roomId: string
+  room: RoomDoc
   chatId: string
   sandboxName: string
   userId: string
@@ -136,27 +140,30 @@ export function sandboxTurn(input: {
   model?: string
   commentThreadIds?: string[]
 }): TurnTarget {
-  const { roomId, chatId, sandboxName, userId, message, planMode } = input
+  const { room, chatId, sandboxName, userId, message, planMode } = input
+  const { roomId } = room
   return {
     async prepare() {
       // A chat is "new" if it has no prior ACP-native records. More reliable
       // than the client-supplied `isFirstChat`.
       const isNewChat = (await loadAcpHistory(chatId)).length === 0
       const model = input.model || DEFAULT_MODEL
-      const toolCtx: ToolContext = { sandboxName, roomId, userId }
+      const toolCtx: ToolContext = { sandboxName, room, userId }
 
       // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
       // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
       // the per-Agent prompt.
       const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
-        readRoomDoc(roomId, ({ branches, repos }) => {
-          const branch = branches
-            .toArray()
-            .find((a) => a.sandboxName === sandboxName)
-          if (!branch) return undefined
-          return repos.get(branch.repoId)?.systemPrompt
-        }).catch(() => undefined),
-        loadLayerDirectory(roomId),
+        room
+          .readDoc(({ branches, repos }) => {
+            const branch = branches
+              .toArray()
+              .find((a) => a.sandboxName === sandboxName)
+            if (!branch) return undefined
+            return repos.get(branch.repoId)?.systemPrompt
+          })
+          .catch(() => undefined),
+        loadLayerDirectory(room),
         getMergedSkillIndexForSandbox(sandboxName),
       ])
       const systemPrompt = buildAgentSystemPrompt({
@@ -186,11 +193,7 @@ export function sandboxTurn(input: {
           model,
         })
         if (shouldNameBranch && rawBranch) {
-          effectiveBranch = await deduplicateBranchName(
-            roomId,
-            rawBranch,
-            userId
-          )
+          effectiveBranch = await deduplicateBranchName(room, rawBranch, userId)
           renames.branch = effectiveBranch
         }
         // The Workspace takes its title from the same call (#881), written
@@ -198,7 +201,7 @@ export function sandboxTurn(input: {
         // gets it. A title already set (a rename, or an earlier naming) is
         // never replaced.
         if (shouldNameBranch && title) {
-          await mutateRoomDoc(roomId, ({ branches }) => {
+          await room.mutateDoc(({ branches }) => {
             const workspace = branches
               .toArray()
               .find((b) => b.sandboxName === sandboxName)
@@ -211,7 +214,7 @@ export function sandboxTurn(input: {
           renames.label = chatLabel
           // Persist the label directly so it survives a client re-render that
           // momentarily clears the broadcast callback.
-          await mutateRoomDoc(roomId, ({ chatSessions }) => {
+          await room.mutateDoc(({ chatSessions }) => {
             chatSessions.update(chatId, { label: chatLabel })
           })
         }
@@ -220,7 +223,7 @@ export function sandboxTurn(input: {
       return {
         systemPrompt,
         model,
-        tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
+        tools: toolsetFor({ kind: "sandbox", room, sandbox: toolCtx }),
         // The Chat Target spec owns the marker policy (branch only on the
         // first message) and delegates the format to the Message Markers codec.
         userText: agentChatTarget.decorateUserMessage!(message, {
@@ -248,23 +251,23 @@ export function sandboxTurn(input: {
  * continuation text, and the turn settles any comment request the plan paused.
  */
 export function planResumeTurn(input: {
-  roomId: string
+  room: RoomDoc
   userId: string
   message: string
   chat: { sandboxName: string; model: string; systemPrompt: string }
 }): TurnTarget {
-  const { roomId, userId, message, chat } = input
+  const { room, userId, message, chat } = input
   return {
     async prepare() {
       const toolCtx: ToolContext = {
         sandboxName: chat.sandboxName,
-        roomId,
+        room,
         userId,
       }
       return {
         systemPrompt: chat.systemPrompt,
         model: chat.model,
-        tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
+        tools: toolsetFor({ kind: "sandbox", room, sandbox: toolCtx }),
         userText: message,
         commentRequest: {
           sandboxName: chat.sandboxName,

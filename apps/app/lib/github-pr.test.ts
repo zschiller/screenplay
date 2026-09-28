@@ -1,11 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-// github-pr imports the auth/token lookup and the Y.Doc reader, both of which
-// reach for server-only env (DATABASE_URL / LIVEBLOCKS_SECRET_KEY) at import.
-// buildPrContent touches neither, so stub them to keep the import graph
-// unit-testable under plain Node.
+// github-pr imports the auth/token lookup, which reaches for server-only env
+// (DATABASE_URL) at import. buildPrContent doesn't touch it, so stub it to keep
+// the import graph unit-testable under plain Node.
 vi.mock("@/lib/auth-helpers", () => ({ getGitHubTokenForUser: vi.fn() }))
-vi.mock("@/lib/yjs/server", () => ({ readRoomDoc: vi.fn() }))
 
 import { buildPrContent } from "@/lib/github-pr"
 

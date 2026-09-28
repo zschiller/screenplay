@@ -2,8 +2,8 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { getUserId } from "@/lib/auth-helpers"
 import { listThreads } from "@/lib/comments"
-import { canAccess, getRoom } from "@/lib/rooms"
-import { readRoomDoc } from "@/lib/yjs/server"
+import { openRoom } from "@/lib/room-access"
+import { getRoom } from "@/lib/rooms"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
 import type { BranchData, IframeLayerData, RepoData } from "@/lib/types"
 import {
@@ -50,10 +50,10 @@ export default async function PlayPage({
 
   const room = await getRoom(roomId)
   if (!room) notFound()
-  if (!(await canAccess(roomId, userId))) notFound()
+  const access = await openRoom(roomId).catch(() => null)
+  if (!access) notFound()
 
-  const docSnapshot = await readRoomDoc(
-    roomId,
+  const docSnapshot = await access.readDoc(
     ({ branches, iframeLayers, repos }) => {
       const agent = branches.get(branchId) as BranchData | undefined
       const iframeLayerId = search["iframe-layer"]

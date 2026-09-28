@@ -1,7 +1,6 @@
 import { after, NextResponse } from "next/server"
-import { getUserId } from "@/lib/auth-helpers"
+import { openRoomForRoute } from "@/lib/room-access"
 import {
-  canAccess,
   getRoomThumbnailUpdatedAt,
   touchRoomThumbnailUpdatedAt,
 } from "@/lib/rooms"
@@ -16,13 +15,8 @@ export async function POST(
 ) {
   const { roomId } = await params
 
-  const userId = await getUserId()
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-  if (!(await canAccess(roomId, userId))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const room = await openRoomForRoute(roomId)
+  if (room instanceof Response) return room
 
   // The heartbeat carries the dirty subset of frames to recapture (#474). A
   // missing/invalid body means a full-room capture — the backstop and unmount
@@ -42,7 +36,7 @@ export async function POST(
   // writes never starves the capture cooldown.
   if (layoutOnly) {
     try {
-      await captureRoomThumbnail(roomId, undefined, { frameIds })
+      await captureRoomThumbnail(room, undefined, { frameIds })
     } catch (err) {
       console.error("[thumbnail] layout rebuild failed", err)
     }
@@ -61,7 +55,7 @@ export async function POST(
 
   after(async () => {
     try {
-      await captureRoomThumbnail(roomId, undefined, { frameIds })
+      await captureRoomThumbnail(room, undefined, { frameIds })
     } catch (err) {
       console.error("[thumbnail] capture failed", err)
     }

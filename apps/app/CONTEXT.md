@@ -247,12 +247,18 @@ capabilities: `openRoom(roomId)` resolves the session, requires membership
 (`room_member` on the hosted build; always the single local user on the local
 build, see **Multi-user surface**), and hands back a handle whose
 `mutateDoc`/`readDoc` are the only room-doc access the caller gets. A
-non-member is rejected before anything touches the Room. The Branch diff-stat
-and PR caches (`compareBranches`/`listBranchPrs`) and **Comments** go through
-it; the other room-scoped actions and routes still call
-`requireMember`/`mutateRoomDoc` directly and move behind it next (#904, #906).
-_Avoid_: checking membership ad hoc in a new action; "permissions" (Room Access
-is membership, not per-comment or per-role rules).
+non-member is rejected before anything touches the Room. Every server action,
+route and page that reads or writes a room doc goes through it (#904, #906);
+code working on a member's behalf is handed the opened Room rather than a
+`roomId`: an agent turn's tools and naming get it from the agent route, and the
+comment doorbells, PR create, thumbnail capture and Room teardown take it from
+their caller. The one session-less opener, `readRoomForServer`, is read only
+and serves the server-triggered thumbnail layout rebuild. The raw
+`mutateRoomDoc`/`readRoomDoc` helpers are private to Room Access, and
+`room-access-guard.test.ts` fails if anything else imports them.
+_Avoid_: checking membership ad hoc in a new action; passing a bare `roomId` to
+code that touches the room doc; "permissions" (Room Access is membership, not
+per-comment or per-role rules).
 
 **Comments** (`@/lib/comments`, #911):
 The server module that owns comment threads: it opens the thread's Room through

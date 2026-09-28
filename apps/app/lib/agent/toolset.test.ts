@@ -35,12 +35,6 @@ vi.mock("@/lib/auth-helpers", () => ({
   getGitHubTokenForUser: vi.fn(async () => null),
 }))
 vi.mock("@/lib/github-pr", () => ({ createGitHubPr: vi.fn() }))
-// The shared read tool + document tools import yjs/server, which reads
-// LIVEBLOCKS_SECRET_KEY at import. Stub the seam so the assembly is unit-testable.
-vi.mock("@/lib/yjs/server", () => ({
-  readRoomDoc: vi.fn(async () => null),
-  mutateRoomDoc: vi.fn(async () => {}),
-}))
 
 import {
   toolsetFor,
@@ -49,14 +43,20 @@ import {
 } from "@/lib/agent/toolset"
 import type { ToolContext } from "@/lib/agent/tools"
 
+// The turn's Room: the tools reach the room doc only through it.
+const room = {
+  roomId: "room-1",
+  readDoc: vi.fn(async () => null),
+  mutateDoc: vi.fn(async () => {}),
+} as never
 const sandboxCtx: ToolContext = {
   sandboxName: "sandbox-a",
-  roomId: "room-1",
+  room,
   userId: "user-1",
 }
 const sandboxTarget: ToolTarget = {
   kind: "sandbox",
-  roomId: "room-1",
+  room,
   sandbox: sandboxCtx,
 }
 
