@@ -150,9 +150,9 @@ export class InProcessEngine implements UsageReportingEngine {
     } catch (e) {
       if (signal.aborted) {
         // The run is no longer live (user `/stop` or supersession). Report it
-        // as a stop, not a failure — the consumer's `failed` transition no-ops
-        // on the already-terminal run.
-        await sink({ kind: "error", message: "Stopped by user" })
+        // as a clean cancellation, not a failure: Turn Launch decides what a
+        // stopped or superseded run shows, and it is never an error.
+        await sink({ kind: "done", stopReason: "cancelled" })
       } else {
         await sink({
           kind: "error",

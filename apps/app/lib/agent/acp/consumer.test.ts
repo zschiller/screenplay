@@ -207,38 +207,38 @@ describe("AcpUpdateConsumer — text path", () => {
     expect(h.endCount()).toBe(1)
   })
 
-  // A user `/stop` (or supersession) already moved the run to a terminal state
-  // before the abort surfaced as an error. The consumer's `failed` transition
-  // must no-op so the recorded outcome (aborted) is preserved.
+  // A late error on a run a user `/stop` or supersession already ended must
+  // not relabel it: the consumer's `failed` transition no-ops.
   for (const terminal of ["aborted", "superseded"] as const) {
-    it(`preserves an already-terminal (${terminal}) run on a stop`, async () => {
+    it(`preserves an already-terminal (${terminal}) run on a late error`, async () => {
       const h = harness(terminal)
-      await feed(h.consumer, [{ kind: "error", message: "Stopped by user" }])
+      await feed(h.consumer, [{ kind: "error", message: "socket closed" }])
 
-      expect(h.errors).toEqual(["Stopped by user"])
       expect(h.statusOf()).toBe(terminal)
       expect(h.endCount()).toBe(1)
     })
   }
 
-  // A clean ACP cancellation arrives as `done` with `stopReason: "cancelled"`
-  // (the path a real ACP agent takes when it acknowledges a `session/cancel`).
-  // The consumer must treat it as a stop, never a completion: no `completed`
-  // transition, the "Stopped by user" outcome surfaced, the stream closed.
-  it("treats a cancelled done as a stop, not a completion", async () => {
-    const h = harness("aborted")
-    await feed(h.consumer, [
-      { kind: "session_update", update: agentMessageChunk("partial") },
-      { kind: "done", stopReason: "cancelled" },
-    ])
+  // Every Engine reports a `/stop` or supersession as `done` with
+  // `stopReason: "cancelled"`. The consumer must treat it as a stop, never a
+  // completion and never an error (#909): no `completed` transition, no error
+  // bubble, the stream closed. Turn Launch owns the Stopped marker.
+  for (const terminal of ["aborted", "superseded"] as const) {
+    it(`closes a cancelled (${terminal}) turn with no completion and no error`, async () => {
+      const h = harness(terminal)
+      await feed(h.consumer, [
+        { kind: "session_update", update: agentMessageChunk("partial") },
+        { kind: "done", stopReason: "cancelled" },
+      ])
 
-    expect(h.errors).toEqual(["Stopped by user"])
-    // The run keeps the terminal outcome the watchdog already recorded.
-    expect(h.statusOf()).toBe("aborted")
-    // No durable record on a stop — the partial text was broadcast only.
-    expect(h.records).toEqual([])
-    expect(h.endCount()).toBe(1)
-  })
+      expect(h.errors).toEqual([])
+      // The run keeps the terminal outcome the watchdog already recorded.
+      expect(h.statusOf()).toBe(terminal)
+      // No durable record on a stop — the partial text was broadcast only.
+      expect(h.records).toEqual([])
+      expect(h.endCount()).toBe(1)
+    })
+  }
 
   it("never completes a cancelled done even if the run is somehow still live", async () => {
     // Guards the contract directly: the consumer does not own the stop, so it
@@ -248,7 +248,7 @@ describe("AcpUpdateConsumer — text path", () => {
     await feed(h.consumer, [{ kind: "done", stopReason: "cancelled" }])
 
     expect(h.statusOf()).toBe("running")
-    expect(h.errors).toEqual(["Stopped by user"])
+    expect(h.errors).toEqual([])
     expect(h.endCount()).toBe(1)
   })
 
@@ -330,7 +330,10 @@ describe("AcpUpdateConsumer — reload ordering (flush on boundary)", () => {
   it("flushes narration around a tool call so it persists in arrival order, not batched at turn end", async () => {
     const h = harness()
     await feed(h.consumer, [
-      { kind: "session_update", update: agentMessageChunk("Reading the file.") },
+      {
+        kind: "session_update",
+        update: agentMessageChunk("Reading the file."),
+      },
       {
         kind: "session_update",
         update: toolCallStart({ toolCallId: "c1", title: "read_file" }),
@@ -363,7 +366,10 @@ describe("AcpUpdateConsumer — reload ordering (flush on boundary)", () => {
       { kind: "tool", id: "c1" },
       {
         kind: "record",
-        record: { role: "agent", content: [{ type: "text", text: "Found it." }] },
+        record: {
+          role: "agent",
+          content: [{ type: "text", text: "Found it." }],
+        },
       },
     ])
     expect(h.statusOf()).toBe("completed")

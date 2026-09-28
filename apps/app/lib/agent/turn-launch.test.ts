@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 import type { Engine } from "./acp/engine-seam"
 import {
   launchTurn,
+  stopTurn,
   type PreparedTurn,
   type TurnLaunchDeps,
+  type TurnStopDeps,
 } from "./turn-launch"
 
 const ENGINE = { run: async () => {} } as unknown as Engine
@@ -270,5 +272,43 @@ describe("Turn Launch", () => {
       expect(result).toEqual({ kind: "started", runId: "run_1" })
       expect(log).not.toContain("broadcast plan_resolved rejected")
     })
+  })
+})
+
+/** Stop deps that record every side effect, in order, as one line each. */
+function recordingStopDeps(activeRunId: string | null) {
+  const log: string[] = []
+  const deps: TurnStopDeps = {
+    async findActiveRun() {
+      return activeRunId ? { id: activeRunId } : null
+    },
+    async transition(runId, to) {
+      log.push(`transition ${runId} ${to}`)
+    },
+    async broadcastControl(_roomId, _chatId, control) {
+      log.push(`broadcast ${control.kind}`)
+    },
+    async broadcastStreamEnd() {
+      log.push("broadcast chat-stream-end")
+    },
+  }
+  return { deps, log }
+}
+
+describe("stopTurn (#909)", () => {
+  it("records the stop, marks the transcript, then ends the stream", async () => {
+    const { deps, log } = recordingStopDeps("run_1")
+    await stopTurn(deps, { roomId: "room_1", chatId: "chat_1" })
+    expect(log).toEqual([
+      "transition run_1 aborted",
+      "broadcast stopped",
+      "broadcast chat-stream-end",
+    ])
+  })
+
+  it("still ends the stream when no run is active", async () => {
+    const { deps, log } = recordingStopDeps(null)
+    await stopTurn(deps, { roomId: "room_1", chatId: "chat_1" })
+    expect(log).toEqual(["broadcast chat-stream-end"])
   })
 })

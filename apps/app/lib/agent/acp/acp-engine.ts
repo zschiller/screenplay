@@ -95,10 +95,10 @@ export interface ExternalEngineConfig {
  * **Stop / supersession.** A user `/stop` or a supersession reaches the engine
  * as an aborted `signal`; the session sends `session/cancel` and the agent
  * resolves the turn `cancelled`. The engine reports a `done` carrying the
- * cancellation (or, if the abort surfaced as a thrown transport error,
- * `error: "Stopped by user"`) — the consumer maps either to a stop with no
- * `completed`/`failed` transition, the run lifecycle's watchdog having already
- * recorded the terminal stop.
+ * cancellation, also when the abort surfaced as a thrown transport error. The
+ * consumer closes the turn with no `completed`/`failed` transition and no
+ * error, the run lifecycle's watchdog having already recorded the terminal
+ * stop; Turn Launch owns what the stop shows.
  */
 export class ExternalEngine implements Engine {
   readonly id = "external"
@@ -164,8 +164,8 @@ export class ExternalEngine implements Engine {
       if (planPause.signal.aborted) return
       // A real `/stop` / supersession: report it as a stop, never a completion,
       // even though the agent reported its `stopReason` on the way out. The
-      // consumer maps a cancelled `done` to "Stopped by user" with no
-      // `completed` transition; the watchdog already recorded the terminal stop.
+      // consumer closes a cancelled `done` with no `completed` transition; the
+      // watchdog already recorded the terminal stop.
       if (signal.aborted) {
         await sink({ kind: "done", stopReason: "cancelled" })
         return
@@ -175,9 +175,8 @@ export class ExternalEngine implements Engine {
       if (signal.aborted) {
         // The run is no longer live (user `/stop` or supersession) and the abort
         // surfaced as a thrown transport/stream error rather than a clean
-        // cancellation. Report it as a stop — the consumer's `failed` transition
-        // no-ops on the already-terminal run.
-        await sink({ kind: "error", message: "Stopped by user" })
+        // cancellation. Report it as the cancellation it is, not a failure.
+        await sink({ kind: "done", stopReason: "cancelled" })
       } else {
         await sink({
           kind: "error",

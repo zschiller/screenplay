@@ -27,7 +27,7 @@ vi.mock("@/lib/auth-helpers", () => ({
 
 const fx = vi.hoisted(() => ({
   launchTurn: vi.fn(async () => ({ kind: "launched", runId: "run-1" })),
-  broadcastSignal: vi.fn(async () => {}),
+  broadcastSignal: vi.fn(async (..._args: unknown[]) => {}),
   broadcastControl: vi.fn(async () => {}),
   transition: vi.fn(async () => {}),
   startRun: vi.fn(async () => "run-1"),
@@ -38,12 +38,25 @@ const fx = vi.hoisted(() => ({
   readDoc: vi.fn(async () => null),
 }))
 
-vi.mock("@/lib/agent/turn-launch", () => ({ launchTurn: fx.launchTurn }))
-vi.mock("@/lib/agent/turn-launch-live", () => ({
-  liveTurnLaunchDeps: {},
-  markdownLayerTurn: () => ({}),
-  sandboxTurn: () => ({}),
+vi.mock("@/lib/agent/turn-launch", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/agent/turn-launch")>()),
+  launchTurn: fx.launchTurn,
 }))
+vi.mock("@/lib/agent/turn-launch-live", async () => {
+  const { findActiveRun } = await import("@/lib/agent/persistence")
+  return {
+    liveTurnLaunchDeps: {},
+    liveTurnStopDeps: {
+      findActiveRun,
+      transition: fx.transition,
+      broadcastControl: fx.broadcastControl,
+      broadcastStreamEnd: (roomId: string, chatId: string) =>
+        fx.broadcastSignal(roomId, chatId, "chat-stream-end"),
+    },
+    markdownLayerTurn: () => ({}),
+    sandboxTurn: () => ({}),
+  }
+})
 vi.mock("@/lib/agent/broadcast", () => ({
   broadcastSignal: fx.broadcastSignal,
   broadcastControl: fx.broadcastControl,
