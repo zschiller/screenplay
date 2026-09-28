@@ -121,6 +121,7 @@ function FolderCard({
   const {
     renameFolder,
     moveFolder,
+    createFolder,
     allFolders,
     previewFolderDeletion,
     removeFolder,
@@ -203,6 +204,7 @@ function FolderCard({
         movingFolderId={folder.id}
         folders={allFolders}
         onMove={(target) => moveFolder(folder.id, target)}
+        onCreateFolder={createFolder}
       />
       <DeleteFolderDialog
         open={deleteOpen}

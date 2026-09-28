@@ -13,6 +13,7 @@ import { animate, motion, useMotionValue, useReducedMotion } from "motion/react"
 import {
   ArrowLeft,
   GripVertical,
+  MessageSquare,
   MessageSquarePlus,
   MessagesSquare,
   SlidersHorizontal,
@@ -35,14 +36,14 @@ import {
   GROUPED_IFRAME_LAYER_SIZE_PRESETS,
   getIframeLayerSizePreset,
 } from "@/lib/iframe-layer-sizes"
-import { CommentsMenu } from "@/components/canvas/comments-menu"
+import { CommentsPanel } from "@/components/canvas/comments-panel"
 import { PlayerKnobs } from "./player-knobs"
 import type { PlayerComments } from "./player-comments"
 import { isLocalBuild } from "@/lib/local-mode"
 
 type Corner = "tl" | "tr" | "bl" | "br"
 
-type Panel = "knobs" | null
+type Panel = "knobs" | "comments" | null
 
 const MARGIN = 16
 // Approximate first-paint size — replaced by the real measured size as soon
@@ -52,6 +53,8 @@ const HUD_WIDTH = 132
 const HUD_HEIGHT = 32
 const PANEL_WIDTH = 320
 const PANEL_HEIGHT = 360
+// The comments panel's filters and grouped rows need more room than knobs.
+const COMMENTS_PANEL_HEIGHT = 480
 const PANEL_GAP = 8
 const STORAGE_KEY = "screenplay:player-hud-corner"
 
@@ -131,8 +134,11 @@ export function PlayerHud({
     const rect = hudRef.current?.getBoundingClientRect()
     const w = rect?.width || HUD_WIDTH
     const h = rect?.height || HUD_HEIGHT
-    const right = window.innerWidth - w - MARGIN
-    const bottom = window.innerHeight - h - MARGIN
+    // Corners of the preview area, not the window: with the agent open, the
+    // window's bottom-right corner is the composer's send button.
+    const area = hudRef.current?.parentElement
+    const right = (area?.clientWidth ?? window.innerWidth) - w - MARGIN
+    const bottom = (area?.clientHeight ?? window.innerHeight) - h - MARGIN
     switch (c) {
       case "tl":
         return { x: MARGIN, y: MARGIN }
@@ -154,13 +160,14 @@ export function PlayerHud({
     y.set(target.y)
   }, [corner, cornerPos, x, y])
 
-  // Re-snap on viewport resize so the HUD stays anchored to its corner.
+  // Re-snap whenever the preview area resizes (the window, or the agent panel
+  // opening beside it) so the HUD stays anchored to its corner.
   useEffect(() => {
-    function handleResize() {
-      snapTo(cornerPos(corner), 320, 28)
-    }
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
+    const area = hudRef.current?.parentElement
+    if (!area) return
+    const ro = new ResizeObserver(() => snapTo(cornerPos(corner), 320, 28))
+    ro.observe(area)
+    return () => ro.disconnect()
   }, [corner, cornerPos, snapTo])
 
   const persistCorner = useCallback((next: Corner) => {
@@ -177,9 +184,10 @@ export function PlayerHud({
   const handleDragEnd = useCallback(() => {
     onDraggingChange?.(false)
     const rect = hudRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const cx = window.innerWidth / 2
-    const cy = window.innerHeight / 2
+    const area = hudRef.current?.parentElement?.getBoundingClientRect()
+    if (!rect || !area) return
+    const cx = area.left + area.width / 2
+    const cy = area.top + area.height / 2
     const midX = rect.left + rect.width / 2
     const midY = rect.top + rect.height / 2
     const next: Corner =
@@ -196,15 +204,16 @@ export function PlayerHud({
     const isLeft = corner === "tl" || corner === "bl"
     return {
       width: PANEL_WIDTH,
-      height: PANEL_HEIGHT,
+      height: panel === "comments" ? COMMENTS_PANEL_HEIGHT : PANEL_HEIGHT,
       [isTop ? "top" : "bottom"]: HUD_HEIGHT + PANEL_GAP,
       [isLeft ? "left" : "right"]: 0,
     }
-  }, [corner])
+  }, [corner, panel])
 
-  // Close the open panel when the user clicks outside the HUD region.
+  // Close the open panel when the user clicks outside the HUD region. The
+  // comments panel stays open, as on the canvas, while its pins are clicked.
   useEffect(() => {
-    if (!panel) return
+    if (!panel || panel === "comments") return
     function onPointerDown(e: PointerEvent) {
       const node = hudRef.current
       if (!node) return
@@ -221,7 +230,7 @@ export function PlayerHud({
   // menu the panel opened lands in a portal outside the HUD, which closes that
   // first.
   const panelButtons = useRef<
-    Partial<Record<"knobs", HTMLButtonElement | null>>
+    Partial<Record<"knobs" | "comments", HTMLButtonElement | null>>
   >({})
   useEffect(() => {
     if (!panel) return
@@ -251,7 +260,14 @@ export function PlayerHud({
       dragElastic={0}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      style={{ x, y, position: "fixed", top: 0, left: 0, touchAction: "none" }}
+      style={{
+        x,
+        y,
+        position: "absolute",
+        top: 0,
+        left: 0,
+        touchAction: "none",
+      }}
       className="z-[9998] select-none"
     >
       <TooltipProvider>
@@ -356,22 +372,21 @@ export function PlayerHud({
               >
                 <MessageSquarePlus />
               </IconButton>
-              {/* The list opens in a portal, whose pointer events still
-                  bubble here through React: keep them off the drag. */}
-              <div
-                className="contents"
+              <IconButton
+                label="Comments"
+                tooltipSide={tooltipSide}
+                ref={(el) => {
+                  panelButtons.current.comments = el
+                }}
+                variant={panel === "comments" ? "default" : "ghost"}
+                aria-expanded={panel === "comments"}
                 onPointerDown={(e) => e.stopPropagation()}
+                onClick={() =>
+                  setPanel(panel === "comments" ? null : "comments")
+                }
               >
-                <CommentsMenu
-                  roomId={roomId}
-                  commentThreads={comments.commentThreads}
-                  numbers={comments.numbers}
-                  placements={comments.placements}
-                  onSelectThread={comments.selectThread}
-                  currentRouteFirst
-                  side={tooltipSide}
-                />
-              </div>
+                <MessageSquare />
+              </IconButton>
             </>
           )}
           {onToggleChat ? (
@@ -401,11 +416,32 @@ export function PlayerHud({
           onPointerDown={(e) => e.stopPropagation()}
           className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg bg-background shadow-md outline outline-1 outline-foreground/5"
         >
-          <PlayerKnobs
-            knobs={knobs}
-            values={knobValues}
-            onChange={onKnobChange}
-          />
+          {panel === "comments" ? (
+            <CommentsPanel
+              roomId={roomId}
+              commentThreads={comments.commentThreads}
+              numbers={comments.numbers}
+              placements={comments.placements}
+              activeThreadId={comments.activeThreadId}
+              onSelectThread={comments.selectThread}
+              pinsHidden={comments.pinsHidden}
+              onPinsHiddenChange={comments.setPinsHidden}
+              onClose={() => {
+                setPanel(null)
+                panelButtons.current.comments?.focus()
+              }}
+              describeLayer={comments.describeWorkspace}
+              groupOptions={comments.groupOptions}
+              // The HUD's panel is the surface; the list fills it.
+              className="static size-full animate-none rounded-none shadow-none ring-0"
+            />
+          ) : (
+            <PlayerKnobs
+              knobs={knobs}
+              values={knobValues}
+              onChange={onKnobChange}
+            />
+          )}
         </motion.div>
       ) : null}
     </motion.div>

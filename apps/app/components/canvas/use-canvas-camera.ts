@@ -109,7 +109,7 @@ export interface CanvasCamera {
   /** Zoom to fit a world-space rect with padding (e.g. a whole Group). */
   zoomToRect(rect: Rect): void
   /** Pan so an on-screen element sits mid-viewport, keeping the zoom. */
-  centerOnElement(el: HTMLElement): void
+  centerOnElement(el: HTMLElement, inset?: { right?: number }): void
   /** Step to the next zoom stop in or out, anchored on the viewport center. */
   zoomIn(): void
   zoomOut(): void
@@ -537,16 +537,17 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   )
 
   const centerOnElement = useCallback(
-    (el: HTMLElement) => {
+    (el: HTMLElement, inset?: { right?: number }) => {
       const ref = transformRef.current
       const wrapper = ref?.instance.wrapperComponent
       if (!ref || !wrapper) return
       const view = wrapper.getBoundingClientRect()
       const target = el.getBoundingClientRect()
       const { positionX, positionY, scale } = ref.state
+      // Centre in what's left of the view beside anything covering its edge.
+      const width = view.width - (inset?.right ?? 0)
       ref.setTransform(
-        positionX +
-          (view.left + view.width / 2 - (target.left + target.width / 2)),
+        positionX + (view.left + width / 2 - (target.left + target.width / 2)),
         positionY +
           (view.top + view.height / 2 - (target.top + target.height / 2)),
         scale,

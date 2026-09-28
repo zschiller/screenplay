@@ -45,6 +45,7 @@ export function useBranchPrs(
     prNumber?: number
     prUrl?: string
     prState?: BranchPrInfo["state"]
+    prBlocked?: BranchPrInfo["blocked"]
   }>,
   repos: Array<{
     id: string
@@ -68,7 +69,12 @@ export function useBranchPrs(
     const m = new Map<string, BranchPrInfo>()
     for (const a of agents) {
       if (a.prState && typeof a.prNumber === "number" && a.prUrl) {
-        m.set(a.id, { number: a.prNumber, url: a.prUrl, state: a.prState })
+        m.set(a.id, {
+          number: a.prNumber,
+          url: a.prUrl,
+          state: a.prState,
+          blocked: a.prBlocked,
+        })
       }
     }
     return m
@@ -99,6 +105,7 @@ export function useBranchPrs(
         prNumber: pr.number,
         prUrl: pr.url,
         prState: pr.state,
+        prBlocked: pr.blocked,
       })
     },
     [collections]

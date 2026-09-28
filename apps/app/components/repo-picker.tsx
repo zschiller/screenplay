@@ -315,7 +315,7 @@ export function RepoPicker({
             size="sm"
             className="justify-start gap-2 font-normal"
           >
-            <Link href="/settings">
+            <Link href="/settings?section=github">
               <Plug className="size-4 text-muted-foreground" />
               Connect GitHub in Settings →
             </Link>

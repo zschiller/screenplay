@@ -231,7 +231,10 @@ describe("fixture world — what the screens need", () => {
     const roomIds = new Set(world.rooms.map((r) => r.id))
     const folderIds = new Set(world.folders.map((f) => f.id))
     for (const screen of SCREENS) {
-      const [first, second] = screen.path.split("/").filter(Boolean)
+      const [first, second] = screen.path
+        .split("?")[0]!
+        .split("/")
+        .filter(Boolean)
       if (!first) continue // "/" — the home surface
       if (first === FIXTURE_IDS.missingRoom) {
         // The not-found screen: this one must stay missing.

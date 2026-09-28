@@ -241,9 +241,11 @@ export function PrototypePlayer({
     },
     [livePreviewDomain]
   )
+  // The route the page reports it's on, for placing and listing comments.
+  const [currentRoute, setCurrentRoute] = useState(initialPath)
   const describeWorkspace = useCallback(
-    () => ({ route: initialPath }),
-    [initialPath]
+    () => ({ title: branch, route: currentRoute }),
+    [branch, currentRoute]
   )
   const viewport = useMemo(
     () =>
@@ -260,7 +262,7 @@ export function PrototypePlayer({
     iframeRef,
     viewport,
     scale: fitScale,
-    route: initialPath,
+    route: currentRoute,
     describeWorkspace,
     onNavigate: navigate,
   })
@@ -323,6 +325,8 @@ export function PrototypePlayer({
         // Resend the current cursor mode — a navigation or reload re-injects
         // the bridge with default state, so the puck would otherwise reset.
         sendCursorMode(isTouchDeviceRef.current)
+      } else if (e.data.type === "screenplay:navigation") {
+        setCurrentRoute(e.data.path)
       } else if (e.data.type === "screenplay:knobs-declared") {
         setKnobs(e.data.knobs)
         // Iframe just (re)registered; push our values down so the prototype

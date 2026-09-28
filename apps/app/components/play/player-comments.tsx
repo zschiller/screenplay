@@ -17,6 +17,7 @@ import {
 } from "@/components/canvas/use-comment-threads"
 import { useScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { ElementAnchor, Placement } from "@/lib/comment-anchor"
+import type { GroupOptions } from "@/lib/comments-panel"
 import type { ThreadWithComments } from "@/lib/comments"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { DomRect } from "@/lib/postmessage-protocol"
@@ -45,8 +46,14 @@ export interface PlayerComments {
   placements: ReadonlyMap<string, Placement>
   /** Open a thread from the list, going to its route first if need be. */
   selectThread: (threadId: string) => void
+  activeThreadId: string | null
   commentMode: boolean
   toggleCommentMode: () => void
+  /** The list's groups: this page's route first, one frame for the player. */
+  groupOptions: GroupOptions
+  describeWorkspace: () => { title?: string; route?: string }
+  pinsHidden: boolean
+  setPinsHidden: (hidden: boolean) => void
   layer: PlayerCommentLayerProps
 }
 
@@ -113,6 +120,7 @@ export function usePlayerComments({
   const [newComment, setNewComment] = useState<NewPlayerComment | null>(null)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [hover, setHover] = useState<DomRect | null>(null)
+  const [pinsHidden, setPinsHidden] = useState(false)
   const exitCommentMode = useCallback(() => {
     setCommentMode(false)
     setNewComment(null)
@@ -148,6 +156,11 @@ export function usePlayerComments({
     getIframeLayerDom: getDom,
     activeThreadId,
   })
+
+  const groupOptions = useMemo(
+    () => ({ frame: PLAYER_FRAME, currentRoute: route }),
+    [route]
+  )
 
   const selectThread = useCallback(
     (threadId: string) => {
@@ -236,8 +249,13 @@ export function usePlayerComments({
     numbers,
     placements,
     selectThread,
+    activeThreadId,
     commentMode,
     toggleCommentMode,
+    groupOptions,
+    describeWorkspace,
+    pinsHidden,
+    setPinsHidden,
     layer: {
       roomId,
       viewport,
@@ -251,6 +269,7 @@ export function usePlayerComments({
       hover,
       newComment,
       activeThreadId,
+      pinsHidden,
       onActivateThread: setActiveThreadId,
       onPlace: place,
       onHover: hoverAt,
@@ -274,6 +293,7 @@ interface PlayerCommentLayerProps {
   hover: DomRect | null
   newComment: NewPlayerComment | null
   activeThreadId: string | null
+  pinsHidden: boolean
   onActivateThread: (threadId: string | null) => void
   onPlace: (x: number, y: number) => void
   onHover: (x: number, y: number) => void
@@ -300,6 +320,7 @@ export function PlayerCommentLayer({
   hover,
   newComment,
   activeThreadId,
+  pinsHidden,
   onActivateThread,
   onPlace,
   onHover,
@@ -361,6 +382,7 @@ export function PlayerCommentLayer({
           activeThreadId={activeThreadId}
           onActivateThread={onActivateThread}
           describeLayer={describeWorkspace}
+          hidePins={pinsHidden}
         />
       </div>
     </>

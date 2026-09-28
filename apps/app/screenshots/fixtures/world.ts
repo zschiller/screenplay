@@ -317,8 +317,8 @@ function hostedWorld(now: number): FixtureHostedWorld {
         workspaceId: workspace,
         route: "/checkout",
         anchor: { path: "main > section.cols > aside", tag: "aside" },
-        offsetX: 0.92,
-        offsetY: 0.08,
+        offsetX: 0.5,
+        offsetY: 0.45,
         viewportWidth: 1280,
         viewportHeight: 800,
         comments: [
@@ -1127,6 +1127,14 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
     }),
     branch(b.framesReady, "listing-page", "listing-page", 4, {
       status: "running",
+      // An open PR whose merge is blocked (failing checks): the chat header's
+      // PR button turns red with the merge-blocked icon.
+      prNumber: 491,
+      prUrl: "https://github.com/acme/listings/pull/491",
+      prState: "open",
+      prBlocked: true,
+      diffAdditions: 62,
+      diffDeletions: 9,
     }),
     branch(b.framesLive, `${cold}live`, "agent-profile", 5, {
       status: "creating",
