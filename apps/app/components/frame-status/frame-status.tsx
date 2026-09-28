@@ -39,7 +39,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
   unassigned: {
     title: "No Workspace",
     description:
-      "Choose a Workspace from the frame's title to preview it here.",
+      "Choose a Workspace in the frame's header to preview it here.",
   },
   booting: {
     title: "Booting sandbox",

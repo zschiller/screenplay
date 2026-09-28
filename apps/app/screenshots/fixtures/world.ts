@@ -647,7 +647,9 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       markdownLayers,
       chatSessions,
       plans,
-      savedViewport: { x: 120, y: 80, zoom: 0.42 },
+      // y leaves room above the top row for its group caption and the 34px
+      // frame header bar (#795), clear of the breadcrumb pill.
+      savedViewport: { x: 120, y: 104, zoom: 0.42 },
       markdownBodies: {
         "doc-checkout-brief": [
           "# Checkout brief",

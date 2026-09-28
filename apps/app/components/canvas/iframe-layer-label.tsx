@@ -1,8 +1,17 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Braces, Check, ChevronsUpDown } from "lucide-react"
+import {
+  Braces,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  RotateCw,
+} from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
+import { IconButton } from "@workspace/ui/components/icon-button"
+import { cn } from "@workspace/ui/lib/utils"
 import { BranchBadge } from "@/components/branch-badge"
 import {
   Popover,
@@ -27,15 +36,47 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
-import { LayerLabelRow } from "./layer-title-bar"
+import { LayerTitleText } from "./layer-title-bar"
+
+/**
+ * The frame header's height in screen px. The header is counter-scaled like
+ * every canvas label, so this holds at any zoom; the Selection Overlay and the
+ * resize handles use it to wrap header and body as one object.
+ */
+export const FRAME_HEADER_HEIGHT = 34
+
+/** What the header's status dot says about the preview. */
+export type FrameHeaderStatus =
+  | "live"
+  | "loading"
+  | "disconnected"
+  | "failed"
+  | "stopped"
+
+const STATUS_LABEL: Record<FrameHeaderStatus, string> = {
+  live: "Live",
+  loading: "Loading",
+  disconnected: "Dev server disconnected",
+  failed: "Preview failed",
+  stopped: "Workspace stopped",
+}
+
+const STATUS_DOT: Record<Exclude<FrameHeaderStatus, "loading">, string> = {
+  live: "bg-success",
+  disconnected: "bg-warning",
+  failed: "bg-destructive",
+  stopped: "bg-muted-foreground/50",
+}
 
 interface IframeLayerLabelProps {
+  /** The frame's on-screen width in px, which the header spans exactly. */
+  width: number
   label: string
   branch?: string
   branchId?: string
   route?: string
   /** Bidirectional shared state from `@screenplay.space/state`. When present
-   *  with non-empty keys, a tiny indicator renders inside the route pill. */
+   *  with non-empty keys, a tiny indicator renders inside the route field. */
   sharedState?: JsonObject
   /** Agents the user can pick from (typically all running agents in the room). */
   assignableBranches?: BranchData[]
@@ -43,6 +84,15 @@ interface IframeLayerLabelProps {
   /** Routes known for the agent backing this iframeLayer. Drives the route picker. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (route: string) => void
+  /** The device the frame's size matches (a preset's category), or its size. */
+  device?: string
+  canGoBack?: boolean
+  canGoForward?: boolean
+  onBack?: () => void
+  onForward?: () => void
+  onReload?: () => void
+  /** The preview's state, or unset while the frame has no Workspace. */
+  status?: FrameHeaderStatus
   /** True when this frame is selected (directly or because its group is). */
   selected?: boolean
   /** Remote selector's color for the name. Ignored while locally selected. */
@@ -54,13 +104,25 @@ interface IframeLayerLabelProps {
   onRename?: (next: string) => void
 }
 
+/** Keep a press on a header control from starting a frame drag. */
+const stopPointer = {
+  onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+  onClick: (e: React.MouseEvent) => e.stopPropagation(),
+}
+
 /**
- * The Iframe Layer's title row — the branch picker/badge, the frame name, and
- * the route picker/badge. Rendered inside the shared `LayerTitleBar` (owned by
- * the Layer Shell), which supplies the drag-handle routing and group label;
- * this component is purely the content-specific row.
+ * The Iframe Layer's header bar (issue #795), attached to the frame's top
+ * edge: the Workspace picker, the frame name and device, back and forward, the
+ * route field, reload, and a status dot. Rendered inside the shared
+ * `LayerTitleBar` (owned by the Layer Shell), which supplies the drag-handle
+ * routing and the group caption above it; pressing the bar's empty space drags
+ * the frame like its body does.
+ *
+ * The bar is a size container, so on a narrow frame the device goes first,
+ * then the navigation buttons, and the name and route field truncate.
  */
 export function IframeLayerLabel({
+  width,
   label,
   branch,
   branchId,
@@ -70,78 +132,149 @@ export function IframeLayerLabel({
   onAssignBranch,
   discoveredRoutes,
   onSelectRoute,
+  device,
+  canGoBack,
+  canGoForward,
+  onBack,
+  onForward,
+  onReload,
+  status,
   selected,
   remoteSelectedColor,
   onSelectFrame,
   onRename,
 }: IframeLayerLabelProps) {
+  const colorIndex = assignableBranches?.find(
+    (a) => a.id === branchId
+  )?.colorIndex
   return (
-    <LayerLabelRow
-      title={label}
-      selected={selected}
-      color={remoteSelectedColor}
-      onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
-      onRename={onRename}
-      placeholder="Untitled"
-      leading={
-        onAssignBranch ? (
-          <BranchPicker
-            branch={branch}
-            currentBranchId={branchId}
-            colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
-            assignableBranches={assignableBranches ?? []}
-            onAssignBranch={onAssignBranch}
-          />
-        ) : branch ? (
-          <BranchBadge
-            branch={branch}
-            colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
-            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
-          />
-        ) : null
-      }
-      trailing={
-        branch &&
-        (onSelectRoute ? (
-          <RoutePicker
+    <div
+      data-frame-header=""
+      className="@container flex items-center gap-2 rounded-t-md bg-background pr-1.5 pl-2 ring-1 ring-foreground/10 has-[[data-editable-text=editing]]:overflow-visible"
+      style={{ width, height: FRAME_HEADER_HEIGHT }}
+    >
+      {onAssignBranch ? (
+        <BranchPicker
+          branch={branch}
+          currentBranchId={branchId}
+          colorKey={branchId}
+          colorIndex={colorIndex}
+          assignableBranches={assignableBranches ?? []}
+          onAssignBranch={onAssignBranch}
+        />
+      ) : branch ? (
+        <BranchBadge
+          branch={branch}
+          colorKey={branchId}
+          colorIndex={colorIndex}
+          className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
+        />
+      ) : null}
+      <div className="flex min-w-0 shrink items-baseline gap-1.5">
+        <LayerTitleText
+          title={label}
+          selected={selected}
+          color={remoteSelectedColor}
+          onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
+          onRename={onRename}
+          placeholder="Untitled"
+        />
+        {device && (
+          <span className="hidden shrink-0 text-xs text-muted-foreground @[26rem]:inline">
+            {device}
+          </span>
+        )}
+      </div>
+      {branch && (
+        <div className="ml-auto flex min-w-12 flex-1 items-center gap-1 @[26rem]:ml-2">
+          <div
+            className="hidden shrink-0 items-center @[18rem]:flex"
+            {...stopPointer}
+          >
+            <IconButton
+              label="Back"
+              tooltipSide="bottom"
+              disabled={!canGoBack}
+              onClick={onBack}
+            >
+              <ChevronLeft />
+            </IconButton>
+            <IconButton
+              label="Forward"
+              tooltipSide="bottom"
+              disabled={!canGoForward}
+              onClick={onForward}
+            >
+              <ChevronRight />
+            </IconButton>
+          </div>
+          <RouteField
             route={route}
             discoveredRoutes={discoveredRoutes ?? []}
             onSelectRoute={onSelectRoute}
             sharedState={sharedState}
           />
-        ) : (
-          <Badge
-            variant="outline"
-            className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
-          >
-            <span className="truncate">{route || "/"}</span>
-            <SharedStateIndicator sharedState={sharedState} />
-          </Badge>
-        ))
-      }
-    />
+          <div className="hidden shrink-0 @[18rem]:flex" {...stopPointer}>
+            <IconButton label="Reload" tooltipSide="bottom" onClick={onReload}>
+              <RotateCw />
+            </IconButton>
+          </div>
+        </div>
+      )}
+      {status && <StatusDot status={status} />}
+    </div>
   )
 }
 
-interface RoutePickerProps {
+function StatusDot({ status }: { status: FrameHeaderStatus }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="status"
+            aria-label={STATUS_LABEL[status]}
+            className={cn(
+              "flex size-4 shrink-0 items-center justify-center",
+              // Pushed to the far edge when there's no route field to do it.
+              "first:ml-auto"
+            )}
+            {...stopPointer}
+          >
+            {status === "loading" ? (
+              <Spinner className="size-3 text-muted-foreground" />
+            ) : (
+              <span
+                className={cn("size-1.5 rounded-full", STATUS_DOT[status])}
+              />
+            )}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{STATUS_LABEL[status]}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+interface RouteFieldProps {
   route?: string
   discoveredRoutes: { route: string; label: string }[]
-  onSelectRoute: (route: string) => void
+  /** Unset while the frame can't navigate (a read-only viewer). */
+  onSelectRoute?: (route: string) => void
   sharedState?: JsonObject
 }
 
-function RoutePicker({
+/**
+ * The header's route field: the frame's current route, like a browser's
+ * address bar. Pressing it opens a search box where you type any route (Enter
+ * goes there) or pick one the Workspace has discovered.
+ */
+function RouteField({
   route,
   discoveredRoutes,
   onSelectRoute,
   sharedState,
-}: RoutePickerProps) {
+}: RouteFieldProps) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState("")
 
@@ -161,6 +294,21 @@ function RoutePicker({
     .slice()
     .sort((a, b) => a.route.localeCompare(b.route))
 
+  const field = (
+    <span className="flex h-6 min-w-0 flex-1 items-center rounded-md bg-muted px-2 font-mono text-[11px] text-muted-foreground">
+      <span className="truncate">{currentRoute}</span>
+      <SharedStateIndicator sharedState={sharedState} />
+    </span>
+  )
+
+  if (!onSelectRoute) {
+    return (
+      <div className="flex min-w-0 flex-1" {...stopPointer}>
+        {field}
+      </div>
+    )
+  }
+
   const handleSelect = (next: string) => {
     onSelectRoute(next)
     setOpen(false)
@@ -177,30 +325,11 @@ function RoutePicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex shrink-0 items-center outline-none focus-visible:outline-none"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
+          aria-label={`Route: ${currentRoute}`}
+          className="group flex min-w-0 flex-1 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 hover:[&>span]:text-foreground data-[state=open]:[&>span]:text-foreground"
+          {...stopPointer}
         >
-          <Badge
-            variant="outline"
-            // `delay-300` on the collapse keeps the pill from visibly
-            // shrinking when the cursor crosses onto the trailing `{}`
-            // indicator and momentarily drops `group-hover` before the
-            // tooltip's delayed-open re-grants it. Expansion waits `delay-500`
-            // to match the branch pill.
-            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 group-hover:max-w-full group-hover:delay-500 group-data-[state=open]:max-w-full group-data-[state=open]:delay-0"
-          >
-            <span className="truncate">{currentRoute}</span>
-            <SharedStateIndicator sharedState={sharedState} />
-          </Badge>
-          <ChevronsUpDown
-            aria-hidden
-            // Mirror the route badge's `delay-300` collapse / `delay-500`
-            // expand so a one-frame `group-hover` drop — which happens as the
-            // cursor crosses onto the trailing `{}` indicator — doesn't snap
-            // the chevron closed and flicker it.
-            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all delay-300 duration-200 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100 group-data-[state=open]:delay-0"
-          />
+          {field}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -208,6 +337,9 @@ function RoutePicker({
         side="bottom"
         align="start"
         onPointerDown={(e) => e.stopPropagation()}
+        // Leave focus on the canvas after picking a route, like the route
+        // pill did, instead of ringing the field.
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <Command shouldFilter={false}>
           <CommandInput

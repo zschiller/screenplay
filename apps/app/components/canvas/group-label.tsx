@@ -83,7 +83,7 @@ export function GroupLabel({
             onCommit={onRename}
             placeholder="Group"
             style={colorStyle}
-            className={cn("min-w-[0.75em] text-xs font-medium", colorClass)}
+            className={cn("min-w-[0.75em] text-xs", colorClass)}
             viewClassName="truncate cursor-grab active:cursor-grabbing"
             editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
           />
@@ -95,7 +95,7 @@ export function GroupLabel({
       <button
         type="button"
         className={cn(
-          "mb-0.5 min-w-0 cursor-grab truncate text-xs font-medium outline-none active:cursor-grabbing",
+          "mb-0.5 min-w-0 cursor-grab truncate text-xs outline-none active:cursor-grabbing",
           colorClass
         )}
         style={colorStyle}
@@ -112,7 +112,7 @@ export function GroupLabel({
   return (
     <div
       className={cn(
-        "mb-0.5 min-w-0 truncate text-xs font-medium",
+        "mb-0.5 min-w-0 truncate text-xs",
         groupSelected
           ? "text-canvas-selection"
           : remoteColor

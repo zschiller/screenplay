@@ -10,7 +10,6 @@ import {
   MousePointer,
   Move,
   Play,
-  RotateCw,
   Route,
   Trash2,
 } from "lucide-react"
@@ -42,10 +41,26 @@ import {
   type WheelForward,
 } from "@/hooks/use-screenplay-dom"
 import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
+import { showsLayerDetail } from "@/lib/canvas/camera"
+import {
+  canGoBack,
+  canGoForward,
+  createRouteHistory,
+  currentRoute,
+  goBack,
+  goForward,
+  visitRoute,
+  type RouteHistory,
+} from "@/lib/canvas/route-history"
+import { IFRAME_LAYER_SIZE_PRESETS } from "@/lib/iframe-layer-sizes"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
-import { IframeLayerLabel } from "./iframe-layer-label"
+import {
+  FRAME_HEADER_HEIGHT,
+  IframeLayerLabel,
+  type FrameHeaderStatus,
+} from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -240,7 +255,13 @@ interface IframeLayerProps {
   onAssignBranch?: (iframeLayerId: string, branchId: string) => void
   /** Routes discovered for the agent backing this iframeLayer. */
   discoveredRoutes?: { route: string; label: string }[]
-  onSelectRoute?: (iframeLayerId: string, route: string) => void
+  /** Navigate the frame; `replace` edits the route in place and never leaves
+   *  a Create Flow trail (back and forward use it). */
+  onSelectRoute?: (
+    iframeLayerId: string,
+    route: string,
+    replace?: boolean
+  ) => void
   /** Group label shown above the branch — only on the leftmost iframeLayer of a multi-iframeLayer group. */
   groupLabel?: string
   /** True when the parent group is selected. Drives label color + group-pink frame. */
@@ -371,9 +392,26 @@ export function IframeLayer({
   // placeholder, so this only fires for genuine dev-server pages.
   const [contentReady, setContentReady] = useState(false)
 
+  // Back/forward (issue #795). The preview is cross-origin, so the frame keeps
+  // its own list of the routes it has shown and steps its route through it.
+  // A page navigation is recorded as it's reported (a replace-style one edits
+  // the current entry); any other route change (the route field, another
+  // user) is recorded when the route arrives. Back and forward move the index
+  // first, so the route they set is already current when it arrives.
+  const shownRoute = iframeLayer.route || "/"
+  const [history, setHistory] = useState<RouteHistory>(() =>
+    createRouteHistory(shownRoute)
+  )
+  const [lastShownRoute, setLastShownRoute] = useState(shownRoute)
+  if (shownRoute !== lastShownRoute) {
+    setLastShownRoute(shownRoute)
+    setHistory(visitRoute(history, shownRoute))
+  }
+
   const handleNavigation = useCallback(
     (id: string, path: string, replace: boolean) => {
       reportedPathRef.current = path
+      setHistory((h) => visitRoute(h, path, replace))
       onRouteChange?.(id, path, replace)
     },
     [onRouteChange]
@@ -446,7 +484,11 @@ export function IframeLayer({
     enabled: showToolbar && !!toolbarPortalTarget,
     anchorRef: frameRef,
     targetRef: toolbarRef,
-    getOffset: (fr, cw) => ({ x: fr.right - cw.left + 8, y: fr.top - cw.top }),
+    // Level with the top of the frame's header bar, when it's showing.
+    getOffset: (fr, cw) => ({
+      x: fr.right - cw.left + 8,
+      y: fr.top - cw.top - (showsLayerDetail(zoom) ? FRAME_HEADER_HEIGHT : 0),
+    }),
   })
   const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
@@ -456,7 +498,6 @@ export function IframeLayer({
   // frame has a live preview (and a Branch/Repo to resolve the portless URL),
   // so its presence is the gate.
   const showOpenInBrowser = !!onOpenInBrowser
-  const showReload = hmrStatus === "disconnected"
   // The `…` menu holds this frame's own actions (device size, fit,
   // duplicate, delete); Workspace-scoped actions (prototype player, open in
   // browser) sit in its Workspace submenu so they don't read as frame actions.
@@ -710,6 +751,35 @@ export function IframeLayer({
     recoveryExhausted: recoveryTick >= MAX_PLACEHOLDER_RELOADS,
   })
 
+  // The header's status dot: the preview's state in one glance, with the
+  // status screen in the body carrying the detail.
+  const headerStatus: FrameHeaderStatus | undefined = !branchId
+    ? undefined
+    : stage === null
+      ? hmrStatus === "disconnected"
+        ? "disconnected"
+        : "live"
+      : stage === "booting" || stage === "starting"
+        ? "loading"
+        : stage === "stopped"
+          ? "stopped"
+          : stage === "unassigned"
+            ? undefined
+            : "failed"
+
+  const devicePreset = IFRAME_LAYER_SIZE_PRESETS.find(
+    (p) => p.width === iframeLayer.width && p.height === iframeLayer.height
+  )
+  const device = devicePreset
+    ? devicePreset.category
+    : `${Math.round(iframeLayer.width)} × ${Math.round(iframeLayer.height)}`
+
+  const navigateHistory = (next: RouteHistory) => {
+    if (next === history) return
+    setHistory(next)
+    onSelectRoute?.(iframeLayer.id, currentRoute(next), true)
+  }
+
   // Retry a dev server that never answered: probe again and give the iframe a
   // fresh recovery budget, starting from a clean reload.
   const retryPreview = useCallback(() => {
@@ -757,8 +827,10 @@ export function IframeLayer({
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
+      attachedTitleHeight={FRAME_HEADER_HEIGHT}
       renderTitle={(api) => (
         <IframeLayerLabel
+          width={iframeLayer.width * zoom}
           label={iframeLayer.label}
           branch={iframeLayer.branch}
           branchId={iframeLayer.branchId}
@@ -776,6 +848,13 @@ export function IframeLayer({
               ? (route) => onSelectRoute(iframeLayer.id, route)
               : undefined
           }
+          device={device}
+          canGoBack={!!onSelectRoute && canGoBack(history)}
+          canGoForward={!!onSelectRoute && canGoForward(history)}
+          onBack={() => navigateHistory(goBack(history))}
+          onForward={() => navigateHistory(goForward(history))}
+          onReload={reloadIframe}
+          status={headerStatus}
           selected={selected || groupSelected}
           remoteSelectedColor={remoteSelectedColor}
           onSelectFrame={api.deferSelect}
@@ -821,13 +900,6 @@ export function IframeLayer({
                 </FloatingToolbarButton>
                 {/* interaction modes above ∣ everything else below */}
                 <FloatingToolbarSeparator />
-                <FloatingToolbarButton
-                  label="Reload"
-                  variant={showReload ? "default" : "ghost"}
-                  onClick={reloadIframe}
-                >
-                  <RotateCw />
-                </FloatingToolbarButton>
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
                   values={iframeLayer.knobValues}
@@ -905,7 +977,9 @@ export function IframeLayer({
               toolbarPortalTarget
             )}
           <div
-            className={`relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900 ${LAYER_SURFACE_CLASS}`}
+            // Square top corners where the header bar sits on the body; at low
+            // zoom the header hides and the corners are sub-pixel anyway.
+            className={`relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900 ${LAYER_SURFACE_CLASS} rounded-t-none`}
           >
             {/* Mount the iframe as soon as there's a URL — don't gate it on the
             probe. The probe is a server-action round-trip; gating the mount on

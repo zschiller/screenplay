@@ -907,6 +907,48 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-frame-route-field",
+    description:
+      "A frame header's route field pressed, with a route typed: the discovered routes and Go to.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      await checkoutDesktopFrame(page)
+        .locator("[data-frame-header]")
+        .getByRole("button", { name: /^Route:/ })
+        .click({ timeout: 15_000 })
+      await page.keyboard.type("/ca")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-frame-back",
+    description:
+      "A frame navigated from its route field to /cart, hovering Back: the history button enabled with its tooltip.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      const header = checkoutDesktopFrame(page).locator("[data-frame-header]")
+      const field = header.getByRole("button", { name: /^Route:/ })
+      // Themes share the Canvas, so the frame may already be on /cart from
+      // the other theme's run; go wherever it isn't.
+      const onCart = (await field.getAttribute("aria-label")) === "Route: /cart"
+      await field.click({ timeout: 15_000 })
+      await page.keyboard.type(onCart ? "/checkout" : "/cart")
+      await page.keyboard.press("Enter")
+      // Wait out the route popover's exit and the history update, so the
+      // hover lands on an enabled Back button.
+      await page
+        .locator("[data-slot=popover-content]")
+        .waitFor({ state: "detached", timeout: 15_000 })
+      const back = header.locator('button[aria-label="Back"]:not([disabled])')
+      await back.waitFor({ timeout: 15_000 })
+      await back.hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 1500,
+  },
+  {
     name: "canvas-frame-knobs-empty",
     description:
       "A selected frame's Knobs popover for a prototype with no knobs yet.",

@@ -15,6 +15,9 @@ interface LayerTitleBarProps {
    *  extend past the tile's footprint. */
   layerWidth: number
   zoom: number
+  /** The layer's row is a header bar attached to its top edge (frames), so
+   *  the bar sits flush on the body instead of floating 4px above it. */
+  attached?: boolean
   /** Base move-drag handlers (translate the parent group). Pass `undefined`
    *  to detach all gesture handling (e.g. while a frame is in interactive
    *  mode or the user holds space to pan). */
@@ -73,6 +76,7 @@ export function LayerTitleBar({
   layerId,
   layerWidth,
   zoom,
+  attached,
   dragHandlers,
   onRequestReorderDrag,
   groupLabel,
@@ -128,7 +132,7 @@ export function LayerTitleBar({
         transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
         transformOrigin: "bottom left",
         maxWidth: layerWidth * zoom,
-        marginBottom: 4 / zoom,
+        marginBottom: attached ? 0 : 4 / zoom,
       }}
       {...labelDragHandlers}
     >
