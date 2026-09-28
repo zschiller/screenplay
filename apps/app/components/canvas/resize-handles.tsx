@@ -7,9 +7,6 @@ interface ResizeHandlesProps {
   makeHandleProps: (edge: ResizeEdge) => {
     onPointerDown: (e: React.PointerEvent) => void
   }
-  /** Screen px of chrome attached above the tile (a frame's header). The top
-   *  handles move up onto its top edge so they sit where the outline is. */
-  topInset?: number
 }
 
 /**
@@ -19,24 +16,19 @@ interface ResizeHandlesProps {
  * over the adjacent edge regions, which inset by `cornerSize` to avoid
  * overlap. Parent must be `position: relative`.
  */
-export function ResizeHandles({
-  zoom,
-  makeHandleProps,
-  topInset = 0,
-}: ResizeHandlesProps) {
+export function ResizeHandles({ zoom, makeHandleProps }: ResizeHandlesProps) {
   const HANDLE = 6 // base px thickness of edge handles
   const h = HANDLE / zoom
   const hHalf = h / 2
   const cornerSize = 12 / zoom
   const cHalf = cornerSize / 2
-  const inset = topInset / zoom
 
   return (
     <>
       <div
         className="absolute cursor-ns-resize touch-none"
         {...makeHandleProps("n")}
-        style={{ top: -hHalf - inset, left: cHalf, right: cHalf, height: h }}
+        style={{ top: -hHalf, left: cHalf, right: cHalf, height: h }}
       />
       <div
         className="absolute cursor-ns-resize touch-none"
@@ -46,18 +38,18 @@ export function ResizeHandles({
       <div
         className="absolute cursor-ew-resize touch-none"
         {...makeHandleProps("w")}
-        style={{ left: -hHalf, top: cHalf - inset, bottom: cHalf, width: h }}
+        style={{ left: -hHalf, top: cHalf, bottom: cHalf, width: h }}
       />
       <div
         className="absolute cursor-ew-resize touch-none"
         {...makeHandleProps("e")}
-        style={{ right: -hHalf, top: cHalf - inset, bottom: cHalf, width: h }}
+        style={{ right: -hHalf, top: cHalf, bottom: cHalf, width: h }}
       />
       <div
         className="absolute cursor-nwse-resize touch-none"
         {...makeHandleProps("nw")}
         style={{
-          top: -cHalf - inset,
+          top: -cHalf,
           left: -cHalf,
           width: cornerSize,
           height: cornerSize,
@@ -67,7 +59,7 @@ export function ResizeHandles({
         className="absolute cursor-nesw-resize touch-none"
         {...makeHandleProps("ne")}
         style={{
-          top: -cHalf - inset,
+          top: -cHalf,
           right: -cHalf,
           width: cornerSize,
           height: cornerSize,

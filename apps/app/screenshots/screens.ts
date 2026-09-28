@@ -1030,12 +1030,12 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-frame-route-field",
     description:
-      "A frame header's route field pressed, with a route typed: the discovered routes and Go to.",
+      "A selected frame's toolbar route field pressed, with a route typed: the discovered routes and Go to.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await selectCheckoutFrame(page)
-      await checkoutDesktopFrame(page)
-        .locator("[data-frame-header]")
+      await page
+        .locator("#frame-toolbar-portal")
         .getByRole("button", { name: /^Route:/ })
         .click({ timeout: 15_000 })
       await page.keyboard.type("/ca")
@@ -1045,12 +1045,12 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-frame-back",
     description:
-      "A frame navigated from its route field to /cart, hovering Back: the history button enabled with its tooltip.",
+      "A frame navigated from its toolbar's route field, hovering Back: the history button enabled with its tooltip.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await selectCheckoutFrame(page)
-      const header = checkoutDesktopFrame(page).locator("[data-frame-header]")
-      const field = header.getByRole("button", { name: /^Route:/ })
+      const toolbar = page.locator("#frame-toolbar-portal")
+      const field = toolbar.getByRole("button", { name: /^Route:/ })
       // Themes share the Canvas, so the frame may already be on /cart from
       // the other theme's run; go wherever it isn't.
       const onCart = (await field.getAttribute("aria-label")) === "Route: /cart"
@@ -1062,7 +1062,7 @@ export const SCREENS: Screen[] = [
       await page
         .locator("[data-slot=popover-content]")
         .waitFor({ state: "detached", timeout: 15_000 })
-      const back = header.locator('button[aria-label="Back"]:not([disabled])')
+      const back = toolbar.locator('button[aria-label="Back"]:not([disabled])')
       await back.waitFor({ timeout: 15_000 })
       await back.hover({ timeout: 15_000 })
       await showTooltip(page)

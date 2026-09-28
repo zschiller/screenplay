@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   GitBranch,
   Maximize2,
@@ -10,6 +12,7 @@ import {
   MousePointer,
   Move,
   Play,
+  RotateCw,
   Route,
   Trash2,
 } from "lucide-react"
@@ -41,7 +44,6 @@ import {
   type WheelForward,
 } from "@/hooks/use-screenplay-dom"
 import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
-import { showsLayerDetail } from "@/lib/canvas/camera"
 import {
   canGoBack,
   canGoForward,
@@ -52,15 +54,15 @@ import {
   visitRoute,
   type RouteHistory,
 } from "@/lib/canvas/route-history"
-import { IFRAME_LAYER_SIZE_PRESETS } from "@/lib/iframe-layer-sizes"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
 import {
-  FRAME_HEADER_HEIGHT,
-  IframeLayerLabel,
-  type FrameHeaderStatus,
-} from "./iframe-layer-label"
+  FrameRouteField,
+  FrameStatusDot,
+  type FramePreviewStatus,
+} from "./frame-nav"
+import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -98,6 +100,12 @@ const PLACEHOLDER_RELOAD_GRACE_MS = 1500
 // `contentReady` stops the loop the moment a real page paints, so a healthy
 // frame reloads at most once; the cap only bounds a genuinely stuck server.
 const MAX_PLACEHOLDER_RELOADS = 10
+
+// A selected frame's floating toolbar (issue #795): its screen-px height (a
+// 24px button row plus the shell's 4px padding) and its gap above the frame.
+// The frame's name label lifts by both so it sits over the toolbar.
+const FRAME_TOOLBAR_HEIGHT = 32
+const FRAME_TOOLBAR_GAP = 8
 
 export interface IframeLayerData {
   id: string
@@ -478,16 +486,18 @@ export function IframeLayer({
     typeof document !== "undefined"
       ? document.getElementById("frame-toolbar-portal")
       : null
+  const toolbarVisible =
+    !!iframeLayer.branchId && showToolbar && !!toolbarPortalTarget
 
-  // Keep the portaled toolbar anchored to the frame's right edge.
+  // Keep the portaled toolbar floating just above the frame's top-left
+  // corner, between the frame and its name label (issue #795).
   useCanvasAnchoredPortal({
-    enabled: showToolbar && !!toolbarPortalTarget,
+    enabled: toolbarVisible,
     anchorRef: frameRef,
     targetRef: toolbarRef,
-    // Level with the top of the frame's header bar, when it's showing.
     getOffset: (fr, cw) => ({
-      x: fr.right - cw.left + 8,
-      y: fr.top - cw.top - (showsLayerDetail(zoom) ? FRAME_HEADER_HEIGHT : 0),
+      x: fr.left - cw.left,
+      y: fr.top - cw.top - FRAME_TOOLBAR_HEIGHT - FRAME_TOOLBAR_GAP,
     }),
   })
   const showFit = !!onFitToContent && !!iframeLayer.branchId
@@ -751,9 +761,9 @@ export function IframeLayer({
     recoveryExhausted: recoveryTick >= MAX_PLACEHOLDER_RELOADS,
   })
 
-  // The header's status dot: the preview's state in one glance, with the
+  // The toolbar's status dot: the preview's state in one glance, with the
   // status screen in the body carrying the detail.
-  const headerStatus: FrameHeaderStatus | undefined = !branchId
+  const previewStatus: FramePreviewStatus | undefined = !branchId
     ? undefined
     : stage === null
       ? hmrStatus === "disconnected"
@@ -766,13 +776,6 @@ export function IframeLayer({
           : stage === "unassigned"
             ? undefined
             : "failed"
-
-  const devicePreset = IFRAME_LAYER_SIZE_PRESETS.find(
-    (p) => p.width === iframeLayer.width && p.height === iframeLayer.height
-  )
-  const device = devicePreset
-    ? devicePreset.category
-    : `${Math.round(iframeLayer.width)} × ${Math.round(iframeLayer.height)}`
 
   const navigateHistory = (next: RouteHistory) => {
     if (next === history) return
@@ -827,10 +830,10 @@ export function IframeLayer({
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
-      attachedTitleHeight={FRAME_HEADER_HEIGHT}
+      // Lift the name label over the floating toolbar while it's showing.
+      titleLift={toolbarVisible ? FRAME_TOOLBAR_HEIGHT + FRAME_TOOLBAR_GAP : 0}
       renderTitle={(api) => (
         <IframeLayerLabel
-          width={iframeLayer.width * zoom}
           label={iframeLayer.label}
           branch={iframeLayer.branch}
           branchId={iframeLayer.branchId}
@@ -848,13 +851,7 @@ export function IframeLayer({
               ? (route) => onSelectRoute(iframeLayer.id, route)
               : undefined
           }
-          device={device}
-          canGoBack={!!onSelectRoute && canGoBack(history)}
-          canGoForward={!!onSelectRoute && canGoForward(history)}
-          onBack={() => navigateHistory(goBack(history))}
-          onForward={() => navigateHistory(goForward(history))}
-          onReload={reloadIframe}
-          status={headerStatus}
+          hideRoute={toolbarVisible}
           selected={selected || groupSelected}
           remoteSelectedColor={remoteSelectedColor}
           onSelectFrame={api.deferSelect}
@@ -866,13 +863,10 @@ export function IframeLayer({
     >
       {(api) => (
         <>
-          {iframeLayer.branchId &&
-            showToolbar &&
-            toolbarPortalTarget &&
+          {toolbarVisible &&
             createPortal(
               <FloatingToolbar
                 ref={toolbarRef}
-                orientation="vertical"
                 aria-label="Frame"
                 // Positioned every frame by the rAF loop above (translate is set
                 // imperatively from the frame's getBoundingClientRect). Lives
@@ -883,6 +877,7 @@ export function IframeLayer({
                 onClick={(e) => e.stopPropagation()}
               >
                 <FloatingToolbarButton
+                  tooltipSide="bottom"
                   label={focused ? "Back to canvas" : "Interact"}
                   pressed={focused}
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
@@ -890,6 +885,7 @@ export function IframeLayer({
                   {focused ? <Move /> : <MousePointer />}
                 </FloatingToolbarButton>
                 <FloatingToolbarButton
+                  tooltipSide="bottom"
                   label={createFlow ? "Stop create flow" : "Create flow"}
                   pressed={createFlow}
                   onClick={() =>
@@ -898,7 +894,42 @@ export function IframeLayer({
                 >
                   <Route />
                 </FloatingToolbarButton>
-                {/* interaction modes above ∣ everything else below */}
+                <FloatingToolbarSeparator />
+                {/* navigation: history, the route, reload, and status */}
+                <FloatingToolbarButton
+                  tooltipSide="bottom"
+                  label="Back"
+                  disabled={!onSelectRoute || !canGoBack(history)}
+                  onClick={() => navigateHistory(goBack(history))}
+                >
+                  <ChevronLeft />
+                </FloatingToolbarButton>
+                <FloatingToolbarButton
+                  tooltipSide="bottom"
+                  label="Forward"
+                  disabled={!onSelectRoute || !canGoForward(history)}
+                  onClick={() => navigateHistory(goForward(history))}
+                >
+                  <ChevronRight />
+                </FloatingToolbarButton>
+                <FrameRouteField
+                  route={iframeLayer.route}
+                  discoveredRoutes={discoveredRoutes ?? []}
+                  onSelectRoute={
+                    onSelectRoute
+                      ? (route) => onSelectRoute(iframeLayer.id, route)
+                      : undefined
+                  }
+                  sharedState={iframeLayer.sharedState}
+                />
+                <FloatingToolbarButton
+                  label="Reload"
+                  tooltipSide="bottom"
+                  onClick={reloadIframe}
+                >
+                  <RotateCw />
+                </FloatingToolbarButton>
+                {previewStatus && <FrameStatusDot status={previewStatus} />}
                 <FloatingToolbarSeparator />
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
@@ -910,13 +941,13 @@ export function IframeLayer({
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <FloatingToolbarButton label="More">
+                    <FloatingToolbarButton label="More" tooltipSide="bottom">
                       <MoreHorizontal className="text-muted-foreground" />
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    side="right"
-                    align="start"
+                    side="bottom"
+                    align="end"
                     sideOffset={8}
                     className="min-w-44"
                   >
@@ -974,12 +1005,10 @@ export function IframeLayer({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </FloatingToolbar>,
-              toolbarPortalTarget
+              toolbarPortalTarget!
             )}
           <div
-            // Square top corners where the header bar sits on the body; at low
-            // zoom the header hides and the corners are sub-pixel anyway.
-            className={`relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900 ${LAYER_SURFACE_CLASS} rounded-t-none`}
+            className={`relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900 ${LAYER_SURFACE_CLASS}`}
           >
             {/* Mount the iframe as soon as there's a URL — don't gate it on the
             probe. The probe is a server-action round-trip; gating the mount on

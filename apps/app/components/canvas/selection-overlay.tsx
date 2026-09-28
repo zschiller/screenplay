@@ -8,8 +8,6 @@ import type {
 } from "@/lib/canvas/layout"
 import type { SnapGuide } from "@/lib/canvas/snap"
 import { CANVAS_COLOR, resolveCanvasColor } from "@/lib/canvas/tokens"
-import { showsLayerDetail } from "@/lib/canvas/camera"
-import { FRAME_HEADER_HEIGHT } from "./iframe-layer-label"
 
 interface OtherSelection {
   selectedIframeLayerIds: string[]
@@ -172,14 +170,6 @@ export function SelectionOverlay({
     // Offset to put a 1px stroke between two device pixels.
     const HALF = 0.5 / dpr
 
-    // A frame's header bar is attached to its top edge (issue #795), so every
-    // outline wraps header and body as one object. The header keeps a constant
-    // screen height, so its world height depends on zoom; it hides (and so
-    // does its share of the outline) below the layer-detail zoom.
-    const headerWorld = showsLayerDetail(zoom) ? FRAME_HEADER_HEIGHT / zoom : 0
-    const outlineTop = (layout: { kind: string; y: number }) =>
-      layout.kind === "iframe-layer" ? layout.y - headerWorld : layout.y
-
     // Outside-stroke convention shared by every selection rect: the 1px line
     // sits just outside the snapped world-space bounds.
     const strokeWorldRect = (l: number, t: number, r: number, b: number) => {
@@ -197,7 +187,7 @@ export function SelectionOverlay({
         const layout = iframeLayerLayouts.get(id)
         if (!layout) continue
         uLeft = Math.min(uLeft, layout.x)
-        uTop = Math.min(uTop, outlineTop(layout))
+        uTop = Math.min(uTop, layout.y)
         uRight = Math.max(uRight, layout.x + layout.width)
         uBottom = Math.max(uBottom, layout.y + layout.height)
       }
@@ -220,7 +210,7 @@ export function SelectionOverlay({
         continue
       const layout = iframeLayerLayouts.get(hoverId)
       if (layout) {
-        const tl = toScreen(layout.x, outlineTop(layout))
+        const tl = toScreen(layout.x, layout.y)
         const br = toScreen(layout.x + layout.width, layout.y + layout.height)
         const l = snap(tl.x)
         const t = snap(tl.y)
@@ -244,7 +234,7 @@ export function SelectionOverlay({
     const strokeOutline = (id: string) => {
       const layout = iframeLayerLayouts.get(id)
       if (!layout) return false
-      const tl = toScreen(layout.x, outlineTop(layout))
+      const tl = toScreen(layout.x, layout.y)
       const br = toScreen(layout.x + layout.width, layout.y + layout.height)
       strokeWorldRect(snap(tl.x), snap(tl.y), snap(br.x), snap(br.y))
       return true
@@ -280,7 +270,7 @@ export function SelectionOverlay({
           : null
       const ox = shift ? shift.dx : 0
       const oy = shift ? shift.dy : 0
-      const tl = toScreen(layout.x + ox, outlineTop(layout) + oy)
+      const tl = toScreen(layout.x + ox, layout.y + oy)
       const br = toScreen(
         layout.x + layout.width + ox,
         layout.y + layout.height + oy

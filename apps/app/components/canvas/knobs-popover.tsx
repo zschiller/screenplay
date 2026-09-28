@@ -81,7 +81,11 @@ export function KnobsPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <FloatingToolbarButton label="Knobs" className="relative">
+        <FloatingToolbarButton
+          label="Knobs"
+          tooltipSide="bottom"
+          className="relative"
+        >
           <SlidersHorizontal />
           {hasOverrides ? (
             <span
@@ -92,7 +96,7 @@ export function KnobsPopover({
         </FloatingToolbarButton>
       </PopoverTrigger>
       <PopoverContent
-        side="right"
+        side="bottom"
         align="start"
         sideOffset={8}
         collisionPadding={16}

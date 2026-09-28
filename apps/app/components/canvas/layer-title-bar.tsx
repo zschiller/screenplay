@@ -15,9 +15,9 @@ interface LayerTitleBarProps {
    *  extend past the tile's footprint. */
   layerWidth: number
   zoom: number
-  /** The layer's row is a header bar attached to its top edge (frames), so
-   *  the bar sits flush on the body instead of floating 4px above it. */
-  attached?: boolean
+  /** Extra screen px between the bar and the layer (see `LayerShell`'s
+   *  `titleLift`). */
+  lift?: number
   /** Base move-drag handlers (translate the parent group). Pass `undefined`
    *  to detach all gesture handling (e.g. while a frame is in interactive
    *  mode or the user holds space to pan). */
@@ -76,7 +76,7 @@ export function LayerTitleBar({
   layerId,
   layerWidth,
   zoom,
-  attached,
+  lift = 0,
   dragHandlers,
   onRequestReorderDrag,
   groupLabel,
@@ -132,7 +132,7 @@ export function LayerTitleBar({
         transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
         transformOrigin: "bottom left",
         maxWidth: layerWidth * zoom,
-        marginBottom: attached ? 0 : 4 / zoom,
+        marginBottom: (4 + lift) / zoom,
       }}
       {...labelDragHandlers}
     >
@@ -183,9 +183,6 @@ interface LayerTitleTextProps {
   onRename?: (next: string) => void
   /** Placeholder shown when the title is empty. */
   placeholder?: string
-  /** Colour while nobody has the layer selected. A frame's header shows the
-   *  name at full strength; floating labels stay muted. */
-  restingColorClass?: string
 }
 
 /**
@@ -204,7 +201,6 @@ export function LayerTitleText({
   onSelectLayer,
   onRename,
   placeholder,
-  restingColorClass = "text-foreground/70",
 }: LayerTitleTextProps) {
   // Local selection (the canvas selection token) wins; a remote selector's color applies only
   // when we haven't selected the layer ourselves.
@@ -213,7 +209,7 @@ export function LayerTitleText({
     ? "text-canvas-selection"
     : remoteColor
       ? undefined
-      : restingColorClass
+      : "text-foreground/70"
   const colorStyle = remoteColor ? { color: remoteColor } : undefined
   const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return

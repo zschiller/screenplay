@@ -125,12 +125,9 @@ interface LayerShellProps {
   onRenameGroup?: (next: string) => void
   /** Layer-specific title row rendered inside the shared `LayerTitleBar`. */
   renderTitle: (api: LayerShellApi) => React.ReactNode
-  /**
-   * Screen-px height of a title row that is attached to the layer's top edge
-   * (a frame's header bar) rather than floating above it. The bar then sits
-   * flush on the body and the top resize handles move up to its top edge.
-   */
-  attachedTitleHeight?: number
+  /** Extra screen px to raise the title bar by, clearing chrome that floats
+   *  between it and the layer (a selected frame's toolbar). */
+  titleLift?: number
 
   // ── Body ───────────────────────────────────────────────────────────────────
   /** Layer-specific content rendered inside the world-space container. */
@@ -184,7 +181,7 @@ export function LayerShell({
   onSelectGroup,
   onRenameGroup,
   renderTitle,
-  attachedTitleHeight,
+  titleLift,
   children,
 }: LayerShellProps) {
   // `groupSelected` routes through the selection mover too, so grabbing a
@@ -338,7 +335,7 @@ export function LayerShell({
         layerId={layerId}
         layerWidth={width}
         zoom={zoom}
-        attached={attachedTitleHeight != null}
+        lift={titleLift}
         dragHandlers={titleDragDisabled ? undefined : dragHandlers}
         onRequestReorderDrag={onRequestReorderDrag}
         groupLabel={groupLabel}
@@ -372,11 +369,7 @@ export function LayerShell({
       {/* Resize handles — only when singly selected, and hidden at very low
           zoom where their constant-size hit zones swallow the tile. */}
       {selected && !multiSelected && resizable && showsLayerDetail(zoom) && (
-        <ResizeHandles
-          zoom={zoom}
-          makeHandleProps={makeHandleProps}
-          topInset={attachedTitleHeight}
-        />
+        <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
       )}
     </div>
   )
