@@ -24,4 +24,15 @@ describe("workspaceHoverStore", () => {
     off()
     expect(calls).toBe(2)
   })
+
+  it("keeps a Group hover apart from a frame hover on the same Workspace", () => {
+    const frame = { branchId: "a", source: "frame" } as const
+    const group = { branchId: "a", source: "group" } as const
+    workspaceHoverStore.set(frame)
+    workspaceHoverStore.set(group)
+    workspaceHoverStore.clear(frame)
+    expect(workspaceHoverStore.get()).toEqual(group)
+    workspaceHoverStore.clear(group)
+    expect(workspaceHoverStore.get()).toBeNull()
+  })
 })

@@ -133,7 +133,9 @@ import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
 import { InputDialog } from "@/components/home/input-dialog"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
 import {
+  useIsFrameHighlighted,
   useIsWorkspaceHighlighted,
+  useWorkspaceHoverProps,
   workspaceHoverStore,
 } from "@/lib/workspace-hover-store"
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
@@ -1501,7 +1503,10 @@ export function RoomSidebar({
                                         groupId={group.id}
                                         className="group/frame-group-row cursor-grab active:cursor-grabbing"
                                       >
-                                        <SidebarMenuButton
+                                        <GroupRowButton
+                                          branchId={groupBranchById.get(
+                                            group.id
+                                          )}
                                           className="!pr-2 !transition-[width,height] group-focus-within/frame-group-row:!pr-7 group-hover/frame-group-row:!pr-7 group-has-[[data-sidebar=menu-action][data-state=open]]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
                                           isActive={selectedGroupIds.has(
                                             group.id
@@ -1561,7 +1566,7 @@ export function RoomSidebar({
                                               />
                                             ) : null
                                           })()}
-                                        </SidebarMenuButton>
+                                        </GroupRowButton>
                                         <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
                                             <IconButton
@@ -1980,6 +1985,29 @@ function MemberEntry({
         editableRef={editableRef}
       />
     </>
+  )
+}
+
+/** A Group row (#872). Hovering it lights up its Workspace's row, and
+ *  hovering that Workspace lights this row up, like a frame row's (#793). */
+function GroupRowButton({
+  branchId,
+  className,
+  ...props
+}: { branchId: string | undefined } & React.ComponentProps<
+  typeof SidebarMenuButton
+>) {
+  const isHighlighted = useIsFrameHighlighted(branchId)
+  const hoverProps = useWorkspaceHoverProps(branchId, "group")
+  return (
+    <SidebarMenuButton
+      {...props}
+      {...hoverProps}
+      className={cn(
+        className,
+        isHighlighted && "bg-sidebar-accent text-sidebar-accent-foreground"
+      )}
+    />
   )
 }
 

@@ -1501,6 +1501,54 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "sidebar-workspace-hover-groups",
+    description:
+      "Hovering a Workspace row lights up the Groups on it and their following frames; frames of those Groups on other Workspaces stay unlit (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await hoverWorkspaceRow(page, "search-filters")
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-workspace-hover-exception",
+    description:
+      "Hovering the Workspace of an exception frame: that frame lights up, its Group (on another Workspace) doesn't (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await hoverWorkspaceRow(page, "saved-searches")
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-group-row-hover-workspace",
+    description:
+      "Hovering a Group row in the layer list: its Workspace row lights up (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/frame-group-row")
+        .filter({ hasText: "Progress" })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-group-pill-hover-workspace",
+    description:
+      "Hovering the Workspace pill on a Group's label on the Canvas: its Workspace row lights up (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await page
+        .locator('[data-slot="group-workspace"]')
+        .filter({ hasText: "search-filters" })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "chat-tab-close-focus",
     description:
       "The active chat tab's close button reached by keyboard (focus the tab, then Tab past its label).",
@@ -4064,4 +4112,14 @@ export async function addFixtureFolder(page: Page): Promise<void> {
   await page
     .getByText("Detecting settings…")
     .waitFor({ state: "detached", timeout: 15_000 })
+}
+
+/** Hover a Workspace row in the sidebar by its branch (or title). */
+async function hoverWorkspaceRow(page: Page, name: string): Promise<void> {
+  await page
+    .locator(".group\\/branch-row")
+    .filter({ hasText: name })
+    .first()
+    .locator("[data-sidebar=menu-sub-button]")
+    .hover({ timeout: 15_000 })
 }

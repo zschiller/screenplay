@@ -11,8 +11,12 @@ import {
 } from "@workspace/ui/components/popover"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
+<<<<<<< HEAD
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
+=======
+import { useWorkspaceHoverProps } from "@/lib/workspace-hover-store"
+>>>>>>> 5611ac9 (Hovering a Workspace lights up the Groups on it (#872))
 import type { FrameWorkspace } from "./frame-nav"
 import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
 
@@ -63,10 +67,13 @@ interface GroupLabelProps {
  * `MarkdownLayer` so both kinds of group members render the same label.
  */
 export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
+  // Hovering the pill lights up its Workspace in the sidebar (#872).
+  const hoverProps = useWorkspaceHoverProps(workspace?.branchId, "group")
   if (!workspace) return <GroupName {...props} className="mb-0.5" />
   return (
     <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
       <GroupName {...props} />
+<<<<<<< HEAD
       {workspace.switcher ? (
         <GroupWorkspaceSwitcher
           label={props.label}
@@ -92,6 +99,30 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
           </span>
         </WorkspaceHoverCard>
       )}
+=======
+      {/* Names win: the pill gives up its width first. Pressing it selects
+          the Group, like its name, rather than reordering the member under it. */}
+      <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
+        <span
+          data-slot="group-workspace"
+          className="flex min-w-10 shrink-[100]"
+          {...hoverProps}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.stopPropagation()
+            props.onSelectGroup?.(e.shiftKey)
+          }}
+        >
+          <BranchBadge
+            branch={workspace.ref}
+            title={workspace.title}
+            colorKey={workspace.branchId}
+            colorIndex={workspace.colorIndex}
+            className="px-1 py-0 text-3xs"
+          />
+        </span>
+      </WorkspaceHoverCard>
+>>>>>>> 5611ac9 (Hovering a Workspace lights up the Groups on it (#872))
     </div>
   )
 }
