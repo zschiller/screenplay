@@ -371,7 +371,7 @@ function SortableRow({
  * `offsetPx` is how far past the row's edge the line sits — tuned to land in
  * the MIDDLE of the gap to the neighbouring row. The 2px line centers on the
  * gap mid-line when `offsetPx === gap/2 + 1` (e.g. a 4px `gap-1` member list
- * wants `offsetPx = 3`). Defaults to 1 (flush) for the flush Workspaces list.
+ * wants `offsetPx = 3`). Defaults to 1 (flush) for the Workspaces list.
  */
 function DropLine({
   side,
