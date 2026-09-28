@@ -7,6 +7,7 @@ import {
   buildWorkspaceReadTools,
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
+import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
 import type {
   BranchData,
   ChatSessionData,
@@ -18,8 +19,8 @@ import type {
 /**
  * The **Coordinator tools module**: every tool a Room Target chat (the
  * Coordinator, `apps/app/CONTEXT.md`) runs lives behind {@link buildRoomTools}.
- * The in-process engine's tool set calls it today; the desktop MCP server will
- * call the same function, so each tool is defined once.
+ * The in-process engine's tool set calls it, and so does the desktop MCP
+ * server (`coordinator-mcp.ts`), so each tool is defined once.
  *
  * It takes a Room id plus {@link RoomToolPorts}: the things it drives, injected
  * so tests run every tool against a bare Room doc. Tools that change the canvas
@@ -39,6 +40,25 @@ export type TerminalTabSummary = {
   label: string
   /** The Branch (Workspace) the terminal runs against. */
   branchId: string
+}
+
+/**
+ * MCP annotations for the Coordinator's tools, by tool name, sent when a
+ * desktop harness lists them (#903). Codex runs an MCP tool without asking
+ * only when it is `readOnlyHint`, or both `destructiveHint: false` and
+ * `openWorldHint: false`, so give each new tool the honest hints here.
+ */
+export const ROOM_TOOL_ANNOTATIONS: Readonly<
+  Record<string, McpToolAnnotations>
+> = {
+  read_canvas: { readOnlyHint: true, openWorldHint: false },
+  // Workspace reads (`room-read-tools.ts`).
+  read_workspace_chat: { readOnlyHint: true, openWorldHint: false },
+  read_workspace_diff: { readOnlyHint: true, openWorldHint: false },
+  read_workspace_file: { readOnlyHint: true, openWorldHint: false },
+  view_frame: { readOnlyHint: true, openWorldHint: false },
+  // Shared by every chat's toolset (`layer-read-tools.ts`).
+  read_document: { readOnlyHint: true, openWorldHint: false },
 }
 
 export function buildRoomTools(roomId: string, ports: RoomToolPorts): ToolSet {

@@ -11,12 +11,16 @@ const get = vi.fn(async ({ name }: { name: string }) => ({
   name,
   worktreePath: `/work/${name}`,
 }))
-vi.mock("@/lib/sandbox", () => ({ sandboxProvider: { get: (o: { name: string }) => get(o) } }))
+vi.mock("@/lib/sandbox", () => ({
+  sandboxProvider: { get: (o: { name: string }) => get(o) },
+}))
 
 // Native session resume reads/writes the chat's stored ACP session id, and a
 // stale-model fallback reconciles the stored `model`. Mock the persistence seam
 // so this unit doesn't reach the db.
-const getAcpSessionId = vi.fn(async (_chatId: string): Promise<string | null> => null)
+const getAcpSessionId = vi.fn(
+  async (_chatId: string): Promise<string | null> => null
+)
 const setAcpSessionId = vi.fn(async (_chatId: string, _id: string) => {})
 const setChatModel = vi.fn(async (_chatId: string, _model: string) => {})
 vi.mock("@/lib/agent/persistence", () => ({
@@ -37,7 +41,21 @@ vi.mock("./spawn-session-factory", () => ({
   },
 }))
 
+// The Coordinator's MCP server is served by the local build only.
+const localMode = vi.hoisted(() => ({ isLocalBuild: false }))
+vi.mock("@/lib/local-mode", () => localMode)
+
+// The Coordinator's folder is created on disk; keep it out of the home dir.
+const ensureCoordinatorFolder = vi.fn(
+  async (roomId: string) => `/coordinator/${roomId}`
+)
+vi.mock("@/lib/agent/coordinator-mcp", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/agent/coordinator-mcp")>()),
+  ensureCoordinatorFolder: (roomId: string) => ensureCoordinatorFolder(roomId),
+}))
+
 import { ENGINE_ENV_VAR } from "./engine-select"
+import { resolveCoordinatorToken } from "@/lib/agent/coordinator-mcp"
 import { ExternalEngine } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
 import {
@@ -216,5 +234,84 @@ describe("resolveLiveEngine", () => {
       }
     ).config.reconcileModel
     expect(reconcile).toBeUndefined()
+  })
+
+  // The Coordinator on a desktop harness (#903).
+  describe("for the Coordinator chat", () => {
+    type Config = {
+      cwd?: string
+      mcpServers?: {
+        type?: string
+        name: string
+        url?: string
+        headers?: { name: string; value: string }[]
+      }[]
+      sessionMeta?: Record<string, unknown>
+    }
+    const configOf = (engine: unknown) => (engine as { config: Config }).config
+
+    afterEach(() => {
+      localMode.isLocalBuild = false
+      ensureCoordinatorFolder.mockClear()
+    })
+
+    it("runs in the Room's own folder and gets its tools over MCP", async () => {
+      process.env[ENGINE_ENV_VAR] = "external"
+      localMode.isLocalBuild = true
+      const config = configOf(
+        await resolveLiveEngine({ chatId: "room-chat-r1" })
+      )
+
+      expect(ensureCoordinatorFolder).toHaveBeenCalledWith("r1")
+      expect(config.cwd).toBe("/coordinator/r1")
+      const [server] = config.mcpServers!
+      expect(server).toMatchObject({
+        type: "http",
+        name: "screenplay",
+        url: expect.stringMatching(
+          /^http:\/\/127\.0\.0\.1:\d+\/api\/agent\/mcp$/
+        ),
+      })
+      const auth = server!.headers!.find((h) => h.name === "Authorization")
+      expect(resolveCoordinatorToken(auth!.value)).toEqual({
+        roomId: "r1",
+        chatId: "room-chat-r1",
+      })
+      expect(config.sessionMeta).toEqual({
+        claudeCode: { options: { allowedTools: ["mcp__screenplay__*"] } },
+      })
+    })
+
+    it("keeps one token per chat across turns", async () => {
+      process.env[ENGINE_ENV_VAR] = "external"
+      localMode.isLocalBuild = true
+      const first = configOf(
+        await resolveLiveEngine({ chatId: "room-chat-r2" })
+      )
+      const second = configOf(
+        await resolveLiveEngine({ chatId: "room-chat-r2" })
+      )
+      expect(second.mcpServers).toEqual(first.mcpServers)
+    })
+
+    it("passes no MCP server outside the local build, which has no route", async () => {
+      process.env[ENGINE_ENV_VAR] = "external"
+      const config = configOf(
+        await resolveLiveEngine({ chatId: "room-chat-r1" })
+      )
+      expect(config.mcpServers).toBeUndefined()
+      expect(ensureCoordinatorFolder).not.toHaveBeenCalled()
+    })
+
+    it("leaves Workspace chats alone", async () => {
+      process.env[ENGINE_ENV_VAR] = "external"
+      localMode.isLocalBuild = true
+      const config = configOf(
+        await resolveLiveEngine({ sandboxName: "branch-7", chatId: "chat-9" })
+      )
+      expect(config.cwd).toBe("/work/branch-7")
+      expect(config.mcpServers).toBeUndefined()
+      expect(config.sessionMeta).toBeUndefined()
+    })
   })
 })

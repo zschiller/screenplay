@@ -11,6 +11,8 @@ import {
   type AnyMessage,
   type InitializeResponse,
   type LoadSessionRequest,
+  type McpServer,
+  type NewSessionRequest,
   type PromptRequest,
   type PromptResponse,
   type SessionConfigOption,
@@ -64,6 +66,7 @@ interface FakeModels {
 
 type FakeAgentOpts = {
   loadSession?: boolean
+  mcpCapabilities?: { http?: boolean; sse?: boolean }
   modes?: FakeModes
   models?: FakeModels
 }
@@ -99,6 +102,9 @@ class FakeAcpAgent implements Agent {
   initializeCalls = 0
   newSessionCalls = 0
   loadedSessionId: string | null = null
+  /** The last `session/new` and `session/load` params, as the agent got them. */
+  newSessionParams: NewSessionRequest | null = null
+  loadSessionParams: LoadSessionRequest | null = null
   cancelCalls = 0
   setSessionModeCalls: string[] = []
   setSessionModelCalls: string[] = []
@@ -115,16 +121,20 @@ class FakeAcpAgent implements Agent {
     this.initializeCalls++
     return {
       protocolVersion: PROTOCOL_VERSION,
-      agentCapabilities: { loadSession: this.opts.loadSession ?? true },
+      agentCapabilities: {
+        loadSession: this.opts.loadSession ?? true,
+        mcpCapabilities: this.opts.mcpCapabilities,
+      },
     }
   }
 
-  async newSession(): Promise<{
+  async newSession(params: NewSessionRequest): Promise<{
     sessionId: string
     modes?: FakeModes
     configOptions?: SessionConfigOption[]
   }> {
     this.newSessionCalls++
+    this.newSessionParams = params
     return {
       sessionId: SESSION_ID,
       modes: this.opts.modes,
@@ -140,6 +150,7 @@ class FakeAcpAgent implements Agent {
     params: LoadSessionRequest
   ): Promise<{ modes?: FakeModes; configOptions?: SessionConfigOption[] }> {
     this.loadedSessionId = params.sessionId
+    this.loadSessionParams = params
     return {
       modes: this.opts.modes,
       configOptions: modelConfigOptions(this.opts.models),
@@ -279,6 +290,70 @@ describe("AcpSession — handshake and new-or-load", () => {
     expect(agent.loadedSessionId).toBe("sess_prior")
     expect(agent.newSessionCalls).toBe(0)
     expect(session.id).toBe("sess_prior")
+  })
+})
+
+// The Coordinator's tools reach a desktop harness as an MCP server (#903).
+describe("AcpSession — MCP servers", () => {
+  const http: McpServer = {
+    type: "http",
+    name: "screenplay",
+    url: "http://127.0.0.1:4100/api/agent/mcp",
+    headers: [{ name: "Authorization", value: "Bearer t" }],
+  }
+  const meta = {
+    claudeCode: { options: { allowedTools: ["mcp__screenplay__*"] } },
+  }
+
+  it("passes the servers and _meta on session/new", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      mcpCapabilities: { http: true },
+    })
+    await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/coordinator/r1",
+      mcpServers: [http],
+      sessionMeta: meta,
+    })
+    expect(agent.newSessionParams).toMatchObject({
+      cwd: "/coordinator/r1",
+      mcpServers: [http],
+      _meta: meta,
+    })
+  })
+
+  it("passes the same servers and _meta on session/load, so a resume keeps the tools", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      mcpCapabilities: { http: true },
+    })
+    await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/coordinator/r1",
+      loadSessionId: SESSION_ID,
+      mcpServers: [http],
+      sessionMeta: meta,
+    })
+    expect(agent.newSessionCalls).toBe(0)
+    expect(agent.loadSessionParams).toMatchObject({
+      sessionId: SESSION_ID,
+      mcpServers: [http],
+      _meta: meta,
+    })
+  })
+
+  it("drops an http server the agent didn't advertise, keeping stdio", async () => {
+    const stdio: McpServer = { name: "local", command: "x", args: [], env: [] }
+    const { transport, agent } = connectFakeAgent(async () => "end_turn")
+    await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/",
+      mcpServers: [http, stdio],
+    })
+    expect(agent.newSessionParams?.mcpServers).toEqual([stdio])
+  })
+
+  it("sends no servers and no _meta by default", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn")
+    await AcpSession.open(transport, collectingPorts().ports, { cwd: "/" })
+    expect(agent.newSessionParams?.mcpServers).toEqual([])
+    expect(agent.newSessionParams).not.toHaveProperty("_meta")
   })
 })
 

@@ -10,7 +10,15 @@ import {
   decodeHarnessModelId,
   encodeHarnessModelId,
 } from "@/lib/agent/harnesses"
+import { roomIdOfRoomChat } from "@/lib/chat/room-chat"
+import { isLocalBuild } from "@/lib/local-mode"
+import {
+  coordinatorMcpServer,
+  coordinatorSessionMeta,
+  ensureCoordinatorFolder,
+} from "@/lib/agent/coordinator-mcp"
 import { engineChoiceFromEnv, selectEngine } from "./engine-select"
+import type { ExternalEngineConfig } from "./acp-engine"
 import type { Engine } from "./engine-seam"
 import { SpawnAcpSessionFactory } from "./spawn-session-factory"
 
@@ -81,11 +89,13 @@ export async function resolveLiveEngine(
   }
 
   // The agent runs in the Branch's worktree — the same absolute path the
-  // terminal transport and tools resolve (`SandboxInstance.worktreePath`). A
-  // layer-targeted chat has no sandbox, so the engine falls back to "/".
+  // terminal transport and tools resolve (`SandboxInstance.worktreePath`). The
+  // Coordinator runs in its Room's own folder with its tools served over MCP.
+  // A layer-targeted chat has no sandbox, so the engine falls back to "/".
+  const coordinator = await coordinatorSession(opts.chatId)
   const cwd = opts.sandboxName
     ? (await sandboxProvider.get({ name: opts.sandboxName })).worktreePath
-    : undefined
+    : coordinator?.cwd
 
   // Parse the stored id once into `{ key, modelId? }`. A non-harness id (a
   // `provider:` model, or none) decodes to null → the env-default harness and no
@@ -120,6 +130,29 @@ export async function resolveLiveEngine(
       onSessionId,
       modelId,
       reconcileModel,
+      mcpServers: coordinator?.mcpServers,
+      sessionMeta: coordinator?.sessionMeta,
     },
   })
+}
+
+/**
+ * The Coordinator's harness session setup (#903), or null for any other chat:
+ * its Room's stable folder, its tools as an MCP server on the sidecar, and
+ * Claude's allow rule for them. Only the local build serves that MCP route, so
+ * anywhere else the Coordinator gets no server rather than a dead one.
+ */
+async function coordinatorSession(chatId: string | undefined): Promise<
+  | (Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> & {
+      cwd: string
+    })
+  | null
+> {
+  const roomId = chatId ? roomIdOfRoomChat(chatId) : null
+  if (!roomId || !chatId || !isLocalBuild) return null
+  return {
+    cwd: await ensureCoordinatorFolder(roomId),
+    mcpServers: [coordinatorMcpServer({ roomId, chatId })],
+    sessionMeta: coordinatorSessionMeta(),
+  }
 }
