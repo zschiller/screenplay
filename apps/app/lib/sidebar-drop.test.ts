@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 import {
-  reorderGroupsToGap,
+  reorderToGap,
+  resolveRepoListDrop,
   resolveSidebarDrop,
+  type RepoListDrop,
   type SidebarDrop,
   type SidebarDropGroup,
+  type SidebarDropRepo,
   type SidebarRow,
 } from "@/lib/sidebar-drop"
 
@@ -251,7 +254,7 @@ describe("resolveSidebarDrop", () => {
   })
 })
 
-describe("reorderGroupsToGap", () => {
+describe("reorderToGap", () => {
   it.each([
     [["a", "b", "c"], "a", 0, null],
     [["a", "b", "c"], "a", 1, null],
@@ -260,6 +263,142 @@ describe("reorderGroupsToGap", () => {
     [["a", "b", "c"], "b", 3, ["a", "c", "b"]],
     [["a", "b", "c"], "missing", 0, null],
   ] as const)("%j: %s to gap %i", (ids, id, gap, expected) => {
-    expect(reorderGroupsToGap(ids, id, gap)).toEqual(expected)
+    expect(reorderToGap(ids, id, gap)).toEqual(expected)
+  })
+})
+
+/**
+ * Repositories list as the user sees it:
+ *   repogap:0
+ *   r1              repo:r1
+ *     p             branch:p
+ *     q             branch:q
+ *     s             branch:s
+ *   repogap:1
+ *   r2              repo:r2
+ *     t             branch:t
+ *   repogap:2
+ *   r3              repo:r3
+ *   repogap:3
+ */
+const repos: SidebarDropRepo[] = [
+  { id: "r1", branchIds: ["p", "q", "s"] },
+  { id: "r2", branchIds: ["t"] },
+  { id: "r3", branchIds: [] },
+]
+
+const NO_REPO_DROP: RepoListDrop = { hint: null, intent: null }
+const br = (id: string) => `branch:${id}`
+const branchLine = (id: string, edge: "before" | "after") => ({
+  kind: "line",
+  rowId: br(id),
+  edge,
+})
+const repoOrder = (...orderedIds: string[]) => ({
+  hint: null,
+  intent: { kind: "reorder-repos", orderedIds },
+})
+const branchOrder = (repoId: string, ...orderedIds: string[]) => ({
+  kind: "reorder-branches",
+  repoId,
+  orderedIds,
+})
+
+const repoCases: [
+  string,
+  string,
+  string,
+  "before" | "after",
+  RepoListDrop | object,
+][] = [
+  // --- Repo into a gap strip ---
+  [
+    "repo to the top",
+    "repo:r3",
+    "repogap:0",
+    "before",
+    repoOrder("r3", "r1", "r2"),
+  ],
+  [
+    "repo to the end",
+    "repo:r1",
+    "repogap:3",
+    "before",
+    repoOrder("r2", "r3", "r1"),
+  ],
+  [
+    "repo down one",
+    "repo:r1",
+    "repogap:2",
+    "after",
+    repoOrder("r2", "r1", "r3"),
+  ],
+  ["repo into its own top gap", "repo:r2", "repogap:1", "before", NO_REPO_DROP],
+  [
+    "repo into its own bottom gap",
+    "repo:r2",
+    "repogap:2",
+    "before",
+    NO_REPO_DROP,
+  ],
+  ["repo over a row", "repo:r1", br("t"), "after", NO_REPO_DROP],
+  ["repo over a repo", "repo:r1", "repo:r2", "after", NO_REPO_DROP],
+
+  // --- Branch beside a sibling ---
+  [
+    "branch before a sibling",
+    br("s"),
+    br("p"),
+    "before",
+    {
+      hint: branchLine("p", "before"),
+      intent: branchOrder("r1", "s", "p", "q"),
+    },
+  ],
+  [
+    "branch after a sibling paints before the next",
+    br("p"),
+    br("q"),
+    "after",
+    {
+      hint: branchLine("s", "before"),
+      intent: branchOrder("r1", "q", "p", "s"),
+    },
+  ],
+  [
+    "branch after the last sibling",
+    br("p"),
+    br("s"),
+    "after",
+    {
+      hint: branchLine("s", "after"),
+      intent: branchOrder("r1", "q", "s", "p"),
+    },
+  ],
+  [
+    "branch back into its own slot",
+    br("q"),
+    br("p"),
+    "after",
+    { hint: branchLine("q", "before"), intent: null },
+  ],
+  ["branch over itself", br("q"), br("q"), "after", NO_REPO_DROP],
+  [
+    "branch over another repo's branch",
+    br("p"),
+    br("t"),
+    "before",
+    NO_REPO_DROP,
+  ],
+  ["branch over a gap strip", br("p"), "repogap:1", "before", NO_REPO_DROP],
+  ["branch over a repo header", br("p"), "repo:r1", "after", NO_REPO_DROP],
+  ["unknown branch", br("zz"), br("p"), "before", NO_REPO_DROP],
+]
+
+describe("resolveRepoListDrop", () => {
+  it.each(repoCases)("%s", (_name, activeId, overId, side, expected) => {
+    expect(resolveRepoListDrop({ repos, activeId, overId, side })).toEqual(
+      expected
+    )
   })
 })

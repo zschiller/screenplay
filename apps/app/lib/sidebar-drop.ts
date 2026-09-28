@@ -1,6 +1,9 @@
 /**
- * Sidebar Drop — the one decision behind a drag in the Room Sidebar's Canvas
- * list (Groups and their Members). Pure: no React, no dnd-kit, no Yjs.
+ * Sidebar Drop — the one decision behind a drag in the Room Sidebar: the
+ * Canvas list (Groups and their Members, {@link resolveSidebarDrop}) and the
+ * Repositories list (Repos and their Branches, {@link resolveRepoListDrop}).
+ * Pure: no React, no dnd-kit, no Yjs. Every reorder in both lists goes through
+ * one gap algorithm, {@link reorderToGap}.
  *
  * Given the visible rows, the dragged row, the row or gap under the pointer,
  * and which half of that row the pointer is in, {@link resolveSidebarDrop}
@@ -97,26 +100,28 @@ export function parseSidebarRowId(id: string): SidebarTargetId | null {
 }
 
 /**
- * New Group order with `groupId` slotted into gap `sidebarIndex` (0 = before
- * the first Group, N = after the last), or null when nothing moves. The gap is
- * counted with the source Group still in the list, as the sidebar shows it.
+ * New order with `id` slotted into gap `gap` (0 = before the first item, N =
+ * after the last), or null when nothing moves. The gap is counted with the
+ * source still in the list, as the sidebar shows it. The one reorder algorithm
+ * for Groups, Repos and Branches: a before/after drop on a row is the gap on
+ * that side of it.
  */
-export function reorderGroupsToGap(
-  groupIds: readonly string[],
-  groupId: string,
-  sidebarIndex: number
+export function reorderToGap(
+  ids: readonly string[],
+  id: string,
+  gap: number
 ): string[] | null {
-  const currentIdx = groupIds.indexOf(groupId)
+  const currentIdx = ids.indexOf(id)
   if (currentIdx < 0) return null
-  const target = currentIdx < sidebarIndex ? sidebarIndex - 1 : sidebarIndex
-  const withoutSource = groupIds.filter((_, i) => i !== currentIdx)
+  const target = currentIdx < gap ? gap - 1 : gap
+  const withoutSource = ids.filter((_, i) => i !== currentIdx)
   const clamped = Math.max(0, Math.min(target, withoutSource.length))
   const next = [
     ...withoutSource.slice(0, clamped),
-    groupId,
+    id,
     ...withoutSource.slice(clamped),
   ]
-  return next.join(",") === groupIds.join(",") ? null : next
+  return next.join(",") === ids.join(",") ? null : next
 }
 
 const NONE: SidebarDrop = { hint: null, intent: null }
@@ -145,7 +150,7 @@ export function resolveSidebarDrop({
 
   const groupIndex = (id: string) => groups.findIndex((g) => g.id === id)
   const reorder = (sidebarIndex: number): SidebarDrop => {
-    const orderedIds = reorderGroupsToGap(
+    const orderedIds = reorderToGap(
       groups.map((g) => g.id),
       active.groupId,
       sidebarIndex
@@ -275,4 +280,90 @@ export function resolveSidebarDrop({
 
 function toGroupMember(m: SidebarRowMember): GroupMember {
   return { kind: m.kind, id: m.id } as GroupMember
+}
+
+// --- Repositories list: Repos and their Branches ---
+
+/** A Repo in sidebar order with its Branch ids in sidebar order. */
+export type SidebarDropRepo = { id: string; branchIds: readonly string[] }
+
+/**
+ * The Repositories list's drop indicator: a before/after line on one Branch
+ * row. Repos and Branches only reorder, never nest, so there's no `into`, and
+ * Repo drags land in `repogap:N` strips that light themselves up.
+ */
+export type RepoListDropHint = {
+  kind: "line"
+  rowId: string
+  edge: "before" | "after"
+}
+
+export type RepoListDropIntent =
+  | { kind: "reorder-repos"; orderedIds: string[] }
+  | { kind: "reorder-branches"; repoId: string; orderedIds: string[] }
+
+export type RepoListDrop = {
+  hint: RepoListDropHint | null
+  intent: RepoListDropIntent | null
+}
+
+const NO_REPO_DROP: RepoListDrop = { hint: null, intent: null }
+
+/**
+ * The Repositories list's counterpart of {@link resolveSidebarDrop}. Ids are
+ * `repo:ID`, `branch:ID` and `repogap:N` (the strip before Repo N). A Repo
+ * moves only into a gap strip; a Branch moves only before/after a sibling in
+ * its own Repo, so it can never be filed under a foreign Repo.
+ */
+export function resolveRepoListDrop({
+  repos,
+  activeId,
+  overId,
+  side,
+}: {
+  repos: readonly SidebarDropRepo[]
+  activeId: string
+  overId: string
+  side: "before" | "after"
+}): RepoListDrop {
+  if (activeId === overId) return NO_REPO_DROP
+
+  if (activeId.startsWith("repo:")) {
+    if (!overId.startsWith("repogap:")) return NO_REPO_DROP
+    const orderedIds = reorderToGap(
+      repos.map((r) => r.id),
+      activeId.slice(5),
+      Number(overId.slice(8))
+    )
+    return {
+      hint: null,
+      intent: orderedIds ? { kind: "reorder-repos", orderedIds } : null,
+    }
+  }
+
+  if (!activeId.startsWith("branch:") || !overId.startsWith("branch:"))
+    return NO_REPO_DROP
+  const branchId = activeId.slice(7)
+  const repo = repos.find((r) => r.branchIds.includes(branchId))
+  const overIdx = repo?.branchIds.indexOf(overId.slice(7)) ?? -1
+  if (!repo || overIdx < 0) return NO_REPO_DROP
+
+  // "After this Branch" paints as "before the next one", so each gap is one
+  // pixel. Both name the same gap.
+  const nextId = repo.branchIds[overIdx + 1]
+  const hint: RepoListDropHint =
+    side === "after" && nextId !== undefined
+      ? { kind: "line", rowId: `branch:${nextId}`, edge: "before" }
+      : { kind: "line", rowId: overId, edge: side }
+  const orderedIds = reorderToGap(
+    repo.branchIds,
+    branchId,
+    side === "after" ? overIdx + 1 : overIdx
+  )
+  return {
+    hint,
+    intent: orderedIds
+      ? { kind: "reorder-branches", repoId: repo.id, orderedIds }
+      : null,
+  }
 }

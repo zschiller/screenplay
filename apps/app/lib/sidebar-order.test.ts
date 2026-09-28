@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { reorderedIds, sortForSidebar } from "@/lib/sidebar-order"
+import { sortForSidebar } from "@/lib/sidebar-order"
 
 type Item = { id: string; sidebarOrder?: number }
 
@@ -43,31 +43,5 @@ describe("sortForSidebar", () => {
     ).map((i) => i.id)
 
     expect(ordered).toEqual(["manual", "untouched-a", "untouched-b"])
-  })
-})
-
-describe("reorderedIds", () => {
-  it("moves a dragged id down to the position of the id it was dropped on", () => {
-    const result = reorderedIds(["a", "b", "c", "d"], "a", "c")
-
-    expect(result).toEqual(["b", "c", "a", "d"])
-  })
-
-  it("moves a dragged id up to the position of the id it was dropped on", () => {
-    const result = reorderedIds(["a", "b", "c", "d"], "d", "b")
-
-    expect(result).toEqual(["a", "d", "b", "c"])
-  })
-
-  it("returns the order unchanged when active and over are the same", () => {
-    const result = reorderedIds(["a", "b", "c"], "b", "b")
-
-    expect(result).toEqual(["a", "b", "c"])
-  })
-
-  it("returns the order unchanged when an id is not in the list", () => {
-    const result = reorderedIds(["a", "b", "c"], "missing", "b")
-
-    expect(result).toEqual(["a", "b", "c"])
   })
 })
