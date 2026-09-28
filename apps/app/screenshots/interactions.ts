@@ -111,6 +111,33 @@ export const INTERACTIONS: Interaction[] = [
     },
   },
   {
+    name: "canvas-zoom-recover",
+    description:
+      "Zooming the reference Canvas all the way out, then recovering with zoom to fit (⇧1), 100% (⌘0), and the zoom menu's Zoom to fit.",
+    path: `/${ids.rooms.checkout}`,
+    run: async (page) => {
+      const box = page.viewportSize() ?? DEFAULT_VIEWPORT
+      await page.mouse.move(box.width / 2, box.height / 2)
+      for (let i = 0; i < 8; i++) {
+        await page.keyboard.down("Control")
+        await page.mouse.wheel(0, 20)
+        await page.keyboard.up("Control")
+        await page.waitForTimeout(120)
+      }
+      await page.waitForTimeout(1200)
+      await page.keyboard.press("Shift+Digit1")
+      await page.waitForTimeout(1500)
+      await page.keyboard.press("Control+0")
+      await page.waitForTimeout(1500)
+      await page.keyboard.press("Control+Minus")
+      await page.waitForTimeout(800)
+      await click(page, page.getByRole("button", { name: /^Zoom, / }))
+      await page.waitForTimeout(600)
+      await click(page, page.getByRole("menuitem", { name: /Zoom to fit/ }))
+      await page.waitForTimeout(1500)
+    },
+  },
+  {
     name: "agent-chat",
     description: "Scrolling back through a finished agent turn.",
     path: `/${ids.rooms.checkout}`,

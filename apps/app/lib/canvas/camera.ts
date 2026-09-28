@@ -77,3 +77,72 @@ export function fitRectToViewport(
     zoom: scale,
   }
 }
+
+/**
+ * The stops the zoom-in / zoom-out buttons and `⌘=` / `⌘-` step through,
+ * spanning `ZOOM_MIN`..`ZOOM_MAX`.
+ */
+export const ZOOM_LEVELS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5] as const
+
+/**
+ * The next zoom stop above (`direction` 1) or below (-1) `current`, staying at
+ * the last stop when there's nowhere further to go. A zoom already sitting
+ * between stops (after a pinch) goes to the neighbouring stop, not past it.
+ */
+export function stepZoom(
+  current: number,
+  direction: 1 | -1,
+  levels: readonly number[] = ZOOM_LEVELS
+): number {
+  const EPS = 1e-3
+  if (direction > 0) {
+    return levels.find((l) => l > current * (1 + EPS)) ?? levels.at(-1)!
+  }
+  return (
+    [...levels].reverse().find((l) => l < current * (1 - EPS)) ?? levels[0]!
+  )
+}
+
+/**
+ * The transform that changes the zoom to `zoom` while keeping the world point
+ * under screen-space `point` fixed (e.g. the viewport center).
+ */
+export function zoomAtPoint(
+  transform: CameraTransform,
+  zoom: number,
+  point: { x: number; y: number }
+): CameraTransform {
+  const ratio = zoom / transform.zoom
+  return {
+    x: point.x - (point.x - transform.x) * ratio,
+    y: point.y - (point.y - transform.y) * ratio,
+    zoom,
+  }
+}
+
+/** The smallest rect enclosing every rect, or `null` when there are none. */
+export function unionRect(rects: Iterable<Rect>): Rect | null {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const r of rects) {
+    minX = Math.min(minX, r.x)
+    minY = Math.min(minY, r.y)
+    maxX = Math.max(maxX, r.x + r.width)
+    maxY = Math.max(maxY, r.y + r.height)
+  }
+  if (!isFinite(minX)) return null
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+}
+
+/**
+ * Below this zoom, Layer labels and resize handles hide: the labels collapse
+ * into overlapping stubs and the handles' constant-size hit zones swallow the
+ * tiles they wrap.
+ */
+export const LAYER_DETAIL_MIN_ZOOM = 0.25
+
+export function showsLayerDetail(zoom: number): boolean {
+  return zoom >= LAYER_DETAIL_MIN_ZOOM - 1e-3
+}

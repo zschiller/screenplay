@@ -1,6 +1,7 @@
 import { type RefObject, useEffect } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
+import { matchCanvasShortcut } from "@/lib/canvas/shortcuts"
 import { isLocalBuild } from "@/lib/local-mode"
 
 import type { CanvasInteraction } from "@/components/canvas/use-canvas-interaction"
@@ -29,6 +30,10 @@ import type { ToolModeController } from "@/components/canvas/use-tool-mode"
  * panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, space-pan) behaves
  * exactly as before, including the `isEditing` guard that suppresses shortcuts
  * inside inputs / textareas / contenteditable.
+ *
+ * The zoom keys (⌘= / ⌘- / ⌘0 / ⇧1) and `?` for the shortcut sheet (#734) are
+ * matched by the React-free `matchCanvasShortcut` in `lib/canvas/shortcuts`,
+ * which is also the catalogue the tooltips and the sheet read.
  */
 export interface CanvasKeyboardInputs {
   /** Tool Mode controller — the `/`-resolver source plus the tool dispatches. */
@@ -51,6 +56,15 @@ export interface CanvasKeyboardInputs {
   /** Side panels toggled by ⌘B (sidebar), ⌘I (chat), and ⌘. (both). */
   sidebarPanelRef: RefObject<PanelImperativeHandle | null>
   chatPanelRef: RefObject<PanelImperativeHandle | null>
+  /** Zoom verbs for ⌘= / ⌘- / ⌘0 / ⇧1. */
+  zoom: {
+    zoomIn: () => void
+    zoomOut: () => void
+    zoomTo100: () => void
+    zoomToFit: () => void
+  }
+  /** Opens the `?` keyboard shortcut sheet. */
+  openShortcutSheet: () => void
 }
 
 export function useCanvasKeyboard({
@@ -62,6 +76,8 @@ export function useCanvasKeyboard({
   interaction,
   sidebarPanelRef,
   chatPanelRef,
+  zoom,
+  openShortcutSheet,
 }: CanvasKeyboardInputs): void {
   useEffect(() => {
     const isEditing = (e: KeyboardEvent) => {
@@ -118,6 +134,16 @@ export function useCanvasKeyboard({
             selection.clear()
             break
         }
+        return
+      }
+      const action = matchCanvasShortcut(e, isEditing(e))
+      if (action) {
+        e.preventDefault()
+        if (action === "zoom-in") zoom.zoomIn()
+        else if (action === "zoom-out") zoom.zoomOut()
+        else if (action === "zoom-to-100") zoom.zoomTo100()
+        else if (action === "zoom-to-fit") zoom.zoomToFit()
+        else openShortcutSheet()
         return
       }
       // The four draw-tool shortcuts each dispatch one Tool Mode intent; the
@@ -261,5 +287,7 @@ export function useCanvasKeyboard({
     interaction,
     sidebarPanelRef,
     chatPanelRef,
+    zoom,
+    openShortcutSheet,
   ])
 }
