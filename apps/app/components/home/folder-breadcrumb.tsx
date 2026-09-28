@@ -44,7 +44,7 @@ const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
 // to move the item up to that level. The hover ring matches the sidebar's drop
 // targets; the padding it needs is cancelled by a matching negative margin so
 // the trail doesn't shift.
-const DROP_ITEM_CLASS = "-mx-1.5 rounded-md px-1.5"
+const DROP_ITEM_CLASS = "-mx-1.5 -my-1 rounded-md px-1.5 py-1"
 const DROP_OVER_CLASS = "ring-2 ring-primary [&_a]:text-foreground"
 
 /**

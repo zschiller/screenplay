@@ -315,7 +315,7 @@ function MoveToForm({
         {onCreateFolder && (
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             className="sm:mr-auto"
             disabled={newFolderParent !== undefined || pending}
             onClick={openNewFolder}
@@ -413,7 +413,7 @@ function NewFolderRow({
   return (
     <div
       data-new-folder
-      className="flex items-center gap-2 py-0.5 pr-2"
+      className="flex items-center gap-2 py-0.5"
       style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
     >
       <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
