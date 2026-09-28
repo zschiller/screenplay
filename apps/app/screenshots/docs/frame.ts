@@ -65,12 +65,13 @@ export async function frameScreens(
         await page.setViewportSize({ width, height })
         await page.setContent(html, { waitUntil: "load" })
         const png = await page.screenshot()
+        const webp = await sharp(png).webp({ quality: 86 }).toBuffer()
         const out = join(DOCS_SCREENSHOT_DIR, `${screen.name}.${theme}.webp`)
-        if (await looksTheSame(png, out)) {
+        if (await looksTheSame(webp, out)) {
           unchanged++
           continue
         }
-        await writeFile(out, await sharp(png).webp({ quality: 86 }).toBuffer())
+        await writeFile(out, webp)
         written++
       }
       console.log(`  ✓ ${screen.name}`)
@@ -94,16 +95,17 @@ const CHANNEL_TOLERANCE = 24
  * file and a continuous refresh would never go quiet.
  */
 async function looksTheSame(
-  png: Buffer,
+  webp: Buffer,
   existingPath: string
 ): Promise<boolean> {
   if (!existsSync(existingPath)) return false
+  const existing = await readFile(existingPath)
+  if (existing.equals(webp)) return true
+  // Compare the two encodings, so lossy-compression artifacts appear on both
+  // sides rather than reading as a change.
   const [a, b] = await Promise.all([
-    sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
-    sharp(existingPath)
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true }),
+    sharp(webp).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(existing).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
   ])
   if (a.info.width !== b.info.width || a.info.height !== b.info.height) {
     return false
