@@ -84,9 +84,6 @@ export function DeleteRepoDialog({
       verb="Remove"
       itemName={repoName}
       itemNoun="project"
-      confirmLabel={
-        remote ? "Remove project and GitHub branches" : "Remove project"
-      }
       description={
         count === 0
           ? "The project is removed from this canvas."

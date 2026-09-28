@@ -54,7 +54,7 @@ describe("projectLostWorkWarning", () => {
       ])
     ).toBe("Unpushed work in 2 workspaces will be lost.")
     expect(projectLostWorkWarning([{ commits: 0, files: 1 }])).toBe(
-      "Uncommitted files in 1 workspace will be lost."
+      "Unsaved work in 1 workspace will be lost."
     )
   })
 })

@@ -53,18 +53,16 @@ describe("DeleteBranchDialog remote-delete offer", () => {
       "unchecked"
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete workspace" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
     expect(onConfirm).toHaveBeenCalledWith({ deleteOnRemote: false })
   })
 
-  it("names the GitHub branch on the button once the option is ticked", () => {
+  it("passes the opt-in through once the option is ticked", () => {
     const { onConfirm } = renderDialog()
 
     fireEvent.click(screen.getByRole("checkbox"))
-    fireEvent.click(
-      screen.getByRole("button", { name: "Delete workspace and GitHub branch" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
     expect(onConfirm).toHaveBeenCalledWith({ deleteOnRemote: true })
   })
@@ -75,7 +73,7 @@ describe("DeleteBranchDialog remote-delete offer", () => {
     expect(screen.queryByRole("checkbox")).toBeNull()
     expect(screen.queryByText(/delete the branch on GitHub/i)).toBeNull()
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete workspace" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
     expect(onConfirm).toHaveBeenCalledWith({ deleteOnRemote: false })
   })
@@ -84,12 +82,10 @@ describe("DeleteBranchDialog remote-delete offer", () => {
     const onConfirm = vi.fn().mockRejectedValue(new Error("Sandbox busy"))
     renderDialog({ onConfirm })
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete workspace" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
     expect(await screen.findByText("Sandbox busy")).toBeDefined()
-    expect(
-      screen.getByRole("button", { name: "Delete workspace" })
-    ).toBeDefined()
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDefined()
   })
 })
 

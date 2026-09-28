@@ -23,11 +23,9 @@ export function joinFacts(facts: string[]): string {
  */
 export function LostWorkAlert({ children }: { children: ReactNode }) {
   return (
-    <Alert className="border-transparent bg-warning/10 px-3 text-warning">
+    <Alert className="border-transparent bg-warning/10 text-warning">
       <TriangleAlert />
-      <AlertDescription className="text-[13px] text-current">
-        {children}
-      </AlertDescription>
+      <AlertDescription className="text-current">{children}</AlertDescription>
     </Alert>
   )
 }

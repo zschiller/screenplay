@@ -107,10 +107,6 @@ export function DeleteBranchDialog({
       verb="Delete"
       itemName={branchName}
       itemNoun="workspace"
-      confirmLabel={
-        remote ? "Delete workspace and GitHub branch" : "Delete workspace"
-      }
-      pendingLabel="Deleting…"
       description={
         <dl className="grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1.5">
           <dt>Removes</dt>

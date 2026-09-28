@@ -83,12 +83,12 @@ describe("DeleteRepoDialog", () => {
       "dataset.state",
       "unchecked"
     )
-    fireEvent.click(screen.getByRole("button", { name: "Remove project" }))
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
 
     expect(onConfirm).toHaveBeenCalledWith({ deleteBranchesOnRemote: false })
   })
 
-  it("names the GitHub branches on the button once ticked", () => {
+  it("passes the opt-in through once ticked", () => {
     const { onConfirm } = renderDialog()
 
     expect(
@@ -96,9 +96,7 @@ describe("DeleteRepoDialog", () => {
     ).toBeDefined()
     expect(screen.getByText("Closes PR #482")).toBeDefined()
     fireEvent.click(screen.getByRole("checkbox"))
-    fireEvent.click(
-      screen.getByRole("button", { name: "Remove project and GitHub branches" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
 
     expect(onConfirm).toHaveBeenCalledWith({ deleteBranchesOnRemote: true })
   })

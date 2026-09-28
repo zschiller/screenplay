@@ -37,11 +37,6 @@ export type ConfirmDialogProps = {
    */
   description: ReactNode
   /**
-   * The confirm button's label when it must say more than the verb ("Delete
-   * workspace and GitHub branch"). Defaults to the verb.
-   */
-  confirmLabel?: string
-  /**
    * Optional slot between the description and the footer, for an option such
    * as "Also delete on remote". A function receives whether the confirm is in
    * flight, so the option can disable itself meanwhile.
@@ -87,7 +82,6 @@ export function ConfirmDialog({
   itemName,
   itemNoun,
   description,
-  confirmLabel,
   children,
   destructive = true,
   pendingLabel,
@@ -171,7 +165,7 @@ export function ConfirmDialog({
                 {pendingLabel ?? pendingLabelFor(verb)}
               </>
             ) : (
-              (confirmLabel ?? verb)
+              verb
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

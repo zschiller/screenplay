@@ -75,7 +75,7 @@ export function projectLostWorkWarning(losses: LostWork[]): string | null {
   const where = plural(affected.length, "workspace", "workspaces")
   return affected.some((l) => l.commits > 0)
     ? `Unpushed work in ${where} will be lost.`
-    : `Uncommitted files in ${where} will be lost.`
+    : `Unsaved work in ${where} will be lost.`
 }
 
 /** A Workspace row's state chip in the remove-project list. */
