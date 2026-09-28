@@ -84,7 +84,6 @@ import {
 } from "@workspace/ui/components/dialog"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
-import { BranchBadge } from "@/components/branch-badge"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import {
   AddRepositoryDialog,
@@ -136,7 +135,7 @@ import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
 import { checkBranchRename } from "@/lib/branch-rename"
-import { workspaceLabel } from "@/lib/workspace-label"
+import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
 import { InputDialog } from "@/components/home/input-dialog"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
 import {
@@ -1511,42 +1510,63 @@ export function RoomSidebar({
                                                             }
                                                           />
                                                           {branch.ref ? (
-                                                            <BranchBadge
-                                                              ref={branchRef}
-                                                              branch={
-                                                                branch.ref
-                                                              }
-                                                              title={
-                                                                branch.title
-                                                              }
-                                                              colorKey={
-                                                                branch.id
-                                                              }
-                                                              colorIndex={
-                                                                branch.colorIndex
-                                                              }
-                                                              className="px-1.5 py-0 text-2xs"
-                                                              onRename={(
-                                                                next
+                                                            // A plain title, like the other sidebar rows
+                                                            // (wireframe 2.1A); the Workspace colour stays
+                                                            // on the canvas. Untitled Workspaces show
+                                                            // their branch in mono.
+                                                            <span
+                                                              className={cn(
+                                                                "flex min-w-0 has-[[data-editable-text=editing]]:overflow-visible",
+                                                                !hasWorkspaceTitle(
+                                                                  branch
+                                                                ) &&
+                                                                  "font-mono text-xs"
+                                                              )}
+                                                              // The sortable row's keyboard sensor eats
+                                                              // Space; keep the editor's keys here.
+                                                              onKeyDown={(
+                                                                e
                                                               ) => {
-                                                                // Renames the title only (#881); the branch
-                                                                // moves through Rename branch in the menu.
-                                                                const title =
-                                                                  next.trim()
                                                                 if (
-                                                                  !title ||
-                                                                  title ===
-                                                                    workspaceLabel(
-                                                                      branch
-                                                                    )
+                                                                  (
+                                                                    e.target as HTMLElement
+                                                                  )
+                                                                    .isContentEditable
                                                                 )
-                                                                  return
-                                                                onUpdateBranch(
-                                                                  branch.id,
-                                                                  { title }
-                                                                )
+                                                                  e.stopPropagation()
                                                               }}
-                                                            />
+                                                            >
+                                                              <EditableText
+                                                                ref={branchRef}
+                                                                as="span"
+                                                                value={workspaceLabel(
+                                                                  branch
+                                                                )}
+                                                                onCommit={(
+                                                                  next
+                                                                ) => {
+                                                                  // Renames the title only (#881); the branch
+                                                                  // moves through Rename branch in the menu.
+                                                                  const title =
+                                                                    next.trim()
+                                                                  if (
+                                                                    !title ||
+                                                                    title ===
+                                                                      workspaceLabel(
+                                                                        branch
+                                                                      )
+                                                                  )
+                                                                    return
+                                                                  onUpdateBranch(
+                                                                    branch.id,
+                                                                    { title }
+                                                                  )
+                                                                }}
+                                                                className="min-w-0"
+                                                                viewClassName="truncate"
+                                                                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                                                              />
+                                                            </span>
                                                           ) : (
                                                             <span className="truncate font-mono text-xs text-muted-foreground">
                                                               Creating…
@@ -1727,13 +1747,15 @@ export function RoomSidebar({
                       <div>
                         <GitBranch className="shrink-0 text-sidebar-foreground/70" />
                         {activeBranchesDrag.branch.ref ? (
-                          <BranchBadge
-                            branch={activeBranchesDrag.branch.ref}
-                            title={activeBranchesDrag.branch.title}
-                            colorKey={activeBranchesDrag.branch.id}
-                            colorIndex={activeBranchesDrag.branch.colorIndex}
-                            className="px-1.5 py-0 text-2xs"
-                          />
+                          <span
+                            className={cn(
+                              "truncate",
+                              !hasWorkspaceTitle(activeBranchesDrag.branch) &&
+                                "font-mono text-xs"
+                            )}
+                          >
+                            {workspaceLabel(activeBranchesDrag.branch)}
+                          </span>
                         ) : (
                           <span className="truncate font-mono text-xs text-muted-foreground">
                             Creating…
