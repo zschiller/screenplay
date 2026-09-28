@@ -8,7 +8,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 /**
  * Where a setup step stands. `current` is the one expanded step; the rest are
- * one-row summaries: `done` (a green tick), `skipped` (a grey dash, never the
+ * one-row summaries: `done` (a blue tick), `skipped` (a grey dash, never the
  * tick), or `upcoming` (its number, muted).
  */
 export type SetupStepState = "current" | "upcoming" | "done" | "skipped"
@@ -23,8 +23,9 @@ export function SetupChip({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The expanded, current step: a dark 1px border so it reads as active, a
- * numbered title, and its body indented under the title.
+ * The expanded, current step: the normal 1px border plus a faint muted ring so
+ * it reads as active in both themes, a numbered title, and its body indented
+ * under the title.
  */
 export function CurrentSetupStep({
   step,
@@ -41,7 +42,7 @@ export function CurrentSetupStep({
   return (
     <section
       aria-labelledby={titleId}
-      className="flex flex-col gap-3 rounded-lg border border-foreground p-4 dark:border-foreground/60"
+      className="flex flex-col gap-3 rounded-lg border border-foreground/20 p-4 shadow-xs ring-3 ring-foreground/5"
     >
       <div className="flex items-center gap-2.5">
         <StepMarker step={step} state="current" />
@@ -104,7 +105,7 @@ export function CollapsedSetupStep({
 }
 
 /**
- * A step's marker: its number while current or upcoming, a green tick once
+ * A step's marker: its number while current or upcoming, a blue tick once
  * done, a grey dash once skipped, so a skipped step never reads as finished.
  */
 export function StepMarker({
@@ -130,7 +131,7 @@ export function StepMarker({
           ? "size-5 border-[1.5px] border-foreground text-2xs"
           : "size-4 text-3xs",
         state === "upcoming" && "border border-border text-muted-foreground",
-        state === "done" && "bg-emerald-600 text-white dark:bg-emerald-500",
+        state === "done" && "bg-info text-info-foreground",
         state === "skipped" && "bg-muted text-muted-foreground",
         className
       )}

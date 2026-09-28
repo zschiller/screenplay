@@ -17,7 +17,7 @@ import { CollapsedSetupStep, CurrentSetupStep, SetupChip } from "./setup-step"
  * Step 2 of the setup gate: GitHub, which is optional. It runs on the same
  * connection hook as the Settings panel (install `gh` and sign in, or sign in,
  * in the inline host terminal; the device code as a fallback) and adds Skip,
- * which the gate persists. Collapsed, it shows a green tick once connected and a
+ * which the gate persists. Collapsed, it shows a blue tick once connected and a
  * grey dash once skipped.
  */
 export function GitHubStep({
