@@ -128,7 +128,9 @@ const TitleEnterBehavior = Extension.create({
 /** One button in the selection toolbar. Fires on `mousedown` (not click) with
  *  `preventDefault` so toggling a format never blurs the editor or collapses
  *  the selection before the command runs — the same discipline the old
- *  send-to-agent bubble used. */
+ *  send-to-agent bubble used. A pressed format takes the stock `Toggle`
+ *  on-state (muted fill), not the tool modes' solid fill, so the formats a
+ *  selection already has stay quiet. */
 function FormatButton({
   label,
   active,
@@ -144,6 +146,8 @@ function FormatButton({
     <FloatingToolbarButton
       label={label}
       pressed={active}
+      variant="ghost"
+      className="aria-pressed:bg-muted aria-pressed:text-foreground dark:aria-pressed:hover:bg-muted"
       tabIndex={-1}
       onMouseDown={(e) => {
         e.preventDefault()
