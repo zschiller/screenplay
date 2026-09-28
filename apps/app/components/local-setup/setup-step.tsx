@@ -110,9 +110,11 @@ export function CollapsedSetupStep({
 export function StepMarker({
   step,
   state,
+  className,
 }: {
   step: number
   state: SetupStepState
+  className?: string
 }) {
   const label = {
     current: `Step ${step}:`,
@@ -129,7 +131,8 @@ export function StepMarker({
           : "size-4 text-[10px]",
         state === "upcoming" && "border border-border text-muted-foreground",
         state === "done" && "bg-emerald-600 text-white dark:bg-emerald-500",
-        state === "skipped" && "bg-muted text-muted-foreground"
+        state === "skipped" && "bg-muted text-muted-foreground",
+        className
       )}
     >
       {state === "done" ? (

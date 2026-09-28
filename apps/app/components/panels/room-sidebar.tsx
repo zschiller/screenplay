@@ -669,6 +669,8 @@ interface RoomSidebarProps {
    * checklist, #780). Each new `seq` opens it once.
    */
   newWorkspaceRequest?: { repoId: string; seq: number } | null
+  /** Pinned under the scrolling lists (the getting-started checklist, #780). */
+  footer?: React.ReactNode
 }
 
 function sanitizeBranchName(raw: string): string {
@@ -734,6 +736,7 @@ export function RoomSidebar({
   branchPrs,
   addProjectRequest = 0,
   newWorkspaceRequest = null,
+  footer,
 }: RoomSidebarProps) {
   // The add-project popover moves through a small view-state machine: the
   // repo/URL picker, the folder-path fallback form (#604), or — once an
@@ -2220,7 +2223,9 @@ export function RoomSidebar({
                       <p className="text-center text-xs text-balance text-sidebar-foreground/50">
                         No projects yet
                       </p>
-                      {isLocalBuild ? (
+                      {/* The getting-started checklist below already leads
+                          with Add project; one button is enough. */}
+                      {footer ? null : isLocalBuild ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button type="button" variant="outline" size="sm">
@@ -2537,6 +2542,7 @@ export function RoomSidebar({
             </DragOverlay>
           </DndContext>
         </div>
+        {footer && <div className="shrink-0 p-2">{footer}</div>}
         {(() => {
           const branch = pendingDeleteBranchId
             ? branches.find((a) => a.id === pendingDeleteBranchId)

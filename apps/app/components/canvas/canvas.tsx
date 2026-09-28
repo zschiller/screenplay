@@ -1494,6 +1494,24 @@ export function Canvas({
             branchPrs={branchPrs}
             addProjectRequest={addProjectRequest}
             newWorkspaceRequest={newWorkspaceRequest}
+            footer={
+              showGettingStarted ? (
+                <GettingStartedChecklist
+                  progress={gettingStarted}
+                  onAddProject={handleAddProject}
+                  onNewWorkspace={() => {
+                    const repo = repos[0]
+                    if (!repo) return
+                    setNewWorkspaceRequest((prev) => ({
+                      repoId: repo.id,
+                      seq: (prev?.seq ?? 0) + 1,
+                    }))
+                  }}
+                  onShowFrame={handleSelectIframeLayer}
+                  onDismiss={clearGettingStartedCanvas}
+                />
+              ) : null
+            }
           />
         </ResizablePanel>
         <ResizableHandle className="focus-visible:ring-0" />
@@ -1812,34 +1830,11 @@ export function Canvas({
                 onClose={closeCursorChat}
               />
             ) : null}
-            {showGettingStarted &&
-            !(
-              isCanvasEmpty &&
-              (toolMode.frameMode || toolMode.documentMode)
-            ) ? (
-              <GettingStartedChecklist
-                progress={gettingStarted}
-                placement={isCanvasEmpty ? "center" : "corner"}
+            {isCanvasEmpty && (
+              <CanvasEmptyState
+                toolMode={toolMode}
                 onAddProject={handleAddProject}
-                onNewWorkspace={() => {
-                  const repo = repos[0]
-                  if (!repo) return
-                  sidebarPanelRef.current?.expand()
-                  setNewWorkspaceRequest((prev) => ({
-                    repoId: repo.id,
-                    seq: (prev?.seq ?? 0) + 1,
-                  }))
-                }}
-                onShowFrame={handleSelectIframeLayer}
-                onDismiss={clearGettingStartedCanvas}
               />
-            ) : (
-              isCanvasEmpty && (
-                <CanvasEmptyState
-                  toolMode={toolMode}
-                  onAddProject={handleAddProject}
-                />
-              )
             )}
             {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
