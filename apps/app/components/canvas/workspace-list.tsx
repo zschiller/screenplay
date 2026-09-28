@@ -12,9 +12,9 @@ import {
 } from "@workspace/ui/components/command"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
-import { BranchBadge } from "@/components/branch-badge"
 import { PrStateBadge } from "@/components/pr-state-badge"
 import type { BranchData } from "@/lib/types"
+import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
 import type { FrameWorkspace } from "./frame-nav"
 
 /**
@@ -48,6 +48,30 @@ function WorkspaceIcon({ branch }: { branch: BranchData }) {
   )
 }
 
+/**
+ * A Workspace's plain name, as the sidebar row draws it: its title, or its
+ * branch in mono when untitled. Lists and labels carry no Workspace colour.
+ */
+export function WorkspaceName({
+  workspace,
+  className,
+}: {
+  workspace: Pick<BranchData, "title" | "ref">
+  className?: string
+}) {
+  return (
+    <span
+      className={cn(
+        "min-w-0 truncate",
+        !hasWorkspaceTitle(workspace) && "font-mono text-xs",
+        className
+      )}
+    >
+      {workspaceLabel(workspace)}
+    </span>
+  )
+}
+
 /** An exception frame's way back to its Group's Workspace (#868). */
 export interface FollowGroup {
   /** The Group's name. */
@@ -57,24 +81,31 @@ export interface FollowGroup {
 
 /**
  * The searchable Workspace list a frame's Workspace switchers open (the label
- * picker and the address bar's host, issue #867): status icon, pill, PR or diff and
- * a check on the current one. For a frame on another Workspace than its Group
- * (#868), it leads with "Follow <Group>", which picks the Group's.
+ * picker and the address bar's host, issue #867): status icon, name, PR or
+ * diff and * a check on the current one. For a frame on another Workspace than its Group
+ * (#868), it leads with "Follow <Group>", which picks the Group's. The Group
+ * switcher (#869) opens it too, with a footer saying what the pick moves.
  */
 export function WorkspaceCommandList({
   branches,
   currentBranchId,
   onPick,
   followGroup,
+  placeholder = "Search workspaces…",
+  footer,
 }: {
   branches: BranchData[]
   currentBranchId?: string
   onPick: (branchId: string) => void
   followGroup?: FollowGroup
+  /** The search field's prompt; the Group switcher asks "Show <Group> from…". */
+  placeholder?: string
+  /** Muted lines under the list, read before picking (#869). */
+  footer?: string[]
 }) {
   return (
     <Command>
-      <CommandInput placeholder="Search workspaces…" />
+      <CommandInput placeholder={placeholder} />
       <CommandList>
         <CommandEmpty>No workspaces found.</CommandEmpty>
         {followGroup && (
@@ -86,12 +117,9 @@ export function WorkspaceCommandList({
               >
                 <Undo2 />
                 <span className="truncate">Follow {followGroup.name}</span>
-                <BranchBadge
-                  branch={followGroup.workspace.ref}
-                  title={followGroup.workspace.title}
-                  colorKey={followGroup.workspace.branchId}
-                  colorIndex={followGroup.workspace.colorIndex}
-                  className="ml-auto min-w-0 px-1.5 py-0 text-2xs"
+                <WorkspaceName
+                  workspace={followGroup.workspace}
+                  className="ml-auto text-muted-foreground"
                 />
               </CommandItem>
             </CommandGroup>
@@ -111,13 +139,7 @@ export function WorkspaceCommandList({
                 onSelect={() => onPick(a.id)}
               >
                 <WorkspaceIcon branch={a} />
-                <BranchBadge
-                  branch={a.ref}
-                  title={a.title}
-                  colorKey={a.id}
-                  colorIndex={a.colorIndex}
-                  className="min-w-0 px-1.5 py-0 text-2xs"
-                />
+                <WorkspaceName workspace={a} />
                 <span className="ml-auto flex shrink-0 items-center gap-2">
                   {a.status === "running" && a.prNumber && a.prState ? (
                     // Wrapped in the badge's own colour, so the item's
@@ -143,6 +165,13 @@ export function WorkspaceCommandList({
           })}
         </CommandGroup>
       </CommandList>
+      {footer && footer.length > 0 && (
+        <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+          {footer.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      )}
     </Command>
   )
 }

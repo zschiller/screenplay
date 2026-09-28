@@ -271,7 +271,11 @@ function FrameWorkspaceHost({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <MaybeWorkspaceHoverCard branchId={workspace?.branchId} side="bottom">
+      <MaybeWorkspaceHoverCard
+        branchId={workspace?.branchId}
+        side="bottom"
+        suppressed={open}
+      >
         <PopoverTrigger asChild>
           <button
             type="button"

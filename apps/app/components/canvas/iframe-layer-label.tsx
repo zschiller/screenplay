@@ -201,6 +201,7 @@ function BranchPicker({
       <MaybeWorkspaceHoverCard
         branchId={branch ? currentBranchId : undefined}
         side="bottom"
+        suppressed={open}
       >
         <PopoverTrigger asChild>
           <button

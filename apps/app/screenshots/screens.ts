@@ -2567,6 +2567,54 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 800,
   },
+  {
+    name: "canvas-group-workspace-hover",
+    description:
+      "Hovering a Group's Workspace pill on its group label: the up-down chevron shows that it switches the whole Group (#869).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      // Frames that follow their Group name no Workspace, so the only canvas
+      // label carrying Empty cart state is the Cart group's. (Checkout's label
+      // sits under the top chrome at this viewport.)
+      await page
+        .locator(".canvas-frame-label")
+        .getByText("Empty cart state")
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-group-workspace-switcher",
+    description:
+      "A Group's Workspace list, opened from the pill on its group label: Show <Group> from…, and a footer saying how many frames move (#869).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: /^Show Cart from another workspace/ })
+        .click({ timeout: 15_000 })
+      await page
+        .getByPlaceholder("Show Cart from…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 800,
+  },
+  {
+    name: "canvas-group-workspace-exceptions",
+    description:
+      "A Group switcher whose Group has exceptions: the footer names the frames that stay on their own Workspaces (#869).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      // Progress is on search-filters; Starting and Ready are exceptions.
+      await page
+        .getByRole("button", { name: /^Show Progress from another workspace/ })
+        .click({ timeout: 15_000 })
+      await page
+        .getByPlaceholder("Show Progress from…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 800,
+  },
   ...(
     [
       ["booting", "framesBooting", "Booting"],

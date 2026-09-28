@@ -53,11 +53,8 @@ import {
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
-import {
-  FrameAddressBar,
-  type FramePreviewStatus,
-  type FrameWorkspace,
-} from "./frame-nav"
+import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
+import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import type { FollowGroup } from "./workspace-list"
 import { KnobsPopover } from "./knobs-popover"
@@ -274,7 +271,7 @@ interface IframeLayerProps {
   /** Group label shown above the branch — only on the leftmost iframeLayer of a multi-iframeLayer group. */
   groupLabel?: string
   /** The Group's Workspace, named after the group label (#868). */
-  groupWorkspace?: FrameWorkspace
+  groupWorkspace?: GroupWorkspace
   /** The frame names its own Workspace on its label: it differs from its
    *  Group's, or the frame is a Group of one with no group label (#868). */
   showWorkspace?: boolean

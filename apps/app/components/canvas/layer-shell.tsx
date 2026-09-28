@@ -10,7 +10,7 @@ import {
 import { showsLayerDetail } from "@/lib/canvas/camera"
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
-import type { FrameWorkspace } from "./frame-nav"
+import type { GroupWorkspace } from "./group-label"
 
 /**
  * The resting edge every Layer's surface wears: one radius and one hairline, so
@@ -121,7 +121,7 @@ interface LayerShellProps {
   // ── Title bar ──────────────────────────────────────────────────────────────
   groupLabel?: string
   /** The Group's Workspace, named after the group label (#868). */
-  groupWorkspace?: FrameWorkspace
+  groupWorkspace?: GroupWorkspace
   /** Remote selector's color for the group label. */
   remoteGroupSelectedColor?: string
   onSelectGroup?: (shiftKey: boolean) => void

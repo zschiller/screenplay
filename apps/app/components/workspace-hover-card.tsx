@@ -40,23 +40,31 @@ export function useCloseWorkspaceHoverCard(): () => void {
  *
  * `children` is the trigger. Pressing it closes the card, so a click that opens
  * a menu or a picker, or starts a drag, never leaves the card on top.
+ * `suppressed` keeps it closed while that picker is open: the hover that led
+ * to the click would otherwise open the card over it once its delay runs out.
  */
 export function WorkspaceHoverCard({
   branchId,
   side = "right",
   align = "start",
+  suppressed = false,
   children,
 }: {
   branchId: string
   side?: "top" | "right" | "bottom" | "left"
   align?: "start" | "center" | "end"
+  suppressed?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
   return (
     <CloseHoverCardContext.Provider value={close}>
-      <HoverCard open={open} onOpenChange={setOpen} openDelay={500}>
+      <HoverCard
+        open={open && !suppressed}
+        onOpenChange={(next) => setOpen(next && !suppressed)}
+        openDelay={500}
+      >
         <HoverCardTrigger asChild onPointerDown={close}>
           {children}
         </HoverCardTrigger>

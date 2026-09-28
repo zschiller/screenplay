@@ -5,8 +5,11 @@ import { memo } from "react"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import {
   groupBranchId,
+  groupSwitchFrames,
+  groupSwitchSummary,
   isWorkspaceException,
 } from "@/lib/canvas/group-workspace"
+import { workspaceLabel } from "@/lib/workspace-label"
 import type {
   IframeLayerLayoutMap,
   PlaceholderRect,
@@ -226,6 +229,36 @@ function CanvasMemberLayerImpl({
             : undefined
         }
 
+        // The group label's pill, as a switcher for the whole Group (#869).
+        const groupSwitcherOf = (
+          group: IframeLayerGroupData,
+          groupBranch: string | undefined
+        ) => {
+          const workspace = workspaceOf(groupBranch)
+          if (!workspace) return undefined
+          const { following, exceptions } = groupSwitchFrames(group, framesById)
+          const summary = groupSwitchSummary(
+            following.length,
+            exceptions.map((id) => {
+              const frame = framesById.get(id)
+              const branch = agents.find((a) => a.id === frame?.branchId)
+              return {
+                name: frame?.label || "Untitled",
+                workspace: branch?.ref ? workspaceLabel(branch) : undefined,
+              }
+            })
+          )
+          return {
+            ...workspace,
+            switcher: {
+              branches: agents,
+              summary,
+              onPick: (branchId: string) =>
+                layerMutations.assignGroupAgent(group.id, branchId),
+            },
+          }
+        }
+
         return entries.map(({ member, group }) => {
           const members = getGroupMembers(group)
           const index = members.findIndex((m) => m.id === member.id)
@@ -236,7 +269,9 @@ function CanvasMemberLayerImpl({
             : undefined
           const groupBranch = groupBranchId(group, framesById)
           const groupWorkspace =
-            index === 0 && showGroupLabel ? workspaceOf(groupBranch) : undefined
+            index === 0 && showGroupLabel
+              ? groupSwitcherOf(group, groupBranch)
+              : undefined
           // Tint this member's name (and, on the leftmost member,
           // the group label) to match a remote user's selection
           // rect. Skipped when we've selected it locally — our own
