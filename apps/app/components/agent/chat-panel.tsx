@@ -321,10 +321,10 @@ function ChatTabLabel({
 }
 
 /**
- * Tab label for a terminal tab. Visibly distinct from chat tabs — a terminal
- * glyph and a monospace label — so it's obvious which guarantees apply
- * (ephemeral + BYO harness, not durable + shared chat). Reads no chat-store
- * status: a terminal tab has no streaming/unread conversation state.
+ * Tab label for a terminal tab. Same sans label as chat tabs (a terminal
+ * running a harness is a chat); the terminal glyph is what sets it apart.
+ * Reads no chat-store status: a terminal tab has no streaming/unread
+ * conversation state.
  */
 function TerminalTabLabel({
   terminal,
@@ -344,7 +344,7 @@ function TerminalTabLabel({
         value={terminal.label}
         onCommit={onRename}
         placeholder="Untitled"
-        className={cn(TAB_LABEL_CLASS, "font-mono text-xs")}
+        className={TAB_LABEL_CLASS}
         viewClassName="truncate"
         editClassName={TAB_LABEL_EDIT_CLASS}
       />
