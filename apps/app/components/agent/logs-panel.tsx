@@ -298,11 +298,14 @@ export function LogsPanel({
       <style href="ansi-palette" precedence="default">
         {ANSI_PALETTE_CSS}
       </style>
+      {/* Terminal metrics: xterm's 16px rows and 4px/12px inset at the shared
+          font size (12px = the chat's `p-3` gutter), so switching tabs doesn't
+          shift the text. */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         style={{ fontSize: TERMINAL_FONT_SIZE }}
-        className="flex-1 overflow-auto px-3 py-2 font-mono leading-relaxed whitespace-pre-wrap text-foreground/80"
+        className="flex-1 overflow-auto px-3 py-1 font-mono leading-4 whitespace-pre-wrap text-foreground/80"
       >
         {tokens.length > 0 ? (
           tokens.map(renderToken)

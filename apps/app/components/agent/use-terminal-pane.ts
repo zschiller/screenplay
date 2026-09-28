@@ -270,7 +270,7 @@ export function useTerminalPane({
       // coincidentally cancelled by FitAddon over-reading the host's border-box
       // width; with the padding now visible to it, the reserve became a real
       // ~2-column dead gutter on the right. Recompute cols against the actual
-      // content width: host width minus the 16px horizontal padding below.
+      // content width: host width minus the 24px horizontal padding below.
       // (Same private `_core` dimensions FitAddon itself reads; verified in
       // Chromium + WebKit to restore the pre-padding column fill exactly.)
       const proposeDimensions = fit.proposeDimensions.bind(fit)
@@ -288,7 +288,7 @@ export function useTerminalPane({
         )._core?._renderService?.dimensions?.css?.cell
         const w = parseInt(getComputedStyle(host).width)
         if (cell?.width && cell.width > 0 && !isNaN(w)) {
-          d.cols = Math.max(2, Math.floor((w - 16) / cell.width))
+          d.cols = Math.max(2, Math.floor((w - 24) / cell.width))
         }
         return d
       }
@@ -316,8 +316,9 @@ export function useTerminalPane({
         // becomes a pixel-remainder lottery on the pane height, and losing it
         // clips the terminal's last line (where a TUI paints its input box).
         // Here FitAddon subtracts it explicitly, so the geometry is correct at
-        // every pane height. (4px 8px = the py-1/px-2 this replaces.)
-        el.style.padding = "4px 8px"
+        // every pane height. 12px sides = the chat's `p-3` gutter, so text
+        // doesn't jump sideways when switching between chat and terminal tabs.
+        el.style.padding = "4px 12px"
       }
 
       // Fit the terminal to the pane — but only when it's actually visible AND
