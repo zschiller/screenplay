@@ -1644,6 +1644,20 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "settings-new-preset",
+    description: "Settings → New preset: choosing the preset's source.",
+    path: "/settings",
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New preset" })
+        .first()
+        .click({ timeout: 30_000 })
+      await page.getByRole("dialog").waitFor({ timeout: 10_000 })
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 500,
+  },
+  {
     name: "settings-duplicate-preset",
     description: "Settings → a saved Project preset's Duplicate button.",
     path: "/settings",

@@ -28,6 +28,7 @@ describe("presetSummary", () => {
       presetSummary(config({ envVars: "A=1\n# note\nB=2\n" }), false)
     ).toEqual({
       commands: ["pnpm install", "pnpm dev"],
+      copies: [],
       facts: ["port 3000", "2 env vars"],
     })
   })
@@ -45,8 +46,8 @@ describe("presetSummary", () => {
       presetSummary(
         config({ envVars: "A=1", copyPatterns: ".env*\n.npmrc" }),
         true
-      ).facts
-    ).toEqual(["copies .env*, .npmrc"])
+      )
+    ).toMatchObject({ copies: [".env*", ".npmrc"], facts: [] })
   })
 
   it("drops blank scripts", () => {

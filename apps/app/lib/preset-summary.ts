@@ -4,28 +4,26 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 /**
  * What a preset sets, as the short facts its settings row shows (#784): the
  * setup and run scripts, then the port and env var count on the web build, or
- * the files it copies on desktop, where the port is a logical key portless
+ * the file patterns it copies on desktop, where the port is a logical key portless
  * remaps and env vars give way to files copied from the checkout.
  */
 export function presetSummary(
   config: RepoConfig,
   localBuild: boolean
-): { commands: string[]; facts: string[] } {
+): { commands: string[]; copies: string[]; facts: string[] } {
   const commands = [config.setupScript, config.devScript]
     .map((s) => s.trim())
     .filter(Boolean)
+  const copies = localBuild ? parseCopyPatterns(config.copyPatterns) : []
   const facts: string[] = []
-  if (localBuild) {
-    const patterns = parseCopyPatterns(config.copyPatterns)
-    if (patterns.length) facts.push(`copies ${patterns.join(", ")}`)
-  } else {
+  if (!localBuild) {
     facts.push(`port ${config.devServerPort}`)
     const envCount = Object.keys(parseEnvVars(config.envVars)).length
     if (envCount) {
       facts.push(`${envCount} env ${envCount === 1 ? "var" : "vars"}`)
     }
   }
-  return { commands, facts }
+  return { commands, copies, facts }
 }
 
 /**

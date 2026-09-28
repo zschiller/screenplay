@@ -228,7 +228,7 @@ export function RepoConfigsPanel() {
         }}
       >
         <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
-          <DialogHeader className="px-4 pt-4 pb-3">
+          <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>
               {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
             </DialogTitle>
@@ -271,6 +271,7 @@ export function RepoConfigsPanel() {
         onOpenChange={setConfirmDiscard}
         verb="Discard"
         itemNoun="changes"
+        cancelLabel="Keep editing"
         description="Your edits to this preset haven’t been saved."
         onConfirm={closeForm}
       />
@@ -334,17 +335,28 @@ function PresetDetail({
   config: RepoConfig
   group: ConfigGroup
 }) {
-  const { commands, facts } = presetSummary(config, isLocalBuild)
+  const { commands, copies, facts } = presetSummary(config, isLocalBuild)
+  // Literal values (scripts, file patterns) are mono; the words around them
+  // stay in the row's own type.
+  const code = (text: string) => (
+    <code className="font-mono text-xs">{text}</code>
+  )
   const parts: React.ReactNode[] = [
-    ...commands.map((command) => (
-      <span key={`cmd:${command}`} className="font-mono text-xs">
-        {command}
-      </span>
-    )),
+    ...(commands.length ? commands.map(code) : ["No scripts set"]),
+    copies.length > 0 && (
+      <>
+        copies{" "}
+        {copies.map((pattern, i) => (
+          <span key={pattern}>
+            {i > 0 && ", "}
+            {code(pattern)}
+          </span>
+        ))}
+      </>
+    ),
     ...facts,
     group.subtext,
   ].filter(Boolean)
-  if (!commands.length) parts.unshift("No scripts set")
   return (
     <span className="block truncate">
       {parts.map((part, i) => (

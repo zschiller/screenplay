@@ -22,6 +22,7 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { NewRepoSource } from "@/lib/github-local/types"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { isLocalBuild } from "@/lib/local-mode"
+import { cn } from "@workspace/ui/lib/utils"
 
 interface RepoConfigFormProps {
   /** The preset being edited; saving updates it in place. */
@@ -208,7 +209,7 @@ export function RepoConfigForm({
   if (!repo) {
     return (
       <>
-        <div className="flex min-w-0 flex-col gap-3 px-4 pb-4">
+        <div className="flex min-w-0 flex-col gap-3 px-5 pb-5">
           <p className="text-sm text-muted-foreground">
             Choose a git repository for this preset.
           </p>
@@ -261,7 +262,7 @@ export function RepoConfigForm({
             </>
           )}
         </div>
-        <DialogFooter className="mx-0 mb-0">
+        <DialogFooter className="px-5 pb-5">
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
@@ -272,7 +273,7 @@ export function RepoConfigForm({
 
   return (
     <>
-      <div className="flex min-w-0 items-center justify-between gap-2 px-4 pb-3">
+      <div className="flex min-w-0 items-center justify-between gap-2 px-5 pb-3">
         <div className="min-w-0 truncate text-sm">
           <span className="text-muted-foreground">Source </span>
           <span className="font-mono">{repo.repoFullName}</span>
@@ -296,7 +297,7 @@ export function RepoConfigForm({
         orientation="vertical"
         className="border-t [&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
       >
-        <div className="flex flex-col gap-5 p-4">
+        <div className="flex flex-col gap-5 p-5">
           <Field>
             <FieldLabel htmlFor="config-name">Preset name</FieldLabel>
             <Input
@@ -305,7 +306,7 @@ export function RepoConfigForm({
               onChange={(e) => setName(e.target.value)}
               placeholder="default"
             />
-            <FieldDescription>Optional, e.g. “web” or “api”.</FieldDescription>
+            <FieldDescription>Optional, e.g. “web” or “api”</FieldDescription>
             {nameCollision && (
               <FieldError>
                 A preset named “{trimmedName || "default"}” already exists for
@@ -335,12 +336,14 @@ export function RepoConfigForm({
       </ScrollArea>
 
       {error && (
-        <p role="alert" className="px-4 pb-3 text-sm text-destructive">
+        <p role="alert" className="border-t px-5 pt-3 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <DialogFooter className="mx-0 mb-0">
+      {/* The border closes the scroll area above, so fields scrolled under
+          the footer end at a line rather than running into the buttons. */}
+      <DialogFooter className={cn("px-5 py-4", !error && "border-t")}>
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
