@@ -1,7 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
+  Copy,
   Folder,
   FolderLock,
   FolderOpen,
@@ -34,6 +35,7 @@ import {
 } from "@/components/home/settings-row"
 import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import { duplicateName, presetSummary } from "@/lib/preset-summary"
 import { isLocalBuild } from "@/lib/local-mode"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 
@@ -41,12 +43,19 @@ type Mode =
   | { kind: "list" }
   | { kind: "new" }
   | { kind: "edit"; config: RepoConfig }
+  | { kind: "duplicate"; config: RepoConfig }
+
+const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
+  new: "New preset",
+  edit: "Edit preset",
+  duplicate: "Duplicate preset",
+}
 
 /**
  * Manages saved Project presets (per-repo setup/dev/port/env), one settings row
- * each, sorted by project. Lives on the Settings page; new/edit opens the form
- * in a dialog over the list, so the editor never nests a scroll area inside the
- * page's own scroll.
+ * each, sorted by project. Lives on the Settings page; new/edit/duplicate opens
+ * the form in a dialog over the list, so the editor never nests a scroll area
+ * inside the page's own scroll.
  */
 export function RepoConfigsPanel() {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
@@ -55,6 +64,10 @@ export function RepoConfigsPanel() {
   const [mode, setMode] = useState<Mode>({ kind: "list" })
   // The preset awaiting delete confirmation; the confirm owns pending + error.
   const [pendingDelete, setPendingDelete] = useState<RepoConfig | null>(null)
+  // Whether the open form differs from what it opened with; closing a changed
+  // form asks first (#784). A ref, since only the close path reads it.
+  const formDirty = useRef(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -86,6 +99,23 @@ export function RepoConfigsPanel() {
     setPendingDelete(null)
   }
 
+  const openForm = (next: Exclude<Mode, { kind: "list" }>) => {
+    formDirty.current = false
+    setMode(next)
+  }
+
+  const closeForm = () => {
+    formDirty.current = false
+    setConfirmDiscard(false)
+    setMode({ kind: "list" })
+  }
+
+  // Cancel, Escape, the close button and an outside click all land here.
+  const requestCloseForm = () => {
+    if (formDirty.current) setConfirmDiscard(true)
+    else closeForm()
+  }
+
   // Grouping has two cases in one list (ADR 0013). A preset with a detected
   // git remote keeps *remote identity*: keyed/displayed by `repoFullName`, so a
   // folder-added preset for `owner/repo` lands in the same group as a GitHub- or
@@ -95,7 +125,7 @@ export function RepoConfigsPanel() {
   const sortedGroups = groupConfigs(configs)
 
   const newPreset = (
-    <Button size="sm" onClick={() => setMode({ kind: "new" })}>
+    <Button size="sm" onClick={() => openForm({ kind: "new" })}>
       <Plus className="size-3.5" />
       New preset
     </Button>
@@ -115,8 +145,11 @@ export function RepoConfigsPanel() {
             </EmptyMedia>
             <EmptyTitle>No project presets yet</EmptyTitle>
             <EmptyDescription>
-              Save a project&apos;s setup and dev scripts once, and every canvas
-              you add it to starts from them.
+              A preset remembers how to run a project:{" "}
+              {isLocalBuild
+                ? "its setup and run scripts, and the files to copy from your checkout."
+                : "its setup and run scripts, port and environment variables."}{" "}
+              Add the project to any canvas and its workspaces start from it.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>{newPreset}</EmptyContent>
@@ -138,18 +171,34 @@ export function RepoConfigsPanel() {
                           ? FolderLock
                           : Folder
                     }
-                    title={group.heading}
-                    detail={
-                      <span className="block truncate">
-                        {presetDetail(config, group)}
-                      </span>
+                    title={
+                      <>
+                        {group.heading}
+                        {presetLabel(config) && (
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            {presetLabel(config)}
+                          </span>
+                        )}
+                      </>
                     }
+                    detail={<PresetDetail config={config} group={group} />}
                     action={
                       <>
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => setMode({ kind: "edit", config })}
+                          onClick={() =>
+                            openForm({ kind: "duplicate", config })
+                          }
+                        >
+                          <Copy className="size-3.5" />
+                          <span className="sr-only">Duplicate</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openForm({ kind: "edit", config })}
                         >
                           <Pencil className="size-3.5" />
                           <span className="sr-only">Edit</span>
@@ -175,13 +224,13 @@ export function RepoConfigsPanel() {
       <Dialog
         open={mode.kind !== "list"}
         onOpenChange={(open) => {
-          if (!open) setMode({ kind: "list" })
+          if (!open) requestCloseForm()
         }}
       >
         <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
           <DialogHeader className="px-4 pt-4 pb-3">
             <DialogTitle>
-              {mode.kind === "edit" ? "Edit preset" : "New preset"}
+              {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
             </DialogTitle>
             <DialogDescription>
               Applied when you add this project to a canvas.
@@ -189,17 +238,42 @@ export function RepoConfigsPanel() {
           </DialogHeader>
           {mode.kind !== "list" && (
             <RepoConfigForm
+              // A fresh form per open, so switching presets never carries
+              // one's edits into another.
+              key={
+                mode.kind === "new" ? "new" : `${mode.kind}:${mode.config.id}`
+              }
               initial={mode.kind === "edit" ? mode.config : undefined}
+              template={
+                mode.kind === "duplicate"
+                  ? {
+                      ...mode.config,
+                      name: duplicateName(mode.config, configs),
+                    }
+                  : undefined
+              }
               existingConfigs={configs}
+              onDirtyChange={(dirty) => {
+                formDirty.current = dirty
+              }}
               onSaved={(updated) => {
                 setConfigs(updated)
-                setMode({ kind: "list" })
+                closeForm()
               }}
-              onCancel={() => setMode({ kind: "list" })}
+              onCancel={requestCloseForm}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        verb="Discard"
+        itemNoun="changes"
+        description="Your edits to this preset haven’t been saved."
+        onConfirm={closeForm}
+      />
 
       <ConfirmDialog
         open={!!pendingDelete}
@@ -238,18 +312,53 @@ type ConfigGroup = {
 }
 
 /**
- * A preset row's detail line: which preset of the project it is, then — for a
- * remote-less folder — the full path its heading abbreviates. The web build adds
- * the port; desktop hides it, since there it's a logical key portless remaps.
+ * The preset's own name beside its project heading, only when it tells the
+ * row apart: a default preset, or one named after its repo, would just repeat
+ * the heading (#784).
  */
-function presetDetail(config: RepoConfig, group: ConfigGroup): string {
-  return [
-    config.name ? `${config.name} preset` : "Default preset",
-    !isLocalBuild && `port ${config.devServerPort}`,
+function presetLabel(config: RepoConfig): string | null {
+  const name = config.name.trim()
+  if (!name || name === config.repoName || name === "default") return null
+  return name
+}
+
+/**
+ * A preset row's detail line (#784): what the preset sets — its scripts in
+ * mono, then the port and env var count (web) or copied files (desktop) — and,
+ * for a remote-less folder, the full path its heading abbreviates.
+ */
+function PresetDetail({
+  config,
+  group,
+}: {
+  config: RepoConfig
+  group: ConfigGroup
+}) {
+  const { commands, facts } = presetSummary(config, isLocalBuild)
+  const parts: React.ReactNode[] = [
+    ...commands.map((command) => (
+      <span key={`cmd:${command}`} className="font-mono text-xs">
+        {command}
+      </span>
+    )),
+    ...facts,
     group.subtext,
-  ]
-    .filter(Boolean)
-    .join(" · ")
+  ].filter(Boolean)
+  if (!commands.length) parts.unshift("No scripts set")
+  return (
+    <span className="block truncate">
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i > 0 && (
+            <span className="mx-1.5" aria-hidden>
+              ·
+            </span>
+          )}
+          {part}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 /** A folder preset with no detected remote falls back to path identity. */

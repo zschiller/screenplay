@@ -1620,8 +1620,9 @@ export const SCREENS: Screen[] = [
     name: "settings-presets-empty",
     description: "Settings with no saved Project presets.",
     path: "/settings",
-    fullPage: true,
     cookies: fixtureFault("no-presets"),
+    prepare: scrollToPresets,
+    settleMs: 300,
   },
   {
     name: "settings-edit-preset",
@@ -1632,6 +1633,46 @@ export const SCREENS: Screen[] = [
       const edit = page.getByRole("button", { name: "Edit", exact: true })
       await edit.first().click({ timeout: 30_000 })
       await page.getByLabel("Preset name").waitFor({ timeout: 10_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "settings-presets",
+    description: "Settings → Project presets: each preset's row and summary.",
+    path: "/settings",
+    prepare: scrollToPresets,
+    settleMs: 300,
+  },
+  {
+    name: "settings-duplicate-preset",
+    description: "Settings → a saved Project preset's Duplicate button.",
+    path: "/settings",
+    prepare: async (page) => {
+      const duplicate = page.getByRole("button", {
+        name: "Duplicate",
+        exact: true,
+      })
+      await duplicate.first().click({ timeout: 30_000 })
+      await page.getByLabel("Preset name").waitFor({ timeout: 10_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "settings-discard-preset",
+    description:
+      "Settings → editing a preset, then Cancel with unsaved changes.",
+    path: "/settings",
+    prepare: async (page) => {
+      const edit = page.getByRole("button", { name: "Edit", exact: true })
+      await edit.first().click({ timeout: 30_000 })
+      const setup = page.getByLabel("Setup script")
+      await setup.waitFor({ timeout: 10_000 })
+      await setup.fill("pnpm install --frozen-lockfile")
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Cancel" })
+        .click()
+      await page.getByRole("alertdialog").waitFor({ timeout: 10_000 })
     },
     settleMs: 300,
   },
@@ -2761,4 +2802,21 @@ export async function addFixtureFolder(page: Page): Promise<void> {
   await page
     .getByText("Detecting settings…")
     .waitFor({ state: "detached", timeout: 15_000 })
+}
+
+/**
+ * Scroll Settings to its Project presets section once the presets have
+ * loaded (New preset shows in both the list and the empty state). The page
+ * scrolls inside the home shell, not the window, so this scrolls the heading
+ * itself into view.
+ */
+async function scrollToPresets(page: Page) {
+  await page
+    .getByRole("button", { name: "New preset" })
+    .first()
+    .waitFor({ timeout: 30_000 })
+  await page
+    .getByRole("heading", { name: "Project presets" })
+    .evaluate((el) => el.scrollIntoView({ block: "start" }))
+  await page.mouse.move(0, 0)
 }

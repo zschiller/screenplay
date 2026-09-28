@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { nanoid } from "nanoid"
 import { FolderOpen } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
@@ -24,8 +24,16 @@ import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { isLocalBuild } from "@/lib/local-mode"
 
 interface RepoConfigFormProps {
+  /** The preset being edited; saving updates it in place. */
   initial?: RepoConfig
+  /**
+   * A preset to start a new one from (Duplicate, #784): its source and fields
+   * seed the form, but saving creates a new preset.
+   */
+  template?: RepoConfig
   existingConfigs: RepoConfig[]
+  /** Fires when the form starts or stops differing from what it opened with. */
+  onDirtyChange?: (dirty: boolean) => void
   onSaved: (updated: RepoConfig[]) => void
   onCancel: () => void
 }
@@ -48,20 +56,23 @@ type RepoIdentity = Pick<
  */
 export function RepoConfigForm({
   initial,
+  template,
   existingConfigs,
+  onDirtyChange,
   onSaved,
   onCancel,
 }: RepoConfigFormProps) {
+  const seed = initial ?? template
   const [repo, setRepo] = useState<RepoIdentity | null>(
-    initial
+    seed
       ? {
-          repoFullName: initial.repoFullName,
-          repoOwner: initial.repoOwner,
-          repoName: initial.repoName,
-          defaultBranch: initial.defaultBranch,
-          cloneUrl: initial.cloneUrl,
-          localPath: initial.localPath,
-          private: initial.private,
+          repoFullName: seed.repoFullName,
+          repoOwner: seed.repoOwner,
+          repoName: seed.repoName,
+          defaultBranch: seed.defaultBranch,
+          cloneUrl: seed.cloneUrl,
+          localPath: seed.localPath,
+          private: seed.private,
         }
       : null
   )
@@ -72,22 +83,42 @@ export function RepoConfigForm({
   const [folderError, setFolderError] = useState<
     { path: string; error: string } | undefined
   >(undefined)
-  const [name, setName] = useState(initial?.name ?? "")
-  const [setupScript, setSetupScript] = useState(initial?.setupScript ?? "")
-  const [devScript, setDevScript] = useState(initial?.devScript ?? "")
+  const [name, setName] = useState(seed?.name ?? "")
+  const [setupScript, setSetupScript] = useState(seed?.setupScript ?? "")
+  const [devScript, setDevScript] = useState(seed?.devScript ?? "")
   const [devServerPort, setDevServerPort] = useState(
-    String(initial?.devServerPort ?? 3000)
+    String(seed?.devServerPort ?? 3000)
   )
-  const [envVars, setEnvVars] = useState(initial?.envVars ?? "")
+  const [envVars, setEnvVars] = useState(seed?.envVars ?? "")
   const [copyPatterns, setCopyPatterns] = useState(
-    initial ? (initial.copyPatterns ?? "") : ".env*"
+    seed ? (seed.copyPatterns ?? "") : ".env*"
   )
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    initial?.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
+    seed?.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
   )
-  const [systemPrompt, setSystemPrompt] = useState(initial?.systemPrompt ?? "")
+  const [systemPrompt, setSystemPrompt] = useState(seed?.systemPrompt ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Everything Save would write, as one comparable value; the form is dirty
+  // once it differs from the value it opened with, so Cancel can ask first.
+  const snapshot = JSON.stringify([
+    repo?.repoFullName,
+    repo?.localPath,
+    name,
+    setupScript,
+    devScript,
+    devServerPort,
+    envVars,
+    copyPatterns,
+    defaultIframeLayerSizeId,
+    systemPrompt,
+  ])
+  const [openedWith] = useState(snapshot)
+  const dirty = snapshot !== openedWith
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
 
   const parsedPort = Number.parseInt(devServerPort, 10)
   const portIsValid =
