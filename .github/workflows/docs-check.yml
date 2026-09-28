@@ -1,0 +1,39 @@
+name: Docs check
+
+# A pull request that changes product code must update the docs in
+# apps/docs/content, or say why not with a `Docs: <reason>` line in its
+# description. Runs again when the description is edited, so adding the line
+# clears a failure without a new push. Screenshots are kept current separately
+# by docs-screenshots.yml; this is about the words.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: docs-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test the check
+        run: node --test .github/scripts/docs-check.test.mjs
+
+      - name: Check docs were updated or waived
+        run: node .github/scripts/docs-check.mjs "origin/${{ github.base_ref }}"

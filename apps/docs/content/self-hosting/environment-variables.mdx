@@ -132,3 +132,17 @@ leaves them all unset.
 | `BLOB_STORE` | `local-fs`: thumbnails on local disk |
 | `AGENT_ENGINE` | `external`: the agent is an installed coding CLI over ACP |
 | `THUMBNAIL_CAPTURER` | `tauri-webview`: capture thumbnails in the desktop webview |
+
+## Desktop build
+
+The desktop shell sets these for the app it launches (see
+[Desktop app](/self-hosting/configuration/desktop-app)). You only set them
+yourself when running the local build by hand.
+
+| Variable | Description |
+| --- | --- |
+| `SCREENPLAY_GITHUB_CLIENT_ID` | Client ID of the GitHub OAuth app used for the desktop's device-flow **Connect GitHub**. Baked into release builds. Without it, device-flow connect is unavailable and GitHub access comes only from the host's `gh` login. |
+| `SCREENPLAY_WORKTREE_ROOT` | Where the local sandbox provider keeps its clones and worktrees. Default: `~/.screenplay/worktrees`. |
+| `PGLITE_DATA_DIR` | Directory for the embedded PGlite database. Default: `./.pglite`. |
+| `PGLITE_MIGRATIONS_DIR` | Where PGlite migrations are read from. The packaged app points it at its bundled `drizzle/local`. |
+| `SCREENPLAY_TERMINAL_WS_PORT` | Port for the local terminal WebSocket server. Default: an ephemeral port. |
