@@ -17,6 +17,7 @@ import {
   type Rect,
 } from "@/lib/canvas/camera"
 import { CANVAS_SIZE, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "@/lib/constants"
+import { isFixtureWorld } from "@/lib/fixture-world"
 import type { CanvasPresence } from "@/lib/yjs/react"
 import type { ViewportData } from "@/lib/types"
 import type { WheelForward } from "@/hooks/use-screenplay-dom"
@@ -404,6 +405,27 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     setViewportPos({ x: savedViewport.x, y: savedViewport.y })
     setPresence({ viewport: savedViewport })
   }, [transformRef, savedViewport, setPresence, setLiveZoom])
+
+  // The screenshot harness frames one Canvas several ways, so in the Fixture
+  // World build it moves the camera through this handle instead of re-seeding
+  // the saved viewport per shot. `isFixtureWorld` is a compile-time constant
+  // and-ed with the local build, so no other build carries it.
+  useEffect(() => {
+    if (!isFixtureWorld) return
+    const handle = {
+      setTransform: (x: number, y: number, zoom: number) => {
+        viewportRestoredRef.current = true
+        transformRef.current?.setTransform(x, y, zoom, 0)
+        setZoom(zoom)
+        setViewportPos({ x, y })
+      },
+    }
+    const w = window as unknown as { __canvasCamera?: typeof handle }
+    w.__canvasCamera = handle
+    return () => {
+      if (w.__canvasCamera === handle) delete w.__canvasCamera
+    }
+  }, [transformRef])
 
   // --- Presence: identity publish + placeholder-viewport seed ---
   // Publish identity + a stable color into awareness on mount and whenever the

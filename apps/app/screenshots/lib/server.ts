@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process"
 
 import { captureEnv, type CaptureProfile } from "../profile"
-import { startPreviewServer } from "./preview-server"
+import { startPreviewServer, type PreviewServerHandle } from "./preview-server"
 
 /**
  * Booting and reaching the local build for a capture run.
@@ -105,7 +105,8 @@ export async function startServer(
  * Poll `/api/health` until it answers. The generous ceiling is for the cold
  * Turbopack compile of the first route on a fresh checkout; it fails fast instead
  * if the child has already exited, so a crashed boot reports the crash rather
- * than timing out two minutes later.
+ * than timing out two minutes later. `SCREENSHOTS_BOOT_TIMEOUT_MS` raises the
+ * ceiling for a cold CI runner, whose first compile can run past it.
  */
 export async function waitForServer(
   profile: CaptureProfile,
@@ -113,7 +114,7 @@ export async function waitForServer(
     code: number | null
     signal: NodeJS.Signals | null
   } | null = () => null,
-  timeoutMs = 180_000
+  timeoutMs = Number(process.env.SCREENSHOTS_BOOT_TIMEOUT_MS) || 180_000
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -186,15 +187,21 @@ export interface CaptureStack {
  */
 export async function startCaptureStack(
   profile: CaptureProfile,
-  opts: { log?: (message: string) => void; quiet?: boolean } = {}
+  opts: {
+    log?: (message: string) => void
+    quiet?: boolean
+    /**
+     * Starts whatever serves the Workspaces' previews. Defaults to the fixture
+     * preview server; the docs set serves its demo site instead.
+     */
+    startPreview?: (profile: CaptureProfile) => Promise<PreviewServerHandle>
+  } = {}
 ): Promise<CaptureStack> {
   const log = opts.log ?? ((m: string) => console.log(m))
-  const preview = await startPreviewServer(
-    profile.previewOrigin,
-    profile.previewPort
-  )
-  if (preview.started)
-    log(`• serving fixture previews on ${profile.previewOrigin}`)
+  const preview = opts.startPreview
+    ? await opts.startPreview(profile)
+    : await startPreviewServer(profile.previewOrigin, profile.previewPort)
+  if (preview.started) log(`• serving previews on ${preview.origin}`)
 
   try {
     const app = await startServer(profile, opts)

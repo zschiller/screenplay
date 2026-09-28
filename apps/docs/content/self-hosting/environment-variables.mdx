@@ -1,0 +1,134 @@
+---
+title: Environment variables
+description: Every environment variable the hosted build reads, what it does, and whether you need it.
+---
+
+import { Callout } from "nextra/components"
+
+# Environment variables
+
+Set these in your host's environment settings (on Vercel: **Project Settings →
+Environment Variables**). For local development, put them in
+`apps/app/.env.local`; `apps/app/.env.local.example` is a commented starting
+point. For which Vercel **scope** each variable goes in, see
+[Deploying to Vercel](/self-hosting/deploying-to-vercel#environment-variable-scopes).
+
+Generate secrets with `openssl rand -hex 32`.
+
+## Quick start
+
+The minimum for a working deployment with the default backends:
+
+```bash
+# Auth
+BETTER_AUTH_URL=https://screenplay.example.com       # production only
+BETTER_AUTH_PRODUCTION_URL=https://screenplay.example.com
+BETTER_AUTH_SECRET=<openssl rand -hex 32>
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+
+# Data
+DATABASE_URL=postgres://...
+LIVEBLOCKS_SECRET_KEY=sk_...
+BLOB_READ_WRITE_TOKEN=...                              # injected when you connect Vercel Blob
+
+# Agent
+ANTHROPIC_API_KEY=sk-ant-...
+AGENT_DEFAULT_MODEL=anthropic:claude-sonnet-4-6
+
+# Secrets
+ENCRYPTION_KEY=<openssl rand -hex 32>
+TERMINAL_AUTH_SECRET=<openssl rand -hex 32>
+```
+
+## Auth
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `BETTER_AUTH_URL` | Production | This deployment's URL. Leave it **unset** on preview deploys, which fall back to `https://$VERCEL_URL`. Locally it defaults to `http://localhost:$PORT`. |
+| `BETTER_AUTH_PRODUCTION_URL` | Yes | The stable URL registered with your GitHub OAuth app. It must be the same everywhere, because preview sign-ins are proxied through it. |
+| `BETTER_AUTH_SECRET` | Yes | Signs sessions and OAuth state. It must be **identical** in production and every preview deploy. |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Yes | From your [GitHub OAuth app](/self-hosting/github-oauth). |
+
+## Data
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | Postgres connection string. See [Database](/self-hosting/database). |
+| `LIVEBLOCKS_SECRET_KEY` | Yes (default Yjs host) | Server-side Liveblocks key. It never reaches the browser. See [Yjs host](/self-hosting/configuration/yjs-host). |
+| `LIVEBLOCKS_WEBHOOK_SECRET` | Optional | Signing secret for a Liveblocks `ydocUpdated` webhook pointed at `/api/liveblocks/webhook`. With it, canvas thumbnails refresh even when nobody has the canvas open (for example while the agent works). Without it, thumbnails refresh from open clients. |
+| `BLOB_READ_WRITE_TOKEN` | Yes (default blob store) | Vercel Blob token for thumbnails. It's injected automatically when you connect a Blob store to the project; run `vercel env pull` to use it locally. See [Blob store](/self-hosting/configuration/blob-store). |
+| `ENCRYPTION_KEY` | Yes | 64 hex characters. Encrypts project environment variables and presets at rest. |
+
+## Agent
+
+At least one model provider must be configured. Each provider enables itself
+when its variables are set. See [Model providers](/self-hosting/configuration/model-providers).
+
+| Variable | Provider |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Anthropic |
+| `OPENAI_API_KEY` | OpenAI |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google Gemini |
+| `AI_GATEWAY_API_KEY` | Vercel AI Gateway. It must be set explicitly, even on Vercel. |
+| `OPENAI_COMPATIBLE_BASE_URL` (+ `OPENAI_COMPATIBLE_API_KEY`) | Any OpenAI-compatible endpoint: OpenRouter, Groq, vLLM, LM Studio… |
+| `AGENT_DEFAULT_MODEL` | The default model as `provider:model`, e.g. `openai:gpt-4o`. It must name a configured provider. Default: `anthropic:claude-sonnet-4-6`. |
+| `SANDBOX_HARNESSES` | Comma-separated coding CLIs to install in every sandbox for [terminal tabs](/guides/terminals): `claude-code`, `codex`, `opencode-gateway`, `opencode-compat`. Unset means none. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
+
+## Terminal access
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `TERMINAL_AUTH_SECRET` | Yes | HMAC key for the short-lived terminal credentials. A user gets one only after passing the canvas-membership check. |
+| `TERMINAL_AUTH` | Optional | How terminal tabs authenticate to the sandbox: `bearer` (default) or `ttyd-credential`. An unknown value fails at startup. |
+
+Choose `TERMINAL_AUTH` based on who uses the deployment:
+
+- **`bearer`** (default, no extra setup). The terminal is reached through a
+  random, unguessable sandbox URL, and **that URL is the whole credential**.
+  URLs can leak through browser history, `Referer` headers, proxy logs, and
+  screen shares, and anyone holding one gets a writable shell until the
+  sandbox is gone. Use it only when every user is trusted.
+- **`ttyd-credential`** (no extra infrastructure). The terminal daemon requires
+  a per-sandbox secret derived from `TERMINAL_AUTH_SECRET`, which is sent over
+  the WebSocket handshake instead of in the URL, so a leaked URL alone isn't
+  enough. The secret is shared by the sandbox's members and lasts as long as
+  the sandbox, so it can't be revoked per user mid-session. Deleting the
+  workspace invalidates it.
+
+<Callout type="warning">
+  Neither mode offers per-user revocation. For a deployment shared with
+  people you don't fully trust, use `ttyd-credential` and keep canvas
+  membership tight. Design notes are in
+  `apps/app/docs/adr/0002-byo-harness-terminal.md`.
+</Callout>
+
+## Sandbox
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `VERCEL_OIDC_TOKEN` | Local dev only | Authenticates the default Vercel Sandbox provider. It's injected automatically on Vercel; locally, `vercel env pull` fetches a ~12-hour token. See [Sandbox provider](/self-hosting/configuration/sandbox-provider). |
+
+## Serving
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `NEXT_PUBLIC_BASE_PATH` | Optional | Serve the app under a path prefix such as `/app`. It's inlined at build time. See [Mount path](/self-hosting/configuration/mount-path). |
+| `CHROMIUM_PATH` | Optional | Chromium binary for thumbnail capture outside Vercel. Defaults to Puppeteer's bundled browser. |
+
+## Build switches
+
+These select alternative backends. The desktop app sets them together; see
+[Local build](/self-hosting/configuration/local-build) and
+[Desktop app](/self-hosting/configuration/desktop-app). A hosted deployment
+leaves them all unset.
+
+| Variable | Values |
+| --- | --- |
+| `NEXT_PUBLIC_SCREENPLAY_LOCAL` | `1` removes the multi-user surface (single local user) |
+| `SANDBOX_BACKEND` | `local`: workspaces are git worktrees on the host |
+| `SCREENPLAY_DB` | `pglite`: embedded Postgres |
+| `NEXT_PUBLIC_YJS_HOST` | `local`: in-process y-websocket server |
+| `BLOB_STORE` | `local-fs`: thumbnails on local disk |
+| `AGENT_ENGINE` | `external`: the agent is an installed coding CLI over ACP |
+| `THUMBNAIL_CAPTURER` | `tauri-webview`: capture thumbnails in the desktop webview |

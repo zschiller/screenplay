@@ -1,0 +1,139 @@
+---
+title: Workspaces
+description: Create workspaces with their own live environment, and manage them from the sidebar.
+---
+
+import { Callout } from "nextra/components"
+
+# Workspaces
+
+A workspace is one git branch of a project, running in its own sandbox with
+its own dev server, frames, agent chats, and terminals. Workspaces are listed
+under their project in the sidebar, each with a colored branch badge. The same
+color tags that workspace's frames across the canvas.
+
+## Creating workspaces
+
+Hover a project and click **+** (**New workspace**). **Create workspaces** can
+create several at once:
+
+<Screenshot name="new-workspace-multi" alt="Create workspaces with two rows, each with a prompt" />
+
+- Each row starts from a **base branch** (the chip above the prompt), which
+  defaults to the project's default branch.
+- Type a **prompt** to give the new workspace its first task. It's sent to
+  the agent as soon as the sandbox is ready, and the branch is named from it
+  (for example `pricing-faq`). Leave the prompt empty to create a bare
+  workspace with a generated name.
+- Each row has its own model picker and **Plan** toggle, the same as the
+  [chat composer](/guides/agent#the-composer).
+- **Add another** (<kbd>⌘</kbd> <kbd>↵</kbd>) adds a row. <kbd>↵</kbd> creates
+  them all.
+
+A new workspace goes through **creating** and **starting** while it checks
+out the branch, runs the setup script, and boots the dev server. The agent
+panel shows the live **sandbox logs** meanwhile. When the server is up, a
+frame appears on the canvas and the panel switches to chat.
+
+To work on a branch that already exists, use **… → Open existing git branch** on
+the project instead.
+
+## The sidebar row
+
+Each workspace row shows:
+
+- a **status icon**: a spinner while starting, a warning when setup failed,
+  an activity spinner while the agent works, or the pull request's state once
+  one is open. Hover it to see what the workspace is doing, such as the setup
+  step and how long it has taken. Click the warning for the error, with
+  **Retry**, **Recreate** and **Copy error**;
+- the **branch name** (double-click to rename);
+- **+/− line counts** for changes compared with the base branch.
+
+Click a row to make it the agent panel's target. Double-click to also open
+the panel.
+
+## The workspace menu
+
+Hover a workspace and click **…**. The menu starts with the one action the
+workspace's state calls for (**Retry setup** after a failed setup, the pull
+request, or **Open prototype player**), then groups the rest under **View**,
+**Git** and **Manage**:
+
+<Screenshot name="ws-menu" alt="The workspace menu" />
+
+| Item | What it does |
+| --- | --- |
+| **Open prototype player** | Opens [play mode](/guides/play-mode) for this workspace. |
+| **Open in browser** | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
+| **Show all routes** | Adds a group with one frame per route the workspace has visited. |
+| **Create pull request** / **Open pull request #N** | Opens a PR into the project's default branch, or jumps to the existing one. |
+| **Rebase on *main*** | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
+| **Open branch on GitHub** | Opens the branch on GitHub. |
+| **New workspace from here…** | Opens **Create workspaces** with this workspace's branch as the base. |
+| **Rename** | Renames the branch. Names already used on the remote are refused. |
+| **Color** | Picks one of 16 colors, or **Reset to default**. |
+| **Restart** | See [Restarting](#restarting). |
+| **Delete** | Removes the workspace, and optionally its branch on GitHub. |
+
+<Screenshot name="ws-color" alt="The Color submenu with 16 colors" />
+
+## Restarting
+
+When a preview gets stuck, **Restart** offers escalating fixes:
+
+<Screenshot name="ws-restart" alt="The Restart submenu: Restart dev server and Recreate from scratch" />
+
+- **Restart dev server** restarts only the dev server process. It's quick,
+  keeps every file, and works even while the agent is busy. Try it first.
+- **Restart sandbox** *(hosted)* restarts the whole sandbox VM. Your working
+  tree, including uncommitted changes, is restored from a snapshot.
+- **Recreate from scratch** deletes the sandbox and checks the branch out
+  fresh. **Uncommitted changes are permanently discarded**, so you'll be asked
+  to confirm.
+
+<Screenshot name="recreate-dialog" alt="The Recreate from scratch confirmation" />
+
+<Callout type="warning">
+  On the hosted app, sandboxes are ephemeral VMs that are reclaimed when idle.
+  Anything worth keeping has to be committed and pushed. The agent commits
+  after every change for this reason. On desktop, worktrees live on your disk
+  and survive restarts.
+</Callout>
+
+## Pull requests
+
+There are three ways to open a PR:
+
+- **Create PR** in the agent panel header. It opens the PR directly, using
+  the branch's commit messages for the title and body, and the button then
+  turns into a link to it.
+- **Create pull request** in the workspace menu.
+- Ask the agent ("open a PR for this"). It uses its `create_pr` tool and shows
+  a link card in the chat.
+
+PRs target the project's default branch. The PR's state (open, merged, or
+closed) is shown on the workspace row and on the header button. Creating PRs
+needs a GitHub connection.
+
+## Deleting
+
+**… → Delete** removes the workspace, its chats and its frames from the
+canvas, and shuts down its sandbox. The dialog lists what it **Removes** and
+what it **Keeps** (the git branch itself isn't deleted), and warns when
+uncommitted changes, or on the hosted app unpushed commits, would be lost. If
+you're connected to GitHub and the project has a GitHub remote, it also offers
+**Also delete the branch on GitHub**, which also closes an open PR. It's off
+by default. If the remote
+delete fails, the workspace is still deleted and a warning names the branch
+left on the remote.
+
+<Screenshot name="delete-branch-dialog" alt="The Delete workspace dialog with the Also delete the branch on GitHub option" />
+
+## One branch, one workspace (desktop)
+
+On desktop, every workspace is a git worktree of one shared clone, and git
+allows each branch to be checked out only once. Opening a branch that's
+already open in another workspace, or checked out in your own clone, fails
+with a clear error rather than sharing the checkout. On the hosted app each
+sandbox is an independent clone, so there's no such limit.

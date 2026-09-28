@@ -1,24 +1,75 @@
+---
+title: Introduction
+description: Screenplay runs coding agents inside live dev environments, laid out on a shared canvas.
+---
+
+import { Cards } from "nextra/components"
+
 # Screenplay
 
-**Screenplay** is a Next.js app that runs coding agents inside live development
-sandboxes, with real-time collaboration on a shared canvas. Each workspace gets
-its own sandbox VM, an agent loop built on the [Vercel AI SDK](https://ai-sdk.dev),
-and a per-room document that syncs canvas state, agent streams, and presence
-across everyone in the room.
+**Screenplay is a canvas for building software with coding agents.** Every
+branch you work on gets its own live environment. Its running app appears as
+real, clickable previews on an infinite canvas. You drive the agent from a chat
+panel beside it and watch the previews update as it works.
 
-This site is the home for **running and self-hosting Screenplay**. It walks you
-from a local checkout through a production deployment, and documents every
-backend you can swap out.
+<Screenshot
+  name="hero"
+  alt="A Screenplay canvas: three workspaces in the sidebar, desktop and mobile previews of a marketing site on the canvas, and the agent's chat on the right"
+/>
 
-## Where to start
+Instead of juggling terminals, browser tabs and branches, you lay the work out
+spatially:
 
-- **[Getting Started](/getting-started)** — clone the monorepo and run it
-  locally.
-- **[Deployment](/deployment/services)** — the services you need, GitHub OAuth,
-  Postgres, environment variables, and deploying to Vercel.
-- **[Configuration](/configuration/sandbox-provider)** — the swappable seams:
-  sandbox provider, blob store, Yjs host, model providers, BYO coding harnesses,
-  and the mount path.
-- **[Development](/development)** — the contributor command reference.
+- **Run several attempts side by side.** Each [workspace](/guides/workspaces)
+  is its own git branch with its own dev server. Try three directions at once
+  and compare them visually.
+- **See every screen at every size.** [Frames](/guides/frames) are live previews
+  of any route at any device size: desktop, tablet, or phone. They stay
+  arranged next to each other, and hot reload keeps them current.
+- **Point, don't describe.** Target an element in a preview, mention a
+  document, or load a skill straight from the [composer](/guides/agent).
+- **Keep the plan next to the product.** [Documents](/guides/documents) live
+  on the same canvas as your previews, and the agent can read and write them.
+- **Hand it to someone.** Open any preview full screen in
+  [play mode](/guides/play-mode), with live [knobs](/building/knobs) for
+  tweaking values without code.
 
-Screenplay is open source under the MIT License.
+## Two ways to run it
+
+<Cards num={2}>
+  <Cards.Card
+    title="Desktop app"
+    href="/quickstart"
+    arrow
+  >
+    A single-user macOS app. Workspaces are git worktrees on your machine, and
+    the agent is the coding CLI you already use (Claude Code, Codex, …),
+    signed in with your own account.
+  </Cards.Card>
+  <Cards.Card
+    title="Self-hosted web app"
+    href="/self-hosting"
+    arrow
+  >
+    A multi-user deployment. Each workspace is a cloud sandbox VM, the agent
+    runs on your model provider keys, and teammates share canvases, cursors,
+    and comments.
+  </Cards.Card>
+</Cards>
+
+Both run the same product from the same codebase. The guides point out the
+few places where they differ.
+
+## Where to go next
+
+<Cards>
+  <Cards.Card title="Quickstart" href="/quickstart" arrow />
+  <Cards.Card title="Core concepts" href="/concepts" arrow />
+  <Cards.Card title="Agent chat" href="/guides/agent" arrow />
+  <Cards.Card title="Keyboard shortcuts" href="/guides/keyboard-shortcuts" arrow />
+  <Cards.Card title="Knobs for your app" href="/building/knobs" arrow />
+  <Cards.Card title="Self-hosting" href="/self-hosting" arrow />
+</Cards>
+
+Screenplay is open source under the MIT License
+([GitHub](https://github.com/zschiller/screenplay)).

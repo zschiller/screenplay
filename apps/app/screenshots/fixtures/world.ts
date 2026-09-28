@@ -141,6 +141,9 @@ export interface FixtureChat {
     toolCallId: string
     plan: string
     createdAt: number
+    /** Defaults to `pending`. A resolved plan renders its approved/rejected
+     *  card in the transcript, and its run is seeded as finished. */
+    status?: "pending" | "approved" | "rejected"
   }
 }
 

@@ -60,6 +60,17 @@ export interface SeedOptions {
   fresh?: boolean
   /** Where progress is reported. Defaults to stdout. */
   log?: (message: string) => void
+  /**
+   * The world to seed. Defaults to the Fixture World (`./world.ts`); the docs
+   * screenshot set (`../docs/`) seeds its own through the same writer.
+   */
+  world?: FixtureWorld
+  /**
+   * Renders the Frame Captures behind each Thumbnail Manifest. Defaults to the
+   * synthetic wireframes (`./frame-captures.ts`); the docs set photographs its
+   * real previews instead.
+   */
+  renderCaptures?: typeof renderFrameCaptures
 }
 
 export interface SeedResult {
@@ -92,7 +103,8 @@ export async function seedFixtureWorld(
     ])
   }
 
-  const world = buildFixtureWorld({ previewOrigin: profile.previewOrigin })
+  const world =
+    options.world ?? buildFixtureWorld({ previewOrigin: profile.previewOrigin })
 
   // Encrypting the Project presets needs the profile's minted ENCRYPTION_KEY,
   // and `lib/crypto` reads it off `process.env` at first use — this process was
@@ -119,6 +131,7 @@ export async function seedFixtureWorld(
       blobDir,
       blobBaseUrl,
       db: handle.db,
+      renderCaptures: options.renderCaptures ?? renderFrameCaptures,
     })
     log(`• wrote ${world.rooms.length} Y.Docs and ${captures} frame captures`)
 
@@ -373,17 +386,22 @@ async function seedDatabase(db: DB, world: FixtureWorld): Promise<void> {
     // the pending call are what actually put the approve/reject card on screen.
     if (chat.pendingPlan) {
       const plan = chat.pendingPlan
+      const planStatus = plan.status ?? "pending"
+      // A resolved plan belongs to a run that went on to finish; only a
+      // pending one leaves its run paused.
+      const runStatus =
+        planStatus === "pending" ? "paused_for_plan" : "completed"
       await db
         .insert(schema.agentRun)
         .values({
           id: plan.runId,
           chatId: chat.id,
-          status: "paused_for_plan",
+          status: runStatus,
           startedAt: new Date(plan.createdAt),
         })
         .onConflictDoUpdate({
           target: schema.agentRun.id,
-          set: { status: "paused_for_plan" },
+          set: { status: runStatus },
         })
       await db
         .insert(schema.agentPendingToolCall)
@@ -393,12 +411,12 @@ async function seedDatabase(db: DB, world: FixtureWorld): Promise<void> {
           chatId: chat.id,
           toolName: "submit_plan",
           input: { plan: plan.plan },
-          status: "pending",
+          status: planStatus,
           createdAt: new Date(plan.createdAt),
         })
         .onConflictDoUpdate({
           target: schema.agentPendingToolCall.id,
-          set: { input: { plan: plan.plan }, status: "pending" },
+          set: { input: { plan: plan.plan }, status: planStatus },
         })
     }
 
@@ -467,7 +485,13 @@ function depthFirst(world: FixtureWorld) {
  */
 async function seedRoomDocs(
   world: FixtureWorld,
-  ctx: { yjsDir: string; blobDir: string; blobBaseUrl: string; db: DB }
+  ctx: {
+    yjsDir: string
+    blobDir: string
+    blobBaseUrl: string
+    db: DB
+    renderCaptures: typeof renderFrameCaptures
+  }
 ): Promise<number> {
   await mkdir(ctx.yjsDir, { recursive: true })
   let captureCount = 0
@@ -528,7 +552,12 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
 /** Render a Room's Frame Captures and persist the manifest they belong to. */
 async function seedRoomThumbnail(
   room: FixtureRoom,
-  ctx: { blobDir: string; blobBaseUrl: string; db: DB }
+  ctx: {
+    blobDir: string
+    blobBaseUrl: string
+    db: DB
+    renderCaptures: typeof renderFrameCaptures
+  }
 ): Promise<number> {
   const frameIds = room.thumbnailFrames ?? []
   if (frameIds.length === 0 || !room.doc) return 0
@@ -570,7 +599,7 @@ async function seedRoomThumbnail(
   }
   if (requests.length === 0) return 0
 
-  const rendered = await renderFrameCaptures(
+  const rendered = await ctx.renderCaptures(
     requests,
     ctx.blobDir,
     ctx.blobBaseUrl

@@ -1,0 +1,16 @@
+const meta = {
+  home: "Home & organizing",
+  canvas: "The canvas",
+  projects: "Projects",
+  workspaces: "Workspaces",
+  frames: "Frames",
+  documents: "Documents",
+  agent: "Agent chat",
+  terminals: "Terminal tabs",
+  "play-mode": "Play mode",
+  collaboration: "Sharing & collaboration",
+  settings: "Settings",
+  "keyboard-shortcuts": "Keyboard shortcuts",
+}
+
+export default meta

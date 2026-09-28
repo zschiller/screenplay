@@ -1,0 +1,153 @@
+---
+title: Agent chat
+description: Give the agent work, point it at elements and documents, review plans, and follow what it does.
+---
+
+import { Callout } from "nextra/components"
+
+# Agent chat
+
+The agent panel on the right (<kbd>⌘</kbd> <kbd>I</kbd>) is where you work
+with the agent. It always targets one workspace or one document. In a
+workspace chat, everything it does happens inside that workspace's sandbox.
+
+<Screenshot name="hero" alt="The agent panel: a finished turn with tool calls and a summary, next to the updated previews" />
+
+## Choosing a target
+
+The pill at the top of the panel shows the current **target**. Click it to
+switch to any running workspace (**Workspaces**) or document (**Documents**).
+Clicking a workspace in the sidebar does the same thing. When you switch back
+to a target, the panel reopens the chat you last used there.
+
+The header also shows the workspace's **+/−** diff and a **Create PR** button
+(see [Pull requests](/guides/workspaces#pull-requests)).
+
+## Tabs
+
+Each target has its own set of tabs:
+
+- **Sandbox logs** (the first icon) streams the setup script and dev server
+  output. It opens automatically while a workspace is starting.
+- **Chat tabs**, as many as you like. New chats are named from their first
+  message. A spinner means the agent is working; a blue dot means there's a
+  reply you haven't seen.
+- **Terminal tabs**: see [Terminal tabs](/guides/terminals).
+
+<Screenshot name="new-tab-menu" alt="The new-tab menu: New chat and New terminal" />
+
+**+** opens a new tab of whichever kind you used last. The caret next to it
+lets you choose. Double-click a tab to rename it, drag to reorder, and hover
+to close. Closed chats aren't lost: reopen them from the **Chat history**
+menu at the end of the strip, which lists them with their date and first
+message, and where you can delete them for good. Closing a target's last tab opens a fresh
+one, so the panel is never empty.
+
+<Screenshot name="logs" alt="The Sandbox logs tab streaming the dev server's output" />
+
+## The composer
+
+Type a message and press <kbd>↵</kbd> to send. <kbd>⇧</kbd> <kbd>↵</kbd> adds a
+new line. While the agent is working, the send button becomes **Stop**. If
+you type while it works, the button becomes **Queue message**, and the message
+sends when the agent finishes. Each chat keeps its own draft, and a message
+that couldn't be sent stays in the chat with **Retry** and **Edit**.
+
+### Choosing a model
+
+The model menu sits at the bottom left of the composer. New chats start with
+the default agent and model from [Settings](/guides/settings#coding-agents-desktop).
+Changing the model in a chat changes only that chat, and the menu shows
+**· not default** when it differs. A chat keeps the model it first sends with;
+start a new chat to switch.
+
+- **Desktop** lists your installed coding CLIs with their models, for example
+  **Claude Code**: Fable 5, Opus 4.8, Sonnet 5, Haiku 4.5, and **Codex**:
+  GPT-5.5, GPT-5.4, GPT-5.3 Codex.
+- **Hosted** lists the models of every provider the operator configured
+  (Anthropic, OpenAI, Google, Vercel AI Gateway, OpenAI-compatible).
+
+### Mentioning documents
+
+Type <kbd>@</kbd> to mention a [document](/guides/documents). The agent is
+told which documents you mentioned and reads their current contents, so
+there's no need to paste anything.
+
+<Screenshot name="composer-mention" alt="The @ menu listing documents" />
+
+### Loading a skill
+
+In workspace chats, type <kbd>/</kbd> to insert a [skill](/building/skills):
+a packaged set of instructions the agent loads before starting. Skills tagged
+**App** ship with Screenplay. Skills tagged **Repo** come from the
+repository's `.claude/skills/` folder.
+
+<Screenshot name="composer-skills" alt="The / menu listing screenplay-add-knob and screenplay-share-state" />
+
+### Targeting an element
+
+Instead of describing a button, point at it. Click the **crosshair** (or
+press <kbd>⌘</kbd> <kbd>E</kbd>), then click any element in one of this
+workspace's frames. A token like `⌖ a` is inserted where your cursor was, and
+the agent receives the element's CSS selector, route, and frame. Hover the
+token to highlight the element on the canvas. <kbd>Esc</kbd> cancels picking.
+
+<Screenshot name="target-picking" alt="Picking an element: the workspace's frames stay active while others dim" />
+
+<Screenshot name="composer-element-hover" alt="An element token in the composer, with its selector, route and frame shown on hover" />
+
+## Plan mode
+
+Turn on **Plan** in the composer when you want to approve the approach before
+any code changes. The agent investigates, then presents a **Plan** card
+instead of editing. Plan mode is for workspace chats; the composer in a
+document chat has no **Plan** toggle.
+
+<Screenshot name="plan-card" alt="An approved plan card for adding an FAQ, followed by the agent implementing it" />
+
+- **Approve** tells the agent to go ahead.
+- **Request changes** quotes the plan in the composer so you can add your
+  feedback. Any message sent while a plan is pending counts as feedback, so
+  you can also just reply, and the agent revises the plan.
+
+## Following the work
+
+Agent replies stream in as they're written. Each tool call is a compact row
+you can expand for details:
+
+| Row | Meaning |
+| --- | --- |
+| **Read** *n* lines `path` | Read a file |
+| **Edit** / **Write** `path` | Changed a file (expand to see the diff) |
+| **Run command** `…` | Ran a shell command in the sandbox |
+| **List files**, **Grep**, **Glob** | Searched the project |
+| **Read skill** `name` | Loaded a skill's instructions |
+| **Read document** | Read a document on the canvas |
+| **Create PR** | Opened a pull request (shown as a link card) |
+| **Submit plan** | Presented a plan for approval |
+
+Failed calls are marked in red and always show the error, or say that none
+was reported. Once a turn finishes, its tool calls fold behind one summary
+line of what the agent read, edited and ran; expand it to see them again. Secrets such as GitHub tokens are redacted from tool output.
+
+A few defaults are worth knowing:
+
+- **The agent commits and pushes after every change.** Commits are made under
+  your identity, which matters on shared canvases.
+- **The workspace preview updates on its own.** The dev server hot-reloads as
+  files change.
+- **Chats are shared.** On a shared canvas everyone sees every chat live,
+  including history from before they joined.
+
+## Branch and chat naming
+
+A new workspace starts with a random branch name. The first message in its
+first chat renames the branch to something descriptive (for example
+`hero-gradient-trust-line`) and names the chat ("Hero Gradient & Trust Line").
+If the name is already taken on the remote, a numeric suffix is added.
+
+<Callout type="info">
+  **"No coding agent detected"** on desktop means no supported CLI is
+  installed. Install one from **Settings → Coding agents**; it shows up
+  without a restart.
+</Callout>

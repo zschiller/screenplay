@@ -1,0 +1,88 @@
+---
+title: Self-hosting overview
+description: What a hosted Screenplay deployment is made of, and the order to set it up in.
+---
+
+import { Callout, Steps } from "nextra/components"
+
+# Self-hosting
+
+The hosted build of Screenplay is a multi-user Next.js app. People sign in
+with GitHub, share canvases, and each workspace runs in its own cloud sandbox
+VM. This section covers deploying it.
+
+<Callout type="info">
+  Only need it for yourself? The [desktop app](/quickstart) needs no
+  services at all. It swaps every backend below for a local one.
+</Callout>
+
+## How it fits together
+
+```text
+ Browser ──► Next.js app (Vercel) ──┬─► Postgres              users, canvases, chats, presets
+    ▲                               ├─► Yjs host (Liveblocks) live canvas state + presence
+    │ realtime                      ├─► Sandbox provider      one VM per workspace
+    └───────────────────────────────┤     └─ dev server, git, terminals, coding CLIs
+                                    ├─► Model provider(s)     the agent
+                                    ├─► Blob store            canvas thumbnails
+                                    └─► GitHub OAuth          sign-in + repo access
+```
+
+Every backend sits behind a small interface in `apps/app/lib/`, so each one is
+swappable. The defaults are what the reference deployment uses:
+
+| Service | Used for | Default | Alternatives |
+| --- | --- | --- | --- |
+| **Hosting** | Running the Next.js app | [Vercel](https://vercel.com) | Anything that runs Next.js |
+| **GitHub OAuth app** | Sign-in, plus `repo` scope to clone and push for users | [GitHub](https://github.com/settings/developers) | — |
+| **Postgres** | Users, sessions, canvases, members, comments, agent history, encrypted settings | [Neon](https://neon.tech) (serverless HTTP driver) | Any Postgres; [swap the driver](/self-hosting/database#using-a-different-postgres-driver) |
+| **Yjs host** | Realtime sync of each canvas document, agent streams, and presence | [Liveblocks](https://liveblocks.io) | Hocuspocus, y-websocket, … ([how](/self-hosting/configuration/yjs-host)) |
+| **Sandbox provider** | One Linux VM per workspace | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) | E2B, Modal, … ([how](/self-hosting/configuration/sandbox-provider)) |
+| **Model provider** | The agent. At least one is required. | Anthropic | OpenAI, Google, Vercel AI Gateway, any OpenAI-compatible API ([how](/self-hosting/configuration/model-providers)) |
+| **Blob store** | Canvas thumbnails | [Vercel Blob](https://vercel.com/docs/vercel-blob) | S3, R2, GCS, … ([how](/self-hosting/configuration/blob-store)) |
+
+## Setup order
+
+<Steps>
+
+### Create the accounts
+
+Sign up for each service in the table, or pick alternatives.
+
+### Create a GitHub OAuth app
+
+One app covers production and every preview deploy. See
+[GitHub OAuth](/self-hosting/github-oauth).
+
+### Provision Postgres
+
+Any Postgres works, and migrations run automatically on deploy. See
+[Database](/self-hosting/database).
+
+### Collect your environment variables
+
+Every variable is documented in
+[Environment variables](/self-hosting/environment-variables).
+
+### Deploy
+
+See [Deploying to Vercel](/self-hosting/deploying-to-vercel), including
+which variables go in which Vercel scope.
+
+### Optional: tune the configuration
+
+Enable [coding CLIs](/self-hosting/configuration/byo-harnesses) in terminal
+tabs, [serve under a path prefix](/self-hosting/configuration/mount-path),
+or swap any backend listed under **Configuration**.
+
+</Steps>
+
+## Trust model
+
+The hosted build assumes a **single trusted operator**, or a fully trusted
+team. The operator's model API keys are shared by everyone and aren't metered
+per user. Coding CLIs in sandboxes never see those keys, because the
+sandbox's egress firewall injects them on the way out. Terminal access is
+gated by canvas membership. Read
+[Terminal access](/self-hosting/environment-variables#terminal-access) before
+choosing a strategy for a shared deployment.

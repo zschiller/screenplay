@@ -1,0 +1,69 @@
+---
+title: GitHub OAuth
+description: Create the GitHub OAuth app Screenplay uses for sign-in and repository access.
+---
+
+import { Callout, Steps } from "nextra/components"
+
+# GitHub OAuth
+
+The hosted app signs people in with GitHub through
+[Better Auth](https://www.better-auth.com). The same OAuth token is what
+sandboxes use to clone private repositories, push commits, and open pull
+requests on the user's behalf. There's no other sign-in method.
+
+## Create the OAuth app
+
+<Steps>
+
+### Register the app
+
+Go to [GitHub → Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
+and choose **New OAuth App**. For an organization, create it under the org
+instead.
+
+### Set the callback URL
+
+**Authorization callback URL** is your production URL, plus the base path if
+you use one, plus `/api/auth/callback/github`:
+
+| Deployment | Callback URL |
+| --- | --- |
+| At the domain root | `https://screenplay.example.com/api/auth/callback/github` |
+| Under `/app` ([mount path](/self-hosting/configuration/mount-path)) | `https://example.com/app/api/auth/callback/github` |
+
+One OAuth app covers production **and every preview deploy**: previews send
+the sign-in through this production callback and bounce back to themselves.
+
+### Copy the credentials
+
+Put the **Client ID** and a new **Client secret** into `GITHUB_CLIENT_ID` and
+`GITHUB_CLIENT_SECRET`.
+
+</Steps>
+
+On first sign-in, users are asked to grant `repo`, `read:user`, and
+`user:email`. No other GitHub-side configuration is needed.
+
+<Callout type="warning">
+  `BETTER_AUTH_SECRET`, `BETTER_AUTH_PRODUCTION_URL`, and both GitHub values must
+  be **identical** in production and every preview. The proxy signs sign-in
+  state on one and verifies it on the other.
+</Callout>
+
+## Local development
+
+You have two options:
+
+- **Reuse production's app.** This is the simplest. Copy `BETTER_AUTH_SECRET`,
+  `BETTER_AUTH_PRODUCTION_URL`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET`
+  into `apps/app/.env.local`. Local sign-ins detour through production and come
+  back to `localhost`.
+- **A dev-only OAuth app.** This keeps production secrets off your machine.
+  Create a second OAuth app with the callback
+  `http://localhost:3000/app/api/auth/callback/github` (drop `/app` if you
+  don't set a base path locally). Then set
+  `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, that app's credentials,
+  and any random `BETTER_AUTH_SECRET`. With the production URL equal to the
+  current URL, the proxy steps aside and GitHub redirects straight back to
+  localhost.

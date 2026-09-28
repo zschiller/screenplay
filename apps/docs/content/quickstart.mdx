@@ -1,0 +1,101 @@
+---
+title: Quickstart
+description: Install the desktop app, add a project, and ship your first agent change in a few minutes.
+---
+
+import { Callout, Steps } from "nextra/components"
+
+# Quickstart
+
+This walks through the **desktop app**, the quickest way to try Screenplay. By
+the end you'll have a canvas with a live preview of your app and an agent
+change running in it.
+
+<Callout type="info">
+  Running a shared, multi-user deployment instead? Start with
+  [Self-hosting](/self-hosting). Once you're signed in, everything from
+  step 3 on works the same way.
+</Callout>
+
+## What you need
+
+- **macOS**. Download the latest `Screenplay.dmg` from
+  [GitHub Releases](https://github.com/zschiller/screenplay/releases).
+- **A coding CLI** such as [Claude Code](https://code.claude.com) or Codex.
+  Screenplay can install it for you during setup.
+- **A project** with a dev server: a local folder or any git repository. If
+  the folder has a `package.json` with a `dev` script, you're set.
+
+<Steps>
+
+### Run first-time setup
+
+The first launch opens **Set up Screenplay**, which walks you through two
+steps:
+
+1. **Install a coding agent.** This one is required. Claude Code is
+   preselected and marked **Recommended**; click **Change** to pick another
+   CLI. Click **Install *CLI* and sign in** (or **Sign in to *CLI*** if it's
+   already installed). An inline terminal installs it and runs its own
+   sign-in. Once it's signed in, click **Use *CLI***.
+2. **Connect GitHub.** This one is optional. It lets you browse your
+   repositories and open pull requests from Screenplay. **Sign in to GitHub**
+   uses the `gh` CLI (**Install GitHub CLI and connect** if you don't have
+   it), or pick **Use a device code**. Click **Skip** to add projects by local
+   folder or clone URL instead. You can connect later in
+   [Settings](/guides/settings).
+
+A finished step collapses to one row with **Change**. **Finish** enables
+itself as soon as both steps are settled. The page re-checks every couple of
+seconds, so there's no need to reload.
+
+<Screenshot name="setup-gate" alt="The Set up Screenplay screen with Claude Code connected and GitHub not yet installed" />
+
+### Create a canvas
+
+**Finish** creates your first canvas and opens it, with a **Get started**
+checklist. Later, **New canvas** on the home screen (or
+<kbd>N</kbd>) creates and opens another one; rename it from its title. A
+canvas holds one piece of work: one or more projects, their workspaces, and
+everything you lay out around them.
+
+### Add a project
+
+In the canvas sidebar, click the **Add project** icon next to **Projects**:
+
+- **Open project** adds a folder on disk, such as your existing clone.
+- **Open GitHub project** lets you pick a repository, or paste a clone URL.
+
+<Screenshot name="add-project-menu" alt="The Add project menu with Open project and Open GitHub project" />
+
+Screenplay detects your setup and run scripts and shows them for review in
+**Configure project**. Check **Save these settings for next time** to reuse
+them on other canvases. See [Projects](/guides/projects) for every field.
+
+Adding a project creates your first **workspace**: a fresh branch checked out
+in its own worktree, with its dev server running and a frame showing it.
+
+### Ask the agent for a change
+
+Open the chat panel with <kbd>⌘</kbd> <kbd>I</kbd> and describe what you want:
+
+> Make the hero headline use a gradient from the accent color to cyan, and add
+> a small "Trusted by 4,000+ product teams" line under the buttons.
+
+The agent reads the code, edits it, and commits. Every tool call appears in the
+chat as it runs, and the preview hot-reloads the moment a file changes. The
+first message also gives the branch and chat a descriptive name.
+
+<Screenshot name="hero" alt="The agent's finished change: the chat lists file reads, edits and git commands, and the previews show the new gradient headline" />
+
+### Keep going
+
+- Add more [frames](/guides/frames) (<kbd>F</kbd>) for other routes and
+  device sizes.
+- Start a second [workspace](/guides/workspaces) to try another direction in
+  parallel.
+- Turn on **Plan** in the composer to review the agent's plan before it
+  writes code.
+- Use **Create PR** in the chat header when you're happy with a workspace.
+
+</Steps>

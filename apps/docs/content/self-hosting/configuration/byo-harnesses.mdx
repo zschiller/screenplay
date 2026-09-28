@@ -1,0 +1,69 @@
+---
+title: Coding CLIs (harnesses)
+description: Offer Claude Code, Codex and opencode in terminal tabs, without handing them your API keys.
+---
+
+import { Callout } from "nextra/components"
+
+# Coding CLIs (harnesses)
+
+Besides the built-in agent, Screenplay can run **bring-your-own coding CLIs**
+("harnesses") inside a workspace's [terminal tabs](/guides/terminals). On
+desktop, a harness also *is* the chat agent. Each CLI is a descriptor in
+`apps/app/lib/agent/harnesses/`:
+
+| Key | CLI | Hosted: needs | Chat on desktop |
+| --- | --- | --- | --- |
+| `claude-code` | Claude Code | `ANTHROPIC_API_KEY` | Yes |
+| `codex` | Codex | `OPENAI_API_KEY` | Yes |
+| `opencode-gateway` | opencode via the Vercel AI Gateway | `AI_GATEWAY_API_KEY` | Terminal only |
+| `opencode-compat` | opencode via an OpenAI-compatible endpoint | `OPENAI_COMPATIBLE_BASE_URL` + `OPENAI_COMPATIBLE_API_KEY` | Terminal only |
+
+## Hosted: `SANDBOX_HARNESSES`
+
+List the CLIs to install into every sandbox:
+
+```bash
+SANDBOX_HARNESSES=claude-code          # just Claude Code
+SANDBOX_HARNESSES=claude-code,codex    # several, in menu order
+# unset → no CLI is installed
+```
+
+A key takes effect only when it's a known key **and** its model provider is
+configured with a key that can be injected. Anything else is skipped quietly,
+never a startup failure.
+
+**The CLI never sees your API key.** It boots with a placeholder credential,
+and the sandbox's egress firewall adds the real key to outgoing requests for
+that provider's host. Every user on the deployment shares the operator's keys,
+unmetered. That's the single-trusted-operator model described in
+`apps/app/docs/adr/0002-byo-harness-terminal.md`.
+
+<Callout type="warning">
+  **No default.** Older versions always installed Claude Code. Now nothing is
+  installed unless `SANDBOX_HARNESSES` names it. Set
+  `SANDBOX_HARNESSES=claude-code` (with `ANTHROPIC_API_KEY`) to keep the old
+  behavior.
+</Callout>
+
+## Desktop: detected CLIs
+
+On desktop, nothing is installed into sandboxes. Screenplay detects which CLIs
+are on your `PATH` and runs them on **your own login**. That includes
+subscription logins, with no API key needed. Users install and sign in from
+**Settings → Coding agents**.
+
+Detected chat-capable CLIs also back the **agent chat**. Screenplay starts
+each CLI's [Agent Client Protocol](https://agentclientprotocol.com) adapter,
+and its models appear in the chat's model picker, grouped by CLI. The model
+you pick in a chat decides which CLI runs it.
+`SCREENPLAY_ACP_HARNESS=codex` changes the default for chats that haven't
+picked a model (default `claude-code`).
+
+## Adding a CLI
+
+A harness descriptor declares its catalog key and label, the command to
+launch, the provider it's brokered through, the binary to detect on desktop,
+how to install it and sign in, and optionally an ACP adapter and a curated
+model list. Copy an existing descriptor in `apps/app/lib/agent/harnesses/` and
+register it in `index.ts`.

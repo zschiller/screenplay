@@ -1,9 +1,13 @@
-# Screenshots for design review
+# Screenshots
+
+The **screenshot harness** (`apps/app/screenshots/`) boots the local build
+against a seeded world and photographs it. It serves two jobs: before/after
+screenshots for design review, and the screenshots in these docs
+([Docs screenshots](#docs-screenshots)).
 
 Every design-polish ticket ships before/after screenshots on its PR, so design
 can be reviewed in the pull request instead of by cloning the branch. The
-**screenshot harness** (`apps/app/screenshots/`) is the scripted path to those
-images: one command boots the local build against a seeded fixture world, one
+harness is the scripted path to those images: one command boots the local build against a seeded fixture world, one
 captures the named screens in light and dark, one records a short video of a
 named interaction.
 
@@ -142,7 +146,7 @@ use this.
 Each fixture Workspace points at a small **fixture preview server** the harness
 runs beside the app, which serves a flat wireframe per route and inlines the
 real Sandbox Bridge. So frames load, report ready, and drop the "Waiting for dev
-server…" overlay exactly as a real Workspace's would — without cloning a repo or
+server…" overlay exactly as a real Workspace's would — without cloning a repository or
 running `pnpm install` per Workspace. The pages are deliberately not mock
 product screens.
 
@@ -156,14 +160,82 @@ reconcile Workspaces that have no sandboxes behind them, and opening a Canvas to
 photograph it doesn't restamp it as just-edited. It is `and`-ed with
 `isLocalBuild`, so the hosted app can never enter it.
 
+## Docs screenshots
+
+The same harness produces the screenshots in these docs, from a second world
+built to tell one story: a team building "Northwind", a small marketing site.
+It lives in `apps/app/screenshots/docs/`:
+
+| Path            | What it owns                                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `world.ts`      | The **docs world**: the Northwind Canvas and three more, filed into Folders, with Workspaces, frames, a document, and chat transcripts.      |
+| `demo-site.ts`  | Builds the demo site in `northwind/` once per Workspace, with that Workspace's edits applied, and serves each from its own origin.           |
+| `thumbnails.ts` | Photographs those previews for the home grid's cards.                                                                                      |
+| `screens.ts`    | The **docs screen list**: one entry per `<Screenshot name="…">` in the docs.                                                                 |
+| `frame.ts`      | Frames each capture as a desktop window, or as a magnified detail centred on its focus, into `apps/docs/public/screenshots/`.               |
+
+Unlike the design-review world, the frames here are a real React site built
+against this repository's `@screenplay.space/knobs` and `@screenplay.space/state`, so
+knobs, shared state, element targeting and play mode all work. The edit each
+Workspace's agent made is defined once, in `demo-site.ts`: it is applied to that
+Workspace's build and appears as the diff in its chat.
+
+Regenerate everything with:
+
+```bash
+pnpm --filter docs screenshots   # same as: pnpm --filter app screenshots:docs
+```
+
+It seeds the docs world, captures every docs screen in light and dark, and
+writes the framed WebP files. Review the changed images before committing them.
+
+While you work on a screen, keep the world open and re-shoot only that screen:
+
+```bash
+pnpm --filter app screenshots:docs --boot                       # terminal 1
+pnpm --filter app screenshots:docs --screens ws-menu --themes light   # terminal 2
+```
+
+A run that finds `--boot` serving shoots against it instead of re-seeding.
+`--list` prints the screen list, `--no-frame` stops after capturing, and
+`--frame-only` re-frames the last capture.
+
+### Kept up to date automatically
+
+The **Docs screenshots** workflow (`.github/workflows/docs-screenshots.yml`)
+reruns this on every push to `main` that touches the app, the UI packages, or
+the docs. When any image changes, it opens a `docs: refresh screenshots` pull
+request (or updates the open one) for someone to look over and merge. It runs
+with `--strict`, so a screen whose steps fail stops the run instead of
+proposing a wrong image; the raw captures are attached to the run.
+
+Re-runs are stable, so the pull request only appears when the UI really
+changed. The docs world is anchored to a fixed instant (`DOCS_NOW` in
+`world.ts`), every capture freezes the browser clock just after it, and the
+framing step keeps an existing image when the new render is visually the same.
+
+### Adding a docs screenshot
+
+1. Add an entry to `DOCS_SCREENS` in `screens.ts`. Its `name` is the one you
+   pass to `<Screenshot name="…">`.
+2. For a full-window shot, that's it. For a detail shot, give it a `focus`:
+   selectors for what the image is about, such as `MENU`, `DIALOG` or
+   `POPOVER`, or a function that measures it. After `prepare`, the visible
+   matches are measured, and the framing step crops a detail centred on them,
+   with room around them, in a rounded card. So when a UI change moves a
+   menu, the next run still frames it whole and centred. A fixed `crop`
+   (`[x, y, width, height]` in CSS px) stands in when nothing matches.
+3. If the screen needs state the world doesn't have, add it to `world.ts`.
+4. Run `pnpm --filter app screenshots:docs --screens <name>` and embed it.
+
 ## What the local build doesn't have
 
 The local build excludes the entire multi-user surface (see
-[Local (single-user) build](/configuration/local-build)), so these never appear
+[Local (single-user) build](/self-hosting/configuration/local-build)), so these never appear
 in a plain capture:
 
 - **Comments** — threads, pins, replies, read state, the comment lists.
-  (The single-user "Send to Claude" reference path _is_ kept.)
+  (The single-user "Send to agent" reference path _is_ kept.)
 - **Cursors and presence** — with one local Yjs peer there is nobody else on the
   canvas; the follow toolbar is hidden.
 - **Sharing and membership** — no `room_member`, no Share affordances, no

@@ -1,0 +1,83 @@
+---
+title: Settings
+description: Theme, GitHub connection, coding agents, project presets, and your account.
+---
+
+import { Callout } from "nextra/components"
+
+# Settings
+
+Open **Settings** from the home screen sidebar. A list on the left picks the
+section: **General**, then on desktop **Coding agents** and **GitHub** (on the
+hosted app, **Agent**), then **Project presets** and **Account**.
+
+<Screenshot name="settings" alt="The Settings page: the section list and General" />
+
+## General
+
+The **Theme**: **Light**, **Dark**, or **System**. This setting applies to
+this device only.
+
+## GitHub *(desktop)*
+
+GitHub access is **optional** on desktop. Without it you can still add
+projects by local folder or clone URL, and git uses your machine's own
+credentials. With it, you can also browse your GitHub repositories and
+branches, and open pull requests.
+
+Screenplay finds a token in this order:
+
+1. **The `gh` CLI**, if it's installed and signed in. Nothing else to do: the
+   row reads **Connected**, with your `@handle`.
+2. **A device code.** Choose **Connect with a device code instead**, enter the
+   code on GitHub, and you're connected. The token is kept in your OS
+   keychain. **Disconnect** removes it.
+
+If `gh` isn't installed, **Install & connect** installs it (with Homebrew
+when available) and runs its sign-in in an inline terminal. The row updates by
+itself when sign-in finishes.
+
+<Callout type="info">
+  Screenplay never signs you out of `gh`, since that login is yours and other
+  tools use it too. **Disconnect** only removes a device-code token Screenplay
+  stored.
+</Callout>
+
+On the hosted app, GitHub comes from your sign-in instead: you sign in with
+GitHub, and Screenplay uses that account for cloning, pushing, and PRs.
+
+## Coding agents *(desktop)*
+
+On desktop, the agent is a coding CLI on your machine. There's one row per
+supported CLI: **Claude Code**, **Codex**, and **opencode**. Each row shows
+whether it's **Signed in**, **Signed out** or **Not installed**:
+
+- **Install & sign in** installs the CLI, then runs its own login in an inline
+  terminal.
+- **Sign in** appears when it's installed but signed out.
+- **Re-run sign-in** appears when it's already connected.
+
+**Default agent**, at the top of the section, picks the agent and model that
+new chats and new workspaces start with. On the hosted app the same choice is
+**Default model**, in the **Agent** section.
+
+A CLI you connect here shows up in the model picker and the new-terminal menu
+straight away, with no restart. The app never uninstalls a CLI or signs you
+out of it.
+
+<Screenshot name="settings-coding-agents" alt="Settings → Coding agents: the default agent, and Claude Code signed in" />
+
+## Project presets
+
+Saved settings for repositories you use often. Presets are grouped by
+repository; **Edit** or **Delete** each one, or click **New preset**. See
+[Project presets](/guides/projects#project-presets) for what a preset
+contains.
+
+<Screenshot name="preset-form" alt="Editing a preset: name, setup and run scripts, files to copy, default frame size, system prompt" />
+
+## Account
+
+On the hosted app, this shows who you're signed in as, with **Sign out**. Your
+avatar at the top of the home sidebar has **Sign out** too. On desktop there's
+no sign-in, and this shows the app's version.

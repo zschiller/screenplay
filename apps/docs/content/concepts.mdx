@@ -1,0 +1,100 @@
+---
+title: Core concepts
+description: Canvases, projects, workspaces, frames, documents and the agent, and how they fit together.
+---
+
+# Core concepts
+
+Screenplay has a small set of nested ideas. Once they click, the rest of the
+UI follows.
+
+```text
+Canvas ─┬─ Project (a repository + how to run it)
+        │    └─ Workspace (a branch + its environment + its agent chats)
+        │
+        └─ Layers on the canvas
+             ├─ Frame     (a live preview of a workspace's dev server)
+             └─ Document  (a rich-text page the agent can read and write)
+```
+
+<Screenshot name="canvas-overview" alt="A canvas with its sidebar: the Projects tree above, the Canvas layers list below" />
+
+## Canvas
+
+A **canvas** is the container for one piece of work: a feature, a redesign,
+an experiment. It's an infinite, zoomable surface with the sidebar on the left
+and the agent panel on the right. Canvases live on the
+[home screen](/guides/home), where you can file them into folders and pin
+them. On the hosted app you can [share](/guides/collaboration) a canvas, and
+everyone in it sees the same layout, previews, and agent activity in real
+time.
+
+## Project
+
+A **project** is a repository added to a canvas, together with the settings
+Screenplay needs to run it: a setup script (for example `npm install`), a run
+script that starts the dev server, and a few optional extras. One canvas can
+hold several projects, for example a web app and its API. The same repository
+can also appear twice with different settings, which suits monorepos. You can
+save a project's settings as a **project preset** and reuse it on any canvas.
+→ [Projects](/guides/projects)
+
+## Workspace
+
+A **workspace** is one git branch of a project, running in its own isolated
+**sandbox**:
+
+- On the **desktop app**, a sandbox is a git worktree on your machine, and the
+  dev server runs locally on a port assigned to that workspace.
+- On the **hosted app**, a sandbox is a cloud VM with its own clone of the
+  repository.
+
+Each workspace has its own dev server, its own agent chats and terminals, and
+a color that tags everything belonging to it across the canvas. Workspaces are
+cheap: create one for every idea you want to try and compare them side by side.
+→ [Workspaces](/guides/workspaces)
+
+## Frame
+
+A **frame** is a live preview on the canvas. It shows one route of one
+workspace's dev server at a chosen device size. Frames are real browsers:
+switch into **Interact** mode and you can click through the app. Frames sit in
+**groups** laid out left to right, so the desktop and mobile versions of a
+page, or the steps of a flow, stay together. → [Frames](/guides/frames)
+
+## Document
+
+A **document** is a rich-text page on the canvas for specs, checklists, notes
+and plans. Documents are edited collaboratively, and you can chat with the
+agent about a document directly: it rewrites or appends to the page for you.
+→ [Documents](/guides/documents)
+
+## Agent
+
+The **agent** does the coding. Every workspace has a chat panel where you
+give it instructions, and it reads files, edits them, runs commands, and
+commits inside that workspace's sandbox. Where the agent comes from depends
+on how you run Screenplay:
+
+- **Desktop**: the coding CLI installed on your machine (Claude Code or Codex),
+  running on your own login.
+- **Hosted**: a built-in agent loop that uses the model providers the operator
+  configured (Anthropic, OpenAI, Google, the Vercel AI Gateway, or any
+  OpenAI-compatible endpoint).
+
+Alongside chat, **terminal tabs** give you an interactive shell in the same
+sandbox, with a coding CLI pre-launched. → [Agent chat](/guides/agent),
+[Terminal tabs](/guides/terminals)
+
+## Names you'll see in the code
+
+The UI labels are deliberately friendlier than the code's names. If you read
+the source or the self-hosting docs:
+
+| In the UI | In the code |
+| --- | --- |
+| Canvas | Room |
+| Project | Repo |
+| Workspace | Branch |
+| Frame | Iframe Layer |
+| Document | Markdown Layer |

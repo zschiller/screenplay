@@ -1,0 +1,70 @@
+---
+title: Deploying to Vercel
+description: Deploy the hosted Screenplay app to Vercel, with production and preview deploys sharing one sign-in setup.
+---
+
+import { Callout, Steps } from "nextra/components"
+
+# Deploying to Vercel
+
+Before you start, have the [services](/self-hosting) created and your
+[environment variables](/self-hosting/environment-variables) ready.
+
+<Steps>
+
+### Import the repository
+
+Create a new Vercel project from your fork of the monorepo and set its **Root
+Directory** to `apps/app`. The framework preset is Next.js.
+
+### Connect storage
+
+On the project's **Storage** tab, connect a **Blob** store. This injects
+`BLOB_READ_WRITE_TOKEN`. Vercel Sandbox authenticates with Vercel's OIDC
+token, which is also injected automatically.
+
+### Add environment variables
+
+Add each variable in the right scope. See the table below.
+
+### Deploy
+
+The build runs `drizzle-kit migrate` against `DATABASE_URL`, then
+`next build`, so schema migrations land before the new code serves traffic.
+
+### Point your domain
+
+Add your custom domain. `BETTER_AUTH_URL` and `BETTER_AUTH_PRODUCTION_URL`
+must match it.
+
+</Steps>
+
+## Environment variable scopes
+
+Preview deploys sign users in *through production*: the auth proxy signs
+state on production and verifies it on the preview that started the
+sign-in. That's why some values must be identical everywhere.
+
+| Variable | Scope | Why |
+| --- | --- | --- |
+| `BETTER_AUTH_URL` | **Production only** | Previews derive their own URL from `VERCEL_URL`. |
+| `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | **Production + Preview**, identical values | Required by the preview sign-in proxy. |
+| `NEXT_PUBLIC_BASE_PATH` | Production + Preview | Only if you serve under a [path prefix](/self-hosting/configuration/mount-path). |
+| Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY`, model keys, `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `TERMINAL_AUTH_SECRET`, `SANDBOX_HARNESSES`, …) | Production + Preview | |
+
+<Callout type="warning">
+  **Preview deploys run migrations too.** If Preview points at the production
+  database, a PR's migration reaches production before the PR merges. To keep
+  them apart, give previews their own database. For example,
+  [Neon's Vercel integration](https://neon.tech/docs/guides/vercel) creates a
+  database branch per preview automatically.
+</Callout>
+
+## Serving under a path
+
+The reference deployment serves the marketing site at the domain root, the
+product at `/app`, and these docs at `/docs`. The marketing app
+(`apps/web/vercel.json`) rewrites `/app/*` and `/docs/*` to the other two
+Vercel projects, and the product project sets `NEXT_PUBLIC_BASE_PATH=/app`.
+To serve Screenplay from its own domain instead, leave `NEXT_PUBLIC_BASE_PATH`
+unset. See [Mount path](/self-hosting/configuration/mount-path).

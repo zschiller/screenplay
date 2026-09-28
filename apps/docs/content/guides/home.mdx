@@ -1,0 +1,116 @@
+---
+title: Home & organizing
+description: Find, sort, file and pin your canvases.
+---
+
+import { Callout } from "nextra/components"
+
+# Home & organizing
+
+The home screen lists your canvases. Each card's thumbnail is assembled from
+the canvas's own frames, so you can recognize a canvas at a glance. Frames
+still starting up show as blocks in their workspace's color.
+
+<Screenshot name="home-recents" alt="The Recents view: a grid of canvas cards with live thumbnails, and Pinned items in the sidebar" />
+
+## Views
+
+The sidebar has three destinations:
+
+- **Recents** lists every canvas you can open, most recently edited first,
+  regardless of folder.
+- **All files** is your folder tree: folders first, then canvases. Click a
+  folder to open it. A breadcrumb shows where you are, and deep paths collapse
+  into a **…** menu.
+- **Settings**: see [Settings](/guides/settings).
+
+Below those, **Pinned** lists your shortcuts (see [Pinning](#pinning)).
+**Search** at the top of the sidebar (<kbd>/</kbd>) finds canvases and folders
+across all folders. On the hosted app, the owner filter in the toolbar
+(**Anyone**, **Owned by me**, **Shared with me**) also lists matches from every
+folder.
+
+<Screenshot name="home-folder" alt="Inside the Marketing folder, with the All files › Marketing breadcrumb" />
+
+### Grid and table
+
+Switch between **Grid view** and **Table view** with the toggle at the top
+right. The choice applies to every page. The table shows **Name**, **Last
+edited** and **Created**, plus **Owner** on the hosted app. Click a column
+header to sort by it; click again to reverse.
+
+<Screenshot name="home-table" alt="Table view with Name, Last edited and Created columns" />
+
+### Sorting
+
+In **All files** and in folders, the **sort** menu sorts by **Last edited**,
+**Date created** or **Name**, in either order. Each folder remembers its own
+sort. **Recents** is always sorted by last edit.
+
+<Screenshot name="home-sort-menu" alt="The sort menu: Sort by Last edited, Date created or Name; Order Newest or Oldest first" />
+
+## Creating
+
+- **New canvas** (or <kbd>N</kbd>) creates an "Untitled" canvas and opens it
+  straight away. Rename it from the canvas's title pill. A folder's **…** menu
+  also has **New canvas**, which creates it inside that folder.
+- **Add folder** creates a folder inside the folder you're viewing.
+
+## Canvas and folder menus
+
+Hover a card or row and click **…**:
+
+<Screenshot name="home-canvas-menu" alt="The canvas menu: Rename, Move to…, Pin to sidebar, Delete" />
+
+| Item | What it does |
+| --- | --- |
+| **Rename** | Renames the canvas. Only the owner can rename a shared canvas. |
+| **Move to…** | Files it into a folder, or back to **All files**. Shown once you have a folder. |
+| **Pin to sidebar** / **Unpin** | Adds or removes the sidebar shortcut. |
+| **Share** | *Hosted only, owner only.* See [Sharing](/guides/collaboration#sharing-a-canvas). |
+| **Delete** / **Leave** | Owners delete; people it's shared with leave. |
+
+Folders have the same menu, minus Share and plus **New canvas**.
+
+## Filing
+
+**Move to…** opens a picker of your folders, with **New folder** to make one
+on the way. You can also **drag** a canvas or folder onto:
+
+- a folder card or row,
+- a pinned folder in the sidebar,
+- **All files** in the sidebar, which moves it to the top level,
+- a folder, or **All files**, in the breadcrumb.
+
+Each move shows a toast with **Undo**.
+
+Folders nest to any depth. Screenplay stops you from moving a folder into
+itself or one of its own subfolders.
+
+<Screenshot name="home-folder-menu" alt="The folder menu: Rename, Move to…, Unpin, Delete" />
+
+<Callout type="info">
+  Folders and filing are **personal**. When someone shares a canvas with you,
+  it appears at the top level of your All files. Filing it only changes your
+  view; the owner's organization is untouched.
+</Callout>
+
+## Pinning
+
+**Pin to sidebar** adds a canvas or folder to the **Pinned** section for quick
+access. Pinning never moves anything, and unpinning leaves the item where it
+was. Drag pinned rows to reorder them. Pins are personal too.
+
+<Screenshot name="home-all-files" alt="All files with the Product and Marketing folders, and a pinned canvas and folder in the sidebar" />
+
+## Deleting
+
+- **Deleting a canvas** permanently removes it and everything on it. If you
+  shared it, it's removed for everyone, and the dialog tells you how many
+  people that affects.
+- **Leaving a canvas** someone shared with you only removes your access. The
+  owner can invite you again.
+- **Deleting a folder** deletes everything inside it, including sub-folders
+  and the canvases you own. Canvases shared *with* you that you had filed
+  there aren't deleted; you just leave them. The dialog lists what will be
+  affected before you confirm.

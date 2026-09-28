@@ -1,0 +1,71 @@
+---
+title: Yjs host
+description: The realtime backend behind every canvas. Liveblocks when hosted, a local y-websocket server on desktop.
+---
+
+# Yjs host
+
+Each canvas is a [Yjs](https://yjs.dev) document. It holds the layout
+(workspaces, frames, groups, documents, chat tabs), the live stream of agent
+activity, and presence (cursors, viewports, selections). The **Yjs host**
+stores those documents and syncs them in real time between everyone on the
+canvas.
+
+The server is the only party that writes agent activity into the document.
+Browsers render what they receive, so ten people watching one agent turn
+cost the same as one.
+
+## Choosing a host
+
+`NEXT_PUBLIC_YJS_HOST` selects the implementation on both server and client.
+It's inlined at build time.
+
+| `NEXT_PUBLIC_YJS_HOST` | Host | Used by |
+| --- | --- | --- |
+| unset | [Liveblocks](https://liveblocks.io) | Hosted |
+| `local` | An in-process [y-websocket](https://github.com/yjs/y-websocket) server, persisted to disk | Desktop |
+
+### Liveblocks
+
+You only need a server-side secret key from the
+[Liveblocks dashboard](https://liveblocks.io/dashboard):
+
+```bash
+LIVEBLOCKS_SECRET_KEY=sk_...
+```
+
+The key never leaves the server. Browsers get short-lived tokens from
+`/api/yjs/auth`, which are issued only to members of the canvas.
+
+Optionally, add a Liveblocks webhook for the `ydocUpdated` event pointing at
+`/api/liveblocks/webhook`, and set `LIVEBLOCKS_WEBHOOK_SECRET` to its signing
+secret. Canvas thumbnails then refresh even when nobody has the canvas open,
+for example while the agent works unattended.
+
+### Local y-websocket
+
+The desktop app runs a y-websocket server inside its own process. It's started
+from `instrumentation.ts` and saves each canvas to disk.
+
+| Variable | Default |
+| --- | --- |
+| `NEXT_PUBLIC_YJS_WS_PORT` | `1234` |
+| `YJS_PERSISTENCE_DIR` | `<cwd>/.data/yjs` |
+
+With one local user, membership checks and presence tokens have nothing to
+do, so `/api/yjs/auth` simply issues tokens to that user.
+
+## Adding a host
+
+Hocuspocus, a self-run y-websocket, Cloudflare Durable Objects, and other
+Yjs-compatible backends all work:
+
+1. Add a server implementation (`apps/app/lib/yjs-host/*-server.ts`) of the
+   `YjsHost` interface in `types.ts`, and a React client
+   (`*-client.tsx`). Model them on the Liveblocks pair.
+2. Select them in `resolveYjsHost()` in `lib/yjs-host/index.ts` and in
+   `lib/yjs-host/client.tsx`, behind a new `NEXT_PUBLIC_YJS_HOST` value.
+3. Read the host's credentials inside your server implementation.
+
+Token issuance still goes through `/api/yjs/auth`, so access stays tied to
+canvas membership whichever host you use.

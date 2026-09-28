@@ -1,0 +1,86 @@
+---
+title: Sharing & collaboration
+description: Share canvases, see each other live, follow viewports, and comment on elements. Hosted app only.
+---
+
+import { Callout } from "nextra/components"
+
+# Sharing & collaboration
+
+<Callout type="info">
+  Everything on this page is part of the **hosted** app. The desktop app is
+  single-user: it has no sharing, cursors, or stored comments. You can still
+  send a document selection to the agent; see
+  [Documents](/guides/documents#sending-a-selection-to-the-agent).
+</Callout>
+
+A canvas is a shared, live space. Everyone in it sees the same frames,
+documents, workspaces, and agent chats, with changes appearing as they
+happen. If a teammate asks the agent for something, you watch it stream in
+too.
+
+## Sharing a canvas
+
+As the owner, click **Share** in the canvas's top right, or **Share** in the
+canvas menu on the home screen. Invite people by the email address of their
+Screenplay account. **People with access** lists everyone; **Remove** takes
+someone off, after you confirm.
+
+There are two roles:
+
+- **Owner** can rename, share, and delete the canvas.
+- **Collaborators** can do everything else: add projects and workspaces, chat
+  with the agent, and edit the canvas. They can pin the canvas and file it
+  into their own folders. Their **Delete** is **Leave**.
+
+There's no public link sharing. **Copy link** copies the canvas's address,
+but only people with access can open it.
+
+## Seeing each other
+
+- **Cursors.** Everyone's pointer shows on the canvas with their name, in
+  their color. Selections are outlined in that color too.
+- **Avatars.** The top right shows who's here. Click an avatar to **follow**
+  that person: your view tracks their viewport as they pan and zoom. Click
+  again, or your own avatar, to stop.
+- **Cursor chat.** Press <kbd>/</kbd> to type a short message (up to 140
+  characters) that floats next to your cursor for everyone to see.
+  <kbd>↵</kbd> or <kbd>Esc</kbd> closes it.
+
+Commits are made under the name of whoever sent the message, so git history
+stays accurate on a shared canvas.
+
+## Comments
+
+Press <kbd>C</kbd> (or pick **Comment** in the toolbar):
+
+- **On a frame**, hover to outline the element under the pointer, then click
+  to pin a comment to it. The comment is anchored to the workspace, the route
+  and the element, so its pin follows the element and shows only while the
+  frame is on that route.
+- **On a document**, select text to comment on it. The comment quotes the text
+  and its line numbers.
+
+Type your comment and click **Comment** (<kbd>⌘</kbd> <kbd>↵</kbd>). For
+document comments, **Send to agent** turns the note and quoted text into a
+new agent chat instead.
+
+Pins are numbered in the order their threads were started and are
+highlighted when unread. Open a pin to see its thread in a card beside the
+element: reply (type <kbd>@</kbd> to mention someone), **Resolve** or
+**Reopen**, edit your own comments, and use the card's menu for **Mark as
+unread** or **Delete thread**.
+
+The comment button in the top bar shows how many threads are open, with a dot
+when some are unread. It opens the **Comments** panel, which groups threads by
+frame and route behind **Open**, **Mine**, **Unread** and **Resolved**
+filters. <kbd>J</kbd> and <kbd>K</kbd> step through the threads, opening each
+one's card, and <kbd>E</kbd> resolves or reopens it. The eye in the panel's
+header hides the pins. A comment whose frame or element no longer exists is
+listed as **Detached**. In [play mode](/guides/play-mode) you see and add the
+same threads.
+
+## Terminal tabs stay private
+
+[Terminal tabs](/guides/terminals) belong to the person who opened them and
+aren't visible to collaborators.
