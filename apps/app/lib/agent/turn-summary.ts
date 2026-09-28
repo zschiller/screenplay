@@ -83,7 +83,14 @@ export function foldFinishedTurns(
   return items
 }
 
-type Category = "read" | "edit" | "readDoc" | "editDoc" | "run" | "search"
+type Category =
+  | "read"
+  | "edit"
+  | "readDoc"
+  | "editDoc"
+  | "canvas"
+  | "run"
+  | "search"
 
 const TITLE_CATEGORY: Record<string, Category> = {
   read_file: "read",
@@ -94,6 +101,15 @@ const TITLE_CATEGORY: Record<string, Category> = {
   replace_document_body: "editDoc",
   append_to_document_body: "editDoc",
   set_document_title: "editDoc",
+  // The Coordinator's arrange tools (#894) change the canvas, not files.
+  create_frames: "canvas",
+  create_document: "canvas",
+  move_group: "canvas",
+  move_to_group: "canvas",
+  merge_groups: "canvas",
+  rename: "canvas",
+  remove: "canvas",
+  undo_changes: "canvas",
 }
 
 const KIND_CATEGORY: Record<string, Category> = {
@@ -161,6 +177,7 @@ function failureName(call: ToolCallMessage): string {
   if (category === "read" || category === "readDoc") return "Read"
   if (category === "edit" || category === "editDoc") return "Edit"
   if (category === "search") return "Search"
+  if (category === "canvas") return "Canvas change"
   return "A step"
 }
 
@@ -193,6 +210,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     edit: new Set(),
     readDoc: new Set(),
     editDoc: new Set(),
+    canvas: new Set(),
     run: new Set(),
     search: new Set(),
   }
@@ -226,6 +244,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
         : `edited ${plural(n("edit"), "file", "files")}`),
     n("readDoc") && "read the document",
     n("editDoc") && "edited the document",
+    n("canvas") && "changed the canvas",
     runs.length > 0 && `ran ${runs.join(" and ")}`,
     n("search") && `searched ${plural(n("search"), "time", "times")}`,
   ].filter((p): p is string => typeof p === "string")

@@ -7,6 +7,7 @@ import {
   resolveCoordinatorToken,
 } from "@/lib/agent/coordinator-mcp"
 import { ROOM_TOOL_ANNOTATIONS } from "@/lib/agent/room-tools"
+import { findActiveRun } from "@/lib/agent/persistence"
 import {
   handleMcpMessage,
   parseErrorResponse,
@@ -44,11 +45,17 @@ export async function POST(req: Request) {
 
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
+  // Each request builds a fresh tool set, so log canvas changes under the
+  // Coordinator's running turn: "undo that" then undoes the whole reply.
+  const run = await findActiveRun(binding.chatId).catch(() => null)
 
   const server: McpToolServer = {
     name: COORDINATOR_MCP_SERVER_NAME,
     version: "1",
-    tools: roomChatTarget.buildTools(room, { userId: room.userId }),
+    tools: roomChatTarget.buildTools(room, {
+      userId: room.userId,
+      turnId: run?.id,
+    }),
     annotations: ROOM_TOOL_ANNOTATIONS,
     // A wrong URL or token only ever shows up as "the tools aren't there", so
     // log each handshake to tell a missing one apart.

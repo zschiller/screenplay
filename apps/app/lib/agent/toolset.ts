@@ -19,7 +19,13 @@ import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
 export type ToolTarget =
   | { kind: "sandbox"; room: RoomDoc; sandbox: ToolContext }
   | { kind: "markdown-layer"; room: RoomDoc; markdownLayerId: string }
-  | { kind: "room"; room: RoomDoc; ports: RoomToolPorts }
+  | {
+      kind: "room"
+      room: RoomDoc
+      ports: RoomToolPorts
+      /** The turn the tools' canvas changes are logged under (a new one by default). */
+      turnId?: string
+    }
 
 /**
  * The single assembly point for an agent loop's tools. Picks the target's own
@@ -36,7 +42,7 @@ export function toolsetFor(target: ToolTarget): ToolSet {
     target.kind === "sandbox"
       ? buildSandboxTools(target.sandbox)
       : target.kind === "room"
-        ? buildRoomTools(target.room.roomId, target.ports)
+        ? buildRoomTools(target.room.roomId, target.ports, target.turnId)
         : buildMarkdownLayerTools({
             room: target.room,
             markdownLayerId: target.markdownLayerId,

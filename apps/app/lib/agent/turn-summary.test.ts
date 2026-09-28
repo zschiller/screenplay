@@ -126,6 +126,16 @@ describe("summarizeSteps", () => {
     expect(failures).toEqual([])
   })
 
+  it("says a Coordinator's arrange and undo calls changed the canvas, not files", () => {
+    const { text, failures } = summarize([
+      call("1", { title: "remove", kind: "delete" }),
+      call("2", { title: "move_group", kind: "move", status: "failed" }),
+      call("3", { title: "undo_changes", kind: "edit" }),
+    ])
+    expect(text).toBe("Changed the canvas")
+    expect(failures).toEqual(["Canvas change"])
+  })
+
   it("reads an ACP adapter's calls by kind", () => {
     const { text } = summarize([
       call("1", {
