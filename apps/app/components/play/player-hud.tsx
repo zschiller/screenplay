@@ -318,7 +318,7 @@ export function PlayerHud({
                 return (
                   <SelectGroup key={group.category}>
                     {index > 0 ? <SelectSeparator /> : null}
-                    <SelectLabel className="text-3xs tracking-wide uppercase">
+                    <SelectLabel>
                       {group.category}
                     </SelectLabel>
                     {group.presets.map((preset) => (

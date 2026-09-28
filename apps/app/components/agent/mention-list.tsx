@@ -73,7 +73,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
 
     return (
       <div className="max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-xs shadow-md">
-        <div className="px-2 py-1 text-3xs tracking-wide text-muted-foreground uppercase">
+        <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
           Documents
         </div>
         {items.map((item, i) => (
