@@ -1,6 +1,7 @@
 "use client"
 
 import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
+import { useWorkspaceAgentWorking } from "@/components/workspace-mention"
 import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
 import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -29,6 +30,7 @@ export function RemoveRepositoryDialog({
   ) => void | Promise<void>
 }) {
   const githubTokenAvailable = useGitHubTokenAvailable()
+  const agentWorking = useWorkspaceAgentWorking()
   const targets = repo
     ? branches.filter((b) => b.repoId === repo.id && b.ref)
     : []
@@ -46,7 +48,12 @@ export function RemoveRepositoryDialog({
         id: b.id,
         ref: b.ref,
         title: b.title,
-        colorIndex: b.colorIndex,
+        status: b.status,
+        statusMessage: b.statusMessage,
+        error: b.error,
+        prNumber: b.prNumber,
+        prState: b.prState,
+        agentWorking: agentWorking(b.id),
         openPrNumber: b.prState === "open" ? b.prNumber : undefined,
         work: unsavedWork.get(b.id),
       }))}

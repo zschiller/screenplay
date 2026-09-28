@@ -28,7 +28,6 @@ import { AnimatePresence, motion, Reorder } from "motion/react"
 import { toast } from "sonner"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
-import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { EditableText } from "@workspace/ui/components/editable-text"
 import {
@@ -67,7 +66,10 @@ import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
 import { ChatHistoryMenu } from "./chat-history-menu"
-import { BranchBadge } from "@/components/branch-badge"
+import {
+  WorkspaceMention,
+  useWorkspaceAgentWorking,
+} from "@/components/workspace-mention"
 import type {
   BranchData,
   ChatSessionData,
@@ -1312,20 +1314,22 @@ export function ChatPanel({
 }
 
 /**
- * Renders the picker pill for the panel's current target. The agent
- * branch flavour stays a branch badge (its chrome is unique); every layer
+ * Renders the picker trigger's label for the panel's current target. A
+ * Workspace is the shared Workspace mention without its PR; every layer
  * kind renders generically through its `LayerKindDescriptor` (icon +
  * label), so adding a new chat-targetable kind doesn't touch this file.
  */
 function TargetPill({ target }: { target: ChatPanelTarget }) {
+  const agentWorking = useWorkspaceAgentWorking()
   if (target.kind === "agent") {
+    // State icon and plain name (#974); no PR badge, since the header keeps
+    // its own PR button on the right (#799).
     return (
-      <BranchBadge
-        branch={target.agent.ref}
-        title={target.agent.title}
-        colorKey={target.agent.id}
-        colorIndex={target.agent.colorIndex}
-        className="px-1.5 py-0 text-2xs"
+      <WorkspaceMention
+        branch={target.agent}
+        agentWorking={agentWorking(target.agent.id)}
+        pr={false}
+        className="flex-initial text-sm"
       />
     )
   }
@@ -1362,6 +1366,7 @@ function TargetPicker({
   onSelectLayer: (layerKind: string, layerId: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const agentWorking = useWorkspaceAgentWorking()
   const pickableAgents = agents.filter(
     (a) => a.ref && a.status !== "error" && a.status !== "stopped"
   )
@@ -1378,7 +1383,7 @@ function TargetPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-0.5">
+        <button className="flex min-w-0 items-center gap-1">
           <TargetPill target={target} />
           <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
         </button>
@@ -1391,8 +1396,6 @@ function TargetPicker({
             {pickableAgents.length > 0 && (
               <CommandGroup heading="Workspaces">
                 {pickableAgents.map((a) => {
-                  const isBusy =
-                    a.status === "creating" || a.status === "starting"
                   const isCurrent =
                     target.kind === "agent" && a.id === target.agent.id
                   return (
@@ -1408,14 +1411,24 @@ function TargetPicker({
                       <Check
                         className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
                       />
-                      <BranchBadge
-                        branch={a.ref}
-                        title={a.title}
-                        colorKey={a.id}
-                        colorIndex={a.colorIndex}
-                        className="px-1.5 py-0 text-2xs"
+                      <WorkspaceMention
+                        branch={a}
+                        agentWorking={agentWorking(a.id)}
+                        fallback={
+                          a.status === "running" &&
+                          ((a.diffAdditions ?? 0) > 0 ||
+                            (a.diffDeletions ?? 0) > 0) ? (
+                            <span className="flex items-center gap-1 font-mono text-3xs">
+                              <span className="text-success">
+                                +{a.diffAdditions}
+                              </span>
+                              <span className="text-destructive">
+                                -{a.diffDeletions}
+                              </span>
+                            </span>
+                          ) : null
+                        }
                       />
-                      {isBusy && <Spinner className="ml-auto size-3" />}
                     </CommandItem>
                   )
                 })}
@@ -1447,6 +1460,10 @@ function TargetPicker({
                         <Check
                           className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
                         />
+                        {/* In the Workspace rows' icon column (#974). */}
+                        <span className="flex size-4 shrink-0 items-center justify-center">
+                          <descriptor.Icon className="size-3.5 opacity-70" />
+                        </span>
                         <span className="truncate">{label}</span>
                       </CommandItem>
                     )
