@@ -10,7 +10,7 @@ import {
   unfreeze,
   type Screen,
 } from "../screens"
-import { DOCS_IDS } from "./world"
+import { DOCS_CLOCK, DOCS_IDS } from "./world"
 
 /**
  * The **docs screen list** — every screenshot the product docs embed
@@ -39,6 +39,9 @@ export type Crop = [x: number, y: number, width: number, height: number]
 
 /** Crops measured from `focus` during the last capture, by `<name>.<theme>`. */
 export const measuredCrops = new Map<string, Crop>()
+
+/** Screens whose `prepare` failed in the last capture, by `<name>.<theme>`. */
+export const failedPrepares = new Map<string, string>()
 
 // Focus presets: the open surface plus the control that opened it.
 const MENU = ["[role=menu]", "button[data-state=open]"]
@@ -78,24 +81,69 @@ const WITH_CHAT = canvasPanels({ sidebarPct: 18.75, chatPct: 32.8 })
 
 /** A docs screen: the docs viewport, and a `focus` measured after `prepare`. */
 const screen = (s: DocsScreen): DocsScreen => {
-  if (!s.focus) return { viewport: DOCS_VIEWPORT, ...s }
-  const focus = s.focus
-  return {
-    viewport: DOCS_VIEWPORT,
-    ...s,
-    prepare: async (page) => {
-      await s.prepare?.(page)
-      await sleep(page, 300)
-      const measured = await measureFocus(page, focus)
-      // Grow the hand-set crop to take in the focus, never shrink it: the
-      // hand-set region carries the context around the surface.
-      const crop = measured && s.crop ? union(measured, s.crop) : measured
-      const theme = (await page.evaluate(
-        `document.documentElement.classList.contains("dark") ? "dark" : "light"`
-      )) as string
-      if (crop) measuredCrops.set(`${s.name}.${theme}`, crop)
-    },
+  // Freeze the browser clock on the docs world's instant, so relative times
+  // and dates render identically on every run.
+  const beforeNavigate = async (page: Page) => {
+    await page.clock.setFixedTime(new Date(DOCS_CLOCK))
+    // Present a windowed (not fullscreen) desktop app. Outside Tauri the app
+    // decides whether the macOS traffic lights are showing by comparing the
+    // window to the screen (`lib/use-traffic-lights.ts`), and a headless
+    // browser's screen is exactly its viewport — which reads as fullscreen,
+    // so the app would give up the space `./frame.ts` draws the lights in.
+    await page.addInitScript({
+      content: `Object.defineProperty(window.screen, "height", { get: () => window.innerHeight + 120 })`,
+    })
+    await s.beforeNavigate?.(page)
   }
+  const prepare = async (page: Page) => {
+    const key = `${s.name}.${await themeOf(page)}`
+    try {
+      await waitForLoaded(page)
+      await s.prepare?.(page)
+      if (s.focus) {
+        await sleep(page, 300)
+        const measured = await measureFocus(page, s.focus)
+        // Grow the hand-set crop to take in the focus, never shrink it: the
+        // hand-set region carries the context around the surface.
+        const crop = measured && s.crop ? union(measured, s.crop) : measured
+        if (crop) measuredCrops.set(key, crop)
+      }
+      failedPrepares.delete(key)
+    } catch (err) {
+      // The runner still captures the screen without its step; record it so
+      // a strict run can refuse to publish that image.
+      failedPrepares.set(
+        key,
+        err instanceof Error ? err.message.split("\n")[0]! : String(err)
+      )
+      throw err
+    }
+  }
+  return { viewport: DOCS_VIEWPORT, ...s, beforeNavigate, prepare }
+}
+
+/**
+ * Wait for the app's loading spinners (`Spinner` in `@workspace/ui`, a
+ * `role=status` "Loading" icon) to clear. The runner's settle step waits for
+ * skeletons, not spinners, so on a cold dev server a panel that fetches on
+ * mount — Settings' coding agents and presets — would be shot mid-load. A
+ * screen whose spinner never clears (a stream held open on purpose) is shot
+ * after the timeout, as it is.
+ */
+async function waitForLoaded(page: Page) {
+  await page
+    .waitForFunction(
+      `![...document.querySelectorAll("[role=status][aria-label=Loading]")].some((e) => e.getBoundingClientRect().width > 0)`,
+      undefined,
+      { timeout: 20_000 }
+    )
+    .catch(() => {})
+}
+
+async function themeOf(page: Page): Promise<string> {
+  return (await page.evaluate(
+    `document.documentElement.classList.contains("dark") ? "dark" : "light"`
+  )) as string
 }
 
 function union(a: Crop, b: Crop): Crop {

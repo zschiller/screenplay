@@ -1,0 +1,116 @@
+name: Docs screenshots
+
+# Keeps the product docs' screenshots in step with the app. After every change
+# to the UI (or the docs) lands on main, regenerate them from the docs world
+# (`apps/app/screenshots/docs/`) and, if any image actually changed, open or
+# update one pull request with the new images for a person to look over.
+#
+# Re-runs are stable: the docs world and the capture clock are pinned, and the
+# framing step keeps any image that renders visually the same. So a change
+# that doesn't touch what the docs show leaves no pull request behind.
+#
+# Needs "Allow GitHub Actions to create and approve pull requests" enabled in
+# the repository's Actions settings. Pull requests opened with the workflow's
+# token don't trigger other workflows; push to the branch or close and reopen
+# the PR to run CI on it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/app/**"
+      - "packages/ui/**"
+      - "packages/screenplay-knobs/**"
+      - "packages/screenplay-state/**"
+      - "apps/docs/content/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/docs-screenshots.yml"
+  workflow_dispatch:
+
+# Only the newest main matters: a run superseded by a later push is cancelled.
+concurrency:
+  group: docs-screenshots
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  BRANCH: automation/docs-screenshots
+
+jobs:
+  refresh:
+    # Merging the refresh PR changes only apps/docs/public/screenshots, which
+    # isn't in `paths`, so it doesn't re-trigger this workflow.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Cache Puppeteer browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            puppeteer-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        run: pnpm --filter app exec playwright-core install --with-deps chromium
+
+      # --strict: a screen whose steps failed would be captured in the wrong
+      # state, so fail the run rather than propose that image.
+      - name: Regenerate the docs screenshots
+        run: pnpm --filter app screenshots:docs --strict
+
+      - name: Keep the raw captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-screenshot-captures
+          path: apps/app/.screenshots/docs/captures/docs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Open or update the refresh pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$(git status --porcelain -- apps/docs/public/screenshots)" ]; then
+            echo "Screenshots are up to date."
+            exit 0
+          fi
+          changed=$(git status --porcelain -- apps/docs/public/screenshots | wc -l)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add apps/docs/public/screenshots
+          git commit -m "docs: refresh screenshots for ${GITHUB_SHA::7}"
+          git push --force origin "$BRANCH"
+
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="The docs screenshots, regenerated from main at ${GITHUB_SHA::7} by the [Docs screenshots workflow](${run_url}): ${changed} image(s) changed.
+
+          Look over the changed images in **Files changed** before merging. To regenerate locally: \`pnpm --filter docs screenshots\`."
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr edit "$BRANCH" --body "$body"
+          else
+            gh pr create --head "$BRANCH" --base main \
+              --title "docs: refresh screenshots" --body "$body"
+          fi

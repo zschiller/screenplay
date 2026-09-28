@@ -19,15 +19,15 @@ import { frameScreens } from "../docs/frame"
 import { resolveDocsProfile } from "../docs/profile"
 import {
   DOCS_SCREENS,
+  failedPrepares,
   measuredCrops,
   selectDocsScreens,
   setDemoCheckoutPath,
   type DocsScreen,
 } from "../docs/screens"
 import { photographPreviews } from "../docs/thumbnails"
-import { buildDocsWorld } from "../docs/world"
+import { buildDocsWorld, DOCS_NOW } from "../docs/world"
 import { seedFixtureWorld } from "../fixtures/seed"
-import { worldNow } from "../fixtures/world"
 import { boolFlag, listFlag, parseArgs } from "../lib/args"
 import { THEMES, type Theme } from "../lib/browser"
 import { captureScreens } from "../lib/capture"
@@ -48,6 +48,7 @@ import type { CaptureProfile } from "../profile"
  *   --no-frame      capture only; leave apps/docs untouched
  *   --frame-only    re-frame the last capture without booting anything
  *   --boot          seed and serve the docs world until Ctrl-C, for browsing
+ *   --strict        fail, without framing, if any screen's steps failed (CI)
  *
  * A run finding a `--boot` already serving shoots against it rather than
  * re-seeding, which is the fast loop while editing a screen.
@@ -91,7 +92,7 @@ async function main(): Promise<void> {
     const preview = await startDemoPreviews(profile.stateRoot, previews)
     try {
       const world = await buildDocsWorld({
-        now: worldNow(),
+        now: DOCS_NOW,
         previewOrigins: Object.fromEntries(
           previews.map((p) => [p.sandboxName, previewOrigin(p.port)])
         ),
@@ -125,6 +126,14 @@ async function main(): Promise<void> {
     } finally {
       await preview.stop()
     }
+  }
+
+  if (failedPrepares.size > 0) {
+    console.error("\nThese screens were captured without their steps:")
+    for (const [key, message] of failedPrepares) {
+      console.error(`  ${key}: ${message}`)
+    }
+    if (boolFlag(args, "strict")) process.exit(1)
   }
 
   if (!boolFlag(args, "no-frame")) {

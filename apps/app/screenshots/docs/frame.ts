@@ -47,6 +47,8 @@ export async function frameScreens(
     ? JSON.parse(await readFile(cropsFile, "utf8"))
     : {}
   let missing = 0
+  let written = 0
+  let unchanged = 0
   try {
     for (const screen of options.screens) {
       for (const theme of options.themes) {
@@ -66,17 +68,60 @@ export async function frameScreens(
         await page.setViewportSize({ width, height })
         await page.setContent(html, { waitUntil: "load" })
         const png = await page.screenshot()
-        await writeFile(
-          join(DOCS_SCREENSHOT_DIR, `${screen.name}.${theme}.webp`),
-          await sharp(png).webp({ quality: 86 }).toBuffer()
-        )
+        const out = join(DOCS_SCREENSHOT_DIR, `${screen.name}.${theme}.webp`)
+        if (await looksTheSame(png, out)) {
+          unchanged++
+          continue
+        }
+        await writeFile(out, await sharp(png).webp({ quality: 86 }).toBuffer())
+        written++
       }
       console.log(`  ✓ ${screen.name}`)
     }
   } finally {
     await browser.close()
   }
+  console.log(`Framed: ${written} updated, ${unchanged} unchanged.`)
   if (missing) console.warn(`${missing} capture(s) missing.`)
+}
+
+/** Share of pixels that may differ before a re-render counts as a change. */
+const CHANGED_PIXELS = 0.0005
+/** Per-channel difference below which a pixel counts as the same. */
+const CHANNEL_TOLERANCE = 24
+
+/**
+ * Whether a fresh render matches the committed image closely enough to keep
+ * the committed one. Encoding and anti-aliasing jitter move a handful of
+ * pixels between runs; without this, every regeneration would rewrite every
+ * file and a continuous refresh would never go quiet.
+ */
+async function looksTheSame(
+  png: Buffer,
+  existingPath: string
+): Promise<boolean> {
+  if (!existsSync(existingPath)) return false
+  const [a, b] = await Promise.all([
+    sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(existingPath)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true }),
+  ])
+  if (a.info.width !== b.info.width || a.info.height !== b.info.height) {
+    return false
+  }
+  let differing = 0
+  for (let i = 0; i < a.data.length; i += 4) {
+    if (
+      Math.abs(a.data[i]! - b.data[i]!) > CHANNEL_TOLERANCE ||
+      Math.abs(a.data[i + 1]! - b.data[i + 1]!) > CHANNEL_TOLERANCE ||
+      Math.abs(a.data[i + 2]! - b.data[i + 2]!) > CHANNEL_TOLERANCE
+    ) {
+      differing++
+    }
+  }
+  return differing / (a.data.length / 4) < CHANGED_PIXELS
 }
 
 function framePage(

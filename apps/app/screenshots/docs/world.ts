@@ -32,6 +32,18 @@ import { readSource, WORKSPACE_EDITS, type DemoPreview } from "./demo-site"
 const MINUTE = 60 * 1000
 const DAY = 24 * 60 * MINUTE
 
+/**
+ * The instant the docs world is anchored to — fixed, unlike the design-review
+ * world's `worldNow()`, because the docs are regenerated continuously and a
+ * re-run with no UI change must produce the same images. Captures freeze the
+ * browser clock just after it ({@link DOCS_CLOCK}), so "Edited 2m ago" and
+ * the table's dates read the same on every run.
+ */
+export const DOCS_NOW = Date.UTC(2026, 8, 14, 16, 0)
+
+/** The browser clock every docs capture is frozen at. */
+export const DOCS_CLOCK = DOCS_NOW + 2 * MINUTE
+
 export const DOCS_IDS = {
   folders: { marketing: "fld-marketing", product: "fld-product" },
   rooms: {
