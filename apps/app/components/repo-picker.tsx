@@ -36,7 +36,7 @@ interface RepoPickerProps {
   onSelect: (pick: RepoPickerSelection) => void
   /**
    * Show the local build's no-auth add-by-URL entry point (folded into the
-   * search box) and, when no token has resolved, a "Connect GitHub in Settings"
+   * search box) and, when no token has resolved, a "Connect GitHub"
    * pointer. Connecting itself lives in Settings now (ADR 0014) — the picker no
    * longer hosts its own connect dialog. Only the in-Room add-Repo surface on
    * the local build sets this; the hosted build's account-backed picker is
@@ -209,17 +209,8 @@ export function RepoPicker({
 
             {/* Only once the list has loaded: while loading, or after a
                 failed load, the block below says why there is nothing. */}
-            {!loading && !loadFailed && (
-              <CommandEmpty>
-                {showConnectHint ? (
-                  <span className="text-sm text-muted-foreground">
-                    Connect GitHub to browse your repositories, or paste a clone
-                    URL above or add a local folder below.
-                  </span>
-                ) : (
-                  "No GitHub repositories found."
-                )}
-              </CommandEmpty>
+            {!loading && !loadFailed && !showConnectHint && (
+              <CommandEmpty>No GitHub repositories found.</CommandEmpty>
             )}
 
             {!loading && !loadFailed && showGroups && (
@@ -249,6 +240,25 @@ export function RepoPicker({
                   )
                 })}
               </CommandGroup>
+            )}
+
+            {/* No token: point at Settings, the one canonical connection home
+                (ADR 0014). A plain block rather than CommandEmpty so it stays
+                under the presets too, whatever the search. Not gated on
+                `deviceFlowConfigured`: the `gh` path in Settings needs no
+                client id. */}
+            {showConnectHint && !cloneUrl && (
+              <div className="flex flex-col items-center gap-3 py-6">
+                <span className="text-sm text-muted-foreground">
+                  Connect GitHub to see your repositories here.
+                </span>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/settings?section=github">
+                    <Plug />
+                    Connect GitHub
+                  </Link>
+                </Button>
+              </div>
             )}
 
             {loading || loadFailed ? (
@@ -299,29 +309,6 @@ export function RepoPicker({
           </CommandList>
         </div>
       </Command>
-
-      {/* No token on the local build: point at Settings, the one canonical
-          connection home (ADR 0014). Shown on `tokenSource === null` alone —
-          deliberately not gated on `deviceFlowConfigured`, since the primary
-          `gh` path in Settings needs no client id. */}
-      {localSources && status?.tokenSource === null && (
-        <div
-          data-slot="repo-picker-footer"
-          className="flex flex-col gap-1 border-t p-1"
-        >
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="justify-start gap-2 font-normal"
-          >
-            <Link href="/settings?section=github">
-              <Plug className="size-4 text-muted-foreground" />
-              Connect GitHub in Settings →
-            </Link>
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

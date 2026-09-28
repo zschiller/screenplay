@@ -42,6 +42,11 @@ export type ConfirmDialogProps = {
    * flight, so the option can disable itself meanwhile.
    */
   children?: ReactNode | ((state: { pending: boolean }) => ReactNode)
+  /**
+   * The dismiss button's label. Defaults to "Cancel"; override it when
+   * "Cancel" would be ambiguous, e.g. confirming a cancel ("Keep editing").
+   */
+  cancelLabel?: string
   /** Red confirm for permanent destruction; leaving a shared canvas is not. */
   destructive?: boolean
   /** Defaults to the verb's -ing form ("Deleting…"). */
@@ -83,6 +88,7 @@ export function ConfirmDialog({
   itemNoun,
   description,
   children,
+  cancelLabel = "Cancel",
   destructive = true,
   pendingLabel,
   onConfirm,
@@ -135,7 +141,9 @@ export function ConfirmDialog({
           </p>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>
+            {cancelLabel}
+          </AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
             disabled={pending}
