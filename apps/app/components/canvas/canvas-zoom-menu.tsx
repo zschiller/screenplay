@@ -52,15 +52,24 @@ export function CanvasZoomMenu({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
+          size="xs"
           aria-label={`Zoom, ${percent}%`}
-          className="gap-0.5 px-2 font-normal tabular-nums"
+          className="gap-0.5 px-1.5 font-normal tabular-nums"
         >
           {percent}%
           <ChevronDown className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent
+        // Hang from the pill's left edge (the trigger leads it, inset by the
+        // pill's 4px padding), 4px below it; where that would overflow the
+        // viewport, collision padding lands it flush with the pill's right edge.
+        align="start"
+        alignOffset={-4}
+        sideOffset={8}
+        collisionPadding={8}
+        className="w-52"
+      >
         <DropdownMenuItem
           disabled={percent >= ZOOM_MAX * 100}
           onSelect={onZoomIn}
