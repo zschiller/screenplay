@@ -960,8 +960,26 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await page
-        .locator("[data-sidebar=menu-sub-button]", {
+        .locator("[data-sidebar=menu-button]", {
           hasText: "Checkout polish",
+        })
+        .first()
+        .hover({ timeout: 15_000 })
+      await waitForWorkspaceHoverCard(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-workspace-hover-card-group",
+    description:
+      "Hovering a group label's Workspace pill: the same hover card as the row (#882).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        // The Cart group label's pill, not the sidebar group row's. The
+        // Checkout group's label sits under the top chrome at this viewport.
+        .locator("[data-slot=badge]:not([data-slot=sidebar-menu-button] *)", {
+          hasText: "Empty cart state",
         })
         .first()
         .hover({ timeout: 15_000 })
