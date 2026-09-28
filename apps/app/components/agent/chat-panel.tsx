@@ -16,8 +16,10 @@ import {
   ChevronDown,
   Check,
   GitPullRequest,
+  GitPullRequestClosed,
+  GitMerge,
+  GitMergeConflict,
   ArrowUpRight,
-  Link as LinkIcon,
   Logs,
   MessageCircle,
   SquareTerminal,
@@ -87,12 +89,8 @@ import { useAppSession } from "@/lib/auth-client"
 import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
-import type {
-  BranchPrChecks,
-  BranchPrInfo,
-  BranchPrState,
-} from "@/lib/github-actions"
-import { prStatusDotColor, prStatusLabel } from "@/components/pr-state-color"
+import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
+import { prStateColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
@@ -534,14 +532,14 @@ export function ChatPanel({
 
   const activeTab = selectedChatId ?? openTabs[0]?.id ?? ""
   const chatHistoryPr = useLatestPr(activeTab)
-  // The polled branch PR carries state and checks; a `create_pr` result in this
+  // The polled branch PR carries state and blocked; a `create_pr` result in this
   // chat's history only knows the number, so it's used when the poll hasn't
   // seen that PR yet.
   const displayPr: {
     url: string
     number: string
     state: BranchPrState
-    checks?: BranchPrChecks
+    blocked?: boolean
   } | null =
     branchPr &&
     (!chatHistoryPr || chatHistoryPr.number === String(branchPr.number))
@@ -549,11 +547,26 @@ export function ChatPanel({
           url: branchPr.url,
           number: String(branchPr.number),
           state: branchPr.state,
-          checks: branchPr.checks,
+          blocked: branchPr.blocked,
         }
       : chatHistoryPr
         ? { ...chatHistoryPr, state: "open" }
         : null
+  // The PR button's icon and color mirror the sidebar branch icon so the two
+  // stay legible together: open = green, merged = purple, closed = red. An open
+  // PR that can't merge (failing checks, a conflict) turns red with the
+  // merge-blocked icon.
+  const prBlocked = displayPr?.state === "open" && !!displayPr.blocked
+  const PrStateIcon = prBlocked
+    ? GitMergeConflict
+    : displayPr?.state === "merged"
+      ? GitMerge
+      : displayPr?.state === "closed"
+        ? GitPullRequestClosed
+        : GitPullRequest
+  const prColor = prStateColor(
+    prBlocked ? "closed" : (displayPr?.state ?? "open")
+  )
   const isAgentBusy = agent
     ? agent.status === "creating" || agent.status === "starting"
     : false
@@ -936,43 +949,18 @@ export function ChatPanel({
             )}
           {isAgentTarget &&
             (displayPr ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="xs" variant="outline">
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "size-1.5 shrink-0 rounded-full",
-                        prStatusDotColor(displayPr.state, displayPr.checks)
-                      )}
-                    />
-                    PR #{displayPr.number}
-                    <ChevronDown className="text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-48">
-                  <DropdownMenuLabel className="font-normal text-muted-foreground">
-                    {prStatusLabel(displayPr.state, displayPr.checks)}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => openExternal(displayPr.url)}
-                  >
-                    <ArrowUpRight />
-                    Open on GitHub
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      void navigator.clipboard
-                        ?.writeText(displayPr.url)
-                        .then(() => toast.success("Link copied"))
-                    }}
-                  >
-                    <LinkIcon />
-                    Copy link
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button size="xs" variant="outline" asChild>
+                <a
+                  href={displayPr.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={prBlocked ? "Merge blocked" : undefined}
+                  className={cn("group", prColor)}
+                >
+                  <PrStateIcon />#{displayPr.number}
+                  <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
+                </a>
+              </Button>
             ) : (
               <Button
                 size="xs"

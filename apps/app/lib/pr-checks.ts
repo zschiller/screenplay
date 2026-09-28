@@ -1,6 +1,23 @@
 /** Rolled-up CI checks on a PR's head commit. */
 export type BranchPrChecks = "pending" | "passing" | "failing"
 
+/** GitHub `mergeable_state` values that mean the PR can't be merged as it
+ *  stands: `dirty` is a merge conflict, `blocked` a failing required check or
+ *  a missing required review. */
+const BLOCKED_MERGEABLE_STATES = new Set(["blocked", "dirty"])
+
+/** Whether an open PR's merge is blocked: its checks fail, or GitHub says it
+ *  can't merge. An unknown (still computing) state doesn't block. */
+export function isMergeBlocked(
+  mergeableState: string | null | undefined,
+  checks: BranchPrChecks | undefined
+): boolean {
+  return (
+    checks === "failing" ||
+    (!!mergeableState && BLOCKED_MERGEABLE_STATES.has(mergeableState))
+  )
+}
+
 const FAILED_CONCLUSIONS = new Set([
   "failure",
   "timed_out",

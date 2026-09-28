@@ -1,7 +1,7 @@
 "use server"
 
 import { getGitHubToken } from "@/lib/auth-helpers"
-import { summarizeCheckRuns } from "@/lib/pr-checks"
+import { isMergeBlocked, summarizeCheckRuns } from "@/lib/pr-checks"
 import { FIXTURE_GITHUB_REPOS, hasFixtureGitHub } from "@/lib/fixture-github"
 import { mutateRoomDoc } from "@/lib/yjs/server"
 
@@ -310,15 +310,15 @@ async function cacheDiffStats(
 
 export type BranchPrState = "open" | "closed" | "merged"
 
-export type { BranchPrChecks } from "@/lib/pr-checks"
 import type { BranchPrChecks } from "@/lib/pr-checks"
 
 export interface BranchPrInfo {
   number: number
   url: string
   state: BranchPrState
-  /** Only looked up for open PRs; absent when the head commit has no checks. */
-  checks?: BranchPrChecks
+  /** An open PR that can't merge: failing checks, a conflict, or a missing
+   *  required review or check. Only looked up for open PRs. */
+  blocked?: boolean
 }
 
 async function fetchPrChecks(
@@ -341,6 +341,27 @@ async function fetchPrChecks(
     check_runs: Array<{ status: string; conclusion: string | null }>
   }
   return summarizeCheckRuns(data.check_runs ?? [])
+}
+
+/** `mergeable_state` is only on the single-PR endpoint, not the pulls list. */
+async function fetchMergeableState(
+  token: string,
+  owner: string,
+  repo: string,
+  number: number
+): Promise<string | undefined> {
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+    }
+  )
+  if (!res.ok) return undefined
+  const data = (await res.json()) as { mergeable_state?: string }
+  return data.mergeable_state
 }
 
 /** Token-injected core of the PR lookup. Fanned out in parallel by
@@ -374,11 +395,13 @@ async function fetchBranchPr(
   if (!pr) return null
 
   const state: BranchPrState = pr.merged_at ? "merged" : pr.state
-  const checks =
-    state === "open"
-      ? await fetchPrChecks(token, owner, repo, pr.head.sha)
-      : undefined
-  return { number: pr.number, url: pr.html_url, state, checks }
+  if (state !== "open") return { number: pr.number, url: pr.html_url, state }
+  const [checks, mergeableState] = await Promise.all([
+    fetchPrChecks(token, owner, repo, pr.head.sha),
+    fetchMergeableState(token, owner, repo, pr.number),
+  ])
+  const blocked = isMergeBlocked(mergeableState, checks) || undefined
+  return { number: pr.number, url: pr.html_url, state, blocked }
 }
 
 export interface BranchPrQuery {
@@ -432,13 +455,13 @@ async function cachePrs(
         cur.prNumber !== pr.number ||
         cur.prUrl !== pr.url ||
         cur.prState !== pr.state ||
-        cur.prChecks !== pr.checks
+        cur.prBlocked !== pr.blocked
       ) {
         branches.update(id, {
           prNumber: pr.number,
           prUrl: pr.url,
           prState: pr.state,
-          prChecks: pr.checks,
+          prBlocked: pr.blocked,
         })
       }
     }

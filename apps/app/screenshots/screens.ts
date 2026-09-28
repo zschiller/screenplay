@@ -440,17 +440,13 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "chat-header-pr-menu",
+    name: "chat-header-pr-blocked",
     description:
-      "The chat header's PR button opened: the PR's state and checks, and its actions.",
-    path: `/${ids.rooms.checkout}`,
+      "The chat header for a Workspace whose open PR can't merge: the PR button in red with the merge-blocked icon.",
+    path: `/${ids.rooms.frameStates}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openChatTab(page, "Checkout polish")
-      await page
-        .getByRole("button", { name: "PR #482", exact: true })
-        .click({ timeout: 15_000 })
-      await page.getByRole("menu").waitFor({ state: "visible", timeout: 5_000 })
+      await selectWorkspace(page, "listing-page")
     },
     settleMs: 400,
   },

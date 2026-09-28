@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { summarizeCheckRuns } from "./pr-checks"
+import { isMergeBlocked, summarizeCheckRuns } from "./pr-checks"
 
 const run = (status: string, conclusion: string | null = null) => ({
   status,
@@ -31,5 +31,22 @@ describe("summarizeCheckRuns", () => {
     expect(
       summarizeCheckRuns([run("queued"), run("completed", "timed_out")])
     ).toBe("failing")
+  })
+})
+
+describe("isMergeBlocked", () => {
+  it("blocks on failing checks", () => {
+    expect(isMergeBlocked("unstable", "failing")).toBe(true)
+  })
+
+  it("blocks on a conflict or a blocked merge", () => {
+    expect(isMergeBlocked("dirty", "passing")).toBe(true)
+    expect(isMergeBlocked("blocked", undefined)).toBe(true)
+  })
+
+  it("doesn't block a clean PR or one GitHub hasn't computed yet", () => {
+    expect(isMergeBlocked("clean", "passing")).toBe(false)
+    expect(isMergeBlocked("unknown", "pending")).toBe(false)
+    expect(isMergeBlocked(undefined, undefined)).toBe(false)
   })
 })

@@ -45,7 +45,7 @@ export function useBranchPrs(
     prNumber?: number
     prUrl?: string
     prState?: BranchPrInfo["state"]
-    prChecks?: BranchPrInfo["checks"]
+    prBlocked?: BranchPrInfo["blocked"]
   }>,
   repos: Array<{
     id: string
@@ -73,7 +73,7 @@ export function useBranchPrs(
           number: a.prNumber,
           url: a.prUrl,
           state: a.prState,
-          checks: a.prChecks,
+          blocked: a.prBlocked,
         })
       }
     }
@@ -105,7 +105,7 @@ export function useBranchPrs(
         prNumber: pr.number,
         prUrl: pr.url,
         prState: pr.state,
-        prChecks: pr.checks,
+        prBlocked: pr.blocked,
       })
     },
     [collections]
