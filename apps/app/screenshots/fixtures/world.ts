@@ -223,9 +223,6 @@ export const FIXTURE_IDS = {
     markdown: "chat-markdown-reply",
     /** No messages yet, on the same Workspace. */
     fresh: "chat-checkout-fresh",
-    /** Two more open chats, so a narrow panel's tab strip overflows. */
-    taxRounding: "chat-tax-rounding",
-    promoField: "chat-promo-field",
     /** Closed chats: what the chat history lists. */
     stickySummary: "chat-sticky-summary",
     shippingCopy: "chat-shipping-copy",
@@ -569,20 +566,6 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       branchId: b.checkoutPolish,
       label: "New chat",
       createdAt: minutesAgo(now, 3),
-      model: "claude-sonnet-4-5",
-    },
-    {
-      id: FIXTURE_IDS.chats.taxRounding,
-      branchId: b.checkoutPolish,
-      label: "Tax rounding",
-      createdAt: minutesAgo(now, 2),
-      model: "claude-sonnet-4-5",
-    },
-    {
-      id: FIXTURE_IDS.chats.promoField,
-      branchId: b.checkoutPolish,
-      label: "Promo field",
-      createdAt: minutesAgo(now, 1),
       model: "claude-sonnet-4-5",
     },
     // Closed chats — the chat history. One with a title and a first message,

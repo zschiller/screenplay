@@ -282,9 +282,15 @@ export const SCREENS: Screen[] = [
       // Radix focuses the first item once the menu's open animation ends.
       await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
       await page.waitForTimeout(500)
-      // The menu opens on its first item, Rename; Move to… is next.
-      await page.keyboard.press("ArrowDown")
-      await page.waitForTimeout(300)
+      // Walk down the menu to Move to…, wherever it sits in the list.
+      for (let i = 0; i < 6; i++) {
+        const label = await page.evaluate(
+          () => document.activeElement?.textContent?.trim() ?? ""
+        )
+        if (label.startsWith("Move to")) break
+        await page.keyboard.press("ArrowDown")
+        await page.waitForTimeout(150)
+      }
       await page.keyboard.press("Enter")
       // The dialog focuses its first destination as it opens.
       await page.getByRole("radiogroup").first().waitFor({ timeout: 5_000 })
@@ -354,11 +360,23 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-agent-chat",
     description:
-      "The agent chat panel: a finished turn with diff, terminal, subagent, and failed tool calls.",
+      "The agent chat panel: a finished turn's steps folded into one summary line, with a failure chip.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-turn-expanded",
+    description:
+      "A finished turn's summary opened: diff, terminal, subagent, and failed tool calls.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await expandTurnSummaries(page)
     },
     settleMs: 400,
   },
@@ -370,6 +388,7 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Breakpoint audit")
+      await expandTurnSummaries(page)
       await page
         .getByRole("button", { name: /^Reasoning$/ })
         .first()
@@ -418,17 +437,6 @@ export const SCREENS: Screen[] = [
     beforeNavigate: stubTerminal,
     prepare: openTerminalTab,
     settleMs: 600,
-  },
-  {
-    name: "chat-tabs-overflow",
-    description:
-      "A narrow chat panel with more open chats than fit: the tab strip's overflow.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 22 }),
-    prepare: async (page) => {
-      await openChatTab(page, "Checkout polish")
-    },
-    settleMs: 400,
   },
   {
     name: "chat-tabs-unread",
@@ -619,6 +627,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, toolStatesRun())
+      await expandTurnSummaries(page)
       await expandToolCall(page, /^Edit/)
     },
     settleMs: 400,
@@ -632,6 +641,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, toolStatesRun())
+      await expandTurnSummaries(page)
       // Hover the row, not the path text: hovering the text scrolls the
       // clipped title sideways to bring it into view.
       await page
@@ -650,6 +660,7 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
+      await expandTurnSummaries(page)
       // Reach it with the keyboard (focus back, then Tab onto it) so the
       // browser treats the focus as keyboard focus and paints the ring.
       await page
@@ -1236,21 +1247,19 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "home-create-error",
-    description: "The New canvas dialog after creating the Canvas fails.",
+    description: "Home after pressing New canvas fails: the error toast.",
     path: "/",
     prepare: async (page) => {
       await unfreeze(page)
       await failServerActions(page)
       // The header button can be clicked before hydration wires it up, so
-      // retry until the dialog is actually open.
-      const dialog = page.getByRole("dialog")
-      for (let i = 0; i < 5 && !(await dialog.count()); i++) {
+      // retry until the create has visibly failed.
+      const toast = page.locator("[data-sonner-toast]")
+      for (let i = 0; i < 5 && !(await toast.count()); i++) {
         await page.getByRole("button", { name: "New canvas" }).first().click()
-        await page.waitForTimeout(500)
+        await page.waitForTimeout(800)
       }
-      await dialog.getByRole("textbox").fill("Onboarding")
-      await page.getByRole("button", { name: "Create" }).click()
-      await page.waitForTimeout(800)
+      await page.mouse.move(0, 0)
     },
     settleMs: 300,
   },
@@ -1330,7 +1339,69 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 300,
   },
+
+  // --- New canvas (issue #777) ---------------------------------------------
+  // Last in the list on purpose: `home-new-canvas` really creates a Canvas, so
+  // anything shot after it on the same server would show an extra tile.
+  {
+    name: "home-new-canvas-hint",
+    description: "Hovering the header's New canvas button.",
+    path: "/",
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New canvas" })
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+  },
+  {
+    name: "home-folder-menu",
+    description: "A pinned folder's actions menu in the home sidebar.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      const row = page
+        .locator('[data-sidebar="menu-item"]')
+        .filter({ hasText: "Design system" })
+        .first()
+      await row.hover({ timeout: 15_000 })
+      await row.getByRole("button", { name: "Folder actions" }).click()
+      await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
+      await page.waitForTimeout(300)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-new-canvas",
+    description:
+      "What pressing New canvas on home opens: the new Untitled Canvas itself.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      // The header button can be clicked before hydration wires it up, so
+      // retry until something happens (a dialog, or the Canvas route).
+      const dialog = page.getByRole("dialog")
+      for (let i = 0; i < 5; i++) {
+        if ((await dialog.count()) || !isHomePath(page.url())) break
+        await page.getByRole("button", { name: "New canvas" }).first().click()
+        await page.waitForTimeout(800)
+      }
+      if (!(await dialog.count())) {
+        await page
+          .getByText("This canvas is empty")
+          .waitFor({ timeout: 30_000 })
+          .catch(() => {})
+      }
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
 ]
+
+function isHomePath(url: string): boolean {
+  return new URL(url).pathname === "/"
+}
 
 /**
  * Open a menu from its trigger and pick an item, walking into submenus: pass
@@ -1657,34 +1728,49 @@ export async function openChatTab(page: Page, label: string): Promise<void> {
     .getByRole("tab", { name: new RegExp(label, "i") })
     .first()
     .click({ timeout: 15_000 })
+  // A cold dev server can hold the history load past the settle delay.
+  await page
+    .getByText("Loading chat…")
+    .first()
+    .waitFor({ state: "hidden", timeout: 30_000 })
+    .catch(() => {})
 }
 
 /**
- * Open the chat panel's terminal drawer on a terminal. Opening an empty drawer
- * starts a terminal; the fixture world does seed two terminal tabs, but a cold
- * room load currently prunes them as orphans before its Workspaces arrive, so
- * either way the drawer ends up showing one.
+ * Open a fresh terminal tab from the tab strip's "New chat or terminal" menu.
+ *
+ * Opened rather than restored: the fixture world does seed two terminal tabs,
+ * but a cold room load currently prunes them as orphans before its Workspaces
+ * arrive, so they can't be relied on to be there.
  */
 export async function openTerminalTab(page: Page): Promise<void> {
   await page
-    .getByRole("button", { name: /^Terminal/ })
+    .getByRole("button", { name: "New chat or terminal" })
     .first()
     .click({ timeout: 15_000 })
+  // One harness reads "New terminal"; several list each harness by name under
+  // a "New terminal" label — either way the first item after "New chat".
   await page
-    .getByRole("tablist", { name: "Terminals" })
-    .getByRole("tab")
+    .getByRole("menuitem")
+    .filter({ hasNotText: "New chat" })
     .first()
-    .waitFor({ timeout: 15_000 })
+    .click({ timeout: 15_000 })
+  // Let the menu's exit animation finish before the shot: the settle step
+  // pins animations where they stand, which would freeze it half-closed.
+  await page.mouse.move(0, 0)
+  await page
+    .getByRole("menu")
+    .waitFor({ state: "detached", timeout: 5_000 })
+    .catch(() => {})
 }
 
 /**
- * Open the chat panel's history. Today's panel calls it "All chats" (the menu
- * that also lists overflowed tabs); the earlier panel's "Closed chats" button is
- * matched too so a before capture of this screen still opens it.
+ * Open the chat panel's history. Matches today's "Chat history" button and the
+ * earlier "Closed chats" one, so a before capture of this screen still opens it.
  */
 export async function openChatHistory(page: Page): Promise<void> {
   await page
-    .getByRole("button", { name: /^(All chats|Closed chats)$/ })
+    .getByRole("button", { name: /^(Chat history|Closed chats)$/ })
     .first()
     .click({ timeout: 15_000 })
 }
@@ -1844,6 +1930,24 @@ export function streamingRun(): RunEvent[] {
  * a row that already reports itself open, so a row that opens by default (a
  * failed call showing its reason) isn't toggled shut.
  */
+/**
+ * Open every finished turn's summary line, so the steps folded behind it show.
+ * Tolerates a transcript with none (a build from before #800), so the same
+ * screens shoot a "before" set.
+ */
+export async function expandTurnSummaries(page: Page): Promise<void> {
+  await page
+    .locator('[data-testid="turn-summary-trigger"]:visible')
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {})
+  // Other chat tabs stay mounted but hidden, so only the visible ones count.
+  const closed = page.locator(
+    '[data-testid="turn-summary-trigger"][aria-expanded="false"]:visible'
+  )
+  while ((await closed.count()) > 0) await closed.first().click()
+}
+
 export async function expandToolCall(page: Page, name: RegExp): Promise<void> {
   const row = page.getByRole("button", { name }).first()
   await row.waitFor({ timeout: 10_000 })
