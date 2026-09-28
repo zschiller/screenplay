@@ -9,6 +9,7 @@ import {
   InputGroupInput,
 } from "@workspace/ui/components/input-group"
 import { Kbd } from "@workspace/ui/components/kbd"
+import { cn } from "@workspace/ui/lib/utils"
 
 /** The key that focuses home search from anywhere on the page. */
 export const SEARCH_SHORTCUT = "/"
@@ -18,6 +19,10 @@ export const SEARCH_SHORTCUT = "/"
  * page that isn't already taking text; Esc clears it, then leaves it. The
  * shortcut hint shows only while the field is idle, so it never sits beside
  * a query.
+ *
+ * Below the header's compact width there's no room for an idle field, so it
+ * folds to a search-icon button; focused or holding a query, it opens across
+ * the header in the title's place (see `HomePageHeader`).
  */
 export function HomeSearchField({
   value,
@@ -28,6 +33,7 @@ export function HomeSearchField({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [focused, setFocused] = useState(false)
+  const open = focused || value !== ""
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -43,8 +49,14 @@ export function HomeSearchField({
   }, [])
 
   return (
-    <InputGroup className="w-40 @3xl/header:w-60">
-      <InputGroupAddon>
+    <InputGroup
+      data-search-open={open}
+      className={cn(
+        "@3xl/header:w-60",
+        open ? "@max-3xl/header:flex-1" : "@max-3xl/header:w-8"
+      )}
+    >
+      <InputGroupAddon className={cn(!open && "@max-3xl/header:pl-[7px]")}>
         <Search />
       </InputGroupAddon>
       <InputGroupInput
@@ -55,7 +67,10 @@ export function HomeSearchField({
         aria-label="Search canvases and folders"
         aria-keyshortcuts={SEARCH_SHORTCUT}
         // The native clear glyph would double up with ours.
-        className="[&::-webkit-search-cancel-button]:appearance-none"
+        className={cn(
+          "[&::-webkit-search-cancel-button]:appearance-none",
+          !open && "@max-3xl/header:w-0 @max-3xl/header:px-0"
+        )}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -81,7 +96,10 @@ export function HomeSearchField({
         </InputGroupAddon>
       ) : (
         !focused && (
-          <InputGroupAddon align="inline-end">
+          <InputGroupAddon
+            align="inline-end"
+            className="hidden @3xl/header:flex"
+          >
             <Kbd>{SEARCH_SHORTCUT}</Kbd>
           </InputGroupAddon>
         )

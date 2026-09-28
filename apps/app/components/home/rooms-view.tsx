@@ -142,10 +142,9 @@ export function RoomsView({
       // All files / a folder reads as a breadcrumb trail; Recents keeps its
       // plain title.
       title={folderView ? <FolderBreadcrumb ancestors={ancestors} /> : title}
+      search={<HomeSearchField value={query} onChange={setQuery} />}
       actions={
         <>
-          <HomeSearchField value={query} onChange={setQuery} />
-
           {/* Sharing doesn't exist in the single-user desktop build, where
               every Canvas is the user's own. */}
           {!isLocalBuild && (
@@ -405,7 +404,7 @@ function SearchResults({
           </EmptyMedia>
           <EmptyTitle>No matches</EmptyTitle>
           <EmptyDescription>
-            No canvas or folder matches, in any folder.
+            Nothing in any folder matches.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>

@@ -490,7 +490,7 @@ export function RoomTable({
             style={{ width: "10rem" }}
           />
           {showLocation ? (
-            <TableHead className="whitespace-nowrap" style={{ width: "14rem" }}>
+            <TableHead className="w-40 whitespace-nowrap @2xl/home:w-56">
               Location
             </TableHead>
           ) : (
