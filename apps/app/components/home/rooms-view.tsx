@@ -2,15 +2,12 @@
 
 import { useState } from "react"
 import {
-  ArrowDown,
-  ArrowUp,
   FolderOpen,
   FolderPlus,
   LayoutGrid,
   List,
   ListFilter,
   Plus,
-  Search,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -25,10 +22,8 @@ import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -40,13 +35,7 @@ import {
   HomeToolbarLabel,
   HomeToolbarTooltip,
 } from "./home-page-header"
-import {
-  useHome,
-  defaultOrder,
-  type OwnerFilter,
-  type SortKey,
-  type SortOrder,
-} from "./home-provider"
+import { useHome, type OwnerFilter } from "./home-provider"
 import { RoomGrid } from "./room-grid"
 import { RoomTable } from "./room-table"
 import { FolderGrid } from "./folder-grid"
@@ -58,25 +47,10 @@ import {
   useNewCanvasShortcut,
 } from "./use-create-canvas"
 import { LoadErrorState } from "./load-error"
-import { isSearching } from "@/lib/home-search"
 import { isLocalBuild } from "@/lib/local-mode"
 import { CanvasIcon } from "@/components/canvas-icon"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
-
-const SORT_LABELS: Record<SortKey, string> = {
-  updated: "Last edited",
-  created: "Date created",
-  name: "Name",
-}
-
-// Order labels read naturally per sort key: names go A→Z, timestamps go by
-// recency.
-const ORDER_LABELS: Record<SortKey, Record<SortOrder, string>> = {
-  updated: { desc: "Newest first", asc: "Oldest first" },
-  created: { desc: "Newest first", asc: "Oldest first" },
-  name: { asc: "A to Z", desc: "Z to A" },
-}
 
 const OWNER_LABELS: Record<OwnerFilter, string> = {
   all: "Anyone",
@@ -85,19 +59,18 @@ const OWNER_LABELS: Record<OwnerFilter, string> = {
 }
 
 /**
- * The canvas list with grid/table toggle and New canvas. `showSort` exposes the
- * sort dropdown (Canvases); Recents omits it and rides the provider's default
- * last-edited order so it's always recency-first. `showFolders` adds the folder
- * section + "Add folder" button — on for All files, off for Recents, which
- * stays a flat cross-folder recency view (PRD #475).
+ * The canvas list with New canvas and the grid/table toggle. There's no sort
+ * menu: the table's column headers set the order, and the grid keeps whatever
+ * the table last picked for this surface (last edited until then).
+ * `showFolders` adds the folder section + "Add folder" button — on for All
+ * files, off for Recents, which stays a flat cross-folder recency view
+ * (PRD #475).
  */
 export function RoomsView({
   title,
-  showSort = true,
   showFolders = false,
 }: {
   title: string
-  showSort?: boolean
   showFolders?: boolean
 }) {
   const {
@@ -108,38 +81,23 @@ export function RoomsView({
     ancestors,
     view,
     setView,
-    sort,
-    setSort,
-    order,
-    setOrder,
     createFolder,
     loading,
     loadFailed,
     reload,
     search,
-    query,
-    setQuery,
   } = useHome()
-  // The query comes from the sidebar's search field; the ownership filter is
-  // this page's own, so leaving the page (say, into a result's folder) resets
-  // it.
+  // The ownership filter is this page's own, so leaving the page (say, into a
+  // result's folder) resets it. Typed search lives in the sidebar's popover
+  // and never replaces the page.
   const [owner, setOwner] = useState<OwnerFilter>("all")
-  const results = isSearching(query, owner) ? search(query, owner) : null
+  const results = owner !== "all" ? search("", owner) : null
   // New canvas makes an Untitled Canvas and opens it straight away (#777).
   const { create: createCanvas, creating } = useCreateCanvas()
   const newCanvas = () => void createCanvas()
   useNewCanvasShortcut(newCanvas)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
-
-  // The down arrow always marks each key's default order, which is also the
-  // first item in the Order menu — so every sort key reads the same way
-  // regardless of whether its default happens to be ascending or descending.
-  const primaryOrder = defaultOrder(sort)
-  const reversedOrder: SortOrder = primaryOrder === "asc" ? "desc" : "asc"
-  const isDefaultOrder = order === primaryOrder
-
-  const sortLabel = `Sort: ${SORT_LABELS[sort]}, ${ORDER_LABELS[sort][order].toLowerCase()}`
 
   const header = (
     <HomePageHeader
@@ -182,65 +140,6 @@ export function RoomsView({
             </DropdownMenu>
           )}
 
-          {showSort && (
-            <DropdownMenu>
-              <HomeToolbarTooltip label={sortLabel}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" aria-label={sortLabel}>
-                    {isDefaultOrder ? <ArrowDown /> : <ArrowUp />}
-                    <HomeToolbarLabel>{SORT_LABELS[sort]}</HomeToolbarLabel>
-                  </Button>
-                </DropdownMenuTrigger>
-              </HomeToolbarTooltip>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={sort}
-                  onValueChange={(v) => setSort(v as SortKey)}
-                >
-                  <DropdownMenuRadioItem value="updated">
-                    Last edited
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="created">
-                    Date created
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="name">
-                    Name
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Order</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={order}
-                  onValueChange={(v) => setOrder(v as SortOrder)}
-                >
-                  <DropdownMenuRadioItem value={primaryOrder}>
-                    {ORDER_LABELS[sort][primaryOrder]}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={reversedOrder}>
-                    {ORDER_LABELS[sort][reversedOrder]}
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          <Tabs
-            value={view}
-            onValueChange={(v) => {
-              if (v === "grid" || v === "table") setView(v)
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="grid" aria-label="Grid view">
-                <LayoutGrid />
-              </TabsTrigger>
-              <TabsTrigger value="table" aria-label="Table view">
-                <List />
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
           {showFolders && (
             <HomeToolbarTooltip label="Add folder">
               <Button
@@ -264,6 +163,22 @@ export function RoomsView({
               <HomeToolbarLabel>New canvas</HomeToolbarLabel>
             </Button>
           </HomeToolbarTooltip>
+
+          <Tabs
+            value={view}
+            onValueChange={(v) => {
+              if (v === "grid" || v === "table") setView(v)
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="grid" aria-label="Grid view">
+                <LayoutGrid />
+              </TabsTrigger>
+              <TabsTrigger value="table" aria-label="Table view">
+                <List />
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </>
       }
     />
@@ -284,14 +199,11 @@ export function RoomsView({
             onRetry={reload}
           />
         ) : results ? (
-          <SearchResults
+          <FilterResults
             rooms={results.rooms}
             folders={results.folders}
             view={view}
-            onClear={() => {
-              setQuery("")
-              setOwner("all")
-            }}
+            onClear={() => setOwner("all")}
           />
         ) : rooms.length === 0 && folders.length === 0 ? (
           // A nested folder with nothing in it reads as "empty", not first-run.
@@ -361,10 +273,10 @@ export function RoomsView({
 }
 
 /**
- * Library-wide results for a search or ownership filter (#807), in the same
- * grid or table as the folder view, with each result naming where it lives.
+ * Library-wide results for the ownership filter (#807), in the same grid or
+ * table as the folder view, with each result naming where it lives.
  */
-function SearchResults({
+function FilterResults({
   rooms,
   folders,
   view,
@@ -381,14 +293,16 @@ function SearchResults({
       <Empty className="h-full">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <Search />
+            <ListFilter />
           </EmptyMedia>
           <EmptyTitle>No matches</EmptyTitle>
-          <EmptyDescription>Nothing in any folder matches.</EmptyDescription>
+          <EmptyDescription>
+            No canvas in any folder matches this filter.
+          </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button size="sm" variant="outline" onClick={onClear}>
-            Clear search
+            Clear filter
           </Button>
         </EmptyContent>
       </Empty>

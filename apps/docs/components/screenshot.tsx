@@ -12,8 +12,9 @@ type ScreenshotProps = {
 /**
  * A framed product screenshot with a light and a dark variant; CSS in
  * `app/globals.css` shows the one matching the docs theme. Screenshots are
- * captured from a real running Screenplay and framed by the capture pipeline,
- * so they already carry their own background and window chrome.
+ * captured from a real running Screenplay and framed by the capture pipeline:
+ * full-window shots carry their own background and window chrome, while
+ * details are the bare UI, which the CSS rounds and outlines.
  */
 export function Screenshot({ name, alt, caption }: ScreenshotProps) {
   const src = (theme: "light" | "dark") =>

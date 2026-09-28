@@ -222,8 +222,10 @@ framing step keeps an existing image when the new render is visually the same.
    selectors for what the image is about, such as `MENU`, `DIALOG` or
    `POPOVER`, or a function that measures it. After `prepare`, the visible
    matches are measured, and the framing step crops a detail centred on them,
-   with room around them, in a rounded card. So when a UI change moves a
-   menu, the next run still frames it whole and centred. A fixed `crop`
+   with room around them, as the bare UI: no window chrome, shadow or
+   backdrop. A crop edge near the window's edge is pushed out to it, rather
+   than slicing labels a few letters in. So when a UI change moves a menu,
+   the next run still frames it whole and centred. A fixed `crop`
    (`[x, y, width, height]` in CSS px) stands in when nothing matches.
 3. If the screen needs state the world doesn't have, add it to `world.ts`.
 4. Run `pnpm --filter app screenshots:docs --screens <name>` and embed it.

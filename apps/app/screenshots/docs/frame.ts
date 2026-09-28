@@ -15,16 +15,17 @@ export const DOCS_SCREENSHOT_DIR = resolve(
 )
 
 /**
- * Turn raw captures into the framed images the docs embed, on a light or dark
- * gradient that matches the docs theme:
+ * Turn raw captures into the images the docs embed:
  *
  * - **Full-window** screens (`crop` unset) are drawn as a Screenplay desktop
- *   window: the Tauri overlay title bar's traffic lights at the app's
+ *   window on a light or dark gradient that matches the docs theme: the
+ *   Tauri overlay title bar's traffic lights at the app's
  *   `trafficLightPosition`, rounded corners, and a soft shadow.
  * - **Detail** screens are cropped around their focus (measured from the
  *   screen's `focus` during capture, else its fixed `crop`): the focus centred
- *   with room around it, magnified up to 1.6×, in the same rounded card — a
- *   zoomed-in window, so a menu or dialog reads at a glance.
+ *   with room around it, as the bare UI with no chrome, shadow or backdrop.
+ *   A crop that comes close to the window's edge is pushed out to it, so it
+ *   shows the window's edge instead of labels sliced a few letters in.
  */
 export async function frameScreens(
   profile: CaptureProfile,
@@ -126,11 +127,21 @@ async function looksTheSame(
 /** Room left around a detail's focus, and the smallest detail worth magnifying. */
 const FOCUS_PAD = 64
 const MIN_DETAIL = { width: 560, height: 360 }
+/**
+ * A detail edge this close to the window's edge (CSS px) is pushed out to it,
+ * so the image shows the window's real edge instead of a sliver of it. Near
+ * the top-left corner it reaches further, so a detail by the sidebar shows
+ * the traffic lights and whole labels rather than slicing them a few letters
+ * in; elsewhere it would mostly add empty canvas or push a dialog off-centre.
+ */
+const EDGE_SNAP = { corner: 120, edge: 48 }
 
 /**
  * The region a detail shows: its focus centred, with {@link FOCUS_PAD} of
  * context on every side, grown to {@link MIN_DETAIL}, then slid (never
- * shrunk) to stay inside the window. The focus is always wholly inside it.
+ * shrunk) to stay inside the window. Edges that land within
+ * {@link EDGE_SNAP} of the window's edge are extended to it. The focus is
+ * always wholly inside it.
  */
 export function detailRegion(
   focus: Crop,
@@ -146,9 +157,18 @@ export function detailRegion(
     Math.max(fh + 2 * FOCUS_PAD, MIN_DETAIL.height)
   )
   const clamp = (v: number, max: number) => Math.max(0, Math.min(v, max))
-  const x = clamp(Math.round(fx + fw / 2 - w / 2), viewport.width - w)
-  const y = clamp(Math.round(fy + fh / 2 - h / 2), viewport.height - h)
-  return [x, y, w, h]
+  const x0 = clamp(Math.round(fx + fw / 2 - w / 2), viewport.width - w)
+  const y0 = clamp(Math.round(fy + fh / 2 - h / 2), viewport.height - h)
+  const corner = x0 <= EDGE_SNAP.corner && y0 <= EDGE_SNAP.corner
+  const snap = (start: number, size: number, max: number): [number, number] => {
+    let end = start + size
+    if (corner || start <= EDGE_SNAP.edge) start = 0
+    if (max - end <= EDGE_SNAP.edge) end = max
+    return [start, end - start]
+  }
+  const [x, sw] = snap(x0, w, viewport.width)
+  const [y, sh] = snap(y0, h, viewport.height)
+  return [x, y, sw, sh]
 }
 
 function framePage(
@@ -169,22 +189,28 @@ function framePage(
   const s = focus ? Math.min(1.6, 1200 / w, 1100 / h) : 1360 / W0
   const dw = w * s
   const dh = h * s
-  const width = focus ? Math.round(Math.max(900, dw + 240)) : 1600
-  const height = Math.round(dh + (focus ? 200 : 210))
+  // A detail is the cropped UI alone, with no window chrome, shadow or
+  // backdrop: the docs page gives it rounded corners and a hairline border.
+  if (focus) {
+    const width = Math.round(dw)
+    const height = Math.round(dh)
+    return {
+      width,
+      height,
+      html: `<!doctype html><body style="margin:0;width:${width}px;height:${height}px;overflow:hidden;position:relative">
+    <img src="${img}" style="position:absolute;left:${-x * s}px;top:${-y * s}px;width:${W0 * s}px;height:${H0 * s}px"></body>`,
+    }
+  }
+  const width = 1600
+  const height = Math.round(dh + 210)
   // The Tauri overlay title bar: macOS traffic lights drawn over the webview
-  // at the window's `trafficLightPosition` (x 16, y 26 in the app config),
-  // whenever the region includes the window's top-left corner.
+  // at the window's `trafficLightPosition` (x 16, y 26 in the app config).
   const light = (cx: number, color: string) =>
-    `<i style="position:absolute;left:${(cx - x - 6) * s}px;top:${(24 - y - 6) * s}px;width:${12 * s}px;height:${12 * s}px;border-radius:50%;background:${color};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></i>`
+    `<i style="position:absolute;left:${(cx - 6) * s}px;top:${(24 - 6) * s}px;width:${12 * s}px;height:${12 * s}px;border-radius:50%;background:${color};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></i>`
   const lights =
-    x <= 10 && y <= 12
-      ? light(22, "#ff5f57") + light(42, "#febc2e") + light(62, "#28c840")
-      : ""
-  // Window and detail alike sit in one rounded, bordered card: a detail reads
-  // as a zoomed-in window, with the focus centred and only context at its
-  // edges.
-  const inner = `<div style="position:relative;width:${dw}px;height:${dh}px;overflow:hidden;border-radius:${focus ? 16 : 12}px;box-shadow:${shadow}">
-    <img src="${img}" style="position:absolute;left:${-x * s}px;top:${-y * s}px;width:${W0 * s}px;height:${H0 * s}px">${lights}</div>`
+    light(22, "#ff5f57") + light(42, "#febc2e") + light(62, "#28c840")
+  const inner = `<div style="position:relative;width:${dw}px;height:${dh}px;overflow:hidden;border-radius:12px;box-shadow:${shadow}">
+    <img src="${img}" style="position:absolute;left:0;top:0;width:${W0 * s}px;height:${H0 * s}px">${lights}</div>`
   return {
     width,
     height,
