@@ -60,7 +60,7 @@ export function ShortcutSheet({
                         </KbdGroup>
                       )}
                       {shortcut.gesture && (
-                        <span className="text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {shortcut.gesture}
                         </span>
                       )}
