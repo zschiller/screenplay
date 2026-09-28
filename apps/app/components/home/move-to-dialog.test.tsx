@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
+import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import { MoveToDialog } from "./move-to-dialog"
 import type { FolderSummary } from "@/lib/folders-actions"
 
@@ -204,5 +211,67 @@ describe("MoveToDialog", () => {
 
     fireEvent.keyDown(dest("All files"), { key: "ArrowUp" })
     expect(document.activeElement).toBe(dest("Epsilon"))
+  })
+
+  it("creates a folder inside the picked destination and picks it", async () => {
+    // The caller's tree grows once the folder exists, as the provider's does.
+    function Harness() {
+      const [folders, setFolders] = useState(tree)
+      return (
+        <MoveToDialog
+          open
+          onOpenChange={vi.fn()}
+          itemName="Sketch"
+          currentParentId={null}
+          folders={folders}
+          onMove={vi.fn().mockResolvedValue(undefined)}
+          onCreateFolder={async (name, parent) => {
+            const created = folder("n", name, parent)
+            setFolders((prev) => [...prev, created])
+            return created
+          }}
+        />
+      )
+    }
+    render(<Harness />)
+
+    fireEvent.click(dest("Epsilon"))
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }))
+    const field = screen.getByRole("textbox", { name: "New folder name" })
+    fireEvent.change(field, { target: { value: "Launch" } })
+    fireEvent.keyDown(field, { key: "Enter" })
+
+    await waitFor(() =>
+      expect(dest("Launch").getAttribute("aria-checked")).toBe("true")
+    )
+    expect(
+      screen.queryByRole("textbox", { name: "New folder name" })
+    ).toBeNull()
+  })
+
+  it("closes the name field on Escape without creating anything", () => {
+    const onCreateFolder = vi.fn()
+    render(
+      <MoveToDialog
+        open
+        onOpenChange={vi.fn()}
+        itemName="Sketch"
+        currentParentId={null}
+        folders={tree}
+        onMove={vi.fn().mockResolvedValue(undefined)}
+        onCreateFolder={onCreateFolder}
+      />
+    )
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }))
+    fireEvent.keyDown(
+      screen.getByRole("textbox", { name: "New folder name" }),
+      {
+        key: "Escape",
+      }
+    )
+    expect(
+      screen.queryByRole("textbox", { name: "New folder name" })
+    ).toBeNull()
+    expect(onCreateFolder).not.toHaveBeenCalled()
   })
 })

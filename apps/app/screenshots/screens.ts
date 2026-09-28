@@ -314,6 +314,50 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "home-move-toast",
+    description:
+      "The toast after dragging a Canvas into a Folder (#808): where it went, and Undo.",
+    path: "/files",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await dragOnto(page, "Empty canvas", "Marketing site")
+      await page.mouse.up()
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-breadcrumb-drop-target",
+    description:
+      "A Canvas dragged over a parent Folder's breadcrumb (#808), mid-drag.",
+    path: `/files/${ids.folders.archive}`,
+    prepare: async (page) => {
+      await dragOntoCrumb(page, "Old experiment", "Design system")
+    },
+    settleMs: 200,
+  },
+  {
+    name: "home-move-dialog-new-folder",
+    description:
+      "The Move to… dialog naming a new Folder inside the picked destination (#808).",
+    path: "/files",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await page
+        .getByRole("button", { name: "Folder actions" })
+        .first()
+        .click({ timeout: 15_000 })
+      await page.getByRole("menuitem", { name: /^Move to/ }).click()
+      await page.getByRole("radiogroup").first().waitFor({ timeout: 5_000 })
+      await page.getByRole("radio", { name: "Marketing site" }).click()
+      await page.getByRole("button", { name: "New folder" }).click()
+      await page.keyboard.type("Launch week")
+      await page.waitForTimeout(300)
+    },
+    settleMs: 300,
+  },
+  {
     name: "home-search",
     description:
       "Home search (#807): results from every folder, each naming where it lives.",
@@ -2146,6 +2190,38 @@ export async function dragOnto(
   await page.mouse.down()
   await page.mouse.move(grab.x, grab.y - 12)
   await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 })
+}
+
+/**
+ * Pick up the tile or row named `source` and hold it over the breadcrumb crumb
+ * named `crumb`, without letting go, so the shot catches the crumb's drop
+ * highlight. Same pointer choreography as {@link dragOnto}.
+ */
+export async function dragOntoCrumb(
+  page: Page,
+  source: string,
+  crumb: string
+): Promise<void> {
+  const from = await page
+    .getByText(source, { exact: true })
+    .first()
+    .locator("xpath=ancestor-or-self::*[@aria-roledescription='draggable'][1]")
+    .boundingBox({ timeout: 15_000 })
+  const to = await page
+    .locator('[data-slot="breadcrumb-item"]', { hasText: crumb })
+    .first()
+    .boundingBox({ timeout: 15_000 })
+  if (!from || !to) throw new Error(`drag: ${source} or ${crumb} not on screen`)
+  // Grab by the top-left corner so the preview hangs below and right of the
+  // pointer, and hover the crumb's bottom-right corner, so the preview leaves
+  // the crumb and its ring in view.
+  const grab = { x: from.x + 3, y: from.y + 3 }
+  await page.mouse.move(grab.x, grab.y)
+  await page.mouse.down()
+  await page.mouse.move(grab.x, grab.y + 12)
+  await page.mouse.move(to.x + to.width - 4, to.y + to.height - 4, {
+    steps: 12,
+  })
 }
 
 /**

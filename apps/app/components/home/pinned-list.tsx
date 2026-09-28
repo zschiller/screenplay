@@ -165,8 +165,15 @@ function PinnedRoomRow({
   dragKey: string
   room: RoomSummary
 }) {
-  const { renameRoom, removeRoom, moveRoom, allFolders, folderOfRoom, unpin } =
-    useHome()
+  const {
+    renameRoom,
+    removeRoom,
+    moveRoom,
+    createFolder,
+    allFolders,
+    folderOfRoom,
+    unpin,
+  } = useHome()
   const { onDragStart, onDragEnd, guardClick } = useDragNavGuard()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -246,6 +253,7 @@ function PinnedRoomRow({
         currentParentId={currentParentId}
         folders={allFolders}
         onMove={(target) => moveRoom(room.id, target)}
+        onCreateFolder={createFolder}
       />
       <DeleteRoomDialog
         open={deleteOpen}
@@ -280,6 +288,7 @@ function PinnedFolderRow({
   const {
     renameFolder,
     moveFolder,
+    createFolder,
     allFolders,
     previewFolderDeletion,
     removeFolder,
@@ -373,6 +382,7 @@ function PinnedFolderRow({
         movingFolderId={folder.id}
         folders={allFolders}
         onMove={(target) => moveFolder(folder.id, target)}
+        onCreateFolder={createFolder}
       />
       <DeleteFolderDialog
         open={deleteOpen}

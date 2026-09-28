@@ -280,6 +280,7 @@ function RoomCard({
     renameRoom,
     removeRoom,
     moveRoom,
+    createFolder,
     allFolders,
     folderView,
     folderOfRoom,
@@ -373,6 +374,7 @@ function RoomCard({
         currentParentId={folderOfRoom(room.id)}
         folders={allFolders}
         onMove={(target) => moveRoom(room.id, target)}
+        onCreateFolder={createFolder}
       />
       <DeleteRoomDialog
         open={deleteOpen}

@@ -1,7 +1,12 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
-import { Check, Folder as FolderIcon, FolderOpen } from "lucide-react"
+import { Fragment, useMemo, useRef, useState } from "react"
+import {
+  Check,
+  Folder as FolderIcon,
+  FolderOpen,
+  FolderPlus,
+} from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -11,6 +16,7 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { Button } from "@workspace/ui/components/button"
+import { Input } from "@workspace/ui/components/input"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { foldersInParent } from "@/lib/folder-tree"
@@ -55,6 +61,14 @@ type MoveToDialogProps = {
   folders: FolderSummary[]
   /** Commit the move to `targetId` (null = the root). */
   onMove: (targetId: string | null) => Promise<void>
+  /**
+   * Create a folder named `name` under `parentFolderId` (null = the root).
+   * Offers New folder when given; the new folder must then appear in `folders`.
+   */
+  onCreateFolder?: (
+    name: string,
+    parentFolderId: string | null
+  ) => Promise<FolderSummary>
 }
 
 // A folder plus its depth in the tree, in root→leaf, name-sorted order — the
@@ -82,10 +96,21 @@ export function MoveToDialog({
   movingFolderId,
   folders,
   onMove,
+  onCreateFolder,
 }: MoveToDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // Escape in New folder's name field closes the field, not the dialog.
+        onEscapeKeyDown={(e) => {
+          if (
+            e.target instanceof Element &&
+            e.target.closest("[data-new-folder]")
+          )
+            e.preventDefault()
+        }}
+      >
         {/* Mount the form only while open so its selection/error state resets
             on each open, matching InputDialog. */}
         {open && (
@@ -95,6 +120,7 @@ export function MoveToDialog({
             movingFolderId={movingFolderId}
             folders={folders}
             onMove={onMove}
+            onCreateFolder={onCreateFolder}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -109,6 +135,7 @@ function MoveToForm({
   movingFolderId,
   folders,
   onMove,
+  onCreateFolder,
   onClose,
 }: {
   itemName: string
@@ -116,6 +143,7 @@ function MoveToForm({
   movingFolderId?: string
   folders: FolderSummary[]
   onMove: (targetId: string | null) => Promise<void>
+  onCreateFolder?: MoveToDialogProps["onCreateFolder"]
   onClose: () => void
 }) {
   // `undefined` = nothing picked yet (Move stays disabled); `null` = the root;
@@ -123,6 +151,11 @@ function MoveToForm({
   const [selected, setSelected] = useState<string | null | undefined>(undefined)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Where New folder's name field sits: under this parent (null = the root),
+  // or `undefined` while it's closed.
+  const [newFolderParent, setNewFolderParent] = useState<
+    string | null | undefined
+  >(undefined)
 
   const rows = useMemo(() => flattenTree(folders, null, 0), [folders])
   // The folder being moved plus its descendants are off-limits (would cycle).
@@ -188,6 +221,36 @@ function MoveToForm({
     radios[next]!.click()
   }
 
+  // New folder goes inside the picked destination, else at the root.
+  function openNewFolder() {
+    setError(null)
+    setNewFolderParent(selected ?? null)
+  }
+
+  async function handleCreateFolder(name: string) {
+    if (!onCreateFolder || newFolderParent === undefined) return
+    setError(null)
+    try {
+      const folder = await onCreateFolder(name, newFolderParent)
+      setNewFolderParent(undefined)
+      setSelected(folder.id)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Couldn't create the folder"
+      )
+      throw err
+    }
+  }
+
+  // Indent one level under the parent row it's nested in.
+  const newFolderRow = (depth: number) => (
+    <NewFolderRow
+      depth={depth}
+      onSubmit={handleCreateFolder}
+      onCancel={() => setNewFolderParent(undefined)}
+    />
+  )
+
   async function handleMove() {
     if (selected === undefined) return
     setPending(true)
@@ -227,25 +290,40 @@ function MoveToForm({
             disabled={isDisabled(null)}
             onSelect={() => setSelected(null)}
           />
+          {newFolderParent === null && newFolderRow(1)}
           {rows.map(({ folder, depth }) => (
-            <DestinationRow
-              key={folder.id}
-              label={folder.name}
-              icon={
-                <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-              }
-              // Nest under the root crumb's indent.
-              depth={depth + 1}
-              selected={selected === folder.id}
-              tabbable={tabStop === folder.id}
-              disabled={isDisabled(folder.id)}
-              onSelect={() => setSelected(folder.id)}
-            />
+            <Fragment key={folder.id}>
+              <DestinationRow
+                label={folder.name}
+                icon={
+                  <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+                }
+                // Nest under the root crumb's indent.
+                depth={depth + 1}
+                selected={selected === folder.id}
+                tabbable={tabStop === folder.id}
+                disabled={isDisabled(folder.id)}
+                onSelect={() => setSelected(folder.id)}
+              />
+              {newFolderParent === folder.id && newFolderRow(depth + 2)}
+            </Fragment>
           ))}
         </div>
       </ScrollArea>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
+        {onCreateFolder && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="sm:mr-auto"
+            disabled={newFolderParent !== undefined || pending}
+            onClick={openNewFolder}
+          >
+            <FolderPlus />
+            New folder
+          </Button>
+        )}
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
@@ -300,5 +378,68 @@ function DestinationRow({
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {selected && <Check className="size-4 shrink-0" />}
     </button>
+  )
+}
+
+/**
+ * The name field New folder opens in the tree, at the depth the folder will
+ * live. Enter creates it; Escape, or leaving it empty, backs out (the dialog
+ * lets Escape through to the field, so it closes only the field).
+ */
+function NewFolderRow({
+  depth,
+  onSubmit,
+  onCancel,
+}: {
+  depth: number
+  onSubmit: (name: string) => Promise<void>
+  onCancel: () => void
+}) {
+  const [name, setName] = useState("")
+  const [pending, setPending] = useState(false)
+
+  async function submit() {
+    const trimmed = name.trim()
+    if (!trimmed) return onCancel()
+    setPending(true)
+    try {
+      await onSubmit(trimmed)
+    } catch {
+      // The form shows the error; keep the name so it can be retried.
+      setPending(false)
+    }
+  }
+
+  return (
+    <div
+      data-new-folder
+      className="flex items-center gap-2 py-0.5 pr-2"
+      style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
+    >
+      <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+      <Input
+        autoFocus
+        aria-label="New folder name"
+        placeholder="Folder name"
+        className="h-7"
+        value={name}
+        disabled={pending}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          // Keep the arrow keys and Home/End in the field, not the radio group.
+          e.stopPropagation()
+          if (e.key === "Enter") {
+            e.preventDefault()
+            void submit()
+          } else if (e.key === "Escape") {
+            e.preventDefault()
+            onCancel()
+          }
+        }}
+        onBlur={() => {
+          if (!name.trim() && !pending) onCancel()
+        }}
+      />
+    </div>
   )
 }
