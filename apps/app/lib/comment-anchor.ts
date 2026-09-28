@@ -137,8 +137,8 @@ export type DetachReason = "frame" | "element"
  * Where one thread's pin goes for this viewer:
  *
  * - `pinned`: at `x`/`y`, local to `frameId`;
- * - `offRoute`: its frame is on another route, so it's counted in that frame's
- *   header chip instead;
+ * - `offRoute`: its frame is on another route, so no pin shows; the comments
+ *   menu says which route, and opening it navigates the frame there;
  * - `detached`: its frame or element is gone, so it's only listed;
  * - `pending`: nothing is known yet (frame still loading, or the element has
  *   been missing only briefly), so nothing shows.
@@ -203,42 +203,6 @@ export function placeFrameThread(input: {
     return { kind: "pending" }
   }
   return { kind: "pinned", frameId: frame.id, x, y }
-}
-
-/** One header chip entry: `count` open comments on `route`. */
-export interface OffRouteGroup {
-  route: string
-  count: number
-}
-
-/**
- * Group off-route placements into each frame's header chip, routes ordered by
- * count (most first), then by path.
- */
-export function offRouteGroups(
-  placements: Iterable<Placement>
-): Map<string, OffRouteGroup[]> {
-  const counts = new Map<string, Map<string, number>>()
-  for (const p of placements) {
-    if (p.kind !== "offRoute") continue
-    const route = routePath(p.route)
-    let byRoute = counts.get(p.frameId)
-    if (!byRoute) {
-      byRoute = new Map()
-      counts.set(p.frameId, byRoute)
-    }
-    byRoute.set(route, (byRoute.get(route) ?? 0) + 1)
-  }
-  const out = new Map<string, OffRouteGroup[]>()
-  for (const [frameId, byRoute] of counts) {
-    out.set(
-      frameId,
-      Array.from(byRoute, ([route, count]) => ({ route, count })).sort(
-        (a, b) => b.count - a.count || a.route.localeCompare(b.route)
-      )
-    )
-  }
-  return out
 }
 
 /**

@@ -44,7 +44,6 @@ import { Comments } from "./comments"
 import { CommentsMenu } from "./comments-menu"
 import { useCommentThreads } from "./use-comment-threads"
 import { useCommentPlacements } from "./use-comment-placements"
-import { OffRouteCommentsContext } from "./off-route-comments"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
 import { CursorChat } from "./cursor-chat"
@@ -685,7 +684,7 @@ export function Canvas({
 
   const commentThreads = useCommentThreads(roomId, initialThreads)
   // Where each comment shows for this viewer (#785): pinned on its route,
-  // counted in its frame's header chip on another route, or detached.
+  // hidden while its frame is on another route, or detached.
   const commentPlacements = useCommentPlacements({
     threads: commentThreads.threads,
     iframeLayers,
@@ -1500,52 +1499,48 @@ export function Canvas({
                   // scale (see globals.css `.canvas-frame-label`).
                   data-zoom-settling={zoomSettling || undefined}
                 >
-                  <OffRouteCommentsContext.Provider
-                    value={commentPlacements.offRoute}
-                  >
-                    <CanvasMemberLayer
-                      iframeLayerGroups={iframeLayerGroups}
-                      iframeLayers={iframeLayers}
-                      markdownLayers={markdownLayers}
-                      selection={selection}
-                      onIframeWheel={camera.handleIframeWheel}
-                      reference={reference}
-                      gesturePreview={gesturePreview}
-                      gestureLayerHandlers={gestureLayerHandlers}
-                      effectiveIframeLayerLayouts={effectiveIframeLayerLayouts}
-                      iframeLayerLayouts={iframeLayerLayouts}
-                      groupZIndex={groupZIndex}
-                      groupDisplayNames={groupDisplayNames}
-                      placeholderRects={placeholderRects}
-                      placeholderTool={
-                        frameMode ? "frame" : documentMode ? "document" : null
-                      }
-                      remoteSelectionColors={remoteSelectionColors}
-                      remoteGroupSelectionColors={remoteGroupSelectionColors}
-                      agentDomains={agentDomains}
-                      agents={agents}
-                      repos={repos}
-                      zoom={zoom}
-                      spaceHeld={spaceHeld}
-                      commentMode={commentMode}
-                      pickActive={targeting.pickActive}
-                      dimmedIframeLayerIds={targeting.dimmedIds}
-                      selfName={self?.identity.name || "Anonymous"}
-                      selfColor={self?.color || "#888888"}
-                      editingDocumentLayerId={editingDocumentLayerId}
-                      setEditingDocumentLayerId={setEditingDocumentLayerId}
-                      focusedIframeLayerId={focusedIframeLayerId}
-                      setFocusedIframeLayerId={setFocusedIframeLayerId}
-                      createFlowIframeLayerId={createFlowIframeLayerId}
-                      setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
-                      removeIframeLayer={removeIframeLayer}
-                      handlePlayIframeLayer={handlePlayIframeLayer}
-                      handleCaptureReadyChange={handleCaptureReadyChange}
-                      handleCaptureDirty={handleCaptureDirty}
-                      layerMutations={layerMutations}
-                      groupActions={groupActions}
-                    />
-                  </OffRouteCommentsContext.Provider>
+                  <CanvasMemberLayer
+                    iframeLayerGroups={iframeLayerGroups}
+                    iframeLayers={iframeLayers}
+                    markdownLayers={markdownLayers}
+                    selection={selection}
+                    onIframeWheel={camera.handleIframeWheel}
+                    reference={reference}
+                    gesturePreview={gesturePreview}
+                    gestureLayerHandlers={gestureLayerHandlers}
+                    effectiveIframeLayerLayouts={effectiveIframeLayerLayouts}
+                    iframeLayerLayouts={iframeLayerLayouts}
+                    groupZIndex={groupZIndex}
+                    groupDisplayNames={groupDisplayNames}
+                    placeholderRects={placeholderRects}
+                    placeholderTool={
+                      frameMode ? "frame" : documentMode ? "document" : null
+                    }
+                    remoteSelectionColors={remoteSelectionColors}
+                    remoteGroupSelectionColors={remoteGroupSelectionColors}
+                    agentDomains={agentDomains}
+                    agents={agents}
+                    repos={repos}
+                    zoom={zoom}
+                    spaceHeld={spaceHeld}
+                    commentMode={commentMode}
+                    pickActive={targeting.pickActive}
+                    dimmedIframeLayerIds={targeting.dimmedIds}
+                    selfName={self?.identity.name || "Anonymous"}
+                    selfColor={self?.color || "#888888"}
+                    editingDocumentLayerId={editingDocumentLayerId}
+                    setEditingDocumentLayerId={setEditingDocumentLayerId}
+                    focusedIframeLayerId={focusedIframeLayerId}
+                    setFocusedIframeLayerId={setFocusedIframeLayerId}
+                    createFlowIframeLayerId={createFlowIframeLayerId}
+                    setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
+                    removeIframeLayer={removeIframeLayer}
+                    handlePlayIframeLayer={handlePlayIframeLayer}
+                    handleCaptureReadyChange={handleCaptureReadyChange}
+                    handleCaptureDirty={handleCaptureDirty}
+                    layerMutations={layerMutations}
+                    groupActions={groupActions}
+                  />
                 </div>
               </TransformComponent>
             </TransformWrapper>

@@ -7,11 +7,9 @@ import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
 import {
   homeFrame,
-  offRouteGroups,
   placeFrameThread,
   type ElementAnchor,
   type FrameView,
-  type OffRouteGroup,
   type Placement,
   type PlacementFrame,
 } from "@/lib/comment-anchor"
@@ -25,8 +23,6 @@ export interface CommentPlacements {
    *  thread id. Canvas-level threads (no container) aren't in it: they sit at
    *  their stored point. */
   placements: ReadonlyMap<string, Placement>
-  /** Each frame's header chip: its comments on other routes, grouped. */
-  offRoute: ReadonlyMap<string, OffRouteGroup[]>
 }
 
 // A pin re-renders only when it moves further than this, so sub-pixel layout
@@ -257,10 +253,7 @@ export function useCommentPlacements({
     const frame = new Map(
       Array.from(framePlacements).filter(([id]) => live.has(id))
     )
-    return {
-      placements: new Map([...frame, ...docPlacements]),
-      offRoute: offRouteGroups(frame.values()),
-    }
+    return { placements: new Map([...frame, ...docPlacements]) }
   }, [frameThreads, framePlacements, docPlacements])
 }
 

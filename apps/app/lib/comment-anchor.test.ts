@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import {
   DETACH_GRACE_MS,
   homeFrame,
-  offRouteGroups,
   parseElementAnchor,
   placeFrameThread,
   routePath,
@@ -164,23 +163,6 @@ describe("placeFrameThread", () => {
         view: { path: "/cart", rect: null },
       }).kind
     ).toBe("offRoute")
-  })
-})
-
-describe("offRouteGroups", () => {
-  it("groups by frame and route, most comments first", () => {
-    const groups = offRouteGroups([
-      { kind: "offRoute", frameId: "f1", route: "/cart" },
-      { kind: "offRoute", frameId: "f1", route: "/cart?x=1" },
-      { kind: "offRoute", frameId: "f1", route: "/about" },
-      { kind: "offRoute", frameId: "f2", route: "/cart" },
-      { kind: "pinned", frameId: "f1", x: 0, y: 0 },
-    ])
-    expect(groups.get("f1")).toEqual([
-      { route: "/cart", count: 2 },
-      { route: "/about", count: 1 },
-    ])
-    expect(groups.get("f2")).toEqual([{ route: "/cart", count: 1 }])
   })
 })
 
