@@ -407,10 +407,34 @@ _Avoid_: the grid for plain progress; `Spinner` or a raw `Loader2` for model
 activity; a third spinner style.
 
 **Chat Target**:
-What a Chat Session talks to — either a Branch's **sandbox** or a Markdown
-Layer (a document). The target decides the system prompt and which Tools the
-model is given.
+What a Chat Session talks to — a Branch's **sandbox**, a Markdown Layer (a
+document), or the whole **Room** (see **Room Target**). The target decides the
+system prompt and which Tools the model is given.
 _Avoid_: subject, destination.
+
+**Room Target** (planned, wayfinder #856):
+The Chat Target of a chat that works on the whole Room rather than one Branch
+or document: it sees every Repo, Branch and Layer, arranges the Canvas, creates
+Branches, and hands work to their agents through **Delegated Messages**. Its
+kind is `room`, named for its target like the other kinds, never for its role.
+It works like a Claude Projects chat: a Room has **exactly one** Room Target
+chat, it hears every Branch's turns (Branches are its threads), and it stays
+quiet unless there is a result, a blocker or a decision.
+_Shown to users as_: "Coordinator" (the chat panel's home, and the first crumb
+of "Coordinator / <Workspace>" when a Workspace is open).
+_Avoid_: coordinator or orchestrator as a code identifier (the UI word only);
+"Canvas" as its UI name (Canvas is the Room); `canvas` as the kind (in code,
+Canvas is the spatial surface only).
+
+**Delegated Message**:
+A message a Room Target chat sends into a Branch's Chat Session. It is an
+ordinary turn in that chat that the user can read and take over, marked with
+where it came from.
+_Shown to users as_: one collapsed row, "Received a message from the
+Coordinator", that expands to the message and links back to the sending chat
+(like a Claude Projects thread receiving a coordinator message).
+_Avoid_: forwarding, relay; hidden subagent work (delegation is always visible
+in the Branch's own chat).
 
 **Chat-Target selection**:
 _Which_ Chat Target the agent panel shows — the other half of the panel model
