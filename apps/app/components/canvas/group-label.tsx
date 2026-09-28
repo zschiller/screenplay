@@ -27,9 +27,18 @@ interface GroupWorkspaceSwitch {
 }
 
 /** The Group's Workspace as its label names it, and switches it (#869). */
-export interface GroupWorkspace extends FrameWorkspace {
+interface AssignedGroupWorkspace extends FrameWorkspace {
   switcher?: GroupWorkspaceSwitch
 }
+
+/** A Group whose frames have no Workspace yet: its label offers the list
+ *  that each frame's label used to (#871). */
+interface UnassignedGroupWorkspace {
+  branchId?: undefined
+  switcher: GroupWorkspaceSwitch
+}
+
+export type GroupWorkspace = AssignedGroupWorkspace | UnassignedGroupWorkspace
 
 interface GroupLabelProps {
   label: string
@@ -67,7 +76,9 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
   return (
     <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
       <GroupName {...props} />
-      {workspace.switcher ? (
+      {workspace.branchId === undefined ? (
+        <GroupWorkspaceChooser switcher={workspace.switcher} />
+      ) : workspace.switcher ? (
         <GroupWorkspaceSwitcher
           label={props.label}
           workspace={workspace}
@@ -151,6 +162,56 @@ function GroupWorkspaceSwitcher({
           footer={switcher.summary}
           onPick={(id) => {
             if (id !== workspace.branchId) switcher.onPick(id)
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * "Choose a workspace" on the label of a Group whose frames have none yet
+ * (#871), styled like the unassigned frame label it replaces. Picking one
+ * sets the Group and every frame in it.
+ */
+function GroupWorkspaceChooser({
+  switcher,
+}: {
+  switcher: GroupWorkspaceSwitch
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Choose a workspace"
+          // Names win: the chooser gives up its width first.
+          className="flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="truncate text-xs text-muted-foreground">
+            Choose a workspace
+          </span>
+          <ChevronsUpDown
+            aria-hidden
+            className="ml-1 size-3 shrink-0 text-muted-foreground"
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-72 p-0"
+        side="bottom"
+        align="start"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <WorkspaceCommandList
+          branches={switcher.branches}
+          footer={switcher.summary}
+          onPick={(id) => {
+            switcher.onPick(id)
             setOpen(false)
           }}
         />

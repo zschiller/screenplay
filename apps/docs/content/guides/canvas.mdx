@@ -117,6 +117,12 @@ state and size. Exceptions stay where they are, and the list's footer names
 them before you pick. Documents in the group are unaffected. The switch is one
 undo step, and everyone on the canvas sees it at once.
 
+A group whose frames have no workspace yet shows **Choose a workspace** after
+its name instead, and its frames show No Workspace until you pick. Picking one
+sets the group and all of its frames. A group of documents only has no
+workspace: when its last frame is moved out, split off or deleted, the group
+drops its workspace, and the next frame to join sets it.
+
 ## The layers list
 
 The sidebar's **Canvas** section mirrors the canvas. Groups with several

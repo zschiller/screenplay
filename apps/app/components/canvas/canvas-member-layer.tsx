@@ -4,6 +4,7 @@ import { memo } from "react"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
 import {
+  groupAssignSummary,
   groupBranchId,
   groupSwitchFrames,
   groupSwitchSummary,
@@ -234,9 +235,21 @@ function CanvasMemberLayerImpl({
           group: IframeLayerGroupData,
           groupBranch: string | undefined
         ) => {
-          const workspace = workspaceOf(groupBranch)
-          if (!workspace) return undefined
           const { following, exceptions } = groupSwitchFrames(group, framesById)
+          const workspace = workspaceOf(groupBranch)
+          if (!workspace) {
+            // Frames with no Workspace yet pick one here, once, instead of
+            // on each frame's label (#871). Documents alone need none.
+            if (groupBranch || following.length === 0) return undefined
+            return {
+              switcher: {
+                branches: agents,
+                summary: [groupAssignSummary(following.length)],
+                onPick: (branchId: string) =>
+                  layerMutations.assignGroupAgent(group.id, branchId),
+              },
+            }
+          }
           const summary = groupSwitchSummary(
             following.length,
             exceptions.map((id) => {
@@ -486,7 +499,13 @@ function CanvasMemberLayerImpl({
               remoteGroupSelectedColor={remoteGroupSelectedColor}
               groupLabel={index === 0 ? groupLabel : undefined}
               groupWorkspace={groupWorkspace}
-              showWorkspace={!showGroupLabel || exception}
+              showWorkspace={
+                !showGroupLabel ||
+                exception ||
+                // An unassigned frame in an unassigned Group leaves the
+                // choice to the group label (#871).
+                (!iframeLayer.branchId && !!groupBranch)
+              }
               followGroup={
                 groupFollowed
                   ? {

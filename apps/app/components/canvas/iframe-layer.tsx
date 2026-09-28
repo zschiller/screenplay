@@ -67,6 +67,9 @@ import type {
   JsonValue,
 } from "@/lib/postmessage-protocol"
 
+const UNASSIGNED_IN_GROUP =
+  "Choose a Workspace from the group's title to preview it here."
+
 // Cached expected bridge version — fetched once per session.
 let expectedBridgeVersionPromise: Promise<string> | null = null
 function fetchExpectedBridgeVersion(): Promise<string> {
@@ -1148,7 +1151,12 @@ export function IframeLayer({
                 detail={
                   stage === "workspace-failed"
                     ? workspace?.error
-                    : workspace?.statusMessage
+                    : stage === "unassigned"
+                      ? // The Group's label offers the list instead (#871).
+                        showWorkspace
+                        ? undefined
+                        : UNASSIGNED_IN_GROUP
+                      : workspace?.statusMessage
                 }
                 onRetry={
                   stage === "preview-failed"
