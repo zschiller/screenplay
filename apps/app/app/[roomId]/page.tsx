@@ -71,7 +71,7 @@ export default async function RoomPage({
   // home rather than always "Home".
   const [initialThreads, initialTerminalTabs, memberCounts, parentFolder] =
     await Promise.all([
-      listThreads(roomId, userId).catch(() => []),
+      listThreads(roomId).catch(() => []),
       listTerminalTabs({ userId, roomId }).catch(() => []),
       isLocalBuild
         ? Promise.resolve(new Map<string, number>())

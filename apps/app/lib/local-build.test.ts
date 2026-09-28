@@ -91,12 +91,11 @@ describe("local build — access model", () => {
     // The element/selection "Send to Claude" path stays in the local build, so
     // the Comments component still mounts and reads threads — which must be a
     // safe empty result, never a query against the absent `thread` table.
-    const { listThreads, createThreadWithFirstComment } =
-      await import("./comments")
-    await expect(listThreads("r1", "local")).resolves.toEqual([])
+    const { listThreads, createThread } = await import("./comments")
+    await expect(listThreads("r1")).resolves.toEqual([])
     // Persisting a comment thread is the multi-user half — it refuses.
     await expect(
-      createThreadWithFirstComment({
+      createThread({
         roomId: "r1",
         x: 0,
         y: 0,
@@ -105,7 +104,6 @@ describe("local build — access model", () => {
         offsetX: null,
         offsetY: null,
         body: "hi",
-        authorId: "local",
       })
     ).rejects.toThrow(/local build/)
   })

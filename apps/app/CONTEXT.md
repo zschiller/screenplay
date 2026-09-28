@@ -248,11 +248,22 @@ capabilities: `openRoom(roomId)` resolves the session, requires membership
 build, see **Multi-user surface**), and hands back a handle whose
 `mutateDoc`/`readDoc` are the only room-doc access the caller gets. A
 non-member is rejected before anything touches the Room. The Branch diff-stat
-and PR caches (`compareBranches`/`listBranchPrs`) go through it; the other
-room-scoped actions and routes still call `requireMember`/`mutateRoomDoc`
-directly and move behind it next (#904, #906).
+and PR caches (`compareBranches`/`listBranchPrs`) and **Comments** go through
+it; the other room-scoped actions and routes still call
+`requireMember`/`mutateRoomDoc` directly and move behind it next (#904, #906).
 _Avoid_: checking membership ad hoc in a new action; "permissions" (Room Access
 is membership, not per-comment or per-role rules).
+
+**Comments** (`@/lib/comments`, #911):
+The server module that owns comment threads: it opens the thread's Room through
+**Room Access**, enforces the same `comment-permissions` rules the thread card
+reads (any member replies and resolves; only a comment's author edits or
+deletes it; only a thread's starter deletes the thread; every other attempt
+fails with one `NotYourCommentError`), gates the local build in one place,
+creates a thread with its first comment in one SQL statement, and rings the
+comment doorbells. Listing never writes. `comments-actions.ts` is transport
+only.
+_Avoid_: permission checks or `isLocalBuild` in the comment actions.
 
 **GitHub Connection** (local build):
 The local desktop build's **optional, on-demand GitHub API access** (PRD #428)

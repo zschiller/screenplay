@@ -13,7 +13,6 @@ import {
 import { threadNumbers } from "@/lib/comments-panel"
 import { db } from "@/lib/db"
 import { agentRun } from "@/lib/db/schema"
-import { isLocalBuild } from "@/lib/local-mode"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 
 /**
@@ -40,12 +39,11 @@ export async function queueCommentRequest(opts: {
   sandboxName: string
   threadIds: readonly string[]
 }): Promise<void> {
-  if (isLocalBuild || opts.threadIds.length === 0) return
   await queueThreadsForAgent({
     roomId: opts.roomId,
     threadIds: opts.threadIds,
     chatId: opts.chatId,
-    baseCommit: await readHead(opts.sandboxName),
+    readBaseCommit: () => readHead(opts.sandboxName),
   })
 }
 
@@ -54,7 +52,6 @@ export async function startCommentRequest(
   roomId: string,
   chatId: string
 ): Promise<void> {
-  if (isLocalBuild) return
   await startAgentThreads(roomId, chatId)
 }
 
@@ -71,7 +68,6 @@ export async function settleCommentRequest(opts: {
   sandboxName: string
   userId: string
 }): Promise<void> {
-  if (isLocalBuild) return
   try {
     const pending = await pendingAgentThreads(opts.chatId)
     if (pending.length === 0) return

@@ -127,7 +127,7 @@ export const thread = pgTable(
     quotedText: text("quoted_text"),
     // Retired (#789). The prototype player's old flat feed keyed its threads
     // by the Workspace's branch name. Nothing writes it now: listing a room's
-    // threads moves any left over onto `workspace_id` and clears it (see
+    // threads places any left over on their Workspace (see
     // `lib/comment-migration.ts`).
     branch: text("branch"),
     // Sent to the Workspace's agent (#788): where the request stands

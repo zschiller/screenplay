@@ -1,16 +1,14 @@
 "use server"
 
-import { requireUserId } from "@/lib/auth-helpers"
-import { requireMember } from "@/lib/rooms"
 import {
   appendComment,
-  createThreadWithFirstComment,
-  deleteComment as deleteCommentFn,
-  deleteThread as deleteThreadFn,
-  editComment as editCommentFn,
-  listThreads as listThreadsFn,
-  markThreadRead as markThreadReadFn,
-  markThreadUnread as markThreadUnreadFn,
+  createThread,
+  deleteComment,
+  deleteThread,
+  editComment,
+  listThreads,
+  markThreadRead,
+  markThreadUnread,
   setThreadResolved,
   type CommentRecord,
   type ThreadWithComments,
@@ -21,15 +19,14 @@ import {
   snapshotLabel,
   type ElementAnchor,
 } from "@/lib/comment-anchor"
-import { db, schema } from "@/lib/db"
-import { eq } from "drizzle-orm"
+
+// Transport only: access, permissions and the local build are the Comments
+// module's (`lib/comments.ts`). These parse what the browser sends.
 
 export async function listThreadsAction(
   roomId: string
 ): Promise<ThreadWithComments[]> {
-  const userId = await requireUserId()
-  await requireMember(roomId, userId)
-  return listThreadsFn(roomId, userId)
+  return listThreads(roomId)
 }
 
 export async function createThreadAction(opts: {
@@ -52,12 +49,8 @@ export async function createThreadAction(opts: {
   quotedText?: string | null
   body: string
 }): Promise<ThreadWithComments> {
-  const userId = await requireUserId()
-  await requireMember(opts.roomId, userId)
-  const trimmed = opts.body.trim()
-  if (!trimmed) throw new Error("Comment body is required")
   const anchor = parseElementAnchor(opts.anchor)
-  return createThreadWithFirstComment({
+  return createThread({
     workspaceId: shortString(opts.workspaceId, 256),
     route:
       typeof opts.route === "string" && opts.route.length <= 2048
@@ -78,100 +71,50 @@ export async function createThreadAction(opts: {
     anchorStart: opts.anchorStart ?? null,
     anchorEnd: opts.anchorEnd ?? null,
     quotedText: opts.quotedText ?? null,
-    body: trimmed,
-    authorId: userId,
+    body: opts.body,
   })
-}
-
-async function requireMembershipForThread(threadId: string, userId: string) {
-  const [row] = await db
-    .select({ roomId: schema.thread.roomId })
-    .from(schema.thread)
-    .where(eq(schema.thread.id, threadId))
-    .limit(1)
-  if (!row) throw new Error("Thread not found")
-  await requireMember(row.roomId, userId)
-  return row.roomId
 }
 
 export async function appendCommentAction(opts: {
   threadId: string
   body: string
 }): Promise<CommentRecord> {
-  const userId = await requireUserId()
-  await requireMembershipForThread(opts.threadId, userId)
-  const trimmed = opts.body.trim()
-  if (!trimmed) throw new Error("Comment body is required")
-  return appendComment({
-    threadId: opts.threadId,
-    authorId: userId,
-    body: trimmed,
-  })
+  return appendComment({ threadId: opts.threadId, body: opts.body })
 }
 
-async function requireMembershipForComment(commentId: string, userId: string) {
-  const [row] = await db
-    .select({ threadId: schema.comment.threadId })
-    .from(schema.comment)
-    .where(eq(schema.comment.id, commentId))
-    .limit(1)
-  if (!row) throw new Error("Comment not found")
-  await requireMembershipForThread(row.threadId, userId)
-}
-
-/** Edits a comment's body. Author only (`canEditComment`); the update is
- *  scoped to the author, so anyone else's edit changes nothing and throws. */
 export async function editCommentAction(opts: {
   commentId: string
   body: string
 }): Promise<void> {
-  const userId = await requireUserId()
-  await requireMembershipForComment(opts.commentId, userId)
-  const trimmed = opts.body.trim()
-  if (!trimmed) throw new Error("Comment body is required")
-  await editCommentFn({
-    commentId: opts.commentId,
-    authorId: userId,
-    body: trimmed,
-  })
+  await editComment({ commentId: opts.commentId, body: opts.body })
 }
 
-/** Deletes a comment. Author only (`canDeleteComment`). */
 export async function deleteCommentAction(opts: {
   commentId: string
 }): Promise<void> {
-  const userId = await requireUserId()
-  await requireMembershipForComment(opts.commentId, userId)
-  await deleteCommentFn({ commentId: opts.commentId, authorId: userId })
+  await deleteComment({ commentId: opts.commentId })
 }
 
 export async function setThreadResolvedAction(opts: {
   threadId: string
   resolved: boolean
 }): Promise<void> {
-  const userId = await requireUserId()
-  await requireMembershipForThread(opts.threadId, userId)
-  await setThreadResolved({ threadId: opts.threadId, resolved: opts.resolved })
+  await setThreadResolved({
+    threadId: opts.threadId,
+    resolved: opts.resolved,
+  })
 }
 
-/** Deletes a thread. Only its starter may (`canDeleteThread`), matching the
- *  thread card, which offers Delete to no one else. */
 export async function deleteThreadAction(threadId: string): Promise<void> {
-  const userId = await requireUserId()
-  await requireMembershipForThread(threadId, userId)
-  await deleteThreadFn({ threadId, userId })
+  await deleteThread(threadId)
 }
 
 export async function markThreadReadAction(threadId: string): Promise<void> {
-  const userId = await requireUserId()
-  await requireMembershipForThread(threadId, userId)
-  await markThreadReadFn({ threadId, userId })
+  await markThreadRead(threadId)
 }
 
 export async function markThreadUnreadAction(threadId: string): Promise<void> {
-  const userId = await requireUserId()
-  await requireMembershipForThread(threadId, userId)
-  await markThreadUnreadFn({ threadId, userId })
+  await markThreadUnread(threadId)
 }
 
 function shortString(value: unknown, max: number): string | null {
