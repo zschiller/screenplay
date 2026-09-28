@@ -61,7 +61,7 @@ function HistoryRow({
         onClick={onReopen}
         className="flex min-w-0 flex-1 flex-col gap-0.5 px-2 py-1.5 text-left outline-none"
       >
-        <span className="flex items-center gap-2 text-[13px]">
+        <span className="flex items-center gap-2 text-sm">
           <span className="min-w-0 flex-1 truncate">
             {chat.label || "Untitled"}
           </span>

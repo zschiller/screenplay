@@ -72,11 +72,11 @@ export function PlayerKnobs({ knobs, values, onChange }: PlayerKnobsProps) {
             <p className="font-medium text-foreground">No knobs declared</p>
             <p>
               Call{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-2xs text-foreground">
                 useKnob()
               </code>{" "}
               from{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-2xs text-foreground">
                 @screenplay.space/knobs
               </code>{" "}
               inside this prototype to expose live controls here.

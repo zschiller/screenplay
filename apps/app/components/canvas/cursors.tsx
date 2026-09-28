@@ -44,14 +44,14 @@ export function Cursors({ viewport }: CursorsProps) {
                 className={`mt-1 ml-3 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs shadow-md ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
-                <div className="text-[10px] font-medium opacity-80">{name}</div>
+                <div className="text-3xs font-medium opacity-80">{name}</div>
                 <div className="leading-snug break-words whitespace-pre-wrap">
                   {message || " "}
                 </div>
               </div>
             ) : (
               <span
-                className={`mt-1 ml-3 rounded px-1.5 py-0.5 text-[10px] whitespace-nowrap ${ink}`}
+                className={`mt-1 ml-3 rounded px-1.5 py-0.5 text-3xs whitespace-nowrap ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
                 {name}

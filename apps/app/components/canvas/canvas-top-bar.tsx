@@ -174,7 +174,7 @@ export function CanvasTopBar({
                           pendingRoomRenameRef.current = true
                         }}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil />
                         Rename
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
@@ -182,7 +182,7 @@ export function CanvasTopBar({
                         variant="destructive"
                         onSelect={() => onDeleteDialogOpenChange(true)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 />
                         Delete
                       </DropdownMenuItem>
                     </>
@@ -193,7 +193,7 @@ export function CanvasTopBar({
                     <DropdownMenuItem
                       onSelect={() => onDeleteDialogOpenChange(true)}
                     >
-                      <LogOut className="h-3.5 w-3.5" />
+                      <LogOut />
                       Leave
                     </DropdownMenuItem>
                   )}

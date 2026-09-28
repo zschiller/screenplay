@@ -450,7 +450,7 @@ export function AgentChat({
                   data-testid="run-in-progress"
                   className="flex items-center gap-1.5 text-xs text-muted-foreground"
                 >
-                  <GripSpinner className="h-3 w-3" />
+                  <GripSpinner className="size-3" />
                   {lastRole === "assistant" ? (
                     <span className="sr-only">Responding…</span>
                   ) : (

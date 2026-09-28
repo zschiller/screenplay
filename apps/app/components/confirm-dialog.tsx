@@ -209,9 +209,7 @@ export function ConfirmOption({
           {label}
         </Label>
         {hint && (
-          <div className="text-[13px] leading-5 text-muted-foreground">
-            {hint}
-          </div>
+          <div className="text-sm leading-5 text-muted-foreground">{hint}</div>
         )}
       </div>
     </div>
