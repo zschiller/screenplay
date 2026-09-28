@@ -1,0 +1,574 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- PROTOTYPE (#981): throwaway logic demo for live-frame driver handoff. Not production code. -->
+<title>Who Drives the Live Frame</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a control strip, the shared room record, then one card per person in the room, then guided walkthroughs as tabs. */
+:root {
+  --bg: #f7f6f8;
+  --surface: #ffffff;
+  --fg: #1d1a22;
+  --muted: #6c6675;
+  --line: #e3dfe8;
+  --accent: #d6307a;
+  --accent-soft: #fbe6ef;
+  --good: #1f7a4d;
+  --warn: #9a5b00;
+  --warn-soft: #fff3de;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141217; --surface: #1d1a22; --fg: #eeeaf2; --muted: #a39cad; --line: #332e3a;
+    --accent: #f0609c; --accent-soft: #3a1d2b; --good: #5cc98f; --warn: #f0b458; --warn-soft: #33270f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141217; --surface: #1d1a22; --fg: #eeeaf2; --muted: #a39cad; --line: #332e3a;
+  --accent: #f0609c; --accent-soft: #3a1d2b; --good: #5cc98f; --warn: #f0b458; --warn-soft: #33270f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; display: grid; gap: 24px; }
+h1 { font-size: 24px; font-weight: 600; margin: 0; text-wrap: balance; }
+h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+p { margin: 0; max-width: 70ch; }
+.intro { display: grid; gap: 8px; }
+.intro p { color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.controls { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-end; }
+.control { display: grid; gap: 6px; }
+.control label { font-size: 12px; color: var(--muted); }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+button { font: inherit; font-size: 13px; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.happened { border-left: 3px solid var(--accent); padding: 10px 14px; background: var(--accent-soft); border-radius: 0 8px 8px 0; }
+.happened p { color: var(--fg); }
+.record { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px 24px; }
+.field { display: grid; gap: 2px; min-width: 0; }
+.field .k { font-size: 12px; color: var(--muted); }
+.field .v { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.changed .v { color: var(--accent); font-weight: 500; }
+.people { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.person { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.person header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.person .name { font-weight: 600; font-size: 15px; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.driving { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.off { border-style: dashed; }
+.screen { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.screen .bar { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.screen .bar b { color: var(--fg); font-weight: 500; }
+.screen .body { padding: 14px 10px; font-family: var(--mono); font-size: 13px; min-height: 58px; display: grid; gap: 4px; }
+.screen.frozen .body { background: var(--warn-soft); color: var(--warn); }
+.screen.none .body { color: var(--muted); }
+.ask { border: 1px solid var(--accent); border-radius: 8px; padding: 10px; display: grid; gap: 8px; }
+.note { font-size: 12px; color: var(--muted); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.steps { display: grid; gap: 8px; margin-top: 12px; }
+.step { display: flex; gap: 10px; align-items: center; }
+.step .n { font-family: var(--mono); font-size: 12px; color: var(--muted); width: 1.5em; text-align: right; font-variant-numeric: tabular-nums; }
+.step.done button { text-decoration: line-through; }
+.watch { margin-top: 12px; font-size: 13px; color: var(--muted); }
+.log { font-family: var(--mono); font-size: 12px; color: var(--muted); display: grid; gap: 2px; max-height: 180px; overflow: auto; }
+</style>
+
+<div class="wrap">
+  <section class="intro">
+    <h1>Who drives the live frame?</h1>
+    <p>One copy of a frame's prototype runs for the whole room. One person drives it at a time: only their clicks and typing reach it, and everyone else watches. The room record (in the room's Yjs doc) says who drives. Anyone else can ask to drive, like screen share in Zoom.</p>
+    <p>Try the questions from the ticket: does the driver hand over or does the asker take over, what happens when the driver closes the tab, what do two requests at once do, what does a watcher see, and does it hold for both the streamed and the mirrored route.</p>
+  </section>
+
+  <section class="panel controls" aria-label="Settings">
+    <div class="control">
+      <label>How someone else gets to drive</label>
+      <div class="seg" id="policy"></div>
+    </div>
+    <div class="control">
+      <label>Where the one live copy runs</label>
+      <div class="seg" id="route"></div>
+    </div>
+    <div class="control">
+      <label>Time</label>
+      <div class="row">
+        <button id="wait1">Wait 1 second</button>
+        <button id="wait5">Wait 5 seconds</button>
+        <button id="reset">Start over</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="happened" aria-live="polite"><p id="happened"></p></section>
+
+  <section class="panel">
+    <h2>Room record, shared by everyone</h2>
+    <div class="record" id="record"></div>
+  </section>
+
+  <section>
+    <h2>What each person sees</h2>
+    <div class="people" id="people"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Walkthroughs</h2>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <p id="scenario-desc"></p>
+    <div class="steps" id="steps"></div>
+    <p class="watch" id="scenario-watch"></p>
+  </section>
+
+  <section class="panel">
+    <h2>History</h2>
+    <div class="log" id="log"></div>
+  </section>
+</div>
+
+<script>
+/* ---- Pure model: no DOM in here. Lift this into the real module. ---- */
+const LiveFrame = (() => {
+  const GRACE = 5 // seconds someone can be gone before the room acts (covers a reload)
+  const PEOPLE = [
+    { id: "ana", name: "Ana", clientId: 17 },
+    { id: "ben", name: "Ben", clientId: 42 },
+    { id: "cara", name: "Cara", clientId: 8 },
+  ]
+  const ROUTES = {
+    stream: "A shared browser on a server (streamed)",
+    stay: "One person's browser, input forwarded (mirrored)",
+    move: "The driver's own browser (mirrored, moves on handoff)",
+  }
+  const POLICIES = { ask: "Driver lets them", take: "They take over" }
+  const nameOf = (id) => PEOPLE.find((p) => p.id === id)?.name ?? "nobody"
+  const clientOf = (id) => PEOPLE.find((p) => p.id === id).clientId
+
+  function init({ route = "stream", policy = "ask" } = {}) {
+    const presence = {}
+    for (const p of PEOPLE) presence[p.id] = { online: true, goneAt: null }
+    return {
+      clock: 0,
+      route,
+      policy,
+      presence, // Yjs awareness: who has the room open right now
+      doc: { live: false, driver: null, requests: [] }, // the room record in Yjs
+      instance: null, // { run, runsOn: "server" | personId, cart }
+      runs: 0,
+      happened: "Nobody has made the frame live yet.",
+      log: [],
+    }
+  }
+
+  const online = (s, id) => s.presence[id].online
+  const goneLongEnough = (s, id) => !online(s, id) && s.clock - s.presence[id].goneAt >= GRACE
+
+  function note(s, text) {
+    s.happened = text
+    s.log.unshift(`t=${s.clock}s  ${text}`)
+  }
+
+  function startRun(s, host) {
+    s.runs += 1
+    s.instance = { run: s.runs, runsOn: host, cart: 0 }
+  }
+
+  // The one place the driver changes. Returns a sentence about the live copy.
+  function setDriver(s, to) {
+    s.doc.driver = to
+    s.doc.requests = s.doc.requests.filter((r) => r.by !== to)
+    if (s.route === "move" && to && s.instance && s.instance.runsOn !== to) {
+      startRun(s, to)
+      return ` The live copy restarted in ${nameOf(to)}'s browser, so its state was lost.`
+    }
+    if (s.route === "move" && to && !s.instance) {
+      startRun(s, to)
+      return ` A fresh copy started in ${nameOf(to)}'s browser.`
+    }
+    return ""
+  }
+
+  const oldestWaiting = (s) =>
+    s.doc.requests.filter((r) => online(s, r.by)).sort((a, b) => a.at - b.at || clientOf(b.by) - clientOf(a.by))[0]?.by ?? null
+
+  function settle(s) {
+    const said = []
+    // 1. A driver who has been gone past the grace period loses control.
+    const d = s.doc.driver
+    if (d && goneLongEnough(s, d)) {
+      const next = oldestWaiting(s)
+      const extra = setDriver(s, next)
+      said.push(next
+        ? `${nameOf(d)} was gone for ${GRACE}s, so control passed to ${nameOf(next)}, who asked first.${extra}`
+        : `${nameOf(d)} was gone for ${GRACE}s, so nobody drives now. Anyone can pick it up.`)
+    }
+    // 2. Requests from people who left are dropped.
+    const before = s.doc.requests.length
+    s.doc.requests = s.doc.requests.filter((r) => !goneLongEnough(s, r.by))
+    if (s.doc.requests.length < before) said.push("Requests from people who left were dropped.")
+    // 3. On a mirrored route, the copy dies with the browser it runs in.
+    const inst = s.instance
+    if (inst && inst.runsOn !== "server" && goneLongEnough(s, inst.runsOn)) {
+      const lostIn = nameOf(inst.runsOn)
+      const newHost = s.doc.driver && online(s, s.doc.driver)
+        ? s.doc.driver
+        : s.route === "stay" ? PEOPLE.map((p) => p.id).find((id) => online(s, id)) ?? null : null
+      if (newHost) {
+        startRun(s, newHost)
+        said.push(`The live copy ran in ${lostIn}'s browser, which is gone. It restarted in ${nameOf(newHost)}'s browser and its state was lost.`)
+      } else {
+        s.instance = null
+        said.push(`The live copy ran in ${lostIn}'s browser, which is gone. Nobody is running it now; watchers keep the last picture.`)
+      }
+    }
+    return said
+  }
+
+  function reduce(prev, action) {
+    const s = structuredClone(prev)
+    const by = action.by
+    const who = by && nameOf(by)
+    switch (action.type) {
+      case "set-policy": s.policy = action.policy; note(s, `Setting changed: ${POLICIES[s.policy]}.`); return s
+      case "set-route": {
+        s.route = action.route
+        if (s.doc.live) {
+          const host = s.route === "stream" ? "server" : s.doc.driver ?? PEOPLE[0].id
+          startRun(s, host)
+        }
+        note(s, `Setting changed: the live copy runs in ${ROUTES[s.route].toLowerCase()}.`)
+        return s
+      }
+      case "go-live": {
+        if (s.doc.live) return s
+        s.doc.live = true
+        s.doc.driver = by
+        startRun(s, s.route === "stream" ? "server" : by)
+        note(s, `${who} made the frame live and is driving it.`)
+        return s
+      }
+      case "interact": {
+        if (!s.instance) { note(s, `${who} clicked, but nobody is running the live copy.`); return s }
+        if (s.doc.driver !== by) { note(s, `${who} clicked in the frame. Only the driver's input reaches it, so nothing happened.`); return s }
+        if (s.instance.runsOn !== "server" && !online(s, s.instance.runsOn)) {
+          note(s, `${who} clicked, but the live copy is frozen while ${nameOf(s.instance.runsOn)} is gone.`); return s
+        }
+        s.instance.cart += 1
+        const fwd = s.instance.runsOn !== "server" && s.instance.runsOn !== by
+          ? ` The click travelled to ${nameOf(s.instance.runsOn)}'s browser, where the copy runs.` : ""
+        note(s, `${who} added an item to the cart. Everyone sees ${s.instance.cart}.${fwd}`)
+        return s
+      }
+      case "request": {
+        if (!s.doc.driver) { const x = setDriver(s, by); note(s, `Nobody was driving, so ${who} picked it up.${x}`); return s }
+        if (s.policy === "take") {
+          const from = nameOf(s.doc.driver)
+          const x = setDriver(s, by)
+          note(s, `${who} took over from ${from}. ${from} is watching now.${x}`)
+          return s
+        }
+        if (s.doc.requests.some((r) => r.by === by)) return s
+        s.doc.requests.push({ by, at: s.clock })
+        note(s, `${who} asked to drive. ${nameOf(s.doc.driver)} sees the request.`)
+        return s
+      }
+      case "request-both": {
+        const [a, b] = action.people
+        if (s.policy === "take" || !s.doc.driver) {
+          // Both write the driver field at once; Yjs keeps one write, the same on every screen.
+          const winner = clientOf(a) > clientOf(b) ? a : b
+          const loser = winner === a ? b : a
+          const x = setDriver(s, winner)
+          note(s, `${nameOf(a)} and ${nameOf(b)} both took over at the same moment. The room kept ${nameOf(winner)}'s write, the same on every screen; ${nameOf(loser)} sees that ${nameOf(winner)} got there first.${x}`)
+          return s
+        }
+        for (const p of [a, b]) if (!s.doc.requests.some((r) => r.by === p)) s.doc.requests.push({ by: p, at: s.clock })
+        note(s, `${nameOf(a)} and ${nameOf(b)} asked at the same moment. ${nameOf(s.doc.driver)} sees both and picks one.`)
+        return s
+      }
+      case "cancel": s.doc.requests = s.doc.requests.filter((r) => r.by !== by); note(s, `${who} withdrew the request.`); return s
+      case "grant": {
+        if (s.doc.driver !== by) return s
+        const x = setDriver(s, action.to)
+        note(s, `${who} let ${nameOf(action.to)} drive. ${who} is watching now.${x}`)
+        return s
+      }
+      case "decline":
+        s.doc.requests = s.doc.requests.filter((r) => r.by !== action.to)
+        note(s, `${who} said not now to ${nameOf(action.to)}.`)
+        return s
+      case "release": {
+        if (s.doc.driver !== by) return s
+        const next = oldestWaiting(s)
+        const x = setDriver(s, next)
+        note(s, next ? `${who} stopped driving. ${nameOf(next)} asked first, so ${nameOf(next)} drives now.${x}` : `${who} stopped driving. Nobody drives; anyone can pick it up.`)
+        return s
+      }
+      case "leave": {
+        s.presence[by] = { online: false, goneAt: s.clock }
+        const roles = []
+        if (s.doc.driver === by) roles.push(`${who} keeps control`)
+        if (s.instance && s.instance.runsOn === by) roles.push("the live copy is frozen for everyone")
+        note(s, `${who} closed the tab.` + (roles.length ? ` For ${GRACE}s, in case it's a reload, ${roles.join(" and ")}.` : ""))
+        return s
+      }
+      case "return": {
+        const gone = s.clock - s.presence[by].goneAt
+        s.presence[by] = { online: true, goneAt: null }
+        const kept = s.doc.driver === by ? ` Still driving: back within ${gone}s.` : ""
+        note(s, `${who} is back.${kept}`)
+        return s
+      }
+      case "wait": {
+        s.clock += action.secs
+        const said = settle(s)
+        note(s, said.length ? said.join(" ") : `${action.secs}s passed. Nothing changed.`)
+        return s
+      }
+    }
+    return s
+  }
+
+  // What one person's screen shows, and what they can do. Pure.
+  function viewFor(s, id) {
+    const me = { id, name: nameOf(id), online: online(s, id) }
+    const d = s.doc.driver
+    const inst = s.instance
+    const frozen = inst && inst.runsOn !== "server" && !online(s, inst.runsOn)
+    const screen = !s.doc.live ? { kind: "none", text: "Not live yet" }
+      : !inst ? { kind: "none", text: "Last picture (nobody is running it)" }
+      : frozen ? { kind: "frozen", text: `Frozen: waiting for ${nameOf(inst.runsOn)}` }
+      : { kind: "live", text: `Cart: ${inst.cart} item${inst.cart === 1 ? "" : "s"}` }
+    const runs = !inst ? "" : inst.runsOn === "server" ? "Runs on the server" : inst.runsOn === id ? "Runs in your browser" : `Runs in ${nameOf(inst.runsOn)}'s browser`
+    const barLeft = !s.doc.live ? "Frame" : d === id ? "You're driving" : d ? `${nameOf(d)} is driving` : "Nobody is driving"
+    const waiting = s.doc.requests.some((r) => r.by === id)
+    const incoming = d === id ? s.doc.requests.map((r) => r.by) : []
+    let chip = "Watching"
+    if (!me.online) chip = "Tab closed"
+    else if (!s.doc.live) chip = "In the room"
+    else if (d === id) chip = "Driving"
+    else if (waiting) chip = "Asked to drive"
+    const pickLabel = !d ? "Take over" : s.policy === "take" ? "Take over" : "Ask to drive"
+    return { me, chip, screen, runs, barLeft, waiting, incoming, isDriver: d === id, live: s.doc.live, pickLabel }
+  }
+
+  return { init, reduce, viewFor, PEOPLE, ROUTES, POLICIES, GRACE, nameOf }
+})()
+
+/* ---- Throwaway page shell ---- */
+const SCENARIOS = [
+  {
+    title: "Handing over",
+    route: "stream", policy: "ask",
+    desc: "Ana drives. Ben asks to drive and Ana lets him. The cart Ana filled is still there for Ben.",
+    watch: "Watch Ana's screen show Ben's request, and Ben's screen change from watching to driving.",
+    steps: [
+      ["Ana makes the frame live", { type: "go-live", by: "ana" }],
+      ["Ana adds an item", { type: "interact", by: "ana" }],
+      ["Ben clicks while watching", { type: "interact", by: "ben" }],
+      ["Ben asks to drive", { type: "request", by: "ben" }],
+      ["Ana lets Ben drive", { type: "grant", by: "ana", to: "ben" }],
+      ["Ben adds an item", { type: "interact", by: "ben" }],
+    ],
+  },
+  {
+    title: "Taking over",
+    route: "stream", policy: "take",
+    desc: "Same room, but asking is taking: Ben's button takes control straight away, like starting a share in Zoom while someone else is sharing.",
+    watch: "Ana gets no say. Is that fine between teammates, or rude mid-sentence?",
+    steps: [
+      ["Ana makes the frame live", { type: "go-live", by: "ana" }],
+      ["Ana adds an item", { type: "interact", by: "ana" }],
+      ["Ben takes over", { type: "request", by: "ben" }],
+      ["Ben adds an item", { type: "interact", by: "ben" }],
+    ],
+  },
+  {
+    title: "Driver closes the tab",
+    route: "stream", policy: "ask",
+    desc: "Ben has asked to drive. Ana closes her tab without answering. After 5 seconds control passes to Ben.",
+    watch: "Nobody is stuck waiting on someone who has left.",
+    steps: [
+      ["Ana makes the frame live", { type: "go-live", by: "ana" }],
+      ["Ben asks to drive", { type: "request", by: "ben" }],
+      ["Ana closes the tab", { type: "leave", by: "ana" }],
+      ["Wait 5 seconds", { type: "wait", secs: 5 }],
+      ["Ben adds an item", { type: "interact", by: "ben" }],
+    ],
+  },
+  {
+    title: "Driver reloads",
+    route: "stream", policy: "ask",
+    desc: "Ana's tab closes and comes back two seconds later, like a reload. She is still driving.",
+    watch: "The grace period is what makes a reload harmless.",
+    steps: [
+      ["Ana makes the frame live", { type: "go-live", by: "ana" }],
+      ["Ana closes the tab", { type: "leave", by: "ana" }],
+      ["Wait 1 second", { type: "wait", secs: 1 }],
+      ["Ana is back", { type: "return", by: "ana" }],
+      ["Wait 5 seconds", { type: "wait", secs: 5 }],
+      ["Ana adds an item", { type: "interact", by: "ana" }],
+    ],
+  },
+  {
+    title: "Two ask at once",
+    route: "stream", policy: "ask",
+    desc: "Ben and Cara ask in the same moment. Ana sees both requests and picks Cara. Ben's request stays, and when Cara stops, Ben drives.",
+    watch: "Then switch the setting to \"They take over\" and run it again: one of the two simply wins.",
+    steps: [
+      ["Ana makes the frame live", { type: "go-live", by: "ana" }],
+      ["Ben and Cara ask together", { type: "request-both", people: ["ben", "cara"] }],
+      ["Ana lets Cara drive", { type: "grant", by: "ana", to: "cara" }],
+      ["Cara stops driving", { type: "release", by: "cara" }],
+    ],
+  },
+  {
+    title: "Mirrored: copy stays put",
+    route: "stay", policy: "ask",
+    desc: "The live copy runs in Ana's browser and everyone else sees a mirror of it. When Ben drives, his clicks travel to Ana's browser, so the cart survives the handoff. When Ana leaves, the copy dies with her tab.",
+    watch: "Compare with the streamed walkthroughs, where the copy never lives in anyone's tab.",
+    steps: [
+      ["Ana makes the frame live", { type: "go-live", by: "ana" }],
+      ["Ana adds an item", { type: "interact", by: "ana" }],
+      ["Ben asks to drive", { type: "request", by: "ben" }],
+      ["Ana lets Ben drive", { type: "grant", by: "ana", to: "ben" }],
+      ["Ben adds an item", { type: "interact", by: "ben" }],
+      ["Ana closes the tab", { type: "leave", by: "ana" }],
+      ["Ben clicks during the freeze", { type: "interact", by: "ben" }],
+      ["Wait 5 seconds", { type: "wait", secs: 5 }],
+    ],
+  },
+  {
+    title: "Mirrored: copy moves",
+    route: "move", policy: "ask",
+    desc: "The live copy always runs in the driver's own browser, so input never has to travel. The cost: every handoff restarts it.",
+    watch: "Ana's cart is gone the moment Ben drives.",
+    steps: [
+      ["Ana makes the frame live", { type: "go-live", by: "ana" }],
+      ["Ana adds an item", { type: "interact", by: "ana" }],
+      ["Ben asks to drive", { type: "request", by: "ben" }],
+      ["Ana lets Ben drive", { type: "grant", by: "ana", to: "ben" }],
+    ],
+  },
+]
+
+let state = LiveFrame.init()
+let prevState = state
+let tab = 0
+let stepIndex = 0
+
+const $ = (id) => document.getElementById(id)
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag)
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "onclick") n.onclick = v
+    else if (k === "class") n.className = v
+    else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v)
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c)
+  return n
+}
+
+function dispatch(action) {
+  prevState = state
+  state = LiveFrame.reduce(state, action)
+  render()
+}
+
+function startScenario(i) {
+  tab = i
+  stepIndex = 0
+  const sc = SCENARIOS[i]
+  prevState = state = LiveFrame.init({ route: sc.route, policy: sc.policy })
+  state.happened = "Walkthrough reset. Press the first step."
+  render()
+}
+
+function recordFields(s) {
+  const n = LiveFrame.nameOf
+  return [
+    ["Frame is live", s.doc.live ? "yes" : "no"],
+    ["Driver", s.doc.live ? (s.doc.driver ? n(s.doc.driver) : "nobody") : "–"],
+    ["Waiting to drive", s.doc.requests.length ? s.doc.requests.map((r) => `${n(r.by)} (t=${r.at}s)`).join(", ") : "nobody"],
+    ["Live copy runs in", !s.instance ? "nowhere" : s.instance.runsOn === "server" ? "the server" : `${n(s.instance.runsOn)}'s browser`],
+    ["Copy's state", s.instance ? `run #${s.instance.run}, cart ${s.instance.cart}` : "–"],
+    ["In the room", LiveFrame.PEOPLE.filter((p) => s.presence[p.id].online).map((p) => p.name).join(", ") || "nobody"],
+    ["Clock", `${s.clock}s`],
+  ]
+}
+
+function render() {
+  $("policy").replaceChildren(...Object.entries(LiveFrame.POLICIES).map(([k, label]) =>
+    el("button", { "aria-pressed": String(state.policy === k), onclick: () => dispatch({ type: "set-policy", policy: k }) }, label)))
+  $("route").replaceChildren(...Object.entries(LiveFrame.ROUTES).map(([k, label]) =>
+    el("button", { "aria-pressed": String(state.route === k), onclick: () => dispatch({ type: "set-route", route: k }) }, label)))
+  $("happened").textContent = state.happened
+
+  const before = Object.fromEntries(recordFields(prevState))
+  $("record").replaceChildren(...recordFields(state).map(([k, v]) =>
+    el("div", { class: "field" + (before[k] !== v ? " changed" : "") }, el("span", { class: "k" }, k), el("span", { class: "v" }, v))))
+
+  $("people").replaceChildren(...LiveFrame.PEOPLE.map((p) => {
+    const v = LiveFrame.viewFor(state, p.id)
+    const act = (a) => () => dispatch({ ...a, by: p.id })
+    const chipClass = "chip" + (v.chip === "Driving" ? " driving" : "") + (!v.me.online ? " off" : "")
+    const controls = []
+    if (!v.me.online) {
+      controls.push(el("button", { onclick: act({ type: "return" }) }, "Come back"))
+    } else if (!v.live) {
+      controls.push(el("button", { class: "primary", onclick: act({ type: "go-live" }) }, "Make frame live"))
+    } else {
+      controls.push(el("button", { class: v.isDriver ? "primary" : "", onclick: act({ type: "interact" }) }, "Add to cart"))
+      if (v.isDriver) controls.push(el("button", { onclick: act({ type: "release" }) }, "Stop driving"))
+      else if (v.waiting) controls.push(el("button", { onclick: act({ type: "cancel" }) }, "Withdraw request"))
+      else controls.push(el("button", { onclick: act({ type: "request" }) }, v.pickLabel))
+    }
+    if (v.me.online) controls.push(el("button", { onclick: act({ type: "leave" }) }, "Close tab"))
+
+    const ask = v.incoming.length && v.me.online ? el("div", { class: "ask" },
+      ...v.incoming.map((who) => el("div", { class: "row", style: "align-items:center" },
+        el("span", { style: "flex:1;min-width:0" }, `${LiveFrame.nameOf(who)} asks to drive`),
+        el("button", { class: "primary", onclick: act({ type: "grant", to: who }) }, "Let drive"),
+        el("button", { onclick: act({ type: "decline", to: who }) }, "Not now")))) : null
+
+    return el("article", { class: "panel person" },
+      el("header", {}, el("span", { class: "name" }, p.name), el("span", { class: chipClass }, v.chip)),
+      el("div", { class: "screen " + v.screen.kind },
+        el("div", { class: "bar" }, el("b", {}, v.barLeft), el("span", {}, v.runs)),
+        el("div", { class: "body" }, v.me.online ? v.screen.text : "Tab closed")),
+      ask,
+      el("div", { class: "row" }, controls),
+      v.waiting && v.me.online ? el("p", { class: "note" }, `Waiting for ${LiveFrame.nameOf(state.doc.driver)} to answer. If ${LiveFrame.nameOf(state.doc.driver)} leaves, you get it after ${LiveFrame.GRACE}s.`) : null)
+  }))
+
+  $("tabs").replaceChildren(...SCENARIOS.map((sc, i) =>
+    el("button", { role: "tab", "aria-selected": String(i === tab), onclick: () => startScenario(i) }, sc.title)))
+  const sc = SCENARIOS[tab]
+  $("scenario-desc").textContent = sc.desc
+  $("scenario-watch").textContent = "Watch for: " + sc.watch
+  $("steps").replaceChildren(...sc.steps.map(([label, action], i) =>
+    el("div", { class: "step" + (i < stepIndex ? " done" : "") },
+      el("span", { class: "n" }, String(i + 1)),
+      el("button", { class: i === stepIndex ? "primary" : "", disabled: i !== stepIndex, onclick: () => { stepIndex++; dispatch(action) } }, label))))
+
+  $("log").replaceChildren(...state.log.map((line) => el("div", {}, line)))
+}
+
+$("wait1").onclick = () => dispatch({ type: "wait", secs: 1 })
+$("wait5").onclick = () => dispatch({ type: "wait", secs: 5 })
+$("reset").onclick = () => startScenario(tab)
+startScenario(0)
+</script>
