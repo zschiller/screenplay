@@ -988,13 +988,62 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspace-status",
     description:
-      "Hovering a Workspace's status icon: its state in words in a tooltip.",
+      "Hovering a Workspace row that's still setting up: its hover card names the step (#882).",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await page
         .getByRole("img", { name: "Running setup script" })
         .hover({ timeout: 15_000 })
-      await page.getByRole("tooltip").first().waitFor({ timeout: 5_000 })
+      await waitForWorkspaceHoverCard(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-workspace-hover-card",
+    description:
+      "Hovering a Workspace row: title, status, repository, git branch, base and changes (#882).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator("[data-sidebar=menu-button]", {
+          hasText: "Checkout polish",
+        })
+        .first()
+        .hover({ timeout: 15_000 })
+      await waitForWorkspaceHoverCard(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-workspace-hover-card-group",
+    description:
+      "Hovering a group label's Workspace pill: the same hover card as the row (#882).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        // The Cart group label's pill, not the sidebar group row's. The
+        // Checkout group's label sits under the top chrome at this viewport.
+        .locator("[data-slot=badge]:not([data-slot=sidebar-menu-button] *)", {
+          hasText: "Empty cart state",
+        })
+        .first()
+        .hover({ timeout: 15_000 })
+      await waitForWorkspaceHoverCard(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-workspace-hover-card-pill",
+    description:
+      "Hovering the Workspace in a selected frame's address bar: the same hover card as the row (#882).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      await page
+        .getByRole("button", { name: /^Workspace: / })
+        .first()
+        .hover({ timeout: 15_000 })
+      await waitForWorkspaceHoverCard(page)
     },
     settleMs: 300,
   },
@@ -3702,6 +3751,14 @@ async function searchHome(page: Page, query: string): Promise<void> {
 }
 
 /** Select the Checkout Canvas's desktop frame and wait for its toolbar. */
+/** The Workspace hover card (#882), which opens after its hover delay. */
+async function waitForWorkspaceHoverCard(page: Page): Promise<void> {
+  await page
+    .locator("[data-slot=hover-card-content]")
+    .first()
+    .waitFor({ state: "visible", timeout: 5_000 })
+}
+
 async function selectCheckoutFrame(page: Page): Promise<void> {
   await page
     .getByText("Checkout · desktop", { exact: true })

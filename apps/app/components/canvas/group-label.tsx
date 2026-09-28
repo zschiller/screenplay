@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
+import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
@@ -75,19 +76,21 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
       ) : (
         // Names win: the Workspace gives up its width first. Pressing it
         // selects the Group, like its name, rather than reordering the member.
-        <span
-          className="flex min-w-10 shrink-[100]"
-          onPointerDown={(e) => {
-            if (e.button !== 0) return
-            e.stopPropagation()
-            props.onSelectGroup?.(e.shiftKey)
-          }}
-        >
-          <WorkspaceName
-            workspace={workspace}
-            className="text-xs text-muted-foreground"
-          />
-        </span>
+        <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
+          <span
+            className="flex min-w-10 shrink-[100]"
+            onPointerDown={(e) => {
+              if (e.button !== 0) return
+              e.stopPropagation()
+              props.onSelectGroup?.(e.shiftKey)
+            }}
+          >
+            <WorkspaceName
+              workspace={workspace}
+              className="text-xs text-muted-foreground"
+            />
+          </span>
+        </WorkspaceHoverCard>
       )}
     </div>
   )
@@ -110,25 +113,27 @@ function GroupWorkspaceSwitcher({
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Show ${label} from another workspace (now ${workspaceLabel(workspace)})`}
-          // Names win: the Workspace gives up its width first.
-          className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <WorkspaceName
-            workspace={workspace}
-            className="text-xs text-muted-foreground"
-          />
-          <ChevronsUpDown
-            aria-hidden
-            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
-          />
-        </button>
-      </PopoverTrigger>
+      <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Show ${label} from another workspace (now ${workspaceLabel(workspace)})`}
+            // Names win: the Workspace gives up its width first.
+            className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <WorkspaceName
+              workspace={workspace}
+              className="text-xs text-muted-foreground"
+            />
+            <ChevronsUpDown
+              aria-hidden
+              className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+            />
+          </button>
+        </PopoverTrigger>
+      </WorkspaceHoverCard>
       <PopoverContent
         className="w-72 p-0"
         side="bottom"
