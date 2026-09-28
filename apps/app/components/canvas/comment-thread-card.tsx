@@ -1,7 +1,8 @@
 "use client"
 
 import { useRef, useState, useTransition } from "react"
-import { Check, MoreHorizontal } from "lucide-react"
+import { Bot, Check, Clock, MoreHorizontal } from "lucide-react"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Textarea } from "@workspace/ui/components/textarea"
@@ -14,14 +15,17 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { GripSpinner } from "@/components/grip-spinner"
 import { useNow } from "@/hooks/use-now"
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
+import { isWithAgent, shortCommit } from "@/lib/comments-agent"
 import { appendCommentAction, editCommentAction } from "@/lib/comments-actions"
 import {
   canDeleteComment,
   canDeleteThread,
   canEditComment,
 } from "@/lib/comment-permissions"
+export { threadNumbers } from "@/lib/comments-panel"
 import {
   activeMentionQuery,
   insertMention,
@@ -34,17 +38,6 @@ export interface CommentMember {
   userId: string
   name: string
   avatar: string | null
-}
-
-/**
- * Each thread's pin number: its place in the order threads were started,
- * counting resolved ones, so a thread keeps its number for its whole life.
- */
-export function threadNumbers(
-  threads: readonly { id: string; createdAt: number }[]
-): Map<string, number> {
-  const ordered = [...threads].sort((a, b) => a.createdAt - b.createdAt)
-  return new Map(ordered.map((t, i) => [t.id, i + 1]))
 }
 
 /**
@@ -100,6 +93,7 @@ export function ThreadCard({
   onMarkUnread,
   onDeleteThread,
   onDeleteComment,
+  onSendToAgent,
 }: {
   thread: ThreadWithComments
   /** What the thread is about, e.g. "/checkout · aside#summary". */
@@ -113,6 +107,8 @@ export function ThreadCard({
   onMarkUnread: () => void
   onDeleteThread: () => void
   onDeleteComment: (commentId: string) => void
+  /** Ask the Workspace's agent to address the thread (#788), when it can. */
+  onSendToAgent?: () => void
 }) {
   const [reply, setReply] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -123,6 +119,8 @@ export function ThreadCard({
     ...members.map((m) => m.name),
     ...thread.comments.map((c) => c.authorName),
   ]
+  // The agent's latest reply carries the thread's Addressed chip.
+  const lastAgentReply = [...thread.comments].reverse().find((c) => c.fromAgent)
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex min-w-0 items-center gap-1.5">
@@ -143,6 +141,11 @@ export function ThreadCard({
               </IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {onSendToAgent && (
+                <DropdownMenuItem onSelect={onSendToAgent}>
+                  Send to agent
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onSelect={onMarkUnread}>
                 Mark as unread
               </DropdownMenuItem>
@@ -170,9 +173,21 @@ export function ThreadCard({
             currentUserId={currentUserId}
             members={members}
             memberNames={memberNames}
+            status={
+              c.id === lastAgentReply?.id &&
+              thread.agentStatus === "addressed" ? (
+                <AgentStatusChip
+                  status="addressed"
+                  commit={thread.agentCommit}
+                />
+              ) : null
+            }
             onDelete={() => onDeleteComment(c.id)}
           />
         ))}
+        {isWithAgent(thread) && thread.agentStatus && (
+          <AgentPendingRow status={thread.agentStatus} />
+        )}
       </div>
       {thread.resolved ? (
         <ResolvedNote resolvedAt={thread.resolvedAt} />
@@ -246,12 +261,15 @@ function CommentRow({
   currentUserId,
   members,
   memberNames,
+  status,
   onDelete,
 }: {
   comment: CommentRecord
   currentUserId: string | null
   members: CommentMember[]
   memberNames: string[]
+  /** The agent's status chip, under its latest reply. */
+  status?: React.ReactNode
   onDelete: () => void
 }) {
   const now = useNow()
@@ -263,7 +281,11 @@ function CommentRow({
   const canDelete = canDeleteComment(comment, currentUserId)
   return (
     <div className="group flex items-start gap-2" data-comment-id={comment.id}>
-      <Avatar name={comment.authorName} avatar={comment.authorAvatar} />
+      {comment.fromAgent ? (
+        <AgentAvatar />
+      ) : (
+        <Avatar name={comment.authorName} avatar={comment.authorAvatar} />
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex h-5 items-center gap-1.5">
           <span className="truncate font-medium">{comment.authorName}</span>
@@ -345,6 +367,7 @@ function CommentRow({
         ) : (
           <CommentBody body={comment.body} memberNames={memberNames} />
         )}
+        {status && <div className="mt-1">{status}</div>}
       </div>
     </div>
   )
@@ -539,6 +562,78 @@ export function MentionTextarea({
           }
         }}
       />
+    </div>
+  )
+}
+
+/**
+ * Where a thread sent to the agent stands (#788): Queued, Agent working, or
+ * Addressed with the commit the agent made.
+ */
+export function AgentStatusChip({
+  status,
+  commit,
+  besideAgent = false,
+  className,
+}: {
+  status: NonNullable<ThreadWithComments["agentStatus"]>
+  commit?: string | null
+  /** Next to the agent's name, which already says who is working. */
+  besideAgent?: boolean
+  className?: string
+}) {
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        "h-5 shrink-0 gap-1 px-1.5 py-0 font-normal text-muted-foreground",
+        className
+      )}
+    >
+      {status === "queued" ? (
+        <>
+          <Clock aria-hidden className="size-3" />
+          Queued
+        </>
+      ) : status === "working" ? (
+        <>
+          <GripSpinner className="size-3" />
+          {besideAgent ? "Working" : "Agent working"}
+        </>
+      ) : (
+        <>
+          <Check aria-hidden className="size-3 text-success" />
+          Addressed
+          {commit && (
+            <span className="font-mono" title={commit}>
+              {shortCommit(commit)}
+            </span>
+          )}
+        </>
+      )}
+    </Badge>
+  )
+}
+
+/** The agent's place in a thread while it's on the request. */
+function AgentPendingRow({
+  status,
+}: {
+  status: NonNullable<ThreadWithComments["agentStatus"]>
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <AgentAvatar />
+      <span className="font-medium">Agent</span>
+      <AgentStatusChip status={status} besideAgent />
+    </div>
+  )
+}
+
+function AgentAvatar() {
+  return (
+    <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+      <Bot aria-hidden className="size-3" />
     </div>
   )
 }

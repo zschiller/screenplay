@@ -26,6 +26,11 @@ import { wireToContentBlocks } from "@/lib/agent/acp/markers"
 import { userMessageChunk } from "@/lib/agent/acp/schema"
 import { launchEngineTurn } from "@/lib/agent/launch-turn"
 import { deduplicateBranchName, generateChatNames } from "@/lib/agent/naming"
+import {
+  queueCommentRequest,
+  settleCommentRequest,
+  startCommentRequest,
+} from "@/lib/agent/comment-request"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -43,6 +48,8 @@ interface RequestBody {
   autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
+  /** Comment threads this turn asks the agent to address (#788). */
+  commentThreadIds?: string[]
 }
 
 export async function POST(req: Request) {
@@ -61,6 +68,7 @@ export async function POST(req: Request) {
     autoNamedBranch,
     planMode,
     model,
+    commentThreadIds,
   } = body
   if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
@@ -280,10 +288,22 @@ export async function POST(req: Request) {
     })
   }
 
+  // Comments sent to the agent (#788) show as queued from here on.
+  if (Array.isArray(commentThreadIds) && commentThreadIds.length > 0) {
+    await queueCommentRequest({
+      roomId,
+      chatId,
+      sandboxName,
+      threadIds: commentThreadIds.filter((id) => typeof id === "string"),
+    })
+  }
+
   // Drive the turn in the background and return immediately — the client
-  // receives state via the Y.Doc broadcast channel.
-  after(() =>
-    launchEngineTurn({
+  // receives state via the Y.Doc broadcast channel. Comment threads the chat
+  // owes a reply move to working as it starts and are settled once it ends.
+  after(async () => {
+    await startCommentRequest(roomId, chatId)
+    await launchEngineTurn({
       engine,
       roomId,
       chatId,
@@ -293,7 +313,8 @@ export async function POST(req: Request) {
       tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
       planMode,
     })
-  )
+    await settleCommentRequest({ roomId, chatId, runId, sandboxName, userId })
+  })
 
   return Response.json({ chatId, runId })
 }

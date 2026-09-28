@@ -58,6 +58,8 @@ export interface SendMessageOptions {
   autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
+  /** Comment threads this message asks the agent to address (#788). */
+  commentThreadIds?: string[]
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
   /**
@@ -384,6 +386,7 @@ class ChatStore {
           autoNamedBranch: opts.autoNamedBranch,
           planMode: opts.planMode,
           model: opts.model,
+          commentThreadIds: opts.commentThreadIds,
         }),
       })
 

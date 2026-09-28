@@ -5,21 +5,22 @@
  *
  * Any room member may reply, resolve and reopen. Only a comment's author may
  * edit or delete it, and only the person who started a thread may delete the
- * whole thread.
+ * whole thread. The agent's replies (#788) are stored under whoever sent the
+ * request: they may delete one, but not put words in the agent's mouth.
  */
 
 export function canEditComment(
-  comment: { authorId: string },
+  comment: { authorId: string; fromAgent?: boolean },
   userId: string | null
 ): boolean {
-  return userId !== null && comment.authorId === userId
+  return canDeleteComment(comment, userId) && !comment.fromAgent
 }
 
 export function canDeleteComment(
   comment: { authorId: string },
   userId: string | null
 ): boolean {
-  return canEditComment(comment, userId)
+  return userId !== null && comment.authorId === userId
 }
 
 export function canDeleteThread(

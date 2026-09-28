@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Tooltip,
@@ -34,12 +35,14 @@ import {
 } from "@/lib/comments-panel"
 
 import {
+  AgentStatusChip,
   CommentPinMark,
   formatRelative,
   threadNumbers,
 } from "./comment-thread-card"
 import { OpenThreadCard, useRoomMembers, type CommentsProps } from "./comments"
 import type { CommentThreads } from "./use-comment-threads"
+import type { CommentRequests } from "./use-comment-requests"
 
 /**
  * The top bar's way into a Canvas's comments: the open-thread count, with a
@@ -109,6 +112,10 @@ const FILTERS: { id: CommentFilter; label: string }[] = [
  * Detached threads (#785), whose frame or element is gone, have no pin to go
  * to, so they're listed last with what they were on and open in the panel
  * itself.
+ *
+ * Given `requests` (#788), each thread that can go to its Workspace's agent
+ * gets a checkbox, and "Send N to agent" at the bottom sends the ticked ones.
+ * Every thread sent shows where the agent is with it.
  */
 export function CommentsPanel({
   roomId,
@@ -123,6 +130,7 @@ export function CommentsPanel({
   getDocumentEditor,
   numbers,
   groupOptions,
+  requests,
   className,
 }: {
   roomId: string
@@ -142,6 +150,8 @@ export function CommentsPanel({
    *  Canvas's threads (the player's, #789). */
   numbers?: ReadonlyMap<string, number>
   groupOptions?: GroupOptions
+  /** Sending threads to their Workspace's agent (#788). */
+  requests?: CommentRequests
   /** Where the panel sits; the canvas's right edge by default. */
   className?: string
 }) {
@@ -151,6 +161,7 @@ export function CommentsPanel({
   const [filter, setFilter] = useState<CommentFilter>("open")
   const [selectedId, setSelectedId] = useState<string | null>(activeThreadId)
   const [openDetachedId, setOpenDetachedId] = useState<string | null>(null)
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
   const listRef = useRef<HTMLDivElement>(null)
 
   // A pin opened on the canvas becomes the panel's selection too, so J and K
@@ -181,6 +192,31 @@ export function CommentsPanel({
     () => numbers ?? threadNumbers(threads),
     [numbers, threads]
   )
+  // Ticks count only while their thread is listed and can still be sent.
+  const sendable = useMemo(
+    () =>
+      new Set(
+        requests && filter !== "resolved"
+          ? ordered.filter((t) => requests.canSend(t)).map((t) => t.id)
+          : []
+      ),
+    [requests, filter, ordered]
+  )
+  const toSend = [...ticked].filter((id) => sendable.has(id))
+  const toggleTick = (id: string, on: boolean) =>
+    setTicked((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  const sendTicked = () => {
+    if (!requests || toSend.length === 0) return
+    requests.send(toSend)
+    setTicked(new Set())
+  }
+  const showTicks = sendable.size > 0
+
   const counts: Partial<Record<CommentFilter, number>> = {
     open: filterThreads(threads, "open", userId).length,
     unread: filterThreads(threads, "unread", userId).length,
@@ -296,6 +332,7 @@ export function CommentsPanel({
               members={members}
               describeLayer={describeLayer}
               getDocumentEditor={getDocumentEditor}
+              requests={requests}
               onClose={() => setOpenDetachedId(null)}
             />
           </div>
@@ -361,7 +398,20 @@ export function CommentsPanel({
                   </p>
                   <ul>
                     {group.threads.map((thread) => (
-                      <li key={thread.id}>
+                      <li key={thread.id} className="flex items-start">
+                        {showTicks && (
+                          <span className="flex h-10.5 w-6 shrink-0 items-center justify-end">
+                            {sendable.has(thread.id) && (
+                              <Checkbox
+                                aria-label="Send to agent"
+                                checked={toSend.includes(thread.id)}
+                                onCheckedChange={(on) =>
+                                  toggleTick(thread.id, on === true)
+                                }
+                              />
+                            )}
+                          </span>
+                        )}
                         <ThreadRow
                           thread={thread}
                           number={numberById.get(thread.id) ?? null}
@@ -384,6 +434,13 @@ export function CommentsPanel({
                   </ul>
                 </section>
               ))}
+            </div>
+          )}
+          {toSend.length > 0 && (
+            <div className="shrink-0 border-t border-border p-2">
+              <Button size="sm" className="w-full" onClick={sendTicked}>
+                Send {toSend.length} to agent
+              </Button>
             </div>
           )}
         </>
@@ -517,7 +574,7 @@ function ThreadRow({
       aria-current={selected || undefined}
       onClick={onSelect}
       className={cn(
-        "flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left outline-none hover:bg-accent focus-visible:bg-accent",
+        "flex w-full min-w-0 flex-1 items-start gap-2.5 rounded-md px-2 py-2 text-left outline-none hover:bg-accent focus-visible:bg-accent",
         selected && "bg-accent"
       )}
     >
@@ -552,6 +609,13 @@ function ThreadRow({
         )}
         {detail && (
           <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>
+        )}
+        {thread.agentStatus && (
+          <AgentStatusChip
+            status={thread.agentStatus}
+            commit={thread.agentCommit}
+            className="mt-1"
+          />
         )}
       </div>
     </button>

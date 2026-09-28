@@ -69,6 +69,7 @@ import { isBranchBusy } from "@/lib/branch-busy"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
+import { useCommentRequests } from "@/components/canvas/use-comment-requests"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
 import { useChatTarget } from "@/components/canvas/use-chat-target"
 import { useSandboxReconnect } from "@/components/canvas/use-sandbox-reconnect"
@@ -1152,6 +1153,19 @@ export function Canvas({
     setBranchPr,
   })
 
+  // Sending comments to a Workspace's agent (#788), from the comments panel
+  // or a thread card.
+  const commentFrameWorkspace = useCallback(
+    (frameId: string) => commentFrameInfo.get(frameId)?.branchId,
+    [commentFrameInfo]
+  )
+  const commentRequests = useCommentRequests({
+    threads: commentThreads.threads,
+    frameWorkspace: commentFrameWorkspace,
+    agents,
+    sendComments: branchActions.sendComments,
+  })
+
   useEffect(() => {
     inspectHandlersRef.current = {
       branchRename: renameBranch,
@@ -1770,6 +1784,7 @@ export function Canvas({
                 onActivateThread={reference.setActiveThread}
                 describeLayer={describeCommentLayer}
                 hidePins={commentPinsHidden}
+                requests={commentRequests}
               />
             </div>
 
@@ -1991,6 +2006,7 @@ export function Canvas({
                 onClose={() => setCommentsPanelOpen(false)}
                 describeLayer={describeCommentLayer}
                 getDocumentEditor={reference.getDocumentEditor}
+                requests={commentRequests}
               />
             )}
           </div>
