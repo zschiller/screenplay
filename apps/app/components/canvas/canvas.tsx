@@ -1974,7 +1974,7 @@ export function Canvas({
                     tooltipSide="bottom"
                     onClick={() => chatPanelRef.current?.expand()}
                   >
-                    <PanelRightOpen className="h-3.5 w-3.5" />
+                    <PanelRightOpen />
                   </IconButton>
                 )}
               </div>

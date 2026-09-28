@@ -53,7 +53,7 @@ export function FollowingToolbar({
             <AvatarFallback
               aria-hidden
               style={{ backgroundColor: self.color }}
-              className="text-[10px] font-medium text-white"
+              className="text-3xs font-medium text-white"
             >
               {getInitials(self.identity.name || "?")}
             </AvatarFallback>
@@ -90,7 +90,7 @@ export function FollowingToolbar({
               <AvatarFallback
                 aria-hidden
                 style={{ backgroundColor: presence.color }}
-                className={`text-[10px] font-medium ${presenceInkClass(presence.color)}`}
+                className={`text-3xs font-medium ${presenceInkClass(presence.color)}`}
               >
                 {getInitials(name)}
               </AvatarFallback>

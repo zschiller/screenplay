@@ -22,10 +22,10 @@ export function SignInScreen() {
       <div className="flex w-full max-w-[360px] flex-col items-center gap-5 text-center">
         <ScreenplayLogo className="size-11" />
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-[22px] leading-tight font-semibold tracking-tight text-balance">
+          <h1 className="text-xl leading-tight font-semibold tracking-tight text-balance">
             Design on a canvas of your live app
           </h1>
-          <p className="max-w-[34ch] text-[15px] text-balance text-muted-foreground">
+          <p className="max-w-[34ch] text-sm text-balance text-muted-foreground">
             Every frame is a running preview. Ask an agent to change it, and
             review the result together.
           </p>

@@ -108,7 +108,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
               branch={branch.ref}
               colorKey={branch.id}
               colorIndex={branch.colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
+              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
             />
           )}
           {nameEditable}
@@ -140,7 +140,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
               branch={branch.ref}
               colorKey={branch.id}
               colorIndex={branch.colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
+              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
             />
           )}
           {nameEditable}

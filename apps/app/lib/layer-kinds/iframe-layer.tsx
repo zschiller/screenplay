@@ -15,7 +15,7 @@ export const iframeLayerKind: LayerKindDescriptor<IframeLayerData> = {
   renderRowAccessory: (a) => (
     <Badge
       variant="outline"
-      className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent px-1.5 py-0 font-mono text-[10px] text-sidebar-foreground/60"
+      className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent px-1.5 py-0 font-mono text-3xs text-sidebar-foreground/60"
     >
       <span className="truncate">{a.route || "/"}</span>
     </Badge>

@@ -102,7 +102,7 @@ export function IframeLayerLabel({
             colorIndex={
               assignableBranches?.find((a) => a.id === branchId)?.colorIndex
             }
-            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
+            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
           />
         ) : null
       }
@@ -118,7 +118,7 @@ export function IframeLayerLabel({
         ) : (
           <Badge
             variant="outline"
-            className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
+            className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-3xs text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
           >
             <span className="truncate">{route || "/"}</span>
             <SharedStateIndicator sharedState={sharedState} />
@@ -188,7 +188,7 @@ function RoutePicker({
             // indicator and momentarily drops `group-hover` before the
             // tooltip's delayed-open re-grants it. Expansion waits `delay-500`
             // to match the branch pill.
-            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 group-hover:max-w-full group-hover:delay-500 group-data-[state=open]:max-w-full group-data-[state=open]:delay-0"
+            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-3xs text-foreground/50 transition-[max-width] delay-300 duration-200 group-hover:max-w-full group-hover:delay-500 group-data-[state=open]:max-w-full group-data-[state=open]:delay-0"
           >
             <span className="truncate">{currentRoute}</span>
             <SharedStateIndicator sharedState={sharedState} />
@@ -232,7 +232,7 @@ function RoutePicker({
                     />
                     <Badge
                       variant="outline"
-                      className="border-transparent bg-muted px-1.5 py-0 font-mono text-[11px] text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
+                      className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
                     >
                       {r.route}
                     </Badge>
@@ -248,7 +248,7 @@ function RoutePicker({
                       <span className="text-xs">Go to</span>
                       <Badge
                         variant="outline"
-                        className="border-transparent bg-muted px-1.5 py-0 font-mono text-[11px] text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
+                        className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
                       >
                         {typedRoute}
                       </Badge>
@@ -300,18 +300,18 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <span
-            className="ml-1 inline-flex h-3 w-3 shrink-0 items-center justify-center text-foreground/60"
+            className="ml-1 inline-flex size-3 shrink-0 items-center justify-center text-foreground/60"
             // Stop pointer events from bubbling into the route picker so a
             // hover-to-read doesn't accidentally open the route popover.
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             aria-label="Synced UI state"
           >
-            <Braces className="h-2.5 w-2.5" />
+            <Braces className="size-2.5" />
           </span>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[360px] p-0">
-          <pre className="max-h-[300px] overflow-auto p-2 font-mono text-[10px] leading-snug break-words whitespace-pre-wrap">
+          <pre className="max-h-[300px] overflow-auto p-2 font-mono text-3xs leading-snug break-words whitespace-pre-wrap">
             {json}
           </pre>
         </TooltipContent>
@@ -347,7 +347,7 @@ function BranchPicker({
               branch={branch}
               colorKey={colorKey}
               colorIndex={colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"
+              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-3xs transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"
             />
           ) : (
             <span className="truncate text-xs text-muted-foreground">
@@ -359,7 +359,7 @@ function BranchPicker({
             className={
               branch
                 ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
-                : "ml-1 h-3 w-3 shrink-0 text-muted-foreground"
+                : "ml-1 size-3 shrink-0 text-muted-foreground"
             }
           />
         </button>
@@ -394,7 +394,7 @@ function BranchPicker({
                       branch={a.ref}
                       colorKey={a.id}
                       colorIndex={a.colorIndex}
-                      className="px-1.5 py-0 text-[11px]"
+                      className="px-1.5 py-0 text-2xs"
                     />
                     {isBusy && <Spinner className="ml-auto size-3" />}
                   </CommandItem>

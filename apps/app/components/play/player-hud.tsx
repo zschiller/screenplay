@@ -276,7 +276,7 @@ export function PlayerHud({
             className="flex h-6 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
             aria-label="Drag to a corner"
           >
-            <GripVertical className="h-3.5 w-3.5" />
+            <GripVertical className="size-3.5" />
           </span>
           {/* The desktop (local) build has no room route to go back to. */}
           {!isLocalBuild && (
@@ -318,7 +318,7 @@ export function PlayerHud({
                 return (
                   <SelectGroup key={group.category}>
                     {index > 0 ? <SelectSeparator /> : null}
-                    <SelectLabel className="text-[10px] tracking-wide uppercase">
+                    <SelectLabel className="text-3xs tracking-wide uppercase">
                       {group.category}
                     </SelectLabel>
                     {group.presets.map((preset) => (
@@ -328,9 +328,9 @@ export function PlayerHud({
                         className="text-xs"
                       >
                         <span className="flex w-full items-center gap-2">
-                          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                          <Icon className="text-muted-foreground" />
                           <span className="truncate">{preset.label}</span>
-                          <span className="ml-auto text-[10px] text-muted-foreground">
+                          <span className="ml-auto text-3xs text-muted-foreground">
                             {preset.width}×{preset.height}
                           </span>
                         </span>

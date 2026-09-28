@@ -43,7 +43,7 @@ export const BranchBadge = forwardRef<EditableTextHandle, BranchBadgeProps>(
           className
         )}
       >
-        {icon && <GitBranch className="h-3 w-3 shrink-0" />}
+        {icon && <GitBranch className="size-3 shrink-0" />}
         {onRename ? (
           <EditableText
             ref={ref}

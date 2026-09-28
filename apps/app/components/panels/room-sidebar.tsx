@@ -2079,7 +2079,7 @@ export function RoomSidebar({
                                                               colorIndex={
                                                                 branch.colorIndex
                                                               }
-                                                              className="px-1.5 py-0 text-[11px]"
+                                                              className="px-1.5 py-0 text-2xs"
                                                               onRename={(
                                                                 next
                                                               ) => {
@@ -2149,7 +2149,7 @@ export function RoomSidebar({
                                                           return (
                                                             <>
                                                               {hasStats && (
-                                                                <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
+                                                                <span className="flex items-center gap-1 px-1 font-mono text-3xs md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
                                                                   <span className="text-success">
                                                                     +
                                                                     {
@@ -2308,7 +2308,7 @@ export function RoomSidebar({
                             branch={activeBranchesDrag.branch.ref}
                             colorKey={activeBranchesDrag.branch.id}
                             colorIndex={activeBranchesDrag.branch.colorIndex}
-                            className="px-1.5 py-0 text-[11px]"
+                            className="px-1.5 py-0 text-2xs"
                           />
                         ) : (
                           <span className="truncate font-mono text-xs text-muted-foreground">
@@ -2905,7 +2905,7 @@ function BranchDropdownSlot({
         <DropdownMenuTrigger asChild>
           <IconButton label="Workspace options" tooltipSide="right" asChild>
             <button
-              className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+              className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
               onClick={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="size-4" />
