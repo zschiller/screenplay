@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PROTOTYPE #984 · two viewers, one frame</title>
+<style>
+  body{margin:0;font:13px/1.4 system-ui,sans-serif;background:#f4f4f5;color:#18181b}
+  header{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:10px 16px;background:#fff;border-bottom:1px solid #e4e4e7}
+  header b{margin-right:8px}
+  label{display:flex;gap:6px;align-items:center}
+  .viewers{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 16px}
+  .viewer h2{font-size:12px;margin:0 0 6px;color:#52525b}
+  iframe{width:100%;height:520px;border:1px solid #d4d4d8;border-radius:8px;background:#fff}
+  table{border-collapse:collapse;margin:0 16px 24px;background:#fff;font-size:12px;min-width:900px}
+  td,th{border:1px solid #e4e4e7;padding:4px 8px;text-align:left;vertical-align:top}
+  .same{color:#15803d}.drift{color:#b91c1c;font-weight:600}
+  code{font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <b>PROTOTYPE #984</b>
+  <label>Route sync <select id="route"><option value="reload">Reload the iframe (today)</option><option value="soft">Client-side navigate (1a)</option></select></label>
+  <label><input type="checkbox" id="resend" /> Room state wins when a viewer loads</label>
+  <label><input type="checkbox" id="store" /> Share zustand store in one line (2)</label>
+  <label><input type="checkbox" id="auto" /> Automatic React state (1b)</label>
+  <button id="reset">Reset room</button>
+</header>
+<div class="viewers">
+  <div class="viewer"><h2>Viewer A</h2><iframe id="A" src="/"></iframe></div>
+  <div class="viewer"><h2>Viewer B</h2><iframe id="B" src="/"></iframe></div>
+</div>
+<table><thead><tr><th>What</th><th>How it's kept in sync</th><th>Viewer A</th><th>Viewer B</th><th></th></tr></thead><tbody id="drift"></tbody></table>
+<script>
+  const cfgKey = "proto984"
+  const cfg = Object.assign({ route: "reload", resend: false, store: false, auto: false }, JSON.parse(localStorage.getItem(cfgKey) || "{}"))
+  for (const k of ["route"]) document.getElementById(k).value = cfg[k]
+  for (const k of ["resend", "store", "auto"]) document.getElementById(k).checked = cfg[k]
+  function save() {
+    cfg.route = document.getElementById("route").value
+    for (const k of ["resend", "store", "auto"]) cfg[k] = document.getElementById(k).checked
+    localStorage.setItem(cfgKey, JSON.stringify(cfg))
+    resetRoom()
+  }
+  for (const id of ["route", "resend", "store", "auto"]) document.getElementById(id).onchange = save
+  document.getElementById("reset").onclick = resetRoom
+
+  // What the canvas keeps in Yjs for this one frame layer.
+  let room
+  const viewers = { A: { el: document.getElementById("A") }, B: { el: document.getElementById("B") } }
+  function resetRoom() {
+    room = { shared: {}, route: "/", scroll: { x: 0, y: 0 }, auto: {} }
+    for (const v of Object.values(viewers)) { v.reported = null; v.lastShared = null; v.el.src = "/" }
+  }
+  resetRoom()
+  const others = (id) => Object.entries(viewers).filter(([k]) => k !== id).map(([, v]) => v)
+  const post = (v, msg) => v.el.contentWindow?.postMessage(msg, "*")
+
+  window.addEventListener("message", (e) => {
+    const id = Object.keys(viewers).find((k) => viewers[k].el.contentWindow === e.source)
+    if (!id) return
+    const me = viewers[id]
+    const d = e.data
+    if (d.type === "screenplay:shared-state-hello") {
+      // PATCH: a loading frame asks first. Without "room wins" it gets an
+      // empty answer, which only releases its publish (today's behaviour).
+      me.lastShared = JSON.stringify(room.shared)
+      post(me, { type: "screenplay:shared-state-apply", state: cfg.resend ? room.shared : {}, initial: true })
+    } else if (d.type === "screenplay:ready") {
+      post(me, { type: "screenplay:init", state: {} })
+      post(me, { type: "screenplay:scroll-to", scrollX: room.scroll.x, scrollY: room.scroll.y })
+      if (cfg.resend) {
+        me.lastShared = JSON.stringify(room.shared)
+        post(me, { type: "screenplay:shared-state-apply", state: room.shared })
+        post(me, { type: "screenplay:auto-state-apply", state: room.auto })
+      }
+    } else if (d.type === "screenplay:navigation") {
+      me.reported = d.path
+      room.route = d.path
+      for (const v of others(id)) {
+        if (v.reported === d.path) continue
+        if (cfg.route === "soft") post(v, { type: "screenplay:navigate", path: d.path })
+        else { v.reported = null; v.el.src = d.path } // today: reload onto the new route
+      }
+    } else if (d.type === "screenplay:scroll") {
+      room.scroll = { x: d.scrollX, y: d.scrollY }
+      for (const v of others(id)) post(v, { type: "screenplay:scroll-to", scrollX: d.scrollX, scrollY: d.scrollY })
+    } else if (d.type === "screenplay:shared-state") {
+      room.shared = d.state
+      const s = JSON.stringify(d.state)
+      me.lastShared = s
+      for (const v of others(id)) {
+        if (v.lastShared === s) continue
+        v.lastShared = s
+        post(v, { type: "screenplay:shared-state-apply", state: d.state })
+      }
+    } else if (d.type === "screenplay:auto-state") {
+      Object.assign(room.auto, d.changes)
+      for (const v of others(id)) post(v, { type: "screenplay:auto-state-apply", state: d.changes })
+    }
+  })
+
+  // The drift panel reads both frames' DOM directly (same origin, prototype only).
+  const probes = [
+    ["Route", "bridge + room (1a when on)", (w, doc) => w.location.pathname],
+    ["Scroll", "bridge + room (today)", (w) => Math.round(w.scrollY)],
+    ["Billing toggle", "useSharedState key (today)", (w, doc) => doc.querySelector(".toggle .on")?.textContent ?? "—"],
+    ["Contact sales modal", "zustand store (2)", (w, doc) => { const m = doc.querySelector("[data-modal=sales]"); return m ? m.querySelector("h3").textContent.replace("Talk to sales about ", "open: ") + ", seats " + m.querySelector("input").value : "closed" }],
+    ["Book a demo modal", "useState (1b)", (w, doc) => doc.querySelector("[data-modal=demo]") ? "open" : "closed"],
+    ["Email field", "useState, controlled (1b)", (w, doc) => JSON.stringify(doc.querySelector("[data-field=controlled]")?.value ?? "")],
+    ["Name field", "DOM only, uncontrolled", (w, doc) => JSON.stringify(doc.querySelector("[data-field=uncontrolled]")?.value ?? "")],
+    ["FAQ answers open", "DOM only, &lt;details&gt;", (w, doc) => [...doc.querySelectorAll("details")].map((d, i) => d.open ? i + 1 : null).filter(Boolean).join(",") || "none"],
+    ["Likes", "server data, fetched per viewer", (w, doc) => doc.querySelector("[data-likes]")?.textContent ?? "—"],
+    ["Focus", "per viewer", (w, doc) => { const a = doc.activeElement; return a && a !== doc.body ? a.tagName.toLowerCase() + (a.dataset.field ? "[" + a.dataset.field + "]" : "") : "none" }],
+    ["Auto-synced React state", "1b", (w) => w.__proto984 ? w.__proto984.keys().length + " hooks" : "off"],
+  ]
+  function render() {
+    const rows = probes.map(([what, how, fn]) => {
+      const vals = ["A", "B"].map((k) => { try { const w = viewers[k].el.contentWindow; return String(fn(w, w.document)) } catch { return "…" } })
+      const same = vals[0] === vals[1]
+      return `<tr><td>${what}</td><td>${how}</td><td><code>${vals[0]}</code></td><td><code>${vals[1]}</code></td><td class="${same ? "same" : "drift"}">${same ? "same" : "drift"}</td></tr>`
+    })
+    document.getElementById("drift").innerHTML = rows.join("")
+  }
+  setInterval(render, 250)
+</script>
+</body>
+</html>
