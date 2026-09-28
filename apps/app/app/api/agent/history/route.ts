@@ -1,5 +1,6 @@
 import { and, asc, eq, isNotNull } from "drizzle-orm"
 import { getUserId } from "@/lib/auth-helpers"
+import { chatRoomId, openRoomForRoute } from "@/lib/room-access"
 import { db } from "@/lib/db"
 import { agentMessage, agentPendingToolCall, agentRun } from "@/lib/db/schema"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
@@ -22,6 +23,13 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const chatId = searchParams.get("chatId")
   if (!chatId) return Response.json([])
+
+  // The chat's own Room decides who may read it. A chat no turn has recorded
+  // yet has no history to read.
+  const roomId = await chatRoomId(chatId)
+  if (!roomId) return Response.json([])
+  const room = await openRoomForRoute(roomId)
+  if (room instanceof Response) return room
 
   const [rows, planRows, stoppedRuns] = await Promise.all([
     db

@@ -1,5 +1,5 @@
 import { after } from "next/server"
-import { getUserId } from "@/lib/auth-helpers"
+import { openRoomForRoute } from "@/lib/room-access"
 import { db } from "@/lib/db"
 import { agentChat } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
@@ -26,14 +26,15 @@ interface RequestBody {
 }
 
 export async function POST(req: Request) {
-  const userId = await getUserId()
-  if (!userId) return new Response("Unauthorized", { status: 401 })
-
   const body: RequestBody = await req.json()
   const { roomId, chatId, planId, approved, feedback } = body
   if (!roomId || !chatId || !planId) {
     return new Response("Missing required fields", { status: 400 })
   }
+
+  const room = await openRoomForRoute(roomId, chatId)
+  if (room instanceof Response) return room
+  const { userId } = room
 
   const pending = await findPendingToolCall(planId)
   if (!pending) return new Response("Plan not found", { status: 404 })

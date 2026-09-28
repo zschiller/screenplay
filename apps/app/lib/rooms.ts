@@ -311,6 +311,9 @@ export async function canAccess(
   return membership !== null
 }
 
+/** The error {@link requireMember} throws for a signed-in non-member. */
+export const NOT_A_MEMBER = "You don't have access to this project"
+
 export async function requireMember(
   roomId: string,
   userId: string
@@ -320,7 +323,7 @@ export async function requireMember(
     return { roomId, userId, role: "owner", createdAt: 0 }
   }
   const membership = await getMembership(roomId, userId)
-  if (!membership) throw new Error("You don't have access to this project")
+  if (!membership) throw new Error(NOT_A_MEMBER)
   return membership
 }
 
