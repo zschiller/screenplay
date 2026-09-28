@@ -63,7 +63,6 @@ describe("reduceGesture — gap-resize", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: null,
       resizeSnap: null,
     })
@@ -84,7 +83,6 @@ describe("reduceGesture — gap-resize", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: null,
       resizeSnap: null,
     })
@@ -196,7 +194,6 @@ describe("reduceGesture — gap-resize", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: null,
       resizeSnap: null,
     })
@@ -517,7 +514,6 @@ describe("reduceGesture — group-move (no snap, no merge)", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: null,
       resizeSnap: null,
     })
@@ -549,7 +545,6 @@ describe("reduceGesture — group-move (no snap, no merge)", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: null,
       resizeSnap: null,
     })
@@ -679,15 +674,12 @@ describe("reduceGesture — group-move merge (commit on release)", () => {
 
     expect(start.preview.mergeRects).toBeNull()
     expect(cold.preview.mergeRects).toBeNull()
-    expect(cold.preview.mergeInto).toBeNull()
 
     // Hot: the preview lays out one rect per source member at the merged slot,
     // and no intent has merged yet — only the live moveBy.
     expect(hot.preview.mergeRects).toEqual([
       { x: 320, y: 0, width: 100, height: 100 },
     ])
-    // It names the Groups it would join, for the Workspace preview (#870).
-    expect(hot.preview.mergeInto).toEqual({ sourceId: "s", targetId: "t" })
     // The move is live: dx is the increment from the previous cursor (200→320).
     expect(hot.intent).toMatchObject({ type: "moveBy", dx: 120 })
     if (hot.state.kind !== "move") throw new Error("expected move state")
@@ -783,7 +775,6 @@ describe("reduceGesture — marquee selection", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: { startX: 100, startY: 100, currentX: 100, currentY: 100 },
       resizeSnap: null,
     })

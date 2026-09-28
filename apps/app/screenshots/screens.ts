@@ -2606,21 +2606,6 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 400,
   },
-  {
-    // Last in the list: the drag writes the Recording Group's new position to
-    // the room, and no later screen should inherit it.
-    name: "canvas-frame-drag-into-group",
-    description:
-      "A lone frame dragged onto another Group's end, mid-drag: it shows that Group's Workspace before the drop (#870).",
-    path: `/${ids.rooms.frameStates}`,
-    // Wide enough for the Problems row plus the slot after it.
-    viewport: { width: 2160, height: 1100 },
-    prepare: async (page) => {
-      await unfreeze(page)
-      await dragFrameOntoGroupEnd(page, "Boot to ready", ["Failed", "Stopped"])
-    },
-    settleMs: 1200,
-  },
 ]
 
 function isHomePath(url: string): boolean {
@@ -2968,40 +2953,6 @@ export async function dragOnto(
   await page.mouse.down()
   await page.mouse.move(grab.x, grab.y - 12)
   await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 })
-}
-
-/**
- * Pick up the lone frame labelled `source` by its label and hold it over the
- * slot after the Group whose frames are labelled `row` (first two, left to
- * right), without letting go, so the shot catches the merge preview. The drop
- * point comes from where the frames are now, not a fixed delta, so a second
- * theme lands on the same slot after the first one's drag moved the frame.
- */
-export async function dragFrameOntoGroupEnd(
-  page: Page,
-  source: string,
-  row: readonly [string, string]
-): Promise<void> {
-  const label = (name: string) =>
-    page
-      .locator("span.cursor-grab", { hasText: new RegExp(`^${name}$`) })
-      .first()
-  const box = async (name: string) => {
-    const b = await label(name).boundingBox({ timeout: 15_000 })
-    if (!b) throw new Error(`drag: ${name} not on screen`)
-    return b
-  }
-  const from = await box(source)
-  const [first, second] = [await box(row[0]), await box(row[1])]
-  // Every Frame states frame is the same size, so the row's pitch is the
-  // distance between two neighbours; its third frame ends the row.
-  const pitch = second.x - first.x
-  const slot = { x: first.x + 3 * pitch, y: first.y }
-  const grab = { x: from.x + 8, y: from.y + from.height / 2 }
-  await page.mouse.move(grab.x, grab.y)
-  await page.mouse.down()
-  await page.mouse.move(grab.x + 10, grab.y + 10, { steps: 2 })
-  await page.mouse.move(slot.x + 8, slot.y + from.height / 2, { steps: 16 })
 }
 
 /**

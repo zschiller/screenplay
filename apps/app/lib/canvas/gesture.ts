@@ -334,8 +334,6 @@ export type ReorderPreview = {
  *   - `snapGuides` are the red edge/center guide lines drawn during a move.
  *   - `mergeRects` are the merge-preview highlight rects while a group drag is
  *     hot against a target, else `null`.
- *   - `mergeInto` names that hot source and target, so the dragged frames can
- *     show the Workspace they'll take before the drop (#870).
  *   - `marqueeRect` is the in-flight selection rect (canvas space), drawn straight
  *     by the SelectionOverlay. Unlike the others it does *not* feed
  *     `deriveCanvasLayout` — a marquee changes selection, not geometry.
@@ -345,24 +343,11 @@ export type ReorderPreview = {
  *
  * Each is empty/null outside its gesture.
  */
-/** The Groups a hot merge would join: `sourceId` dropped onto `targetId`. */
-export type MergeInto = { sourceId: string; targetId: string }
-
-function mergeIntoOf(
-  ctx: MoveGestureContext,
-  targetId: string | null
-): MergeInto | null {
-  return ctx.sourceGroupId && targetId
-    ? { sourceId: ctx.sourceGroupId, targetId }
-    : null
-}
-
 export type GesturePreview = {
   gapOverride: { groupId: string; gap: number } | null
   reorder: ReorderPreview | null
   snapGuides: SnapGuide[]
   mergeRects: Rect[] | null
-  mergeInto: MergeInto | null
   marqueeRect: {
     startX: number
     startY: number
@@ -384,7 +369,6 @@ export const EMPTY_PREVIEW: GesturePreview = {
   reorder: null,
   snapGuides: [],
   mergeRects: null,
-  mergeInto: null,
   marqueeRect: null,
   resizeSnap: null,
 }
@@ -682,7 +666,6 @@ function resizeSnapPreview(
     reorder: null,
     snapGuides: [],
     mergeRects: null,
-    mergeInto: null,
     marqueeRect: null,
     resizeSnap: {
       iframeLayerId: ctx.iframeLayerId,
@@ -800,7 +783,6 @@ export function reduceGesture(
             reorder: null,
             snapGuides: [],
             mergeRects: null,
-            mergeInto: null,
             marqueeRect: null,
             resizeSnap: null,
           },
@@ -878,7 +860,6 @@ export function reduceGesture(
           reorder: null,
           snapGuides: [],
           mergeRects: rects,
-          mergeInto: mergeIntoOf(start.ctx, targetId),
           marqueeRect: null,
           resizeSnap: null,
         },
@@ -895,7 +876,6 @@ export function reduceGesture(
             reorder: null,
             snapGuides: [],
             mergeRects: null,
-            mergeInto: null,
             marqueeRect: null,
             resizeSnap: null,
           },
@@ -970,7 +950,6 @@ export function reduceGesture(
           reorder: null,
           snapGuides: guides,
           mergeRects: rects,
-          mergeInto: mergeIntoOf(state.ctx, targetId),
           marqueeRect: null,
           resizeSnap: null,
         }
@@ -1036,7 +1015,6 @@ export function reduceGesture(
             reorder: null,
             snapGuides: state.guides,
             mergeRects: rects,
-            mergeInto: mergeIntoOf(state.ctx, targetId),
             marqueeRect: null,
             resizeSnap: null,
           },
@@ -1143,7 +1121,6 @@ function previewFor(state: GestureState): GesturePreview {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: null,
       resizeSnap: null,
     }
@@ -1154,23 +1131,17 @@ function previewFor(state: GestureState): GesturePreview {
       reorder: reorderPreviewOf(state),
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: null,
       resizeSnap: null,
     }
   }
   if (state.kind === "move") {
-    const { targetId, rects } = mergeStep(
-      state.ctx,
-      state.sourceApplied,
-      state.meta
-    )
+    const { rects } = mergeStep(state.ctx, state.sourceApplied, state.meta)
     return {
       gapOverride: null,
       reorder: null,
       snapGuides: state.guides,
       mergeRects: rects,
-      mergeInto: mergeIntoOf(state.ctx, targetId),
       marqueeRect: null,
       resizeSnap: null,
     }
@@ -1181,7 +1152,6 @@ function previewFor(state: GestureState): GesturePreview {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
-      mergeInto: null,
       marqueeRect: marqueeRectOf(state.ctx, state.cursor),
       resizeSnap: null,
     }

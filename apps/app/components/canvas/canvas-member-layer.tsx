@@ -6,7 +6,6 @@ import { getGroupMembers } from "@/lib/canvas/layout"
 import {
   groupBranchId,
   isWorkspaceException,
-  mergePreviewBranch,
 } from "@/lib/canvas/group-workspace"
 import type {
   IframeLayerLayoutMap,
@@ -213,30 +212,6 @@ function CanvasMemberLayerImpl({
 
         // Each Group's Workspace (#868), as its label and its frames name it.
         const framesById = new Map(iframeLayers.map((l) => [l.id, l]))
-        // A lone frame dragged hot onto a Group shows the Workspace it'll
-        // take, so the drop holds no surprise (#870).
-        const mergeInto = gesturePreview.mergeInto
-        let joiningLayerId: string | undefined
-        if (mergeInto) {
-          const source = iframeLayerGroups.find(
-            (g) => g.id === mergeInto.sourceId
-          )
-          const target = iframeLayerGroups.find(
-            (g) => g.id === mergeInto.targetId
-          )
-          const joined =
-            source && target
-              ? mergePreviewBranch(source, target, framesById)
-              : undefined
-          const frame = joined && framesById.get(joined.layerId)
-          if (joined && frame) {
-            joiningLayerId = joined.layerId
-            framesById.set(joined.layerId, {
-              ...frame,
-              branchId: joined.branchId,
-            })
-          }
-        }
         const workspaceOf = (branchId: string | undefined) => {
           const branch = branchId
             ? agents.find((a) => a.id === branchId)
@@ -476,12 +451,7 @@ function CanvasMemberLayerImpl({
               remoteGroupSelectedColor={remoteGroupSelectedColor}
               groupLabel={index === 0 ? groupLabel : undefined}
               groupWorkspace={groupWorkspace}
-              showWorkspace={
-                // A frame about to follow the Group it's dropped on names
-                // no Workspace of its own there.
-                (!showGroupLabel || exception) &&
-                iframeLayer.id !== joiningLayerId
-              }
+              showWorkspace={!showGroupLabel || exception}
               followGroup={
                 groupFollowed
                   ? {

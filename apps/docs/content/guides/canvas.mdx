@@ -110,14 +110,12 @@ different workspace is an exception: its title ends with its own workspace
 pill, so you can see at a glance which screens differ. A group with a single
 frame has no group label, so that frame's title shows the pill instead.
 
-Moving frames between groups keeps every frame's route and state:
+Moving frames never changes what they show. A frame keeps its workspace,
+route and state wherever it goes:
 
-- A frame dragged into a group takes that group's workspace, and shows it while
-  you drag, before you drop. An exception keeps its own workspace.
-- A frame pulled out into a group of its own keeps the workspace it had.
+- A frame dragged into a group on another workspace becomes an exception there.
 - Merging two groups keeps the workspace of the group you drop onto. Frames
-  from the other group that were on a different workspace become exceptions,
-  so nothing changes what it shows.
+  from the other group that were on a different workspace become exceptions.
 - A group of documents only has no workspace; the first frame added sets it.
 
 ## The layers list

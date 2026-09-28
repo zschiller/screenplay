@@ -9,7 +9,7 @@ import {
   nextGroupNumber,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
-import { groupBranchId, joinedFrameBranch } from "@/lib/canvas/group-workspace"
+import { groupBranchId } from "@/lib/canvas/group-workspace"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
 import {
@@ -315,9 +315,9 @@ export type CanvasOps = {
    * `targetGroupId` at `index` (appended when `index` is omitted), pruning the
    * source Group if the move empties it. When source and target are the same
    * Group this reorders the Member to `index`. No-op if the layer or target is
-   * missing. A frame that followed its old Group takes the target's Workspace,
-   * keeping its route and state; an exception keeps its own; a target with no
-   * Workspace takes the frame's (#870).
+   * missing. The frame keeps the Workspace it shows, becoming an exception
+   * when the target's differs; a target with no Workspace takes the frame's
+   * (#870).
    */
   moveLayerToGroup(layerId: string, targetGroupId: string, index?: number): void
   /**
@@ -326,8 +326,7 @@ export type CanvasOps = {
    * world-space origin. No-op if either Group is missing, they are the same,
    * or the source is empty. The merged Group keeps the target's Workspace
    * (the source's when the target has none) and every frame keeps what it
-   * shows, so the source's frames on another Workspace become exceptions. A
-   * source of one frame is a frame dragged in, as in {@link moveLayerToGroup}
+   * shows, so the source's frames on another Workspace become exceptions
    * (#870).
    */
   mergeGroups(sourceGroupId: string, targetGroupId: string): void
@@ -434,29 +433,16 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     collections.iframeLayerGroups.update(groupId, { branchId: undefined })
   }
 
-  // A frame joining `target` from a Group whose Workspace was `fromBranch`
-  // (#870): it shows `joinedFrameBranch`, keeping its route and state, and a
-  // Group with no Workspace yet takes the frame's. Caller must already be
-  // inside a `batch`, with `target` pinned.
-  function joinGroupWorkspace(
-    layerId: string,
-    fromBranch: string | undefined,
-    target: IframeLayerGroupData
-  ): void {
-    const frame = collections.iframeLayers.get(layerId)
-    if (!frame) return
-    const targetBranch = currentGroupBranch(target)
-    if (!targetBranch) {
-      if (frame.branchId) {
-        collections.iframeLayerGroups.update(target.id, {
-          branchId: frame.branchId,
-        })
-      }
-      return
-    }
-    const branchId = joinedFrameBranch(frame, fromBranch, targetBranch)
-    if (branchId !== frame.branchId) {
-      collections.iframeLayers.update(layerId, { branchId })
+  // Moving never changes what a frame shows (#870): a frame keeps its
+  // Workspace wherever it lands, so one on another Workspace than its new
+  // Group's becomes an exception. A Group with no Workspace yet takes the
+  // first joining frame's. Caller must already be inside a `batch`, with
+  // `target` pinned.
+  function adoptBranchIfUnset(layerId: string, targetId: string): void {
+    const target = collections.iframeLayerGroups.get(targetId)
+    const branchId = collections.iframeLayers.get(layerId)?.branchId
+    if (target && branchId && !currentGroupBranch(target)) {
+      collections.iframeLayerGroups.update(targetId, { branchId })
     }
   }
 
@@ -1051,11 +1037,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       pinGroupBranch(source)
       pinGroupBranch(target)
       if (source.id !== target.id && member.kind === "iframe-layer") {
-        joinGroupWorkspace(
-          layerId,
-          currentGroupBranch(source),
-          collections.iframeLayerGroups.get(target.id)!
-        )
+        adoptBranchIfUnset(layerId, target.id)
       }
       collections.iframeLayerGroups.update(source.id, {
         members: sourceRemaining,
@@ -1077,17 +1059,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       // The merged Group keeps the Workspace of the Group dropped onto, or
       // takes the source's when it had none (documents only). Every frame
       // keeps what it shows, so the source's frames on another Workspace
-      // become exceptions — except a lone frame, which is a frame dragged
-      // in and follows its new Group (#870).
+      // become exceptions (#870).
       pinGroupBranch(target)
-      const only = sourceMembers.length === 1 ? sourceMembers[0]! : undefined
-      if (only?.kind === "iframe-layer") {
-        joinGroupWorkspace(
-          only.id,
-          currentGroupBranch(source),
-          collections.iframeLayerGroups.get(target.id)!
-        )
-      } else if (!currentGroupBranch(target)) {
+      if (!currentGroupBranch(target)) {
         const branchId = currentGroupBranch(source)
         if (branchId) {
           collections.iframeLayerGroups.update(target.id, { branchId })

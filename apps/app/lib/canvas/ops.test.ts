@@ -1381,15 +1381,16 @@ describe("Moving frames between Groups (#870)", () => {
     return h
   }
 
-  it("gives a following frame dragged into a Group that Group's Workspace", () => {
+  it("keeps the Workspace a frame shows when it's dragged into another Group", () => {
     const { ops, collections } = twoGroups()
 
     ops.moveLayerToGroup("pay", "cart-group", 0)
 
     const pay = collections.iframeLayers.get("pay")
-    expect(pay?.branchId).toBe("agent-2")
+    expect(pay?.branchId).toBe("agent-1")
     expect(pay?.route).toBe("/pay")
     expect(pay?.iframeState).toEqual({ step: "pay" })
+    // The Group keeps its own, so the frame is now an exception there.
     expect(collections.iframeLayerGroups.get("cart-group")?.branchId).toBe(
       "agent-2"
     )
@@ -1456,16 +1457,19 @@ describe("Moving frames between Groups (#870)", () => {
     expect(collections.iframeLayers.get("empty")?.route).toBe("/empty")
   })
 
-  it("treats merging a Group of one frame as dragging that frame in", () => {
+  it("keeps a lone frame's Workspace when its Group is merged onto another", () => {
     const { ops, collections } = twoGroups()
     const solo = ops.splitToNewGroup(["pay"], { x: 0, y: 0 })
 
     ops.mergeGroups(solo, "cart-group")
 
     const pay = collections.iframeLayers.get("pay")
-    expect(pay?.branchId).toBe("agent-2")
+    expect(pay?.branchId).toBe("agent-1")
     expect(pay?.route).toBe("/pay")
     expect(pay?.iframeState).toEqual({ step: "pay" })
+    expect(collections.iframeLayerGroups.get("cart-group")?.branchId).toBe(
+      "agent-2"
+    )
     expect(collections.iframeLayerGroups.get(solo)).toBeUndefined()
   })
 
