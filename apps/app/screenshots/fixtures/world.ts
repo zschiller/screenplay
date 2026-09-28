@@ -794,10 +794,7 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       markdownLayers,
       chatSessions,
       plans,
-      // y leaves room above the top row for a selected frame's floating
-      // toolbar and the name label over it (#795), clear of the breadcrumb
-      // pill and the window-drag strip.
-      savedViewport: { x: 120, y: 150, zoom: 0.42 },
+      savedViewport: { x: 120, y: 80, zoom: 0.42 },
       markdownBodies: {
         "doc-checkout-brief": [
           "# Checkout brief",

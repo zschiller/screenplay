@@ -12,8 +12,6 @@ import {
   MousePointer,
   Move,
   Play,
-  RotateCw,
-  Route,
   Trash2,
 } from "lucide-react"
 import {
@@ -57,11 +55,7 @@ import {
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
-import {
-  FrameRouteField,
-  FrameStatusDot,
-  type FramePreviewStatus,
-} from "./frame-nav"
+import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
@@ -101,11 +95,15 @@ const PLACEHOLDER_RELOAD_GRACE_MS = 1500
 // frame reloads at most once; the cap only bounds a genuinely stuck server.
 const MAX_PLACEHOLDER_RELOADS = 10
 
-// A selected frame's floating toolbar (issue #795): its screen-px height (a
-// 24px button row plus the shell's 4px padding) and its gap above the frame.
-// The frame's name label lifts by both so it sits over the toolbar.
-const FRAME_TOOLBAR_HEIGHT = 32
+// A selected frame's floating toolbar hangs centred under the frame, like
+// Safari's bottom bar (issue #795). Screen px: its gap below the frame, the
+// extra drop that clears the Interacting tag (8px margin + 20px tag + gap),
+// the canvas toolbar strip it stays above when the frame runs off screen, and
+// its inset from the canvas's side edges.
 const FRAME_TOOLBAR_GAP = 8
+const INTERACTING_TAG_CLEARANCE = 28
+const CANVAS_TOOLBAR_STRIP = 48
+const FRAME_TOOLBAR_INSET = 8
 
 export interface IframeLayerData {
   id: string
@@ -416,10 +414,29 @@ export function IframeLayer({
     setHistory(visitRoute(history, shownRoute))
   }
 
+  // Recording (Create Flow): how many screens this run has laid down, the
+  // frame's own screen included. Each new route the frame moves to while
+  // recording leaves a screen behind, so each one counts; a replace-style
+  // navigation or a history step leaves none.
+  const [recordedScreens, setRecordedScreens] = useState(1)
+  const [lastCreateFlow, setLastCreateFlow] = useState(createFlow)
+  if (createFlow !== lastCreateFlow) {
+    setLastCreateFlow(createFlow)
+    if (createFlow) setRecordedScreens(1)
+  }
+  const recordingRef = useRef({ createFlow, shownRoute })
+  useEffect(() => {
+    recordingRef.current = { createFlow, shownRoute }
+  })
+
   const handleNavigation = useCallback(
     (id: string, path: string, replace: boolean) => {
       reportedPathRef.current = path
       setHistory((h) => visitRoute(h, path, replace))
+      const recording = recordingRef.current
+      if (recording.createFlow && !replace && path !== recording.shownRoute) {
+        setRecordedScreens((n) => n + 1)
+      }
       onRouteChange?.(id, path, replace)
     },
     [onRouteChange]
@@ -489,16 +506,29 @@ export function IframeLayer({
   const toolbarVisible =
     !!iframeLayer.branchId && showToolbar && !!toolbarPortalTarget
 
-  // Keep the portaled toolbar floating just above the frame's top-left
-  // corner, between the frame and its name label (issue #795).
+  // Keep the portaled toolbar centred under the frame (below the Interacting
+  // tag while it shows). When the frame's bottom is off screen the toolbar
+  // stops above the canvas toolbar, and it never slides off the sides.
   useCanvasAnchoredPortal({
     enabled: toolbarVisible,
     anchorRef: frameRef,
     targetRef: toolbarRef,
-    getOffset: (fr, cw) => ({
-      x: fr.left - cw.left,
-      y: fr.top - cw.top - FRAME_TOOLBAR_HEIGHT - FRAME_TOOLBAR_GAP,
-    }),
+    getOffset: (fr, cw) => {
+      const width = toolbarRef.current?.offsetWidth ?? 0
+      const height = toolbarRef.current?.offsetHeight ?? 0
+      const drop = FRAME_TOOLBAR_GAP + (focused ? INTERACTING_TAG_CLEARANCE : 0)
+      const centred = fr.left - cw.left + (fr.width - width) / 2
+      return {
+        x: Math.max(
+          FRAME_TOOLBAR_INSET,
+          Math.min(centred, cw.width - width - FRAME_TOOLBAR_INSET)
+        ),
+        y: Math.min(
+          fr.bottom - cw.top + drop,
+          cw.height - CANVAS_TOOLBAR_STRIP - height
+        ),
+      }
+    },
   })
   const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
@@ -830,8 +860,6 @@ export function IframeLayer({
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
-      // Lift the name label over the floating toolbar while it's showing.
-      titleLift={toolbarVisible ? FRAME_TOOLBAR_HEIGHT + FRAME_TOOLBAR_GAP : 0}
       renderTitle={(api) => (
         <IframeLayerLabel
           label={iframeLayer.label}
@@ -877,27 +905,14 @@ export function IframeLayer({
                 onClick={(e) => e.stopPropagation()}
               >
                 <FloatingToolbarButton
-                  tooltipSide="bottom"
                   label={focused ? "Back to canvas" : "Interact"}
                   pressed={focused}
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
                 >
                   {focused ? <Move /> : <MousePointer />}
                 </FloatingToolbarButton>
-                <FloatingToolbarButton
-                  tooltipSide="bottom"
-                  label={createFlow ? "Stop create flow" : "Create flow"}
-                  pressed={createFlow}
-                  onClick={() =>
-                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
-                  }
-                >
-                  <Route />
-                </FloatingToolbarButton>
                 <FloatingToolbarSeparator />
-                {/* navigation: history, the route, reload, and status */}
                 <FloatingToolbarButton
-                  tooltipSide="bottom"
                   label="Back"
                   disabled={!onSelectRoute || !canGoBack(history)}
                   onClick={() => navigateHistory(goBack(history))}
@@ -905,31 +920,34 @@ export function IframeLayer({
                   <ChevronLeft />
                 </FloatingToolbarButton>
                 <FloatingToolbarButton
-                  tooltipSide="bottom"
                   label="Forward"
                   disabled={!onSelectRoute || !canGoForward(history)}
                   onClick={() => navigateHistory(goForward(history))}
                 >
                   <ChevronRight />
                 </FloatingToolbarButton>
-                <FrameRouteField
+                <FrameAddressBar
                   route={iframeLayer.route}
                   discoveredRoutes={discoveredRoutes ?? []}
                   onSelectRoute={
                     onSelectRoute
-                      ? (route) => onSelectRoute(iframeLayer.id, route)
+                      ? (route) => {
+                          if (createFlow && route !== shownRoute) {
+                            setRecordedScreens((n) => n + 1)
+                          }
+                          onSelectRoute(iframeLayer.id, route)
+                        }
                       : undefined
                   }
                   sharedState={iframeLayer.sharedState}
+                  status={previewStatus}
+                  onReload={reloadIframe}
+                  recording={createFlow}
+                  recordedScreens={recordedScreens}
+                  onToggleRecording={() =>
+                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
+                  }
                 />
-                <FloatingToolbarButton
-                  label="Reload"
-                  tooltipSide="bottom"
-                  onClick={reloadIframe}
-                >
-                  <RotateCw />
-                </FloatingToolbarButton>
-                {previewStatus && <FrameStatusDot status={previewStatus} />}
                 <FloatingToolbarSeparator />
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
@@ -941,7 +959,7 @@ export function IframeLayer({
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <FloatingToolbarButton label="More" tooltipSide="bottom">
+                    <FloatingToolbarButton label="More">
                       <MoreHorizontal className="text-muted-foreground" />
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>

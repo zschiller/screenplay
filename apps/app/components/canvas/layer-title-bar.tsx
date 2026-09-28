@@ -15,9 +15,6 @@ interface LayerTitleBarProps {
    *  extend past the tile's footprint. */
   layerWidth: number
   zoom: number
-  /** Extra screen px between the bar and the layer (see `LayerShell`'s
-   *  `titleLift`). */
-  lift?: number
   /** Base move-drag handlers (translate the parent group). Pass `undefined`
    *  to detach all gesture handling (e.g. while a frame is in interactive
    *  mode or the user holds space to pan). */
@@ -76,7 +73,6 @@ export function LayerTitleBar({
   layerId,
   layerWidth,
   zoom,
-  lift = 0,
   dragHandlers,
   onRequestReorderDrag,
   groupLabel,
@@ -132,7 +128,7 @@ export function LayerTitleBar({
         transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
         transformOrigin: "bottom left",
         maxWidth: layerWidth * zoom,
-        marginBottom: (4 + lift) / zoom,
+        marginBottom: 4 / zoom,
       }}
       {...labelDragHandlers}
     >

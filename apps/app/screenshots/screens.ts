@@ -1071,6 +1071,35 @@ export const SCREENS: Screen[] = [
     settleMs: 1500,
   },
   {
+    name: "canvas-frame-recording",
+    description:
+      "A frame recording a flow from its address field: the field red with its screen count and a stop button, a screen left behind for the page it moved from.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      const toolbar = page.locator("#frame-toolbar-portal")
+      await toolbar
+        .getByRole("button", { name: "Record flow" })
+        .click({ timeout: 15_000 })
+      // Themes share the Canvas, so the frame may already be on /cart from
+      // the other theme's run; go wherever it isn't.
+      const field = toolbar.getByRole("button", { name: /^Route:/ })
+      const onCart = (await field.getAttribute("aria-label")) === "Route: /cart"
+      await field.click({ timeout: 15_000 })
+      await page.keyboard.type(onCart ? "/checkout" : "/cart")
+      await page.keyboard.press("Enter")
+      await page
+        .locator("[data-slot=popover-content]")
+        .waitFor({ state: "detached", timeout: 15_000 })
+      await toolbar.getByText(/· 2 screens/).waitFor({ timeout: 15_000 })
+      await toolbar
+        .getByRole("button", { name: "Stop recording" })
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 1500,
+  },
+  {
     name: "canvas-frame-knobs-empty",
     description:
       "A selected frame's Knobs popover for a prototype with no knobs yet.",

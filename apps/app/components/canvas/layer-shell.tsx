@@ -125,9 +125,6 @@ interface LayerShellProps {
   onRenameGroup?: (next: string) => void
   /** Layer-specific title row rendered inside the shared `LayerTitleBar`. */
   renderTitle: (api: LayerShellApi) => React.ReactNode
-  /** Extra screen px to raise the title bar by, clearing chrome that floats
-   *  between it and the layer (a selected frame's toolbar). */
-  titleLift?: number
 
   // ── Body ───────────────────────────────────────────────────────────────────
   /** Layer-specific content rendered inside the world-space container. */
@@ -181,7 +178,6 @@ export function LayerShell({
   onSelectGroup,
   onRenameGroup,
   renderTitle,
-  titleLift,
   children,
 }: LayerShellProps) {
   // `groupSelected` routes through the selection mover too, so grabbing a
@@ -335,7 +331,6 @@ export function LayerShell({
         layerId={layerId}
         layerWidth={width}
         zoom={zoom}
-        lift={titleLift}
         dragHandlers={titleDragDisabled ? undefined : dragHandlers}
         onRequestReorderDrag={onRequestReorderDrag}
         groupLabel={groupLabel}

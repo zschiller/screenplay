@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Check } from "lucide-react"
+import { Check, RotateCw } from "lucide-react"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { Badge } from "@workspace/ui/components/badge"
 import {
   Popover,
@@ -29,12 +30,14 @@ import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
 
 /**
- * The navigation controls in a selected frame's floating toolbar (issue #795):
- * the route field and the preview's status dot. Back, forward and reload are
- * plain toolbar buttons, so they live with the toolbar itself.
+ * The address field in a selected frame's floating toolbar (issue #795), like
+ * Safari's: the route (press it to go anywhere), reload, and record. Record
+ * runs Create Flow; while it runs the field turns red and counts the screens
+ * laid down. The preview's status shows at the field's start only when it
+ * isn't live, so a healthy frame carries no dot.
  */
 
-/** What the status dot says about the frame's preview. */
+/** What the preview is doing, as the address field reports it. */
 export type FramePreviewStatus =
   | "live"
   | "loading"
@@ -42,16 +45,17 @@ export type FramePreviewStatus =
   | "failed"
   | "stopped"
 
-const STATUS_LABEL: Record<FramePreviewStatus, string> = {
-  live: "Live",
+const STATUS_LABEL: Record<Exclude<FramePreviewStatus, "live">, string> = {
   loading: "Loading",
   disconnected: "Dev server disconnected",
   failed: "Preview failed",
   stopped: "Workspace stopped",
 }
 
-const STATUS_DOT: Record<Exclude<FramePreviewStatus, "loading">, string> = {
-  live: "bg-success",
+const STATUS_DOT: Record<
+  Exclude<FramePreviewStatus, "live" | "loading">,
+  string
+> = {
   disconnected: "bg-warning",
   failed: "bg-destructive",
   stopped: "bg-muted-foreground/50",
@@ -63,7 +67,11 @@ const stopPointer = {
   onClick: (e: React.MouseEvent) => e.stopPropagation(),
 }
 
-export function FrameStatusDot({ status }: { status: FramePreviewStatus }) {
+function StatusIndicator({
+  status,
+}: {
+  status: Exclude<FramePreviewStatus, "live">
+}) {
   return (
     <TooltipProvider>
       <Tooltip>
@@ -71,8 +79,7 @@ export function FrameStatusDot({ status }: { status: FramePreviewStatus }) {
           <span
             role="status"
             aria-label={STATUS_LABEL[status]}
-            className="flex size-6 shrink-0 items-center justify-center"
-            {...stopPointer}
+            className="flex size-5 shrink-0 items-center justify-center"
           >
             {status === "loading" ? (
               <Spinner className="size-3 text-muted-foreground" />
@@ -83,21 +90,118 @@ export function FrameStatusDot({ status }: { status: FramePreviewStatus }) {
             )}
           </span>
         </TooltipTrigger>
-        <TooltipContent side="bottom">{STATUS_LABEL[status]}</TooltipContent>
+        <TooltipContent>{STATUS_LABEL[status]}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )
 }
+
+interface FrameAddressBarProps {
+  route?: string
+  discoveredRoutes: { route: string; label: string }[]
+  /** Unset while the frame can't navigate (a read-only viewer). */
+  onSelectRoute?: (route: string) => void
+  sharedState?: JsonObject
+  status?: FramePreviewStatus
+  onReload: () => void
+  recording: boolean
+  /** Screens this recording has laid down, the frame's own included. */
+  recordedScreens: number
+  onToggleRecording: () => void
+}
+
+export function FrameAddressBar({
+  route,
+  discoveredRoutes,
+  onSelectRoute,
+  sharedState,
+  status,
+  onReload,
+  recording,
+  recordedScreens,
+  onToggleRecording,
+}: FrameAddressBarProps) {
+  const leading = recording ? (
+    <span
+      aria-hidden
+      className="flex size-5 shrink-0 items-center justify-center"
+    >
+      <span className="size-1.5 animate-pulse rounded-full bg-destructive" />
+    </span>
+  ) : status && status !== "live" ? (
+    <StatusIndicator status={status} />
+  ) : null
+
+  return (
+    <div
+      className={cn(
+        "flex h-6 w-56 min-w-0 items-center rounded-md bg-muted pr-0.5 text-muted-foreground",
+        leading && "pl-0.5",
+        recording && "bg-destructive/10 text-destructive"
+      )}
+      {...stopPointer}
+    >
+      {leading}
+      <FrameRouteField
+        route={route}
+        discoveredRoutes={discoveredRoutes}
+        onSelectRoute={onSelectRoute}
+        sharedState={sharedState}
+        suffix={
+          recording
+            ? ` · ${recordedScreens} ${recordedScreens === 1 ? "screen" : "screens"}`
+            : undefined
+        }
+        inset={!leading}
+        recording={recording}
+      />
+      {!recording && (
+        <IconButton
+          label="Reload"
+          size="icon-xs"
+          className="size-5 text-muted-foreground"
+          onClick={onReload}
+        >
+          <RotateCw className="size-3" />
+        </IconButton>
+      )}
+      <IconButton
+        label={recording ? "Stop recording" : "Record flow"}
+        pressed={recording}
+        size="icon-xs"
+        className={cn(
+          "size-5",
+          recording && "hover:bg-destructive/15 aria-pressed:bg-transparent"
+        )}
+        onClick={onToggleRecording}
+      >
+        <span
+          className={cn(
+            "size-2 bg-destructive",
+            recording ? "rounded-[1.5px]" : "rounded-full"
+          )}
+        />
+      </IconButton>
+    </div>
+  )
+}
+
 interface FrameRouteFieldProps {
   route?: string
   discoveredRoutes: { route: string; label: string }[]
   /** Unset while the frame can't navigate (a read-only viewer). */
   onSelectRoute?: (route: string) => void
   sharedState?: JsonObject
+  /** Text after the route (the recording's screen count). */
+  suffix?: string
+  /** Pad the route in from the field's edge (no status or record dot before it). */
+  inset: boolean
+  /** Keep the recording red instead of brightening on hover. */
+  recording: boolean
 }
 
 /**
- * The toolbar's route field: the frame's current route, like a browser's
+ * The address field's route: the frame's current route, like a browser's
  * address bar. Pressing it opens a search box where you type any route (Enter
  * goes there) or pick one the Workspace has discovered.
  */
@@ -106,6 +210,9 @@ export function FrameRouteField({
   discoveredRoutes,
   onSelectRoute,
   sharedState,
+  suffix,
+  inset,
+  recording,
 }: FrameRouteFieldProps) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState("")
@@ -127,18 +234,22 @@ export function FrameRouteField({
     .sort((a, b) => a.route.localeCompare(b.route))
 
   const field = (
-    <span className="flex h-6 min-w-0 flex-1 items-center rounded-md bg-muted px-2 font-mono text-[11px] text-muted-foreground">
-      <span className="truncate">{currentRoute}</span>
+    <span
+      className={cn(
+        "flex h-6 min-w-0 flex-1 items-center pr-1 font-mono text-[11px]",
+        inset && "pl-2"
+      )}
+    >
+      <span className="truncate">
+        {currentRoute}
+        {suffix}
+      </span>
       <SharedStateIndicator sharedState={sharedState} />
     </span>
   )
 
   if (!onSelectRoute) {
-    return (
-      <div className="flex w-48 min-w-0" {...stopPointer}>
-        {field}
-      </div>
-    )
+    return <div className="flex min-w-0 flex-1">{field}</div>
   }
 
   const handleSelect = (next: string) => {
@@ -158,15 +269,20 @@ export function FrameRouteField({
         <button
           type="button"
           aria-label={`Route: ${currentRoute}`}
-          className="group flex w-48 min-w-0 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 hover:[&>span]:text-foreground data-[state=open]:[&>span]:text-foreground"
-          {...stopPointer}
+          className={cn(
+            "flex min-w-0 flex-1 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            // Brighten on hover or open, like the route pill; a recording
+            // keeps its red.
+            !recording &&
+              "hover:text-foreground data-[state=open]:text-foreground"
+          )}
         >
           {field}
         </button>
       </PopoverTrigger>
       <PopoverContent
-        // As wide as the field, like an address bar's suggestions.
-        className="w-(--radix-popover-trigger-width) max-w-96 min-w-56 p-0"
+        // Like an address bar's suggestions, under the field.
+        className="w-56 p-0"
         side="bottom"
         sideOffset={8}
         align="start"
