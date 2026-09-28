@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  routeBranchAction,
-  type BranchActionInput,
-} from "@/lib/branch/actions"
+import { routeBranchAction, type BranchActionInput } from "@/lib/branch/actions"
 
 const agent = { sandboxName: "sb-1", ref: "feature-x" }
 const repo = { defaultBranch: "main" }
@@ -58,9 +55,9 @@ describe("routeBranchAction", () => {
   })
 
   it("yields no route for a missing agent", () => {
-    expect(
-      routeBranchAction("create-pr", { agent: undefined, repo })
-    ).toEqual({ kind: "none" })
+    expect(routeBranchAction("create-pr", { agent: undefined, repo })).toEqual({
+      kind: "none",
+    })
   })
 
   it("does not rebase without a branch ref", () => {
@@ -73,8 +70,8 @@ describe("routeBranchAction", () => {
   })
 
   it("does not rebase without the repo", () => {
-    expect(
-      routeBranchAction("rebase", { agent, repo: undefined })
-    ).toEqual({ kind: "none" })
+    expect(routeBranchAction("rebase", { agent, repo: undefined })).toEqual({
+      kind: "none",
+    })
   })
 })

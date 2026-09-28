@@ -15,6 +15,34 @@ export type ChatState = {
   isStreaming: boolean
   isLoadingHistory: boolean
   error: string | null
+  /**
+   * The last send the server refused, held so the user can Retry it or pull it
+   * back into the composer to Edit. The optimistic user message is removed when
+   * this is set, so the failed text lives here and nowhere else in the log.
+   */
+  failedSend: FailedSend | null
+  /**
+   * Messages sent while a run was going. The head is sent when the run ends;
+   * each is cancellable until then.
+   */
+  queued: QueuedMessage[]
+}
+
+/** A send the server didn't accept (#802). */
+export interface FailedSend {
+  message: string
+  error: string
+  /** The composer's own document for the draft, to restore it on Edit. */
+  draft?: unknown
+  options: SendMessageOptions
+}
+
+/** A message waiting for the current run to finish (#802). */
+export interface QueuedMessage {
+  id: string
+  message: string
+  draft?: unknown
+  options: SendMessageOptions
 }
 
 export interface SendMessageOptions {
@@ -32,6 +60,12 @@ export interface SendMessageOptions {
   model?: string
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
+  /**
+   * The composer's document for this message. Opaque to the store: it rides
+   * along so a failed or queued message can be put back in the composer intact
+   * (mentions and element tokens included), not as flattened wire text.
+   */
+  draft?: unknown
 }
 
 /**
@@ -98,6 +132,8 @@ const DEFAULT_STATE: ChatState = {
   isStreaming: false,
   isLoadingHistory: false,
   error: null,
+  failedSend: null,
+  queued: [],
 }
 
 async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
@@ -147,6 +183,8 @@ function mergeHistoryWithLive(
   }
   return [...history.slice(0, historyAnchorIdx), ...live.slice(anchorIdx)]
 }
+
+let queueSeq = 0
 
 class ChatStore {
   private states = new Map<string, ChatState>()
@@ -293,15 +331,37 @@ class ChatStore {
 
   // --- Send message (fire-and-forget POST, server broadcasts via Liveblocks) ---
 
-  async sendMessage(opts: SendMessageOptions) {
+  /**
+   * Send a turn, or queue it when a run is already going. Resolves `true` once
+   * the server has accepted it (or it's queued), `false` when it was refused —
+   * the text is then held in `failedSend` for Retry or Edit, never dropped.
+   */
+  async sendMessage(opts: SendMessageOptions): Promise<boolean> {
     const { chatId } = opts
     const state = this.getOrCreate(chatId)
-    if (!opts.message.trim() || state.isStreaming) return
+    if (!opts.message.trim()) return false
+    if (state.isStreaming) {
+      this.update(chatId, {
+        queued: [
+          ...state.queued,
+          {
+            id: `q_${++queueSeq}`,
+            message: opts.message,
+            draft: opts.draft,
+            options: opts,
+          },
+        ],
+      })
+      return true
+    }
 
-    // Optimistically add the user message
+    // Optimistically add the user message. Kept by reference so a refusal
+    // removes exactly this entry, even if the log moved on meanwhile.
+    const optimistic: AgentMessage = { role: "user", content: opts.message }
     this.update(chatId, {
       error: null,
-      messages: [...state.messages, { role: "user", content: opts.message }],
+      failedSend: null,
+      messages: [...state.messages, optimistic],
     })
 
     this.callbacks.set(chatId, {
@@ -339,14 +399,57 @@ class ChatStore {
         const errorText = await res.text()
         throw new Error(errorText || `HTTP ${res.status}`)
       }
+      return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       const current = this.getOrCreate(chatId)
       this.update(chatId, {
         error: msg,
-        messages: [...current.messages, { role: "error", content: msg }],
+        messages: current.messages.filter((m) => m !== optimistic),
+        failedSend: {
+          message: opts.message,
+          error: msg,
+          draft: opts.draft,
+          options: opts,
+        },
       })
+      return false
     }
+  }
+
+  /** Send the refused message again, exactly as it was. */
+  retryFailedSend(chatId: string): Promise<boolean> {
+    const failed = this.getOrCreate(chatId).failedSend
+    if (!failed) return Promise.resolve(false)
+    this.update(chatId, { failedSend: null })
+    return this.sendMessage(failed.options)
+  }
+
+  /**
+   * Drop the refused message and hand it back, so the caller can put it in the
+   * composer to edit.
+   */
+  takeFailedSend(chatId: string): FailedSend | null {
+    const failed = this.getOrCreate(chatId).failedSend
+    if (failed) this.update(chatId, { failedSend: null, error: null })
+    return failed
+  }
+
+  /** Remove a queued message and hand it back (for Edit), or `null`. */
+  takeQueued(chatId: string, id: string): QueuedMessage | null {
+    const { queued } = this.getOrCreate(chatId)
+    const item = queued.find((q) => q.id === id) ?? null
+    if (item) this.update(chatId, { queued: queued.filter((q) => q !== item) })
+    return item
+  }
+
+  /** Send the next queued message, once the run it waited on has ended. */
+  private drainQueue(chatId: string) {
+    const { queued, isStreaming } = this.getOrCreate(chatId)
+    if (isStreaming || queued.length === 0) return
+    const [next, ...rest] = queued
+    this.update(chatId, { queued: rest })
+    void this.sendMessage(next.options)
   }
 
   // --- External streaming state control (for hydration from storage) ---
@@ -424,6 +527,7 @@ class ChatStore {
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
         this.update(chatId, { isStreaming: false })
+        this.drainQueue(chatId)
         break
       }
 

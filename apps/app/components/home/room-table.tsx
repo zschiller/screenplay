@@ -26,24 +26,33 @@ import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
+import { useCreateCanvas } from "./use-create-canvas"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog, canMoveRoom } from "./move-to-dialog"
 import { useFileDraggable, useFolderDragDrop } from "./file-dnd"
-import { ThumbnailComposite } from "./room-grid"
+import { EmptyThumbnail, ThumbnailComposite, hasThumbnail } from "./room-grid"
 import { useHome } from "./home-provider"
+import { formatFolderContents } from "./folder-contents"
 import type { SortKey } from "@/lib/room-sort"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
 import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 
-// The Name-column content of a folder row — icon + name link. Shared by the
-// live row and its drag preview so they stay in sync.
+// The Name-column content of a folder row — icon, name and a muted contents
+// count. Shared by the live row and its drag preview so they stay in sync.
 function FolderRowName({ folder }: { folder: FolderSummary }) {
+  const { folderContents } = useHome()
   return (
     <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
       <FolderIcon className="size-4 shrink-0 text-primary" />
-      <span className="truncate font-medium">{folder.name}</span>
+      <span className="truncate">
+        <span className="font-medium">{folder.name}</span>
+        <span className="text-muted-foreground">
+          {" · "}
+          {formatFolderContents(folderContents(folder.id))}
+        </span>
+      </span>
     </Link>
   )
 }
@@ -51,18 +60,22 @@ function FolderRowName({ folder }: { folder: FolderSummary }) {
 // A canvas row's leading thumbnail — the grid card's preview shrunk to a 4:3
 // row tile, standing in for the old empty-doc icon. Renders the same frame
 // composite as the grid (`ThumbnailComposite`) over the gradient backdrop the
-// grid card uses, so a captured canvas shows its real layout and an uncaptured
-// one reads as a blank document. The composite never draws text.
+// grid card uses, so a captured canvas shows its real layout. An uncaptured one
+// gets the grid's dashed empty preview. The composite never draws text.
+const ROW_THUMBNAIL =
+  "relative aspect-[4/3] h-14 shrink-0 overflow-hidden rounded-xs @2xl/home:h-20"
+
 function RoomRowThumbnail({ room }: { room: RoomSummary }) {
+  if (!hasThumbnail(room.thumbnailManifest)) {
+    return <EmptyThumbnail className={ROW_THUMBNAIL} />
+  }
   return (
-    <div className="relative aspect-[4/3] h-14 shrink-0 overflow-hidden rounded-xs bg-muted-foreground/15 @2xl/home:h-20">
-      {room.thumbnailManifest && (
-        <ThumbnailComposite
-          manifest={room.thumbnailManifest}
-          version={room.thumbnailUpdatedAt}
-          insetClassName="p-px"
-        />
-      )}
+    <div className={cn(ROW_THUMBNAIL, "bg-muted-foreground/15")}>
+      <ThumbnailComposite
+        manifest={room.thumbnailManifest}
+        version={room.thumbnailUpdatedAt}
+        insetClassName="p-px"
+      />
     </div>
   )
 }
@@ -139,6 +152,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
     pinFolder,
     unpin,
   } = useHome()
+  const { create: createCanvas } = useCreateCanvas()
   const pinned = isPinned("folder", folder.id)
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -190,6 +204,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       {!isLocalBuild && <TableCell />}
       <TableCell className="w-8 pr-2">
         <FolderActionMenu
+          onNewCanvas={() => void createCanvas(folder.id)}
           onRename={() => setRenameOpen(true)}
           onMove={() => setMoveOpen(true)}
           onDelete={() => setDeleteOpen(true)}

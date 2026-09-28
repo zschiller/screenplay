@@ -7,6 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { Kbd } from "@workspace/ui/components/kbd"
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
@@ -107,21 +108,28 @@ export function HomeToolbarLabel({ children }: { children: React.ReactNode }) {
 /**
  * Wraps a toolbar control in a tooltip naming it, but only while the header is
  * compact — when the button's own label is showing, a tooltip repeating it is
- * noise.
+ * noise. A control with a shortcut keeps its tooltip at every width, since the
+ * key is the part the label doesn't say.
  */
 export function HomeToolbarTooltip({
   label,
+  shortcut,
   children,
 }: {
   label: string
+  /** A single-key shortcut. With one, the tooltip shows at every width. */
+  shortcut?: string
   children: React.ReactElement
 }) {
   const compact = useHomeHeaderCompact()
-  if (!compact) return children
+  if (!compact && !shortcut) return children
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
+      <TooltipContent side="bottom">
+        {label}
+        {shortcut ? <Kbd>{shortcut}</Kbd> : null}
+      </TooltipContent>
     </Tooltip>
   )
 }

@@ -152,3 +152,88 @@ describe("removeBranch — local teardown vs. the remote branch", () => {
     expect(toast.warning).not.toHaveBeenCalled()
   })
 })
+
+describe("create requests the server refuses (#791)", () => {
+  const fetchMock = vi.fn()
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("marks a refused create failed instead of leaving it creating", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "No GitHub token" }), {
+        status: 401,
+      })
+    )
+    const { collections, result } = mountIntake()
+
+    await act(async () => {
+      result.current.createBranchFromGitBranch("repo-1", "feature-b")
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => {
+      const created = collections.branches
+        .toArray()
+        .find((b) => b.ref === "feature-b")
+      expect(created).toMatchObject({
+        status: "error",
+        error: "No GitHub token",
+        createFlow: "from-branch",
+      })
+    })
+  })
+
+  it("marks a create that never reached the server failed", async () => {
+    fetchMock.mockRejectedValue(new Error("Failed to fetch"))
+    const { collections, result } = mountIntake()
+
+    await act(async () => {
+      result.current.createBranchFromGitBranch("repo-1", "feature-b")
+    })
+    await vi.waitFor(() => {
+      const created = collections.branches
+        .toArray()
+        .find((b) => b.ref === "feature-b")
+      expect(created).toMatchObject({
+        status: "error",
+        error: "Failed to fetch",
+      })
+    })
+  })
+
+  it("retries a failed Workspace with its original flow", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
+    const { collections, result } = mountIntake(
+      {},
+      {
+        status: "error",
+        error: "exit 1",
+        sandboxName: "sp-1",
+        createFlow: "duplicate-branch",
+        createSourceBranch: "main",
+      }
+    )
+
+    await act(async () => {
+      result.current.retryBranch("branch-1")
+    })
+
+    expect(collections.branches.get("branch-1")).toMatchObject({
+      status: "creating",
+      error: "",
+    })
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
+    expect(body).toMatchObject({
+      flow: "duplicate-branch",
+      sourceBranch: "main",
+      sandboxName: "sp-1",
+      branch: "feature-a",
+      branchId: "branch-1",
+      roomId: "room-1",
+      retry: true,
+    })
+  })
+})

@@ -82,16 +82,16 @@ export function CommentsMenu({
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 aria-label={label}
-                className="relative gap-1.5 px-2 tabular-nums"
+                className="relative gap-1 px-1.5 font-normal tabular-nums"
               >
                 <MessageSquare />
                 {openThreads.length}
                 {unreadCount > 0 && (
                   <span
                     aria-hidden
-                    className="absolute top-1 left-5 size-1.5 rounded-full bg-info"
+                    className="absolute top-1 left-4 size-1.5 rounded-full bg-info"
                   />
                 )}
               </Button>
@@ -100,7 +100,7 @@ export function CommentsMenu({
           <TooltipContent side="bottom">{label}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <PopoverContent align="end" className="w-80 gap-0 p-0">
+      <PopoverContent align="end" sideOffset={8} className="w-80 gap-0 p-0">
         {openThread ? (
           <>
             <div className="flex border-b border-border px-3 py-2">

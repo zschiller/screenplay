@@ -277,7 +277,16 @@ export function SelectionOverlay({
     // Draw selection frames for iframeLayers
     ctx.strokeStyle = selectionColor
     ctx.lineWidth = 1
-    for (const { l, t, r, b } of frameEdges.values()) {
+    for (const [id, { l, t, r, b }] of frameEdges) {
+      if (id === focusedIframeLayerId) {
+        // The interacting ring: the same colour at 2px, still drawn just
+        // outside the bounds, so an interactive frame reads apart from a
+        // merely selected one. Its hint pill sits under the frame.
+        ctx.lineWidth = 2
+        ctx.strokeRect(l - 1, t - 1, r - l + 2, b - t + 2)
+        ctx.lineWidth = 1
+        continue
+      }
       strokeWorldRect(l, t, r, b)
     }
 

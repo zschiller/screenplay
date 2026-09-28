@@ -55,6 +55,13 @@ export interface ProvisionRequest {
   /** The branch to fork from. Required for `duplicate`, ignored otherwise. */
   sourceBranch?: string
   /**
+   * Re-running a failed create. Frees any Sandbox the failed attempt left under
+   * `sandboxName` first, and takes a git branch that already exists (the failed
+   * attempt created it) as created. Ignored for `recreate`, which does the
+   * former anyway and never creates a branch.
+   */
+  retry?: boolean
+  /**
    * The acting user's GitHub token. Only the hosted backend needs it (API
    * branch creation, token-authed clone); where the host owns git auth it's
    * never used.
@@ -113,7 +120,7 @@ export async function provisionSandbox(
   // of the destructive path: the old checkout, uncommitted changes included, is
   // discarded (ADR 0005 — which is why only the explicitly-confirmed Recreate
   // and snapshot-less recovery ever ask for this mode).
-  if (mode === "recreate") {
+  if (mode === "recreate" || req.retry) {
     try {
       const old = await sandboxProvider.get({
         name: sandboxName,
@@ -122,6 +129,12 @@ export async function provisionSandbox(
       await old.delete()
     } catch {}
   }
+
+  // A retry's first attempt may have created the branch before failing, and
+  // that's the branch we want.
+  const branchReady = (created: SandboxActionResult<void>) =>
+    created.success ||
+    (req.retry === true && /already exists/i.test(created.error ?? ""))
 
   // Step 1: make sure the git branch exists (or say where to create it from).
   // `from-branch` and `recreate` both provision onto a branch that already
@@ -132,10 +145,11 @@ export async function provisionSandbox(
       baseRevision = repo.defaultBranch
     } else {
       const created = await createAgentBranch(repo, branch, undefined, ghToken)
-      if (!created.success) {
+      if (!branchReady(created)) {
         return {
           success: false,
-          error: created.error || "Failed to create branch",
+          error:
+            (!created.success && created.error) || "Failed to create branch",
         }
       }
     }
@@ -151,10 +165,11 @@ export async function provisionSandbox(
         sourceBranch,
         ghToken
       )
-      if (!created.success) {
+      if (!branchReady(created)) {
         return {
           success: false,
-          error: created.error || "Failed to create branch",
+          error:
+            (!created.success && created.error) || "Failed to create branch",
         }
       }
     }

@@ -56,6 +56,8 @@ interface Options {
   onPanEnd?: () => void
   onSpaceDown?: () => void
   onSpaceUp?: () => void
+  /** Esc pressed inside the preview and not handled by the page. */
+  onEscape?: () => void
 }
 
 export type ScreenplayDom = ReturnType<typeof useScreenplayDom>
@@ -71,6 +73,7 @@ export function useScreenplayDom(
     onPanEnd,
     onSpaceDown,
     onSpaceUp,
+    onEscape,
   }: Options = {}
 ) {
   const pending = useRef(new Map<string, Pending>())
@@ -83,6 +86,7 @@ export function useScreenplayDom(
   const onPanEndRef = useRef(onPanEnd)
   const onSpaceDownRef = useRef(onSpaceDown)
   const onSpaceUpRef = useRef(onSpaceUp)
+  const onEscapeRef = useRef(onEscape)
 
   // Keep the latest callbacks in refs (written after commit, not during
   // render) so the long-lived message/key listeners below can read them
@@ -96,6 +100,7 @@ export function useScreenplayDom(
     onPanEndRef.current = onPanEnd
     onSpaceDownRef.current = onSpaceDown
     onSpaceUpRef.current = onSpaceUp
+    onEscapeRef.current = onEscape
   })
 
   const request = useCallback(
@@ -183,6 +188,8 @@ export function useScreenplayDom(
         onSpaceDownRef.current?.()
       } else if (d.type === "screenplay:space-up") {
         onSpaceUpRef.current?.()
+      } else if (d.type === "screenplay:escape") {
+        onEscapeRef.current?.()
       }
     }
 

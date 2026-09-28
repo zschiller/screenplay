@@ -11,8 +11,6 @@ import {
 import {
   Plus,
   X,
-  Archive,
-  RotateCcw,
   PanelRightClose,
   ChevronsUpDown,
   ChevronDown,
@@ -67,6 +65,7 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
+import { ChatHistoryMenu } from "./chat-history-menu"
 import { BranchBadge } from "@/components/branch-badge"
 import type {
   BranchData,
@@ -90,6 +89,7 @@ import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
+import { prStateColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
@@ -460,6 +460,7 @@ export function ChatPanel({
   onCreateChat,
   onCreateTerminal,
   onRenameChat,
+  onRemoveChat,
   onCloseChat,
   onReopenChat,
   onBranchRename,
@@ -545,12 +546,7 @@ export function ChatPanel({
       : prState === "closed"
         ? GitPullRequestClosed
         : GitPullRequest
-  const prStateColor =
-    prState === "merged"
-      ? "text-purple-600 dark:text-purple-400"
-      : prState === "closed"
-        ? "text-red-600 dark:text-red-400"
-        : "text-green-700 dark:text-green-300"
+  const prColor = prStateColor(prState ?? "open")
   const isAgentBusy = agent
     ? agent.status === "creating" || agent.status === "starting"
     : false
@@ -931,7 +927,7 @@ export function ChatPanel({
                   href={displayPr.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={cn("group", prStateColor)}
+                  className={cn("group", prColor)}
                 >
                   <PrStateIcon />#{displayPr.number}
                   <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
@@ -1179,25 +1175,11 @@ export function ChatPanel({
         </ScrollArea>
         {closedChats.length > 0 && (
           <div className="flex shrink-0 items-center px-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <IconButton label="Closed chats">
-                  <Archive className="size-3" />
-                </IconButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {closedChats.map((chat) => (
-                  <DropdownMenuItem
-                    key={chat.id}
-                    className="flex items-center gap-2"
-                    onSelect={() => onReopenChat(chat.id)}
-                  >
-                    <RotateCcw className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{chat.label}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ChatHistoryMenu
+              closedChats={closedChats}
+              onReopen={onReopenChat}
+              onDelete={onRemoveChat}
+            />
           </div>
         )}
       </div>
@@ -1275,6 +1257,7 @@ export function ChatPanel({
               onModelChange={(m) => onModelChange(chat.id, m)}
               onBranchRename={onBranchRename}
               onChatRename={(label) => onRenameChat(chat.id, label)}
+              isActive={!showLogs && chat.id === activeTab}
             />
           </TabsContent>
         )

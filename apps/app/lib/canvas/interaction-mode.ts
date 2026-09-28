@@ -8,8 +8,8 @@
  * deselected — in both cases the frame stops being the user's active target, so
  * the canvas must leave the mode and let panning/zooming/scrolling resume. (A
  * mode is only ever entered from the frame's own toolbar, which requires the
- * frame to be selected, so "still selected" is the invariant that keeps it
- * alive.) Rather than patch every delete/deselect call-site, the canvas
+ * frame to be selected, or by double-clicking the frame, which selects it
+ * first, so "still selected" is the invariant that keeps it alive.) Rather than patch every delete/deselect call-site, the canvas
  * reconciles its mode ids against the live layer set and the current selection:
  * any id whose frame is gone or no longer selected becomes `null`.
  *
@@ -51,4 +51,22 @@ function clearIfInactive(
   if (!existingLayerIds.has(id)) return null
   if (!selectedLayerIds.has(id)) return null
   return id
+}
+
+/**
+ * Whether a double-click on a frame's body enters Focus ("interactive") mode.
+ * Only a frame with a live preview (an assigned Branch) has anything to
+ * interact with, and while a canvas tool owns the pointer (comment placement,
+ * an armed element pick, a held space-to-pan) the double-click belongs to
+ * that tool instead. A frame already interactive never sees the double-click:
+ * its pointers go to the iframe.
+ */
+export function canInteractOnDoubleClick(input: {
+  hasPreview: boolean
+  commentMode: boolean
+  pickActive: boolean
+  spaceHeld: boolean
+}): boolean {
+  const { hasPreview, commentMode, pickActive, spaceHeld } = input
+  return hasPreview && !commentMode && !pickActive && !spaceHeld
 }

@@ -648,6 +648,16 @@
     { passive: false }
   )
 
+  // Esc inside the preview. Keyboard events don't cross the iframe boundary,
+  // so without this the canvas never hears Esc once the user clicks into an
+  // interactive frame. Listen at the window in the bubble phase so the page
+  // handles it first: when the page claims the key (Radix and most dialog
+  // libraries preventDefault as they close), the frame stays interactive.
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented || e.isComposing) return
+    parent.postMessage({ type: "screenplay:escape" }, "*")
+  })
+
   parent.postMessage(
     {
       type: "screenplay:ready",

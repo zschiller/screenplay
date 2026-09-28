@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
+import {
+  canInteractOnDoubleClick,
+  reconcileInteractionMode,
+} from "@/lib/canvas/interaction-mode"
 
 describe("reconcileInteractionMode", () => {
   it("clears a dangling focused id to null", () => {
@@ -108,5 +111,28 @@ describe("reconcileInteractionMode", () => {
         selectedLayerIds: new Set(["a", "b"]),
       })
     ).toEqual({ focusedId: "a", createFlowId: null })
+  })
+})
+
+describe("canInteractOnDoubleClick", () => {
+  const idle = {
+    hasPreview: true,
+    commentMode: false,
+    pickActive: false,
+    spaceHeld: false,
+  }
+
+  it("enters interaction on a frame with a live preview", () => {
+    expect(canInteractOnDoubleClick(idle)).toBe(true)
+  })
+
+  it("does nothing on a frame with no preview to interact with", () => {
+    expect(canInteractOnDoubleClick({ ...idle, hasPreview: false })).toBe(false)
+  })
+
+  it("leaves the double-click to an active canvas tool", () => {
+    expect(canInteractOnDoubleClick({ ...idle, commentMode: true })).toBe(false)
+    expect(canInteractOnDoubleClick({ ...idle, pickActive: true })).toBe(false)
+    expect(canInteractOnDoubleClick({ ...idle, spaceHeld: true })).toBe(false)
   })
 })
