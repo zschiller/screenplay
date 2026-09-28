@@ -11,7 +11,7 @@ type FrameBranch = Pick<IframeLayerData, "branchId">
  */
 export function groupBranchId(
   group: Pick<IframeLayerGroupData, "branchId" | "members" | "iframeLayerIds">,
-  framesById: ReadonlyMap<string, FrameBranch>
+  framesById: Pick<ReadonlyMap<string, FrameBranch>, "get">
 ): string | undefined {
   if (group.branchId) return group.branchId
   for (const m of getGroupMembers(group as IframeLayerGroupData)) {
@@ -87,4 +87,14 @@ export function groupSwitchSummary(
     lines.push(`${listed} stay on their own workspaces.`)
   }
   return lines
+}
+
+/**
+ * The footer under an unassigned Group's "Choose a workspace" list (#871):
+ * the pick sets every frame in the Group.
+ */
+export function groupAssignSummary(frames: number): string {
+  if (frames === 1) return "Applies to its frame."
+  if (frames === 2) return "Applies to both frames."
+  return `Applies to all ${frames} frames.`
 }

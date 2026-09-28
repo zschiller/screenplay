@@ -396,7 +396,18 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       if (remaining.length === before.length) continue
       collections.iframeLayerGroups.update(group.id, { members: remaining })
       pruneIfEmpty(group.id)
+      clearBranchIfNoFrames(group.id)
     }
+  }
+
+  // A Group holding only documents has no Workspace (#871): once its last
+  // frame leaves (moved, split off or deleted) it drops the one it named, so
+  // the next frame to join sets it. Caller must already be inside a `batch`.
+  function clearBranchIfNoFrames(groupId: string): void {
+    const group = collections.iframeLayerGroups.get(groupId)
+    if (!group?.branchId) return
+    if (getGroupMembers(group).some((m) => m.kind === "iframe-layer")) return
+    collections.iframeLayerGroups.update(groupId, { branchId: undefined })
   }
 
   // A Group whose Workspace was removed falls back to its leftmost remaining
@@ -1019,6 +1030,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       })
       collections.iframeLayerGroups.update(target.id, { members: nextTarget })
       pruneIfEmpty(source.id)
+      clearBranchIfNoFrames(source.id)
     })
   }
 
@@ -1079,7 +1091,10 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         members: newMembers,
         ...(branchId ? { branchId } : {}),
       })
-      for (const sourceId of touchedSources) pruneIfEmpty(sourceId)
+      for (const sourceId of touchedSources) {
+        pruneIfEmpty(sourceId)
+        clearBranchIfNoFrames(sourceId)
+      }
     })
     return newGroupId
   }

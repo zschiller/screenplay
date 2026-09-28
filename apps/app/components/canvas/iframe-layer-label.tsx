@@ -73,8 +73,9 @@ export function IframeLayerLabel({
   )?.colorIndex
   let trailing: React.ReactNode = null
   if (!branch) {
-    // An unassigned frame offers the list, as its body does.
-    if (onAssignBranch) {
+    // An unassigned frame offers the list, as its body does, unless its
+    // Group's label offers it for every frame at once (#871).
+    if (onAssignBranch && showWorkspace) {
       trailing = (
         <BranchPicker
           assignableBranches={assignableBranches ?? []}

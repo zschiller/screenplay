@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { UndoManager } from "yjs"
+import {
+  groupBranchId,
+  isWorkspaceException,
+} from "@/lib/canvas/group-workspace"
 import { CANVAS_OPS_ORIGIN } from "@/lib/canvas/ops"
 import {
   MIN_IFRAME_LAYER_HEIGHT,
@@ -1436,5 +1440,103 @@ describe("assignGroupBranch", () => {
     const { ops, collections } = seedCartGroup()
     ops.assignGroupBranch("missing", "ws-cp")
     expect(collections.iframeLayerGroups.has("missing")).toBe(false)
+  })
+})
+
+describe("Unassigned Groups (#871)", () => {
+  // "notes" names agent-1 and holds one frame beside a document; "cart" is
+  // another Group on agent-2.
+  function notesGroup() {
+    const h = makeHarness()
+    const { collections } = h
+    collections.iframeLayers.set(
+      "sketch",
+      baseLayer("sketch", { branchId: "agent-1" })
+    )
+    collections.iframeLayers.set(
+      "cart-1",
+      baseLayer("cart-1", { branchId: "agent-2" })
+    )
+    collections.markdownLayers.set("brief", baseDoc("brief"))
+    seedGroup(collections, "notes", [
+      { kind: "iframe-layer", id: "sketch" },
+      { kind: "markdown-layer", id: "brief" },
+    ])
+    collections.iframeLayerGroups.update("notes", { branchId: "agent-1" })
+    seedGroup(collections, "cart", [{ kind: "iframe-layer", id: "cart-1" }])
+    collections.iframeLayerGroups.update("cart", { branchId: "agent-2" })
+    return h
+  }
+
+  it("clears a Group's Workspace when its last frame is moved out", () => {
+    const { ops, collections } = notesGroup()
+
+    ops.moveLayerToGroup("sketch", "cart")
+
+    expect(collections.iframeLayerGroups.get("notes")?.branchId).toBeUndefined()
+    // The moved frame keeps what it shows (#870).
+    expect(collections.iframeLayers.get("sketch")?.branchId).toBe("agent-1")
+  })
+
+  it("clears a Group's Workspace when its last frame is split off", () => {
+    const { ops, collections } = notesGroup()
+
+    ops.splitToNewGroup(["sketch"], { x: 0, y: 0 })
+
+    expect(collections.iframeLayerGroups.get("notes")?.branchId).toBeUndefined()
+  })
+
+  it("clears a Group's Workspace when its last frame is deleted", () => {
+    const { ops, collections } = notesGroup()
+
+    ops.removeLayers(["sketch"])
+
+    expect(collections.iframeLayerGroups.get("notes")?.branchId).toBeUndefined()
+  })
+
+  it("lets the next frame to join a documents-only Group set its Workspace", () => {
+    const { ops, collections } = notesGroup()
+    ops.removeLayers(["sketch"])
+
+    ops.moveLayerToGroup("cart-1", "notes")
+
+    const notes = collections.iframeLayerGroups.get("notes")!
+    const branch = groupBranchId(notes, collections.iframeLayers)
+    expect(branch).toBe("agent-2")
+    expect(
+      isWorkspaceException(collections.iframeLayers.get("cart-1")!, branch)
+    ).toBe(false)
+  })
+
+  it("keeps the Workspace while a frame is left", () => {
+    const { ops, collections } = notesGroup()
+    collections.iframeLayers.set("sketch-2", baseLayer("sketch-2"))
+    collections.iframeLayerGroups.update("notes", {
+      members: [
+        { kind: "iframe-layer", id: "sketch" },
+        { kind: "iframe-layer", id: "sketch-2" },
+        { kind: "markdown-layer", id: "brief" },
+      ],
+    })
+
+    ops.moveLayerToGroup("sketch", "cart")
+
+    expect(collections.iframeLayerGroups.get("notes")?.branchId).toBe("agent-1")
+  })
+
+  it("sets an unassigned Group and all its frames from one pick", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set("a", baseLayer("a"))
+    collections.iframeLayers.set("b", baseLayer("b"))
+    seedGroup(collections, "g", [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "iframe-layer", id: "b" },
+    ])
+
+    ops.assignGroupBranch("g", "agent-1")
+
+    expect(collections.iframeLayerGroups.get("g")?.branchId).toBe("agent-1")
+    expect(collections.iframeLayers.get("a")?.branchId).toBe("agent-1")
+    expect(collections.iframeLayers.get("b")?.branchId).toBe("agent-1")
   })
 })

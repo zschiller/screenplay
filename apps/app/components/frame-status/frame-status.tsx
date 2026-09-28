@@ -24,7 +24,8 @@ import type { FrameStage } from "./frame-stage"
 
 export interface FrameStatusProps {
   stage: FrameStage
-  /** The Workspace's status line (booting/starting) or error (workspace-failed). */
+  /** The Workspace's status line (booting/starting), error (workspace-failed),
+   *  or where to choose one (unassigned). */
   detail?: string
   /** Retry after a failure: restart the Workspace, or re-probe the dev server. */
   onRetry?: () => void
@@ -116,7 +117,9 @@ export function FrameStatus({
           </EmptyDescription>
         ) : (
           <EmptyDescription className="text-xs/relaxed">
-            {progress && detail ? detail : copy.description}
+            {(progress || stage === "unassigned") && detail
+              ? detail
+              : copy.description}
           </EmptyDescription>
         )}
       </EmptyHeader>
