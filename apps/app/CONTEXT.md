@@ -248,14 +248,17 @@ capabilities: `openRoom(roomId)` resolves the session, requires membership
 build, see **Multi-user surface**), and hands back a handle whose
 `mutateDoc`/`readDoc` are the only room-doc access the caller gets. A
 non-member is rejected before anything touches the Room. Every server action,
-route and page that reads or writes a room doc goes through it (#904, #906);
-code working on a member's behalf is handed the opened Room rather than a
+route and page that reads or writes a room doc goes through it (#904, #906).
+Route handlers use `openRoomForRoute(roomId, chatId?)`, which returns the 401
+or 403 response instead of throwing and, given a `chatId`, refuses a chat
+recorded under another Room. Code working on a member's behalf is handed the
+opened Room (a `RoomDoc`, or a read-only `RoomReader`) rather than a
 `roomId`: an agent turn's tools and naming get it from the agent route, and the
 comment doorbells, PR create, thumbnail capture and Room teardown take it from
 their caller. The one session-less opener, `readRoomForServer`, is read only
 and serves the server-triggered thumbnail layout rebuild. The raw
 `mutateRoomDoc`/`readRoomDoc` helpers are private to Room Access, and
-`room-access-guard.test.ts` fails if anything else imports them.
+`room-access-guard.test.ts` fails if anything else imports them. See ADR 0017.
 _Avoid_: checking membership ad hoc in a new action; passing a bare `roomId` to
 code that touches the room doc; "permissions" (Room Access is membership, not
 per-comment or per-role rules).
@@ -424,9 +427,15 @@ It is the **React effects, not a new write path**: storage writes go through the
 injected `updateChatSession` (a Chat Session Writes wrapper, ADR 0001), the
 chat-store calls are the existing `chatStore` API. Names are not synced here:
 **the server writes names, clients observe** (#910). Turn Launch writes a new
-chat's label and the Branch's auto-named ref and flag to the room doc and renames
-the git branch itself (`lib/agent/auto-naming.ts`), exactly once whatever
-surfaces or clients are open; no browser applies a rename.
+chat's label, the Workspace's title (only when it has none) and the Branch's
+auto-named ref and flag to the room doc, then renames the git branch itself
+(`lib/agent/auto-naming.ts`), exactly once whatever surfaces or clients are
+open; no browser applies a rename. The doc write is the claim: one transaction
+checks the Branch is still auto-named and flips the flag, so racing turns can't
+both rename it, and a git refusal puts the Branch back unless someone renamed it
+again meanwhile. Branch Intake still asks `/api/agent/generate-names` for names
+when it creates prompt-seeded Branches; that picks a new Branch's name up front
+and is not auto-naming. See ADR 0017.
 _Avoid_: putting these sync effects back on the composition root (instantiate the
 owner); folding the streaming-heal back into Sandbox Reconnect (it is chat-store
 hydration); a client-side rename callback or broadcast for auto-naming (it made
@@ -674,11 +683,17 @@ the stream and plan routes are auth, body parsing and HTTP mapping. The abort
 watchdog stays at the Engine drive (ADR 0006).
 Turn Launch also owns stopping a turn (`stopTurn`, what `/api/agent/stop`
 calls) and the one decision about how an unfinished run reads, live and on
-reload: a user stop records `aborted` and ends in a "Stopped" marker; a
-superseded run leaves nothing. Neither is an error: every Engine reports both as
-a `cancelled` stop, and the consumer shows no error bubble.
+reload: a user stop records `aborted` (`STOPPED_RUN_STATUS`) and ends in a
+"Stopped" marker, which `stopTurn` broadcasts live and the history route rebuilds
+from the run's status; a run `superseded` by a plan decision or a new message
+leaves nothing, since the next turn carries on. Neither is an error: every
+Engine reports both as a `cancelled` stop, and the consumer shows no error
+bubble. `stopTurn` records the status before the marker, and ends the stream
+even when no run is active; the abort watchdog sees the status and aborts the
+Engine. See ADR 0017.
 _Avoid_: copying these steps into a route; resolving a plan outside Turn
-Launch.
+Launch; a stop path that ends the stream without recording `aborted` (reload
+would show a finished run).
 
 **Harness** (BYO Coding CLI):
 An external, bring-your-own coding agent CLI — Claude Code, Codex, aider —
