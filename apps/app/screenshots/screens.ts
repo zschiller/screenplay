@@ -678,7 +678,7 @@ export const SCREENS: Screen[] = [
       "The chat header for a Workspace whose PR merged: the PR button in GitHub purple.",
     path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
-    prepare: (page) => selectWorkspace(page, "pricing-tiers"),
+    prepare: (page) => selectWorkspace(page, "Pricing tiers"),
     settleMs: 400,
   },
   {
