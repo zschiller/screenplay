@@ -432,8 +432,8 @@ export function PlayerHud({
               }}
               describeLayer={comments.describeWorkspace}
               groupOptions={comments.groupOptions}
-              // The HUD's panel is the surface; the list fills it.
-              className="static size-full animate-none rounded-none shadow-none ring-0"
+              // The HUD's panel is the surface, the same as the pill's; the list fills it.
+              className="static size-full animate-none rounded-none bg-transparent shadow-none ring-0"
             />
           ) : (
             <PlayerKnobs
