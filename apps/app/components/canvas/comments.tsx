@@ -1,42 +1,24 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
-import { motion } from "motion/react"
-import { ArrowUp, CheckCircle2, MoreHorizontal, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ArrowUp } from "lucide-react"
 import type { Editor } from "@tiptap/core"
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { Textarea } from "@workspace/ui/components/textarea"
-import { cn } from "@workspace/ui/lib/utils"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
 import { useAppSession } from "@/lib/auth-client"
-import type { ElementAnchor, Placement } from "@/lib/comment-anchor"
 import {
-  appendCommentAction,
   createThreadAction,
-  deleteCommentAction,
-  deleteThreadAction,
   markThreadUnreadAction,
-  setThreadResolvedAction,
 } from "@/lib/comments-actions"
-import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
+import type { ThreadWithComments } from "@/lib/comments"
+import { selectorLabel } from "@/lib/comment-element-label"
+import { listCollaborators } from "@/lib/rooms-actions"
+import type { ElementAnchor, Placement } from "@/lib/comment-anchor"
 import { decodeAnchor, getLineNumbers } from "@/lib/document-comments"
 import {
   setDocumentCommentRanges,
@@ -44,14 +26,21 @@ import {
 } from "@/lib/document-comments-extension"
 import { isLocalBuild } from "@/lib/local-mode"
 
+import {
+  CommentPinMark,
+  ComposerFooter,
+  MentionTextarea,
+  PlaceChip,
+  ThreadCard,
+  threadNumbers,
+  type CommentMember,
+} from "./comment-thread-card"
 import type { CommentThreads } from "./use-comment-threads"
 
-/**
- * The one shape every comment pin takes — placed threads and the new-comment
- * anchor alike: a rounded bubble whose bottom-left corner is the point it
- * marks.
- */
-const PIN_SHAPE = "rounded-2xl rounded-bl-xs"
+export { formatRelative, PillAvatar } from "./comment-thread-card"
+
+/** The pin's size in screen pixels; its bottom-left tip is the point. */
+const PIN_PX = 26
 
 interface IframeLayerPos {
   id: string
@@ -68,9 +57,6 @@ interface NewCommentPos {
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
-  /** The element's anchor keys and the frame's path, from the bridge (#785). */
-  anchor?: ElementAnchor | null
-  route?: string | null
   /** Inline document-layer anchor (set when the user clicked the bubble
    *  "Comment" button on a text selection inside a doc layer). */
   documentId?: string | null
@@ -79,6 +65,9 @@ interface NewCommentPos {
   quotedText?: string | null
   lineFrom?: number | null
   lineTo?: number | null
+  /** The element's anchor keys and the frame's path, from the bridge (#785). */
+  anchor?: ElementAnchor | null
+  route?: string | null
 }
 
 export interface SendToChatContext {
@@ -90,7 +79,7 @@ export interface SendToChatContext {
   lineTo?: number | null
 }
 
-interface CommentsProps {
+export interface CommentsProps {
   roomId: string
   zoom: number
   newCommentPos: NewCommentPos | null
@@ -100,8 +89,9 @@ interface CommentsProps {
   /** The Workspace and shared route of each frame, by id: what a new frame
    *  comment is anchored to beyond its element (#785). */
   frameInfo?: ReadonlyMap<string, { branchId?: string; route?: string }>
-  /** Where each open frame or document thread shows for this viewer (see
-   *  `useCommentPlacements`). Only `pinned` threads get a pin. */
+  /** Where each open frame or document thread (and an active resolved one)
+   *  shows for this viewer (see `useCommentPlacements`). Only `pinned`
+   *  threads get a pin. */
   placements: ReadonlyMap<string, Placement>
   /** Look up a registered markdown-layer editor by id — used to render inline
    *  highlights and project pin positions to the right margin. */
@@ -122,6 +112,8 @@ interface CommentsProps {
   /** Open an existing thread by id — drives highlight clicks inside docs. */
   activeThreadId?: string | null
   onActivateThread?: (threadId: string | null) => void
+  /** Names a frame or document layer for the thread card's chip. */
+  describeLayer?: (id: string) => { title?: string; route?: string } | undefined
 }
 
 export function Comments({
@@ -139,9 +131,9 @@ export function Comments({
   onSendToChat,
   activeThreadId: controlledActiveThreadId,
   onActivateThread,
+  describeLayer,
 }: CommentsProps) {
-  const { data: session } = useAppSession()
-  const { threads, markRead, setThreadUnread } = commentThreads
+  const { threads, markRead } = commentThreads
   const [internalActiveThreadId, setInternalActiveThreadId] = useState<
     string | null
   >(null)
@@ -251,32 +243,68 @@ export function Comments({
     ? frameInfo?.get(newCommentPos.iframeLayerId)
     : undefined
 
+  const numberById = useMemo(() => threadNumbers(threads), [threads])
+
+  const activeThread = activeThreadId
+    ? threads.find((t) => t.id === activeThreadId)
+    : undefined
+  const activePlacement = activeThreadId
+    ? placements.get(activeThreadId)
+    : undefined
+  const activeRect =
+    activePlacement?.kind === "pinned"
+      ? (activePlacement.element ?? null)
+      : null
+  const members = useRoomMembers(
+    roomId,
+    !isLocalBuild && (!!activeThread || !!newCommentPos)
+  )
+
   return (
     <>
       {threads
-        .filter((t) => !t.resolved)
+        // A resolved thread leaves the canvas, but opening it from the
+        // thread list shows it until it's closed again.
+        .filter((t) => !t.resolved || t.id === activeThreadId)
         .map((thread) => {
           const pos = threadPos(thread)
           if (!pos) return null
+          const isOpen = activeThreadId === thread.id
+          const layer = thread.iframeLayerId
+            ? iframeLayerById.get(thread.iframeLayerId)
+            : undefined
+          const elementBox =
+            isOpen && layer && activeRect
+              ? {
+                  x: layer.x + activeRect.x,
+                  y: layer.y + activeRect.y,
+                  width: activeRect.width,
+                  height: activeRect.height,
+                }
+              : null
           return (
             <CommentPin
               key={thread.id}
               thread={thread}
+              number={numberById.get(thread.id) ?? null}
               pos={pos}
-              pinStyle={pinStyle}
-              isOpen={activeThreadId === thread.id}
-              currentUserId={session?.user.id ?? null}
-              getDocumentEditor={getDocumentEditor}
+              zoom={zoom}
+              elementBox={elementBox}
+              isOpen={isOpen}
               onOpenChange={(open) => {
                 setActiveThreadId(open ? thread.id : null)
                 if (open && thread.unread) markRead(thread.id)
               }}
-              onClose={() => setActiveThreadId(null)}
-              onMarkUnread={() => {
-                setThreadUnread(thread.id, true)
-                setActiveThreadId(null)
-              }}
-            />
+            >
+              <OpenThreadCard
+                thread={thread}
+                commentThreads={commentThreads}
+                members={members}
+                describeLayer={describeLayer}
+                getDocumentEditor={getDocumentEditor}
+                onClose={() => setActiveThreadId(null)}
+              />
+            </CommentPin>
           )
         })}
 
@@ -294,30 +322,32 @@ export function Comments({
               }}
             >
               <PopoverAnchor asChild>
-                {/* The pin this comment will become, in the author's own
-                    avatar, so placing a comment previews its result. */}
-                <div
-                  aria-hidden
-                  className={cn(
-                    "absolute bottom-0 left-0 flex size-8 items-center justify-center bg-popover text-popover-foreground shadow-md ring-1 ring-border",
-                    PIN_SHAPE
-                  )}
-                >
-                  <PillAvatar
-                    name={session?.user.name ?? "?"}
-                    avatar={session?.user.image ?? null}
+                {/* The pin this comment will become, numbered as it will be,
+                    so placing a comment previews its result. */}
+                <div aria-hidden className="absolute bottom-0 left-0">
+                  <CommentPinMark
+                    number={isLocalBuild ? null : threads.length + 1}
                   />
                 </div>
               </PopoverAnchor>
               <PopoverContent
                 side="right"
                 align="start"
-                className="w-80"
+                className="w-[250px] p-3"
                 onPointerDownOutside={(e) => e.preventDefault()}
                 onClick={(e) => e.stopPropagation()}
               >
                 <NewThreadComposer
                   roomId={roomId}
+                  place={describePlace(
+                    {
+                      documentId: newCommentPos.documentId ?? null,
+                      iframeLayerId: newCommentPos.iframeLayerId ?? null,
+                      selector: newCommentPos.selector ?? null,
+                    },
+                    describeLayer
+                  )}
+                  members={members}
                   x={newCommentPos.x}
                   y={newCommentPos.y}
                   iframeLayerId={newCommentPos.iframeLayerId}
@@ -380,139 +410,227 @@ export function Comments({
   )
 }
 
-function CommentPin({
+/** The thread card's chip: the frame's route and the element, or the
+ *  document's title. */
+function describePlace(
+  thread: Pick<ThreadWithComments, "documentId" | "iframeLayerId" | "selector">,
+  describeLayer: CommentsProps["describeLayer"]
+): string | null {
+  const layerId = thread.documentId ?? thread.iframeLayerId
+  const layer = layerId ? describeLayer?.(layerId) : undefined
+  if (thread.documentId) return layer?.title || null
+  const parts = [layer?.route, selectorLabel(thread.selector)].filter(Boolean)
+  if (parts.length > 0) return parts.join(" · ")
+  return layer?.title || null
+}
+
+/**
+ * An open thread's card, wired to the thread store: on the canvas beside its
+ * pin, or in the comments menu for a detached thread that has no pin.
+ */
+export function OpenThreadCard({
   thread,
-  pos,
-  pinStyle,
-  isOpen,
-  currentUserId,
+  commentThreads,
+  members,
+  describeLayer,
   getDocumentEditor,
-  onOpenChange,
   onClose,
-  onMarkUnread,
 }: {
   thread: ThreadWithComments
-  pos: { x: number; y: number }
-  pinStyle: { transform: string; transformOrigin: "bottom left" }
-  isOpen: boolean
-  currentUserId: string | null
+  commentThreads: CommentThreads
+  members: CommentMember[]
+  describeLayer: CommentsProps["describeLayer"]
   getDocumentEditor?: (id: string) => Editor | undefined
-  onOpenChange: (open: boolean) => void
   onClose: () => void
-  onMarkUnread: () => void
 }) {
-  const [hovered, setHovered] = useState(false)
-  // Pin only expands while hovered AND popover is closed. Opening the
-  // popover snaps the pin back to its 32×32 footprint so the popover
-  // visually anchors to a stable point.
-  const expanded = hovered && !isOpen
+  const { data: session } = useAppSession()
+  const { setThreadUnread, setResolved, deleteWithUndo } = commentThreads
+  return (
+    <ThreadCard
+      thread={thread}
+      place={describePlace(thread, describeLayer)}
+      quote={
+        thread.quotedText ? (
+          <ThreadQuote thread={thread} getDocumentEditor={getDocumentEditor} />
+        ) : undefined
+      }
+      currentUserId={session?.user.id ?? null}
+      members={members}
+      onResolve={() => {
+        onClose()
+        setResolved(thread.id, true)
+      }}
+      onReopen={() => setResolved(thread.id, false)}
+      onMarkUnread={() => {
+        setThreadUnread(thread.id, true)
+        onClose()
+        markThreadUnreadAction(thread.id).catch((e) =>
+          console.error("markThreadUnread failed:", e)
+        )
+      }}
+      onDeleteThread={() => {
+        onClose()
+        deleteWithUndo({ threadId: thread.id })
+      }}
+      onDeleteComment={(commentId) => {
+        // Deleting the only comment deletes the thread with it.
+        if (thread.comments.length === 1) onClose()
+        deleteWithUndo({ threadId: thread.id, commentId })
+      }}
+    />
+  )
+}
+
+/** The room's members for @mentions, fetched once the first card opens. */
+export function useRoomMembers(
+  roomId: string,
+  enabled: boolean
+): CommentMember[] {
+  const [members, setMembers] = useState<CommentMember[] | null>(null)
+  const requested = useRef(false)
+  useEffect(() => {
+    if (!enabled || requested.current) return
+    requested.current = true
+    listCollaborators(roomId)
+      .then((rows) =>
+        setMembers(
+          rows.map((r) => ({
+            userId: r.userId,
+            name: r.name,
+            avatar: r.avatar,
+          }))
+        )
+      )
+      .catch((e) => {
+        // Mentions just won't suggest anyone; the card still works.
+        console.error("listCollaborators failed:", e)
+        requested.current = false
+      })
+  }, [roomId, enabled])
+  return members ?? EMPTY_MEMBERS
+}
+
+const EMPTY_MEMBERS: CommentMember[] = []
+
+function CommentPin({
+  thread,
+  number,
+  pos,
+  zoom,
+  elementBox,
+  isOpen,
+  onOpenChange,
+  children,
+}: {
+  thread: ThreadWithComments
+  number: number | null
+  pos: { x: number; y: number }
+  zoom: number
+  /** The element the thread points at, in canvas units, while it's open. */
+  elementBox: { x: number; y: number; width: number; height: number } | null
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  children: React.ReactNode
+}) {
   const firstComment = thread.comments[0]
+  // The card opens beside the element when we know where it is, else beside
+  // the pin. Both boxes are in canvas units relative to the pin's point.
+  const pinSize = PIN_PX / zoom
+  const pinBox = { left: 0, top: -pinSize, width: pinSize, height: pinSize }
+  const box = elementBox
+    ? {
+        left: elementBox.x - pos.x,
+        top: elementBox.y - pos.y,
+        width: elementBox.width,
+        height: elementBox.height,
+      }
+    : pinBox
+  // The card anchors to the element and its pin together, so a pin on the
+  // element's edge doesn't end up under the card.
+  const anchor = unionBox(box, pinBox)
   return (
     <div
-      // A hovered pin lifts over its neighbours, still under the composer.
-      className="absolute size-0 hover:z-1"
+      // A hovered or open pin lifts over its neighbours, still under the
+      // composer.
+      className={isOpen ? "absolute z-1 size-0" : "absolute size-0 hover:z-1"}
       // The top bar's thread list finds a pin by this to bring it into view.
       data-comment-thread-id={thread.id}
       style={{ left: pos.x, top: pos.y }}
     >
-      <div style={pinStyle}>
-        <Popover open={isOpen} onOpenChange={onOpenChange}>
-          {/* Fixed-size trigger pinned to the collapsed pin footprint.
-              Radix positions the popover against this stable rect, so the
-              popover stays glued to the pin tip while the inner card
-              hover-expands. Click bubbles from the inner button to this
-              wrapper, which is what Radix wires open/close to. */}
-          <PopoverTrigger asChild>
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="pointer-events-auto"
-              style={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                width: "2rem",
-                height: "2rem",
-              }}
-            >
-              <motion.button
-                type="button"
-                onHoverStart={() => setHovered(true)}
-                onHoverEnd={() => setHovered(false)}
-                animate={{
-                  width: expanded ? 320 : 32,
-                  height: expanded ? 64 : 32,
-                  paddingLeft: expanded ? 8 : 0,
-                  paddingRight: expanded ? 8 : 0,
-                  paddingTop: expanded ? 12 : 0,
-                  paddingBottom: expanded ? 12 : 0,
-                  alignItems: expanded ? "flex-start" : "center",
-                }}
-                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className={cn(
-                  "absolute bottom-0 left-0 flex overflow-hidden shadow-md ring-1 transition-colors duration-200",
-                  PIN_SHAPE,
-                  thread.unread
-                    ? "bg-info text-info-foreground ring-info hover:bg-info/90"
-                    : "bg-popover text-popover-foreground ring-border hover:bg-accent"
-                )}
-                aria-label={`Open thread by ${firstComment?.authorName ?? "user"}${thread.unread ? " (unread)" : ""}`}
-              >
-                <motion.div
-                  className="flex size-8 shrink-0 justify-center"
-                  animate={{ alignItems: expanded ? "flex-start" : "center" }}
-                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <PillAvatar
-                    name={firstComment?.authorName ?? "?"}
-                    avatar={firstComment?.authorAvatar ?? null}
-                  />
-                </motion.div>
-                {firstComment && (
-                  <motion.div
-                    aria-hidden
-                    className="pointer-events-none mr-4 ml-2 flex min-w-0 flex-col gap-0 text-left leading-tight"
-                    animate={{ opacity: expanded ? 1 : 0 }}
-                    transition={{
-                      duration: 0.15,
-                      ease: "easeOut",
-                      delay: expanded ? 0.1 : 0,
-                    }}
-                  >
-                    <div className="flex items-baseline gap-1.5 text-sm">
-                      <span className="truncate font-semibold">
-                        {firstComment.authorName}
-                      </span>
-                      <span className="shrink-0 opacity-60">
-                        {formatRelative(firstComment.createdAt)}
-                      </span>
-                    </div>
-                    <div className="truncate text-sm">{firstComment.body}</div>
-                  </motion.div>
-                )}
-              </motion.button>
-            </div>
-          </PopoverTrigger>
-          <PopoverContent
-            side="right"
-            align="start"
-            className="w-80 p-0"
-            onPointerDownOutside={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            // Without this the popover auto-focuses the first focusable
-            // element (the Resolve button), which fires the tooltip's
-            // focus handler and pops it open every time the thread opens.
-            onOpenAutoFocus={(e) => e.preventDefault()}
+      <Popover open={isOpen} onOpenChange={onOpenChange}>
+        <PopoverAnchor asChild>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute"
+            style={anchor}
+          />
+        </PopoverAnchor>
+        {elementBox && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute"
+            style={{
+              ...box,
+              // A screen-constant 2px outline, 2px off the element.
+              outline: `${2 / zoom}px solid var(--canvas-comment)`,
+              outlineOffset: `${2 / zoom}px`,
+              borderRadius: `${4 / zoom}px`,
+            }}
+          />
+        )}
+        <div
+          style={{
+            position: "relative",
+            transform: `scale(${1 / zoom})`,
+            transformOrigin: "bottom left",
+          }}
+        >
+          <button
+            type="button"
+            // Not a PopoverTrigger: the card anchors to the element box
+            // above, and a trigger would claim the anchor for itself.
+            data-comment-pin
+            aria-expanded={isOpen}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenChange(!isOpen)
+            }}
+            className="pointer-events-auto absolute bottom-0 left-0 rounded-[13px_13px_13px_3px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            aria-label={`Comment ${number ?? ""} by ${firstComment?.authorName ?? "user"}${thread.unread ? " (unread)" : ""}${thread.resolved ? " (resolved)" : ""}`}
           >
-            <ThreadView
-              thread={thread}
-              currentUserId={currentUserId}
-              getDocumentEditor={getDocumentEditor}
-              onClose={onClose}
-              onMarkUnread={onMarkUnread}
+            <CommentPinMark
+              number={number}
+              unread={thread.unread}
+              resolved={thread.resolved}
+              className="transition-transform hover:scale-110"
             />
-          </PopoverContent>
-        </Popover>
-      </div>
+          </button>
+        </div>
+        <PopoverContent
+          side="right"
+          align="start"
+          sideOffset={8}
+          className="w-[250px] p-3"
+          onPointerDownOutside={(e) => {
+            e.stopPropagation()
+            // A press on this thread's own pin toggles it in its click.
+            const target = e.detail.originalEvent.target as Element | null
+            if (
+              target?.closest(
+                `[data-comment-thread-id="${CSS.escape(thread.id)}"] [data-comment-pin]`
+              )
+            ) {
+              e.preventDefault()
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          // Without this the popover auto-focuses the first focusable
+          // element (Resolve), which pops its tooltip every time.
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          {children}
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
@@ -528,6 +646,8 @@ interface FrameAnchor {
 
 function NewThreadComposer({
   roomId,
+  place,
+  members,
   x,
   y,
   iframeLayerId,
@@ -546,6 +666,8 @@ function NewThreadComposer({
   onSendToChat,
 }: {
   roomId: string
+  place: string | null
+  members: CommentMember[]
   x: number
   y: number
   iframeLayerId?: string
@@ -564,9 +686,16 @@ function NewThreadComposer({
   onSendToChat?: (text: string) => void
 }) {
   const [body, setBody] = useState("")
-  const [pending, start] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+  const empty = !body.trim()
   return (
-    <>
+    <div className="flex flex-col gap-2.5">
+      {place && (
+        <div className="flex">
+          <PlaceChip place={place} />
+        </div>
+      )}
       {quotedText && (
         <QuoteHeader
           quotedText={quotedText}
@@ -574,116 +703,80 @@ function NewThreadComposer({
           lineTo={lineTo ?? null}
         />
       )}
-      <Textarea
+      <MentionTextarea
         autoFocus
         rows={3}
-        className="max-h-40 resize-none"
         placeholder="Add a comment…"
         value={body}
-        onChange={(e) => setBody(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter") return
-          if (isLocalBuild) {
-            // Desktop has no comment threads — plain Enter sends the
-            // selection to the agent; Shift+Enter inserts a newline.
-            if (!e.shiftKey && onSendToChat) {
-              e.preventDefault()
-              sendToChat()
-            }
-            return
-          }
-          // Web: Cmd/Ctrl+Enter creates the comment thread.
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault()
-            submit()
-          }
+        onChange={(v) => {
+          setBody(v)
+          setError(null)
         }}
+        members={members}
+        // Desktop has no comment threads: plain Enter sends the selection to
+        // the agent, Shift+Enter adds a line. Web: Cmd/Ctrl+Enter comments.
+        submitOnEnter={isLocalBuild}
+        onSubmit={isLocalBuild ? sendToChat : submit}
+        onEscape={onCancel}
       />
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center">
-          {/* Web: send-to-agent is the secondary, left-aligned action that
-              sits alongside the primary "Comment" CTA. */}
-          {onSendToChat && !isLocalBuild && (
-            <SendToAgentTooltip>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={sendToChat}
-                disabled={pending || !body.trim()}
-                className="gap-1 px-2"
-              >
-                <ArrowUp className="size-3.5" />
-                Send to agent
-              </Button>
-            </SendToAgentTooltip>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onCancel}
-            disabled={pending}
+      <ComposerFooter error={error}>
+        {/* Web: send-to-agent is a quiet icon beside the primary Comment. */}
+        {onSendToChat && !isLocalBuild && (
+          <IconButton
+            label="Send as a message to the agent"
+            onClick={sendToChat}
+            disabled={pending || empty}
           >
-            Cancel
-          </Button>
-          {/* Persisted comment threads are excluded from the local build
-              (#417), so on desktop send-to-agent becomes the primary CTA;
-              on web "Comment" stays primary and send-to-agent is the ghost
-              button above. */}
-          {isLocalBuild ? (
-            onSendToChat && (
-              <SendToAgentTooltip>
-                <Button
-                  size="sm"
-                  onClick={sendToChat}
-                  disabled={pending || !body.trim()}
-                  className="gap-1"
-                >
-                  <ArrowUp className="size-3.5" />
-                  Send to agent
-                </Button>
-              </SendToAgentTooltip>
-            )
-          ) : (
-            <Button
-              size="sm"
-              onClick={submit}
-              disabled={pending || !body.trim()}
-            >
-              Comment
+            <ArrowUp />
+          </IconButton>
+        )}
+        <Button size="xs" variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        {/* Persisted comment threads are excluded from the local build
+            (#417), so on desktop send-to-agent is the primary action. */}
+        {isLocalBuild ? (
+          onSendToChat && (
+            <Button size="xs" onClick={sendToChat} disabled={pending || empty}>
+              Send to agent
             </Button>
-          )}
-        </div>
-      </div>
-    </>
+          )
+        ) : (
+          <Button size="xs" onClick={submit} disabled={pending || empty}>
+            Comment
+          </Button>
+        )}
+      </ComposerFooter>
+    </div>
   )
 
-  function submit() {
+  async function submit() {
     const text = body.trim()
-    if (!text) return
-    start(async () => {
-      try {
-        await createThreadAction({
-          roomId,
-          x,
-          y,
-          iframeLayerId,
-          selector,
-          offsetX,
-          offsetY,
-          ...frameAnchor,
-          documentId,
-          anchorStart,
-          anchorEnd,
-          quotedText,
-          body: text,
-        })
-        onSubmitted()
-      } catch (e) {
-        console.error("createThread failed:", e)
-      }
-    })
+    if (!text || pending) return
+    setPending(true)
+    try {
+      await createThreadAction({
+        roomId,
+        x,
+        y,
+        iframeLayerId,
+        selector,
+        offsetX,
+        offsetY,
+        ...frameAnchor,
+        documentId,
+        anchorStart,
+        anchorEnd,
+        quotedText,
+        body: text,
+      })
+      onSubmitted()
+    } catch (e) {
+      console.error("createThread failed:", e)
+      setError("Couldn't post. Try again.")
+    } finally {
+      setPending(false)
+    }
   }
 
   function sendToChat() {
@@ -694,145 +787,25 @@ function NewThreadComposer({
   }
 }
 
-export function ThreadView({
+/** A document thread's quoted range, with live line numbers. */
+function ThreadQuote({
   thread,
-  currentUserId,
   getDocumentEditor,
-  onClose,
-  onMarkUnread,
-  actionsStart,
 }: {
   thread: ThreadWithComments
-  currentUserId: string | null
   getDocumentEditor?: (id: string) => Editor | undefined
-  onClose: () => void
-  onMarkUnread: () => void
-  /** Shown at the start of the actions row, level with Resolve. */
-  actionsStart?: React.ReactNode
 }) {
-  const [reply, setReply] = useState("")
-  const [pending, start] = useTransition()
-  const canDelete = currentUserId === thread.createdBy
-  // Live line numbers — recomputed against the current doc each time the
-  // popover opens so they reflect any edits since the thread was created.
-  // Falls back to the snapshot quote with no range if the doc isn't
-  // currently mounted.
+  // Recomputed against the current doc each time the card opens so they
+  // reflect edits since the thread was created. No range if the doc isn't
+  // mounted.
   const liveLines = useDocCommentLines(thread, getDocumentEditor)
   return (
-    <div className="flex flex-col">
-      {thread.quotedText && (
-        <div className="border-b border-border px-3 pt-2 pb-2">
-          <QuoteHeader
-            quotedText={thread.quotedText}
-            lineFrom={liveLines?.lineFrom ?? null}
-            lineTo={liveLines?.lineTo ?? null}
-          />
-        </div>
-      )}
-      <div className="flex items-center justify-end gap-1 border-b border-border px-1.5 py-1">
-        {actionsStart && (
-          <div className="mr-auto min-w-0 pl-1.5">{actionsStart}</div>
-        )}
-        <IconButton
-          label="Resolve thread"
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              try {
-                await setThreadResolvedAction({
-                  threadId: thread.id,
-                  resolved: true,
-                })
-                onClose()
-              } catch (e) {
-                console.error("resolveThread failed:", e)
-              }
-            })
-          }
-        >
-          <CheckCircle2 />
-        </IconButton>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton label="Thread actions">
-              <MoreHorizontal />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={() => {
-                onMarkUnread()
-                markThreadUnreadAction(thread.id).catch((e) =>
-                  console.error("markThreadUnread failed:", e)
-                )
-              }}
-            >
-              Mark as unread
-            </DropdownMenuItem>
-            {canDelete && (
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() =>
-                  start(async () => {
-                    try {
-                      await deleteThreadAction(thread.id)
-                      onClose()
-                    } catch (e) {
-                      console.error("deleteThread failed:", e)
-                    }
-                  })
-                }
-              >
-                Delete thread
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="max-h-72 overflow-y-auto px-3 py-2">
-        {thread.comments.map((c) => (
-          <CommentRow key={c.id} comment={c} currentUserId={currentUserId} />
-        ))}
-      </div>
-      <div className="border-t border-border p-2">
-        <Textarea
-          rows={2}
-          className="max-h-40 resize-none"
-          placeholder="Reply…"
-          value={reply}
-          onChange={(e) => setReply(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault()
-              submitReply()
-            }
-          }}
-        />
-        <div className="mt-2 flex justify-end">
-          <Button
-            size="sm"
-            onClick={submitReply}
-            disabled={pending || !reply.trim()}
-          >
-            Reply
-          </Button>
-        </div>
-      </div>
-    </div>
+    <QuoteHeader
+      quotedText={thread.quotedText!}
+      lineFrom={liveLines?.lineFrom ?? null}
+      lineTo={liveLines?.lineTo ?? null}
+    />
   )
-
-  function submitReply() {
-    const text = reply.trim()
-    if (!text) return
-    start(async () => {
-      try {
-        await appendCommentAction({ threadId: thread.id, body: text })
-        setReply("")
-      } catch (e) {
-        console.error("appendComment failed:", e)
-      }
-    })
-  }
 }
 
 function QuoteHeader({
@@ -851,7 +824,7 @@ function QuoteHeader({
         : `Lines ${lineFrom}–${lineTo}`
       : null
   return (
-    <div className="mb-2 rounded-sm border-l-2 border-border bg-muted px-2 py-1.5 text-xs leading-snug text-muted-foreground">
+    <div className="rounded-sm border-l-2 border-border bg-muted px-2 py-1.5 text-xs leading-snug text-muted-foreground">
       {range && (
         <div className="mb-0.5 font-medium text-foreground">{range}</div>
       )}
@@ -889,111 +862,15 @@ function useDocCommentLines(
   ])
 }
 
-function CommentRow({
-  comment,
-  currentUserId,
-}: {
-  comment: CommentRecord
-  currentUserId: string | null
-}) {
-  const [pending, start] = useTransition()
-  return (
-    <div className="group flex items-start gap-2 py-2">
-      <Avatar name={comment.authorName} avatar={comment.authorAvatar} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-xs font-medium text-foreground">
-            {comment.authorName}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatRelative(comment.createdAt)}
-          </span>
-        </div>
-        <p className="mt-0.5 text-sm break-words whitespace-pre-wrap">
-          {comment.body}
-        </p>
-      </div>
-      {currentUserId === comment.authorId && (
-        <IconButton
-          label="Delete comment"
-          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              try {
-                await deleteCommentAction({ commentId: comment.id })
-              } catch (e) {
-                console.error("deleteComment failed:", e)
-              }
-            })
-          }
-        >
-          <Trash2 />
-        </IconButton>
-      )}
-    </div>
-  )
-}
+type Box = { left: number; top: number; width: number; height: number }
 
-export function PillAvatar({
-  name,
-  avatar,
-}: {
-  name: string
-  avatar: string | null
-}) {
-  if (avatar) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={avatar} alt={name} className="size-6 rounded-full" />
-    )
+function unionBox(a: Box, b: Box): Box {
+  const left = Math.min(a.left, b.left)
+  const top = Math.min(a.top, b.top)
+  return {
+    left,
+    top,
+    width: Math.max(a.left + a.width, b.left + b.width) - left,
+    height: Math.max(a.top + a.height, b.top + b.height) - top,
   }
-  const initial = (name.trim()[0] ?? "?").toUpperCase()
-  return (
-    <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-      {initial}
-    </div>
-  )
-}
-
-function Avatar({ name, avatar }: { name: string; avatar: string | null }) {
-  if (avatar) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={avatar} alt={name} className="mt-0.5 size-5 rounded-full" />
-    )
-  }
-  const initial = (name.trim()[0] ?? "?").toUpperCase()
-  return (
-    <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-      {initial}
-    </div>
-  )
-}
-
-export function formatRelative(ts: number): string {
-  const diff = Date.now() - ts
-  const sec = Math.floor(diff / 1000)
-  if (sec < 60) return "just now"
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h`
-  const day = Math.floor(hr / 24)
-  if (day < 7) return `${day}d`
-  return new Date(ts).toLocaleDateString()
-}
-
-/** A styled tooltip for the composer's "Send to agent" action. */
-function SendToAgentTooltip({ children }: { children: React.ReactNode }) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
-        <TooltipContent side="bottom">
-          Send as a message to the agent
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
 }

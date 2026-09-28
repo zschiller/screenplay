@@ -17,6 +17,8 @@ export const CANVAS_COLOR = {
   highlight: "--canvas-highlight",
   /** The drop slot a dragged Group would merge into. */
   groupMerge: "--canvas-group-merge",
+  /** Comment pins and the outline on the element an open thread is about. */
+  comment: "--canvas-comment",
 } as const
 
 export type CanvasColorToken = (typeof CANVAS_COLOR)[keyof typeof CANVAS_COLOR]

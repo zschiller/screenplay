@@ -82,7 +82,13 @@ describe("placeFrameThread", () => {
         thread: thread(),
         view: { path: "/checkout", rect },
       })
-    ).toEqual({ kind: "pinned", frameId: "f1", x: 120, y: 210 })
+    ).toEqual({
+      kind: "pinned",
+      frameId: "f1",
+      x: 120,
+      y: 210,
+      element: rect,
+    })
   })
 
   it("counts a comment made on another route as off-route", () => {

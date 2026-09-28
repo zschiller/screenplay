@@ -7,6 +7,7 @@ import {
   createThreadWithFirstComment,
   deleteComment as deleteCommentFn,
   deleteThread as deleteThreadFn,
+  editComment as editCommentFn,
   listBranchThreads as listBranchThreadsFn,
   listThreads as listThreadsFn,
   markThreadRead as markThreadReadFn,
@@ -142,10 +143,39 @@ export async function appendCommentAction(opts: {
   })
 }
 
+async function requireMembershipForComment(commentId: string, userId: string) {
+  const [row] = await db
+    .select({ threadId: schema.comment.threadId })
+    .from(schema.comment)
+    .where(eq(schema.comment.id, commentId))
+    .limit(1)
+  if (!row) throw new Error("Comment not found")
+  await requireMembershipForThread(row.threadId, userId)
+}
+
+/** Edits a comment's body. Author only (`canEditComment`); the update is
+ *  scoped to the author, so anyone else's edit changes nothing and throws. */
+export async function editCommentAction(opts: {
+  commentId: string
+  body: string
+}): Promise<void> {
+  const userId = await requireUserId()
+  await requireMembershipForComment(opts.commentId, userId)
+  const trimmed = opts.body.trim()
+  if (!trimmed) throw new Error("Comment body is required")
+  await editCommentFn({
+    commentId: opts.commentId,
+    authorId: userId,
+    body: trimmed,
+  })
+}
+
+/** Deletes a comment. Author only (`canDeleteComment`). */
 export async function deleteCommentAction(opts: {
   commentId: string
 }): Promise<void> {
   const userId = await requireUserId()
+  await requireMembershipForComment(opts.commentId, userId)
   await deleteCommentFn({ commentId: opts.commentId, authorId: userId })
 }
 
@@ -158,10 +188,12 @@ export async function setThreadResolvedAction(opts: {
   await setThreadResolved({ threadId: opts.threadId, resolved: opts.resolved })
 }
 
+/** Deletes a thread. Only its starter may (`canDeleteThread`), matching the
+ *  thread card, which offers Delete to no one else. */
 export async function deleteThreadAction(threadId: string): Promise<void> {
   const userId = await requireUserId()
   await requireMembershipForThread(threadId, userId)
-  await deleteThreadFn(threadId)
+  await deleteThreadFn({ threadId, userId })
 }
 
 export async function markThreadReadAction(threadId: string): Promise<void> {

@@ -440,13 +440,24 @@ export async function setThreadResolved(opts: {
   if (row) await signalContentChange(row.roomId)
 }
 
-export async function deleteThread(threadId: string): Promise<void> {
+/** Deletes a thread and its comments. Only the thread's starter may, as
+ *  `canDeleteThread` says; anyone else gets an error and nothing changes. */
+export async function deleteThread(opts: {
+  threadId: string
+  userId: string
+}): Promise<void> {
   assertCommentsEnabled()
   const [row] = await db
     .delete(schema.thread)
-    .where(eq(schema.thread.id, threadId))
+    .where(
+      and(
+        eq(schema.thread.id, opts.threadId),
+        eq(schema.thread.createdBy, opts.userId)
+      )
+    )
     .returning({ roomId: schema.thread.roomId })
-  if (row) await signalContentChange(row.roomId)
+  if (!row) throw new Error("Thread not found or not yours")
+  await signalContentChange(row.roomId)
 }
 
 export async function markThreadRead(opts: {
