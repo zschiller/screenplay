@@ -16,6 +16,8 @@ interface UseAgentChatOptions {
   planMode?: boolean
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
+  /** Whether the chat is on screen. Defaults to true. */
+  isActive?: boolean
 }
 
 interface SendOptions {
@@ -33,6 +35,7 @@ export function useAgentChat({
   planMode,
   onBranchRename,
   onChatRename,
+  isActive = true,
 }: UseAgentChatOptions) {
   const state: ChatState = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
@@ -52,12 +55,19 @@ export function useAgentChat({
     return () => chatStore.clearCallbacks(chatId)
   }, [chatId, onBranchRename, onChatRename])
 
-  // Mark as read when streaming finishes while this chat is open
+  // Mark as read when a run finishes while this chat is on screen, or when a
+  // chat with an unread run comes on screen. Every open tab stays mounted, so
+  // gating on `isActive` is what lets a background tab keep its unread dot.
+  const hasUnread = useSyncExternalStore(
+    (cb) => chatStore.subscribe(chatId, cb),
+    () => chatStore.hasUnread(chatId),
+    () => false
+  )
   useEffect(() => {
-    if (!state.isStreaming) {
+    if (isActive && hasUnread && !state.isStreaming) {
       chatStore.markRead(chatId)
     }
-  }, [chatId, state.isStreaming])
+  }, [chatId, isActive, hasUnread, state.isStreaming])
 
   const sendMessage = useCallback(
     (text: string, options?: SendOptions) => {

@@ -439,6 +439,36 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
+    name: "chat-tabs-unread",
+    description:
+      "A background chat whose run just finished, marked unread in the tab strip.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await replayRun(page, ids.chats.markdown, [
+        { type: "chat-stream-start" },
+        { type: "chat-stream-end" },
+      ])
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-history",
+    description:
+      "The chat history: closed chats with dates, first lines, one still running.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await replayRun(page, ids.chats.stickySummary, [
+        { type: "chat-stream-start" },
+      ])
+      await openChatHistory(page)
+    },
+    settleMs: 600,
+  },
+  {
     name: "logs-reconnecting",
     description:
       "The sandbox logs panel with coloured output, dropped and reconnecting.",
@@ -1740,6 +1770,17 @@ export async function openTerminalTab(page: Page): Promise<void> {
     .getByRole("menu")
     .waitFor({ state: "detached", timeout: 5_000 })
     .catch(() => {})
+}
+
+/**
+ * Open the chat panel's history. Matches today's "Chat history" button and the
+ * earlier "Closed chats" one, so a before capture of this screen still opens it.
+ */
+export async function openChatHistory(page: Page): Promise<void> {
+  await page
+    .getByRole("button", { name: /^(Chat history|Closed chats)$/ })
+    .first()
+    .click({ timeout: 15_000 })
 }
 
 /** Select the chat panel's sandbox logs tab (an icon-only tab, named by its label). */

@@ -223,6 +223,10 @@ export const FIXTURE_IDS = {
     markdown: "chat-markdown-reply",
     /** No messages yet, on the same Workspace. */
     fresh: "chat-checkout-fresh",
+    /** Closed chats: what the chat history lists. */
+    stickySummary: "chat-sticky-summary",
+    shippingCopy: "chat-shipping-copy",
+    closedEmpty: "chat-closed-empty",
   },
 } as const
 
@@ -323,7 +327,21 @@ export function buildFixtureWorld(options: BuildWorldOptions): FixtureWorld {
         createdAt: minutesAgo(now, 11),
       },
     ],
-    chats: [checkoutChat(now), emptyCartChat(now), markdownChat(now)],
+    chats: [
+      checkoutChat(now),
+      emptyCartChat(now),
+      markdownChat(now),
+      oneLineChat(now, {
+        id: FIXTURE_IDS.chats.stickySummary,
+        minutes: 190,
+        text: "Pin the order summary to the bottom of the screen under 768px.",
+      }),
+      oneLineChat(now, {
+        id: FIXTURE_IDS.chats.shippingCopy,
+        minutes: 60 * 24 * 3,
+        text: "Rewrite the shipping estimate so it says a date, not a range of days.",
+      }),
+    ],
     pins: [
       { id: "pin-checkout", roomId: ids.rooms.checkout, position: 0 },
       {
@@ -550,6 +568,32 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       branchId: b.checkoutPolish,
       label: "New chat",
       createdAt: minutesAgo(now, 3),
+      model: "claude-sonnet-4-5",
+    },
+    // Closed chats — the chat history. One with a title and a first message,
+    // one closed days ago, and one that was closed before anything was sent.
+    {
+      id: FIXTURE_IDS.chats.stickySummary,
+      branchId: b.checkoutPolish,
+      label: "Sticky summary",
+      createdAt: minutesAgo(now, 190),
+      closedAt: minutesAgo(now, 125),
+      model: "claude-sonnet-4-5",
+    },
+    {
+      id: FIXTURE_IDS.chats.closedEmpty,
+      branchId: b.checkoutPolish,
+      label: "Untitled",
+      createdAt: minutesAgo(now, 60 * 26),
+      closedAt: minutesAgo(now, 60 * 25),
+      model: "claude-sonnet-4-5",
+    },
+    {
+      id: FIXTURE_IDS.chats.shippingCopy,
+      branchId: b.checkoutPolish,
+      label: "Shipping estimate copy",
+      createdAt: minutesAgo(now, 60 * 24 * 3),
+      closedAt: minutesAgo(now, 60 * 24 * 3 - 40),
       model: "claude-sonnet-4-5",
     },
     {
@@ -1197,6 +1241,28 @@ function markdownChat(now: number): FixtureChat {
     systemPrompt: "Match the existing Tailwind tokens; never add new colors.",
     createdAt: at(6),
     messages,
+  }
+}
+
+/** A chat whose whole log is one user message — enough for a history row. */
+function oneLineChat(
+  now: number,
+  { id, minutes, text }: { id: string; minutes: number; text: string }
+): FixtureChat {
+  return {
+    id,
+    roomId: FIXTURE_IDS.rooms.checkout,
+    sandboxName: "checkout-polish",
+    model: "claude-sonnet-4-5",
+    systemPrompt: "Match the existing Tailwind tokens; never add new colors.",
+    createdAt: minutesAgo(now, minutes),
+    messages: [
+      {
+        id: `${id}-1`,
+        createdAt: minutesAgo(now, minutes),
+        record: { role: "user", content: [{ type: "text", text }] },
+      },
+    ],
   }
 }
 

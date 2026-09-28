@@ -60,6 +60,9 @@ interface AgentChatProps {
   onModelChange?: (model: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
+  /** Whether this chat is the tab on screen. Only the visible chat marks its
+   *  finished runs read; a background tab keeps its unread dot. */
+  isActive?: boolean
 }
 
 export function AgentChat({
@@ -78,6 +81,7 @@ export function AgentChat({
   onModelChange,
   onBranchRename,
   onChatRename,
+  isActive = true,
 }: AgentChatProps) {
   const { messages, isStreaming, isLoadingHistory, sendMessage, stopMessage } =
     useAgentChat({
@@ -91,6 +95,7 @@ export function AgentChat({
       planMode,
       onBranchRename,
       onChatRename,
+      isActive,
     })
 
   const [models, setModels] = useState<ModelInfo[]>([])
