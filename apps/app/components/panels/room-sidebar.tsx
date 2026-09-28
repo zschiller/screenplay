@@ -138,6 +138,7 @@ import {
 } from "@/lib/workspace-hover-store"
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 import { PrStateBadge } from "@/components/pr-state-badge"
+import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 
 /**
  * Resolved sidebar member — pairs the kind + id with the underlying data
@@ -2003,14 +2004,18 @@ function BranchRowShell({
     [branchId]
   )
   return (
-    <div
-      {...rest}
-      className={branchRowClassName({ isPanelActive, isHighlighted })}
-      onPointerEnter={() => workspaceHoverStore.set(hover)}
-      onPointerLeave={() => workspaceHoverStore.clear(hover)}
-    >
-      {children}
-    </div>
+    // The whole row opens the Workspace hover card (#882), so the card clears
+    // the row's line count and menu instead of covering them.
+    <WorkspaceHoverCard branchId={branchId}>
+      <div
+        {...rest}
+        className={branchRowClassName({ isPanelActive, isHighlighted })}
+        onPointerEnter={() => workspaceHoverStore.set(hover)}
+        onPointerLeave={() => workspaceHoverStore.clear(hover)}
+      >
+        {children}
+      </div>
+    </WorkspaceHoverCard>
   )
 }
 

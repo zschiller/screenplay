@@ -67,8 +67,7 @@ Each workspace row shows:
 - a **status icon** for what the workspace is doing: a spinner while it
   starts, an activity spinner while the agent works, a small circle when it's
   ready, a dashed circle when it's stopped, or a warning when setup failed.
-  Hover it to see the state in words, such as the setup step and how long it
-  has taken. Click the warning for the error, with **Retry**, **Recreate** and
+  Click the warning for the error, with **Retry**, **Recreate** and
   **Copy error**;
 - the workspace's **title** (double-click to rename). Workspaces created
   before titles existed show their branch name until you rename them;
@@ -85,6 +84,19 @@ them: drag a row to move it among its repository's workspaces.
 
 Click a row to make it the agent panel's target. Double-click to also open
 the panel.
+
+### The hover card
+
+Hover a workspace row, or a workspace's badge on a group or frame label or in
+the address bar, to see its details:
+
+- its title and what it's doing now, such as the setup step and how long it
+  has taken, that the agent is working, or that it's ready or stopped;
+- its **repository**, its **git branch**, the **base** branch its changes are
+  compared with, and its **changes** as +/− line counts.
+
+This is where you find a workspace's branch name, since rows and badges show
+its title.
 
 ## The workspace menu
 
