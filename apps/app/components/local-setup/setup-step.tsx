@@ -23,8 +23,9 @@ export function SetupChip({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The expanded, current step: a dark 1px border so it reads as active, a
- * numbered title, and its body indented under the title.
+ * The expanded, current step: the normal 1px border plus a faint muted ring so
+ * it reads as active in both themes, a numbered title, and its body indented
+ * under the title.
  */
 export function CurrentSetupStep({
   step,
@@ -41,7 +42,7 @@ export function CurrentSetupStep({
   return (
     <section
       aria-labelledby={titleId}
-      className="flex flex-col gap-3 rounded-lg border border-foreground p-4 dark:border-foreground/60"
+      className="flex flex-col gap-3 rounded-lg border border-foreground/20 p-4 shadow-xs ring-3 ring-foreground/5"
     >
       <div className="flex items-center gap-2.5">
         <StepMarker step={step} state="current" />
