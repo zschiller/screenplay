@@ -113,14 +113,15 @@ needs a GitHub connection.
 
 ## Deleting
 
-**… → Delete** removes the workspace and its frames from the canvas. The
-local branch stays in your sandbox. If you're connected to GitHub and the
-project has a GitHub remote, the dialog also offers **Also delete on remote**,
+**… → Delete** removes the workspace, its chats and its frames from the
+canvas, and shuts down its sandbox, discarding any uncommitted changes. The git
+branch itself isn't deleted. If you're connected to GitHub and the project has
+a GitHub remote, the dialog also offers **Also delete the branch on origin**,
 which deletes `origin/<branch>` as well. It's off by default. If the remote
 delete fails, the workspace is still deleted and a warning names the branch
 left on the remote.
 
-<Screenshot name="delete-branch-dialog" alt="The Delete workspace dialog with the Also delete on remote toggle" />
+<Screenshot name="delete-branch-dialog" alt="The Delete workspace dialog with the Also delete the branch on origin option" />
 
 ## One branch, one workspace (desktop)
 
