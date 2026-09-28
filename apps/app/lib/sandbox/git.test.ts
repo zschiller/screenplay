@@ -287,7 +287,8 @@ describe("renameAgentBranch", () => {
       "octocat",
       "hello-world",
       "old",
-      "new"
+      "new",
+      undefined
     )
   })
 

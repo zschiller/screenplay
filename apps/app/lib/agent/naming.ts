@@ -2,6 +2,7 @@ import "server-only"
 
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import type { RoomReader } from "@/lib/room-access"
+import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deriveFallbackName } from "./fallback-name"
 import { runOneShotModel } from "./one-shot-model"
 
@@ -69,11 +70,7 @@ export async function generateChatNames(
   let branch = ""
   let chatLabel = ""
   if (opts.shouldNameBranch) {
-    branch = (lines[0] ?? "")
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
+    branch = sanitizeBranchName(lines[0] ?? "")
     chatLabel = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
   } else {
     chatLabel = (lines[0] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()

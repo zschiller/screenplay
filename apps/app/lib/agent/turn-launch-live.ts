@@ -26,6 +26,13 @@ import {
   broadcastControl,
   broadcastSignal,
 } from "./broadcast"
+import { getGitHubTokenForUser } from "@/lib/auth-helpers"
+import { renameAgentBranch } from "@/lib/sandbox/git"
+import {
+  applyNames,
+  renameClaimedBranch,
+  type BranchRenameClaim,
+} from "./auto-naming"
 import { resolveLiveEngine } from "./acp/resolve-live-engine"
 import { wireToContentBlocks } from "./acp/markers"
 import { launchEngineTurn } from "./launch-turn"
@@ -58,6 +65,24 @@ export const liveTurnLaunchDeps = (room: RoomDoc): TurnLaunchDeps => ({
     broadcastSignal(roomId, chatId, "chat-stream-start"),
   broadcastUpdate: broadcastAcpUpdate,
   broadcastControl,
+  renameBranch: (claim) =>
+    renameClaimedBranch(
+      {
+        room,
+        async renameGitBranch({ repo, sandboxName, from, to, userId }) {
+          const token = await getGitHubTokenForUser(userId)
+          const result = await renameAgentBranch(
+            repo,
+            sandboxName,
+            from,
+            to,
+            token ?? undefined
+          )
+          return result.success
+        },
+      },
+      claim
+    ),
   queueCommentRequest: (input) => queueCommentRequest({ ...input, room }),
   startCommentRequest: (_roomId, chatId) => startCommentRequest(room, chatId),
   settleCommentRequest: (input) => settleCommentRequest({ ...input, room }),
@@ -133,9 +158,7 @@ export function sandboxTurn(input: {
   sandboxName: string
   userId: string
   message: string
-  branch?: string
   isFirstChat?: boolean
-  autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
   commentThreadIds?: string[]
@@ -153,36 +176,43 @@ export function sandboxTurn(input: {
       // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
       // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
       // the per-Agent prompt.
-      const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
+      const [branchState, layerDirectory, skills] = await Promise.all([
         room
           .readDoc(({ branches, repos }) => {
-            const branch = branches
+            // `toArray` is a cached snapshot; read the Branch itself fresh.
+            const id = branches
               .toArray()
-              .find((a) => a.sandboxName === sandboxName)
+              .find((a) => a.sandboxName === sandboxName)?.id
+            const branch = id ? branches.get(id) : undefined
             if (!branch) return undefined
-            return repos.get(branch.repoId)?.systemPrompt
+            return {
+              ref: branch.ref,
+              autoNamed: branch.autoNamedBranch !== false,
+              systemPrompt: repos.get(branch.repoId)?.systemPrompt,
+            }
           })
           .catch(() => undefined),
         loadLayerDirectory(room),
         getMergedSkillIndexForSandbox(sandboxName),
       ])
       const systemPrompt = buildAgentSystemPrompt({
-        repoSystemPrompt: repoSystemPrompt ?? undefined,
+        repoSystemPrompt: branchState?.systemPrompt ?? undefined,
         layerDirectory,
         skills,
       })
 
       await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })
 
-      // First-message naming. Every new chat earns a label; the branch rename is
-      // narrower: only the first chat on the branch, and only while the branch
-      // is still auto-named, so a later chat can't rename it under its
-      // siblings. Turn Launch broadcasts the renames inside the replay window.
-      let effectiveBranch = input.branch
-      const renames: { branch?: string; label?: string } = {}
+      // First-message naming (#910). Every new chat earns a label; the Branch
+      // rename is narrower: only the first chat on the Branch, and only while
+      // the room doc says it is still auto-named, so a later chat can't rename
+      // it under its siblings. The names go straight into the room doc here;
+      // clients observe it. The git rename runs before the Engine does.
+      let effectiveBranch = branchState?.ref
+      let branchRename: BranchRenameClaim | undefined
       if (isNewChat) {
         const shouldNameBranch =
-          input.autoNamedBranch !== false && input.isFirstChat !== false
+          branchState?.autoNamed !== false && input.isFirstChat !== false
         const {
           branch: rawBranch,
           chatLabel,
@@ -192,31 +222,22 @@ export function sandboxTurn(input: {
           shouldNameBranch,
           model,
         })
-        if (shouldNameBranch && rawBranch) {
-          effectiveBranch = await deduplicateBranchName(room, rawBranch, userId)
-          renames.branch = effectiveBranch
-        }
-        // The Workspace takes its title from the same call (#881), written
-        // here on the server so every client path that sends a first message
-        // gets it. A title already set (a rename, or an earlier naming) is
-        // never replaced.
-        if (shouldNameBranch && title) {
-          await room.mutateDoc(({ branches }) => {
-            const workspace = branches
-              .toArray()
-              .find((b) => b.sandboxName === sandboxName)
-            if (workspace && !workspace.title?.trim()) {
-              branches.update(workspace.id, { title })
-            }
-          })
-        }
-        if (chatLabel) {
-          renames.label = chatLabel
-          // Persist the label directly so it survives a client re-render that
-          // momentarily clears the broadcast callback.
-          await room.mutateDoc(({ chatSessions }) => {
-            chatSessions.update(chatId, { label: chatLabel })
-          })
+        const branch =
+          shouldNameBranch && rawBranch
+            ? await deduplicateBranchName(room, rawBranch, userId)
+            : undefined
+        const claim = await applyNames(room, {
+          chatId,
+          sandboxName,
+          userId,
+          label: chatLabel || undefined,
+          branch,
+          // The Workspace takes its title from the same call (#881).
+          title: shouldNameBranch ? title || undefined : undefined,
+        })
+        if (claim) {
+          branchRename = claim
+          effectiveBranch = claim.to
         }
       }
 
@@ -232,7 +253,7 @@ export function sandboxTurn(input: {
           isFirstMessage: isNewChat,
         }),
         planMode,
-        renames,
+        branchRename,
         commentRequest: {
           sandboxName,
           userId,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Engine } from "./acp/engine-seam"
+import type { RepoData } from "@/lib/types"
 import {
   launchTurn,
   stopTurn,
@@ -58,6 +59,9 @@ function recordingDeps(
           : `broadcast ${control.kind}`
       )
     },
+    async renameBranch(claim) {
+      log.push(`rename git ${claim.from} -> ${claim.to}`)
+    },
     async queueCommentRequest({ threadIds }) {
       log.push(`queue comments ${threadIds.join(",")}`)
     },
@@ -99,7 +103,7 @@ function target(log: string[], prepared: Partial<PreparedTurn> = {}) {
 }
 
 describe("Turn Launch", () => {
-  it("orders a sandbox turn: engine, target, persist, run, start marker, echo, renames, then the engine after the response", async () => {
+  it("orders a sandbox turn: engine, target, persist, run, start marker, echo, then the git rename and the engine after the response", async () => {
     const { deps, log, flush } = recordingDeps()
     const result = await launchTurn(
       deps,
@@ -107,7 +111,15 @@ describe("Turn Launch", () => {
       target(log, {
         userText: "[branch: fix-it] fix it",
         planMode: true,
-        renames: { branch: "fix-it", label: "Fix it" },
+        branchRename: {
+          branchId: "branch_1",
+          sandboxName: "sb_1",
+          userId: "user_1",
+          repo: {} as RepoData,
+          from: "quiet-otter",
+          to: "fix-it",
+          previousAutoNamed: true,
+        },
         commentRequest: {
           sandboxName: "sb_1",
           userId: "user_1",
@@ -123,14 +135,16 @@ describe("Turn Launch", () => {
       "prepare target",
       "persist [branch: fix-it] fix it",
       "start run",
-      // The start marker opens the replay window, so the echo and the renames
-      // after it reach a client that joins mid-stream.
+      // The start marker opens the replay window, so the echo after it reaches
+      // a client that joins mid-stream. Names are never broadcast: the target
+      // wrote them to the room doc.
       "broadcast chat-stream-start",
       "broadcast user_message_chunk",
-      "broadcast branch_rename",
-      "broadcast chat_rename",
       "queue comments t1",
       "response sent",
+      // The agent's first message names the new branch, so git is renamed
+      // before the Engine runs.
+      "rename git quiet-otter -> fix-it",
       "start comments",
       "drive run_1 planMode=true",
       "settle comments run_1",
@@ -160,7 +174,7 @@ describe("Turn Launch", () => {
     ])
   })
 
-  it("a layer turn has no renames or comment request", async () => {
+  it("a layer turn has no rename or comment request", async () => {
     const { deps, log, flush } = recordingDeps()
     await launchTurn(deps, request, target(log))
     await flush()

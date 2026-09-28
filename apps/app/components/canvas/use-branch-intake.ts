@@ -19,6 +19,7 @@ import { chatStore } from "@/lib/chat-store"
 import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import { deleteBranch } from "@/lib/github-actions"
 import { renameAgentBranch } from "@/lib/sandbox/git"
+import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import {
   planBranchCreations,
@@ -40,7 +41,6 @@ import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type {
   BranchData,
-  ChatSessionData,
   IframeLayerData,
   RepoData,
   TabKind,
@@ -72,7 +72,6 @@ export interface BranchIntakeDeps {
    *  skip a Branch that already has a frame. */
   iframeLayers: IframeLayerData[]
   roomId: string
-  updateChatSession: (id: string, patch: Partial<ChatSessionData>) => void
   /**
    * The Tab Pool's seed entry: seed a Branch's default tab (chat or terminal)
    * without re-implementing tab creation. This is the handoff to the Tab Pool
@@ -171,7 +170,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     agents,
     iframeLayers,
     roomId,
-    updateChatSession,
     createDefaultTabForBranch,
     getViewportCenter,
     setSelectedGroupIds,
@@ -666,10 +664,8 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             roomId,
             chatId: queued.chatId,
             sandboxName: agent.sandboxName,
-            branch: agent.ref,
             message: queued.prompt,
             isFirstChat: true,
-            autoNamedBranch: agent.autoNamedBranch,
             model: queued.model,
             planMode: queued.planMode,
           },
@@ -677,16 +673,10 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         {
           addChatSession: ops.addChatSession,
           chatTarget,
-          onChatRename: (chatId, label) => updateChatSession(chatId, { label }),
-          onBranchRename: (agentId, branch) =>
-            updateAgentInStorage(agentId, {
-              ref: branch,
-              autoNamedBranch: false,
-            }),
         }
       )
     }
-  }, [agents, ops, roomId, chatTarget, updateAgentInStorage, updateChatSession])
+  }, [agents, ops, roomId, chatTarget])
 
   // Seed iframeLayers for agents whose sandbox has finished provisioning. The
   // flag is set at create time and cleared here after the first seed, so
@@ -732,11 +722,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
 
   const renameBranch = useCallback(
     async (agentId: string, rawBranch: string) => {
-      const newBranch = rawBranch
-        .toLowerCase()
-        .replace(/[^a-z0-9/_-]/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "")
+      const newBranch = sanitizeBranchName(rawBranch)
       const agent = agents.find((a) => a.id === agentId)
       if (
         !newBranch ||

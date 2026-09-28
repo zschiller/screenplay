@@ -57,7 +57,6 @@ export interface BranchActionsDeps {
   chatTarget: ChatTarget
   /** Create a Chat Session through the canvas ops seam (ADR 0001). */
   addChatSession: (id: string, data: ChatSessionData) => void
-  updateChatSession: (id: string, patch: Partial<ChatSessionData>) => void
   updateAgentInStorage: (id: string, patch: Partial<BranchData>) => void
   /** Optimistic PR source-of-truth write (the BranchPrs handle). */
   setBranchPr: (branchId: string, pr: BranchPrInfo) => void
@@ -99,7 +98,6 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
     roomId,
     chatTarget,
     addChatSession,
-    updateChatSession,
     updateAgentInStorage,
     setBranchPr,
   } = deps
@@ -160,21 +158,11 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         {
           addChatSession,
           chatTarget,
-          onChatRename: (chatId, label) => updateChatSession(chatId, { label }),
-          onBranchRename: (id, branch) =>
-            updateAgentInStorage(id, { ref: branch, autoNamedBranch: false }),
         }
       )
       return true
     },
-    [
-      roomId,
-      chatSessions,
-      chatTarget,
-      addChatSession,
-      updateChatSession,
-      updateAgentInStorage,
-    ]
+    [roomId, chatSessions, chatTarget, addChatSession]
   )
 
   // action route → the deterministic Create-PR server action (#355), no model

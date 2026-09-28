@@ -54,7 +54,7 @@ export type ReferenceDecision =
       session: ChatSessionData
       isFirstChat: boolean
       select: ReferenceSelection
-      send: Omit<SendMessageOptions, "onBranchRename" | "onChatRename">
+      send: SendMessageOptions
     }
 
 /** Whether the context carries a resolvable document text selection. */

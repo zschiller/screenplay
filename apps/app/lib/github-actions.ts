@@ -153,9 +153,10 @@ export async function renameBranch(
   owner: string,
   repo: string,
   oldBranch: string,
-  newBranch: string
+  newBranch: string,
+  ghToken?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const token = await getGitHubToken()
+  const token = ghToken ?? (await getGitHubToken())
   if (!token) return { success: false, error: "No GitHub token" }
 
   const res = await fetch(

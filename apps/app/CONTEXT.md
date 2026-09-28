@@ -419,15 +419,18 @@ store and ask the heal endpoint to verify the run is still live, unsticking a
 spinner whose `chat-stream-end` was missed — moved here from **Sandbox
 Reconnect**, since it is chat-store hydration, not Sandbox lifecycle); and the
 **broadcast handling** (`useChatStreamEvents` → `chatStore.handleBroadcastEvent`,
-mirroring the streaming / rename signals into the Chat Session so late joiners see
-them). It is the **React effects, not a new write path**: storage writes go
-through the injected `updateChatSession` (a Chat Session Writes wrapper, ADR
-0001), the chat-store calls are the existing `chatStore` API.
+mirroring the streaming signals into the Chat Session so late joiners see them).
+It is the **React effects, not a new write path**: storage writes go through the
+injected `updateChatSession` (a Chat Session Writes wrapper, ADR 0001), the
+chat-store calls are the existing `chatStore` API. Names are not synced here:
+**the server writes names, clients observe** (#910). Turn Launch writes a new
+chat's label and the Branch's auto-named ref and flag to the room doc and renames
+the git branch itself (`lib/agent/auto-naming.ts`), exactly once whatever
+surfaces or clients are open; no browser applies a rename.
 _Avoid_: putting these sync effects back on the composition root (instantiate the
 owner); folding the streaming-heal back into Sandbox Reconnect (it is chat-store
-hydration); applying the rename via the per-chat `onChatRename` callback instead
-of writing the Y.Doc here (that callback re-registers per render and drops a
-rename landing in the clear/re-set window).
+hydration); a client-side rename callback or broadcast for auto-naming (it made
+the git rename depend on which surfaces were mounted).
 
 **Busy Indicator**:
 The two spinners, split by what is busy. The **GripSpinner** (the 9-dot grid,
@@ -659,15 +662,16 @@ The module that starts one agent turn for a Chat Target
 (`lib/agent/turn-launch.ts`), and the only place the start-up ordering lives:
 resolve the Engine before any side effect, let the target prepare, resolve the
 chat's plan, persist the user message, start the run, broadcast
-`chat-stream-start` before the plan card flip, the user echo and any rename
-controls (so a client joining mid-stream replays them), then drive the Engine
-turn after the response, with the comment request started before it and
-settled after it. It is also the one way a plan is resolved: resuming from an
-explicit accept or reject (the plan route) and the implicit reject of a
-follow-up message take the same step. Each Chat Target kind supplies only its
-own setup (`turn-launch-live.ts`); the stream and plan routes are auth, body
-parsing and HTTP mapping. The abort watchdog stays at the Engine drive (ADR
-0006).
+`chat-stream-start` before the plan card flip and the user echo (so a client
+joining mid-stream replays them), then, after the response, rename the git
+branch the target claimed and drive the Engine turn, with the comment request
+started before it and settled after it. A sandbox target writes the
+first-message names to the room doc while preparing (see **Chat Sync**). It is
+also the one way a plan is resolved: resuming from an explicit accept or reject
+(the plan route) and the implicit reject of a follow-up message take the same
+step. Each Chat Target kind supplies only its own setup (`turn-launch-live.ts`);
+the stream and plan routes are auth, body parsing and HTTP mapping. The abort
+watchdog stays at the Engine drive (ADR 0006).
 Turn Launch also owns stopping a turn (`stopTurn`, what `/api/agent/stop`
 calls) and the one decision about how an unfinished run reads, live and on
 reload: a user stop records `aborted` and ends in a "Stopped" marker; a

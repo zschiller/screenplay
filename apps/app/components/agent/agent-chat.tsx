@@ -56,13 +56,10 @@ interface AgentChatProps {
   /** Document-layer target. */
   markdownLayerId?: string
   isFirstChat?: boolean
-  autoNamedBranch?: boolean
   planMode?: boolean
   onPlanModeChange?: (planMode: boolean) => void
   model?: string
   onModelChange?: (model: string) => void
-  onBranchRename?: (branch: string) => void
-  onChatRename?: (label: string) => void
   /** Whether this chat is the tab on screen. Only the visible chat marks its
    *  finished runs read; a background tab keeps its unread dot. */
   isActive?: boolean
@@ -77,13 +74,10 @@ export function AgentChat({
   branch,
   markdownLayerId,
   isFirstChat,
-  autoNamedBranch,
   planMode,
   onPlanModeChange,
   model,
   onModelChange,
-  onBranchRename,
-  onChatRename,
   isActive = true,
 }: AgentChatProps) {
   const {
@@ -101,13 +95,9 @@ export function AgentChat({
     chatId,
     roomId,
     sandboxName,
-    branch,
     markdownLayerId,
     isFirstChat,
-    autoNamedBranch,
     planMode,
-    onBranchRename,
-    onChatRename,
     isActive,
   })
 

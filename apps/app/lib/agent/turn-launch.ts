@@ -4,11 +4,12 @@ import type { SessionUpdate } from "./acp/schema"
 import { userMessageChunk } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
 import type { PlanResolution, RunStatus } from "./run-state"
+import type { BranchRenameClaim } from "./auto-naming"
 
 /**
  * What a Chat Target hands {@link launchTurn} once its kind-specific setup is
  * done: the prompt, model and Tools the Engine runs with, the decorated user
- * text to persist, and the first-message renames and comment request to emit.
+ * text to persist, the Branch rename it claimed, and the comment request.
  */
 export interface PreparedTurn {
   systemPrompt: string
@@ -18,8 +19,12 @@ export interface PreparedTurn {
   userText: string
   /** Whether the turn was sent in plan mode (sandbox chats only). */
   planMode?: boolean
-  /** First-message renames, broadcast inside the replay window. */
-  renames?: { branch?: string; label?: string }
+  /**
+   * A first-message Branch rename the target already wrote to the room doc
+   * (#910). Turn Launch renames the git branch before the Engine runs, so the
+   * agent works on the branch its first message names.
+   */
+  branchRename?: BranchRenameClaim
   /**
    * Comment threads (#788). Present on every sandbox turn: the turn queues
    * `threadIds` (possibly none), and starts and settles whatever the chat
@@ -105,6 +110,8 @@ export interface TurnLaunchDeps {
     chatId: string,
     control: ChatControlEvent
   ): Promise<void>
+  /** Rename the claimed git branch; roll the doc back if git refuses. */
+  renameBranch(claim: BranchRenameClaim): Promise<void>
   queueCommentRequest(input: {
     roomId: string
     chatId: string
@@ -143,12 +150,15 @@ export type TurnLaunchResult =
  *    plan still pending (the message is the revision instruction). A decision
  *    on a plan that is no longer pending stops here.
  * 4. Persist the user message before starting the run.
- * 5. Broadcast `chat-stream-start` before the plan card flip, the user echo
- *    and any rename controls. Clients replay back to the latest start marker
- *    and the event log is trimmed on each start, so anything emitted earlier
- *    is lost to a client joining mid-stream.
- * 6. After the response, drive the Engine turn, with the comment request
- *    started before it and settled after it.
+ * 5. Broadcast `chat-stream-start` before the plan card flip and the user
+ *    echo. Clients replay back to the latest start marker and the event log
+ *    is trimmed on each start, so anything emitted earlier is lost to a
+ *    client joining mid-stream.
+ * 6. After the response, rename the claimed git branch, then drive the Engine
+ *    turn, with the comment request started before it and settled after it.
+ *
+ * Names are never broadcast: the target writes them to the room doc, and
+ * clients observe the doc (#910).
  */
 export async function launchTurn(
   deps: TurnLaunchDeps,
@@ -182,19 +192,7 @@ export async function launchTurn(
     })
   }
   await deps.broadcastUpdate(roomId, chatId, userMessageChunk(message))
-  const { renames, commentRequest } = prepared
-  if (renames?.branch) {
-    await deps.broadcastControl(roomId, chatId, {
-      kind: "branch_rename",
-      branch: renames.branch,
-    })
-  }
-  if (renames?.label) {
-    await deps.broadcastControl(roomId, chatId, {
-      kind: "chat_rename",
-      label: renames.label,
-    })
-  }
+  const { branchRename, commentRequest } = prepared
 
   // Comments sent to the agent show as queued from here on.
   if (commentRequest && commentRequest.threadIds.length > 0) {
@@ -207,6 +205,7 @@ export async function launchTurn(
   }
 
   deps.runAfterResponse(async () => {
+    if (branchRename) await deps.renameBranch(branchRename)
     if (commentRequest) await deps.startCommentRequest(roomId, chatId)
     await deps.driveTurn({
       engine,

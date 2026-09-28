@@ -199,6 +199,7 @@ function liveHarness() {
           control,
         })
       },
+      async renameBranch() {},
       async queueCommentRequest() {},
       async startCommentRequest() {},
       async settleCommentRequest() {},
