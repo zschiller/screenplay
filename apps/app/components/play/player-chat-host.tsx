@@ -2,6 +2,9 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { nanoid } from "nanoid"
+import { PanelRightClose } from "lucide-react"
+import { IconButton } from "@workspace/ui/components/icon-button"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { ChatPanel } from "@/components/agent/chat-panel"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import { chatStore } from "@/lib/chat-store"
@@ -205,19 +208,17 @@ function PlayerChatHostImpl({
 
   if (!agent) {
     return (
-      <div className="flex h-full items-center justify-center bg-background">
-        <p className="text-xs text-muted-foreground">Workspace not found.</p>
-      </div>
+      <PlayerChatPlaceholder onCollapse={onCollapse}>
+        Workspace not found.
+      </PlayerChatPlaceholder>
     )
   }
 
   if (!agent.sandboxName) {
     return (
-      <div className="flex h-full items-center justify-center bg-background">
-        <p className="text-xs text-muted-foreground">
-          Sandbox is still warming up…
-        </p>
-      </div>
+      <PlayerChatPlaceholder onCollapse={onCollapse}>
+        <Spinner className="size-4" /> Waiting for the sandbox to start…
+      </PlayerChatPlaceholder>
     )
   }
 
@@ -250,6 +251,42 @@ function PlayerChatHostImpl({
       onPrCreated={setBranchPr}
       onCollapse={onCollapse}
     />
+  )
+}
+
+/**
+ * The chat slot before there's a chat to show. Keeps the same 48px header row
+ * and collapse button as `ChatPanel`, so the panel can always be closed and
+ * doesn't jump when the chat mounts.
+ */
+function PlayerChatPlaceholder({
+  onCollapse,
+  children,
+}: {
+  onCollapse: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex h-full flex-col bg-background">
+      <div className="flex h-12 shrink-0 items-center px-3">
+        <IconButton
+          label="Collapse chat"
+          tooltipSide="left"
+          // Same box as ChatPanel's collapse button (20px, 16px icon), so it
+          // sits in the same spot when the chat mounts.
+          className="size-5 rounded-md text-muted-foreground"
+          onClick={onCollapse}
+        >
+          <PanelRightClose className="size-4" />
+        </IconButton>
+      </div>
+      {/* Same type and copy as AgentChat's provisioning state, so the panel
+       *  reads the same whether the chat has mounted yet or not. pb-12 offsets
+       *  the header so the message sits at the panel's true centre. */}
+      <div className="flex flex-1 items-center justify-center gap-2 px-6 pb-12 text-center text-sm text-balance text-muted-foreground">
+        {children}
+      </div>
+    </div>
   )
 }
 

@@ -1,4 +1,5 @@
 import type { Locator, Page } from "playwright-core"
+import * as Y from "yjs"
 
 import {
   DEFAULT_VIEW_PREFS,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/fixture-entry"
 import { fixtureFaultCookieName, type FixtureFault } from "@/lib/fixture-faults"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
+import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
 import { FIXTURE_IDS } from "./fixtures/world"
@@ -1184,6 +1186,37 @@ export const SCREENS: Screen[] = [
     description: "The prototype player for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
   },
+  {
+    name: "player-chat-warming-up",
+    description:
+      "The player's agent panel while the Workspace's sandbox is still warming up.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    beforeNavigate: (page) =>
+      serveYjsDoc(page, (c) =>
+        c.branches.set(ids.branches.checkoutPolish, {
+          id: ids.branches.checkoutPolish,
+          repoId: "repo-warming-up",
+          sandboxName: "",
+          gitUrl: "",
+          ref: "checkout-polish",
+          previewDomain: "",
+          port: 3000,
+          status: "creating",
+          createdAt: 0,
+        })
+      ),
+    prepare: openPlayerAgent,
+    settleMs: 400,
+  },
+  {
+    name: "player-chat-not-found",
+    description:
+      "The player's agent panel once its Workspace has been deleted from the Canvas.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    beforeNavigate: (page) => serveYjsDoc(page, () => {}),
+    prepare: openPlayerAgent,
+    settleMs: 400,
+  },
 
   // --- Confirm dialogs (issue #724) -----------------------------------------
   // Each opens a destructive action's confirm and stops there; none of them
@@ -1688,6 +1721,58 @@ export async function holdServerActions(
     }
     // hang: leave the request unanswered.
   })
+}
+
+/**
+ * Answer the Canvas's Yjs socket with a doc built here instead of the Fixture
+ * World's, for a state the seeded world can't hold without changing every other
+ * screen of that Canvas (a Workspace with no sandbox yet, one deleted while the
+ * player is open). The socket never reaches the server, so nothing is written
+ * back; the server render still reads the seeded doc.
+ *
+ * It sends one sync step 2 — y-websocket's "here is the whole doc" — which is
+ * all the client needs to count itself synced.
+ */
+export async function serveYjsDoc(
+  page: Page,
+  build: (collections: RoomCollections) => void
+): Promise<void> {
+  const doc = new Y.Doc()
+  const collections = getRoomCollections(doc)
+  collections.transact(() => build(collections))
+  const update = Y.encodeStateAsUpdate(doc)
+  doc.destroy()
+  // messageSync (0), syncStep2 (1), then the update as a length-prefixed buffer.
+  const message = Buffer.concat([
+    Buffer.from([0, 1, ...varUint(update.length)]),
+    Buffer.from(update),
+  ])
+  // Answer the client's opening sync step 1, as the server would. Next's own
+  // dev socket (`/_next/webpack-hmr`) is left alone.
+  await page.routeWebSocket(/^(?!.*\/_next\/)/, (ws) => {
+    let answered = false
+    ws.onMessage(() => {
+      if (answered) return
+      answered = true
+      ws.send(message)
+    })
+  })
+}
+
+/** lib0's unsigned varint: 7 bits a byte, high bit set on all but the last. */
+function varUint(n: number): number[] {
+  const bytes: number[] = []
+  while (n > 0x7f) {
+    bytes.push((n & 0x7f) | 0x80)
+    n >>>= 7
+  }
+  bytes.push(n)
+  return bytes
+}
+
+/** Open the player's agent panel from the HUD. */
+export async function openPlayerAgent(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Open agent" }).click()
 }
 
 /**

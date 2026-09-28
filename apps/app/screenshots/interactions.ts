@@ -347,6 +347,34 @@ export const INTERACTIONS: Interaction[] = [
     },
   },
   {
+    name: "player-device-switch",
+    description:
+      "The player on /cart, switched to a phone and back to desktop: the prototype should stay on /cart.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    run: async (page) => {
+      await page.waitForTimeout(800)
+      // Navigate inside the prototype, the way a user clicking through it would.
+      const src = await page.locator("iframe").first().getAttribute("src")
+      const frame = page.frames().find((f) => f !== page.mainFrame())
+      if (!src || !frame) {
+        console.warn("  ! skipped a step: could not find the prototype frame")
+        return
+      }
+      await frame.waitForLoadState("load").catch(() => {})
+      await page.waitForTimeout(1000)
+      await step(() => frame.goto(new URL("cart", src).href))
+      await page.waitForTimeout(1200)
+      // An option's name is its label then its size ("iPhone 17 Pro402×874"),
+      // so anchor on the digit to keep "iPhone 17 Pro Max" out.
+      for (const device of [/^iPhone 17 Pro\s*\d/, /^Desktop · 1920/]) {
+        await click(page, page.getByRole("combobox", { name: /^device/i }))
+        await page.waitForTimeout(400)
+        await click(page, page.getByRole("option", { name: device }))
+        await page.waitForTimeout(1800)
+      }
+    },
+  },
+  {
     name: "player-hud-drag",
     description:
       "Dragging the player HUD across the screen and letting it snap to a corner, then again with reduced motion on.",
