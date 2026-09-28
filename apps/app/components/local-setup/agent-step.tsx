@@ -150,7 +150,7 @@ export function AgentStep({
               {selected.key === recommended?.key && (
                 <SetupChip>Recommended</SetupChip>
               )}
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {agentState(selected)}
               </span>
               {rows.length > 1 && (
