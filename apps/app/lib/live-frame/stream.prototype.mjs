@@ -7,7 +7,8 @@
 // current driver's input back with Input.dispatch*Event (research #980).
 //
 //   node apps/app/lib/live-frame/stream.prototype.mjs [--url http://app.localhost:3000]
-//   open http://localhost:4983 (open it twice, or on another machine, to be two viewers)
+//   open http://localhost:4983 (open it in two windows to be two viewers;
+//   --host 0.0.0.0 lets another machine on your network join)
 //
 // Results: stream.prototype.results.md. Bench: stream.prototype.bench.mjs.
 //
@@ -483,7 +484,8 @@ server.on("upgrade", (req, socket) => {
   conn.send(JSON.stringify({ type: "welcome", id }))
 })
 
-await new Promise((r) => server.listen(PORT, r))
+// Localhost only unless asked: anyone who can reach this port can drive the page.
+await new Promise((r) => server.listen(PORT, arg("host", "127.0.0.1"), r))
 await cdp.send("Page.enable")
 await cdp.send("Page.bringToFront")
 await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true })
@@ -496,4 +498,4 @@ if (arg("dsf")) {
   await startScreencast()
 }
 console.log(`PROTOTYPE streaming ${URL_TO_STREAM}`)
-console.log(`Open http://localhost:${PORT} (open it twice to be two viewers)${DELAY ? `, ${DELAY} ms one-way delay` : ""}`)
+console.log(`Open http://127.0.0.1:${PORT} (open it twice to be two viewers)${DELAY ? `, ${DELAY} ms one-way delay` : ""}`)
