@@ -1,5 +1,7 @@
 import "server-only"
 
+import { homedir } from "node:os"
+
 import type { DetectionResult } from "@/lib/host-tool/setup-step"
 import { harnessAvailability, type HarnessResolver } from "./availability"
 import {
@@ -86,10 +88,17 @@ export interface HarnessSetupRow {
   authenticated: boolean | null
   /** The live facts folded into the reusable setup step's detection result. */
   detection: DetectionResult
-  /** Whether the row reads as connected (the green dot). */
+  /** Whether the row reads as connected (the green state chip). */
   connected: boolean
-  /** The row's state line. */
-  detail: string
+  /** The row's state, as its chip reads ("Signed in", "Not installed"). */
+  state: string
+  /**
+   * The installed CLI's version (`2.1.4`), read from `<binary> --version`.
+   * `null` when it isn't installed or the output carries no version.
+   */
+  version: string | null
+  /** Where the binary resolves on `PATH`, `~`-abbreviated. `null` when absent. */
+  path: string | null
   /** The action to offer, or `null` when this row has nothing runnable. */
   action: HarnessSetupAction | null
 }
@@ -162,9 +171,12 @@ export function createHarnessSetup(
    */
   async function resolveRow(harness: Harness): Promise<HarnessSetupRow> {
     const installed = await probe(harness.hostBinary)
-    const authenticated =
-      installed && harness.probeAuth ? await harness.probeAuth(run) : null
-    return describeRow(harness, installed, authenticated)
+    const [authenticated, version, path] = await Promise.all([
+      installed && harness.probeAuth ? harness.probeAuth(run) : null,
+      installed ? readVersion(run, harness.hostBinary) : null,
+      installed ? locateBinary(run, harness.hostBinary) : null,
+    ])
+    return { ...describeRow(harness, installed, authenticated), version, path }
   }
 
   return {
@@ -235,7 +247,7 @@ function describeRow(
   harness: Harness,
   installed: boolean,
   authenticated: boolean | null
-): HarnessSetupRow {
+): Omit<HarnessSetupRow, "version" | "path"> {
   const base = {
     key: harness.key,
     label: harness.label,
@@ -251,7 +263,7 @@ function describeRow(
       ...base,
       detection: "not-installed",
       connected: false,
-      detail: `${harness.label} isn't installed yet — install it to use it here.`,
+      state: "Not installed",
       action: action({
         kind: "install",
         label: "Install & sign in",
@@ -264,7 +276,7 @@ function describeRow(
       ...base,
       detection: "authed",
       connected: true,
-      detail: `Connected — signed in to ${harness.label}.`,
+      state: "Signed in",
       action: action({ kind: "auth", label: "Re-run sign-in", primary: false }),
     }
   }
@@ -272,9 +284,58 @@ function describeRow(
     ...base,
     detection: "installed-not-authed",
     connected: false,
-    detail: `${harness.label} is installed but not signed in.`,
+    state: "Signed out",
     action: action({ kind: "auth", label: "Sign in", primary: true }),
   }
+}
+
+/**
+ * The installed CLI's version, for the row's facts line: the first
+ * `major.minor.patch` in `<binary> --version` (CLIs print it with their own
+ * name around it, e.g. `2.1.4 (Claude Code)`). Best effort — any failure, or
+ * output with no version in it, is `null` and the row just leaves it out.
+ */
+async function readVersion(
+  run: HarnessProcessRunner,
+  binary: string
+): Promise<string | null> {
+  try {
+    const { exitCode, stdout } = await run(binary, ["--version"])
+    if (exitCode !== 0) return null
+    return /\d+\.\d+\.\d+[\w.+-]*/.exec(stdout)?.[0] ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Where `binary` resolves on `PATH` (`command -v`), with the home directory
+ * shortened to `~`, for the row's facts line. Best effort, like
+ * {@link readVersion}.
+ */
+async function locateBinary(
+  run: HarnessProcessRunner,
+  binary: string
+): Promise<string | null> {
+  try {
+    const { exitCode, stdout } = await run("sh", [
+      "-c",
+      'command -v "$0"',
+      binary,
+    ])
+    const path = stdout.trim()
+    if (exitCode !== 0 || !path.startsWith("/")) return null
+    return abbreviateHome(path, homedir())
+  } catch {
+    return null
+  }
+}
+
+/** `path` with a leading `home` shortened to `~`. */
+export function abbreviateHome(path: string, home: string): string {
+  if (!home || home === "/") return path
+  if (path === home) return "~"
+  return path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
 }
 
 /**

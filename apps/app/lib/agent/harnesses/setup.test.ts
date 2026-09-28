@@ -1,8 +1,9 @@
+import { homedir } from "node:os"
 import { describe, expect, it, vi } from "vitest"
 
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
 import { HARNESSES } from "@/lib/agent/harnesses/index"
-import { createHarnessSetup } from "@/lib/agent/harnesses/setup"
+import { abbreviateHome, createHarnessSetup } from "@/lib/agent/harnesses/setup"
 import type {
   Harness,
   HarnessProcessRunner,
@@ -171,7 +172,9 @@ describe("rows (the row policy)", () => {
       installed: false,
       detection: "not-installed",
       connected: false,
-      detail: "Claude Code isn't installed yet — install it to use it here.",
+      state: "Not installed",
+      version: null,
+      path: null,
       action: { kind: "install", label: "Install & sign in", primary: true },
     })
   })
@@ -182,7 +185,7 @@ describe("rows (the row policy)", () => {
       authenticated: false,
       detection: "installed-not-authed",
       connected: false,
-      detail: "Claude Code is installed but not signed in.",
+      state: "Signed out",
       action: { kind: "auth", label: "Sign in", primary: true },
     })
   })
@@ -192,8 +195,32 @@ describe("rows (the row policy)", () => {
       authenticated: true,
       detection: "authed",
       connected: true,
-      detail: "Connected — signed in to Claude Code.",
+      state: "Signed in",
       action: { kind: "auth", label: "Re-run sign-in", primary: false },
+    })
+  })
+
+  it("reads an installed CLI's version and PATH location for its facts line", async () => {
+    const home = homedir()
+    const run: HarnessProcessRunner = async (cmd, args) => {
+      if (cmd === "claude" && args[0] === "--version") {
+        return { exitCode: 0, stdout: "2.1.4 (Claude Code)\n" }
+      }
+      if (cmd === "sh" && args[2] === "claude") {
+        return { exitCode: 0, stdout: `${home}/.local/bin/claude\n` }
+      }
+      return authedRunner(cmd, args)
+    }
+    expect(await claudeRow(["claude"], run)).toMatchObject({
+      version: "2.1.4",
+      path: "~/.local/bin/claude",
+    })
+  })
+
+  it("leaves the facts out when the CLI can't say", async () => {
+    expect(await claudeRow(["claude"], signedOutRunner)).toMatchObject({
+      version: null,
+      path: null,
     })
   })
 
@@ -446,5 +473,19 @@ describe("markConnected", () => {
       installed: true,
       detection: "authed",
     })
+  })
+})
+
+describe("abbreviateHome", () => {
+  it("shortens paths under home to ~ and leaves others alone", () => {
+    expect(abbreviateHome("/Users/zo/.local/bin/claude", "/Users/zo")).toBe(
+      "~/.local/bin/claude"
+    )
+    expect(abbreviateHome("/Users/zoe/bin/claude", "/Users/zo")).toBe(
+      "/Users/zoe/bin/claude"
+    )
+    expect(abbreviateHome("/usr/local/bin/codex", "/Users/zo")).toBe(
+      "/usr/local/bin/codex"
+    )
   })
 })

@@ -177,7 +177,7 @@ export function RepoConfigForm({
   if (!repo) {
     return (
       <>
-        <div className="flex min-w-0 flex-col gap-3 px-4 pb-4">
+        <div className="flex min-w-0 flex-col gap-3 px-5 pb-5">
           <p className="text-sm text-muted-foreground">
             Choose a git repository for this preset.
           </p>
@@ -230,7 +230,7 @@ export function RepoConfigForm({
             </>
           )}
         </div>
-        <DialogFooter className="mx-0 mb-0">
+        <DialogFooter className="px-5 pb-5">
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
@@ -241,7 +241,7 @@ export function RepoConfigForm({
 
   return (
     <>
-      <div className="flex min-w-0 items-center justify-between gap-2 px-4 pb-3">
+      <div className="flex min-w-0 items-center justify-between gap-2 px-5 pb-3">
         <div className="min-w-0 truncate text-sm">
           <span className="text-muted-foreground">Source </span>
           <span className="font-mono">{repo.repoFullName}</span>
@@ -265,7 +265,7 @@ export function RepoConfigForm({
         orientation="vertical"
         className="border-t [&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
       >
-        <div className="flex flex-col gap-5 p-4">
+        <div className="flex flex-col gap-5 p-5">
           <Field>
             <FieldLabel htmlFor="config-name">Preset name</FieldLabel>
             <Input
@@ -304,12 +304,12 @@ export function RepoConfigForm({
       </ScrollArea>
 
       {error && (
-        <p role="alert" className="px-4 pb-3 text-sm text-destructive">
+        <p role="alert" className="px-5 pt-3 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <DialogFooter className="mx-0 mb-0">
+      <DialogFooter className="border-t px-5 py-4">
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
