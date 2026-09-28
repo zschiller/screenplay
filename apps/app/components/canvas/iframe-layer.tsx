@@ -956,8 +956,9 @@ export function IframeLayer({
           </div>
           {focused && (
             // The interacting hint under the frame: what mode this is and how
-            // to leave it. Counter-scaled like the title bar so it stays one
-            // screen size at any zoom; clicking it exits too.
+            // to leave it, on the same floating-toolbar shell as the frame's
+            // toolbar. Counter-scaled like the title bar so it stays one
+            // screen size at any zoom.
             <div
               className="absolute top-full left-1/2"
               style={{
@@ -966,21 +967,21 @@ export function IframeLayer({
                 marginTop: 8 / zoom,
               }}
             >
-              <button
-                type="button"
+              <FloatingToolbar
+                aria-label="Interacting"
                 data-interacting-hint=""
-                className="flex h-7 items-center gap-1.5 rounded-full bg-background px-2.5 text-xs whitespace-nowrap text-muted-foreground shadow-sm ring-1 ring-foreground/10 hover:text-foreground"
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onFocus(null)
-                }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <span className="font-medium text-foreground">Interacting</span>
-                <span aria-hidden>·</span>
-                <Kbd>Esc</Kbd>
-                <span>to exit</span>
-              </button>
+                <span className="px-1.5 text-xs font-medium whitespace-nowrap">
+                  Interacting
+                </span>
+                <FloatingToolbarSeparator />
+                <Button size="xs" variant="ghost" onClick={() => onFocus(null)}>
+                  Exit
+                  <Kbd>Esc</Kbd>
+                </Button>
+              </FloatingToolbar>
             </div>
           )}
         </>
