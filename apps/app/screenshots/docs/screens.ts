@@ -270,6 +270,22 @@ async function clickMenuItem(page: Page, name: string, wait = 800) {
   await sleep(page, wait)
 }
 
+/** Open Canvas settings from the canvas name's ⋯ menu. */
+async function openCanvasSettings(page: Page) {
+  await page.getByRole("button", { name: "Canvas options" }).click()
+  await clickMenuItem(page, "Settings", 1200)
+}
+
+/** Open Canvas settings' Add repository menu (#884: its one home). */
+async function openAddRepositoryMenu(page: Page) {
+  await openCanvasSettings(page)
+  await page
+    .getByRole("dialog", { name: "Canvas settings" })
+    .getByRole("button", { name: "Add repository" })
+    .click({ timeout: 10_000 })
+  await sleep(page, 900)
+}
+
 async function hoverMenuItem(page: Page, name: string) {
   await page.getByRole("menuitem", { name }).first().hover({ timeout: 10_000 })
   await sleep(page, 900)
@@ -300,7 +316,6 @@ async function openCardMenu(page: Page, name: string, label: string) {
 }
 
 const BRANCH_ROW = "[class*='group/branch-row']"
-const REPO_ROW = "[class*='group/workspace-row']"
 
 /** Hover a sidebar row whose text contains `text`. */
 async function hoverRow(page: Page, text: string, rowSelector = BRANCH_ROW) {
@@ -652,18 +667,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "add-project-menu",
-    description: "The sidebar's Add repository menu.",
+    description: "Canvas settings' Add repository menu.",
     path: ROOM,
     cookies: WITH_CHAT,
-    crop: [0, 0, 560, 340],
     focus: MENU,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await clickAt(
-        page,
-        await centerOf(page, "button:has(svg.lucide-folder-plus)"),
-        900
-      )
+      await openAddRepositoryMenu(page)
     },
   }),
   screen({
@@ -676,11 +686,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
-      await clickAt(
-        page,
-        await centerOf(page, "button:has(svg.lucide-folder-plus)"),
-        900
-      )
+      await openAddRepositoryMenu(page)
       await clickMenuItem(page, "Open folder", 1500)
       const input = page.locator("[role=dialog] input").first()
       await input.fill(DEMO_CHECKOUT_PATH())
@@ -698,18 +704,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
-    name: "project-menu",
-    description: "A Repository row's ⋯ menu.",
-    path: ROOM,
-    cookies: WITH_CHAT,
-    crop: [0, 0, 640, 380],
-    focus: MENU,
-    prepare: async (page) => {
-      await camera(page, VIEW.hero)
-      await openRowMenu(page, "northwind-web", REPO_ROW)
-    },
-  }),
-  screen({
     name: "project-settings",
     viewport: TALL_VIEWPORT,
     description: "Repository settings.",
@@ -719,8 +713,11 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
-      await openRowMenu(page, "northwind-web", REPO_ROW)
-      await clickMenuItem(page, "Settings", 1500)
+      await openCanvasSettings(page)
+      await page
+        .getByRole("button", { name: "Edit northwind-web" })
+        .click({ timeout: 10_000 })
+      await sleep(page, 1500)
     },
   }),
   screen({
@@ -797,11 +794,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: DIALOG,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await hoverRow(page, "northwind-web", REPO_ROW)
-      await page
-        .locator(`${REPO_ROW} button[aria-label='New workspace']`)
-        .first()
-        .click()
+      await page.locator("button[aria-label='New workspace']").first().click()
       await sleep(page, 1500)
       await page.locator("[role=dialog] [contenteditable=true]").first().click()
       await page.keyboard.type(

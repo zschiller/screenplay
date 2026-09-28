@@ -378,10 +378,9 @@ function MenuToDialogHarness() {
         <CreateBranchDialog
           open
           onOpenChange={setOpen}
-          defaultBranch={repo.defaultBranch}
+          repos={[repo]}
+          repoId={repo.id}
           baseBranch={base ?? undefined}
-          repoOwner={repo.repoOwner}
-          repoName={repo.repoName}
           markdownLayers={[]}
           onSubmit={vi.fn()}
         />

@@ -8,19 +8,22 @@ import { Callout } from "nextra/components"
 # Workspaces
 
 A workspace is one git branch of a repository, running in its own sandbox with
-its own dev server, frames, agent chats, and terminals. Workspaces are listed
-under their repository in the sidebar by title. Each has a color that tags its
-frames across the canvas.
+its own dev server, frames, agent chats, and terminals. The sidebar's
+**Workspaces** section lists every workspace on the canvas in one flat list,
+by title. Each has a color that tags its frames across the canvas.
 
 ## Creating workspaces
 
-Hover a repository and click **+** (**New workspace**). **Create workspaces** can
-create several at once:
+Click **+** (**New workspace**) next to **Workspaces** in the sidebar.
+**Create workspaces** can create several at once:
 
 <Screenshot name="new-workspace-multi" alt="Create workspaces with two rows, each with a prompt" />
 
 - Each row starts from a **base branch** (the chip above the prompt), which
   defaults to the repository's default branch.
+- On a canvas with several repositories, each row also has a **repository**
+  chip beside the base branch. It starts on the repository you used last;
+  picking another resets the base to that repository's default branch.
 - Type a **prompt** to give the new workspace its first task. It's sent to
   the agent as soon as the sandbox is ready, and the agent titles the
   workspace from it (for example "Pricing FAQ") and names its branch from the
@@ -36,8 +39,13 @@ out the branch, runs the setup script, and boots the dev server. The agent
 panel shows the live **sandbox logs** meanwhile. When the server is up, a
 frame appears on the canvas and the panel switches to chat.
 
-To work on a branch that already exists, use **… → Open existing git branch** on
-the repository instead.
+To work on a branch that already exists, click the **…** next to **+** and
+choose **Open existing git branch** (on a canvas with several repositories,
+pick the repository first).
+
+A canvas with no repository yet says that workspaces need one, with an
+**Add repository** button that opens Canvas settings on
+[Repositories](/guides/repositories).
 
 ## Titles
 
@@ -52,6 +60,8 @@ checkout. To rename the branch itself, use **… → Rename branch…**.
 
 ## The sidebar row
 
+<Screenshot name="canvas-overview" alt="The canvas sidebar: the flat Workspaces list above, the Canvas layers list below" />
+
 Each workspace row shows:
 
 - a **status icon**: a spinner while starting, a warning when setup failed,
@@ -61,7 +71,13 @@ Each workspace row shows:
   **Retry**, **Recreate** and **Copy error**;
 - the workspace's **title** (double-click to rename). Workspaces created
   before titles existed show their branch name until you rename them;
-- **+/− line counts** for changes compared with the base branch.
+- **+/− line counts** for changes compared with the base branch;
+- on a canvas with two or more repositories, the **repository's short name**
+  at the end, so you can tell web and API work apart. With one repository
+  it's never shown.
+
+Workspaces keep their repository's order, and within it the order you give
+them: drag a row to move it among its repository's workspaces.
 
 Click a row to make it the agent panel's target. Double-click to also open
 the panel.

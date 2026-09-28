@@ -868,6 +868,7 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     sandboxName: "pricing-tiers",
     gitUrl: repo.cloneUrl,
     ref: "pricing-tiers",
+    title: "Pricing tiers",
     previewDomain: previewDomainFor(previewOrigin, "pricing-tiers"),
     port: 3000,
     status: "running",
@@ -879,6 +880,23 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     diffAdditions: 88,
     diffDeletions: 120,
   }
+  // The api repository's one Workspace, so the flat Workspaces list (#884)
+  // shows each row's repository.
+  const apiBranch: BranchData = {
+    id: "branch-rate-limit-headers",
+    repoId: apiRepo.id,
+    sandboxName: "rate-limit-headers",
+    gitUrl: apiRepo.cloneUrl,
+    ref: "rate-limit-headers",
+    title: "Rate-limit headers",
+    previewDomain: previewDomainFor(previewOrigin, "rate-limit-headers"),
+    port: 3000,
+    status: "stopped",
+    createdAt: daysAgo(now, 4),
+    colorIndex: 5,
+    diffAdditions: 24,
+    diffDeletions: 3,
+  }
 
   return {
     id: FIXTURE_IDS.rooms.pricing,
@@ -887,10 +905,10 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     lastOpenedAt: daysAgo(now, 1),
     folderId: FIXTURE_IDS.folders.marketing,
     doc: {
-      // A second repository with no Workspaces yet, so Canvas settings (#883)
-      // has a two-repository canvas to show.
+      // Two repositories, so Canvas settings (#883) and the Workspaces list
+      // (#884) have a two-repository canvas to show.
       repos: [repo, apiRepo],
-      branches: [branch],
+      branches: [branch, apiBranch],
       iframeLayers: [
         {
           id: "layer-pricing-desktop",

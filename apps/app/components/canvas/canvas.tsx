@@ -1398,13 +1398,9 @@ export function Canvas({
 
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  // Bumped to open the sidebar's add-project flow from the empty-canvas
-  // guidance; the sidebar owns the picker itself.
-  const [addProjectRequest, setAddProjectRequest] = useState(0)
-  const handleAddProject = useCallback(() => {
-    sidebarPanelRef.current?.expand()
-    setAddProjectRequest((n) => n + 1)
-  }, [])
+  // Every Add repository outside Canvas settings (the empty canvas, the chat
+  // panel, the getting-started checklist) opens it on Repositories (#884).
+  const handleAddProject = useCallback(() => setCanvasSettingsOpen(true), [])
   // Bumped to open the sidebar's New Workspace dialog for a Project, from the
   // getting-started checklist.
   const [newWorkspaceRequest, setNewWorkspaceRequest] = useState<{
@@ -1516,9 +1512,7 @@ export function Canvas({
             onRenameDocument={layerMutations.setTitle}
             onRemoveDocument={(id) => removeDocumentLayers([id])}
             onSelectBranch={handleSelectAgent}
-            onCreateRepo={createRepo}
-            onUpdateRepo={updateRepoInStorage}
-            onRemoveRepo={removeRepoIntake}
+            onOpenCanvasSettings={() => setCanvasSettingsOpen(true)}
             onCreateBranchFromGitBranch={createBranchFromGitBranch}
             onCreateWorkspace={createBranch}
             onRebaseOnDefault={branchActions.rebaseOnDefault}
@@ -1538,7 +1532,6 @@ export function Canvas({
             onRenameIframeLayer={layerMutations.rename}
             onRemoveIframeLayer={removeIframeLayer}
             onReorderIframeLayerGroups={reorderIframeLayerGroups}
-            onReorderRepos={ops.reorderRepos}
             onReorderBranches={ops.reorderBranches}
             onMoveMember={moveMember}
             onRenameIframeLayerGroup={renameIframeLayerGroup}
@@ -1555,7 +1548,6 @@ export function Canvas({
               chatCollapsed ? null : chatTarget.selectedAgentId
             }
             branchPrs={branchPrs}
-            addProjectRequest={addProjectRequest}
             newWorkspaceRequest={newWorkspaceRequest}
             footer={
               showGettingStarted ? (
