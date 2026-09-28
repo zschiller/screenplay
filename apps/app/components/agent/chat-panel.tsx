@@ -286,7 +286,7 @@ function useUsingMouse(): boolean {
 // resize. The negative margins cancel the padding so the popped box doesn't
 // widen the tab's footprint.
 const TAB_LABEL_CLASS =
-  "max-w-[100px] min-w-0 rounded-xs px-0.5 py-0.5 -mx-0.5 -my-0.5"
+  "max-w-[180px] min-w-0 rounded-xs px-0.5 py-0.5 -mx-0.5 -my-0.5"
 // Edit-mode-only decoration. Uses theme tokens (not the sidebar rows' hardcoded
 // white) so it reads against the tab strip.
 const TAB_LABEL_EDIT_CLASS =
