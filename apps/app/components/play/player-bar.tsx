@@ -171,7 +171,7 @@ export function PlayerBar({
   return (
     <div
       ref={barRef}
-      className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-2 pt-2"
+      className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-4 px-2 pt-2"
     >
       <TooltipProvider>
         <FloatingToolbar aria-label="Player" className="max-w-full">
