@@ -118,6 +118,7 @@ describe("room chat target", () => {
     expect(Object.keys(tools).sort()).toEqual([
       "create_document",
       "create_frames",
+      "create_workspaces",
       "list_changes",
       "merge_groups",
       "move_group",
@@ -130,6 +131,7 @@ describe("room chat target", () => {
       "remove",
       "rename",
       "send_to_workspace",
+      "stop_workspace",
       "undo_changes",
       "view_frame",
       "write_memory",

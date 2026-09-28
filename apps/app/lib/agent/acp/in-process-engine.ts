@@ -18,6 +18,7 @@ import {
   SUBMIT_PLAN_TOOL,
   type StopReason,
 } from "./schema"
+import { planGateOf } from "../plan-gate"
 
 const MAX_STEPS = 20
 
@@ -97,9 +98,14 @@ export class InProcessEngine implements UsageReportingEngine {
           // forever (and reads "Submit Plan" off the title-case fallback). The
           // `tool-input-delta`s carry no ACP signal already, so suppressing the
           // start is enough; the gate surfaces solely as the permission request.
+          // A plan-gated tool (#898) is a gate the same way.
+          const gate =
+            "toolName" in chunk
+              ? planGateOf(turn.tools?.[chunk.toolName])
+              : null
           if (
             chunk.type === "tool-input-start" &&
-            chunk.toolName === SUBMIT_PLAN_TOOL
+            (chunk.toolName === SUBMIT_PLAN_TOOL || gate)
           ) {
             return
           }
@@ -120,6 +126,21 @@ export class InProcessEngine implements UsageReportingEngine {
                 plan: String(
                   (chunk.input as { plan?: unknown } | undefined)?.plan ?? ""
                 ),
+              }),
+            })
+            return
+          }
+          // A plan-gated tool's call becomes the same gate, with the plan its
+          // gate renders from the call; the tool runs only once approved.
+          if (chunk.type === "tool-call" && gate) {
+            const { plan, input } = await gate(chunk.input)
+            await sink({
+              kind: "permission_request",
+              request: planPermissionRequest({
+                sessionId: turn.chatId,
+                toolCallId: chunk.toolCallId,
+                plan,
+                input,
               }),
             })
             return

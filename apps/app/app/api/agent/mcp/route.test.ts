@@ -125,6 +125,32 @@ describe("the Coordinator's MCP route", () => {
     expect(openRoomForRoute).toHaveBeenCalledWith("room-1", "room-chat-room-1")
   })
 
+  it("explains that creating Workspaces needs the built-in engine's plan review", async () => {
+    const res = await POST(
+      rpc({
+        jsonrpc: "2.0",
+        id: 6,
+        method: "tools/call",
+        params: {
+          name: "create_workspaces",
+          arguments: {
+            workspaces: [
+              {
+                title: "Fix",
+                repository: "acme/web",
+                brief: "Fix it.",
+                prompt: "Fix it.",
+              },
+            ],
+          },
+        },
+      })
+    )
+    const { result } = await res.json()
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toMatch(/approve a plan/)
+  })
+
   it("answers an unknown tool with a JSON-RPC error", async () => {
     const res = await POST(
       rpc({

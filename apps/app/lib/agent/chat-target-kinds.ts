@@ -245,6 +245,17 @@ export interface RoomTarget {
    * it the tool reports that it can't reach Workspaces.
    */
   launchWorkspaceTurn?: RoomToolPorts["launchWorkspaceTurn"]
+  /** Provisions a Workspace `create_workspaces` created, injected likewise. */
+  provisionWorkspace?: RoomToolPorts["provisionWorkspace"]
+  /** Stops a Workspace chat's turn for `stop_workspace`, injected likewise. */
+  stopWorkspaceTurn?: RoomToolPorts["stopWorkspaceTurn"]
+  /** The Coordinator chat. */
+  coordinatorChatId?: string
+  /**
+   * Who owns the Workspaces this turn creates, when not `userId`: on a wake
+   * turn, the owner of the Workspace that woke it (`wakeRequesterId`).
+   */
+  requesterId?: string
 }
 
 interface RoomContext {
@@ -255,17 +266,29 @@ interface RoomContext {
 /** The Coordinator tools module's ports over the live Room doc and database. */
 export function liveRoomToolPorts(
   room: RoomDoc,
-  { userId, launchWorkspaceTurn }: RoomTarget
+  {
+    userId,
+    launchWorkspaceTurn,
+    provisionWorkspace,
+    stopWorkspaceTurn,
+    coordinatorChatId,
+    requesterId,
+  }: RoomTarget
 ): RoomToolPorts {
+  const unavailable = (what: string) => async (): Promise<never> => {
+    throw new Error(`${what} isn't available here.`)
+  }
   return {
     ...liveWorkspaceReadPorts(room.roomId),
     readDoc: (fn) => room.readDoc(fn),
     mutateDoc: (fn) => room.mutateDoc(fn),
     launchWorkspaceTurn:
-      launchWorkspaceTurn ??
-      (async () => {
-        throw new Error("Messaging Workspaces isn't available here.")
-      }),
+      launchWorkspaceTurn ?? unavailable("Messaging Workspaces"),
+    provisionWorkspace:
+      provisionWorkspace ?? unavailable("Starting Workspaces"),
+    stopWorkspaceTurn: stopWorkspaceTurn ?? unavailable("Stopping Workspaces"),
+    requesterId: requesterId ?? userId,
+    coordinatorChatId: coordinatorChatId ?? "",
     listTerminalTabs: async () =>
       (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
         id: t.id,

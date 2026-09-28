@@ -8,7 +8,9 @@ import {
 } from "@/lib/agent/coordinator-mcp"
 import { ROOM_TOOL_ANNOTATIONS } from "@/lib/agent/room-tools"
 import { findActiveRun } from "@/lib/agent/persistence"
-import { delegatedTurnLauncher } from "@/lib/agent/turn-launch-live"
+import { coordinatorTarget } from "@/lib/agent/turn-launch-live"
+import { planGateOf } from "@/lib/agent/plan-gate"
+import type { ToolSet } from "ai"
 import {
   handleMcpMessage,
   parseErrorResponse,
@@ -53,11 +55,12 @@ export async function POST(req: Request) {
   const server: McpToolServer = {
     name: COORDINATOR_MCP_SERVER_NAME,
     version: "1",
-    tools: roomChatTarget.buildTools(room, {
-      userId: room.userId,
-      turnId: run?.id,
-      launchWorkspaceTurn: delegatedTurnLauncher(room, binding.chatId),
-    }),
+    tools: withoutPlanGates(
+      roomChatTarget.buildTools(
+        room,
+        coordinatorTarget(room, binding.chatId, run?.id)
+      )
+    ),
     annotations: ROOM_TOOL_ANNOTATIONS,
     // A wrong URL or token only ever shows up as "the tools aren't there", so
     // log each handshake to tell a missing one apart.
@@ -92,4 +95,27 @@ function methodNotAllowed(): Response {
     status: 405,
     headers: { Allow: "POST" },
   })
+}
+
+/**
+ * A plan-gated tool (`create_workspaces`, #898) needs Screenplay's plan review,
+ * which only the built-in engine raises: a harness runs MCP tools itself and
+ * never halts on our approval card. Over MCP it says so instead, so the
+ * Coordinator can tell the user rather than retrying.
+ */
+function withoutPlanGates(tools: ToolSet): ToolSet {
+  const out: ToolSet = {}
+  for (const [name, t] of Object.entries(tools)) {
+    out[name] = planGateOf(t)
+      ? {
+          ...t,
+          execute: async () => {
+            throw new Error(
+              "Creating Workspaces needs the user to approve a plan, which this harness can't show yet. Tell the user to create them from the canvas, or to switch the Coordinator's model to a built-in one."
+            )
+          },
+        }
+      : t
+  }
+  return out
 }

@@ -220,6 +220,11 @@ export function planPermissionRequest(opts: {
   sessionId: string
   toolCallId: string
   plan: string
+  /**
+   * What a plan-gated tool (#898) keeps with the pending plan, beside the plan
+   * text, so approving it acts on what the user reviewed.
+   */
+  input?: Record<string, unknown>
 }): RequestPermissionRequest {
   return {
     sessionId: opts.sessionId,
@@ -229,7 +234,7 @@ export function planPermissionRequest(opts: {
       kind: "other",
       status: "pending",
       content: [{ type: "content", content: textBlock(opts.plan) }],
-      rawInput: { plan: opts.plan },
+      rawInput: { ...opts.input, plan: opts.plan },
     },
     options: [
       {
@@ -281,18 +286,29 @@ export function isPlanGate(request: RequestPermissionRequest): boolean {
   return ids.has(PLAN_APPROVE_OPTION_ID) && ids.has(PLAN_REJECT_OPTION_ID)
 }
 
-/** Recover the `{ toolCallId, plan }` a plan-gate permission request carries. */
+/**
+ * Recover the `{ toolCallId, plan }` a plan-gate permission request carries,
+ * and the `input` the pending plan keeps: the plan plus anything a plan-gated
+ * tool stored beside it.
+ */
 export function planFromPermissionRequest(request: RequestPermissionRequest): {
   toolCallId: string
   plan: string
+  input: Record<string, unknown>
 } {
-  const raw = request.toolCall.rawInput as { plan?: string } | undefined
+  const raw = request.toolCall.rawInput
+  const rawObject =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {}
   const fromContent = (request.toolCall.content ?? [])
     .map((c) => (c.type === "content" ? blockText(c.content) : ""))
     .join("")
+  const plan = typeof rawObject.plan === "string" ? rawObject.plan : fromContent
   return {
     toolCallId: request.toolCall.toolCallId,
-    plan: raw?.plan ?? fromContent,
+    plan,
+    input: rawObject.gate ? { ...rawObject, plan } : { plan },
   }
 }
 

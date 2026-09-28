@@ -8,7 +8,11 @@ import { launchTurn } from "@/lib/agent/turn-launch"
 import {
   liveTurnLaunchDeps,
   planResumeTurn,
+  roomTurn,
+  settleWorkspacePlan,
 } from "@/lib/agent/turn-launch-live"
+import { isWorkspacePlanInput } from "@/lib/agent/room-tools"
+import { workspacePlanResolutionText } from "@/lib/agent/workspace-task"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -59,7 +63,16 @@ export async function POST(req: Request) {
   // message's implicit rejection) and resumes the chat with the decision's
   // continuation as the next user turn: approve → "proceed", reject → the
   // feedback.
-  const message = planResolutionText({ approved, feedback })
+  //
+  // A `create_workspaces` plan (#898) comes from the Coordinator: it resumes
+  // with the Coordinator's own tools, and approving it creates exactly the
+  // Workspaces the plan showed.
+  const workspacePlan = isWorkspacePlanInput(pending.input)
+    ? pending.input
+    : null
+  const message = workspacePlan
+    ? workspacePlanResolutionText({ approved, feedback })
+    : planResolutionText({ approved, feedback })
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
     {
@@ -70,12 +83,26 @@ export async function POST(req: Request) {
       model: chat.model,
       planDecision: { planId, approved, feedback },
     },
-    planResumeTurn({ room, userId, message, chat })
+    workspacePlan
+      ? roomTurn({ room, chatId, message, model: chat.model })
+      : planResumeTurn({ room, userId, message, chat })
   )
   // Nothing was still pending: a double-submit, or a gate a /stop or a
   // follow-up message already resolved.
   if (result.kind !== "started") {
     return new Response("Plan already resolved", { status: 409 })
+  }
+  // Before the response: the resumed turn runs after it, and reads the
+  // outcome this records.
+  if (workspacePlan) {
+    await settleWorkspacePlan(room, {
+      chatId,
+      runId: result.runId,
+      planId,
+      plan: workspacePlan,
+      approved,
+      feedback,
+    })
   }
   return Response.json({ success: true, runId: result.runId })
 }

@@ -59,6 +59,7 @@ function StateIcon({ state }: { state: WorkspaceTaskState }) {
   const cls = "size-3 shrink-0"
   switch (state) {
     case "sending":
+    case "starting":
       return <Spinner aria-hidden className={cls} />
     case "working":
       // The Workspace's agent at work: LLM activity, so the grid.

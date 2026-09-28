@@ -48,9 +48,7 @@ export async function upsertChat(params: {
  * at the live-route boundary to decide whether a turn resumes the agent's own
  * session via `session/load` or boots a fresh `session/new`.
  */
-export async function getAcpSessionId(
-  chatId: string
-): Promise<string | null> {
+export async function getAcpSessionId(chatId: string): Promise<string | null> {
   const [row] = await db
     .select({ acpSessionId: agentChat.acpSessionId })
     .from(agentChat)

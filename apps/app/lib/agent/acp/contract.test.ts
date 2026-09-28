@@ -12,7 +12,10 @@ vi.mock("@/lib/agent/providers", () => ({
 // consumer.test.ts).
 vi.mock("@/lib/db", () => ({ db: {} }))
 
+import { jsonSchema, tool } from "ai"
 import type { EngineUpdate } from "./engine-seam"
+import { planFromPermissionRequest } from "./schema"
+import { withPlanGate } from "../plan-gate"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import { ExternalEngine } from "./acp-engine"
 import { acpSessionFactoryFromDriver, contractFor } from "./engine-contract"
@@ -93,5 +96,55 @@ describe("InProcessEngine — capability + cancellation", () => {
       controller.signal
     )
     expect(updates).toEqual([{ kind: "done", stopReason: "cancelled" }])
+  })
+})
+
+describe("InProcessEngine — plan-gated tools (#898)", () => {
+  it("halts a plan-gated tool's call on the plan gate, with its plan and input", async () => {
+    const updates: EngineUpdate[] = []
+    const gated = withPlanGate(
+      tool({ inputSchema: jsonSchema<{ n: number }>({ type: "object" }) }),
+      async (input) => ({
+        plan: `Create ${(input as { n: number }).n}`,
+        input: { gate: "create_things", n: (input as { n: number }).n },
+      })
+    )
+    const driver: StreamDriver = (config) => ({
+      consumeStream: async () => {
+        const chunk = (c: unknown) =>
+          config.onChunk?.({ chunk: c } as never) as Promise<void>
+        await chunk({ type: "tool-input-start", id: "t1", toolName: "gated" })
+        await chunk({
+          type: "tool-call",
+          toolCallId: "t1",
+          toolName: "gated",
+          input: { n: 2 },
+        })
+      },
+    })
+    await new InProcessEngine(driver).run(
+      {
+        chatId: "c",
+        runId: "r",
+        roomId: "rm",
+        systemPrompt: "s",
+        model: "anthropic:test",
+        history: [],
+        tools: { gated },
+      },
+      (u) => {
+        updates.push(u)
+      },
+      new AbortController().signal
+    )
+    // No tool row for the call: only the gate, which the consumer pauses on.
+    expect(updates).toHaveLength(1)
+    const [update] = updates
+    if (update?.kind !== "permission_request") throw new Error("no gate")
+    expect(planFromPermissionRequest(update.request)).toEqual({
+      toolCallId: "t1",
+      plan: "Create 2",
+      input: { gate: "create_things", n: 2, plan: "Create 2" },
+    })
   })
 })

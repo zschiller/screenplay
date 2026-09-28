@@ -78,6 +78,23 @@ export type BranchData = {
    */
   createFlow?: "new" | "from-branch" | "duplicate-branch"
   createSourceBranch?: string
+  /**
+   * The member who created the Workspace (#898): whoever asked for its create,
+   * or for one the Coordinator created, the member whose message asked for it.
+   * Absent on Workspaces created before owners were recorded.
+   */
+  createdBy?: string
+  /**
+   * A seed message waiting for the sandbox to run (#898): a Workspace the
+   * Coordinator created gets its first turn once provisioning finishes, on the
+   * first attempt or a Retry. Cleared when the turn is sent.
+   */
+  pendingSeed?: {
+    chatId: string
+    message: string
+    /** The Coordinator chat that asked for the Workspace. */
+    coordinatorChatId: string
+  }
   /** False when the branch was opened from an existing remote branch — skip auto-rename on first chat. */
   autoNamedBranch?: boolean
   /** Routes discovered for this sandbox — initially crawled at startup, appended as the user navigates. */

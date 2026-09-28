@@ -214,11 +214,11 @@ export class AcpUpdateConsumer {
 
     await this.ports.broadcastPermissionRequest(request)
 
-    const { toolCallId, plan } = planFromPermissionRequest(request)
+    const { toolCallId, input } = planFromPermissionRequest(request)
     await this.ports.pauseForPlan({
       toolCallId,
       toolName: SUBMIT_PLAN_TOOL,
-      input: { plan },
+      input,
     })
 
     await this.ports.broadcastEnd()
