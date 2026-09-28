@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { getUserId } from "@/lib/auth-helpers"
-import { listBranchThreads } from "@/lib/comments"
+import { listThreads } from "@/lib/comments"
 import { canAccess, getRoom } from "@/lib/rooms"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
@@ -77,9 +77,9 @@ export default async function PlayPage({
     string,
     unknown
   >
-  const initialThreads = agent.ref
-    ? await listBranchThreads(roomId, userId, agent.ref).catch(() => [])
-    : []
+  // Every thread in the Canvas: the player shows its Workspace's, with the
+  // pin numbers they carry on the canvas.
+  const initialThreads = await listThreads(roomId, userId).catch(() => [])
 
   return (
     <YjsRoomProvider

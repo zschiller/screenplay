@@ -50,7 +50,9 @@ export async function startServer(
     return { started: false, stop: async () => {} }
   }
 
-  log(`• starting the local build on ${profile.baseUrl}`)
+  log(
+    `• starting the ${profile.hosted ? "hosted" : "local"} build on ${profile.baseUrl}`
+  )
   const child = spawn(
     "pnpm",
     [

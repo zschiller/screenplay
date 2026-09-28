@@ -9,8 +9,19 @@ import { canvasPanels, SCREENS, selectScreens } from "./screens"
 import { previewDomainFor } from "./lib/preview-url"
 
 describe("selectScreens", () => {
-  it("returns the whole list when nothing is named", () => {
-    expect(selectScreens([])).toEqual(SCREENS)
+  it("returns one build's whole list when nothing is named", () => {
+    expect(selectScreens([])).toEqual(SCREENS.filter((s) => !s.hosted))
+    const hosted = selectScreens([], { hosted: true })
+    expect(hosted.length).toBeGreaterThan(0)
+    expect(hosted.every((s) => s.hosted)).toBe(true)
+  })
+
+  it("keeps each build's screens to its own runs", () => {
+    const hostedName = SCREENS.find((s) => s.hosted)!.name
+    expect(() => selectScreens([hostedName])).toThrow(/unknown screen/)
+    expect(() => selectScreens([SCREENS[0]!.name], { hosted: true })).toThrow(
+      /unknown hosted screen/
+    )
   })
 
   it("keeps the declared order, not the order they were asked for", () => {

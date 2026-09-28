@@ -13,7 +13,7 @@ import { animate, motion, useMotionValue, useReducedMotion } from "motion/react"
 import {
   ArrowLeft,
   GripVertical,
-  MessageSquare,
+  MessageSquarePlus,
   MessagesSquare,
   SlidersHorizontal,
 } from "lucide-react"
@@ -30,19 +30,19 @@ import {
 } from "@workspace/ui/components/select"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
-import type { ThreadWithComments } from "@/lib/comments"
 import {
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
   GROUPED_IFRAME_LAYER_SIZE_PRESETS,
   getIframeLayerSizePreset,
 } from "@/lib/iframe-layer-sizes"
+import { CommentsMenu } from "@/components/canvas/comments-menu"
 import { PlayerKnobs } from "./player-knobs"
-import { PlayerComments } from "./player-comments"
+import type { PlayerComments } from "./player-comments"
 import { isLocalBuild } from "@/lib/local-mode"
 
 type Corner = "tl" | "tr" | "bl" | "br"
 
-type Panel = "knobs" | "comments" | null
+type Panel = "knobs" | null
 
 const MARGIN = 16
 // Approximate first-paint size — replaced by the real measured size as soon
@@ -58,8 +58,6 @@ const STORAGE_KEY = "screenplay:player-hud-corner"
 interface PlayerHudProps {
   roomId: string
   roomName: string
-  agentId: string
-  branch: string
   knobs: JsonValue[]
   knobValues: JsonObject
   onKnobChange: (next: JsonObject) => void
@@ -75,7 +73,8 @@ interface PlayerHudProps {
   onToggleChat?: () => void
   /** Reflects the chat panel's expanded state so the HUD button can flip variants. */
   chatOpen?: boolean
-  initialThreads: ThreadWithComments[]
+  /** The Workspace's comments: the comment tool and the thread list. */
+  comments: PlayerComments
   /** Active device preview preset id (from `lib/iframeLayer-sizes`). */
   deviceSizeId: string
   onDeviceSizeChange: (id: string) => void
@@ -84,15 +83,13 @@ interface PlayerHudProps {
 export function PlayerHud({
   roomId,
   roomName,
-  agentId,
-  branch,
   knobs,
   knobValues,
   onKnobChange,
   onDraggingChange,
   onToggleChat,
   chatOpen,
-  initialThreads,
+  comments,
   deviceSizeId,
   onDeviceSizeChange,
 }: PlayerHudProps) {
@@ -224,7 +221,7 @@ export function PlayerHud({
   // menu the panel opened lands in a portal outside the HUD, which closes that
   // first.
   const panelButtons = useRef<
-    Partial<Record<"knobs" | "comments", HTMLButtonElement | null>>
+    Partial<Record<"knobs", HTMLButtonElement | null>>
   >({})
   useEffect(() => {
     if (!panel) return
@@ -347,21 +344,35 @@ export function PlayerHud({
           </IconButton>
           {/* Comments are excluded from the local build (PRD #404, #417). */}
           {!isLocalBuild && (
-            <IconButton
-              label="Comments"
-              tooltipSide={tooltipSide}
-              ref={(el) => {
-                panelButtons.current.comments = el
-              }}
-              variant={panel === "comments" ? "default" : "ghost"}
-              aria-expanded={panel === "comments"}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() =>
-                setPanel(panel === "comments" ? null : "comments")
-              }
-            >
-              <MessageSquare />
-            </IconButton>
+            <>
+              <IconButton
+                label="Comment"
+                shortcut="C"
+                tooltipSide={tooltipSide}
+                pressed={comments.commentMode}
+                variant={comments.commentMode ? "default" : "ghost"}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={comments.toggleCommentMode}
+              >
+                <MessageSquarePlus />
+              </IconButton>
+              {/* The list opens in a portal, whose pointer events still
+                  bubble here through React: keep them off the drag. */}
+              <div
+                className="contents"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <CommentsMenu
+                  roomId={roomId}
+                  commentThreads={comments.commentThreads}
+                  numbers={comments.numbers}
+                  placements={comments.placements}
+                  onSelectThread={comments.selectThread}
+                  currentRouteFirst
+                  side={tooltipSide}
+                />
+              </div>
+            </>
           )}
           {onToggleChat ? (
             <IconButton
@@ -390,20 +401,11 @@ export function PlayerHud({
           onPointerDown={(e) => e.stopPropagation()}
           className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg bg-background shadow-md outline outline-1 outline-foreground/5"
         >
-          {panel === "knobs" ? (
-            <PlayerKnobs
-              knobs={knobs}
-              values={knobValues}
-              onChange={onKnobChange}
-            />
-          ) : (
-            <PlayerComments
-              roomId={roomId}
-              branch={branch}
-              agentId={agentId}
-              initialThreads={initialThreads}
-            />
-          )}
+          <PlayerKnobs
+            knobs={knobs}
+            values={knobValues}
+            onChange={onKnobChange}
+          />
         </motion.div>
       ) : null}
     </motion.div>

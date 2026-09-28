@@ -34,8 +34,10 @@ import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useStartWorkspace } from "@/hooks/use-start-workspace"
+import { isLocalBuild } from "@/lib/local-mode"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
+import { PlayerCommentLayer, usePlayerComments } from "./player-comments"
 
 interface PrototypePlayerProps {
   roomId: string
@@ -226,6 +228,42 @@ export function PrototypePlayer({
     setReloads(0)
     reloadIframe()
   }, [retryProbe, reloadIframe, setReloads])
+
+  // Going to a comment on another route: the page loads there, and its pin
+  // shows once the page reports that route.
+  const navigate = useCallback(
+    (route: string) => {
+      const iframe = iframeRef.current
+      if (!iframe || !livePreviewDomain) return
+      iframe.src =
+        livePreviewDomain.replace(/\/$/, "") +
+        (route.startsWith("/") ? route : `/${route}`)
+    },
+    [livePreviewDomain]
+  )
+  const describeWorkspace = useCallback(
+    () => ({ route: initialPath }),
+    [initialPath]
+  )
+  const viewport = useMemo(
+    () =>
+      isDesktop
+        ? stageSize && { width: stageSize.w, height: stageSize.h }
+        : { width: devicePreset.width, height: devicePreset.height },
+    [isDesktop, stageSize, devicePreset]
+  )
+  const comments = usePlayerComments({
+    roomId,
+    agentId,
+    iframeLayerId,
+    initialThreads,
+    iframeRef,
+    viewport,
+    scale: fitScale,
+    route: initialPath,
+    describeWorkspace,
+    onNavigate: navigate,
+  })
 
   const startWorkspace = useStartWorkspace()
   const restartWorkspace = useCallback(
@@ -450,21 +488,23 @@ export function PrototypePlayer({
               }
             >
               {iframe}
+              {/* Comments are excluded from the local build (PRD #404). */}
+              {!isLocalBuild && iframe && !stage && (
+                <PlayerCommentLayer {...comments.layer} />
+              )}
               {statusScreen}
             </div>
           </div>
           <PlayerHud
             roomId={roomId}
             roomName={roomName}
-            agentId={agentId}
-            branch={branch}
             knobs={knobs}
             knobValues={knobValues}
             onKnobChange={handleKnobChange}
             onDraggingChange={setHudDragging}
             onToggleChat={handleToggleChat}
             chatOpen={!chatCollapsed}
-            initialThreads={initialThreads}
+            comments={comments}
             deviceSizeId={deviceSizeId}
             onDeviceSizeChange={handleDeviceSizeChange}
           />

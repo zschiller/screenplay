@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   DETACH_GRACE_MS,
   homeFrame,
+  isFrameThread,
   parseElementAnchor,
   placeFrameThread,
   routePath,
@@ -107,6 +108,24 @@ describe("placeFrameThread", () => {
     ).toEqual({ kind: "detached", reason: "frame" })
   })
 
+  it("lists a note with no element or point as unanchored, framed or not", () => {
+    const note = thread({
+      iframeLayerId: null,
+      route: null,
+      selector: null,
+      anchor: null,
+      x: null,
+      y: null,
+    })
+    const unanchored = { kind: "detached", reason: "unanchored" }
+    expect(placeFrameThread({ ...base, thread: note, view: null })).toEqual(
+      unanchored
+    )
+    expect(
+      placeFrameThread({ ...base, frame: null, thread: note, view: null })
+    ).toEqual(unanchored)
+  })
+
   it("waits out a brief miss, then detaches", () => {
     const view = { path: "/checkout", rect: null }
     expect(
@@ -169,6 +188,20 @@ describe("placeFrameThread", () => {
         view: { path: "/cart", rect: null },
       }).kind
     ).toBe("offRoute")
+  })
+})
+
+describe("isFrameThread", () => {
+  const none = { iframeLayerId: null, workspaceId: null, documentId: null }
+
+  it("covers threads made on a frame or in the player", () => {
+    expect(isFrameThread({ ...none, iframeLayerId: "f1" })).toBe(true)
+    expect(isFrameThread({ ...none, workspaceId: "ws1" })).toBe(true)
+  })
+
+  it("leaves out document and canvas-point threads", () => {
+    expect(isFrameThread({ ...none, documentId: "d1" })).toBe(false)
+    expect(isFrameThread(none)).toBe(false)
   })
 })
 

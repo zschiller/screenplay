@@ -47,6 +47,10 @@ export function CommentsMenu({
   onSelectThread,
   describeLayer,
   getDocumentEditor,
+  currentRouteFirst = false,
+  side = "bottom",
+  numbers,
+  className,
 }: {
   roomId: string
   commentThreads: CommentThreads
@@ -55,6 +59,15 @@ export function CommentsMenu({
   onSelectThread: (threadId: string) => void
   describeLayer?: CommentsProps["describeLayer"]
   getDocumentEditor?: (id: string) => Editor | undefined
+  /** List the threads on the page in view before those on other routes: the
+   *  player shows one page at a time (#789). */
+  currentRouteFirst?: boolean
+  /** Which side of the button the tooltip and list open on. */
+  side?: "top" | "bottom"
+  /** Each thread's pin number, when `commentThreads` is a subset (see
+   *  `Comments`). */
+  numbers?: ReadonlyMap<string, number>
+  className?: string
 }) {
   const { threads, markRead } = commentThreads
   const [open, setOpen] = useState(false)
@@ -68,11 +81,26 @@ export function CommentsMenu({
     .sort((a, b) => (b.resolvedAt ?? 0) - (a.resolvedAt ?? 0))
   const isDetached = (t: ThreadWithComments) =>
     placements.get(t.id)?.kind === "detached"
+  const offRoute = (t: ThreadWithComments) => {
+    const p = placements.get(t.id)
+    return p?.kind === "offRoute" ? p.route : null
+  }
+  const attached = openThreads.filter((t) => !isDetached(t))
   const shown =
-    tab === "open" ? openThreads.filter((t) => !isDetached(t)) : resolvedThreads
+    tab === "open"
+      ? currentRouteFirst
+        ? [
+            ...attached.filter((t) => offRoute(t) === null),
+            // Other routes after, a route's threads together.
+            ...attached
+              .filter((t) => offRoute(t) !== null)
+              .sort((a, b) => offRoute(a)!.localeCompare(offRoute(b)!)),
+          ]
+        : attached
+      : resolvedThreads
   const detached = tab === "open" ? openThreads.filter(isDetached) : []
   // The same numbers the pins on the canvas carry.
-  const numberById = threadNumbers(threads)
+  const numberById = numbers ?? threadNumbers(threads)
   const unreadCount = openThreads.filter((t) => t.unread).length
   const label =
     `${openThreads.length} ${openThreads.length === 1 ? "comment" : "comments"}` +
@@ -98,7 +126,10 @@ export function CommentsMenu({
                 variant="ghost"
                 size="xs"
                 aria-label={label}
-                className="relative gap-1 px-1.5 font-normal tabular-nums"
+                className={cn(
+                  "relative gap-1 px-1.5 font-normal tabular-nums",
+                  className
+                )}
               >
                 <MessageSquare />
                 {openThreads.length}
@@ -111,10 +142,15 @@ export function CommentsMenu({
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{label}</TooltipContent>
+          <TooltipContent side={side}>{label}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <PopoverContent align="end" sideOffset={8} className="w-80 gap-0 p-0">
+      <PopoverContent
+        side={side}
+        align="end"
+        sideOffset={8}
+        className="w-80 gap-0 p-0"
+      >
         {openThread ? (
           <>
             <div className="flex border-b border-border px-3 py-2">
@@ -254,13 +290,15 @@ function DetachedNote({
   const what = thread.snapshot ?? thread.quotedText
   const where = showRoute ? thread.route : null
   const reason =
-    placement.reason === "frame"
-      ? thread.documentId
-        ? "Document deleted"
-        : "Frame deleted"
-      : thread.documentId
-        ? "Text removed"
-        : "Element not found"
+    placement.reason === "unanchored"
+      ? "Not on an element"
+      : placement.reason === "frame"
+        ? thread.documentId
+          ? "Document deleted"
+          : "Frame deleted"
+        : thread.documentId
+          ? "Text removed"
+          : "Element not found"
   return (
     <span className={cn("block text-xs text-muted-foreground", className)}>
       {reason}

@@ -84,10 +84,11 @@ export const thread = pgTable(
     roomId: text("room_id")
       .notNull()
       .references(() => room.id, { onDelete: "cascade" }),
-    // Coordinates are canvas-space (or iframeLayer-space when iframeLayerId is set).
+    // Coordinates are canvas-space, or frame-space on a frame thread
+    // (iframeLayerId set, or workspace_id alone for one made in the player).
     // When a selector is set, x/y is the last known resolved position used as
-    // a fallback if the selector no longer matches an element. Null on
-    // branch-level threads (no canvas position).
+    // a fallback if the selector no longer matches an element. Null on the
+    // old play-mode feed's threads (no position).
     x: doublePrecision("x"),
     y: doublePrecision("y"),
     iframeLayerId: text("iframe_layer_id"),
@@ -123,10 +124,10 @@ export const thread = pgTable(
     anchorStart: text("anchor_start"),
     anchorEnd: text("anchor_end"),
     quotedText: text("quoted_text"),
-    // Set on threads scoped to an agent branch (the prototype player's flat
-    // comment feed). Mutually exclusive with the positional fields above —
-    // canvas threads have branch null, branch threads have x/y/iframeLayerId/
-    // selector all null.
+    // Retired (#789). The prototype player's old flat feed keyed its threads
+    // by the Workspace's branch name. Nothing writes it now: listing a room's
+    // threads moves any left over onto `workspace_id` and clears it (see
+    // `lib/comment-migration.ts`).
     branch: text("branch"),
     resolved: boolean("resolved").notNull().default(false),
     resolvedAt: timestamp("resolved_at"),
