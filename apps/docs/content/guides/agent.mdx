@@ -38,8 +38,9 @@ Each target has its own set of tabs:
 
 **+** opens a new tab of whichever kind you used last. The caret next to it
 lets you choose. Double-click a tab to rename it, drag to reorder, and hover
-to close. Closed chats aren't lost: reopen them from the **Closed chats**
-archive at the end of the strip. Closing a target's last tab opens a fresh
+to close. Closed chats aren't lost: reopen them from the **Chat history**
+menu at the end of the strip, which lists them with their date and first
+message, and where you can delete them for good. Closing a target's last tab opens a fresh
 one, so the panel is never empty.
 
 <Screenshot name="logs" alt="The Sandbox logs tab streaming the dev server's output" />
@@ -47,7 +48,10 @@ one, so the panel is never empty.
 ## The composer
 
 Type a message and press <kbd>↵</kbd> to send. <kbd>⇧</kbd> <kbd>↵</kbd> adds a
-new line. While the agent is working, the send button becomes **Stop**.
+new line. While the agent is working, the send button becomes **Stop**. If
+you type while it works, the button becomes **Queue message**, and the message
+sends when the agent finishes. Each chat keeps its own draft, and a message
+that couldn't be sent stays in the chat with **Retry** and **Edit**.
 
 ### Choosing a model
 
@@ -123,7 +127,8 @@ you can expand for details:
 | **Submit plan** | Presented a plan for approval |
 
 Failed calls are marked in red and always show the error, or say that none
-was reported. Secrets such as GitHub tokens are redacted from tool output.
+was reported. Once a turn finishes, its tool calls fold behind one summary
+line of what the agent read, edited and ran; expand it to see them again. Secrets such as GitHub tokens are redacted from tool output.
 
 A few defaults are worth knowing:
 

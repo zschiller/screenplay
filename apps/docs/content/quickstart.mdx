@@ -30,28 +30,34 @@ change running in it.
 
 ### Run first-time setup
 
-The first launch opens **Set up Screenplay**. It has two parts:
+The first launch opens **Set up Screenplay**, which walks you through two
+steps:
 
-1. **Install a coding agent.** This one is required. Pick a CLI and click
-   **Install & sign in**. An inline terminal installs it and runs its own
-   sign-in. A CLI that's already installed and signed in shows up as
-   **Connected**.
-2. **Connect GitHub.** This one is optional. It enables browsing your GitHub
-   repositories and branches, and opening pull requests. It uses the `gh` CLI if
-   you have it, or a one-time device code. Click **Skip for now** to add
-   projects by local folder or clone URL instead. You can connect later in
+1. **Install a coding agent.** This one is required. Claude Code is
+   preselected and marked **Recommended**; click **Change** to pick another
+   CLI. Click **Install *CLI* and sign in** (or **Sign in to *CLI*** if it's
+   already installed). An inline terminal installs it and runs its own
+   sign-in. Once it's signed in, click **Use *CLI***.
+2. **Connect GitHub.** This one is optional. It lets you browse your
+   repositories and open pull requests from Screenplay. **Sign in to GitHub**
+   uses the `gh` CLI (**Install GitHub CLI and connect** if you don't have
+   it), or pick **Use a device code**. Click **Skip** to add projects by local
+   folder or clone URL instead. You can connect later in
    [Settings](/guides/settings).
 
-**Finish** enables itself as soon as both parts are satisfied. The page
-re-checks every couple of seconds, so there's no need to reload.
+A finished step collapses to one row with **Change**. **Finish** enables
+itself as soon as both steps are settled. The page re-checks every couple of
+seconds, so there's no need to reload.
 
 <Screenshot name="setup-gate" alt="The Set up Screenplay screen with Claude Code connected and GitHub not yet installed" />
 
 ### Create a canvas
 
-On the home screen, click **New canvas** and give it a name. A canvas holds
-one piece of work: one or more projects, their workspaces, and everything you
-lay out around them.
+**Finish** creates your first canvas and opens it, with a **Get started**
+checklist. Later, **New canvas** on the home screen (or
+<kbd>N</kbd>) creates and opens another one; rename it from its title. A
+canvas holds one piece of work: one or more projects, their workspaces, and
+everything you lay out around them.
 
 <Screenshot name="new-canvas-dialog" alt="The New canvas dialog" />
 

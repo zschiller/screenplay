@@ -16,8 +16,8 @@ view, so hot reload, client-side routing, and app state all work as normal.
 
 - A new workspace gets a frame automatically once its dev server is up.
 - The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
-  or draws one where you drag. A new frame is empty ("Choose a workspace") until
-  you pick a workspace for it.
+  or draws one where you drag. A new frame shows **No Workspace** until you
+  pick a workspace for it from its title (**Choose a workspace**).
 - **Show all routes** in the workspace menu adds a group with a frame for
   every route the workspace has visited.
 
@@ -42,18 +42,18 @@ When exactly one frame is selected, a small toolbar appears on its right edge:
 
 | Button | What it does |
 | --- | --- |
-| **Interact** | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it. <kbd>Esc</kbd> returns to the canvas. |
+| **Interact** | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it. Double-clicking a frame does the same. An **Interacting** <kbd>Esc</kbd> tag shows under the frame, and <kbd>Esc</kbd> returns to the canvas, even from inside the preview. |
 | **Create flow** | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. |
 | **Reload** | Reloads the preview. It's highlighted when hot reload has disconnected. |
 | **Knobs** | Live controls your app declares. See [Knobs](#knobs). |
-| **More** | **Device size**, **Fit to content**, **Open prototype player**, **Open in browser**. |
+| **More** | **Device size**, **Fit to content**, **Duplicate**, a **Workspace** submenu with **Open prototype player** and **Open in browser**, and **Delete frame**. |
 
 <Screenshot name="frame-tooltip-interact" alt="The frame toolbar with the Interact tooltip" />
 
 Interact and Create flow switch off automatically when you select something
 else.
 
-<Screenshot name="frame-more-menu" alt="The More menu: Device size, Fit to content, Open prototype player, Open in browser" />
+<Screenshot name="frame-more-menu" alt="The More menu: Device size, Fit to content, Duplicate, Workspace, Delete frame" />
 
 ## Sizes
 
@@ -84,8 +84,9 @@ them.
 
 <Screenshot name="knobs-popover" alt="The Knobs popover with Accent color, Corner radius, Headline, Show customer logos and Hero layout" />
 
-With no knobs declared, the popover suggests asking the agent to add some, for
-example "Add a slider knob to control the card padding."
+With no knobs declared, the popover explains what knobs are and offers **Ask
+the agent to add a knob**, which opens the workspace's chat with a prompt
+filled in.
 
 ## Shared state
 
@@ -96,9 +97,14 @@ frame and synced to everyone.
 
 ## Preview states
 
-- **Waiting for dev server…** while the workspace boots.
-- **Dev server not responding** if the server doesn't answer in time. Click
-  **Retry**, or check the workspace's logs.
+While there's no live page, a frame shows where its workspace is:
+
+- **No Workspace** until you pick one for the frame.
+- **Booting sandbox**, then **Starting dev server**, while the workspace boots.
+- **Workspace failed to start** if setup failed, and **Dev server not
+  responding** if the server doesn't answer in time. Both offer **Retry** and
+  **Open logs**.
+- **Workspace stopped** when its sandbox is stopped. Click **Start**.
 
 <Callout type="info">
   A preview that never loads on desktop usually means the dev server isn't
