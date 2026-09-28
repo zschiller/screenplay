@@ -615,6 +615,22 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
+    name: "terminal-tab-rename",
+    description:
+      "A restored terminal tab's label in rename mode, in the same sans as chat tabs (#918).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: stubTerminal,
+    prepare: async (page) => {
+      await selectWorkspace(page, "checkout-polish")
+      await page
+        .getByRole("tab")
+        .getByText("claude", { exact: true })
+        .dblclick({ timeout: 15_000 })
+    },
+    settleMs: 600,
+  },
+  {
     name: "chat-tabs-unread",
     description:
       "A background chat whose run just finished, marked unread in the tab strip.",
