@@ -6,6 +6,7 @@ import {
 } from "playwright-core"
 
 import type { CaptureProfile } from "../profile"
+import { hostedSessionCookie } from "./hosted"
 import { sleep } from "./server"
 
 /**
@@ -90,9 +91,14 @@ export async function openThemedContext(
       : {}),
   })
 
-  if (options.cookies?.length) {
+  // A hosted capture is always signed in, as the fixture user.
+  const cookies = [
+    ...(profile.hosted ? [hostedSessionCookie(profile)] : []),
+    ...(options.cookies ?? []),
+  ]
+  if (cookies.length) {
     await context.addCookies(
-      options.cookies.map((cookie) => ({
+      cookies.map((cookie) => ({
         ...cookie,
         url: profile.baseUrl,
         sameSite: "Lax" as const,

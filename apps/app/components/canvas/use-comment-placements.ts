@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { Editor } from "@tiptap/core"
 
 import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
-import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
 import {
   homeFrame,
+  isFrameThread,
   placeFrameThread,
   type ElementAnchor,
   type FrameView,
@@ -53,8 +53,10 @@ export function useCommentPlacements({
   activeThreadId,
 }: {
   threads: ThreadWithComments[]
-  iframeLayers: IframeLayerData[]
-  layouts: IframeLayerLayoutMap
+  /** The frames pins go on: the canvas's frames, or the player's one (#789). */
+  iframeLayers: readonly Pick<IframeLayerData, "id" | "branchId" | "route">[]
+  /** Each frame's (and document's) size, by id. */
+  layouts: ReadonlyMap<string, { width: number; height: number }>
   zoom: number
   getIframeLayerDom?: (id: string) => ScreenplayDom | undefined
   getDocumentEditor?: (id: string) => Editor | undefined
@@ -94,10 +96,21 @@ export function useCommentPlacements({
   const frameThreads = useMemo(
     () =>
       threads.filter(
-        (t) => (!t.resolved || t.id === activeThreadId) && t.iframeLayerId
+        (t) => (!t.resolved || t.id === activeThreadId) && isFrameThread(t)
       ),
     [threads, activeThreadId]
   )
+  // Play-mode feed threads whose Workspace was gone when they moved onto this
+  // model (#789): no frame, element or point, so they're only listed.
+  const orphanPlacements = useMemo(() => {
+    const m = new Map<string, Placement>()
+    for (const t of threads) {
+      if (t.resolved && t.id !== activeThreadId) continue
+      if (isFrameThread(t) || t.documentId || t.x !== null) continue
+      m.set(t.id, { kind: "detached", reason: "unanchored" })
+    }
+    return m
+  }, [threads, activeThreadId])
 
   // When each thread's element was first reported missing on its route.
   const missingSinceRef = useRef(new Map<string, number>())
@@ -273,8 +286,10 @@ export function useCommentPlacements({
     const frame = new Map(
       Array.from(framePlacements).filter(([id]) => live.has(id))
     )
-    return { placements: new Map([...frame, ...docPlacements]) }
-  }, [frameThreads, framePlacements, docPlacements])
+    return {
+      placements: new Map([...frame, ...docPlacements, ...orphanPlacements]),
+    }
+  }, [frameThreads, framePlacements, docPlacements, orphanPlacements])
 }
 
 function samePlacements(

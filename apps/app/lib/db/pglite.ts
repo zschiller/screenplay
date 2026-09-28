@@ -58,8 +58,14 @@ const MIGRATIONS_DIR =
  *
  * @param dataDir Filesystem directory PGlite persists to. Use `"memory://"`
  *   for an ephemeral in-memory database (handy in tests).
+ * @param options.migrationsFolder The migrations to run, when not the ones
+ *   this process was started with: the screenshot harness's seeder runs the
+ *   hosted set for a hosted capture (#789).
  */
-export function createPgliteDb(dataDir: string): PgliteHandle {
+export function createPgliteDb(
+  dataDir: string,
+  options: { migrationsFolder?: string } = {}
+): PgliteHandle {
   // Refuse to open a dir another live process already holds — see lockDataDir.
   const releaseLock = lockDataDir(dataDir)
   let client: PGlite
@@ -70,7 +76,9 @@ export function createPgliteDb(dataDir: string): PgliteHandle {
     throw err
   }
   const db = drizzle(client, { schema })
-  const ready = migrate(db, { migrationsFolder: MIGRATIONS_DIR })
+  const ready = migrate(db, {
+    migrationsFolder: options.migrationsFolder ?? MIGRATIONS_DIR,
+  })
   return {
     db,
     ready,

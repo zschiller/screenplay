@@ -8,7 +8,6 @@ import {
   deleteComment as deleteCommentFn,
   deleteThread as deleteThreadFn,
   editComment as editCommentFn,
-  listBranchThreads as listBranchThreadsFn,
   listThreads as listThreadsFn,
   markThreadRead as markThreadReadFn,
   markThreadUnread as markThreadUnreadFn,
@@ -31,15 +30,6 @@ export async function listThreadsAction(
   const userId = await requireUserId()
   await requireMember(roomId, userId)
   return listThreadsFn(roomId, userId)
-}
-
-export async function listBranchThreadsAction(opts: {
-  roomId: string
-  branch: string
-}): Promise<ThreadWithComments[]> {
-  const userId = await requireUserId()
-  await requireMember(opts.roomId, userId)
-  return listBranchThreadsFn(opts.roomId, userId, opts.branch)
 }
 
 export async function createThreadAction(opts: {
@@ -88,30 +78,6 @@ export async function createThreadAction(opts: {
     anchorStart: opts.anchorStart ?? null,
     anchorEnd: opts.anchorEnd ?? null,
     quotedText: opts.quotedText ?? null,
-    branch: null,
-    body: trimmed,
-    authorId: userId,
-  })
-}
-
-export async function createBranchThreadAction(opts: {
-  roomId: string
-  branch: string
-  body: string
-}): Promise<ThreadWithComments> {
-  const userId = await requireUserId()
-  await requireMember(opts.roomId, userId)
-  const trimmed = opts.body.trim()
-  if (!trimmed) throw new Error("Comment body is required")
-  return createThreadWithFirstComment({
-    roomId: opts.roomId,
-    x: null,
-    y: null,
-    iframeLayerId: null,
-    selector: null,
-    offsetX: null,
-    offsetY: null,
-    branch: opts.branch,
     body: trimmed,
     authorId: userId,
   })

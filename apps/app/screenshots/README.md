@@ -9,6 +9,7 @@ pnpm screenshots:browsers   # once per machine
 pnpm screenshots:boot       # seed a fresh world, serve it at :3947
 pnpm screenshots:shots      # every named screen, light and dark
 pnpm screenshots:video open-canvas
+pnpm screenshots:shots --hosted   # the hosted build's screens (comments)
 ```
 
 ## What's here
@@ -23,6 +24,7 @@ pnpm screenshots:video open-canvas
 | `interactions.ts`            | The **named interactions** recorded to video.                                                                   |
 | `lib/preview-server.ts`      | Serves fixture pages for Iframe Layers, with the real Sandbox Bridge inlined.                                   |
 | `lib/capture.ts`             | Runs a capture set; one context per screen-and-theme.                                                           |
+| `lib/hosted.ts`              | The signed-in session a `--hosted` capture runs as (comments live only in the hosted build).                    |
 | `lib/server.ts`              | Boots (or reuses) the app and the preview server.                                                               |
 | `bin/`                       | The four entry points behind the `screenshots:*` package scripts.                                               |
 | `sample/`                    | A committed sample capture set — proof the harness works, not an input.                                         |

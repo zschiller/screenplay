@@ -63,6 +63,12 @@ export interface Screen {
    */
   prepare?: (page: Page) => Promise<void>
   /**
+   * Shoot this screen against the hosted build (`--hosted`), for a surface the
+   * local build strips: comments above all (#789). A hosted run shoots only
+   * these screens and a local run skips them, so each set stays comparable.
+   */
+  hosted?: boolean
+  /**
    * Extra settle time in ms *after* `prepare`, for a surface with an entrance
    * animation the runner's generic wait can't see. Keep it small and rare — a
    * fixed sleep is the least reliable thing in a capture.
@@ -2083,6 +2089,89 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 300,
   },
+  // --- Hosted build only (`--hosted`): comments (#789) ---
+  {
+    name: "player-comments",
+    description:
+      "The player on /checkout with its Workspace's comment pins on the page.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await page
+        .locator("[data-comment-pin]")
+        .first()
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {})
+    },
+    settleMs: 300,
+  },
+  {
+    name: "player-comment-thread",
+    description: "A pin opened in the player: the canvas's thread card.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await unfreeze(page)
+      const pin = page.locator("[data-comment-pin]").first()
+      await pin.waitFor({ timeout: 30_000 })
+      await pin.click()
+      await page.getByRole("dialog").first().waitFor({ timeout: 10_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "player-comments-list",
+    description:
+      "The player's comment list: this route first, then other routes, then the old feed's notes.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await unfreeze(page)
+      await page
+        .locator("[data-comment-pin]")
+        .first()
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {})
+      await openCommentList(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "player-comment-composer",
+    description:
+      "C in the player, then a click on the order form: the composer on that element.",
+    hosted: true,
+    path: playerCommentsPath(),
+    prepare: async (page) => {
+      await unfreeze(page)
+      const field = page
+        .frameLocator("iframe")
+        .locator("section.cols > div.card > .bar.tall")
+      await field.waitFor({ timeout: 30_000 })
+      await page.keyboard.press("c")
+      const box = await field.boundingBox()
+      if (!box) throw new Error("the order form has no box")
+      await page.mouse.click(box.x + box.width * 0.4, box.y + box.height / 2)
+      await page
+        .getByPlaceholder("Add a comment…")
+        .pressSequentially("Put Apple Pay above the card fields.", {
+          timeout: 10_000,
+        })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-comments-list",
+    description:
+      "The canvas's comment list: the same threads the player shows, the player's included.",
+    hosted: true,
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await unfreeze(page)
+      await openCommentList(page)
+    },
+    settleMs: 400,
+  },
 ]
 
 function isHomePath(url: string): boolean {
@@ -2916,16 +3005,44 @@ export async function showTooltip(page: Page): Promise<void> {
     .catch(() => {})
 }
 
-/** Look up screens by name, preserving {@link SCREENS} order. Throws on an unknown name. */
-export function selectScreens(names: readonly string[]): Screen[] {
-  if (names.length === 0) return SCREENS
-  const unknown = names.filter((name) => !SCREENS.some((s) => s.name === name))
+/** The player on the Checkout canvas's Mobile checkout Workspace, at /checkout. */
+function playerCommentsPath(): string {
+  return `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}?route=/checkout`
+}
+
+/**
+ * Open the comment list: the count button in the canvas top bar or the player
+ * HUD (before #789, the HUD's Comments panel). Retried, since a click can land
+ * before hydration wires the button.
+ */
+async function openCommentList(page: Page): Promise<void> {
+  const button = page
+    .getByRole("button", { name: /^(\d+ comments?(, \d+ unread)?|Comments)$/ })
+    .first()
+  const list = page.getByText(/^(Comments|Workspace comments)$/)
+  for (let i = 0; i < 5 && !(await list.count()); i++) {
+    await button.click({ timeout: 15_000 })
+    await page.waitForTimeout(500)
+  }
+}
+
+/**
+ * Look up screens by name, preserving {@link SCREENS} order, from the screens
+ * of one build (see {@link Screen.hosted}). Throws on an unknown name.
+ */
+export function selectScreens(
+  names: readonly string[],
+  { hosted = false }: { hosted?: boolean } = {}
+): Screen[] {
+  const pool = SCREENS.filter((screen) => !!screen.hosted === hosted)
+  if (names.length === 0) return pool
+  const unknown = names.filter((name) => !pool.some((s) => s.name === name))
   if (unknown.length > 0) {
     throw new Error(
-      `unknown screen(s): ${unknown.join(", ")}\nknown screens: ${SCREENS.map((s) => s.name).join(", ")}`
+      `unknown ${hosted ? "hosted " : ""}screen(s): ${unknown.join(", ")}\nknown screens: ${pool.map((s) => s.name).join(", ")}`
     )
   }
-  return SCREENS.filter((screen) => names.includes(screen.name))
+  return pool.filter((screen) => names.includes(screen.name))
 }
 
 /**

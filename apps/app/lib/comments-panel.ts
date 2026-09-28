@@ -57,16 +57,28 @@ export function filterThreads(
   }
 }
 
+export interface GroupOptions {
+  /** The route on screen: its groups lead (the player's, #789). */
+  currentRoute?: string
+  /** Group every frame thread under this one frame, so threads left on
+   *  different canvas frames of one Workspace share a group (the player). */
+  frame?: string
+}
+
 /**
  * Group threads by frame and route (or by document), most recently active
  * group first, most recently active thread first within it. Resolved threads
  * order by when they were resolved. Detached threads, whose frame or element
  * is gone, have nothing to group by and come last in one group of their own.
+ *
+ * A thread made on a Workspace rather than a frame (#789) groups under the
+ * frame it's pinned on for this viewer.
  */
 export function groupThreads(
   threads: readonly ThreadWithComments[],
   placements: ReadonlyMap<string, Placement>,
-  describeLayer: (id: string) => { title?: string; route?: string } | undefined
+  describeLayer: (id: string) => { title?: string; route?: string } | undefined,
+  options: GroupOptions = {}
 ): CommentGroup[] {
   const recency = (t: ThreadWithComments) =>
     t.resolved ? (t.resolvedAt ?? lastActivity(t)) : lastActivity(t)
@@ -79,7 +91,16 @@ export function groupThreads(
       detached.push(thread)
       continue
     }
-    const layerId = thread.documentId ?? thread.iframeLayerId
+    const placedOn =
+      placement?.kind === "pinned" || placement?.kind === "offRoute"
+        ? placement.frameId
+        : null
+    const onFrame = !!(thread.iframeLayerId || thread.workspaceId)
+    const layerId =
+      thread.documentId ??
+      (onFrame ? options.frame : undefined) ??
+      thread.iframeLayerId ??
+      placedOn
     const route = thread.documentId
       ? null
       : placement?.kind === "offRoute"
@@ -97,6 +118,10 @@ export function groupThreads(
     group.threads.push(thread)
   }
   const result = [...groups.values()]
+  if (options.currentRoute !== undefined) {
+    const here = (g: CommentGroup) => g.route === options.currentRoute
+    result.sort((a, b) => Number(here(b)) - Number(here(a)))
+  }
   if (detached.length > 0) {
     result.push({
       key: "detached",
