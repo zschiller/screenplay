@@ -24,29 +24,43 @@ import type { ComposerSpec } from "./branch-create-planner"
  */
 export interface ComposerRow extends ComposerSpec {
   key: string
+  /**
+   * The Repo this row creates its Workspace in, on a canvas with several
+   * (#884). Unset when the dialog has only one Repo to offer.
+   */
+  repoId?: string
 }
 
 /** A fresh row off `baseBranch` with `model` selected and an empty prompt. */
 function freshRow(
   baseBranch: string,
   model: string,
-  makeKey: () => string
+  makeKey: () => string,
+  repoId?: string
 ): ComposerRow {
-  return { key: makeKey(), baseBranch, model, prompt: "", planMode: false }
+  return {
+    key: makeKey(),
+    baseBranch,
+    model,
+    prompt: "",
+    planMode: false,
+    repoId,
+  }
 }
 
 /** The single row the dialog opens on: the chosen base, default model, no prompt. */
 export function initialRows(
   baseBranch: string,
   model: string,
-  makeKey: () => string
+  makeKey: () => string,
+  repoId?: string
 ): ComposerRow[] {
-  return [freshRow(baseBranch, model, makeKey)]
+  return [freshRow(baseBranch, model, makeKey, repoId)]
 }
 
 /**
- * Append a row that clones the previous row's `baseBranch` and `model` with an
- * empty prompt and plan-mode off (#327) — the quick path to fanning out
+ * Append a row that clones the previous row's `baseBranch`, `model` and Repo
+ * with an empty prompt and plan-mode off (#327) — the quick path to fanning out
  * variations off the same base. With no previous row to clone (only possible
  * before any row exists) it falls back to empty base/model.
  */
@@ -55,7 +69,10 @@ export function appendClonedRow(
   makeKey: () => string
 ): ComposerRow[] {
   const prev = rows[rows.length - 1]
-  return [...rows, freshRow(prev?.baseBranch ?? "", prev?.model ?? "", makeKey)]
+  return [
+    ...rows,
+    freshRow(prev?.baseBranch ?? "", prev?.model ?? "", makeKey, prev?.repoId),
+  ]
 }
 
 /** Remove the row at `index`, never dropping below a single row. */

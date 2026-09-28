@@ -1,9 +1,16 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronDown, GitBranch, Plus, Trash2 } from "lucide-react"
+import { ChevronDown, FolderGit2, GitBranch, Plus, Trash2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -37,7 +44,8 @@ import {
   removeRow,
   type ComposerRow,
 } from "@/lib/composer-rows"
-import type { MarkdownLayerData } from "@/lib/types"
+import { repoShortName } from "@/lib/repo-identity"
+import type { MarkdownLayerData, RepoData } from "@/lib/types"
 
 // Process-wide source of stable row keys. A module counter (rather than a ref
 // read during render) keeps the seed pure from React's view; skipped numbers
@@ -47,26 +55,32 @@ function nextRowKey(): string {
   return `row-${rowKeySeq++}`
 }
 
+/** One row's create request: its {@link ComposerSpec} and the Repo it's in. */
+export type WorkspaceSpec = ComposerSpec & { repoId: string }
+
 interface CreateBranchDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /**
-   * The Repo's default branch — the base each row starts on and the dividing
-   * line the planner reads to derive the flow: submitting on the default branch
-   * is `"new"`, any other base is `"duplicate-branch"` (#325).
+   * The canvas's Repos, in sidebar order. With several, each row gets a
+   * repository chip beside its base chip (#884); with one, nothing mentions it.
    */
-  defaultBranch: string
+  repos: RepoData[]
   /**
-   * The base each row starts on. Defaults to {@link defaultBranch}; the
+   * The Repo every row starts in. Its default branch is the base each row
+   * starts on and the dividing line the planner reads to derive the flow:
+   * submitting on the default branch is `"new"`, any other base is
+   * `"duplicate-branch"` (#325).
+   */
+  repoId: string
+  /**
+   * The base each row starts on. Defaults to the Repo's default branch; the
    * "New workspace from here…" menu item (#353) seeds it with the originating
    * branch's ref so the dialog opens pre-based on that branch (a base ≠ the
    * default resolves to the planner's `duplicate-branch` flow), still with an
    * empty prompt.
    */
   baseBranch?: string
-  /** Repo identity, used to fetch the searchable branch list for the base picker. */
-  repoOwner: string
-  repoName: string
   /**
    * The Room's Markdown Layers — the `@`-mention source for a non-empty seed
    * prompt. Empty before any Layer exists; mentions serialize through the
@@ -74,11 +88,11 @@ interface CreateBranchDialogProps {
    */
   markdownLayers: MarkdownLayerData[]
   /**
-   * Fired with one resolved {@link ComposerSpec} per row when the user submits.
-   * A single row is the common case; parallel mode (#327) hands several, which
-   * the caller resolves one create per Branch.
+   * Fired with one resolved {@link WorkspaceSpec} per row when the user
+   * submits. A single row is the common case; parallel mode (#327) hands
+   * several, which the caller resolves one create per Branch.
    */
-  onSubmit: (specs: ComposerSpec[]) => void
+  onSubmit: (specs: WorkspaceSpec[]) => void
 }
 
 /**
@@ -111,16 +125,16 @@ interface CreateBranchDialogProps {
 export function CreateBranchDialog({
   open,
   onOpenChange,
-  defaultBranch,
+  repos,
+  repoId,
   baseBranch,
-  repoOwner,
-  repoName,
   markdownLayers,
   onSubmit,
 }: CreateBranchDialogProps) {
+  const seedRepo = repos.find((r) => r.id === repoId) ?? repos[0]
   // The base each row seeds on: the explicit `baseBranch` (the "New branch from
   // here…" source, #353) when given, else the Repo default.
-  const seedBase = baseBranch ?? defaultBranch
+  const seedBase = baseBranch ?? seedRepo?.defaultBranch ?? ""
   const [models, setModels] = useState<ModelInfo[]>([])
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
     null
@@ -176,20 +190,20 @@ export function CreateBranchDialog({
   // a single fresh row) whenever the dialog reopens or the resolved seed values
   // change — the render-phase previous-value pattern, as in the prior dialog.
   const [rows, setRows] = useState<ComposerRow[]>(() =>
-    initialRows(seedBase, initialModel, nextRowKey)
+    initialRows(seedBase, initialModel, nextRowKey, seedRepo?.id)
   )
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const rowSeedKey = `${open}|${seedBase}|${initialModel}`
+  const rowSeedKey = `${open}|${seedRepo?.id}|${seedBase}|${initialModel}`
   const [prevRowSeedKey, setPrevRowSeedKey] = useState(rowSeedKey)
   if (rowSeedKey !== prevRowSeedKey) {
     setPrevRowSeedKey(rowSeedKey)
     if (open) {
-      setRows(initialRows(seedBase, initialModel, nextRowKey))
+      setRows(initialRows(seedBase, initialModel, nextRowKey, seedRepo?.id))
       setFocusedIndex(0)
     }
   }
 
-  const updateRow = (idx: number, patch: Partial<ComposerSpec>) => {
+  const updateRow = (idx: number, patch: Partial<ComposerRow>) => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
   }
 
@@ -228,6 +242,7 @@ export function CreateBranchDialog({
     // Drop the row's React `key` — the planner only wants the spec fields.
     onSubmit(
       rows.map((row) => ({
+        repoId: row.repoId ?? seedRepo?.id ?? "",
         baseBranch: row.baseBranch,
         model: row.model,
         prompt: row.prompt,
@@ -278,9 +293,15 @@ export function CreateBranchDialog({
                   skills={skills}
                   skillsLoading={skillsLoading}
                   markdownLayers={markdownLayers}
-                  repoOwner={repoOwner}
-                  repoName={repoName}
+                  repos={repos}
                   onRemove={() => removeRowAt(idx)}
+                  onRepoChange={(repo) =>
+                    // A new repository starts on its own default branch.
+                    updateRow(idx, {
+                      repoId: repo.id,
+                      baseBranch: repo.defaultBranch,
+                    })
+                  }
                   onBaseChange={(branch) =>
                     updateRow(idx, { baseBranch: branch })
                   }
@@ -337,9 +358,10 @@ interface WorkspaceRowProps {
   skills: SkillMenuItem[]
   skillsLoading: boolean
   markdownLayers: MarkdownLayerData[]
-  repoOwner: string
-  repoName: string
+  /** The canvas's Repos; the row offers a repository chip when there are several. */
+  repos: RepoData[]
   onRemove: () => void
+  onRepoChange: (repo: RepoData) => void
   onBaseChange: (branch: string) => void
   onModelChange: (model: string) => void
   onPlanModeChange: (planMode: boolean) => void
@@ -364,9 +386,9 @@ function WorkspaceRow({
   skills,
   skillsLoading,
   markdownLayers,
-  repoOwner,
-  repoName,
+  repos,
   onRemove,
+  onRepoChange,
   onBaseChange,
   onModelChange,
   onPlanModeChange,
@@ -376,6 +398,7 @@ function WorkspaceRow({
 }: WorkspaceRowProps) {
   const composerRef = useRef<ComposerHandle>(null)
   const [basePickerOpen, setBasePickerOpen] = useState(false)
+  const repo = repos.find((r) => r.id === row.repoId) ?? repos[0]
 
   // Focus the Composer when this row becomes the focused one — on first mount of
   // the initial row and when a freshly-added row lands.
@@ -389,6 +412,44 @@ function WorkspaceRow({
     <div>
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
+          {repos.length > 1 && repo ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  title="Choose the repository"
+                >
+                  <FolderGit2 className="size-3.5" />
+                  {repoShortName(repo)}
+                  <ChevronDown className="size-3 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                // Hand focus back to the prompt, like the base picker does.
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault()
+                  composerRef.current?.focus()
+                }}
+              >
+                <DropdownMenuRadioGroup
+                  value={repo.id}
+                  onValueChange={(id) => {
+                    const next = repos.find((r) => r.id === id)
+                    if (next && next.id !== repo.id) onRepoChange(next)
+                  }}
+                >
+                  {repos.map((r) => (
+                    <DropdownMenuRadioItem key={r.id} value={r.id}>
+                      {repoShortName(r)}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
           <Popover open={basePickerOpen} onOpenChange={setBasePickerOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -404,8 +465,8 @@ function WorkspaceRow({
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
               <BranchPicker
-                owner={repoOwner}
-                repo={repoName}
+                owner={repo?.repoOwner ?? ""}
+                repo={repo?.repoName ?? ""}
                 onSelect={(branch) => {
                   onBaseChange(branch)
                   setBasePickerOpen(false)

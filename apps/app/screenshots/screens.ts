@@ -954,6 +954,12 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "canvas-workspaces-two-repos",
+    description:
+      "The sidebar's Workspaces list on a canvas with two repositories: each row ends with its repository (#884).",
+    path: `/${ids.rooms.pricing}`,
+  },
+  {
     name: "canvas-pr-merged",
     description:
       "A Canvas whose Workspace has a merged PR: the sidebar's merged icon and diff stats.",
@@ -1226,14 +1232,10 @@ export const SCREENS: Screen[] = [
   {
     name: "sidebar-project-row-hover",
     description:
-      "Hovering a Project row's New workspace (+) button in the sidebar.",
+      "Hovering the sidebar's New workspace (+) button, with its tooltip.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await page.getByText("acme/storefront").first().hover()
-      await page
-        .locator('[title="New workspace"], [aria-label="New workspace"]')
-        .first()
-        .hover({ timeout: 15_000 })
+      await newWorkspaceButton(page).then((b) => b.hover())
       await showTooltip(page)
     },
     settleMs: 400,
@@ -1580,21 +1582,13 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-sidebar-no-projects",
     description:
-      "The sidebar's no-projects state with its Add repository menu open.",
+      "The sidebar's Workspaces section on a Canvas with no repository: why, and Add repository (#884).",
     path: `/${ids.rooms.tokens}`,
     prepare: async (page) => {
-      const button = page
+      await page
         .getByRole("button", { name: "Add repository", exact: true })
-        .filter({ hasText: "Add repository" })
         .first()
-      const menu = page.getByRole("menuitem", { name: "Open folder" })
-      await button.waitFor({ timeout: 15_000 })
-      // The first click can land before hydration; retry until the menu opens.
-      for (let i = 0; i < 10 && !(await menu.isVisible()); i++) {
-        await button.click()
-        await page.waitForTimeout(300)
-      }
-      await menu.waitFor({ timeout: 5_000 })
+        .waitFor({ timeout: 15_000 })
     },
     settleMs: 300,
   },
@@ -1640,14 +1634,21 @@ export const SCREENS: Screen[] = [
   {
     name: "dialog-new-workspace",
     description:
-      "The prompt-first New workspace dialog, opened from a Project row.",
+      "The prompt-first Create workspaces dialog, from the sidebar's New workspace (+).",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await page.getByText("acme/storefront").first().hover()
-      await page
-        .locator('[title="New workspace"], [aria-label="New workspace"]')
-        .first()
-        .click({ timeout: 15_000 })
+      await newWorkspaceButton(page).then((b) => b.click())
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-new-workspace-two-repos",
+    description:
+      "Create workspaces on a canvas with two repositories: a repository chip beside each row's base branch (#884).",
+    path: `/${ids.rooms.pricing}`,
+    prepare: async (page) => {
+      await newWorkspaceButton(page).then((b) => b.click())
+      await page.getByRole("dialog").waitFor({ timeout: 15_000 })
     },
     settleMs: 400,
   },
@@ -3592,12 +3593,24 @@ async function openCanvasOptions(page: Page): Promise<void> {
   await settings.waitFor()
 }
 
-/** Open the sidebar repository menu's Remove confirm for acme/storefront. */
+/**
+ * The sidebar's New workspace (+) button. Before #884 it sat on the hovered
+ * repository row, so hover that first when it's there; a before/after pair
+ * then shoots the same state.
+ */
+async function newWorkspaceButton(page: Page): Promise<Locator> {
+  const button = page.locator('[aria-label="New workspace"]').first()
+  await button.waitFor({ state: "attached", timeout: 15_000 })
+  const repoRow = page.locator("[class*='group/workspace-row']").first()
+  if (await repoRow.count()) await repoRow.hover()
+  return button
+}
+
+/** Open Canvas settings' Remove confirm for the storefront repository. */
 async function openRemoveProject(page: Page): Promise<void> {
-  await page.getByText("acme/storefront").first().hover()
+  await openCanvasSettings(page)
   await page
-    .locator('[title="More"], [aria-label="Repository options"]')
-    .first()
+    .getByRole("button", { name: "More actions for storefront" })
     .click({ timeout: 15_000 })
   // Radix ignores a select that lands in the same beat the menu opened.
   await page.waitForTimeout(300)
@@ -3640,19 +3653,22 @@ async function settleDeleteConfirm(page: Page): Promise<void> {
 }
 
 /**
- * Open Add repository from the sidebar's Repositories header and pick one of its two
- * entries: `github` (the repo list) or `folder` (the native folder dialog, which
- * a capture browser can't reach, so it falls back to the path form). The first
- * click can land before hydration, so retry until the menu is up.
+ * Open Add repository from Canvas settings (the one place it lives since
+ * #884) and pick one of its two entries: `github` (the repo list) or `folder`
+ * (the native folder dialog, which a capture browser can't reach, so it falls
+ * back to the path form). The first click can land before hydration, so retry
+ * until the menu is up.
  */
 export async function openAddProject(
   page: Page,
   entry: "github" | "folder"
 ): Promise<void> {
   await unfreeze(page)
+  const settings = page.getByRole("dialog", { name: "Canvas settings" })
+  if (!(await settings.count())) await openCanvasSettings(page)
   const menu = page.getByRole("menu")
   for (let i = 0; i < 5 && !(await menu.count()); i++) {
-    await page
+    await settings
       .getByRole("button", { name: "Add repository" })
       .first()
       .click({ timeout: 15_000 })
@@ -3663,7 +3679,7 @@ export async function openAddProject(
       name: entry === "github" ? "Open GitHub repository" : "Open folder",
     })
     .click()
-  await page.getByRole("dialog").waitFor({ timeout: 15_000 })
+  await page.getByRole("dialog").last().waitFor({ timeout: 15_000 })
 }
 
 /**

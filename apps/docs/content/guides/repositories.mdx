@@ -18,13 +18,15 @@ own name) over where it comes from: a folder on your computer or its name on
 GitHub. On a shared canvas these settings are shared with everyone on it, so
 a collaborator's new workspaces start the same way as yours.
 
-The canvas sidebar still lists repositories under **Repositories**, with their
-workspaces nested inside, and its menus do the same things.
+The canvas sidebar lists workspaces, not repositories: when a canvas has two
+or more repositories, each [workspace](/guides/workspaces) row ends with its
+repository's short name.
 
 ## Adding a repository
 
-Click **Add repository** in Canvas settings, or the **Add repository** icon
-next to **Repositories** in the sidebar.
+Click **Add repository** in Canvas settings. On a canvas with no repository
+yet, the sidebar's **Workspaces** section has an **Add repository** button
+that opens it.
 
 <Screenshot name="add-project-menu" alt="The Add repository menu" />
 
@@ -67,8 +69,7 @@ handle this automatically; see [Dev server & ports](/building/dev-server) if
 yours doesn't.
 
 To change settings later, click **Edit** on the repository in Canvas
-settings, or hover it in the sidebar and choose **… → Settings**. Changes
-apply to workspaces you create afterwards.
+settings. Changes apply to workspaces you create afterwards.
 
 <Screenshot name="project-settings" alt="The Repository settings dialog" />
 
@@ -79,19 +80,6 @@ In Canvas settings, click the **…** on a repository's row and choose
 The dialog lists each workspace and warns if uncommitted work would be lost.
 When you're connected to GitHub, it also offers **Also delete these *N*
 branches on GitHub**, which is off by default.
-
-## The repository menu
-
-Hover a repository in the sidebar and click **…**:
-
-<Screenshot name="project-menu" alt="The repository menu: Open existing git branch, Settings, Remove" />
-
-- **Open existing git branch** opens a workspace on a branch that already exists
-  instead of creating a new one.
-- **Settings** edits the settings described above.
-- **Remove** removes the repository, as in Canvas settings.
-
-The **+** next to **…** creates a [new workspace](/guides/workspaces).
 
 ## Repository presets
 
