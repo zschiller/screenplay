@@ -134,8 +134,11 @@ export function PlayerHud({
     const rect = hudRef.current?.getBoundingClientRect()
     const w = rect?.width || HUD_WIDTH
     const h = rect?.height || HUD_HEIGHT
-    const right = window.innerWidth - w - MARGIN
-    const bottom = window.innerHeight - h - MARGIN
+    // Corners of the preview area, not the window: with the agent open, the
+    // window's bottom-right corner is the composer's send button.
+    const area = hudRef.current?.parentElement
+    const right = (area?.clientWidth ?? window.innerWidth) - w - MARGIN
+    const bottom = (area?.clientHeight ?? window.innerHeight) - h - MARGIN
     switch (c) {
       case "tl":
         return { x: MARGIN, y: MARGIN }
@@ -157,13 +160,14 @@ export function PlayerHud({
     y.set(target.y)
   }, [corner, cornerPos, x, y])
 
-  // Re-snap on viewport resize so the HUD stays anchored to its corner.
+  // Re-snap whenever the preview area resizes (the window, or the agent panel
+  // opening beside it) so the HUD stays anchored to its corner.
   useEffect(() => {
-    function handleResize() {
-      snapTo(cornerPos(corner), 320, 28)
-    }
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
+    const area = hudRef.current?.parentElement
+    if (!area) return
+    const ro = new ResizeObserver(() => snapTo(cornerPos(corner), 320, 28))
+    ro.observe(area)
+    return () => ro.disconnect()
   }, [corner, cornerPos, snapTo])
 
   const persistCorner = useCallback((next: Corner) => {
@@ -180,9 +184,10 @@ export function PlayerHud({
   const handleDragEnd = useCallback(() => {
     onDraggingChange?.(false)
     const rect = hudRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const cx = window.innerWidth / 2
-    const cy = window.innerHeight / 2
+    const area = hudRef.current?.parentElement?.getBoundingClientRect()
+    if (!rect || !area) return
+    const cx = area.left + area.width / 2
+    const cy = area.top + area.height / 2
     const midX = rect.left + rect.width / 2
     const midY = rect.top + rect.height / 2
     const next: Corner =
@@ -254,7 +259,7 @@ export function PlayerHud({
       dragElastic={0}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      style={{ x, y, position: "fixed", top: 0, left: 0, touchAction: "none" }}
+      style={{ x, y, position: "absolute", top: 0, left: 0, touchAction: "none" }}
       className="z-[9998] select-none"
     >
       <TooltipProvider>
