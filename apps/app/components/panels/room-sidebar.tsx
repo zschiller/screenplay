@@ -1316,8 +1316,9 @@ export function RoomSidebar({
                   {sortedRepos.length === 0 && (
                     // A canvas with no repository says why, and where to add
                     // one: Canvas settings, the one place repositories live.
-                    <div className="flex flex-col items-start gap-2 px-2 pt-1 pb-2">
-                      <p className="text-xs text-sidebar-foreground/70">
+                    // Styled like the Canvas list's "No frames yet" below.
+                    <div className="flex flex-col items-center gap-3 py-8">
+                      <p className="text-center text-xs text-balance text-sidebar-foreground/50">
                         Workspaces need a repository to run.
                       </p>
                       {/* The getting-started checklist below already leads
