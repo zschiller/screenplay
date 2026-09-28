@@ -700,6 +700,9 @@ export function IframeLayer({
       // Interactive (focus / Create Flow) frames forward pointers to the iframe,
       // so the title bar's drag is detached just like the body overlay is hidden.
       titleDragDisabled={interactive}
+      // No resize handles while interacting: the Selection Overlay hides its
+      // drawn ones, and the edge hit areas would steal clicks from the page.
+      resizable={!focused}
       onResize={onResize}
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}

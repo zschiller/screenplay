@@ -813,6 +813,7 @@ export const SCREENS: Screen[] = [
       const frame = checkoutDesktopFrame(page)
       await frame.waitFor({ state: "visible", timeout: 15_000 })
       await frame.dblclick({ timeout: 15_000 })
+      await page.mouse.move(5, 5)
     },
     settleMs: 400,
   },
@@ -833,6 +834,8 @@ export const SCREENS: Screen[] = [
       // keydown listener can't hear it.
       await frame.click({ timeout: 15_000 })
       await page.keyboard.press("Escape")
+      // Park the pointer on empty canvas so no hover outline lingers.
+      await page.mouse.move(5, 5)
     },
     settleMs: 400,
   },
