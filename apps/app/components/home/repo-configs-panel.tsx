@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Folder, Plus } from "lucide-react"
+import { Copy, Folder, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import {
@@ -11,6 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -177,28 +184,47 @@ export function RepoConfigsPanel() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            openForm({ kind: "duplicate", config })
-                          }
-                        >
-                          Duplicate
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
                           onClick={() => openForm({ kind: "edit", config })}
                         >
                           Edit
                         </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPendingDelete(config)}
-                        >
-                          Delete
-                        </Button>
+                        {/* Edit is the common action; the rest go in a menu
+                            so the row keeps one visible button (#784). */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon-sm"
+                              aria-label="More actions"
+                            >
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            // Both items open a dialog; handing focus back to
+                            // the trigger would pull it out of that dialog.
+                            onCloseAutoFocus={(event) => event.preventDefault()}
+                          >
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                openForm({ kind: "duplicate", config })
+                              }
+                            >
+                              <Copy />
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() => setPendingDelete(config)}
+                            >
+                              <Trash2 />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </>
                     }
                   />
@@ -216,6 +242,16 @@ export function RepoConfigsPanel() {
         }}
       >
         <DialogContent
+          // With a source already set (Edit, Duplicate), start in the name
+          // field rather than on Change, the dialog's first control.
+          onOpenAutoFocus={(event) => {
+            const name = (
+              event.currentTarget as HTMLElement
+            ).querySelector<HTMLInputElement>("#config-name")
+            if (!name) return
+            event.preventDefault()
+            name.focus()
+          }}
           className={cn(
             "gap-0 overflow-hidden p-0 sm:max-w-lg",
             REPO_PICKER_DIALOG_CLASS

@@ -294,6 +294,8 @@ export function RepoConfigForm({
             <FieldLabel htmlFor="config-name">Preset name</FieldLabel>
             <Input
               id="config-name"
+              // Just after picking a source, carry on in the name field.
+              autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="default"
