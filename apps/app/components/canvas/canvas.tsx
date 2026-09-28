@@ -119,6 +119,10 @@ import { ShortcutSheet } from "./shortcut-sheet"
 import { CanvasEmptyState } from "./canvas-empty-state"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
+import {
+  useHoveredWorkspaceId,
+  workspaceHoverStore,
+} from "@/lib/workspace-hover-store"
 
 /** The request the empty Knobs popover starts in the chat composer. */
 /** The comments panel's width plus its 8px margin and 8px of air. */
@@ -459,6 +463,29 @@ export function Canvas({
   useEffect(() => {
     captureTracker.retain(new Set(iframeLayers.map((layer) => layer.id)))
   }, [captureTracker, iframeLayers])
+  // Workspace ↔ frame hover cross-highlighting (#793): a frame hovered on the
+  // Canvas lights up its Workspace in the sidebar, and a Workspace hovered in
+  // the sidebar outlines its frames here.
+  const hoveredFrameBranchId = hoveredIframeLayerId
+    ? iframeLayers.find((layer) => layer.id === hoveredIframeLayerId)?.branchId
+    : undefined
+  useEffect(() => {
+    if (!hoveredFrameBranchId) return
+    const hover = { branchId: hoveredFrameBranchId, source: "frame" } as const
+    workspaceHoverStore.set(hover)
+    return () => workspaceHoverStore.clear(hover)
+  }, [hoveredFrameBranchId])
+  const hoveredWorkspaceId = useHoveredWorkspaceId()
+  const workspaceHighlightIds = useMemo(
+    () =>
+      hoveredWorkspaceId
+        ? iframeLayers
+            .filter((layer) => layer.branchId === hoveredWorkspaceId)
+            .map((layer) => layer.id)
+        : undefined,
+    [hoveredWorkspaceId, iframeLayers]
+  )
+
   const iframeLayerLayouts = useMemo(
     () =>
       computeIframeLayerLayouts(
@@ -1735,6 +1762,7 @@ export function Canvas({
               groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
               focusedIframeLayerId={focusedIframeLayerId}
               hoveredIframeLayerId={hoveredIframeLayerId}
+              workspaceHighlightIds={workspaceHighlightIds}
               iframeLayerLayouts={effectiveIframeLayerLayouts}
               hideResizeHandles={
                 editingDocumentLayerId !== null ||

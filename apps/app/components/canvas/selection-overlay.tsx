@@ -30,6 +30,9 @@ interface SelectionOverlayProps {
   groupSelectedIframeLayerIds: Set<string>
   focusedIframeLayerId: string | null
   hoveredIframeLayerId: string | null
+  /** Frames of the Workspace hovered in the sidebar (#793). Drawn like the
+   *  hover outline. */
+  workspaceHighlightIds?: readonly string[]
   iframeLayerLayouts: IframeLayerLayoutMap
   marquee: {
     startX: number
@@ -105,6 +108,7 @@ export function SelectionOverlay({
   groupSelectedIframeLayerIds,
   focusedIframeLayerId,
   hoveredIframeLayerId,
+  workspaceHighlightIds,
   iframeLayerLayouts,
   marquee,
   frameDraft,
@@ -193,13 +197,18 @@ export function SelectionOverlay({
       strokeWorldRect(snap(tl.x), snap(tl.y), snap(br.x), snap(br.y))
     }
 
-    // Draw hover frame (only if not already selected/focused)
-    if (
-      hoveredIframeLayerId &&
-      !selectedIframeLayerIds.has(hoveredIframeLayerId) &&
-      focusedIframeLayerId !== hoveredIframeLayerId
-    ) {
-      const layout = iframeLayerLayouts.get(hoveredIframeLayerId)
+    // Draw hover frames (only if not already selected/focused): the frame
+    // under the pointer, plus every frame of a Workspace hovered in the
+    // sidebar.
+    const hoverIds = new Set(workspaceHighlightIds)
+    if (hoveredIframeLayerId) hoverIds.add(hoveredIframeLayerId)
+    for (const hoverId of hoverIds) {
+      if (
+        selectedIframeLayerIds.has(hoverId) ||
+        focusedIframeLayerId === hoverId
+      )
+        continue
+      const layout = iframeLayerLayouts.get(hoverId)
       if (layout) {
         const tl = toScreen(layout.x, layout.y)
         const br = toScreen(layout.x + layout.width, layout.y + layout.height)
@@ -606,6 +615,7 @@ export function SelectionOverlay({
     groupSelectedIframeLayerIds,
     focusedIframeLayerId,
     hoveredIframeLayerId,
+    workspaceHighlightIds,
     iframeLayerLayouts,
     marquee,
     frameDraft,
