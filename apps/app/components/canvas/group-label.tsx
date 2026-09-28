@@ -113,7 +113,11 @@ function GroupWorkspaceSwitcher({
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
+      <WorkspaceHoverCard
+        branchId={workspace.branchId}
+        side="bottom"
+        suppressed={open}
+      >
         <PopoverTrigger asChild>
           <button
             type="button"
