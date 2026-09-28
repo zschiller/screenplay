@@ -511,7 +511,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await selectWorkspace(page, "empty-cart-state")
+      await selectWorkspace(page, "Empty cart state")
     },
     settleMs: 400,
   },
@@ -572,7 +572,7 @@ export const SCREENS: Screen[] = [
       // only lists that Workspace's chats — so the plan's chat is reached by
       // selecting its Workspace, not by looking for a tab that isn't there yet.
       // Its chat is then restored as the Workspace's only open one.
-      await selectWorkspace(page, "empty-cart-state")
+      await selectWorkspace(page, "Empty cart state")
       await waitForPlanCard(page)
     },
     settleMs: 400,
@@ -584,7 +584,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await selectWorkspace(page, "empty-cart-state")
+      await selectWorkspace(page, "Empty cart state")
       await waitForPlanCard(page)
       await page
         .getByRole("button", { name: "Request changes", exact: true })
@@ -611,7 +611,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: stubTerminal,
-    prepare: (page) => selectWorkspace(page, "checkout-polish"),
+    prepare: (page) => selectWorkspace(page, "Checkout polish"),
     settleMs: 600,
   },
   {
@@ -1082,7 +1082,7 @@ export const SCREENS: Screen[] = [
       } else {
         await page
           .locator("button:has(svg.lucide-chevrons-up-down)")
-          .filter({ hasText: "checkout-polish" })
+          .filter({ hasText: "Checkout polish" })
           .first()
           .click({ timeout: 15_000 })
       }
@@ -1245,7 +1245,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       const row = page
         .locator(".group\\/branch-row")
-        .filter({ hasText: "checkout-polish" })
+        .filter({ hasText: "Checkout polish" })
         .first()
       await row.hover()
       await row
@@ -1262,7 +1262,36 @@ export const SCREENS: Screen[] = [
       "The Workspace row's … menu open on a Workspace with an open PR.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await openBranchRowMenu(page, "checkout-polish")
+      await openBranchRowMenu(page, "Checkout polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-rename-title",
+    description:
+      "Renaming a Workspace's title inline from its sidebar row (#881). The branch is untouched.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "Empty cart state")
+      await page
+        .getByRole("menuitem", { name: "Rename", exact: true })
+        .click({ timeout: 10_000 })
+      await page.keyboard.press("ControlOrMeta+a")
+      await page.keyboard.type("Empty cart illustration")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-rename-branch",
+    description:
+      "Rename branch… from the Workspace menu's Git group (#881): renames the git branch, not the title.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openBranchRowMenu(page, "Empty cart state")
+      await page
+        .getByRole("menuitem", { name: "Rename branch…" })
+        .click({ timeout: 10_000 })
+      await page.getByRole("dialog").waitFor({ timeout: 5_000 })
     },
     settleMs: 400,
   },
@@ -1272,7 +1301,7 @@ export const SCREENS: Screen[] = [
       "The Workspace row's … menu open on a Workspace with changes and no PR.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await openBranchRowMenu(page, "empty-cart-state")
+      await openBranchRowMenu(page, "Empty cart state")
     },
     settleMs: 400,
   },
@@ -1282,7 +1311,7 @@ export const SCREENS: Screen[] = [
       "The Workspace row's … menu open on a Workspace still running setup.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await openBranchRowMenu(page, "apple-pay-button")
+      await openBranchRowMenu(page, "Apple Pay button")
     },
     settleMs: 400,
   },
@@ -1319,7 +1348,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await page
         .locator(".group\\/branch-row")
-        .filter({ hasText: "checkout-polish" })
+        .filter({ hasText: "Checkout polish" })
         .first()
         .locator("[data-sidebar=menu-sub-button]")
         .hover({ timeout: 15_000 })
@@ -1584,7 +1613,7 @@ export const SCREENS: Screen[] = [
       // ref; the frame labels on the canvas share that shape and come first.
       await page
         .locator("button:has(svg.lucide-chevrons-up-down)")
-        .filter({ hasText: "checkout-polish" })
+        .filter({ hasText: "Checkout polish" })
         .last()
         .click({ timeout: 15_000 })
     },
@@ -1833,7 +1862,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     prepare: async (page) => {
-      await openDeleteWorkspace(page, "checkout-polish")
+      await openDeleteWorkspace(page, "Checkout polish")
     },
     settleMs: 400,
   },
@@ -1844,7 +1873,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     prepare: async (page) => {
-      await openDeleteWorkspace(page, "checkout-polish")
+      await openDeleteWorkspace(page, "Checkout polish")
       await page.getByRole("checkbox").click()
     },
     settleMs: 400,
@@ -1855,7 +1884,7 @@ export const SCREENS: Screen[] = [
       "Deleting a clean Workspace that was never pushed: no warning.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await openDeleteWorkspace(page, "apple-pay-button")
+      await openDeleteWorkspace(page, "Apple Pay button")
     },
     settleMs: 400,
   },
@@ -1995,7 +2024,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await chooseFromMenu(
         page,
-        await branchRowMenu(page, "empty-cart-state"),
+        await branchRowMenu(page, "Empty cart state"),
         ["Restart", "Recreate from scratch"]
       )
     },
@@ -2010,7 +2039,7 @@ export const SCREENS: Screen[] = [
       await holdServerActions(page, "hang")
       await chooseFromMenu(
         page,
-        await branchRowMenu(page, "empty-cart-state"),
+        await branchRowMenu(page, "Empty cart state"),
         ["Restart", "Recreate from scratch"]
       )
       await confirmDialog(page, "Recreate")
@@ -2026,7 +2055,7 @@ export const SCREENS: Screen[] = [
       await holdServerActions(page, "fail")
       await chooseFromMenu(
         page,
-        await branchRowMenu(page, "empty-cart-state"),
+        await branchRowMenu(page, "Empty cart state"),
         ["Restart", "Recreate from scratch"]
       )
       await confirmDialog(page, "Recreate")
@@ -2776,7 +2805,7 @@ export async function freezeYjs(page: Page): Promise<void> {
     server.onMessage((message) => ws.send(message))
   })
   await page.reload({ waitUntil: "load" })
-  await page.getByText("empty-cart-state", { exact: true }).first().waitFor({
+  await page.getByText("Empty cart state", { exact: true }).first().waitFor({
     timeout: 60_000,
   })
   await page.waitForTimeout(5_500)
@@ -2992,8 +3021,9 @@ async function waitForPlanCard(page: Page): Promise<void> {
 }
 
 export async function selectWorkspace(page: Page, ref: string): Promise<void> {
-  // The sidebar's Workspace rows are labelled with the git ref, which is the
-  // one part of a Workspace a person reads off the screen.
+  // The sidebar's Workspace rows are labelled with the Workspace's title
+  // (#881), or its git ref when it has none: what a person reads off the
+  // screen.
   await page.getByText(ref, { exact: true }).first().click({ timeout: 15_000 })
 }
 

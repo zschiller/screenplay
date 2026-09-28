@@ -135,6 +135,9 @@ import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
+import { checkBranchRename } from "@/lib/branch-rename"
+import { workspaceLabel } from "@/lib/workspace-label"
+import { InputDialog } from "@/components/home/input-dialog"
 import { branchRowClassName } from "@/components/panels/branch-row-class"
 import {
   useIsWorkspaceHighlighted,
@@ -606,15 +609,6 @@ interface RoomSidebarProps {
   footer?: React.ReactNode
 }
 
-function sanitizeBranchName(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9/_-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-}
-
 /** A sidebar Layer awaiting its delete confirm. */
 type PendingRemoveLayer = {
   kind: "iframe-layer" | "markdown-layer"
@@ -712,6 +706,9 @@ export function RoomSidebar({
     string | null
   >(null)
   const [pendingRecreateBranchId, setPendingRecreateBranchId] = useState<
+    string | null
+  >(null)
+  const [pendingRenameBranchId, setPendingRenameBranchId] = useState<
     string | null
   >(null)
   const [pendingDeleteRepoId, setPendingDeleteRepoId] = useState<string | null>(
@@ -1519,6 +1516,9 @@ export function RoomSidebar({
                                                               branch={
                                                                 branch.ref
                                                               }
+                                                              title={
+                                                                branch.title
+                                                              }
                                                               colorKey={
                                                                 branch.id
                                                               }
@@ -1529,47 +1529,21 @@ export function RoomSidebar({
                                                               onRename={(
                                                                 next
                                                               ) => {
-                                                                const sanitized =
-                                                                  sanitizeBranchName(
-                                                                    next
-                                                                  )
-                                                                if (!sanitized)
-                                                                  return
+                                                                // Renames the title only (#881); the branch
+                                                                // moves through Rename branch in the menu.
+                                                                const title =
+                                                                  next.trim()
                                                                 if (
-                                                                  sanitized ===
-                                                                  branch.ref
+                                                                  !title ||
+                                                                  title ===
+                                                                    workspaceLabel(
+                                                                      branch
+                                                                    )
                                                                 )
                                                                   return
-                                                                // Renaming onto a branch that already exists on the
-                                                                // remote would hijack its history, so that's always
-                                                                // blocked. On the desktop build a name another open
-                                                                // Branch holds is blocked too: the local backend
-                                                                // keeps one checkout per ref (worktrees, ADR 0009),
-                                                                // so the rename would collide at provision time. The
-                                                                // hosted backend has no such limit.
-                                                                const remote =
-                                                                  remoteBranchesByRepo.get(
-                                                                    repo.id
-                                                                  )
-                                                                const localTaken =
-                                                                  isLocalBuild &&
-                                                                  repoBranches.some(
-                                                                    (a) =>
-                                                                      a.id !==
-                                                                        branch.id &&
-                                                                      a.ref ===
-                                                                        sanitized
-                                                                  )
-                                                                if (
-                                                                  localTaken ||
-                                                                  remote?.has(
-                                                                    sanitized
-                                                                  )
-                                                                )
-                                                                  return
-                                                                onRenameBranch(
+                                                                onUpdateBranch(
                                                                   branch.id,
-                                                                  sanitized
+                                                                  { title }
                                                                 )
                                                               }}
                                                             />
@@ -1628,6 +1602,9 @@ export function RoomSidebar({
                                                                     }
                                                                     onRename={
                                                                       triggerBranchRename
+                                                                    }
+                                                                    onRenameBranch={
+                                                                      setPendingRenameBranchId
                                                                     }
                                                                     onUpdateBranch={
                                                                       onUpdateBranch
@@ -1752,6 +1729,7 @@ export function RoomSidebar({
                         {activeBranchesDrag.branch.ref ? (
                           <BranchBadge
                             branch={activeBranchesDrag.branch.ref}
+                            title={activeBranchesDrag.branch.title}
                             colorKey={activeBranchesDrag.branch.id}
                             colorIndex={activeBranchesDrag.branch.colorIndex}
                             className="px-1.5 py-0 text-2xs"
@@ -2034,7 +2012,7 @@ export function RoomSidebar({
               onOpenChange={(open) => {
                 if (!open) setPendingDeleteBranchId(null)
               }}
-              branchName={branch?.ref ?? ""}
+              branchName={branch ? workspaceLabel(branch) : ""}
               // Remote deletion goes through the GitHub API, so it is only
               // offered when the API can actually serve it: a token resolves
               // and this Project names a GitHub remote (issue #741).
@@ -2058,6 +2036,47 @@ export function RoomSidebar({
                 if (!branch) return
                 await onRemoveBranch(branch.id, { deleteOnRemote })
                 setPendingDeleteBranchId(null)
+              }}
+            />
+          )
+        })()}
+        {(() => {
+          const branch = pendingRenameBranchId
+            ? branches.find((a) => a.id === pendingRenameBranchId)
+            : null
+          return (
+            <InputDialog
+              open={!!branch}
+              onOpenChange={(open) => {
+                if (!open) setPendingRenameBranchId(null)
+              }}
+              title="Rename branch"
+              description="Renames the git branch on GitHub and in this Workspace. The Workspace keeps its title."
+              initialValue={branch?.ref ?? ""}
+              submitLabel="Rename"
+              submittingLabel="Renaming…"
+              errorMessage="That branch name is empty or already taken."
+              onSubmit={async (next) => {
+                if (!branch) return
+                const check = checkBranchRename({
+                  next,
+                  current: branch.ref,
+                  remoteBranches: remoteBranchesByRepo.get(branch.repoId),
+                  otherLocalRefs: isLocalBuild
+                    ? branches
+                        .filter(
+                          (a) =>
+                            a.repoId === branch.repoId && a.id !== branch.id
+                        )
+                        .map((a) => a.ref)
+                    : [],
+                })
+                if (check.kind === "invalid") {
+                  throw new Error("Invalid branch name")
+                }
+                if (check.kind === "rename") {
+                  onRenameBranch(branch.id, check.branch)
+                }
               }}
             />
           )

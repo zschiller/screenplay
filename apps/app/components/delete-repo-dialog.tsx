@@ -18,6 +18,8 @@ import {
 export type DeleteRepoWorkspace = {
   id: string
   ref: string
+  /** The Workspace's title (#881); named by it when set. */
+  title?: string
   colorIndex?: number
   /** Its PR, when open: the row says so, and it closes with the branch. */
   openPrNumber?: number
@@ -102,6 +104,7 @@ export function DeleteRepoDialog({
                 >
                   <BranchBadge
                     branch={w.ref}
+                    title={w.title}
                     colorKey={w.id}
                     colorIndex={w.colorIndex}
                     className="min-w-0"

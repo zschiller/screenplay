@@ -293,12 +293,16 @@ function northwindRoom(
   })
 
   const branches: BranchData[] = [
-    branch(ids.branches.stories, "customer-stories", COLOR.sky, 0),
+    branch(ids.branches.stories, "customer-stories", COLOR.sky, 0, {
+      title: "Customer stories",
+    }),
     branch(ids.branches.hero, "hero-gradient-trust-line", COLOR.orange, 1, {
+      title: "Hero gradient & trust line",
       diffAdditions: 3,
       diffDeletions: 0,
     }),
     branch(ids.branches.faq, "pricing-faq", COLOR.emerald, 2, {
+      title: "Pricing FAQ",
       diffAdditions: 11,
       diffDeletions: 0,
     }),

@@ -602,7 +602,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     cookies: WITH_CHAT,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
     },
   }),
   screen({
@@ -724,7 +724,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: MENU,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openRowMenu(page, "hero-gradient")
+      await openRowMenu(page, "Hero gradient")
     },
   }),
   screen({
@@ -736,7 +736,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: MENU,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openRowMenu(page, "hero-gradient")
+      await openRowMenu(page, "Hero gradient")
       await hoverMenuItem(page, "Restart")
     },
   }),
@@ -749,7 +749,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
-      await openRowMenu(page, "hero-gradient")
+      await openRowMenu(page, "Hero gradient")
       await hoverMenuItem(page, "Restart")
       await clickMenuItem(page, "Recreate from scratch", 1200)
     },
@@ -764,7 +764,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: MENU,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openRowMenu(page, "hero-gradient")
+      await openRowMenu(page, "Hero gradient")
       await hoverMenuItem(page, "Color")
     },
   }),
@@ -777,7 +777,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
-      await openRowMenu(page, "customer-stories")
+      await openRowMenu(page, "Customer stories")
       await clickMenuItem(page, "Delete", 1200)
     },
   }),
@@ -941,7 +941,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: POPOVER,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
       await pickTarget(page)
     },
   }),
@@ -953,7 +953,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [820, 0, 460, 260],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
       await page
         .getByRole("button", { name: "New chat or terminal" })
         .first()
@@ -970,7 +970,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [850, 480, 430, 320],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
       await focusComposer(page)
       await page.keyboard.type("Match the headline style on ", { delay: 5 })
       await page.keyboard.type("@")
@@ -986,7 +986,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [860, 440, 420, 360],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
       await focusComposer(page)
       await page.keyboard.type("/")
       await sleep(page, 1500)
@@ -999,7 +999,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     cookies: WITH_CHAT,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
       await focusComposer(page)
       await page.keyboard.type("Make ", { delay: 5 })
       await pointAtStartTrial(page, false)
@@ -1014,7 +1014,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [850, 480, 430, 320],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
       await focusComposer(page)
       await page.keyboard.type("Make ", { delay: 5 })
       await pointAtStartTrial(page, true)
@@ -1042,7 +1042,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     beforeNavigate: (page) => stubLogs(page, "reconnecting", LOGS_SAMPLE),
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "hero-gradient")
+      await selectWorkspace(page, "Hero gradient")
       await page.getByRole("tab", { name: "Sandbox logs" }).first().click()
       await sleep(page, 2500)
     },
@@ -1054,7 +1054,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     cookies: WITH_CHAT,
     prepare: async (page) => {
       await camera(page, VIEW.pricing)
-      await selectWorkspace(page, "pricing-faq")
+      await selectWorkspace(page, "Pricing FAQ")
       await scrollToPlan(page)
     },
   }),
@@ -1093,7 +1093,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     beforeNavigate: (page) => stubTerminal(page, TERMINAL_SAMPLE),
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await selectWorkspace(page, "customer-stories")
+      await selectWorkspace(page, "Customer stories")
       await page
         .getByRole("button", { name: "New chat or terminal" })
         .first()

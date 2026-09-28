@@ -113,6 +113,8 @@ export interface IframeLayerData {
   scrollX?: number
   scrollY?: number
   branch?: string
+  /** The assigned Workspace's title (#881), shown over `branch`. */
+  branchTitle?: string
   knobs?: JsonValue[]
   knobValues?: JsonObject
   sharedState?: JsonObject
@@ -859,6 +861,7 @@ export function IframeLayer({
         <IframeLayerLabel
           label={iframeLayer.label}
           branch={iframeLayer.branch}
+          branchTitle={iframeLayer.branchTitle}
           branchId={iframeLayer.branchId}
           route={iframeLayer.route}
           sharedState={iframeLayer.sharedState}
@@ -935,6 +938,7 @@ export function IframeLayer({
                       ? {
                           branchId: iframeLayer.branchId,
                           ref: iframeLayer.branch,
+                          title: iframeLayer.branchTitle,
                           colorIndex: assignableBranches?.find(
                             (a) => a.id === iframeLayer.branchId
                           )?.colorIndex,

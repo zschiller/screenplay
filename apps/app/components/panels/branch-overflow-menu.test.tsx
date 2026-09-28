@@ -116,6 +116,7 @@ function renderMenu(
         hasChanges={hasChanges}
         pr={pr}
         onRename={vi.fn()}
+        onRenameBranch={vi.fn()}
         onUpdateBranch={vi.fn()}
         onNewBranchFromHere={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
@@ -144,7 +145,16 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
   it("declares View, Git, Manage, then Delete", () => {
     expect(BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])).toEqual([
       ["view", ["play", "open-in-browser", "routes"]],
-      ["git", ["create-pr", "rebase", "open-github", "new-branch-from-here"]],
+      [
+        "git",
+        [
+          "create-pr",
+          "rebase",
+          "open-github",
+          "rename-branch",
+          "new-branch-from-here",
+        ],
+      ],
       ["manage", ["rename", "color", "restart"]],
       ["danger", ["delete"]],
     ])
@@ -219,6 +229,7 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Create pull request",
       "Rebase on main",
       "Open branch on GitHub",
+      "Rename branch…",
       "New workspace from here…",
       "Rename",
       "Color",
@@ -348,6 +359,7 @@ function MenuToDialogHarness() {
           onPlay={vi.fn()}
           onRetry={vi.fn()}
           onRename={vi.fn()}
+          onRenameBranch={vi.fn()}
           onUpdateBranch={vi.fn()}
           onNewBranchFromHere={() => {
             setBase(branch.ref ?? null)

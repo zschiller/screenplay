@@ -164,7 +164,11 @@ export function sandboxTurn(input: {
       if (isNewChat) {
         const shouldNameBranch =
           input.autoNamedBranch !== false && input.isFirstChat !== false
-        const { branch: rawBranch, chatLabel } = await generateChatNames({
+        const {
+          branch: rawBranch,
+          chatLabel,
+          title,
+        } = await generateChatNames({
           message,
           shouldNameBranch,
           model,
@@ -176,6 +180,20 @@ export function sandboxTurn(input: {
             userId
           )
           renames.branch = effectiveBranch
+        }
+        // The Workspace takes its title from the same call (#881), written
+        // here on the server so every client path that sends a first message
+        // gets it. A title already set (a rename, or an earlier naming) is
+        // never replaced.
+        if (shouldNameBranch && title) {
+          await mutateRoomDoc(roomId, ({ branches }) => {
+            const workspace = branches
+              .toArray()
+              .find((b) => b.sandboxName === sandboxName)
+            if (workspace && !workspace.title?.trim()) {
+              branches.update(workspace.id, { title })
+            }
+          })
         }
         if (chatLabel) {
           renames.label = chatLabel

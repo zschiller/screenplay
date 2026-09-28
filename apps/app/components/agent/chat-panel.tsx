@@ -1305,6 +1305,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
     return (
       <BranchBadge
         branch={target.agent.ref}
+        title={target.agent.title}
         colorKey={target.agent.id}
         colorIndex={target.agent.colorIndex}
         className="px-1.5 py-0 text-2xs"
@@ -1381,6 +1382,7 @@ function TargetPicker({
                     <CommandItem
                       key={a.id}
                       value={`branch ${a.ref}`}
+                      keywords={a.title ? [a.title] : undefined}
                       onSelect={() => {
                         onSelectAgent(a.id)
                         setOpen(false)
@@ -1391,6 +1393,7 @@ function TargetPicker({
                       />
                       <BranchBadge
                         branch={a.ref}
+                        title={a.title}
                         colorKey={a.id}
                         colorIndex={a.colorIndex}
                         className="px-1.5 py-0 text-2xs"

@@ -9,8 +9,8 @@ import { Callout } from "nextra/components"
 
 A workspace is one git branch of a repository, running in its own sandbox with
 its own dev server, frames, agent chats, and terminals. Workspaces are listed
-under their repository in the sidebar, each with a colored branch badge. The same
-color tags that workspace's frames across the canvas.
+under their repository in the sidebar, each with a colored badge showing its
+title. The same color tags that workspace's frames across the canvas.
 
 ## Creating workspaces
 
@@ -22,9 +22,10 @@ create several at once:
 - Each row starts from a **base branch** (the chip above the prompt), which
   defaults to the repository's default branch.
 - Type a **prompt** to give the new workspace its first task. It's sent to
-  the agent as soon as the sandbox is ready, and the branch is named from it
-  (for example `pricing-faq`). Leave the prompt empty to create a bare
-  workspace with a generated name.
+  the agent as soon as the sandbox is ready, and the agent titles the
+  workspace from it (for example "Pricing FAQ") and names its branch from the
+  same words (`pricing-faq`). Leave the prompt empty to create a bare
+  workspace with a generated name; its first chat message titles it.
 - Each row has its own model picker and **Plan** toggle, the same as the
   [chat composer](/guides/agent#the-composer).
 - **Add another** (<kbd>⌘</kbd> <kbd>↵</kbd>) adds a row. <kbd>↵</kbd> creates
@@ -38,6 +39,17 @@ frame appears on the canvas and the panel switches to chat.
 To work on a branch that already exists, use **… → Open existing git branch** on
 the repository instead.
 
+## Titles
+
+A workspace is named by its title everywhere: the sidebar, the agent panel's
+picker, the canvas list and each frame's workspace badge and address bar. The
+agent writes it from the first message in the workspace's first chat, the
+same way it names the chat. Later chats never change it.
+
+Renaming a workspace (double-click its title, or **… → Rename**) changes only
+the title, so it never touches the branch, its pull request or anyone's
+checkout. To rename the branch itself, use **… → Rename branch…**.
+
 ## The sidebar row
 
 Each workspace row shows:
@@ -47,7 +59,8 @@ Each workspace row shows:
   one is open. Hover it to see what the workspace is doing, such as the setup
   step and how long it has taken. Click the warning for the error, with
   **Retry**, **Recreate** and **Copy error**;
-- the **branch name** (double-click to rename);
+- the workspace's **title** (double-click to rename). Workspaces created
+  before titles existed show their branch name until you rename them;
 - **+/− line counts** for changes compared with the base branch.
 
 Click a row to make it the agent panel's target. Double-click to also open
@@ -70,8 +83,9 @@ request, or **Open prototype player**), then groups the rest under **View**,
 | **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one. |
 | **Rebase on *main*** | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
 | **Open branch on GitHub** | Opens the branch on GitHub. |
+| **Rename branch…** | Renames the git branch, on GitHub and in the workspace. Names already used on the remote are refused. The workspace keeps its title. |
 | **New workspace from here…** | Opens **Create workspaces** with this workspace's branch as the base. |
-| **Rename** | Renames the branch. Names already used on the remote are refused. |
+| **Rename** | Renames the workspace's title. The git branch stays as it is. |
 | **Color** | Picks one of 16 colors, or **Reset to default**. |
 | **Restart** | See [Restarting](#restarting). |
 | **Delete** | Removes the workspace, and optionally its branch on GitHub. |

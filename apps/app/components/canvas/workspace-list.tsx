@@ -84,11 +84,13 @@ export function WorkspaceCommandList({
               <CommandItem
                 key={a.id}
                 value={a.ref}
+                keywords={a.title ? [a.title] : undefined}
                 onSelect={() => onPick(a.id)}
               >
                 <WorkspaceIcon branch={a} />
                 <BranchBadge
                   branch={a.ref}
+                  title={a.title}
                   colorKey={a.id}
                   colorIndex={a.colorIndex}
                   className="min-w-0 px-1.5 py-0 text-2xs"
