@@ -1,0 +1,185 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { baseBranch, makeHarness } from "@/test/canvas/harness"
+import type { RoomCollections } from "@/lib/yjs/schema"
+
+/**
+ * The Coordinator's MCP route (#903), driven the way a harness adapter drives
+ * it: JSON-RPC over POST with the session's bearer token. The Room is a bare
+ * harness doc; Room Access and Terminal Tabs are stubbed.
+ */
+
+const localMode = vi.hoisted(() => ({ isLocalBuild: true }))
+vi.mock("@/lib/local-mode", () => localMode)
+
+let collections: RoomCollections
+const openRoomForRoute = vi.fn(async (roomId: string, _chatId?: string) => ({
+  roomId,
+  userId: "local-user",
+  role: "owner",
+  readDoc: async <T>(fn: (c: RoomCollections) => T) => fn(collections),
+}))
+vi.mock("@/lib/room-access", () => ({
+  openRoomForRoute: (roomId: string, chatId?: string) =>
+    openRoomForRoute(roomId, chatId),
+}))
+vi.mock("@/lib/terminal-tabs", () => ({ listTerminalTabs: async () => [] }))
+
+import { DELETE, GET, POST } from "./route"
+import { coordinatorToken } from "@/lib/agent/coordinator-mcp"
+
+const PORT = process.env.PORT || "3000"
+const binding = { roomId: "room-1", chatId: "room-chat-room-1" }
+
+function rpc(
+  body: unknown,
+  headers: Record<string, string> = {
+    authorization: `Bearer ${coordinatorToken(binding)}`,
+  }
+): Request {
+  return new Request(`http://127.0.0.1:${PORT}/api/agent/mcp`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  })
+}
+
+beforeEach(() => {
+  collections = makeHarness().collections
+  collections.branches.set(
+    "ws-1",
+    baseBranch("ws-1", { title: "Fix sign-in redirect", ref: "fix-sign-in" })
+  )
+})
+
+afterEach(() => {
+  localMode.isLocalBuild = true
+  openRoomForRoute.mockClear()
+})
+
+describe("the Coordinator's MCP route", () => {
+  it("answers initialize with the tools capability", async () => {
+    const res = await POST(
+      rpc({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "claude-code", version: "1" },
+        },
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      id: 1,
+      result: {
+        protocolVersion: "2025-06-18",
+        capabilities: { tools: {} },
+        serverInfo: { name: "screenplay" },
+      },
+    })
+  })
+
+  it("acknowledges a notification with 202 and no body", async () => {
+    const res = await POST(
+      rpc({ jsonrpc: "2.0", method: "notifications/initialized" })
+    )
+    expect(res.status).toBe(202)
+    expect(await res.text()).toBe("")
+  })
+
+  it("lists the Coordinator's tools with read-only annotations", async () => {
+    const res = await POST(rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }))
+    const { result } = await res.json()
+    const readCanvas = result.tools.find(
+      (t: { name: string }) => t.name === "read_canvas"
+    )
+    expect(readCanvas).toMatchObject({
+      inputSchema: { type: "object" },
+      annotations: { readOnlyHint: true },
+    })
+    expect(readCanvas.description).toMatch(/canvas/)
+  })
+
+  it("runs read_canvas against the token's Room", async () => {
+    const res = await POST(
+      rpc({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "read_canvas", arguments: {} },
+      })
+    )
+    const { result } = await res.json()
+    expect(result.isError).toBe(false)
+    expect(result.content[0].text).toContain('"Fix sign-in redirect"')
+    expect(openRoomForRoute).toHaveBeenCalledWith("room-1", "room-chat-room-1")
+  })
+
+  it("answers an unknown tool with a JSON-RPC error", async () => {
+    const res = await POST(
+      rpc({
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: { name: "delete_everything", arguments: {} },
+      })
+    )
+    expect((await res.json()).error.code).toBe(-32602)
+  })
+
+  it("refuses a request without a token it minted", async () => {
+    const ping = { jsonrpc: "2.0", id: 5, method: "ping" }
+    expect((await POST(rpc(ping, {}))).status).toBe(401)
+    expect(
+      (await POST(rpc(ping, { authorization: "Bearer not-a-token" }))).status
+    ).toBe(401)
+    expect(openRoomForRoute).not.toHaveBeenCalled()
+  })
+
+  it("refuses a browser page from another origin (DNS rebinding)", async () => {
+    const res = await POST(
+      rpc(
+        { jsonrpc: "2.0", id: 6, method: "ping" },
+        {
+          authorization: `Bearer ${coordinatorToken(binding)}`,
+          origin: `http://evil.example:${PORT}`,
+        }
+      )
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it("accepts the sidecar's own origin", async () => {
+    const res = await POST(
+      rpc(
+        { jsonrpc: "2.0", id: 7, method: "ping" },
+        {
+          authorization: `Bearer ${coordinatorToken(binding)}`,
+          origin: `http://127.0.0.1:${PORT}`,
+        }
+      )
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it("answers malformed JSON with a parse error", async () => {
+    const res = await POST(rpc("{not json"))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe(-32700)
+  })
+
+  it("offers no server-to-client stream", async () => {
+    const req = new Request(`http://127.0.0.1:${PORT}/api/agent/mcp`)
+    expect((await GET(req)).status).toBe(405)
+    expect((await DELETE(req)).status).toBe(405)
+  })
+
+  it("does not exist outside the local build", async () => {
+    localMode.isLocalBuild = false
+    const res = await POST(rpc({ jsonrpc: "2.0", id: 8, method: "ping" }))
+    expect(res.status).toBe(404)
+  })
+})

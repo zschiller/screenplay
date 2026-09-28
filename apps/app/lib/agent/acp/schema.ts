@@ -53,6 +53,7 @@ import {
   type ContentBlock,
   type InitializeResponse,
   type LoadSessionRequest,
+  type McpServer,
   type NewSessionRequest,
   type PermissionOption,
   type PromptRequest,
@@ -93,6 +94,9 @@ export {
   type ContentBlock,
   type InitializeResponse,
   type LoadSessionRequest,
+  // An MCP server the client hands the agent on `session/new` / `session/load`
+  // (stdio, `http`, `sse`). The Coordinator passes its tools this way (#903).
+  type McpServer,
   type NewSessionRequest,
   type PermissionOption,
   type PromptRequest,

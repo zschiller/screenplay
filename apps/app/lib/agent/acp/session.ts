@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   type Client,
   type ContentBlock,
+  type McpServer,
   type PermissionOption,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
@@ -118,6 +119,20 @@ export interface OpenSessionOptions {
    * a chat the caller can't key on).
    */
   reconcileModel?(modelId: string): Promise<void> | void
+  /**
+   * MCP servers handed to the agent, sent on **both** `session/new` and
+   * `session/load`: an adapter rebuilds its tool set from the load-time list,
+   * so a load that sent `[]` would resume with no tools (#903). An `http` entry
+   * is dropped when the agent doesn't advertise `mcpCapabilities.http`, as the
+   * spec requires. Absent ⇒ `[]`.
+   */
+  mcpServers?: McpServer[]
+  /**
+   * Adapter-specific `_meta` sent with `session/new` and `session/load`. The
+   * Claude adapter reads `claudeCode.options` from it (the Coordinator's
+   * `allowedTools`); other adapters ignore keys they don't know.
+   */
+  sessionMeta?: Record<string, unknown>
 }
 
 /**
@@ -312,15 +327,21 @@ export class AcpSession {
   ): Promise<AcpSession> {
     const session = new AcpSession(transport, ports)
     session.reconcileModel = options.reconcileModel
-    await session.conn.initialize({
+    const init = await session.conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
       clientCapabilities: {},
     })
+    const mcpServers = supportedMcpServers(
+      options.mcpServers ?? [],
+      init.agentCapabilities?.mcpCapabilities
+    )
+    const meta = options.sessionMeta ? { _meta: options.sessionMeta } : {}
     if (options.loadSessionId) {
       const loaded = await session.conn.loadSession({
         sessionId: options.loadSessionId,
         cwd: options.cwd,
-        mcpServers: [],
+        mcpServers,
+        ...meta,
       })
       session.sessionId = options.loadSessionId
       await session.maybeEnterPlanMode(options.planMode, loaded?.modes)
@@ -331,7 +352,8 @@ export class AcpSession {
     } else {
       const created = await session.conn.newSession({
         cwd: options.cwd,
-        mcpServers: [],
+        mcpServers,
+        ...meta,
       })
       session.sessionId = created.sessionId
       await session.maybeEnterPlanMode(options.planMode, created.modes)
@@ -514,6 +536,22 @@ export class AcpSession {
       ? { outcome: "selected", optionId: option.optionId }
       : { outcome: "cancelled" }
   }
+}
+
+/**
+ * The MCP servers an agent can take: stdio always (the spec requires it), and
+ * `http` / `sse` only when the agent advertised that transport.
+ */
+function supportedMcpServers(
+  servers: McpServer[],
+  capabilities: { http?: boolean; sse?: boolean } | null | undefined
+): McpServer[] {
+  return servers.filter((server) => {
+    if (!("type" in server)) return true
+    if (server.type === "http") return capabilities?.http === true
+    if (server.type === "sse") return capabilities?.sse === true
+    return false
+  })
 }
 
 /** Whether an advertised session mode is the agent's plan mode (id or name). */
