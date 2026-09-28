@@ -42,15 +42,28 @@ interface SettingsSection {
   id: string
   title: string
   description: string
-  content: () => React.ReactNode
+  /**
+   * The section's body. It gets the section header as a render function, so a
+   * section whose action lives in its own state (New preset) can put that
+   * action on the title row; the rest render `header()` first as is.
+   */
+  content: (header: SectionHeader) => React.ReactNode
 }
+
+/** Renders the section's title row, with an optional action on its right. */
+type SectionHeader = (action?: React.ReactNode) => React.ReactNode
 
 const SECTIONS: SettingsSection[] = [
   {
     id: "general",
     title: "General",
     description: "How Screenplay looks on this device.",
-    content: () => <ThemeToggle />,
+    content: (header) => (
+      <>
+        {header()}
+        <ThemeToggle />
+      </>
+    ),
   },
   ...(isLocalBuild
     ? [
@@ -58,8 +71,9 @@ const SECTIONS: SettingsSection[] = [
           id: "coding-agents",
           title: "Coding agents",
           description: "The CLIs that back chats and terminals on this device.",
-          content: () => (
+          content: (header: SectionHeader) => (
             <>
+              {header()}
               <DefaultAgentPicker label="Default agent" />
               <HarnessSetupPanel />
             </>
@@ -69,7 +83,12 @@ const SECTIONS: SettingsSection[] = [
           id: "github",
           title: "GitHub",
           description: "How Screenplay reaches the GitHub API on this device.",
-          content: () => <GitHubConnectionPanel />,
+          content: (header: SectionHeader) => (
+            <>
+              {header()}
+              <GitHubConnectionPanel />
+            </>
+          ),
         },
       ]
     : [
@@ -77,7 +96,12 @@ const SECTIONS: SettingsSection[] = [
           id: "agent",
           title: "Agent",
           description: "The model new chats and Workspaces start with.",
-          content: () => <DefaultAgentPicker label="Default model" />,
+          content: (header: SectionHeader) => (
+            <>
+              {header()}
+              <DefaultAgentPicker label="Default model" />
+            </>
+          ),
         },
       ]),
   {
@@ -85,7 +109,7 @@ const SECTIONS: SettingsSection[] = [
     title: "Repository presets",
     description:
       "Saved setup, dev, port, and env vars for each repository. Applied when you add it to a canvas.",
-    content: () => <RepoConfigsPanel />,
+    content: (header) => <RepoConfigsPanel header={header} />,
   },
   {
     id: "account",
@@ -93,7 +117,12 @@ const SECTIONS: SettingsSection[] = [
     description: isLocalBuild
       ? "The desktop app runs as you on this device, with no sign-in."
       : "The account you're signed in with.",
-    content: () => <AccountPanel />,
+    content: (header) => (
+      <>
+        {header()}
+        <AccountPanel />
+      </>
+    ),
   },
 ]
 
@@ -140,18 +169,24 @@ export function SettingsView({ section }: { section?: string }) {
           aria-labelledby="settings-section-title"
           className="min-w-0 space-y-5"
         >
-          <div className="space-y-0.5">
-            <h2
-              id="settings-section-title"
-              className="text-lg font-semibold tracking-tight"
-            >
-              {active.title}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {active.description}
-            </p>
-          </div>
-          {active.content()}
+          {active.content((action) => (
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-4">
+                <h2
+                  id="settings-section-title"
+                  className="min-w-0 flex-1 text-lg font-semibold tracking-tight"
+                >
+                  {active.title}
+                </h2>
+                {/* Sits on the title's line only, so the description keeps the
+                    full width; -my-0.5 keeps the 32px button to the 28px line. */}
+                {action && <div className="-my-0.5 shrink-0">{action}</div>}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {active.description}
+              </p>
+            </div>
+          ))}
         </section>
       </div>
     </HomeScrollBody>
