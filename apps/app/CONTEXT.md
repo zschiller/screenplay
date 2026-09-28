@@ -978,7 +978,9 @@ binding, not a new write path**: **every mutation routes through the Canvas
 Operations seam (`ops`, ADR 0001), never the Y.Doc directly**, so the
 single-transaction entry point and the Group-invariant chokepoint are preserved.
 The composed verbs keep their full bodies rather than flattening to a bare
-`patch`: `moveMember` keeps its cross-group splice + new-group placement,
+`patch`: `moveMember` keeps its cross-group splice + new-group placement
+(and takes its `into-group` index in the space callers see, lifting the moving
+member out itself — see **Sidebar Drop**),
 `removeIframeLayerGroup` keeps its chat-store cleanup + selection follow, and the
 route/seed creators keep their viewport-centered placement. Constructed from
 `ops`, the live `collections`, the viewport-center reader (**Canvas Camera**),
@@ -991,6 +993,24 @@ record outside `ops`; flattening a composed verb (the `moveMember` splice,
 folding the thin multi-Layer remove wrappers (`removeIframeLayers` /
 `removeDocumentLayers`) in here — they stay on the composition root because the
 Selection controller consumes them at construction, ahead of this controller.
+
+**Sidebar Drop**:
+The one decision behind a drag in the Room Sidebar's Canvas list (Groups and
+their Members): `resolveSidebarDrop` in `lib/sidebar-drop.ts`, React-free and
+dnd-kit-free. Given the visible rows, the Groups in sidebar order, the dragged
+row, the row or `gap:N` strip under the pointer, and which half of that row the
+pointer is in, it returns **both** the drop indicator (`into` ring or a
+before/after `line`, with "after this member" painted as "before the next
+member" so each gap is one pixel) and the move to commit (`move-member` into a
+Group or out to a new one, or `reorder-groups`). The sidebar calls it on every
+drag move for the hint and again on drop for the intent, so the commit always
+lands where the indicator pointed; the sidebar itself keeps only the dnd-kit
+plumbing (collision, pointer tracking) and rendering. Member indices in the
+intent are gaps **as the sidebar shows them**; turning that into the
+post-removal splice index a same-Group reorder needs belongs to **Group
+Operations** (`moveMember`), not the caller.
+_Avoid_: deciding the hint and the move in two places again; adjusting a
+member index for the dragged member's own removal in UI code.
 
 **Sandbox Reconnect**:
 The Canvas's mount-time Sandbox-lifecycle orchestration, split the way the rest

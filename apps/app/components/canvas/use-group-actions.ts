@@ -90,7 +90,11 @@ export interface GroupActions {
   ) => string
 
   // --- Structural group mutations ---
-  /** Move a single member across groups (Figma-style sidebar drag). */
+  /**
+   * Move a single member across groups (Figma-style sidebar drag). An
+   * `into-group` index is a gap in the target's members as the caller sees
+   * them, the moving member included; a same-group reorder is adjusted here.
+   */
   moveMember: (
     member: GroupMember,
     target:
@@ -306,8 +310,19 @@ export function useGroupActions({
       if (target.kind === "into-group") {
         // Cross-group move or same-group reorder — the verb finds the source,
         // splices the member into the target at `index`, and prunes the source
-        // if the move empties it.
-        ops.moveLayerToGroup(member.id, target.groupId, target.index)
+        // if the move empties it. Callers pass `index` as a gap in the target's
+        // members as they see them (the moving member still in place); the
+        // verb splices after lifting it out, so a same-group move past its own
+        // slot lands one earlier.
+        const from =
+          sourceGroup.id === target.groupId
+            ? getGroupMembers(sourceGroup).findIndex(
+                (m) => m.kind === member.kind && m.id === member.id
+              )
+            : -1
+        const index =
+          from >= 0 && from < target.index ? target.index - 1 : target.index
+        ops.moveLayerToGroup(member.id, target.groupId, index)
         return
       }
 
