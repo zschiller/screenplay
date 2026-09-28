@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="/rrweb.css"><title>Watcher tab · mirror prototype</title>
+<style>
+body{margin:0;font:13px system-ui;background:#f6f7f9;color:#0f172a}
+header{display:flex;gap:12px;align-items:center;padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#fff}
+header b{font-weight:600}.muted{color:#64748b}
+.stage{position:relative;width:1100px;height:760px;margin:12px;border:1px solid #e2e8f0;background:#fff}
+iframe{border:0;display:block}
+body.driving .replayer-mouse{display:none}
+.stage{overflow:hidden}
+#blocker{position:absolute;inset:0;cursor:not-allowed}
+#log{margin:0 12px;font:11px ui-monospace,monospace;white-space:pre;max-height:140px;overflow:auto;color:#475569}
+</style></head>
+<body data-role="watcher">
+<header><b>Watcher tab</b><span class="muted">an rrweb mirror of the host</span><span id="who"></span><button id="drive">Drive</button><span class="muted" id="peers"></span></header>
+<div class="stage"><div id="mirror"></div><div id="blocker" hidden></div></div>
+<pre id="log"></pre>
+<script type="module" src="/app.js"></script>
+</body></html>

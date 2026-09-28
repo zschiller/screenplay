@@ -1,0 +1,207 @@
+{
+  "checks": {
+    "CSS animation runs on the mirror": {
+      "ok": true,
+      "detail": "play state: running"
+    },
+    "driver switches to Avery": {
+      "ok": true
+    },
+    "click forwarded (button)": {
+      "ok": true,
+      "detail": "Clicked 1 times"
+    },
+    "typing forwarded": {
+      "ok": true,
+      "detail": "Hello, Avery Chen · growth · 5 seats · not agreed · 0 chars of notes"
+    },
+    "select forwarded": {
+      "ok": true,
+      "detail": "Hello, Avery Chen · scale · 5 seats · agreed · 0 chars of notes"
+    },
+    "checkbox forwarded": {
+      "ok": true,
+      "detail": "Hello, Avery Chen · scale · 5 seats · agreed · 0 chars of notes"
+    },
+    "mirror shows host checkbox state": {
+      "ok": true
+    },
+    "range (keyboard) forwarded": {
+      "ok": true,
+      "detail": "Hello, Avery Chen · scale · 15 seats · agreed · 0 chars of notes"
+    },
+    "<details> opened by forwarded click": {
+      "ok": true
+    },
+    "React modal opens (portal)": {
+      "ok": true
+    },
+    "Escape forwarded closes React modal": {
+      "ok": true,
+      "detail": "host saw key: Escape"
+    },
+    "native <dialog> shows on mirror": {
+      "ok": true,
+      "detail": "host {\"open\":true,\"modal\":true} mirror {\"open\":true,\"modal\":true}"
+    },
+    "Escape closes native <dialog> on host and mirror": {
+      "ok": true,
+      "detail": "host open: false, mirror open: false"
+    },
+    "CSS :hover shows on driver's own mirror": {
+      "ok": true
+    },
+    "CSS :hover reaches the host (synthetic mouse events)": {
+      "ok": false
+    },
+    "CSS :hover reaches other watchers": {
+      "ok": true
+    },
+    "inner scroll forwarded and mirrored": {
+      "ok": true,
+      "detail": "host 300px, Sam 300px"
+    },
+    "page scroll forwarded and mirrored": {
+      "ok": true,
+      "detail": "host 700px, Sam 700px"
+    },
+    "non-driver input dropped by host": {
+      "ok": true,
+      "detail": "host last key: Escape"
+    },
+    "link click navigates host (SPA route)": {
+      "ok": true
+    },
+    "pricing toggle forwarded, mirrored to Sam": {
+      "ok": true,
+      "detail": "$39/mo"
+    },
+    "fast typing at 100ms latency survives echo": {
+      "ok": true,
+      "detail": "host \"The quick brown fox jumps over the lazy dog\" · mirror \"The quick brown fox jumps over the lazy dog\""
+    },
+    "canvasPixels": {
+      "canvas2d, default mirror": 0,
+      "webgl, default mirror": 0,
+      "canvas2d, mirror allowed to run scripts": 23600,
+      "webgl, mirror allowed to run scripts": 23600
+    },
+    "range drag works when the mirror may run scripts": {
+      "ok": true,
+      "detail": "done; Hello, The quick brown fox jumps over the lazy dog · growth · 11 seats · not agreed · 0 chars of notes"
+    },
+    "video element present on mirror": {
+      "ok": true,
+      "detail": "{\"src\":\"http://127.0.0.1:4101/clip.webm\",\"paused\":true,\"readyState\":4}"
+    },
+    "cross-origin iframe content mirrored": {
+      "ok": false,
+      "detail": "{\"src\":null,\"bodyText\":\"\"}"
+    }
+  },
+  "traffic": {
+    "Home, idle": {
+      "snapshotBytes": 17944,
+      "snapshotGzipBytes": 4327,
+      "firstSecondsBytes": 21186,
+      "steadyBytesPerSecond": 0,
+      "steadyGzipBytesPerSecond": 2,
+      "messagesPerSecond": 0,
+      "byCategory": {}
+    },
+    "Pricing, idle": {
+      "snapshotBytes": 18076,
+      "snapshotGzipBytes": 4357,
+      "firstSecondsBytes": 21911,
+      "steadyBytesPerSecond": 0,
+      "steadyGzipBytesPerSecond": 2,
+      "messagesPerSecond": 0,
+      "byCategory": {}
+    },
+    "Lab, canvas off": {
+      "snapshotBytes": 29830,
+      "snapshotGzipBytes": 6199,
+      "firstSecondsBytes": 58181,
+      "steadyBytesPerSecond": 11738,
+      "steadyGzipBytesPerSecond": 422,
+      "messagesPerSecond": 70,
+      "byCategory": {
+        "mutation": 11738
+      }
+    },
+    "Lab, canvas 4fps": {
+      "snapshotBytes": 31557,
+      "snapshotGzipBytes": 9602,
+      "firstSecondsBytes": 74112,
+      "steadyBytesPerSecond": 24244,
+      "steadyGzipBytesPerSecond": 4113,
+      "messagesPerSecond": 78,
+      "byCategory": {
+        "mutation": 11757,
+        "canvas": 12488
+      }
+    },
+    "Lab, canvas 15fps": {
+      "snapshotBytes": 31589,
+      "snapshotGzipBytes": 13354,
+      "firstSecondsBytes": 112427,
+      "steadyBytesPerSecond": 52650,
+      "steadyGzipBytesPerSecond": 11891,
+      "messagesPerSecond": 96,
+      "byCategory": {
+        "mutation": 11738,
+        "canvas": 40912
+      }
+    },
+    "Pricing, driver scrolls and moves the mouse": {
+      "snapshotBytes": 18076,
+      "snapshotGzipBytes": 4357,
+      "firstSecondsBytes": 21911,
+      "steadyBytesPerSecond": 460,
+      "steadyGzipBytesPerSecond": 86,
+      "messagesPerSecond": 2,
+      "byCategory": {
+        "mousemove": 431,
+        "scroll": 29
+      }
+    }
+  },
+  "latency": {
+    "one-way 0ms": {
+      "oneWayLatencyMs": 0,
+      "samplesMs": [
+        97,
+        98,
+        98,
+        114,
+        114,
+        115
+      ],
+      "medianMs": 114
+    },
+    "one-way 40ms": {
+      "oneWayLatencyMs": 40,
+      "samplesMs": [
+        159,
+        163,
+        164,
+        164,
+        164,
+        165
+      ],
+      "medianMs": 164
+    },
+    "one-way 100ms": {
+      "oneWayLatencyMs": 100,
+      "samplesMs": [
+        282,
+        282,
+        297,
+        298,
+        298,
+        300
+      ],
+      "medianMs": 298
+    }
+  }
+}
