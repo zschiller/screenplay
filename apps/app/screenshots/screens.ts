@@ -282,9 +282,15 @@ export const SCREENS: Screen[] = [
       // Radix focuses the first item once the menu's open animation ends.
       await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
       await page.waitForTimeout(500)
-      // The menu opens on its first item, Rename; Move to… is next.
-      await page.keyboard.press("ArrowDown")
-      await page.waitForTimeout(300)
+      // Walk down the menu to Move to…, wherever it sits in the list.
+      for (let i = 0; i < 6; i++) {
+        const label = await page.evaluate(
+          () => document.activeElement?.textContent?.trim() ?? ""
+        )
+        if (label.startsWith("Move to")) break
+        await page.keyboard.press("ArrowDown")
+        await page.waitForTimeout(150)
+      }
       await page.keyboard.press("Enter")
       // The dialog focuses its first destination as it opens.
       await page.getByRole("radiogroup").first().waitFor({ timeout: 5_000 })
@@ -1211,21 +1217,19 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "home-create-error",
-    description: "The New canvas dialog after creating the Canvas fails.",
+    description: "Home after pressing New canvas fails: the error toast.",
     path: "/",
     prepare: async (page) => {
       await unfreeze(page)
       await failServerActions(page)
       // The header button can be clicked before hydration wires it up, so
-      // retry until the dialog is actually open.
-      const dialog = page.getByRole("dialog")
-      for (let i = 0; i < 5 && !(await dialog.count()); i++) {
+      // retry until the create has visibly failed.
+      const toast = page.locator("[data-sonner-toast]")
+      for (let i = 0; i < 5 && !(await toast.count()); i++) {
         await page.getByRole("button", { name: "New canvas" }).first().click()
-        await page.waitForTimeout(500)
+        await page.waitForTimeout(800)
       }
-      await dialog.getByRole("textbox").fill("Onboarding")
-      await page.getByRole("button", { name: "Create" }).click()
-      await page.waitForTimeout(800)
+      await page.mouse.move(0, 0)
     },
     settleMs: 300,
   },
@@ -1305,7 +1309,69 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 300,
   },
+
+  // --- New canvas (issue #777) ---------------------------------------------
+  // Last in the list on purpose: `home-new-canvas` really creates a Canvas, so
+  // anything shot after it on the same server would show an extra tile.
+  {
+    name: "home-new-canvas-hint",
+    description: "Hovering the header's New canvas button.",
+    path: "/",
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New canvas" })
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+  },
+  {
+    name: "home-folder-menu",
+    description: "A pinned folder's actions menu in the home sidebar.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      const row = page
+        .locator('[data-sidebar="menu-item"]')
+        .filter({ hasText: "Design system" })
+        .first()
+      await row.hover({ timeout: 15_000 })
+      await row.getByRole("button", { name: "Folder actions" }).click()
+      await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
+      await page.waitForTimeout(300)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-new-canvas",
+    description:
+      "What pressing New canvas on home opens: the new Untitled Canvas itself.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      // The header button can be clicked before hydration wires it up, so
+      // retry until something happens (a dialog, or the Canvas route).
+      const dialog = page.getByRole("dialog")
+      for (let i = 0; i < 5; i++) {
+        if ((await dialog.count()) || !isHomePath(page.url())) break
+        await page.getByRole("button", { name: "New canvas" }).first().click()
+        await page.waitForTimeout(800)
+      }
+      if (!(await dialog.count())) {
+        await page
+          .getByText("This canvas is empty")
+          .waitFor({ timeout: 30_000 })
+          .catch(() => {})
+      }
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
 ]
+
+function isHomePath(url: string): boolean {
+  return new URL(url).pathname === "/"
+}
 
 /**
  * Open a menu from its trigger and pick an item, walking into submenus: pass

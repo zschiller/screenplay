@@ -26,6 +26,7 @@ import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
+import { useCreateCanvas } from "./use-create-canvas"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog, canMoveRoom } from "./move-to-dialog"
 import { useFileDraggable, useFolderDragDrop } from "./file-dnd"
@@ -139,6 +140,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
     pinFolder,
     unpin,
   } = useHome()
+  const { create: createCanvas } = useCreateCanvas()
   const pinned = isPinned("folder", folder.id)
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -190,6 +192,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       {!isLocalBuild && <TableCell />}
       <TableCell className="w-8 pr-2">
         <FolderActionMenu
+          onNewCanvas={() => void createCanvas(folder.id)}
           onRename={() => setRenameOpen(true)}
           onMove={() => setMoveOpen(true)}
           onDelete={() => setDeleteOpen(true)}
