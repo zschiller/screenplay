@@ -616,6 +616,20 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "coordinator",
+    description:
+      "The chat panel's home: the canvas's Coordinator chat, with no Workspace selected.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+    },
+  }),
+  screen({
     name: "canvas-overview",
     description: "The whole Northwind canvas.",
     path: ROOM,
@@ -1057,6 +1071,9 @@ export const DOCS_SCREENS: DocsScreen[] = [
     cookies: WITH_CHAT,
     prepare: async (page) => {
       await camera(page, VIEW.document)
+      // The panel opens on the Coordinator, whose header has no picker; the
+      // picker is in a Workspace's header.
+      await selectWorkspace(page, "Hero gradient")
       await pickTarget(page, "Pricing launch checklist")
     },
   }),

@@ -7,6 +7,8 @@ import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 
 import { ChatPanel } from "@/components/agent/chat-panel"
+import { RoomChatPanel } from "@/components/agent/room-chat-panel"
+import { roomChatId } from "@/lib/chat/room-chat"
 import type {
   BranchData,
   ChatSessionData,
@@ -22,8 +24,9 @@ import type { TabPool } from "./use-tab-pool"
 
 /**
  * The right chat panel host (PRD #571) — consumes the resolved `ChatPanelTarget`
- * from the Chat-Target controller (#569) and renders the `ChatPanel`, or the
- * empty state when nothing is targeted.
+ * from the Chat-Target controller (#569) and renders the `ChatPanel`. With
+ * nothing targeted it shows the panel's home, the Room's Coordinator chat
+ * (#893), or the add-a-repository empty state on a canvas with no repositories.
  *
  * The target-resolution decision lives in the controller; this component only
  * derives the per-target view of the synced collections — the target's chat
@@ -77,7 +80,18 @@ export function ChatPanelHost({
       // the dropdown. Falls through to the empty-state below when neither
       // is set.
       const target = chatTarget.target
-      if (!target) return null
+      if (!target) {
+        if (repos.length === 0) return null
+        const chatId = roomChatId(roomId)
+        return (
+          <RoomChatPanel
+            roomId={roomId}
+            chatSession={chatSessions.find((c) => c.id === chatId)}
+            onModelChange={(id, model) => onUpdateChatSession(id, { model })}
+            onCollapse={() => chatPanelRef.current?.collapse()}
+          />
+        )
+      }
       const filteredSessions = chatSessions.filter((c) => {
         if (target.kind === "agent") return c.branchId === target.agent.id
         // Layer targets: per-kind state lives on the chat session
@@ -112,6 +126,7 @@ export function ChatPanelHost({
           selectedChatId={chatTarget.selectedChatId}
           roomId={roomId}
           onSelectChat={chatTarget.selectChat}
+          onShowRoomChat={chatTarget.showRoomChat}
           onCreateChat={() => {
             if (target.kind === "agent")
               tabPool.open({ kind: "chat", branchId: target.agent.id })
@@ -171,28 +186,22 @@ export function ChatPanelHost({
               <PanelRightClose />
             </button>
           </IconButton>
-          <span className="text-xs text-muted-foreground">
-            {repos.length === 0 ? "No repositories" : "No active agents"}
-          </span>
+          <span className="text-xs text-muted-foreground">No repositories</span>
         </div>
         <div className="border-b border-border" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
           <p className="max-w-xs text-center text-sm text-balance text-muted-foreground">
-            {repos.length === 0
-              ? "Add a repository to get started"
-              : "Waiting for an agent to start…"}
+            Add a repository to get started
           </p>
-          {repos.length === 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onAddProject}
-            >
-              <FolderPlus />
-              Add repository
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onAddProject}
+          >
+            <FolderPlus />
+            Add repository
+          </Button>
         </div>
       </div>
     )

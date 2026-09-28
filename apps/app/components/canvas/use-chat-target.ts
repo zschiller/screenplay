@@ -1,7 +1,8 @@
-import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
+import { type RefObject, useCallback, useRef, useState } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
 import type { ChatPanelTarget } from "@/components/agent/chat-panel"
+import { isRoomChatId } from "@/lib/chat/room-chat"
 import {
   pendingProbes,
   resolveChatPanelTarget,
@@ -68,6 +69,11 @@ export interface ChatTarget {
   ) => void
   /** Point the panel at a document target, restoring its last open chat. */
   selectDocument: (markdownLayerId: string) => void
+  /**
+   * Return the panel to its home, the Coordinator chat: clear the selected
+   * Workspace and document (the "Coordinator" crumb does this).
+   */
+  showRoomChat: () => void
   /** Select a specific tab, tracking its target (agent/doc) and remembering it. */
   selectChat: (chatId: string | null) => void
   /** Point the panel at an agent and a specific chat/terminal on it. */
@@ -174,8 +180,21 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
     setSelectedChatId(lastChat ?? null)
   }, [])
 
+  const showRoomChat = useCallback(() => {
+    if (selectedAgentId && selectedChatId) {
+      selectedChatByAgentRef.current[selectedAgentId] = selectedChatId
+    }
+    setSelectedAgentId(null)
+    setSelectedDocumentChatTargetId(null)
+    setSelectedChatId(null)
+  }, [selectedAgentId, selectedChatId])
+
   const selectChat = useCallback(
     (chatId: string | null) => {
+      if (chatId && isRoomChatId(chatId)) {
+        showRoomChat()
+        return
+      }
       setSelectedChatId(chatId)
       if (chatId) {
         const terminal = localTerminals.find((t) => t.id === chatId)
@@ -198,7 +217,7 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
         }
       }
     },
-    [chatSessions, localTerminals]
+    [chatSessions, localTerminals, showRoomChat]
   )
 
   const selectAgentChat = useCallback(
@@ -273,27 +292,14 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
     setPendingAgentIds((prev) => resolvePendingReady(prev, id).pendingAgentIds)
   }, [])
 
-  // Auto-select the first running agent when none is selected. Booting agents
-  // aren't picked here — a LogProbe promotes them once their sandbox streams
-  // logs, which avoids the "switch to empty panel then hang on 'Connecting…'"
-  // flicker. Skipped when the user has explicitly pointed the panel at a
-  // document — otherwise picking a doc (which sets `selectedAgentId` to null)
-  // would immediately snap selection back to a running agent.
-  useEffect(() => {
-    if (selectedDocumentChatTargetId) return
-    if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
-    const firstRunning = agents.find(
-      (a) => a.status === "running" && a.sandboxName
-    )
-    // Picking a default once async-loaded agent data arrives is a legitimate
-    // effect sync, not an avoidable render cascade.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (firstRunning) setSelectedAgentId(firstRunning.id)
-  }, [selectedAgentId, agents, selectedDocumentChatTargetId])
+  // No Workspace is picked for you: with nothing selected the panel shows its
+  // home, the Coordinator chat (#893). A just-created agent is still selected
+  // once its sandbox streams logs (see `handlePendingReady`).
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const selectedDocLayer = selectedDocumentChatTargetId
-    ? (markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null)
+    ? (markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ??
+      null)
     : null
   const target = resolveChatPanelTarget(selectedAgent, selectedDocLayer)
 
@@ -306,6 +312,7 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
     pendingProbes: pendingProbes(pendingAgentIds, agents),
     selectAgent,
     selectDocument,
+    showRoomChat,
     selectChat,
     selectAgentChat,
     selectDocChat,

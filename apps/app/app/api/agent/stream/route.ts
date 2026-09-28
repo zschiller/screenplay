@@ -1,8 +1,10 @@
 import { openRoomForRoute } from "@/lib/room-access"
+import { isRoomChatId, roomChatId } from "@/lib/chat/room-chat"
 import { launchTurn } from "@/lib/agent/turn-launch"
 import {
   liveTurnLaunchDeps,
   markdownLayerTurn,
+  roomTurn,
   sandboxTurn,
 } from "@/lib/agent/turn-launch-live"
 
@@ -16,6 +18,8 @@ interface RequestBody {
   sandboxName?: string
   /** Required when the chat targets a document layer (no sandbox). */
   markdownLayerId?: string
+  /** `"room"` for the Room's Coordinator chat (no sandbox, whole canvas). */
+  target?: "room"
   message: string
   isFirstChat?: boolean
   planMode?: boolean
@@ -30,10 +34,18 @@ export async function POST(req: Request) {
   if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
   }
-  if (!markdownLayerId && !sandboxName) {
-    return new Response("Missing target: markdownLayerId or sandboxName", {
-      status: 400,
-    })
+  const isRoomTarget = body.target === "room"
+  if (!isRoomTarget && !markdownLayerId && !sandboxName) {
+    return new Response(
+      "Missing target: markdownLayerId, sandboxName or target: room",
+      { status: 400 }
+    )
+  }
+  // The Coordinator chat's id is derived from its Room. Refusing that shape
+  // anywhere else means no one can claim a Room's Coordinator chat by naming
+  // it first from another Room or another target.
+  if (isRoomTarget ? chatId !== roomChatId(roomId) : isRoomChatId(chatId)) {
+    return new Response("Invalid chat id for this target", { status: 400 })
   }
 
   // Room Access before anything is persisted, broadcast or launched.
@@ -43,19 +55,21 @@ export async function POST(req: Request) {
 
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,
   // drive after the response); this route only picks the Chat Target.
-  const target = markdownLayerId
-    ? markdownLayerTurn({ room, chatId, markdownLayerId, message, model })
-    : sandboxTurn({
-        room,
-        chatId,
-        sandboxName: sandboxName!,
-        userId,
-        message,
-        isFirstChat: body.isFirstChat,
-        planMode: body.planMode,
-        model,
-        commentThreadIds: body.commentThreadIds,
-      })
+  const target = isRoomTarget
+    ? roomTurn({ room, chatId, message, model })
+    : markdownLayerId
+      ? markdownLayerTurn({ room, chatId, markdownLayerId, message, model })
+      : sandboxTurn({
+          room,
+          chatId,
+          sandboxName: sandboxName!,
+          userId,
+          message,
+          isFirstChat: body.isFirstChat,
+          planMode: body.planMode,
+          model,
+          commentThreadIds: body.commentThreadIds,
+        })
 
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
