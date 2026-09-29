@@ -1007,6 +1007,22 @@ export function IframeLayer({
                   }
                 />
                 <FloatingToolbarSeparator />
+                <FloatingToolbarButton
+                  label="Interact"
+                  shortcut={focused ? ["Esc"] : undefined}
+                  pressed={focused}
+                  // While interacting, the pressed button takes the selection
+                  // fill (the hot pink that carries black), like the ring
+                  // around the frame.
+                  className={
+                    focused
+                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
+                      : undefined
+                  }
+                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                >
+                  <CursorIcon />
+                </FloatingToolbarButton>
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
                   values={iframeLayer.knobValues}
@@ -1080,23 +1096,6 @@ export function IframeLayer({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <FloatingToolbarSeparator />
-                <FloatingToolbarButton
-                  label="Interact"
-                  shortcut={focused ? ["Esc"] : undefined}
-                  pressed={focused}
-                  // While interacting, the pressed button takes the selection
-                  // fill (the hot pink that carries black), like the ring
-                  // around the frame.
-                  className={
-                    focused
-                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
-                      : undefined
-                  }
-                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                >
-                  <CursorIcon />
-                </FloatingToolbarButton>
               </FloatingToolbar>,
               toolbarPortalTarget!
             )}
