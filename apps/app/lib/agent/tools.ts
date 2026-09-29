@@ -24,6 +24,8 @@ import {
   resolveSkillBody,
 } from "@/lib/skills/merged"
 import { applyTextEdit } from "@/lib/agent/edit"
+import { buildDevServerTools } from "@/lib/agent/dev-server-tools"
+import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
 import { renderFileWindow } from "@/lib/agent/render"
 import {
   buildGlobInvocation,
@@ -281,6 +283,11 @@ export function buildSandboxTools(ctx: ToolContext) {
         return `Unknown skill: "${name}". Available skills:\n${formatMergedListing(merged)}`
       },
     }),
+
+    // The Workspace's own dev server: its log and Dev Server Restart.
+    ...buildDevServerTools(
+      liveDevServerPorts({ sandboxName: ctx.sandboxName, room: ctx.room })
+    ),
 
     // Human-in-the-loop: no execute. The loop halts on this tool call and
     // /api/agent/plan supplies the result after the user decides.

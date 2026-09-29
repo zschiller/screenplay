@@ -123,7 +123,7 @@ When the user asks you to make changes:
    Wait for the user to approve your plan before proceeding.
 3. If plan mode is not enabled, skip planning and go straight to making changes.
 4. Make precise, targeted edits
-5. If needed, run commands to install dependencies or restart the dev server
+5. If needed, run commands to install dependencies, and call restart_dev_server when a change needs the dev server restarted
 
 When plan mode is enabled, you MUST call submit_plan and wait for approval before using write_file or edit_file. Do not skip this step.
 
@@ -151,7 +151,7 @@ The user's messages may reference docs that live on the canvas (separate from th
 
 const AGENT_SYSTEM_PROMPT_TAIL = `
 
-The project is a Node.js app running on port 3000 with \`npm run dev\`. The preview updates automatically when you save files.
+Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches run_command: call read_dev_server_logs to see compile and runtime errors when the preview breaks, and restart_dev_server to restart it. Never start another dev server with run_command.
 
 Keep your responses concise. Show the user what you changed and why.`
 

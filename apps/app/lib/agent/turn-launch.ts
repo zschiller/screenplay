@@ -92,6 +92,7 @@ export interface TurnLaunchDeps {
     sandboxName?: string
     chatId: string
     model?: string
+    roomId: string
   }): Promise<Engine>
   /** The chat's most recent plan still awaiting a decision, if any. */
   findPendingPlan(chatId: string): Promise<{ id: string } | null>
@@ -185,6 +186,7 @@ export async function launchTurn(
     sandboxName: request.sandboxName,
     chatId,
     model: request.model,
+    roomId,
   })
 
   const prepared = await target.prepare()

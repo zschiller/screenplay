@@ -284,6 +284,8 @@ you can expand for details:
 | **Run command** `…`                | Ran a shell command in the sandbox           |
 | **List files**, **Grep**, **Glob** | Searched the code                            |
 | **Read skill** `name`              | Loaded a skill's instructions                |
+| **Read dev server logs**           | Read the dev server's recent output          |
+| **Restart dev server**             | Restarted the workspace's dev server         |
 | **Read document**                  | Read a document on the canvas                |
 | **Create PR**                      | Opened a pull request (shown as a link card) |
 | **Submit plan**                    | Presented a plan for approval                |
@@ -297,7 +299,10 @@ A few defaults are worth knowing:
 - **The agent commits and pushes after every change.** Commits are made under
   your identity, which matters on shared canvases.
 - **The workspace preview updates on its own.** The dev server hot-reloads as
-  files change.
+  files change. The agent can read the dev server's output (the same as the
+  **Sandbox logs** tab) to debug a broken preview, and restart the dev server
+  when a change needs it. Workspace chats running on Claude Code, Codex or
+  OpenCode on desktop get the same two tools.
 - **Chats are shared.** On a shared canvas everyone sees every chat live,
   including history from before they joined.
 

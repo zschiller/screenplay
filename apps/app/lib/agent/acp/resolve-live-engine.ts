@@ -81,7 +81,13 @@ export function acpHarnessFromEnv(
  * time with the CLI's own login prompt.
  */
 export async function resolveLiveEngine(
-  opts: { sandboxName?: string; chatId?: string; model?: string } = {}
+  opts: {
+    sandboxName?: string
+    chatId?: string
+    model?: string
+    /** The turn's Room, which a Workspace chat's MCP token is bound to. */
+    roomId?: string
+  } = {}
 ): Promise<Engine> {
   if (engineChoiceFromEnv() !== "external") {
     // In-process default: self-contained, no transport to wire.
@@ -93,6 +99,7 @@ export async function resolveLiveEngine(
   // Coordinator runs in its Room's own folder with its tools served over MCP.
   // A layer-targeted chat has no sandbox, so the engine falls back to "/".
   const coordinator = await coordinatorSession(opts.chatId)
+  const mcp = coordinator ?? workspaceSession(opts)
   const cwd = opts.sandboxName
     ? (await sandboxProvider.get({ name: opts.sandboxName })).worktreePath
     : coordinator?.cwd
@@ -130,8 +137,8 @@ export async function resolveLiveEngine(
       onSessionId,
       modelId,
       reconcileModel,
-      mcpServers: coordinator?.mcpServers,
-      sessionMeta: coordinator?.sessionMeta,
+      mcpServers: mcp?.mcpServers,
+      sessionMeta: mcp?.sessionMeta,
     },
   })
 }
@@ -153,6 +160,25 @@ async function coordinatorSession(chatId: string | undefined): Promise<
   return {
     cwd: await ensureCoordinatorFolder(roomId),
     mcpServers: [coordinatorMcpServer({ roomId, chatId })],
+    sessionMeta: coordinatorSessionMeta(),
+  }
+}
+
+/**
+ * A Workspace chat's harness session setup: its own dev server's tools (log
+ * and Dev Server Restart, `dev-server-tools.ts`) as the same MCP server, bound
+ * to its Sandbox. The harness's shell runs in the worktree but never sees the
+ * dev server Screenplay supervises. Local build only, like the route.
+ */
+function workspaceSession(opts: {
+  sandboxName?: string
+  chatId?: string
+  roomId?: string
+}): Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> | null {
+  const { sandboxName, chatId, roomId } = opts
+  if (!sandboxName || !chatId || !roomId || !isLocalBuild) return null
+  return {
+    mcpServers: [coordinatorMcpServer({ roomId, chatId, sandboxName })],
     sessionMeta: coordinatorSessionMeta(),
   }
 }

@@ -24,6 +24,23 @@ vi.mock("@/lib/room-access", () => ({
     openRoomForRoute(roomId, chatId),
 }))
 vi.mock("@/lib/terminal-tabs", () => ({ listTerminalTabs: async () => [] }))
+// A Workspace token's dev server, standing in for the Sandbox.
+const devServerPorts = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/agent/dev-server-ports", () => ({
+  liveDevServerPorts: (opts: unknown) => {
+    devServerPorts(opts)
+    return {
+      status: async () => ({
+        command: "pnpm dev",
+        localUrl: "http://localhost:4123",
+        answering: false,
+      }),
+      readLog: async () => "Error: Cannot find module 'next'\n",
+      restart: async () => ({ ok: true }),
+      waitUntilAnswering: async () => true,
+    }
+  },
+}))
 
 import { DELETE, GET, POST } from "./route"
 import { coordinatorToken } from "@/lib/agent/coordinator-mcp"
@@ -214,5 +231,53 @@ describe("the Coordinator's MCP route", () => {
     localMode.isLocalBuild = false
     const res = await POST(rpc({ jsonrpc: "2.0", id: 8, method: "ping" }))
     expect(res.status).toBe(404)
+  })
+})
+
+describe("a Workspace chat's MCP route", () => {
+  const workspace = {
+    roomId: "room-1",
+    chatId: "chat-ws-1",
+    sandboxName: "sp-ws-1",
+  }
+  const call = (id: number, method: string, params?: unknown) =>
+    POST(
+      rpc(
+        { jsonrpc: "2.0", id, method, params },
+        { authorization: `Bearer ${coordinatorToken(workspace)}` }
+      )
+    )
+
+  it("lists only its dev server's tools", async () => {
+    const { result } = await (await call(1, "tools/list")).json()
+    expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
+      "read_dev_server_logs",
+      "restart_dev_server",
+    ])
+    expect(result.tools[0].annotations).toMatchObject({ readOnlyHint: true })
+  })
+
+  it("reads the log of the Sandbox its token is bound to", async () => {
+    const { result } = await (
+      await call(2, "tools/call", {
+        name: "read_dev_server_logs",
+        arguments: {},
+      })
+    ).json()
+    expect(result.isError).toBe(false)
+    expect(result.content[0].text).toContain("not answering")
+    expect(result.content[0].text).toContain("Cannot find module 'next'")
+    expect(devServerPorts).toHaveBeenCalledWith(
+      expect.objectContaining({ sandboxName: "sp-ws-1" })
+    )
+    expect(openRoomForRoute).toHaveBeenCalledWith("room-1", "chat-ws-1")
+  })
+
+  it("has no Coordinator tools", async () => {
+    const res = await call(3, "tools/call", {
+      name: "read_canvas",
+      arguments: {},
+    })
+    expect((await res.json()).error.code).toBe(-32602)
   })
 })

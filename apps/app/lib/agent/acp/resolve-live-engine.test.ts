@@ -303,13 +303,40 @@ describe("resolveLiveEngine", () => {
       expect(ensureCoordinatorFolder).not.toHaveBeenCalled()
     })
 
-    it("leaves Workspace chats alone", async () => {
+    it("gives a Workspace chat its worktree and its dev server's tools", async () => {
       process.env[ENGINE_ENV_VAR] = "external"
       localMode.isLocalBuild = true
       const config = configOf(
-        await resolveLiveEngine({ sandboxName: "branch-7", chatId: "chat-9" })
+        await resolveLiveEngine({
+          sandboxName: "branch-7",
+          chatId: "chat-9",
+          roomId: "r1",
+        })
       )
       expect(config.cwd).toBe("/work/branch-7")
+      expect(ensureCoordinatorFolder).not.toHaveBeenCalled()
+      const auth = config.mcpServers![0]!.headers!.find(
+        (h) => h.name === "Authorization"
+      )
+      expect(resolveCoordinatorToken(auth!.value)).toEqual({
+        roomId: "r1",
+        chatId: "chat-9",
+        sandboxName: "branch-7",
+      })
+      expect(config.sessionMeta).toEqual({
+        claudeCode: { options: { allowedTools: ["mcp__screenplay__*"] } },
+      })
+    })
+
+    it("passes a Workspace chat no MCP server outside the local build", async () => {
+      process.env[ENGINE_ENV_VAR] = "external"
+      const config = configOf(
+        await resolveLiveEngine({
+          sandboxName: "branch-7",
+          chatId: "chat-9",
+          roomId: "r1",
+        })
+      )
       expect(config.mcpServers).toBeUndefined()
       expect(config.sessionMeta).toBeUndefined()
     })

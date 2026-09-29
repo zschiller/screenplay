@@ -298,7 +298,10 @@ yours, used outside the app too, so the help is one-directional (in, never out).
 Bouncing the `devScript` process (and its bridge proxy) inside the _existing_
 Sandbox — no VM cycle, filesystem and working tree untouched. The cheap, common
 recovery for a wedged preview, and the only restart that stays available while
-the Agent is working, so a broken preview can be fixed mid-turn.
+the Agent is working, so a broken preview can be fixed mid-turn. The Agent
+can run it itself (`restart_dev_server`), next to `read_dev_server_logs` for
+the log the Logs panel tails (`lib/agent/dev-server-tools.ts`; a desktop
+harness reaches both over the MCP route).
 _Shown to users as_: "Restart dev server".
 _Avoid_: "restart" unqualified (it collapses this with the VM-cycling Sandbox
 Restart and the destructive Recreate — say which one).

@@ -12,6 +12,12 @@ import { coordinatorTarget } from "@/lib/agent/turn-launch-live"
 import { planGateOf } from "@/lib/agent/plan-gate"
 import type { ToolSet } from "ai"
 import {
+  buildDevServerTools,
+  DEV_SERVER_TOOL_ANNOTATIONS,
+} from "@/lib/agent/dev-server-tools"
+import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
+import { withRedactedOutput } from "@/lib/agent/toolset"
+import {
   handleMcpMessage,
   parseErrorResponse,
   type McpToolServer,
@@ -22,7 +28,8 @@ export const dynamic = "force-dynamic"
 
 /**
  * The Coordinator's tools as a Streamable HTTP MCP server, for a Coordinator
- * running on a desktop harness (#903). Local build only: the sidecar listens
+ * running on a desktop harness (#903). A Workspace chat on a harness reaches
+ * its dev server's tools (log, restart) through the same route. Local build only: the sidecar listens
  * on 127.0.0.1, and the hosted build has no such surface, so it 404s.
  *
  * Every request needs the bearer token the Coordinator's harness session was
@@ -48,6 +55,30 @@ export async function POST(req: Request) {
 
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
+
+  // A Workspace chat's harness gets its own dev server's tools, bound to the
+  // Sandbox its token was minted for.
+  if (binding.sandboxName) {
+    const response = await handleMcpMessage(
+      {
+        name: COORDINATOR_MCP_SERVER_NAME,
+        version: "1",
+        tools: withRedactedOutput(
+          buildDevServerTools(
+            liveDevServerPorts({ sandboxName: binding.sandboxName, room })
+          )
+        ),
+        annotations: DEV_SERVER_TOOL_ANNOTATIONS,
+        onInitialize: (client) =>
+          console.info(
+            `[workspace-mcp] ${client.name ?? "client"} connected for ${binding.sandboxName}`
+          ),
+      },
+      message
+    )
+    if (!response) return new Response(null, { status: 202 })
+    return Response.json(response)
+  }
   // Each request builds a fresh tool set, so log canvas changes under the
   // Coordinator's running turn: "undo that" then undoes the whole reply.
   const run = await findActiveRun(binding.chatId).catch(() => null)
