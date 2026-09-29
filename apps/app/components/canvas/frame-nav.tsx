@@ -69,8 +69,8 @@ const STATUS_DOT: Record<
   Exclude<FramePreviewStatus, "live" | "loading">,
   string
 > = {
-  disconnected: "bg-warning",
-  failed: "bg-destructive",
+  disconnected: "bg-warning-fill",
+  failed: "bg-destructive-fill",
   stopped: "bg-muted-foreground/50",
 }
 
@@ -151,7 +151,7 @@ export function FrameAddressBar({
       aria-hidden
       className="flex size-5 shrink-0 items-center justify-center"
     >
-      <span className="size-1.5 animate-pulse rounded-full bg-destructive" />
+      <span className="size-1.5 animate-pulse rounded-full bg-destructive-fill" />
     </span>
   ) : status && status !== "live" ? (
     <StatusIndicator status={status} />
@@ -213,7 +213,7 @@ export function FrameAddressBar({
       >
         <span
           className={cn(
-            "size-2 bg-destructive",
+            "size-2 bg-destructive-fill",
             recording ? "rounded-[1.5px]" : "rounded-full"
           )}
         />

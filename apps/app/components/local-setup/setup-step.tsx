@@ -131,7 +131,7 @@ export function StepMarker({
           ? "size-5 border-[1.5px] border-foreground text-2xs"
           : "size-4 text-3xs",
         state === "upcoming" && "border border-border text-muted-foreground",
-        state === "done" && "bg-success text-success-foreground",
+        state === "done" && "bg-success-fill text-success-foreground",
         state === "skipped" && "bg-muted text-muted-foreground",
         className
       )}

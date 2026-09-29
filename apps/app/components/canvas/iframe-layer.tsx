@@ -966,7 +966,7 @@ export function IframeLayer({
                   // colour, like the ring around the frame.
                   className={
                     focused
-                      ? "bg-canvas-selection text-white hover:bg-canvas-selection/90 hover:text-white dark:hover:bg-canvas-selection/90"
+                      ? "bg-canvas-selection text-black hover:bg-canvas-selection/90 hover:text-black dark:hover:bg-canvas-selection/90"
                       : undefined
                   }
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
