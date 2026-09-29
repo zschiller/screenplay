@@ -6,7 +6,7 @@
  * prompt's meaningful words (stop-words dropped), a length cap, and a short
  * deterministic id for uniqueness — so a prompt like
  * "please fix the flaky login test" yields the branch `fix-flaky-login-test-<id>`
- * and the label "Fix Flaky Login Test" instead of the raw truncated-prompt slug
+ * and the sentence-case label "Fix flaky login test" instead of the raw truncated-prompt slug
  * (`please-fix-the-flaky-login-tes`) and first-six-words label that shipped
  * before.
  *
@@ -82,7 +82,7 @@ const MAX_LABEL_CHARS = 50
 /** Prefix used when a prompt has no meaningful words left after stop-words. */
 const FALLBACK_PREFIX = "task"
 /** Label used when a prompt has no meaningful words left after stop-words. */
-const DEFAULT_LABEL = "Untitled Task"
+const DEFAULT_LABEL = "Untitled task"
 
 /** Lowercase the prompt, split on non-alphanumerics, drop stop-words. */
 function extractKeywords(prompt: string): string[] {
@@ -134,9 +134,10 @@ export function deriveFallbackName(prompt: string): {
   if (keywords.length === 0) {
     label = DEFAULT_LABEL
   } else {
-    const title = keywords
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")
+    // Sentence case, like every other string in the app (#1047): only the
+    // first word is capitalised.
+    const words = keywords.join(" ")
+    const title = words.charAt(0).toUpperCase() + words.slice(1)
     label =
       title.length > MAX_LABEL_CHARS
         ? `${title.slice(0, MAX_LABEL_CHARS).trimEnd()}…`

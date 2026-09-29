@@ -35,8 +35,8 @@ export async function generateChatNames(
 ): Promise<{ branch: string; chatLabel: string; title: string }> {
   const runModel = deps.runModel ?? runOneShotModel
   const system = opts.shouldNameBranch
-    ? "Generate two things for the user's request:\n1. A short, lowercase, hyphenated git branch name (2-4 words)\n2. A short chat label (2-5 words, title case)\n\nOutput ONLY as two lines, no explanation, backticks, or quotes.\nLine 1: branch name\nLine 2: chat label\n\nExamples:\nfix-login-button\nFix Login Button\n\nadd-dark-mode\nAdd Dark Mode"
-    : "Generate a short chat label for the user's request (2-5 words, title case). Output ONLY the label — no explanation, backticks, or quotes.\n\nExamples:\nFix Login Button\nAdd Dark Mode"
+    ? "Generate two things for the user's request:\n1. A short, lowercase, hyphenated git branch name (2-4 words)\n2. A short chat label (2-5 words, sentence case)\n\nOutput ONLY as two lines, no explanation, backticks, or quotes.\nLine 1: branch name\nLine 2: chat label\n\nExamples:\nfix-login-button\nFix login button\n\nadd-dark-mode\nAdd dark mode"
+    : "Generate a short chat label for the user's request (2-5 words, sentence case). Output ONLY the label — no explanation, backticks, or quotes.\n\nExamples:\nFix login button\nAdd dark mode"
 
   const rawText = await runModel({
     system,
