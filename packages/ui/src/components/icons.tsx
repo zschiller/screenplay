@@ -68,6 +68,7 @@ import { GitForkIcon as GitForkBase } from "@phosphor-icons/react/dist/ssr/GitFo
 import { GitMergeIcon as GitMergeBase } from "@phosphor-icons/react/dist/ssr/GitMerge"
 import { GitPullRequestIcon as GitPullRequestBase } from "@phosphor-icons/react/dist/ssr/GitPullRequest"
 import { GlobeIcon as GlobeBase } from "@phosphor-icons/react/dist/ssr/Globe"
+import { InfoIcon as InfoBase } from "@phosphor-icons/react/dist/ssr/Info"
 import { FrameCornersIcon as FrameCornersBase } from "@phosphor-icons/react/dist/ssr/FrameCorners"
 import { LayoutIcon as LayoutBase } from "@phosphor-icons/react/dist/ssr/Layout"
 import { LinkSimpleHorizontalIcon as LinkSimpleHorizontalBase } from "@phosphor-icons/react/dist/ssr/LinkSimpleHorizontal"
@@ -282,6 +283,7 @@ export const GitPullRequestIcon = phosphor(
   "ph-git-pull-request"
 )
 export const GlobeIcon = phosphor(GlobeBase, "ph-globe")
+export const InfoIcon = phosphor(InfoBase, "ph-info")
 export const FrameCornersIcon = phosphor(FrameCornersBase, "ph-frame-corners")
 export const LayoutIcon = phosphor(LayoutBase, "ph-layout")
 export const LinkSimpleHorizontalIcon = phosphor(
