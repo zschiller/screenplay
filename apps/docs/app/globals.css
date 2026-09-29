@@ -129,7 +129,8 @@ kbd {
   border: 1px solid rgb(0 0 0 / 0.15);
   border-bottom-width: 2px;
   border-radius: 2px;
-  font-family: var(--x-font-mono);
+  /* system-ui has the widest coverage of key symbols like ⌘ ⌥ ⇧. */
+  font-family: system-ui, sans-serif;
   font-size: 0.85em;
   text-align: center;
   white-space: nowrap;
