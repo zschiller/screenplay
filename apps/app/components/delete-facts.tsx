@@ -19,11 +19,12 @@ export function joinFacts(facts: string[]): string {
 
 /**
  * The amber warning a delete shows only when it would destroy work git hasn't
- * saved elsewhere. Stock shadcn Alert, tinted with the theme's warning colour.
+ * saved elsewhere. Stock shadcn Alert (outline, regular text) with the icon in
+ * the warning ink.
  */
 export function LostWorkAlert({ children }: { children: ReactNode }) {
   return (
-    <Alert className="border-transparent bg-warning/10 text-warning">
+    <Alert className="[&>svg]:text-warning">
       <WarningIcon />
       <AlertDescription className="text-current">{children}</AlertDescription>
     </Alert>

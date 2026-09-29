@@ -166,12 +166,10 @@ function StateChip({
   }
   return (
     <Badge
-      variant="secondary"
+      variant={chip.kind === "lost" ? "outline" : "secondary"}
       className={cn(
         "ml-auto shrink-0 font-normal",
-        chip.kind === "lost"
-          ? "bg-warning/10 text-warning"
-          : "text-muted-foreground"
+        chip.kind !== "lost" && "text-muted-foreground"
       )}
     >
       {chip.label}
