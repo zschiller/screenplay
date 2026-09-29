@@ -462,7 +462,7 @@ export function MentionTextarea({
         <ul
           role="listbox"
           aria-label="Mention someone"
-          className="absolute bottom-full left-0 z-10 mb-1 w-full rounded-md bg-popover p-1 shadow-md ring-1 ring-foreground/10"
+          className="inverted absolute bottom-full left-0 z-10 mb-1 w-full rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
         >
           {matches.map((m, i) => (
             <li

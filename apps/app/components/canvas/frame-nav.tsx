@@ -295,7 +295,7 @@ function FrameWorkspaceHost({
         </PopoverTrigger>
       </MaybeWorkspaceHoverCard>
       <PopoverContent
-        className="w-72 p-0"
+        className="inverted w-72 p-0"
         side="bottom"
         sideOffset={8}
         align="start"
@@ -416,7 +416,7 @@ export function FrameRouteField({
       </PopoverTrigger>
       <PopoverContent
         // Like an address bar's suggestions, under the field.
-        className="w-56 p-0"
+        className="inverted w-56 p-0"
         side="bottom"
         sideOffset={8}
         align="start"

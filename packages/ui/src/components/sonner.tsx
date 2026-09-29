@@ -4,12 +4,14 @@ import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { resolvedTheme } = useTheme()
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group font-sans!"
+      // Toasts take the other theme, like menus and tooltips: `inverted`
+      // gives the stack the other theme's tokens.
+      theme={resolvedTheme === "dark" ? "light" : "dark"}
+      className="inverted toaster group font-sans!"
       style={
         {
           "--normal-bg": "var(--popover)",

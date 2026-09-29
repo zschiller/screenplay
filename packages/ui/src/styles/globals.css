@@ -6,7 +6,9 @@
 @source "../../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
-@custom-variant dark (&:is(.dark *));
+/* `inverted` (menus, tooltips, toasts) takes the other theme: dark tokens and
+   `dark:` styles in light mode, light ones in dark mode. */
+@custom-variant dark (&:is(.dark *:not(.inverted, .inverted *), :root:not(.dark) .inverted *));
 
 @theme inline {
     --font-heading: var(--font-sans);
@@ -74,7 +76,8 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+:root,
+.dark .inverted {
     --background: oklch(1 0 0);
     --foreground: oklch(0 0 0);
     --card: oklch(1 0 0);
@@ -119,7 +122,8 @@
     --sidebar-ring: oklch(0.667 0.295 322.15);
 }
 
-.dark {
+.dark,
+:root:not(.dark) .inverted {
     --background: oklch(0 0 0);
     --foreground: oklch(1 0 0);
     --card: oklch(0 0 0);
