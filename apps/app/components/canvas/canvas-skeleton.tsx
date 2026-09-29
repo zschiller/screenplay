@@ -69,7 +69,7 @@ export function CanvasSkeleton({
             >
               <SidebarSimpleIcon className="size-4 text-sidebar-foreground/40" />
             </div>
-            <SidebarSection label="Repositories" rows={2} className="pt-0" />
+            <SidebarSection label="Workspaces" rows={2} className="pt-0" />
             <SidebarSection label="Canvas" rows={3} />
           </aside>
           <div className="w-px bg-border" />
@@ -89,16 +89,17 @@ export function CanvasSkeleton({
             <div className="size-6" />
           </Pill>
         </div>
-        {/* Top-right: Share on web; the chat-expand button while chat is
-            closed. The Canvas renders nothing here on desktop with chat open. */}
-        {(!isLocalBuild || !showChat) && (
-          <div className="absolute top-0 right-0 flex h-12 items-center px-2">
-            <Pill>
-              {!isLocalBuild && <Skeleton className="h-6 w-14" />}
-              {!showChat && <PillIcon icon={<SidebarSimpleIcon mirrored />} />}
-            </Pill>
-          </div>
-        )}
+        {/* Top-right: the zoom menu (always), Share on web, and the
+            chat-expand button while chat is closed. */}
+        <div className="absolute top-0 right-0 flex h-12 items-center px-2">
+          <Pill>
+            <div className="flex h-6 w-13 items-center px-1.5">
+              <Skeleton className="h-3 w-full" />
+            </div>
+            {!isLocalBuild && <Skeleton className="ml-1 h-6 w-14" />}
+            {!showChat && <PillIcon icon={<SidebarSimpleIcon mirrored />} />}
+          </Pill>
+        </div>
         {/* Bottom: the tool pill. */}
         <div className="absolute bottom-0 left-1/2 flex h-12 -translate-x-1/2 items-center px-2">
           <Pill>
@@ -130,7 +131,7 @@ function SidebarSection({
 }) {
   return (
     <div className={`flex flex-col p-2 ${className ?? ""}`}>
-      <div className="flex h-8 items-center px-2 text-xs font-medium text-sidebar-foreground/70">
+      <div className="flex h-8 items-center px-2 font-mono text-2xs tracking-wider text-sidebar-foreground/70 uppercase">
         {label}
       </div>
       {Array.from({ length: rows }, (_, i) => (
