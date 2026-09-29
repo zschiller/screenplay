@@ -67,7 +67,7 @@ export function EmptyThumbnail({
  * padding so frames breathe rather than butting up against the card edge. Frames
  * without a capture yet (booting, skipped, or never captured) render as neutral
  * placeholder blocks. Returns null
- * when there's nothing to place, so the card's gradient shows through (legacy
+ * when there's nothing to place, so the card's canvas plane shows through (legacy
  * rows have a null manifest and never reach here).
  */
 export function ThumbnailComposite({
@@ -112,14 +112,14 @@ export function ThumbnailComposite({
             height: `${(frame.height / bounds.height) * 100}%`,
           }
           if (!frame.capture) {
-            // Neutral placeholder. The thumbnail render never draws text — the
-            // block stands in for an uncaptured frame on its own. (A legacy
-            // `paletteIndex` on a stored manifest is ignored.)
+            // A blank page with the frame's hairline edge. The thumbnail render
+            // never draws text — the block stands in for an uncaptured frame on
+            // its own. (A legacy `paletteIndex` on a stored manifest is ignored.)
             return (
               <div
                 key={frame.id}
                 style={style}
-                className="absolute overflow-hidden bg-foreground/5"
+                className="absolute overflow-hidden bg-background ring-1 ring-foreground/10"
               />
             )
           }
@@ -136,7 +136,7 @@ export function ThumbnailComposite({
               src={src}
               alt=""
               style={style}
-              className="absolute object-cover"
+              className="absolute object-cover ring-1 ring-foreground/10"
               // A stale capture URL (e.g. pre-restart blob scheme) 404s until the
               // room's next recapture; hide the broken glyph and let the blank
               // backdrop show instead of a broken-image icon.
@@ -178,7 +178,7 @@ function RoomTileFace({
         href={`/${room.id}`}
         className={cn(
           "relative block aspect-[4/3] w-full overflow-hidden",
-          hasThumbnail(room.thumbnailManifest) && "bg-muted-foreground/15"
+          hasThumbnail(room.thumbnailManifest) && "bg-canvas-plane"
         )}
         aria-label={`Open ${room.name}`}
       >
