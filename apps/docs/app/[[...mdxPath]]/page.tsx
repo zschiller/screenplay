@@ -1,4 +1,5 @@
 import { generateStaticParamsFor, importPage } from "nextra/pages"
+import { CopyPage } from "../../components/copy-page"
 import { useMDXComponents as getMDXComponents } from "../../mdx-components"
 
 export const generateStaticParams = generateStaticParamsFor("mdxPath")
@@ -21,6 +22,8 @@ export default async function Page(props: PageProps) {
   const { default: MDXContent, toc, metadata, sourceCode } = result
   return (
     <Wrapper toc={toc} metadata={metadata} sourceCode={sourceCode}>
+      {/* Our split button in place of Nextra's, which layout.tsx turns off. */}
+      {sourceCode && <CopyPage sourceCode={sourceCode} />}
       <MDXContent {...props} params={params} />
     </Wrapper>
   )

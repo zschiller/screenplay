@@ -9,6 +9,9 @@ import { Footer, Layout, Navbar } from "nextra-theme-docs"
 import { Head } from "nextra/components"
 import { getPageMap } from "nextra/page-map"
 import "nextra-theme-docs/style.css"
+// Tailwind utilities and the app tokens for shared components (no preflight:
+// Nextra brings its own).
+import "@workspace/ui/embed.css"
 import "./globals.css"
 import { ScreenplayMark } from "@workspace/ui/components/screenplay-mark"
 import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
@@ -92,6 +95,8 @@ export default async function RootLayout({
           docsRepositoryBase="https://github.com/zschiller/screenplay/tree/main/apps/docs"
           footer={footer}
           toc={{ title: "On this page" }}
+          // components/copy-page.tsx renders it as the app's split button.
+          copyPageButton={false}
         >
           {children}
         </Layout>
