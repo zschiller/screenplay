@@ -57,7 +57,7 @@ export function createDitherVeil(
   // The spacing of the grid distances are measured on, in CSS px.
   const COARSE = 8
   // How far around the pointer the veil clears, in CSS px.
-  const PEEK = 150
+  const PEEK = 90
 
   let W = 0
   let H = 0
@@ -194,19 +194,19 @@ export function createDitherVeil(
   function updatePeek(snap: boolean) {
     if (!field.length) return
     if (snap) field.fill(0)
-    else for (let i = 0; i < field.length; i++) field[i]! *= 0.9
+    else for (let i = 0; i < field.length; i++) field[i]! *= 0.955
     if (aim.on) {
       const px = peek.fresh ? aim.x : peek.x
       const py = peek.fresh ? aim.y : peek.y
-      peek.x = snap || peek.fresh ? aim.x : px + (aim.x - px) * 0.4
-      peek.y = snap || peek.fresh ? aim.y : py + (aim.y - py) * 0.4
+      peek.x = snap || peek.fresh ? aim.x : px + (aim.x - px) * 0.12
+      peek.y = snap || peek.fresh ? aim.y : py + (aim.y - py) * 0.12
       peek.fresh = false
       const steps = Math.max(
         1,
         Math.ceil(Math.hypot(peek.x - px, peek.y - py) / 12)
       )
-      // Eases in over a few frames rather than popping open.
-      const s = snap ? 1 : 0.45
+      // Blooms open slowly rather than popping.
+      const s = snap ? 1 : 0.12
       const R = PEEK / COARSE
       for (let n = 1; n <= steps; n++) {
         const cx = (px + ((peek.x - px) * n) / steps) / COARSE
@@ -277,7 +277,14 @@ export function createDitherVeil(
         const j = y0 * fc + x0
         const top = field[j]! + (field[j + 1]! - field[j]!) * fx
         const bot = field[j + fc]! + (field[j + fc + 1]! - field[j + fc]!) * fx
-        k -= (top + (bot - top) * fy) * 1.6
+        // Rather than a clean hole, the peek opens in slow marbled bands
+        // that swirl as they drift.
+        const w = noise(
+          c * cell * 0.018 + t * 0.35,
+          r * cell * 0.018 - t * 0.28
+        )
+        k -=
+          (top + (bot - top) * fy) * (1.25 + 0.8 * Math.sin(w * 14 + t * 1.6))
       }
     }
     const kk = Math.min(Math.max(k, 0), 1)
