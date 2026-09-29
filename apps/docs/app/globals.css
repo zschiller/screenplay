@@ -228,6 +228,76 @@ html.dark [role="listbox"]:not(.nextra-search-results) {
   color: var(--sp-menu-muted);
 }
 
+/* Navbar search as the app's stock Input: hairline border, no fill, 32px,
+   the 3px ring on focus. */
+.nextra-search input {
+  height: 2rem;
+  padding: 0.25rem 4rem 0.25rem 0.625rem;
+  border: 1px solid oklch(0 0 0 / 12%);
+  border-radius: 2px;
+  background: transparent;
+}
+html.dark .nextra-search input {
+  border-color: oklch(1 0 0 / 16%);
+  background: oklch(1 0 0 / 4.8%);
+}
+.nextra-search input::placeholder {
+  color: oklch(0.556 0 0);
+}
+html.dark .nextra-search input::placeholder {
+  color: oklch(0.708 0 0);
+}
+.nextra-search input:focus {
+  border-color: oklch(0.667 0.295 322.15);
+  box-shadow: 0 0 0 3px oklch(0.667 0.295 322.15 / 50%);
+}
+/* Its shortcut hint as two app Kbd caps (⌘ K, or Ctrl K off the Mac), the
+   same caps as the keys in the text below. Nextra renders one <kbd> holding
+   "<span>⌘</span>K" or "CTRL K", so the caps are drawn as pseudo-elements.
+   Nextra still hides it on focus. */
+.nextra-search kbd {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0;
+}
+.nextra-search kbd > span {
+  display: none;
+}
+.nextra-search kbd::before,
+.nextra-search kbd::after {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0 0.25rem;
+  border-radius: 2px;
+  background: oklch(0.975 0 0);
+  color: oklch(0.556 0 0);
+  font-family: system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+html.dark .nextra-search kbd::before,
+html.dark .nextra-search kbd::after {
+  background: oklch(0.2 0 0);
+  color: oklch(0.708 0 0);
+}
+.nextra-search kbd::before {
+  content: "Ctrl";
+}
+.nextra-search kbd:has(> span)::before {
+  content: "⌘";
+}
+.nextra-search kbd::after {
+  content: "K";
+}
+
 /* Framed screenshots: show the variant that matches the docs theme. */
 .sp-screenshot {
   margin: 1.75rem 0;
