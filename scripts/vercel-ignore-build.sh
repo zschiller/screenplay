@@ -3,8 +3,9 @@
 # vercel.json). Exit 1 = build, exit 0 = skip.
 #
 # Production deploys always build. Preview deploys are opt-in, because they
-# burn build credits: they build only when the commit message contains
-# "[preview]" or the pull request carries the "preview" label.
+# burn build credits: they build only when the commit's subject line contains
+# "[preview]" or the pull request carries the "preview" label. Only the subject
+# counts, so a commit body that merely mentions the token doesn't opt in.
 
 set -u
 
@@ -13,9 +14,10 @@ if [ "${VERCEL_ENV:-}" = "production" ]; then
   exit 1
 fi
 
-case "${VERCEL_GIT_COMMIT_MESSAGE:-}" in
+subject="$(printf '%s\n' "${VERCEL_GIT_COMMIT_MESSAGE:-}" | head -n 1)"
+case "$subject" in
   *"[preview]"*)
-    echo "Commit message opts in with [preview]: building."
+    echo "Commit subject opts in with [preview]: building."
     exit 1
     ;;
 esac
@@ -36,5 +38,5 @@ if [ -n "$pr" ]; then
   fi
 fi
 
-echo "Preview skipped. Add the \"preview\" label to the PR and push, or push a commit with [preview] in its message."
+echo "Preview skipped. Add the \"preview\" label to the PR and push, or push a commit with [preview] in its subject line."
 exit 0

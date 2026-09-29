@@ -68,7 +68,8 @@ every push. Production deploys always build. A preview builds only when:
 
 - the pull request has the `preview` label (add it, then push; adding a label
   alone doesn't start a deploy), or
-- the pushed commit's message contains `[preview]`.
+- the pushed commit's subject line contains `[preview]` (the body doesn't
+  count).
 
 The label check calls the GitHub API unauthenticated, which works for a
 public repository. For a private fork, add a `GITHUB_TOKEN` environment
