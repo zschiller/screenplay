@@ -170,7 +170,7 @@ export function SidebarSearch() {
           </PopoverAnchor>
           <PopoverContent
             align="start"
-            className="w-72 min-w-(--radix-popover-trigger-width) p-0"
+            className="inverted w-72 min-w-(--radix-popover-trigger-width) p-0"
             // Typing stays in the field: the popover never takes focus, and a
             // click on a result doesn't blur the field before it lands.
             onOpenAutoFocus={(e) => e.preventDefault()}

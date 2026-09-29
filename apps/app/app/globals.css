@@ -38,7 +38,8 @@
    Remote cursors sit *under* the chrome on purpose: a peer's pointer is
    information, the toolbars are controls, and a cursor parked over a button
    must never hide it. */
-:root {
+:root,
+.dark .inverted {
   --canvas-selection: oklch(0.667 0.295 322.15);
   --canvas-snap: oklch(0.637 0.237 25.331);
   --canvas-inspect: oklch(0.62 0.22 300);
@@ -54,7 +55,8 @@
   --z-canvas-chrome: 50;
 }
 
-.dark {
+.dark,
+:root:not(.dark) .inverted {
   --canvas-selection: oklch(0.667 0.295 322.15);
   --canvas-snap: oklch(0.637 0.237 25.331);
   --canvas-inspect: oklch(0.62 0.22 300);

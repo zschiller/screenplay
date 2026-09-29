@@ -141,7 +141,7 @@ export function ChatHistoryMenu({
           <ArchiveIcon className="size-3" />
         </IconButton>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 gap-0 p-1">
+      <PopoverContent align="end" className="inverted w-80 gap-0 p-1">
         <div className="px-2 pt-1.5 pb-1 font-mono text-2xs font-normal tracking-wider text-muted-foreground uppercase">
           History
         </div>
