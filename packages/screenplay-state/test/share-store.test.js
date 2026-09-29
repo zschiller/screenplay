@@ -17,7 +17,21 @@ function startRoom(env, count) {
     let seq = 0
     const pending = new Map()
     worker.on("message", (msg) => {
-      if (msg.type === "post") {
+      if (
+        msg.type === "post" &&
+        msg.data.type === "screenplay:shared-state-request"
+      ) {
+        // A frame that loads asks for the room's state (#1000); answer it
+        // the way the canvas does, so its first publish isn't held.
+        worker.postMessage({
+          type: "apply",
+          data: {
+            type: "screenplay:shared-state-apply",
+            state: { ...room },
+            initial: true,
+          },
+        })
+      } else if (msg.type === "post") {
         Object.assign(room, msg.data.state)
         for (const other of viewers) {
           if (other.worker !== worker) {
