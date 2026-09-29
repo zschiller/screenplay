@@ -51,3 +51,37 @@ export function clearSharedState(key: string): void
 
 /** Read the last value published under a key. Mostly for tests. */
 export function getSharedState(key: string): JsonValue | undefined
+
+/**
+ * The part of a zustand store `shareStore` uses. A `create()` hook and a
+ * vanilla `createStore()` store both have it.
+ */
+export interface ShareableStore<T> {
+  getState(): T
+  setState(partial: Partial<T>): void
+  subscribe(listener: (state: T, previous: T) => void): () => void
+}
+
+/**
+ * Share a whole zustand store with every viewer of the frame under one key.
+ * The store's plain-JSON fields are published; changes from other viewers are
+ * merged back with `setState`, so the store's actions keep working.
+ *
+ * Fields holding functions, or values JSON can't round-trip (`Date`, `Map`,
+ * `Set`, class instances, `undefined`, `NaN`), are never published and never
+ * overwritten. Returns a function that stops sharing.
+ *
+ * Outside a screenplay frame (production, standalone dev) this is a no-op.
+ *
+ * @example
+ *   export const useSales = create((set) => ({
+ *     contactOpen: false,
+ *     plan: "Growth",
+ *     seats: 5,
+ *     open: (plan) => set({ contactOpen: true, plan }),
+ *     close: () => set({ contactOpen: false }),
+ *   }))
+ *
+ *   shareStore("sales", useSales)
+ */
+export function shareStore<T>(key: string, store: ShareableStore<T>): () => void

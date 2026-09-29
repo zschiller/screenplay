@@ -61,6 +61,36 @@ const user = useUser()
 useSharedState("user", user ? { id: user.id, role: user.role } : null)
 ```
 
+## Share a whole store
+
+If your app keeps its state in a [zustand](https://zustand.docs.pmnd.rs) store,
+share the whole store with one call instead of one `useSharedState` per value:
+
+```ts
+import { create } from "zustand"
+import { shareStore } from "@screenplay.space/state"
+
+export const useSales = create((set) => ({
+  contactOpen: false,
+  plan: "Growth",
+  seats: 5,
+  open: (plan) => set({ contactOpen: true, plan }),
+  close: () => set({ contactOpen: false }),
+  setSeats: (seats) => set({ seats }),
+}))
+
+shareStore("sales", useSales)
+```
+
+Open the contact-sales modal in one frame and pick 12 seats, and every other
+viewer's frame shows the same modal with the same seats. The store's data is
+shared under the one key; changes from other viewers are merged back with
+`setState`, so the store's actions keep working everywhere.
+
+Only fields that are plain JSON are shared. Actions, and fields holding a
+`Date`, `Map`, `Set` or class instance, stay local and are never overwritten.
+`shareStore` returns a function that stops sharing.
+
 ## Without React
 
 ```ts
