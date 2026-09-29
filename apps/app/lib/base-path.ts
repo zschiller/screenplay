@@ -4,7 +4,7 @@
  * The product is path-agnostic: it can be served at the root of its own domain
  * (the default — a standalone deployer sets nothing) or beneath a prefix when
  * proxied by another origin. In this monorepo the marketing `web` app owns the
- * apex and proxies `/app/*` here (see `apps/web/vercel.json`), so the `app`
+ * apex and proxies `/app/*` here (see `apps/homepage/vercel.json`), so the `app`
  * Vercel project sets `NEXT_PUBLIC_BASE_PATH=/app`.
  *
  * Read from the env (not a literal) so this module and `next.config.mjs` — which

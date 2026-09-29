@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Vercel "Ignored Build Step" for every app in the monorepo. Each app's
-# vercel.json calls it with the app's name (app, docs or web).
+# vercel.json calls it with the app's name (app, docs or homepage).
 # Exit 1 = build, exit 0 = skip.
 #
 # Production deploys always build. Preview deploys are opt-in, because they

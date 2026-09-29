@@ -69,10 +69,10 @@ opt in, for every app or for one:
 
 | Opt in with | Builds |
 | --- | --- |
-| `preview` label on the PR | app, docs and web |
-| `preview:app`, `preview:docs` or `preview:web` label | that app only |
-| `[preview]` in the pushed commit's subject line | app, docs and web |
-| `[preview:app]`, `[preview:docs]` or `[preview:web]` in the subject line | that app only |
+| `preview` label on the PR | app, docs and homepage |
+| `preview:app`, `preview:docs` or `preview:homepage` label | that app only |
+| `[preview]` in the pushed commit's subject line | app, docs and homepage |
+| `[preview:app]`, `[preview:docs]` or `[preview:homepage]` in the subject line | that app only |
 
 Adding a label doesn't start a deploy on its own: push afterwards, or redeploy
 from Vercel. Only the subject line counts, so a commit body that mentions a
@@ -86,7 +86,7 @@ variable (Preview scope) with read access to its pull requests.
 
 The reference deployment serves the marketing site at the domain root, the
 product at `/app`, and these docs at `/docs`. The marketing app
-(`apps/web/vercel.json`) rewrites `/app/*` and `/docs/*` to the other two
+(`apps/homepage/vercel.json`) rewrites `/app/*` and `/docs/*` to the other two
 Vercel projects, and the product project sets `NEXT_PUBLIC_BASE_PATH=/app`.
 To serve Screenplay from its own domain instead, leave `NEXT_PUBLIC_BASE_PATH`
 unset. See [Mount path](/self-hosting/configuration/mount-path).
