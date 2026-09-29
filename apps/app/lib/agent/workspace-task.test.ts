@@ -4,6 +4,7 @@ import type { AgentMessage } from "@/lib/agent/types"
 import {
   createdWorkspacesResult,
   sentToWorkspaceResult,
+  workspaceTaskMessage,
   workspaceTaskOf,
   workspaceTasksOf,
   workspaceTaskState,
@@ -104,6 +105,30 @@ describe("workspaceTaskState", () => {
         plans: [{ branchId: "ws-1", status: "approved" }],
       })
     ).toBe("done")
+  })
+})
+
+describe("workspaceTaskMessage", () => {
+  it("is the message sent, on one line", () => {
+    expect(
+      workspaceTaskMessage(
+        send({
+          rawInput: {
+            workspace_id: "ws-1",
+            message: " Pin it.\n\nThen ship. ",
+          },
+        })
+      )
+    ).toBe("Pin it. Then ship.")
+  })
+
+  it("is null without a message or for another tool", () => {
+    expect(
+      workspaceTaskMessage(send({ rawInput: { workspace_id: "ws-1" } }))
+    ).toBeNull()
+    expect(
+      workspaceTaskMessage(send({ title: "create_workspaces" }))
+    ).toBeNull()
   })
 })
 

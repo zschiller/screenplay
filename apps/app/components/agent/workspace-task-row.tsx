@@ -21,6 +21,7 @@ import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore } from "@/lib/chat-store"
 import {
   WORKSPACE_TASK_STATE_LABEL,
+  workspaceTaskMessage,
   workspaceTaskState,
   type WorkspaceTaskRef,
   type WorkspaceTaskState,
@@ -61,7 +62,7 @@ export function useWorkspaceTasks(): WorkspaceTasks | null {
 }
 
 function StateIcon({ state }: { state: WorkspaceTaskState }) {
-  const cls = "size-3 shrink-0"
+  const cls = "size-3.5 shrink-0"
   switch (state) {
     case "sending":
     case "starting":
@@ -88,9 +89,9 @@ function StateIcon({ state }: { state: WorkspaceTaskState }) {
 }
 
 /**
- * A Workspace the Coordinator messaged, as one row in its transcript (#896):
- * status icon, Workspace title, changed lines, the state in a word and a
- * chevron, drawn as a muted line like a finished turn's summary row. It reads
+ * A Workspace the Coordinator messaged, as a quiet card in its transcript
+ * (#896, #1150): status icon, Workspace title, changed lines, the state in a
+ * word and a caret, then the message it was sent on a second line. It reads
  * the Workspace's live Branch and chat state, so it updates in place as the
  * Workspace works. Clicking it opens the Workspace on the chat the message
  * went to.
@@ -126,6 +127,8 @@ export function WorkspaceTaskRow({
   const hasDiff = branch?.status === "running" && (added > 0 || removed > 0)
   const label = WORKSPACE_TASK_STATE_LABEL[state]
 
+  const message = workspaceTaskMessage(call)
+
   return (
     <button
       type="button"
@@ -133,23 +136,32 @@ export function WorkspaceTaskRow({
       data-state={state}
       disabled={!branch}
       onClick={() => tasks.onOpen(task)}
-      className="flex max-w-full min-w-0 items-center gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:hover:text-muted-foreground"
+      className="flex w-full min-w-0 flex-col gap-0.5 rounded-lg bg-muted px-2.5 py-2 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:hover:bg-muted dark:bg-input/70 dark:hover:bg-input dark:disabled:hover:bg-input/70"
     >
-      <StateIcon state={state} />
-      <span className="min-w-0 truncate">
-        {branch ? workspaceLabel(branch) : "Removed Workspace"}
+      <span className="flex w-full min-w-0 items-center gap-2">
+        <StateIcon state={state} />
+        <span className="min-w-0 flex-1 truncate text-sm">
+          {branch ? workspaceLabel(branch) : "Removed Workspace"}
+        </span>
+        {hasDiff && (
+          <span className="flex shrink-0 items-center gap-1 font-mono text-xs">
+            <span className="text-success">+{added}</span>
+            <span className="text-destructive">-{removed}</span>
+          </span>
+        )}
+        <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+        {branch && (
+          <CaretRightIcon
+            aria-hidden
+            className="size-3 shrink-0 text-muted-foreground"
+          />
+        )}
       </span>
-      {hasDiff && (
-        <span className="flex shrink-0 items-center gap-1 font-mono text-xs">
-          <span className="text-success">+{added}</span>
-          <span className="text-destructive">-{removed}</span>
+      {message && (
+        <span className="block w-full truncate pl-5.5 text-xs text-muted-foreground">
+          {message}
         </span>
       )}
-      <span aria-hidden className="shrink-0">
-        ·
-      </span>
-      <span className="shrink-0">{label}</span>
-      {branch && <CaretRightIcon aria-hidden className="size-3 shrink-0" />}
     </button>
   )
 }
