@@ -33,9 +33,9 @@
 .hc-stage[data-playing] .hc-track {
   animation-play-state: running;
 }
-/* Phones: the text fills the hero, so the copies go below it instead of
+/* Below 1024px the text fills the hero, so the copies go below it instead of
    under it, smaller, and with no veil (hero-stage.tsx skips it). */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .hc-stage {
     display: flex;
     flex-direction: column;

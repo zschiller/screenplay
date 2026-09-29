@@ -5,13 +5,13 @@ import { measure, monoLabel } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const dance = [
-  ["$", "git stash"],
-  ["$", "git checkout pricing-minimal"],
-  ["$", "pnpm install"],
-  ["$", "pnpm dev"],
-  ["", "▲ Ready in 14.2s"],
-  ["$", "git checkout pricing-bold"],
-  ["$", "pnpm dev"],
+  ["$", "git worktree add ../bold pricing-bold"],
+  ["$", "cd ../bold && pnpm install"],
+  ["$", "PORT=3001 pnpm dev"],
+  ["", "▲ Ready on localhost:3001"],
+  ["$", "cd ../minimal && pnpm install"],
+  ["$", "PORT=3002 pnpm dev"],
+  ["", "▲ Ready on localhost:3002"],
 ] as const
 
 export function Problem() {
@@ -19,8 +19,8 @@ export function Problem() {
     <section className={cn(measure, "pt-[clamp(72px,10vw,140px)]")}>
       <SectionHeading
         slug="The problem"
-        title="Agents write several versions. You can run one at a time."
-        body="Each version lives on its own branch. Comparing them means stashing, checking out, reinstalling and rebuilding, one branch at a time. A screenshot doesn't show how a change behaves."
+        title="Agents write several versions. You see them one tab at a time."
+        body="Worktrees let every branch run at once, but each one needs its own install, port and dev server, and the results end up spread across terminals and browser tabs. Comparing them means flipping between tabs and remembering what the last one looked like."
       />
 
       <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -41,7 +41,7 @@ export function Problem() {
             </div>
           </div>
           <p className={cn(monoLabel, "mt-8 text-neutral-500")}>
-            Without Screenplay · one branch at a time
+            Without Screenplay · a port and a tab per branch
           </p>
         </div>
 

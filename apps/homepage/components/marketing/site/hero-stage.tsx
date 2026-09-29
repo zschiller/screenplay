@@ -64,7 +64,7 @@ type Copy = {
  * The hero's backdrop: copies of this homepage pan past in two rows, each a
  * Workspace an agent is changing live, under a dither in the page's own
  * background colour that keeps the text on top readable. Everything marked
- * `data-veil` inside gets solid background behind its lines. On phones,
+ * `data-veil` inside gets solid background behind its lines. Below 1024px,
  * where the text fills the hero, the copies sit below it instead, unveiled.
  *
  * The copies are built on the client only; they're decoration, hidden from
@@ -200,8 +200,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Phones stack the copies under the text instead, with no veil.
-    const wide = matchMedia("(min-width: 768px)")
+    // Narrower screens stack the copies under the text instead, unveiled.
+    const wide = matchMedia("(min-width: 1024px)")
     const play = () => {
       if (reduce || alive) return
       alive = true
@@ -218,11 +218,18 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       copies.forEach((f) => (f.busy = false))
     }
 
+    // At most once a frame, and drawn straight away, so dragging the window
+    // neither stalls nor flashes an empty veil.
+    let pending = 0
     const remeasure = () => {
-      if (!wide.matches) return veil.stop()
-      veil.measure()
-      if (reduce || !alive) veil.drawOnce()
-      else veil.start()
+      if (pending) return
+      pending = requestAnimationFrame(() => {
+        pending = 0
+        if (!wide.matches) return veil.stop()
+        veil.measure()
+        veil.drawOnce()
+        if (alive && !reduce) veil.start()
+      })
     }
     veil.setColor(getComputedStyle(host).backgroundColor)
     remeasure()
@@ -242,6 +249,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
 
     return () => {
       pause()
+      cancelAnimationFrame(pending)
       resize.disconnect()
       wide.removeEventListener("change", remeasure)
       seen.disconnect()
@@ -260,7 +268,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       <canvas
         ref={canvas}
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1] size-full max-md:hidden"
+        className="pointer-events-none absolute inset-0 z-[1] size-full max-lg:hidden"
       />
       <div className="hc-content relative z-[2]">{children}</div>
     </div>

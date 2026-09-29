@@ -4,8 +4,8 @@
  * nothing away from it, so text stays readable on top of a busy layer.
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
- * blue noise instead of Bayer's checkerboard, and a slow value noise keeps the
- * edge drifting. Each grain is solid or a soft wash, so what's underneath
+ * blue noise instead of Bayer's checkerboard. The grain creeps and a value
+ * noise billows the edge, so the veil is always gently moving. Each grain is solid or a soft wash, so what's underneath
  * fades under a smooth gradient and the dots only add texture.
  *
  * The canvas must fill its parent (`width/height: 100%`): a positioned canvas
@@ -54,6 +54,8 @@ export function createDitherVeil(
   // in CSS px.
   const PAD = 12
   const FALL = 190
+  // The spacing of the grid distances are measured on, in CSS px.
+  const COARSE = 8
 
   let W = 0
   let H = 0
@@ -63,7 +65,6 @@ export function createDitherVeil(
   let rows = 0
   let img: ImageData | null = null
   let dist = new Float32Array(0)
-  let threshold = new Float32Array(0)
   // The grains in the fade, the only ones that change from frame to frame.
   let band = new Int32Array(0)
   let rgb = [255, 255, 255]
@@ -75,15 +76,23 @@ export function createDitherVeil(
     dpr = Math.min(window.devicePixelRatio || 1, 2)
     W = host.clientWidth
     H = host.clientHeight
-    canvas.width = Math.round(W * dpr)
-    canvas.height = Math.round(H * dpr)
+    // Resizing the bitmap clears it, so only when the size really changed;
+    // the caller draws again straight after.
+    const bw = Math.round(W * dpr)
+    const bh = Math.round(H * dpr)
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw
+      canvas.height = bh
+    }
     // One grain per 3 device pixels on retina screens, 2 elsewhere.
     cell = dpr >= 2 ? 1.5 : 2
     cols = Math.ceil(W / cell)
     rows = Math.ceil(H / cell)
-    off.width = cols
-    off.height = rows
-    img = octx.createImageData(cols, rows)
+    if (off.width !== cols || off.height !== rows || !img) {
+      off.width = cols
+      off.height = rows
+      img = octx.createImageData(cols, rows)
+    }
 
     // Hug the text line by line rather than whole blocks, so what's
     // underneath shows wherever there are no words.
@@ -101,30 +110,46 @@ export function createDitherVeil(
         r.bottom - s.top + PAD,
       ])
 
-    // The text doesn't move, so each grain's distance to it and its
-    // threshold are worked out once here.
-    dist = new Float32Array(cols * rows)
-    threshold = new Float32Array(cols * rows)
-    for (let r = 0, i = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++, i++) {
-        const x = c * cell + cell / 2
-        const y = r * cell + cell / 2
+    // Distance to the text changes slowly, so it's worked out on a coarse
+    // grid and interpolated per grain: measuring every grain against every
+    // line made each resize take most of a second.
+    const gc = Math.ceil(W / COARSE) + 2
+    const gr = Math.ceil(H / COARSE) + 2
+    const grid = new Float32Array(gc * gr)
+    for (let r = 0, i = 0; r < gr; r++) {
+      for (let c = 0; c < gc; c++, i++) {
+        const x = c * COARSE
+        const y = r * COARSE
         let d = 1e9
         for (const [x0, y0, x1, y1] of rects) {
           const dx = Math.max(x0! - x, 0, x - x1!)
           const dy = Math.max(y0! - y, 0, y - y1!)
-          d = Math.min(d, Math.hypot(dx, dy))
+          d = Math.min(d, dx * dx + dy * dy)
         }
-        dist[i] = d
-        threshold[i] = ign(c, r)
+        grid[i] = Math.sqrt(d)
       }
     }
-    const fade: number[] = []
-    for (let i = 0; i < dist.length; i++) {
-      const k = 1 - dist[i]! / FALL
-      if (k < 1 && k > -0.25) fade.push(i)
+    dist = new Float32Array(cols * rows)
+    const fade = new Int32Array(cols * rows)
+    let n = 0
+    for (let r = 0, i = 0; r < rows; r++) {
+      const gy = (r * cell + cell / 2) / COARSE
+      const y0 = Math.floor(gy)
+      const fy = gy - y0
+      for (let c = 0; c < cols; c++, i++) {
+        const gx = (c * cell + cell / 2) / COARSE
+        const x0 = Math.floor(gx)
+        const fx = gx - x0
+        const j = y0 * gc + x0
+        const top = grid[j]! + (grid[j + 1]! - grid[j]!) * fx
+        const bot = grid[j + gc]! + (grid[j + gc + 1]! - grid[j + gc]!) * fx
+        const d = top + (bot - top) * fy
+        dist[i] = d
+        const k = 1 - d / FALL
+        if (k < 1 && k > -0.4) fade[n++] = i
+      }
     }
-    band = Int32Array.from(fade)
+    band = fade.subarray(0, n)
     fill()
   }
 
@@ -146,16 +171,20 @@ export function createDitherVeil(
   function draw(now: number) {
     if (!img) return
     const t = (now - t0) / 1000
+    // The grain pattern creeps diagonally and the edge billows, so the veil
+    // reads as moving rather than a still texture.
+    const sx = Math.floor(t * 9)
+    const sy = Math.floor(t * 5)
     const data = img.data
     for (let b = 0; b < band.length; b++) {
       const i = band[b]!
+      const c = i % cols
+      const r = (i - c) / cols
       const k = 1 - dist[i]! / FALL
-      const x = (i % cols) * cell
-      const y = Math.floor(i / cols) * cell
-      const n = noise(x * 0.008 + t * 0.2, y * 0.008 - t * 0.12) - 0.5
-      const kk = Math.min(Math.max(k + n * 0.35, 0), 1)
+      const n = noise(c * cell * 0.007 + t * 0.45, r * cell * 0.007 - t * 0.3)
+      const kk = Math.min(Math.max(k + (n - 0.5) * 0.55, 0), 1)
       const v = kk * kk * (3 - 2 * kk)
-      data[i * 4 + 3] = v > threshold[i]! ? 255 : v * 150
+      data[i * 4 + 3] = v > ign(c + sx, r - sy) ? 255 : v * 150
     }
     octx.putImageData(img, 0, 0)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -186,9 +215,9 @@ export function createDitherVeil(
     },
     /** Re-reads the layout; call when the host or its text changes size. */
     measure,
-    /** Draws one still frame. */
+    /** Draws one frame now, e.g. right after `measure`. */
     drawOnce() {
-      draw(t0)
+      draw(performance.now())
     },
     start() {
       cancelAnimationFrame(raf)
