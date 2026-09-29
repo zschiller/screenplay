@@ -19,7 +19,15 @@ import {
   groupToolCalls,
   type GroupedMessage,
 } from "@/lib/agent/group-tool-calls"
-import { foldFinishedTurns } from "@/lib/agent/turn-summary"
+import {
+  foldFinishedTurns,
+  type TranscriptItem,
+} from "@/lib/agent/turn-summary"
+import { workspaceTasksOf } from "@/lib/agent/workspace-task"
+import { parseUserMessage } from "@/lib/agent/message-markers"
+import type { AgentMessage } from "@/lib/agent/types"
+import { workspaceLabel } from "@/lib/workspace-label"
+import { useWorkspaceTasks } from "./workspace-task-row"
 import {
   Composer,
   type ComposerHandle,
@@ -104,6 +112,7 @@ export function AgentChat({
     planMode,
     isActive,
   })
+  const workspaceTasks = useWorkspaceTasks()
 
   const [models, setModels] = useState<ModelInfo[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
@@ -391,6 +400,12 @@ export function AgentChat({
   }
 
   const lastRole = messages[messages.length - 1]?.role
+  // A Coordinator turn answering a wake (#897) works out of sight, so its cue
+  // names the Workspace it's catching up on instead of "Thinking…".
+  const wakeFrom = isStreaming ? runningWakeFrom(messages) : undefined
+  const wakeBranch = wakeFrom
+    ? workspaceTasks?.branches.find((b) => b.id === wakeFrom)
+    : undefined
 
   const renderEntry = ({ message: msg, index: i, children }: GroupedMessage) =>
     // A subagent's calls fold under the Task that spawned them (#640);
@@ -423,9 +438,12 @@ export function AgentChat({
             />
           ) : (
             <div className="space-y-4">
-              {foldFinishedTurns(groupToolCalls(messages), {
-                streaming: isStreaming,
-              }).map((item) =>
+              {stackTaskRows(
+                foldFinishedTurns(groupToolCalls(messages), {
+                  streaming: isStreaming,
+                }),
+                workspaceTasks != null
+              ).map((item) =>
                 item.kind === "turn-summary" ? (
                   <TurnSummaryRow
                     key={`summary-${item.index}`}
@@ -433,6 +451,13 @@ export function AgentChat({
                   >
                     {item.steps.map((entry) => renderEntry(entry))}
                   </TurnSummaryRow>
+                ) : item.kind === "task-rows" ? (
+                  <div
+                    key={`tasks-${item.entries[0].index}`}
+                    className="flex flex-col gap-1"
+                  >
+                    {item.entries.map((entry) => renderEntry(entry))}
+                  </div>
                 ) : (
                   renderEntry(item.entry)
                 )
@@ -450,6 +475,12 @@ export function AgentChat({
                   <GripSpinner className="size-3" />
                   {lastRole === "assistant" ? (
                     <span className="sr-only">Responding…</span>
+                  ) : wakeFrom ? (
+                    wakeBranch ? (
+                      `Catching up on ${workspaceLabel(wakeBranch)}…`
+                    ) : (
+                      "Catching up on a Workspace…"
+                    )
                   ) : (
                     "Thinking…"
                   )}
@@ -668,4 +699,45 @@ function QueuedRow({
       </IconButton>
     </li>
   )
+}
+
+/**
+ * The Workspace a running Coordinator turn is catching up on, when the turn
+ * answers a wake (#897): read from the last user message's marker.
+ */
+function runningWakeFrom(messages: AgentMessage[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role === "user") {
+      return parseUserMessage(message.content).wakeFrom
+    }
+  }
+  return undefined
+}
+
+/**
+ * Stack back-to-back Workspace task rows (#896) as one list, so the rows of
+ * a Coordinator's delegations sit together rather than a message gap apart.
+ * Only the Coordinator panel draws task rows; elsewhere this is a no-op.
+ */
+function stackTaskRows(
+  items: TranscriptItem[],
+  drawsTaskRows: boolean
+): (TranscriptItem | { kind: "task-rows"; entries: GroupedMessage[] })[] {
+  if (!drawsTaskRows) return items
+  const out: (
+    | TranscriptItem
+    | { kind: "task-rows"; entries: GroupedMessage[] }
+  )[] = []
+  for (const item of items) {
+    const message = item.kind === "message" ? item.entry.message : null
+    const isTaskRow =
+      message?.role === "tool_call" && workspaceTasksOf(message).length > 0
+    const prev = out[out.length - 1]
+    if (item.kind === "message" && isTaskRow) {
+      if (prev?.kind === "task-rows") prev.entries.push(item.entry)
+      else out.push({ kind: "task-rows", entries: [item.entry] })
+    } else out.push(item)
+  }
+  return out
 }

@@ -36,7 +36,7 @@ function shape(messages: AgentMessage[], streaming = false): string[] {
 }
 
 describe("foldFinishedTurns (issue #800)", () => {
-  it("hides a finished Coordinator wake that wrote nothing, keeping its task rows (#897)", () => {
+  it("shows only a Coordinator wake's reply and task rows, never its message or steps, keeping its task rows (#897)", () => {
     const wake = user("[workspace update: ws-a] Workspace finished its turn.")
     const send = call("s", {
       title: "send_to_workspace",
@@ -59,8 +59,25 @@ describe("foldFinishedTurns (issue #800)", () => {
     expect(shape([wake, assistant("Checkout form is ready.")])).toEqual([
       "assistant:Checkout form is ready.",
     ])
-    // Still running: its steps show live.
-    expect(shape([wake, call("r")], true)).toEqual(["tool_call"])
+    // Its reads stay hidden behind the reply, with no summary line.
+    expect(
+      shape([
+        wake,
+        assistant("Let me look."),
+        call("r", { title: "read_workspace_chat" }),
+        assistant("Checkout form is ready."),
+      ])
+    ).toEqual(["assistant:Checkout form is ready."])
+    // Still running: its steps and narration stay hidden, the reply being
+    // written shows, and task rows show as they're sent.
+    expect(shape([wake, call("r")], true)).toEqual([])
+    expect(shape([wake, assistant("Let me look."), call("r")], true)).toEqual(
+      []
+    )
+    expect(shape([wake, call("r"), send], true)).toEqual(["tool_call"])
+    expect(shape([wake, call("r"), assistant("Checkout")], true)).toEqual([
+      "assistant:Checkout",
+    ])
   })
 
   it("keeps Workspace task rows on screen (#896)", () => {

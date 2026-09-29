@@ -635,6 +635,28 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-coordinator-wake-running",
+    description:
+      "The Coordinator catching up on a Workspace whose turn just ended: a quiet status line, no wake message or live steps (#897).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.checkout), [
+        ...delegationRun(),
+        ...coordinatorWakeRunningRun(),
+      ])
+      await page
+        .getByTestId("run-in-progress")
+        .first()
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-coordinator-workspace-plan",
     description:
       "The Coordinator proposing two new Workspaces: the plan card with one row per Workspace, waiting for approval (#898).",
@@ -4524,6 +4546,17 @@ export function coordinatorWakeRun(): RunEvent[] {
       },
     },
     { type: "chat-stream-start" },
+    // It reads the Workspace's chat before deciding whether to say anything.
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: `fixture-wake-read-${branchId}-${status}-${reply ? 1 : 0}`,
+        title: "read_workspace_chat",
+        kind: "read",
+        status: "completed",
+      },
+    },
     ...(reply
       ? [
           {
@@ -4551,6 +4584,47 @@ export function coordinatorWakeRun(): RunEvent[] {
       "paused_for_plan",
       `${workspaceLink("Empty cart state", ids.branches.emptyCart)} is waiting for you to approve its plan.`
     ),
+  ]
+}
+
+/**
+ * A Coordinator wake still running (#897): Checkout polish's turn just ended
+ * and the Coordinator is reading its chat, not yet replying.
+ */
+export function coordinatorWakeRunningRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text(
+          wakeMessage({
+            workspaceId: ids.branches.checkoutPolish,
+            title: "Checkout polish",
+            status: "completed",
+            lastTurn: "Last ask: …",
+          })
+        ),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_thought_chunk",
+        content: text("Checkout polish finished; checking what it changed."),
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-wake-running-read",
+        title: "read_workspace_chat",
+        kind: "read",
+        status: "in_progress",
+      },
+    },
   ]
 }
 

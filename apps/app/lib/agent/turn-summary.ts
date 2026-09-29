@@ -53,8 +53,10 @@ function isPinned(message: AgentMessage): boolean {
  * A turn still streaming renders flat, so a run in progress shows its live
  * steps.
  *
- * A Coordinator wake's message (#897) is left out, and a finished wake turn
- * that wrote no reply shows only what stays pinned (its task rows, errors).
+ * A Coordinator wake's message (#897) is left out, and so is the work its
+ * turn did, live or finished: like a project chat, the Coordinator's panel
+ * shows only its replies and what stays pinned (task rows, plans, errors). A
+ * wake turn shows its last reply, and while it runs, the reply being written.
  */
 export function foldFinishedTurns(
   entries: GroupedMessage[],
@@ -79,14 +81,13 @@ export function foldFinishedTurns(
     const isUserTurn = turn.length === 1 && turn[0].message.role === "user"
     // The wake message is the server's, never drawn.
     if (isUserTurn && wakeTurns.has(t + 1)) return
-    const quietWake =
-      !live &&
-      wakeTurns.has(t) &&
-      !turn.some((e) => e.message.role === "assistant")
-    if (quietWake) {
-      for (const entry of turn) {
-        if (isPinned(entry.message)) items.push({ kind: "message", entry })
-      }
+    if (wakeTurns.has(t)) {
+      const reply = wakeReplyIndex(turn, live)
+      turn.forEach((entry, i) => {
+        if (i === reply || isPinned(entry.message)) {
+          items.push({ kind: "message", entry })
+        }
+      })
       return
     }
     // Reasoning alone is already one collapsed line, and a task row is the
@@ -118,6 +119,23 @@ export function foldFinishedTurns(
     for (const entry of shown) items.push({ kind: "message", entry })
   })
   return items
+}
+
+/**
+ * The reply a wake turn shows: its last assistant message once finished;
+ * while it runs, only a message still being written (the last entry), so the
+ * narration between its reads never flashes up.
+ */
+function wakeReplyIndex(turn: GroupedMessage[], live: boolean): number {
+  if (live) {
+    const last = turn.length - 1
+    return turn[last]?.message.role === "assistant" ? last : -1
+  }
+  let reply = -1
+  turn.forEach((e, i) => {
+    if (e.message.role === "assistant") reply = i
+  })
+  return reply
 }
 
 type Category =
