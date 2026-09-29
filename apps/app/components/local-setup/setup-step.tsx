@@ -8,7 +8,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 /**
  * Where a setup step stands. `current` is the one expanded step; the rest are
- * one-row summaries: `done` (a blue tick), `skipped` (a grey dash, never the
+ * one-row summaries: `done` (a green tick), `skipped` (a grey dash, never the
  * tick), or `upcoming` (its number, muted).
  */
 export type SetupStepState = "current" | "upcoming" | "done" | "skipped"
@@ -105,7 +105,7 @@ export function CollapsedSetupStep({
 }
 
 /**
- * A step's marker: its number while current or upcoming, a blue tick once
+ * A step's marker: its number while current or upcoming, a green tick once
  * done, a grey dash once skipped, so a skipped step never reads as finished.
  */
 export function StepMarker({
@@ -131,7 +131,7 @@ export function StepMarker({
           ? "size-5 border-[1.5px] border-foreground text-2xs"
           : "size-4 text-3xs",
         state === "upcoming" && "border border-border text-muted-foreground",
-        state === "done" && "bg-info text-info-foreground",
+        state === "done" && "bg-success text-success-foreground",
         state === "skipped" && "bg-muted text-muted-foreground",
         className
       )}
