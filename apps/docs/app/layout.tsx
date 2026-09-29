@@ -1,5 +1,10 @@
 import type { Metadata } from "next"
-import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google"
+import {
+  Geist_Mono,
+  Instrument_Sans,
+  Instrument_Serif,
+  Unbounded,
+} from "next/font/google"
 import { Footer, Layout, Navbar } from "nextra-theme-docs"
 import { Head } from "nextra/components"
 import { getPageMap } from "nextra/page-map"
@@ -7,10 +12,10 @@ import "nextra-theme-docs/style.css"
 import "./globals.css"
 import { ScreenplayMark } from "@workspace/ui/components/screenplay-mark"
 
-// The Editorial type voice the app uses (#1005, #1011): Instrument Sans for
-// the text, Instrument Serif for page titles and the wordmark, Geist Mono for
-// code and the sidebar's section labels. `globals.css` maps these variables
-// onto Nextra's fonts.
+// The type voice the app uses (#1005, #1077): Instrument Sans for the text,
+// Unbounded for headings, Geist Mono for code and the sidebar's section
+// labels. The wordmark keeps Instrument Serif. `globals.css` maps these
+// variables onto Nextra's fonts.
 const sans = Instrument_Sans({
   subsets: ["latin"],
   variable: "--font-instrument-sans",
@@ -19,6 +24,11 @@ const serif = Instrument_Serif({
   subsets: ["latin"],
   weight: "400",
   variable: "--font-instrument-serif",
+})
+const heading = Unbounded({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-unbounded",
 })
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 
@@ -60,7 +70,7 @@ export default async function RootLayout({
       lang="en"
       dir="ltr"
       suppressHydrationWarning
-      className={`${sans.variable} ${serif.variable} ${mono.variable}`}
+      className={`${sans.variable} ${serif.variable} ${heading.variable} ${mono.variable}`}
     >
       {/* Magenta (hue 326) for links and the current page, on pure white and black. */}
       <Head
