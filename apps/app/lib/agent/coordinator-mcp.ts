@@ -31,10 +31,16 @@ export const COORDINATOR_ALLOWED_TOOLS = [
   `mcp__${COORDINATOR_MCP_SERVER_NAME}__*`,
 ]
 
-/** Which Coordinator a token acts for. */
+/**
+ * Which chat a token acts for. A Coordinator chat gets the Coordinator tools;
+ * a Workspace chat (one with a `sandboxName`) gets the tools for its own dev
+ * server, which a harness has no other way to see (`dev-server-tools.ts`).
+ */
 export interface CoordinatorBinding {
   roomId: string
   chatId: string
+  /** The Workspace's Sandbox, for a Workspace chat. */
+  sandboxName?: string
 }
 
 /**
@@ -55,7 +61,12 @@ interface CoordinatorTokens {
 /** The bearer token for a Coordinator chat, minted on first use. */
 export function coordinatorToken(binding: CoordinatorBinding): string {
   const existing = registry.byChat.get(binding.chatId)
-  if (existing && registry.byToken.get(existing)?.roomId === binding.roomId) {
+  const bound = existing ? registry.byToken.get(existing) : undefined
+  if (
+    existing &&
+    bound?.roomId === binding.roomId &&
+    bound.sandboxName === binding.sandboxName
+  ) {
     return existing
   }
   const token = randomBytes(32).toString("base64url")
@@ -81,8 +92,8 @@ export function sidecarOrigin(
 }
 
 /**
- * The MCP server entry a Coordinator's harness session gets on both
- * `session/new` and `session/load`. `http` is the one transport every adapter
+ * The MCP server entry a Coordinator's (or a Workspace's) harness session gets
+ * on both `session/new` and `session/load`. `http` is the one transport every adapter
  * takes (research §1).
  */
 export function coordinatorMcpServer(binding: CoordinatorBinding): McpServer {
@@ -99,7 +110,7 @@ export function coordinatorMcpServer(binding: CoordinatorBinding): McpServer {
   }
 }
 
-/** Claude adapter `_meta` that pre-allows the Coordinator's tools. */
+/** Claude adapter `_meta` that pre-allows the server's tools. */
 export function coordinatorSessionMeta(): Record<string, unknown> {
   return {
     claudeCode: { options: { allowedTools: COORDINATOR_ALLOWED_TOOLS } },

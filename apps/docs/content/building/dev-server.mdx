@@ -73,7 +73,8 @@ The usual cause is a script that ignores `$PORT`:
    `--port $PORT`).
 2. Use **Restart → Restart dev server** on the workspace.
 3. Still stuck? The workspace's **Sandbox logs** tab shows the dev server's
-   and portless's output.
+   and portless's output. The workspace's agent can read the same output and
+   restart the dev server, so you can also ask it to debug the preview.
 
 ## Monorepos
 
