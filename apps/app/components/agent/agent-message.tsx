@@ -41,6 +41,7 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
   Alert,
@@ -794,14 +795,17 @@ function PlanMessage({
   const statusBadge = {
     pending: null,
     approved: (
-      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-3xs font-medium text-success">
+      <Badge
+        variant="secondary"
+        className="h-4 gap-1 bg-success/10 px-1.5 py-0 text-2xs text-success"
+      >
         <CheckCircleIcon className="size-3" /> Approved
-      </span>
+      </Badge>
     ),
     rejected: (
-      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-3xs font-medium text-destructive">
+      <Badge variant="destructive" className="h-4 gap-1 px-1.5 py-0 text-2xs">
         <XCircleIcon className="size-3" /> Changes requested
-      </span>
+      </Badge>
     ),
   }[message.status]
 
