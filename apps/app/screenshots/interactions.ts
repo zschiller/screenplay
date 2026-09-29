@@ -96,6 +96,40 @@ export const INTERACTIONS: Interaction[] = [
     },
   },
   {
+    name: "canvas-placeholder-add",
+    description:
+      "Arming the Frame tool and clicking a Group's add placeholder, then the same with the Document tool: each add drops back to Select.",
+    path: `/${ids.rooms.checkout}`,
+    run: async (page) => {
+      await step(() =>
+        page.getByText("Checkout brief").first().waitFor({ timeout: 60_000 })
+      )
+      // Zoom out so each Group's trailing placeholder is on screen.
+      await page.keyboard.press("Control+Minus")
+      await page.waitForTimeout(1500)
+      await click(
+        page,
+        page.getByRole("button", { name: "Frame", exact: true })
+      )
+      await page.waitForTimeout(900)
+      await click(
+        page,
+        page.getByRole("button", { name: "Add frame to group" }).first()
+      )
+      await page.waitForTimeout(1800)
+      await click(
+        page,
+        page.getByRole("button", { name: "Document", exact: true })
+      )
+      await page.waitForTimeout(900)
+      await click(
+        page,
+        page.getByRole("button", { name: "Add document to group" }).first()
+      )
+      await page.waitForTimeout(1800)
+    },
+  },
+  {
     name: "canvas-zoom",
     description: "Zooming and panning the reference Canvas.",
     path: `/${ids.rooms.checkout}`,
