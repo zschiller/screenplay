@@ -1374,13 +1374,11 @@ export function RoomSidebar({
                               setBranchPickerRepoId(sortedRepos[0]!.id)
                             }
                           >
-                            <GitBranchIcon />
                             Open existing git branch
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
-                              <GitBranchIcon />
                               Open existing git branch
                             </DropdownMenuSubTrigger>
                             <DropdownMenuSubContent>
