@@ -462,9 +462,9 @@ function SortableHead({
         variant="ghost"
         size="sm"
         // Pull the button left by its own padding so the label aligns with the
-        // body cells' text below it.
+        // body cells' text below it. Keeps the head's section-label type.
         className={cn(
-          "-ml-2.5 data-[active=true]:text-foreground",
+          "-ml-2.5 font-mono text-2xs font-normal tracking-wider uppercase data-[active=true]:text-foreground",
           active ? "text-foreground" : "text-muted-foreground"
         )}
         data-active={active}

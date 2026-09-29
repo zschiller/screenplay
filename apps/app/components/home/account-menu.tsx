@@ -53,7 +53,8 @@ export function AccountMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom">
-        <DropdownMenuLabel className="text-muted-foreground">
+        {/* An account line, not a section heading: keeps the UI face. */}
+        <DropdownMenuLabel className="font-sans text-xs tracking-normal normal-case">
           {`Signed in as ${email ?? name}`}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

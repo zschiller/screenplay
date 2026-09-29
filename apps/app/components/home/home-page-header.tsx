@@ -80,7 +80,9 @@ export function HomePageHeader({
         >
           <div data-tauri-drag-region className="flex min-w-0 flex-1">
             {typeof title === "string" ? (
-              <h1 className="truncate text-2xl font-normal">{title}</h1>
+              <h1 className="truncate font-heading text-4xl leading-none">
+                {title}
+              </h1>
             ) : (
               title
             )}

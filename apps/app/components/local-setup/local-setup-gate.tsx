@@ -149,7 +149,7 @@ export function LocalSetupGate({
           <span className="text-xs font-medium text-muted-foreground">
             {current ? `Step ${current} of 2` : "Ready to finish"}
           </span>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="font-heading text-3xl leading-tight">
             Set up Screenplay
           </h1>
         </div>
