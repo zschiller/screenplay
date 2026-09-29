@@ -30,6 +30,12 @@
 // `screenplay:shared-state-apply`; the runtime applies that to all setters
 // registered for the affected keys, marking the value as "remote-applied"
 // so the resulting React rerender doesn't echo it back up.
+//
+// The room's state wins when a frame loads. On load the runtime asks the
+// canvas for the room's current state (`screenplay:shared-state-request`) and
+// holds its first publish until the answer (an apply with `initial: true`)
+// arrives, or until ROOM_ANSWER_TIMEOUT_MS passes for a canvas that never
+// answers. The frame's own values then only fill keys the room doesn't have.
 import { useEffect, useRef } from "react"
 
 const isBrowser = typeof window !== "undefined"
@@ -71,6 +77,20 @@ const entries = new Map()
 // key -> Set<(value) => void>
 const settersByKey = new Map()
 let publishScheduled = false
+// The room's state as this frame last saw it: the last full map the canvas
+// sent down or this frame published. A component that mounts with its own
+// default for a key the room already holds adopts the room's value instead.
+let roomState = {}
+// Publishes wait until the room has answered the request sent on load.
+const ROOM_ANSWER_TIMEOUT_MS = 500
+let heardRoom = false
+let publishHeld = false
+
+function roomAnswered() {
+  if (heardRoom) return
+  heardRoom = true
+  if (publishHeld) schedulePublish()
+}
 
 function safeStringify(value) {
   try {
@@ -83,6 +103,10 @@ function safeStringify(value) {
 
 function schedulePublish() {
   if (!active) return
+  if (!heardRoom) {
+    publishHeld = true
+    return
+  }
   if (publishScheduled) return
   publishScheduled = true
   // Microtask-coalesce so a render that calls useSharedState many times
@@ -102,6 +126,7 @@ function schedulePublish() {
       )
       return
     }
+    roomState = out
     window.parent.postMessage(
       { type: "screenplay:shared-state", state: out },
       "*",
@@ -172,6 +197,10 @@ if (active) {
     if (!data || data.type !== "screenplay:shared-state-apply") return
     const incoming = data.state
     if (!incoming || typeof incoming !== "object") return
+    roomState = incoming
+    // Release the held publish after this apply, so it carries the room's
+    // values plus the frame's own values for keys the room doesn't have.
+    if (data.initial) queueMicrotask(roomAnswered)
     for (const [key, value] of Object.entries(incoming)) {
       // Update the local entry first so the React rerender that follows
       // setter() doesn't republish the same value back to the canvas.
@@ -186,6 +215,27 @@ if (active) {
       }
     }
   })
+  window.parent.postMessage({ type: "screenplay:shared-state-request" }, "*")
+  setTimeout(roomAnswered, ROOM_ANSWER_TIMEOUT_MS)
+}
+
+/**
+ * On a component's first value for `key`: if the room already holds a
+ * different value, take the room's (through `setter`) instead of publishing
+ * the component's default over it. Returns true when it adopted.
+ */
+function adoptRoomValue(key, value, setter) {
+  if (!Object.prototype.hasOwnProperty.call(roomState, key)) return false
+  const room = roomState[key]
+  const roomSerialized = safeStringify(room)
+  if (roomSerialized === null || roomSerialized === safeStringify(value)) {
+    return false
+  }
+  if (updateEntry(key, room)) schedulePublish()
+  try {
+    setter(room)
+  } catch {}
+  return true
 }
 
 /**
@@ -205,8 +255,11 @@ export function useSharedState(key, value, setter) {
   // renders — prevents a fresh inline setter from constantly re-subscribing.
   const setterRef = useRef(setter)
   setterRef.current = setter
+  // True from each mount (or key change) until the first value is handled.
+  const mountingRef = useRef(true)
 
   useEffect(() => {
+    mountingRef.current = true
     if (!active) return
     if (!setterRef.current) return
     const wrapped = (v) => setterRef.current?.(v)
@@ -215,6 +268,16 @@ export function useSharedState(key, value, setter) {
   }, [key])
 
   useEffect(() => {
+    const mounting = mountingRef.current
+    mountingRef.current = false
+    if (
+      active &&
+      mounting &&
+      setterRef.current &&
+      adoptRoomValue(key, value, setterRef.current)
+    ) {
+      return
+    }
     setEntry(key, value)
   }, [key, value])
 

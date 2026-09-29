@@ -44,7 +44,13 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
   | { type: "screenplay:knob-values"; values: JsonObject }
   | { type: "screenplay:cursor-mode"; mode: CursorMode }
-  | { type: "screenplay:shared-state-apply"; state: JsonObject }
+  // `initial` marks the answer to `screenplay:shared-state-request`: the
+  // room's whole state, which the frame waits for before it publishes.
+  | {
+      type: "screenplay:shared-state-apply"
+      state: JsonObject
+      initial?: boolean
+    }
 
 // Iframe -> Canvas
 export type IframeToCanvasMessage =
@@ -89,6 +95,9 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:hmr-status"; status: HmrStatus }
   | { type: "screenplay:knobs-declared"; knobs: JsonValue[] }
   | { type: "screenplay:shared-state"; state: JsonObject }
+  // Sent by @screenplay.space/state when a frame loads, asking for the
+  // room's current shared state before it publishes its own defaults.
+  | { type: "screenplay:shared-state-request" }
 
 export function isScreenplayMessage(
   data: unknown

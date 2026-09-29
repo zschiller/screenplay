@@ -60,6 +60,7 @@ export function usePostMessage({
   // them to us a moment later.
   const lastScrollRef = useRef<{ x: number; y: number } | null>(null)
   const knobValuesRef = useRef(knobValues)
+  const sharedStateRef = useRef(sharedState)
   // Tracks the last sharedState we either received from or pushed down to the
   // iframe. Used to suppress echoes when Yjs sends our own update back to us.
   const lastSharedStateRef = useRef<string | null>(null)
@@ -78,6 +79,7 @@ export function usePostMessage({
         ? { x: iframeScrollX ?? 0, y: iframeScrollY ?? 0 }
         : null
     knobValuesRef.current = knobValues
+    sharedStateRef.current = sharedState
     onReadyRef.current = onReady
     onHmrStatusRef.current = onHmrStatus
     onKnobsDeclaredRef.current = onKnobsDeclared
@@ -109,11 +111,11 @@ export function usePostMessage({
   )
 
   const sendSharedState = useCallback(
-    (state: JsonObject) => {
+    (state: JsonObject, initial = false) => {
       const iframe = iframeRef.current
       if (!iframe?.contentWindow) return
       iframe.contentWindow.postMessage(
-        { type: "screenplay:shared-state-apply", state },
+        { type: "screenplay:shared-state-apply", state, initial },
         "*"
       )
     },
@@ -200,6 +202,18 @@ export function usePostMessage({
           lastSharedStateRef.current = null
         }
         onSharedStateChangedRef.current?.(iframeLayerId, next)
+      } else if (e.data.type === "screenplay:shared-state-request") {
+        // A frame that just loaded asks for the room's state before it
+        // publishes, so its defaults don't overwrite what the room has.
+        // Always answer, even with an empty room: the frame holds its
+        // publish until it hears back.
+        const state = sharedStateRef.current ?? {}
+        try {
+          lastSharedStateRef.current = JSON.stringify(state)
+        } catch {
+          lastSharedStateRef.current = null
+        }
+        sendSharedState(state, true)
       }
     }
 
@@ -214,6 +228,7 @@ export function usePostMessage({
     sendMessage,
     sendScrollTo,
     sendKnobValues,
+    sendSharedState,
   ])
 
   return { iframeRef, sendMessage }
