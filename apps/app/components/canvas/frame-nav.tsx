@@ -7,7 +7,6 @@ import {
   CheckIcon,
 } from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { Badge } from "@workspace/ui/components/badge"
 import {
   Popover,
   PopoverContent,
@@ -444,15 +443,15 @@ export function FrameRouteField({
                     value={r.route}
                     onSelect={() => handleSelect(r.route)}
                   >
-                    <CheckIcon
-                      className={`shrink-0 ${r.route === currentRoute ? "" : "opacity-0"}`}
-                    />
-                    <Badge
-                      variant="outline"
-                      className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
-                    >
+                    <span className="min-w-0 truncate font-mono text-xs">
                       {r.route}
-                    </Badge>
+                    </span>
+                    <CheckIcon
+                      className={cn(
+                        "ml-auto size-3.5 shrink-0",
+                        r.route !== currentRoute && "invisible"
+                      )}
+                    />
                   </CommandItem>
                 ))}
                 {typedRoute && !hasExactMatch && (
@@ -460,15 +459,11 @@ export function FrameRouteField({
                     value={`__create__ ${typedRoute}`}
                     onSelect={() => handleSelect(typedRoute)}
                   >
-                    <CheckIcon className="shrink-0 opacity-0" />
-                    <span className="flex items-center gap-1">
-                      <span className="text-xs">Go to</span>
-                      <Badge
-                        variant="outline"
-                        className="border-transparent bg-muted px-1.5 py-0 font-mono text-2xs text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
-                      >
-                        {typedRoute}
-                      </Badge>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      Go to
+                    </span>
+                    <span className="min-w-0 truncate font-mono text-xs">
+                      {typedRoute}
                     </span>
                   </CommandItem>
                 )}

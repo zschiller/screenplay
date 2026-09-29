@@ -1380,6 +1380,23 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-frame-route-list",
+    description:
+      "A selected frame's toolbar route field pressed, nothing typed: every discovered route with the current one checked.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      await page
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: /^Route:/ })
+        .click({ timeout: 15_000 })
+      await page
+        .getByPlaceholder("Search or type a route…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-frame-workspace-host",
     description:
       "A selected frame's address field naming its Workspace before the route, like a browser's host.",
