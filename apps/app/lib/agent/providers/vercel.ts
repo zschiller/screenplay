@@ -7,9 +7,9 @@ import type { ModelInfo, ModelProvider } from "./types"
 type GatewayClient = ReturnType<typeof createGateway>
 
 const FALLBACK: Array<Omit<ModelInfo, "provider">> = [
-  { id: "vercel:anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  { id: "vercel:openai/gpt-4o", label: "GPT-4o" },
-  { id: "vercel:google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  { id: "vercel:anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5" },
+  { id: "vercel:openai/gpt-6-astra", label: "GPT-6 Astra" },
+  { id: "vercel:google/gemini-3.8-flash", label: "Gemini 3.8 Flash" },
 ]
 
 /**
@@ -25,7 +25,7 @@ const FALLBACK: Array<Omit<ModelInfo, "provider">> = [
  *
  * Models are discovered live via `gateway.getAvailableModels()`, filtered
  * to language models. The full id stored in `agent_chat.model` is
- * `vercel:<provider>/<model>` — e.g. `vercel:anthropic/claude-sonnet-4-7`.
+ * `vercel:<provider>/<model>` — e.g. `vercel:anthropic/claude-sonnet-5.5`.
  */
 class VercelAIGatewayProvider implements ModelProvider {
   key = "vercel"

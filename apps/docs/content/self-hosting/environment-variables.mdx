@@ -32,7 +32,7 @@ BLOB_READ_WRITE_TOKEN=...                              # injected when you conne
 
 # Agent
 ANTHROPIC_API_KEY=sk-ant-...
-AGENT_DEFAULT_MODEL=anthropic:claude-sonnet-4-6
+AGENT_DEFAULT_MODEL=anthropic:claude-sonnet-5-5
 
 # Secrets
 ENCRYPTION_KEY=<openssl rand -hex 32>
@@ -70,7 +70,7 @@ when its variables are set. See [Model providers](/self-hosting/configuration/mo
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Google Gemini |
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway. It must be set explicitly, even on Vercel. |
 | `OPENAI_COMPATIBLE_BASE_URL` (+ `OPENAI_COMPATIBLE_API_KEY`) | Any OpenAI-compatible endpoint: OpenRouter, Groq, vLLM, LM Studio… |
-| `AGENT_DEFAULT_MODEL` | The default model as `provider:model`, e.g. `openai:gpt-4o`. It must name a configured provider. Default: `anthropic:claude-sonnet-4-6`. |
+| `AGENT_DEFAULT_MODEL` | The default model as `provider:model`, e.g. `openai:gpt-6-astra`. It must name a configured provider. Default: `anthropic:claude-sonnet-5-5`. |
 | `SANDBOX_HARNESSES` | Comma-separated coding CLIs to install in every sandbox for [terminal tabs](/guides/terminals): `claude-code`, `codex`, `opencode-gateway`, `opencode-compat`. Unset means none. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
 
 ## Terminal access

@@ -5,10 +5,10 @@ import { discover } from "./cache"
 import type { ModelInfo, ModelProvider } from "./types"
 
 const FALLBACK: Array<Omit<ModelInfo, "provider">> = [
-  { id: "openai:gpt-4o", label: "GPT-4o" },
-  { id: "openai:gpt-4o-mini", label: "GPT-4o mini" },
-  { id: "openai:o1", label: "o1" },
-  { id: "openai:o1-mini", label: "o1-mini" },
+  { id: "openai:gpt-6-astra", label: "GPT-6 Astra" },
+  { id: "openai:gpt-6-sol", label: "GPT-6 Sol" },
+  { id: "openai:gpt-6-luna", label: "GPT-6 Luna" },
+  { id: "openai:gpt-5.5", label: "GPT-5.5" },
 ]
 
 interface OpenAIListResponse {
@@ -63,6 +63,11 @@ function isLatestAlias(id: string): boolean {
 /** Hardcoded capability rank for OpenAI families. Lower = earlier in the
  *  picker. Anything not matched falls through to `created` desc. */
 const OPENAI_FAMILY_RANK: Array<[RegExp, number]> = [
+  // GPT-6 tiers: astra (most capable) → sol → luna (most efficient).
+  [/^gpt-6[\d.]*-astra/, -4],
+  [/^gpt-6[\d.]*-sol/, -3],
+  [/^gpt-6[\d.]*-luna/, -2],
+  [/^gpt-6/, -1],
   [/^gpt-5(?!-mini)(?!-nano)/, 0],
   [/^o3(?!-mini)/, 1],
   [/^o1(?!-mini)/, 2],

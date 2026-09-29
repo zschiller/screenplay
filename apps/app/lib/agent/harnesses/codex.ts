@@ -245,15 +245,16 @@ export const codexHarness: Harness = {
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.
   // The ids are Codex's model slugs (the same names its `--model` flag /
-  // `config.toml` take, https://developers.openai.com/codex/models). `gpt-5.5` is
-  // the Codex CLI's current default and the pre-selected per-Harness default;
-  // `gpt-5.3-codex` is the Codex-tuned variant.
+  // `config.toml` take, https://developers.openai.com/codex/models). `gpt-6-astra`
+  // is the most capable and the pre-selected per-Harness default; `gpt-6-luna`
+  // is the efficient tier. `gpt-5.5` stays until Codex retires it (2026-10-14).
+  // `gpt-6.1-sol` is left out while its rollout is still partial.
   models: [
+    { id: "gpt-6-astra", label: "GPT-6 Astra" },
+    { id: "gpt-6-luna", label: "GPT-6 Luna" },
     { id: "gpt-5.5", label: "GPT-5.5" },
-    { id: "gpt-5.4", label: "GPT-5.4" },
-    { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
   ],
-  defaultModelId: "gpt-5.5",
+  defaultModelId: "gpt-6-astra",
   seed: seedCodex,
   // Desktop "Coding agents" setup (ADR 0015): probe `codex login`'s own stored
   // credential, build its install command from the host facts (brew / release

@@ -5,8 +5,8 @@ import { discover } from "./cache"
 import type { ModelInfo, ModelProvider } from "./types"
 
 const FALLBACK: Array<Omit<ModelInfo, "provider">> = [
-  { id: "google:gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { id: "google:gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { id: "google:gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+  { id: "google:gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" },
 ]
 
 interface GoogleListResponse {

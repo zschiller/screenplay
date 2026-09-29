@@ -205,9 +205,9 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
         key: "claude-code",
         label: "Claude Code",
         models: [
-          { id: "harness:claude-code:fable", label: "Fable 5" },
-          { id: "harness:claude-code:opus", label: "Opus 4.8" },
-          { id: "harness:claude-code:sonnet", label: "Sonnet 5" },
+          { id: "harness:claude-code:fable", label: "Fable 5.1" },
+          { id: "harness:claude-code:opus", label: "Opus 5.5" },
+          { id: "harness:claude-code:sonnet", label: "Sonnet 5.5" },
           { id: "harness:claude-code:haiku", label: "Haiku 4.5" },
         ],
       },
@@ -215,9 +215,9 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
         key: "codex",
         label: "Codex",
         models: [
+          { id: "harness:codex:gpt-6-astra", label: "GPT-6 Astra" },
+          { id: "harness:codex:gpt-6-luna", label: "GPT-6 Luna" },
           { id: "harness:codex:gpt-5.5", label: "GPT-5.5" },
-          { id: "harness:codex:gpt-5.4", label: "GPT-5.4" },
-          { id: "harness:codex:gpt-5.3-codex", label: "GPT-5.3 Codex" },
         ],
       },
     ])
@@ -303,7 +303,7 @@ describe("harnessDefaultModelId (desktop default fold)", () => {
       probe: fakeProbe(["opencode", "codex"]),
     }).list()
 
-    expect(harnessDefaultModelId(available)).toBe("harness:codex:gpt-5.5")
+    expect(harnessDefaultModelId(available)).toBe("harness:codex:gpt-6-astra")
   })
 
   it("falls back to a bare harness:<key> when the first Harness advertises no models", () => {

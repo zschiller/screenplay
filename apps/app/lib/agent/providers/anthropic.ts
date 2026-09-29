@@ -5,9 +5,10 @@ import { discover } from "./cache"
 import type { ModelInfo, ModelProvider } from "./types"
 
 const FALLBACK: Array<Omit<ModelInfo, "provider">> = [
-  { id: "anthropic:claude-opus-4-7", label: "Claude Opus 4.7" },
-  { id: "anthropic:claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  { id: "anthropic:claude-haiku-4-5", label: "Claude Haiku 4.5" },
+  { id: "anthropic:claude-fable-5-1", label: "Fable 5.1" },
+  { id: "anthropic:claude-opus-5-5", label: "Opus 5.5" },
+  { id: "anthropic:claude-sonnet-5-5", label: "Sonnet 5.5" },
+  { id: "anthropic:claude-haiku-4-5", label: "Haiku 4.5" },
 ]
 
 interface AnthropicListResponse {
@@ -35,9 +36,9 @@ async function fetchAnthropicModels(): Promise<
     throw new Error(`Anthropic /v1/models returned ${res.status}`)
   }
   const data = (await res.json()) as AnthropicListResponse
-  // Collapse to one entry per family (opus / sonnet / haiku), keeping the
-  // newest by created_at. Order by capability: opus → sonnet → haiku.
-  const FAMILIES = ["opus", "sonnet", "haiku"] as const
+  // Collapse to one entry per family (fable / opus / sonnet / haiku), keeping
+  // the newest by created_at. Order by capability: fable → opus → sonnet → haiku.
+  const FAMILIES = ["fable", "opus", "sonnet", "haiku"] as const
   const latestPerFamily = new Map<
     (typeof FAMILIES)[number],
     AnthropicListResponse["data"][number]
@@ -58,7 +59,7 @@ async function fetchAnthropicModels(): Promise<
       {
         id: `anthropic:${m.id}`,
         // Strip the leading "Claude " — the dropdown header already says
-        // "Anthropic", so "Claude Sonnet 4.6" reads better as "Sonnet 4.6".
+        // "Anthropic", so "Claude Sonnet 5.5" reads better as "Sonnet 5.5".
         label: (m.display_name ?? m.id).replace(/^Claude\s+/i, ""),
       },
     ]
