@@ -6,6 +6,8 @@ import path from "node:path"
 
 import { spawn, type IPty } from "node-pty"
 
+import { hostChildEnv } from "@/lib/sandbox/local/host-env"
+
 /**
  * The desktop build's terminal transport: a registry of long-lived **node-pty**
  * processes living in the sidecar, keyed by a terminal tab's session id. It
@@ -214,9 +216,10 @@ export class TerminalSessions {
         : [opts.shell ?? defaultShell()]
 
     // The host's own env, so the terminal behaves like the user's normal shell
-    // in that directory — minus the app's provider secrets (the user's real
-    // shell doesn't export those); TERM is pinned to match the xterm.js client.
-    const env = { ...process.env } as Record<string, string>
+    // in that directory — minus the app's provider secrets and its Next.js
+    // runtime vars (the user's real shell exports neither, and the latter crash
+    // a `next dev` run here); TERM is pinned to match the xterm.js client.
+    const env = hostChildEnv()
     for (const name of PROVIDER_SECRET_VARS) delete env[name]
     Object.assign(env, opts.env, { TERM: "xterm-256color" })
 
