@@ -1,14 +1,15 @@
 @import "@workspace/ui/globals.css";
 
-/* Type (#1005): Instrument Sans is the UI face, Instrument Serif sets the
-   titles that use `font-heading` (dialogs, empty states, page titles). Both
+/* Type (#1005, #1077): Instrument Sans is the UI face, Unbounded sets the
+   titles that use `font-heading` (dialogs, empty states, page titles) at the
+   `text-title-*` sizes from the shared package. Both
    come from `next/font` in app/layout.tsx; code, terminal and section labels
    stay on `font-mono` (Geist Mono). Overrides the shared package's Geist
    defaults, which the marketing site still uses. */
 @theme inline {
   --font-sans:
     var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-heading: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Canvas tokens (issue #719). One source for the canvas chrome's colours and
@@ -208,28 +209,28 @@ body {
   visibility: visible;
 }
 
-/* Document type (#1048): the Editorial scale from #1005. The first heading
-   is the page title and, like H1 and H2 below it, is set in Instrument Serif
-   at its only weight; H3 and smaller stay sans. Paragraphs and lists sit
+/* Document type (#1048, #1077): the app's title scale. The first heading
+   is the page title and, like H1 and H2 below it, is set in the heading face
+   (Unbounded 400) at the `--text-title-*` sizes; H3 and smaller stay sans. Paragraphs and lists sit
    tighter than Typography's `prose-sm` defaults, so a list reads as one
    block instead of spaced-out lines. */
 .tiptap-document h1,
 .tiptap-document h2 {
   font-family: var(--font-heading);
   font-weight: 400;
-  letter-spacing: normal;
+  letter-spacing: -0.03em;
 }
 .tiptap-document h1 {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
+  font-size: var(--text-title-lg);
+  line-height: var(--text-title-lg--line-height);
   margin: 1.5rem 0 0.5rem;
 }
 .tiptap-document h2 {
-  font-size: 1.5rem;
-  line-height: 2rem;
+  font-size: var(--text-title-md);
+  line-height: var(--text-title-md--line-height);
   margin: 1.25rem 0 0.25rem;
 }
-/* Sans H3 steps down from the serif H2: body size plus a little, medium
+/* Sans H3 steps down from the H2: body size plus a little, medium
    weight, so it doesn't outweigh the heading above it. */
 .tiptap-document h3 {
   font-size: 1rem;
@@ -254,8 +255,8 @@ body {
 /* The page title: larger than a body H1, flush with the top, and the block
    after it drops its top margin. */
 .tiptap-document > :first-child {
-  font-size: 2.25rem;
-  line-height: 2.5rem;
+  font-size: var(--text-title-xl);
+  line-height: var(--text-title-xl--line-height);
   margin: 0 0 0.5rem 0;
 }
 .tiptap-document > :first-child + * {
