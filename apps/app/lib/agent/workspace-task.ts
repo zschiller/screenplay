@@ -149,6 +149,19 @@ export function workspaceTaskOf(
   return chatId ? { branchId, chatId } : { branchId }
 }
 
+/**
+ * The message a `send_to_workspace` call sent, as its task row's second line
+ * (#1150). Whitespace collapses, since the row shows it on one line.
+ */
+export function workspaceTaskMessage(call: ToolCallMessage): string | null {
+  if (!isTool(call.title, SEND_TO_WORKSPACE_TOOL)) return null
+  const input = call.rawInput
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null
+  const message = (input as Record<string, unknown>).message
+  if (typeof message !== "string") return null
+  return message.replace(/\s+/g, " ").trim() || null
+}
+
 const CREATED_WORKSPACE_RE = /\[workspace ([^\]\s]+)\]/g
 
 /**
