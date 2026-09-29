@@ -79,6 +79,16 @@ html.dark .nextra-mobile-nav li:not(:has(*)) {
   font-weight: 400;
 }
 
+/* Breadcrumb (#1107): every crumb muted and regular weight; hidden on
+ * top-level pages, where its one crumb would repeat the title. */
+.nextra-breadcrumb > span {
+  color: inherit;
+  font-weight: 400;
+}
+.nextra-breadcrumb:not(:has(> :nth-child(2))) {
+  display: none;
+}
+
 /* The navbar's "DOCS" beside the wordmark. */
 .sp-docs-label {
   font-family: var(--x-font-mono);
