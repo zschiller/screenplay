@@ -1,0 +1,104 @@
+/* Colours and type for the diagram kit (kit.tsx). Ink and hairlines only,
+   with the accent on the one node a diagram is about; no tinted fills. */
+.figure {
+  --dg-fg: #000;
+  --dg-muted: oklch(0.556 0 0);
+  --dg-line: oklch(0.556 0 0);
+  --dg-hair: oklch(0 0 0 / 12%);
+  --dg-bg: #fff;
+  --dg-accent: oklch(0.667 0.295 322.15);
+  margin: 1.5rem 0 0;
+}
+:global(html.dark) .figure {
+  --dg-fg: #fff;
+  --dg-muted: oklch(0.708 0 0);
+  --dg-line: oklch(0.556 0 0);
+  --dg-hair: oklch(1 0 0 / 16%);
+  --dg-bg: #000;
+}
+/* Wider than the column on a phone: scroll, so the text keeps its size. */
+.scroll {
+  overflow-x: auto;
+}
+.svg {
+  display: block;
+  max-width: none;
+  font-family: var(--x-font-sans);
+}
+
+.node,
+.hub,
+.group,
+.back,
+.chip {
+  fill: var(--dg-bg);
+  stroke-width: 1;
+}
+.node {
+  stroke: var(--dg-fg);
+}
+.hub {
+  stroke: var(--dg-accent);
+  stroke-width: 1.5;
+}
+.group,
+.chip {
+  stroke: var(--dg-hair);
+}
+.back {
+  stroke: var(--dg-line);
+}
+
+.edge {
+  fill: none;
+  stroke: var(--dg-line);
+  stroke-width: 1;
+}
+.dashed {
+  stroke-dasharray: 3 3;
+}
+.arrow {
+  fill: var(--dg-line);
+}
+
+.title,
+.mono,
+.heading {
+  fill: var(--dg-fg);
+}
+.title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.mono {
+  font-family: var(--x-font-mono);
+  font-size: 13px;
+}
+.heading {
+  font-family: var(--font-unbounded), sans-serif;
+  font-size: 15px;
+  letter-spacing: -0.03em;
+}
+.sub,
+.note {
+  fill: var(--dg-muted);
+  font-size: 13px;
+}
+.noteMono {
+  fill: var(--dg-muted);
+  font-family: var(--x-font-mono);
+  font-size: 12px;
+}
+.label {
+  fill: var(--dg-muted);
+  font-family: var(--x-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.chipText {
+  fill: var(--dg-fg);
+  font-family: var(--x-font-mono);
+  font-size: 10px;
+}

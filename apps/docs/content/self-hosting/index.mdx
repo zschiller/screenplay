@@ -18,15 +18,7 @@ VM. This section covers deploying it.
 
 ## How it fits together
 
-```text
- Browser ──► Next.js app (Vercel) ──┬─► Postgres              users, canvases, chats, presets
-    ▲                               ├─► Yjs host (Liveblocks) live canvas state + presence
-    │ realtime                      ├─► Sandbox provider      one VM per workspace
-    └───────────────────────────────┤     └─ dev server, git, terminals, coding CLIs
-                                    ├─► Model provider(s)     the agent
-                                    ├─► Blob store            canvas thumbnails
-                                    └─► GitHub OAuth          sign-in + repo access
-```
+<ArchitectureDiagram />
 
 Every backend sits behind a small interface in `apps/app/lib/`, so each one is
 swappable. The defaults are what the reference deployment uses:
