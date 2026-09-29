@@ -347,7 +347,7 @@ function ChatTabLabel({
   return (
     <span className="flex items-center gap-1.5">
       {isStreaming ? (
-        <GripSpinner className="size-3 shrink-0 text-muted-foreground" />
+        <GripSpinner className="size-3.5 shrink-0 text-muted-foreground" />
       ) : hasUnread ? (
         <span className="size-1.5 shrink-0 rounded-full bg-info-fill" />
       ) : null}
@@ -381,7 +381,7 @@ function TerminalTabLabel({
     <span className="flex items-center gap-1.5">
       <TerminalWindowIcon
         aria-hidden
-        className="size-3 shrink-0 text-muted-foreground"
+        className="size-3.5 shrink-0 text-muted-foreground"
       />
       <EditableText
         as="span"
@@ -1151,7 +1151,7 @@ export function ChatPanel({
                     >
                       <TabsTrigger
                         value={tab.id}
-                        className="relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-xs active:cursor-grabbing"
+                        className="relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-sm active:cursor-grabbing"
                       >
                         {tab.kind === "terminal" ? (
                           <TerminalTabLabel
