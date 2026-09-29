@@ -1,4 +1,5 @@
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
+import type { SkillMetadata } from "@/lib/skills/frontmatter"
 import type { MarkdownLayerData, MemoryData } from "@/lib/types"
 import { MEMORY_PROMPT_LIMIT } from "@/lib/canvas/memory"
 import {
@@ -211,11 +212,14 @@ export function buildAgentSystemPrompt(opts: {
  * whole canvas rather than one Workspace's sandbox or one document.
  * `canvasSummary` is the `read_canvas` summary as of the turn's start, baked in
  * so a question about the canvas needs no tool call; the tool re-reads it live.
+ * `skills` is the Coordinator's App Skill index (#905), loaded with `read_skill`.
  */
 export function buildRoomSystemPrompt(opts: {
   canvasSummary: string
   memory?: readonly MemoryData[]
+  skills?: readonly SkillMetadata[]
 }): string {
+  const skills = opts.skills ?? []
   return [
     "You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, and Terminal Tabs. You see the whole canvas. You never work inside a sandbox yourself: Workspace agents do that.",
     "",
@@ -245,6 +249,14 @@ export function buildRoomSystemPrompt(opts: {
     "- Call `create_workspaces` with one entry per Workspace: a short title, one of the canvas's repositories, a base branch only when it isn't the default, a one-line brief for the plan, and the seed prompt its agent starts on. Split separate asks into separate Workspaces; propose only what the ask needs.",
     "- The user reviews the list as a plan and nothing is created until they approve it. You hear the result in the next turn: report any Workspace that failed to start and say its row offers Retry.",
     "",
+    ...(skills.length
+      ? [
+          "Skills:",
+          "- When a request matches one of these, call `read_skill` with its name and follow it before doing anything else.",
+          ...skills.map((s) => `- **${s.name}**: ${s.description}`),
+          "",
+        ]
+      : []),
     "Workspace updates:",
     `- Each time a Workspace's turn ends, whoever started it, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn't see it.`,
     "- Stay quiet unless there is something the user needs: a result worth reporting, a blocker, or a decision only they can make. With nothing to say, end your turn without writing anything. Don't narrate progress or repeat what the Workspace said.",

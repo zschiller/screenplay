@@ -24,6 +24,19 @@ describe("parseFrontmatter", () => {
     expect(body).toContain("Body text.")
   })
 
+  it("reads a Skill as the Workspace agents' unless it names the Coordinator", () => {
+    const skill = (extra: string[]) =>
+      ["---", "name: x", "description: y.", ...extra, "---", "body"].join("\n")
+
+    expect(parseFrontmatter(skill([]), "x").audience).toBe("workspace")
+    expect(
+      parseFrontmatter(skill(["audience: coordinator"]), "x").audience
+    ).toBe("coordinator")
+    expect(() => parseFrontmatter(skill(["audience: everyone"]), "x")).toThrow(
+      /audience/
+    )
+  })
+
   it("strips surrounding double quotes from values", () => {
     const raw = [
       "---",

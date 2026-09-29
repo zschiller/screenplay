@@ -14,6 +14,7 @@ import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
 import { liveWorkspaceReadPorts } from "./room-read-ports"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
+import { getSkillIndex } from "@/lib/skills"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { RoomDoc, RoomReader } from "@/lib/room-access"
 import { readMemory } from "@/lib/canvas/memory"
@@ -323,6 +324,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
     return buildRoomSystemPrompt({
       canvasSummary: ctx.canvasSummary,
       memory: ctx.memory,
+      skills: getSkillIndex("coordinator"),
     })
   },
   buildTools(room, target) {

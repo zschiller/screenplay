@@ -103,6 +103,16 @@ describe("room chat target", () => {
     expect(prompt).toContain("read_canvas")
   })
 
+  it("lists the Coordinator's Skills, and only those, in its prompt (#905)", () => {
+    const prompt = roomChatTarget.buildSystemPrompt(
+      { canvasSummary: "", memory: [] },
+      {}
+    )
+
+    expect(prompt).toContain("**screenplay-try-variants**")
+    expect(prompt).not.toContain("screenplay-add-knob")
+  })
+
   it("runs with the Coordinator tools and the shared document reader", () => {
     const room = {
       roomId: "room-1",
@@ -126,6 +136,7 @@ describe("room chat target", () => {
       "open_pull_request",
       "read_canvas",
       "read_document",
+      "read_skill",
       "read_workspace_chat",
       "read_workspace_diff",
       "read_workspace_file",
