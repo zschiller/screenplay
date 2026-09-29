@@ -56,11 +56,7 @@ export function ArchitectureDiagram() {
       })}
 
       <Node b={yjs} title="Yjs host" />
-      <Note
-        x={notes}
-        y={yjs.left[1]}
-        text="live canvas state + presence"
-      />
+      <Note x={notes} y={yjs.left[1]} text="live canvas state + presence" />
       <Node b={postgres} title="Postgres" />
       <Note
         x={notes}
