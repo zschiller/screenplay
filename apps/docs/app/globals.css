@@ -81,9 +81,11 @@ article .nextra-steps h3:not([style^="visibility:"])::before {
 /* Sidebar: mono uppercase section labels, regular-weight links, and the
    current page as the app sidebar's active row (SidebarMenuButton
    data-active): a neutral sidebar-accent fill with medium-weight foreground
-   text. Hover uses the same fill. */
+   text. Hover uses the same fill. The table of contents'
+   "On this page" heading uses the same label recipe. */
 .nextra-sidebar li:not(:has(*)),
-.nextra-mobile-nav li:not(:has(*)) {
+.nextra-mobile-nav li:not(:has(*)),
+.nextra-toc > div > p:first-child {
   font-family: var(--x-font-mono);
   font-size: 0.6875rem;
   font-weight: 400;
@@ -92,7 +94,8 @@ article .nextra-steps h3:not([style^="visibility:"])::before {
   color: rgb(0 0 0 / 0.55);
 }
 html.dark .nextra-sidebar li:not(:has(*)),
-html.dark .nextra-mobile-nav li:not(:has(*)) {
+html.dark .nextra-mobile-nav li:not(:has(*)),
+html.dark .nextra-toc > div > p:first-child {
   color: rgb(255 255 255 / 0.55);
 }
 .nextra-sidebar a,
