@@ -1,7 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { Brain, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import {
+  BrainIcon,
+  DotsThreeIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -53,7 +58,7 @@ export function MemorySection({
 
   const addButton = (
     <Button size="sm" onClick={() => setEditing("new")}>
-      <Plus />
+      <PlusIcon />
       Add memory
     </Button>
   )
@@ -68,7 +73,7 @@ export function MemorySection({
         <Empty className="flex-none border py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <Brain />
+              <BrainIcon />
             </EmptyMedia>
             <EmptyTitle>No memories yet</EmptyTitle>
             <EmptyDescription>
@@ -109,7 +114,7 @@ export function MemorySection({
                           size="icon-sm"
                           aria-label={`More actions for memory: ${memory.text}`}
                         >
-                          <MoreHorizontal />
+                          <DotsThreeIcon />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -120,7 +125,7 @@ export function MemorySection({
                           variant="destructive"
                           onSelect={() => onRemoveMemory(memory.id)}
                         >
-                          <Trash2 />
+                          <TrashIcon />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>

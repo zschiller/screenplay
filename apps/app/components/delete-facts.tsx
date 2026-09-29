@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { TriangleAlert } from "lucide-react"
+import { WarningIcon } from "@workspace/ui/components/icons"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 
 /**
@@ -24,7 +24,7 @@ export function joinFacts(facts: string[]): string {
 export function LostWorkAlert({ children }: { children: ReactNode }) {
   return (
     <Alert className="border-transparent bg-warning/10 text-warning">
-      <TriangleAlert />
+      <WarningIcon />
       <AlertDescription className="text-current">{children}</AlertDescription>
     </Alert>
   )

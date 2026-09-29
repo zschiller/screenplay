@@ -3,36 +3,36 @@
 import { useMemo, useRef, useState, type ReactNode } from "react"
 import { defaultUrlTransform, type Components } from "react-markdown"
 import {
-  FileText,
-  LayoutGrid,
-  Terminal,
-  Pencil,
-  FolderOpen,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  ClipboardList,
-  GitPullRequest,
-  ExternalLink,
-  Sparkles,
-  PencilLine,
-  SquarePen,
-  Brain,
-  Crosshair,
-  Bot,
-  Square,
-  ChevronRight,
-  AppWindow,
-  FilePlus,
-  Move,
-  Group,
-  Merge,
-  Trash2,
-  History,
-  Undo2,
-  FolderGit2,
-  CircleStop,
-} from "lucide-react"
+  AppWindowIcon,
+  ArrowSquareOutIcon,
+  ArrowUUpLeftIcon,
+  ArrowsMergeIcon,
+  ArrowsOutCardinalIcon,
+  BookBookmarkIcon,
+  BrainIcon,
+  CaretRightIcon,
+  CheckCircleIcon,
+  ClipboardTextIcon,
+  ClockCounterClockwiseIcon,
+  CrosshairIcon,
+  FilePlusIcon,
+  FileTextIcon,
+  FolderOpenIcon,
+  GitPullRequestIcon,
+  NotePencilIcon,
+  PencilSimpleIcon,
+  PencilSimpleLineIcon,
+  RobotIcon,
+  SelectionIcon,
+  SparkleIcon,
+  SquareIcon,
+  SquaresFourIcon,
+  StopCircleIcon,
+  TerminalIcon,
+  TrashIcon,
+  WarningCircleIcon,
+  XCircleIcon,
+} from "@workspace/ui/components/icons"
 import {
   Collapsible,
   CollapsibleContent,
@@ -86,32 +86,32 @@ import {
   workspaceTasksOf,
 } from "@/lib/agent/workspace-task"
 
-const toolIcons: Record<string, typeof FileText> = {
-  read_file: FileText,
-  write_file: FileText,
-  edit_file: Pencil,
-  run_command: Terminal,
-  list_files: FolderOpen,
-  create_pr: GitPullRequest,
-  read_skill: Sparkles,
-  read_document: FileText,
-  read_canvas: LayoutGrid,
-  replace_document_body: SquarePen,
-  append_to_document_body: SquarePen,
-  set_document_title: PencilLine,
-  create_frames: AppWindow,
-  create_document: FilePlus,
-  move_group: Move,
-  move_to_group: Group,
-  merge_groups: Merge,
-  rename: PencilLine,
-  remove: Trash2,
-  list_changes: History,
-  undo_changes: Undo2,
-  create_workspaces: FolderGit2,
-  stop_workspace: CircleStop,
-  open_pull_request: GitPullRequest,
-  remove_workspace: Trash2,
+const toolIcons: Record<string, typeof FileTextIcon> = {
+  read_file: FileTextIcon,
+  write_file: FileTextIcon,
+  edit_file: PencilSimpleIcon,
+  run_command: TerminalIcon,
+  list_files: FolderOpenIcon,
+  create_pr: GitPullRequestIcon,
+  read_skill: SparkleIcon,
+  read_document: FileTextIcon,
+  read_canvas: SquaresFourIcon,
+  replace_document_body: NotePencilIcon,
+  append_to_document_body: NotePencilIcon,
+  set_document_title: PencilSimpleLineIcon,
+  create_frames: AppWindowIcon,
+  create_document: FilePlusIcon,
+  move_group: ArrowsOutCardinalIcon,
+  move_to_group: SelectionIcon,
+  merge_groups: ArrowsMergeIcon,
+  rename: PencilSimpleLineIcon,
+  remove: TrashIcon,
+  list_changes: ClockCounterClockwiseIcon,
+  undo_changes: ArrowUUpLeftIcon,
+  create_workspaces: BookBookmarkIcon,
+  stop_workspace: StopCircleIcon,
+  open_pull_request: GitPullRequestIcon,
+  remove_workspace: TrashIcon,
 }
 
 const toolLabels: Record<string, string> = {
@@ -162,12 +162,12 @@ function formatToolName(name: string): string {
 // Fallback icons by ACP tool `kind` (read/edit/execute/…), used when the tool
 // isn't one of screenplay's own named tools — so a generic ACP agent's calls
 // still get a sensible icon rather than the bare default.
-const kindIcons: Record<string, typeof FileText> = {
-  read: FileText,
-  edit: Pencil,
-  execute: Terminal,
-  fetch: ExternalLink,
-  think: Sparkles,
+const kindIcons: Record<string, typeof FileTextIcon> = {
+  read: FileTextIcon,
+  edit: PencilSimpleIcon,
+  execute: TerminalIcon,
+  fetch: ArrowSquareOutIcon,
+  think: SparkleIcon,
 }
 
 /**
@@ -409,7 +409,7 @@ function ToolContentBlock({
         data-testid="tool-content-terminal"
         className="flex items-center gap-1.5 px-2 py-1 font-mono text-3xs text-muted-foreground"
       >
-        <Terminal className="size-3 shrink-0" />
+        <TerminalIcon className="size-3 shrink-0" />
         terminal {block.terminalId}
       </div>
     )
@@ -496,7 +496,7 @@ function ToolCallRow({
   const Icon =
     toolIcons[message.title] ??
     (message.kind ? kindIcons[message.kind] : undefined) ??
-    Terminal
+    TerminalIcon
   // Render every engine's tool call the same way: derive the verb + detail from
   // the tool identity (`kind` / raw name) and `rawInput`, not from whatever prose
   // title an adapter happens to send — so an in-process `read_file` and a
@@ -563,7 +563,7 @@ function ToolCallRow({
       className="size-3 shrink-0"
     />
   ) : failed ? (
-    <AlertCircle
+    <WarningCircleIcon
       aria-label="Failed"
       className="size-3 shrink-0 text-destructive"
     />
@@ -679,12 +679,12 @@ export function TaskGroup({
             // A running Task is a subagent at work: LLM activity, so the grid.
             <GripSpinner className="size-3 shrink-0" />
           ) : anyFailed ? (
-            <AlertCircle
+            <WarningCircleIcon
               aria-label="Failed"
               className="size-3 shrink-0 text-destructive"
             />
           ) : (
-            <Bot aria-hidden className="size-3 shrink-0" />
+            <RobotIcon aria-hidden className="size-3 shrink-0" />
           )
         }
         title={renderTitleWithCode(task.title)}
@@ -730,7 +730,7 @@ export function TurnSummaryRow({
         data-testid="turn-summary-trigger"
         className="group/summary flex max-w-full min-w-0 items-start gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        <ChevronRight
+        <CaretRightIcon
           aria-hidden
           className="mt-0.5 size-3 shrink-0 transition-transform group-data-[state=open]/summary:rotate-90"
         />
@@ -795,12 +795,12 @@ function PlanMessage({
     pending: null,
     approved: (
       <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-3xs font-medium text-success">
-        <CheckCircle2 className="size-3" /> Approved
+        <CheckCircleIcon className="size-3" /> Approved
       </span>
     ),
     rejected: (
       <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-3xs font-medium text-destructive">
-        <XCircle className="size-3" /> Changes requested
+        <XCircleIcon className="size-3" /> Changes requested
       </span>
     ),
   }[message.status]
@@ -814,7 +814,7 @@ function PlanMessage({
       collapsible={isRejected}
       open={expanded}
       onOpenChange={setExpanded}
-      icon={<ClipboardList aria-hidden className="size-3 shrink-0" />}
+      icon={<ClipboardTextIcon aria-hidden className="size-3 shrink-0" />}
       title={
         <span className="flex items-center gap-2">
           <span className="font-medium">Plan</span>
@@ -853,7 +853,7 @@ function PlanMessage({
         {isRejected && message.feedback && (
           <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
             <div className="mb-1 flex items-center gap-1.5 text-3xs font-medium text-muted-foreground">
-              <XCircle className="size-3" /> Your feedback
+              <XCircleIcon className="size-3" /> Your feedback
             </div>
             <ChatMarkdown tone="muted" size="xs">
               {message.feedback}
@@ -890,7 +890,7 @@ function ConfirmMessage({
     setIsSubmitting(false)
   }
   const Icon =
-    confirm.action === OPEN_PULL_REQUEST_TOOL ? GitPullRequest : Trash2
+    confirm.action === OPEN_PULL_REQUEST_TOOL ? GitPullRequestIcon : TrashIcon
 
   return (
     <Alert data-testid="chat-confirm">
@@ -955,7 +955,7 @@ function ReasoningMessage({
     <ChatDisclosure
       open={expanded}
       onOpenChange={setExpanded}
-      icon={<Brain aria-hidden className="size-3 shrink-0" />}
+      icon={<BrainIcon aria-hidden className="size-3 shrink-0" />}
       title="Reasoning"
     >
       <ChatMarkdown tone="muted" size="xs" className="px-2 py-1.5">
@@ -998,7 +998,7 @@ function ElementHistoryToken({
     <HoverCard onOpenChange={handleOpenChange}>
       <HoverCardTrigger asChild>
         <span className={`${MENTION_TEXT_CLASS} font-mono`}>
-          <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+          <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
           {children}
         </span>
       </HoverCardTrigger>
@@ -1059,7 +1059,7 @@ function DelegatedMessage({
       data-testid="delegated-message"
     >
       <CollapsibleTrigger className="group/delegated flex max-w-full min-w-0 items-center gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
-        <ChevronRight
+        <CaretRightIcon
           aria-hidden
           className="size-3 shrink-0 transition-transform group-data-[state=open]/delegated:rotate-90"
         />
@@ -1114,7 +1114,7 @@ function UserBubble({
         ) {
           return <span className={MENTION_TEXT_CLASS}>{children}</span>
         }
-        // element tokens: a clean lucide crosshair + `font-mono` tag name,
+        // element tokens: a clean crosshair + `font-mono` tag name,
         // matching the composer token. Detail rides the footer, keyed by the
         // link's `element:<ref>`; missing (a footer-less legacy turn) → plain
         // token, no card.
@@ -1124,7 +1124,7 @@ function UserBubble({
           if (!detail) {
             return (
               <span className={`${MENTION_TEXT_CLASS} font-mono`}>
-                <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+                <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
                 {children}
               </span>
             )
@@ -1282,7 +1282,7 @@ export function AgentMessageItem({
           data-testid="chat-error"
           className="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-xs text-destructive"
         >
-          <AlertCircle aria-hidden className="mt-px size-3 shrink-0" />
+          <WarningCircleIcon aria-hidden className="mt-px size-3 shrink-0" />
           <p className="min-w-0 flex-1 [overflow-wrap:anywhere] whitespace-pre-wrap">
             {message.content}
           </p>
@@ -1300,7 +1300,7 @@ export function AgentMessageItem({
         >
           <span className="h-px flex-1 bg-border" />
           <span className="flex items-center gap-1">
-            <Square className="size-2 fill-current" />
+            <SquareIcon weight="fill" className="size-2" />
             Stopped
           </span>
           <span className="h-px flex-1 bg-border" />

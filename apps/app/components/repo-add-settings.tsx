@@ -1,7 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronRight, RotateCw } from "lucide-react"
+import {
+  ArrowClockwiseIcon,
+  CaretRightIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
@@ -248,7 +251,7 @@ export function RepoAddSettings({
                 className="h-auto gap-1 p-0 text-xs"
                 onClick={reDetect}
               >
-                <RotateCw className="size-3" />
+                <ArrowClockwiseIcon className="size-3" />
                 Re-detect
               </Button>
             </>
@@ -284,7 +287,7 @@ export function RepoAddSettings({
           className="group/advanced flex flex-col gap-4"
         >
           <CollapsibleTrigger className="flex items-center gap-1 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            <ChevronRight className="size-4 transition-transform group-data-[state=open]/advanced:rotate-90" />
+            <CaretRightIcon className="size-4 transition-transform group-data-[state=open]/advanced:rotate-90" />
             Advanced
           </CollapsibleTrigger>
           <CollapsibleContent className="flex flex-col">

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
-import { Archive, Trash2 } from "lucide-react"
+import { ArchiveIcon, TrashIcon } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -99,7 +99,7 @@ function HistoryRow({
             onClick={() => setConfirming(true)}
             className="absolute top-1 right-1 text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
           >
-            <Trash2 />
+            <TrashIcon />
           </IconButton>
         )
       )}
@@ -138,7 +138,7 @@ export function ChatHistoryMenu({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <IconButton label="Chat history">
-          <Archive className="size-3" />
+          <ArchiveIcon className="size-3" />
         </IconButton>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 gap-0 p-1">

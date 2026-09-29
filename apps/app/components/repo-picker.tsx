@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Folder, FolderLock, Link2, Plug } from "lucide-react"
+import {
+  FolderIcon,
+  FolderLockIcon,
+  LinkSimpleHorizontalIcon,
+  PlugIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
@@ -193,7 +198,7 @@ export function RepoPicker({
                   {urlBusy ? (
                     <Spinner className="size-4" />
                   ) : (
-                    <Link2 className="text-muted-foreground" />
+                    <LinkSimpleHorizontalIcon className="text-muted-foreground" />
                   )}
                   <span className="truncate">
                     Add <span className="font-medium">{cloneUrl}</span>
@@ -224,7 +229,7 @@ export function RepoPicker({
                       value={`${config.repoFullName} ${config.name}`}
                       onSelect={() => onSelect({ kind: "config", config })}
                     >
-                      {isPrivate ? <FolderLock /> : <Folder />}
+                      {isPrivate ? <FolderLockIcon /> : <FolderIcon />}
                       <span className="truncate">
                         {config.repoFullName}
                         {/* The preset's name only when it says something the
@@ -254,7 +259,7 @@ export function RepoPicker({
                 </span>
                 <Button asChild variant="outline" size="sm">
                   <Link href="/settings?section=github">
-                    <Plug />
+                    <PlugIcon />
                     Connect GitHub
                   </Link>
                 </Button>
@@ -299,7 +304,7 @@ export function RepoPicker({
                       value={repo.fullName}
                       onSelect={() => onSelect({ kind: "repo", repo })}
                     >
-                      {repo.private ? <FolderLock /> : <Folder />}
+                      {repo.private ? <FolderLockIcon /> : <FolderIcon />}
                       <span className="truncate">{repo.fullName}</span>
                     </CommandItem>
                   ))}

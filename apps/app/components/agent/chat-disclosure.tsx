@@ -1,7 +1,7 @@
 "use client"
 
 import type { ComponentProps, ReactNode } from "react"
-import { ChevronDown } from "lucide-react"
+import { CaretDownIcon } from "@workspace/ui/components/icons"
 import {
   Collapsible,
   CollapsibleContent,
@@ -57,7 +57,7 @@ export function ChatDisclosure({
       <span className="min-w-0 flex-1 truncate">{title}</span>
       {meta}
       {collapsible && (
-        <ChevronDown
+        <CaretDownIcon
           aria-hidden
           className="size-3 shrink-0 -rotate-90 transition-transform group-data-[state=open]/disclosure:rotate-0"
         />

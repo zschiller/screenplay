@@ -11,13 +11,13 @@ import {
   useState,
 } from "react"
 import {
-  ArrowUp,
-  ClipboardList,
-  ChevronDown,
-  Check,
-  Crosshair,
-  Square,
-} from "lucide-react"
+  ArrowUpIcon,
+  CaretDownIcon,
+  CheckIcon,
+  ClipboardTextIcon,
+  CrosshairIcon,
+  SquareIcon,
+} from "@workspace/ui/components/icons"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 import {
@@ -946,7 +946,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                                 · not default
                               </span>
                             )}
-                            {!modelLocked && <ChevronDown />}
+                            {!modelLocked && <CaretDownIcon />}
                           </InputGroupButton>
                         </DropdownMenuTrigger>
                       </span>
@@ -977,7 +977,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                                 Default
                               </span>
                             )}
-                            {m.id === model && <Check className="size-3.5" />}
+                            {m.id === model && (
+                              <CheckIcon className="size-3.5" />
+                            )}
                           </DropdownMenuItem>
                         ))}
                       </div>
@@ -997,7 +999,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                       aria-pressed={!!planMode}
                       className="text-xs text-foreground"
                     >
-                      <ClipboardList />
+                      <ClipboardTextIcon />
                       Plan
                     </InputGroupButton>
                   </TooltipTrigger>
@@ -1024,7 +1026,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   variant="ghost"
                   onClick={triggerPick}
                 >
-                  <Crosshair />
+                  <CrosshairIcon />
                 </InputGroupButton>
               </IconButton>
             )}
@@ -1039,7 +1041,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                       variant="secondary"
                       onClick={onStop}
                     >
-                      <Square fill="currentColor" />
+                      <SquareIcon fill="currentColor" />
                     </InputGroupButton>
                   </IconButton>
                 ) : (
@@ -1074,7 +1076,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                       variant="default"
                       onClick={handleSubmit}
                     >
-                      <ArrowUp />
+                      <ArrowUpIcon />
                     </InputGroupButton>
                   </IconButton>
                 )}

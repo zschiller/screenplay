@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { nanoid } from "nanoid"
-import { FolderOpen } from "lucide-react"
+import { FolderOpenIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { DialogFooter } from "@workspace/ui/components/dialog"
 import {
@@ -255,7 +255,7 @@ export function RepoConfigForm({
                   className="justify-start gap-2 font-normal"
                   onClick={openFolder}
                 >
-                  <FolderOpen className="size-4 text-muted-foreground" />
+                  <FolderOpenIcon className="size-4 text-muted-foreground" />
                   Open a folder
                 </Button>
               )}

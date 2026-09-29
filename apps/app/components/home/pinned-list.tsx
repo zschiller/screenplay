@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
+import { DotsThreeIcon, FolderIcon } from "@workspace/ui/components/icons"
 import { CanvasIcon } from "@/components/canvas-icon"
 import { Reorder } from "motion/react"
 import {
@@ -232,7 +232,7 @@ function PinnedRoomRow({
         onTogglePin={() => unpin("room", room.id)}
       >
         <SidebarMenuAction showOnHover aria-label="Canvas actions">
-          <MoreHorizontal />
+          <DotsThreeIcon />
         </SidebarMenuAction>
       </RoomActionMenu>
 
@@ -360,7 +360,7 @@ function PinnedFolderRow({
         onTogglePin={() => unpin("folder", folder.id)}
       >
         <SidebarMenuAction showOnHover aria-label="Folder actions">
-          <MoreHorizontal />
+          <DotsThreeIcon />
         </SidebarMenuAction>
       </FolderActionMenu>
 

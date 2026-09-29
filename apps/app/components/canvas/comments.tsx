@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowUp } from "lucide-react"
+import { ArrowUpIcon } from "@workspace/ui/components/icons"
 import type { Editor } from "@tiptap/core"
 import {
   Popover,
@@ -771,7 +771,7 @@ function NewThreadComposer({
             onClick={sendToChat}
             disabled={pending || empty}
           >
-            <ArrowUp />
+            <ArrowUpIcon />
           </IconButton>
         )}
         <Button size="xs" variant="ghost" onClick={onCancel} disabled={pending}>

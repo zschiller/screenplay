@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { SearchX } from "lucide-react"
+import { MagnifyingGlassIcon } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
 
@@ -15,7 +15,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 export default function CanvasNotFound() {
   return (
     <CanvasRouteState
-      icon={<SearchX />}
+      icon={<MagnifyingGlassIcon />}
       title="Canvas not found"
       description={
         isLocalBuild

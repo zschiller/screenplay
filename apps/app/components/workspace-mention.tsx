@@ -2,14 +2,13 @@
 
 import type { ReactNode } from "react"
 import {
-  AlertTriangle,
-  CircleCheck,
-  CircleDashed,
-  CircleSmall,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-} from "lucide-react"
+  CheckCircleIcon,
+  CircleDashedIcon,
+  CircleIcon,
+  GitMergeIcon,
+  GitPullRequestIcon,
+  WarningIcon,
+} from "@workspace/ui/components/icons"
 import { Badge } from "@workspace/ui/components/badge"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
@@ -56,20 +55,19 @@ export type WorkspaceMentionBranch = Pick<
 export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
   const glyph =
     line.kind === "error" ? (
-      <AlertTriangle className="size-3.5 text-destructive" />
+      <WarningIcon className="size-3.5 text-destructive" />
     ) : line.kind === "progress" ? (
       <Spinner className="size-3.5 opacity-70" />
     ) : line.state === "working" ? (
       <GripSpinner className="size-3.5 opacity-70" />
     ) : line.state === "done" ? (
-      <CircleCheck className="size-3.5 opacity-50" />
+      <CheckCircleIcon weight="bold" className="size-3! opacity-50" />
     ) : line.state === "stopped" ? (
-      // Lucide's dashed circle is drawn larger than CircleSmall; shrink it to
-      // about the same size (past a menu button's own svg size), with a
-      // heavier stroke so the line weight matches.
-      <CircleDashed strokeWidth={2.6} className="size-3! opacity-50" />
+      // Sized past a menu button's own svg size, like the idle circle, so the
+      // outlines match; Bold keeps the dashes legible at 12px.
+      <CircleDashedIcon weight="bold" className="size-3! opacity-50" />
     ) : (
-      <CircleSmall className="size-3.5 opacity-50" />
+      <CircleIcon weight="bold" className="size-3! opacity-50" />
     )
   return (
     <span className="flex size-4 shrink-0 items-center justify-center">
@@ -119,12 +117,7 @@ export function WorkspacePrBadge({
   state: BranchPrInfo["state"]
   className?: string
 }) {
-  const Icon =
-    state === "merged"
-      ? GitMerge
-      : state === "closed"
-        ? GitPullRequestClosed
-        : GitPullRequest
+  const Icon = state === "merged" ? GitMergeIcon : GitPullRequestIcon
   return (
     <Badge
       variant="outline"

@@ -2,22 +2,22 @@
 
 import { Fragment, type ReactNode } from "react"
 import {
-  CircleCheck,
-  ExternalLink,
-  GitBranch,
-  GitBranchPlus,
-  GitMerge,
-  GitPullRequest,
-  Pencil,
-  Play,
-  RefreshCw,
-  Recycle,
-  RotateCcw,
-  RotateCw,
-  Route,
-  Trash2,
-  Undo2,
-} from "lucide-react"
+  ArrowClockwiseIcon,
+  ArrowCounterClockwiseIcon,
+  ArrowSquareOutIcon,
+  ArrowUUpLeftIcon,
+  ArrowsClockwiseIcon,
+  CheckCircleIcon,
+  GitBranchIcon,
+  GitForkIcon,
+  GitMergeIcon,
+  GitPullRequestIcon,
+  PathIcon,
+  PencilSimpleIcon,
+  PlayIcon,
+  RecycleIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -239,13 +239,13 @@ export function BranchOverflowMenuContent({
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     retry: (
       <DropdownMenuItem onClick={() => onRetry(branch.id)}>
-        <RotateCw />
+        <ArrowClockwiseIcon />
         Retry setup
       </DropdownMenuItem>
     ),
     rename: (
       <DropdownMenuItem disabled={!branch.ref} onClick={onRename}>
-        <Pencil />
+        <PencilSimpleIcon />
         Rename
       </DropdownMenuItem>
     ),
@@ -254,7 +254,7 @@ export function BranchOverflowMenuContent({
         disabled={!branch.sandboxName || !branch.ref}
         onClick={() => onRenameBranch(branch.id)}
       >
-        <GitBranch />
+        <GitBranchIcon />
         Rename branch…
       </DropdownMenuItem>
     ),
@@ -263,7 +263,7 @@ export function BranchOverflowMenuContent({
         disabled={!branch.previewDomain}
         onClick={() => onPlay(branch.id)}
       >
-        <Play />
+        <PlayIcon />
         Open prototype player
       </DropdownMenuItem>
     ),
@@ -289,7 +289,7 @@ export function BranchOverflowMenuContent({
         }
         onClick={() => onShowRoutes(branch.id)}
       >
-        <Route />
+        <PathIcon />
         Show all routes
       </DropdownMenuItem>
     ),
@@ -298,14 +298,14 @@ export function BranchOverflowMenuContent({
         disabled={!branch.ref}
         onClick={() => onNewBranchFromHere(branch.id)}
       >
-        <GitBranchPlus />
+        <GitForkIcon />
         New workspace from here…
       </DropdownMenuItem>
     ),
     restart: (
       <DropdownMenuSub>
         <DropdownMenuSubTrigger>
-          <RefreshCw />
+          <ArrowsClockwiseIcon />
           Restart
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent className="w-48">
@@ -319,7 +319,7 @@ export function BranchOverflowMenuContent({
             disabled={!branch.sandboxName}
             onClick={() => onRestartDevServer(branch.id)}
           >
-            <RefreshCw />
+            <ArrowsClockwiseIcon />
             Restart dev server
           </DropdownMenuItem>
           {/*
@@ -338,7 +338,7 @@ export function BranchOverflowMenuContent({
               disabled={!branch.sandboxName || isBusy}
               onClick={() => onRestart(branch.id)}
             >
-              <RotateCcw />
+              <ArrowCounterClockwiseIcon />
               Restart sandbox
             </DropdownMenuItem>
           ) : null}
@@ -353,7 +353,7 @@ export function BranchOverflowMenuContent({
             disabled={!branch.sandboxName || isBusy}
             onClick={() => onRecreate(branch.id)}
           >
-            <Recycle />
+            <RecycleIcon />
             Recreate from scratch
           </DropdownMenuItem>
         </DropdownMenuSubContent>
@@ -365,7 +365,7 @@ export function BranchOverflowMenuContent({
     "create-pr":
       pr?.state === "open" ? (
         <DropdownMenuItem onClick={() => openExternal(pr.url)}>
-          <GitPullRequest />
+          <GitPullRequestIcon />
           Open pull request #{pr.number}
         </DropdownMenuItem>
       ) : (
@@ -373,7 +373,7 @@ export function BranchOverflowMenuContent({
           disabled={!branch.sandboxName || !branch.ref || isBusy}
           onClick={() => onCreatePr(branch.id)}
         >
-          <GitPullRequest />
+          <GitPullRequestIcon />
           Create pull request
         </DropdownMenuItem>
       ),
@@ -382,7 +382,7 @@ export function BranchOverflowMenuContent({
         disabled={!branch.sandboxName || !branch.ref || isBusy}
         onClick={() => onRebase(branch.id)}
       >
-        <GitMerge />
+        <GitMergeIcon />
         Rebase on {repo.defaultBranch}
       </DropdownMenuItem>
     ),
@@ -395,7 +395,7 @@ export function BranchOverflowMenuContent({
           openExternal(url)
         }}
       >
-        <ExternalLink />
+        <ArrowSquareOutIcon />
         Open branch on GitHub
       </DropdownMenuItem>
     ),
@@ -408,13 +408,13 @@ export function BranchOverflowMenuContent({
         }
         onClick={() => onMarkDone(branch.id)}
       >
-        <CircleCheck />
+        <CheckCircleIcon />
         Mark as done
       </DropdownMenuItem>
     ),
     reopen: (
       <DropdownMenuItem onClick={() => onReopen(branch.id)}>
-        <Undo2 />
+        <ArrowUUpLeftIcon />
         Reopen
       </DropdownMenuItem>
     ),
@@ -423,7 +423,7 @@ export function BranchOverflowMenuContent({
         variant="destructive"
         onClick={() => onDelete(branch.id)}
       >
-        <Trash2 />
+        <TrashIcon />
         Delete
       </DropdownMenuItem>
     ),

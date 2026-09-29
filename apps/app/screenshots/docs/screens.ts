@@ -338,7 +338,7 @@ async function openRowMenu(page: Page, text: string, rowSelector = BRANCH_ROW) {
   const at = (await page.evaluate(
     `(() => {
       const row = [...document.querySelectorAll(${JSON.stringify(rowSelector)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
-      const btn = [...row.querySelectorAll("button")].find((b) => b.querySelector("svg.lucide-ellipsis"))
+      const btn = [...row.querySelectorAll("button")].find((b) => b.querySelector("svg.ph-dots-three"))
       if (!btn) return null
       const r = btn.getBoundingClientRect()
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
@@ -400,7 +400,7 @@ async function focusComposer(page: Page) {
 async function pickTarget(page: Page, label?: string) {
   const at = await centerOf(
     page,
-    "button:has(svg.lucide-chevrons-up-down)",
+    "button:has(svg.ph-caret-up-down)",
     null,
     {
       minX: 800,
@@ -645,7 +645,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: MENU,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      const at = await centerOf(page, "button:has(svg.lucide-ellipsis)", null, {
+      const at = await centerOf(page, "button:has(svg.ph-dots-three)", null, {
         minX: 250,
         maxX: 700,
         maxY: 40,
@@ -1138,7 +1138,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     beforeNavigate: warmPlay,
     crop: [760, 440, 520, 360],
     prepare: async (page) => {
-      const knobs = "button:has(svg.lucide-sliders-horizontal)"
+      const knobs = "button:has(svg.ph-sliders-horizontal)"
       // The HUD can still sit at the preview's top-left before it snaps to its
       // bottom-right corner; hovering then shot it in the wrong corner on some
       // runs.
@@ -1166,7 +1166,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await openHud(
         page,
-        "button:has(svg.lucide-sliders-horizontal)",
+        "button:has(svg.ph-sliders-horizontal)",
         "text=Accent color"
       )
     },
@@ -1178,7 +1178,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: PLAY,
     beforeNavigate: warmPlay,
     prepare: async (page) => {
-      await openHud(page, "button:has(svg.lucide-messages-square)", COMPOSER)
+      await openHud(page, "button:has(svg.ph-chats)", COMPOSER)
       await sleep(page, 1500) // the transcript loads after the panel opens
     },
   }),
@@ -1221,7 +1221,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
 async function pointAtStartTrial(page: Page, click: boolean) {
   await clickAt(
     page,
-    await centerOf(page, "button:has(svg.lucide-crosshair)"),
+    await centerOf(page, "button:has(svg.ph-crosshair)"),
     1000
   )
   const { frame, box } = await previewFrame(page, "/")

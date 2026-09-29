@@ -1,13 +1,13 @@
 "use client"
 
 import {
-  AlertTriangle,
-  CirclePause,
-  Frame,
-  Play,
-  RotateCw,
-  ScrollText,
-} from "lucide-react"
+  ArrowClockwiseIcon,
+  FrameCornersIcon,
+  PauseCircleIcon,
+  PlayIcon,
+  ScrollIcon,
+  WarningIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Empty,
@@ -103,11 +103,11 @@ export function FrameStatus({
               className="text-muted-foreground"
             />
           ) : failed ? (
-            <AlertTriangle className="text-destructive" />
+            <WarningIcon className="text-destructive" />
           ) : stage === "stopped" ? (
-            <CirclePause className="text-muted-foreground" />
+            <PauseCircleIcon className="text-muted-foreground" />
           ) : (
-            <Frame className="text-muted-foreground" />
+            <FrameCornersIcon className="text-muted-foreground" />
           )}
         </EmptyMedia>
         <EmptyTitle>{copy.title}</EmptyTitle>
@@ -133,13 +133,13 @@ export function FrameStatus({
         >
           {retry && (
             <Button size="sm" variant="outline" onClick={retry}>
-              {stage === "stopped" ? <Play /> : <RotateCw />}
+              {stage === "stopped" ? <PlayIcon /> : <ArrowClockwiseIcon />}
               {stage === "stopped" ? "Start" : "Retry"}
             </Button>
           )}
           {logs && (
             <Button size="sm" variant="ghost" onClick={logs}>
-              <ScrollText />
+              <ScrollIcon />
               Open logs
             </Button>
           )}

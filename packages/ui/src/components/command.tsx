@@ -15,7 +15,7 @@ import {
   InputGroup,
   InputGroupAddon,
 } from "@workspace/ui/components/input-group"
-import { SearchIcon } from "lucide-react"
+import { MagnifyingGlassIcon } from "@workspace/ui/components/icons"
 
 function Command({
   className,
@@ -81,7 +81,7 @@ function CommandInput({
           {...props}
         />
         <InputGroupAddon>
-          <SearchIcon className="size-4 shrink-0 opacity-50" />
+          <MagnifyingGlassIcon className="size-4 shrink-0 opacity-50" />
         </InputGroupAddon>
       </InputGroup>
     </div>

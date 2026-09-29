@@ -22,7 +22,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
-import { PanelLeftIcon } from "lucide-react"
+import { SidebarSimpleIcon } from "@workspace/ui/components/icons"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -270,7 +270,7 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <SidebarSimpleIcon />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
@@ -624,7 +624,7 @@ function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
       data-slot="sidebar-menu-sub"
       data-sidebar="menu-sub"
       className={cn(
-        "ml-3.5 mr-0 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border pl-1 pr-0 py-0.5 group-data-[collapsible=icon]:hidden",
+        "mr-0 ml-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border py-0.5 pr-0 pl-1 group-data-[collapsible=icon]:hidden",
         className
       )}
       {...props}

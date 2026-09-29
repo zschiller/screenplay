@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
+import { DotsThreeIcon, FolderIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { FolderActionMenu } from "./folder-action-menu"
@@ -99,7 +99,7 @@ export function FolderTileDragPreview({ folder }: { folder: FolderSummary }) {
             aria-hidden
             tabIndex={-1}
           >
-            <MoreHorizontal />
+            <DotsThreeIcon />
           </Button>
         }
       />
@@ -180,7 +180,7 @@ function FolderCard({
               className={ACTION_TRIGGER_REVEAL}
               aria-label="Folder actions"
             >
-              <MoreHorizontal />
+              <DotsThreeIcon />
             </Button>
           </FolderActionMenu>
         }

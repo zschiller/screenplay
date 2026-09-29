@@ -763,7 +763,7 @@ export const SCREENS: Screen[] = [
       await selectWorkspace(page, "Checkout polish")
       await page
         .locator("[data-slot=tabs]")
-        .locator("button:has(svg.lucide-chevrons-up-down)")
+        .locator("button:has(svg.ph-caret-up-down)")
         .first()
         .click({ timeout: 15_000 })
       await page
@@ -1405,7 +1405,7 @@ export const SCREENS: Screen[] = [
         await host.click({ timeout: 15_000 })
       } else {
         await page
-          .locator("button:has(svg.lucide-chevrons-up-down)")
+          .locator("button:has(svg.ph-caret-up-down)")
           .filter({ hasText: "Checkout polish" })
           .first()
           .click({ timeout: 15_000 })
@@ -1540,7 +1540,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await page
-        .locator("button:has(svg.lucide-panel-left-close)")
+        .getByRole("button", { name: "Collapse sidebar" })
         .first()
         .hover({ timeout: 15_000 })
       await showTooltip(page)
@@ -1812,7 +1812,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await selectWorkspace(page, CHAT_WORKSPACE)
       await page
-        .locator('[data-slot="tabs-list"] button:has(svg.lucide-plus)')
+        .locator('[data-slot="tabs-list"] button:has(svg.ph-plus)')
         .first()
         .hover({ timeout: 15_000 })
       await showTooltip(page)
@@ -1849,7 +1849,7 @@ export const SCREENS: Screen[] = [
       // its own; hovering its box is what a person does.
       await page
         .locator(
-          '[data-slot="input-group"] button:has(svg.lucide-chevron-down)'
+          '[data-slot="input-group"] button:has(svg.ph-caret-down)'
         )
         .filter({ visible: true })
         .last()
@@ -1864,7 +1864,7 @@ export const SCREENS: Screen[] = [
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
     prepare: async (page) => {
       await page
-        .locator("button:has(svg.lucide-sliders-horizontal)")
+        .locator("button:has(svg.ph-sliders-horizontal)")
         .first()
         .hover({ timeout: 15_000 })
       await showTooltip(page)
@@ -2008,7 +2008,7 @@ export const SCREENS: Screen[] = [
       // The chat header's trigger is labelled with the current Workspace's
       // ref; the frame labels on the canvas share that shape and come first.
       await page
-        .locator("button:has(svg.lucide-chevrons-up-down)")
+        .locator("button:has(svg.ph-caret-up-down)")
         .filter({ hasText: "Checkout polish" })
         .last()
         .click({ timeout: 15_000 })
@@ -3858,7 +3858,7 @@ export async function selectChatTarget(
   await selectWorkspace(page, CHAT_WORKSPACE)
   const trigger = page
     .getByRole("button")
-    .filter({ has: page.locator("svg.lucide-chevrons-up-down") })
+    .filter({ has: page.locator("svg.ph-caret-up-down") })
     .last()
   await trigger.click({ timeout: 15_000 })
   await page

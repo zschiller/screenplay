@@ -1,14 +1,14 @@
 "use client"
 
 import {
-  FolderInput,
-  LogOut,
-  Pencil,
-  Pin,
-  PinOff,
-  Share2,
-  Trash2,
-} from "lucide-react"
+  FolderSimpleIcon,
+  PencilSimpleIcon,
+  PushPinIcon,
+  PushPinSlashIcon,
+  ShareNetworkIcon,
+  SignOutIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,40 +59,40 @@ export function RoomActionMenu({
       <DropdownMenuContent align="start">
         {room.isOwner && (
           <DropdownMenuItem onSelect={onRename}>
-            <Pencil />
+            <PencilSimpleIcon />
             Rename
           </DropdownMenuItem>
         )}
         {/* Sharing is excluded from the local build (PRD #404, issue #417). */}
         {room.isOwner && !isLocalBuild && (
           <DropdownMenuItem onSelect={onShare}>
-            <Share2 />
+            <ShareNetworkIcon />
             Share
           </DropdownMenuItem>
         )}
         {onMove && (
           <DropdownMenuItem onSelect={onMove}>
-            <FolderInput />
+            <FolderSimpleIcon />
             Move to…
           </DropdownMenuItem>
         )}
         {/* Pinning is per-user and needs no ownership, so it's always offered —
             owner or collaborator, Recents or a folder view. */}
         <DropdownMenuItem onSelect={onTogglePin}>
-          {pinned ? <PinOff /> : <Pin />}
+          {pinned ? <PushPinSlashIcon /> : <PushPinIcon />}
           {pinned ? "Unpin" : "Pin to sidebar"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {room.isOwner ? (
           <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-            <Trash2 />
+            <TrashIcon />
             Delete
           </DropdownMenuItem>
         ) : (
           // A shared Room the user doesn't own: they leave it rather than
           // destroy it for the owner and other collaborators.
           <DropdownMenuItem onSelect={onDelete}>
-            <LogOut />
+            <SignOutIcon />
             Leave
           </DropdownMenuItem>
         )}

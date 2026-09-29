@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { LogOut } from "lucide-react"
+import { SignOutIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
@@ -64,7 +64,7 @@ export function AccountMenu() {
             router.push("/sign-in")
           }}
         >
-          <LogOut />
+          <SignOutIcon />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

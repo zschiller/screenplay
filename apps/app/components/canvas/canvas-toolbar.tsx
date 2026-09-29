@@ -1,6 +1,11 @@
 "use client"
 
-import { FileText, Frame, MessageSquare, MousePointer2 } from "lucide-react"
+import {
+  ChatIcon,
+  FileTextIcon,
+  FrameCornersIcon,
+  NavigationArrowIcon,
+} from "@workspace/ui/components/icons"
 
 import {
   FloatingToolbar,
@@ -46,7 +51,7 @@ export function CanvasToolbar({
             onClearMode()
           }}
         >
-          <MousePointer2 />
+          <NavigationArrowIcon />
         </FloatingToolbarButton>
         <FloatingToolbarButton
           label="Frame"
@@ -57,7 +62,7 @@ export function CanvasToolbar({
             onClearMode()
           }}
         >
-          <Frame />
+          <FrameCornersIcon />
         </FloatingToolbarButton>
         <FloatingToolbarButton
           label="Document"
@@ -68,7 +73,7 @@ export function CanvasToolbar({
             onClearMode()
           }}
         >
-          <FileText />
+          <FileTextIcon />
         </FloatingToolbarButton>
         {/* Comment mode is web-only: it places multi-user comment
             threads. The local build has no persisted threads (#417) and
@@ -84,7 +89,7 @@ export function CanvasToolbar({
               onClearMode()
             }}
           >
-            <MessageSquare />
+            <ChatIcon />
           </FloatingToolbarButton>
         )}
       </FloatingToolbar>

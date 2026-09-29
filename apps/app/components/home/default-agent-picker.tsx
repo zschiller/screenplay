@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Check, ChevronDown } from "lucide-react"
+import { CaretDownIcon, CheckIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
@@ -81,7 +81,7 @@ export function DefaultAgentPicker({ label }: { label: string }) {
               <span className="truncate">
                 {currentModel ? modelDisplayLabel(currentModel) : "Loading…"}
               </span>
-              <ChevronDown className="text-muted-foreground" />
+              <CaretDownIcon className="text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-60">
@@ -95,7 +95,7 @@ export function DefaultAgentPicker({ label }: { label: string }) {
                     onSelect={() => writeDefaultModel(m.id)}
                   >
                     <span className="flex-1">{m.label}</span>
-                    {m.id === current && <Check className="size-3.5" />}
+                    {m.id === current && <CheckIcon className="size-3.5" />}
                   </DropdownMenuItem>
                 ))}
               </div>

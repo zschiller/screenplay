@@ -149,9 +149,6 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.5.1)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.0)(@upstash/redis@1.37.0)(kysely@0.28.16)
-      lucide-react:
-        specifier: ^1.8.0
-        version: 1.8.0(react@19.2.7)
       motion:
         specifier: ^12.38.0
         version: 12.38.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -424,6 +421,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -433,9 +433,6 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      lucide-react:
-        specifier: ^1.8.0
-        version: 1.8.0(react@19.2.7)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -2000,6 +1997,13 @@ packages:
 
   '@oxc-project/types@0.132.0':
     resolution: {integrity: sha512-FESMOxil5Se014ui/Eq8fT5uHJo6nIRwH0PfJrZJXs6Gek3ZVFOrpUv3YIZT20m+extU98Hg1Ym72U58rlsxUQ==}
+
+  '@phosphor-icons/react@2.1.10':
+    resolution: {integrity: sha512-vt8Tvq8GLjheAZZYa+YG/pW7HDbov8El/MANW8pOAz4eGxrwhnbfrQZq0Cp4q8zBEu8NIhHdnr+r8thnfRSNYA==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: '>= 16.8'
+      react-dom: '>= 16.8'
 
   '@puppeteer/browsers@2.13.0':
     resolution: {integrity: sha512-46BZJYJjc/WwmKjsvDFykHtXrtomsCIrwYQPOP7VfMJoZY2bsDF9oROBABR3paDjDcmkUye1Pb1BqdcdiipaWA==}
@@ -9274,6 +9278,11 @@ snapshots:
   '@opentelemetry/semantic-conventions@1.40.0': {}
 
   '@oxc-project/types@0.132.0': {}
+
+  '@phosphor-icons/react@2.1.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
 
   '@puppeteer/browsers@2.13.0':
     dependencies:

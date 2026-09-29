@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { SlidersHorizontal } from "lucide-react"
+import { SlidersHorizontalIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Popover,
@@ -44,7 +44,7 @@ export function KnobsPopover({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <FloatingToolbarButton label="Knobs" className="relative">
-          <SlidersHorizontal />
+          <SlidersHorizontalIcon />
           {hasOverrides ? (
             <span
               aria-hidden

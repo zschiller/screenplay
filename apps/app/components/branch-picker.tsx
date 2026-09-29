@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { GitBranch } from "lucide-react"
+import { GitBranchIcon } from "@workspace/ui/components/icons"
 import {
   Command,
   CommandEmpty,
@@ -83,7 +83,7 @@ export function BranchPicker({
                   : onSelect(b.name)
               }
             >
-              <GitBranch className="text-sidebar-foreground/70" />
+              <GitBranchIcon className="text-sidebar-foreground/70" />
               <span className="flex-1 truncate">{b.name}</span>
               {onDuplicate ? (
                 <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground group-data-selected/command-item:flex">

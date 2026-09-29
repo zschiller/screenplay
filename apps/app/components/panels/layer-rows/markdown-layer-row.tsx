@@ -1,7 +1,11 @@
 "use client"
 
 import { useCallback, useRef } from "react"
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import {
+  DotsThreeIcon,
+  PencilSimpleIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import {
   SidebarMenuAction,
   SidebarMenuButton,
@@ -115,7 +119,7 @@ export function DocumentRowMenu({
                 : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
             }
           >
-            <MoreHorizontal />
+            <DotsThreeIcon />
           </SidebarMenuAction>
         </IconButton>
       </DropdownMenuTrigger>
@@ -129,7 +133,7 @@ export function DocumentRowMenu({
             pendingEditRef.current = true
           }}
         >
-          <Pencil />
+          <PencilSimpleIcon />
           Rename
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -137,7 +141,7 @@ export function DocumentRowMenu({
           variant="destructive"
           onClick={() => onRemove(item.id)}
         >
-          <Trash2 />
+          <TrashIcon />
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>

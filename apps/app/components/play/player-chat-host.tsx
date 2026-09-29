@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { nanoid } from "nanoid"
-import { PanelRightClose } from "lucide-react"
+import { SidebarSimpleIcon } from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { ChatPanel } from "@/components/agent/chat-panel"
@@ -241,7 +241,7 @@ function PlayerChatPlaceholder({
           className="size-5 rounded-md text-muted-foreground"
           onClick={onCollapse}
         >
-          <PanelRightClose className="size-4" />
+          <SidebarSimpleIcon mirrored className="size-4" />
         </IconButton>
       </div>
       {/* Same type and copy as AgentChat's provisioning state, so the panel

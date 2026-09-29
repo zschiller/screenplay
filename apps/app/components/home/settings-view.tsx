@@ -4,7 +4,12 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react"
+import {
+  type Icon,
+  MonitorIcon,
+  MoonIcon,
+  SunIcon,
+} from "@workspace/ui/components/icons"
 import {
   Avatar,
   AvatarFallback,
@@ -28,10 +33,10 @@ import {
   SettingsRowSkeleton,
 } from "./settings-row"
 
-const THEMES: { value: string; label: string; icon: LucideIcon }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+const THEMES: { value: string; label: string; icon: Icon }[] = [
+  { value: "light", label: "Light", icon: SunIcon },
+  { value: "dark", label: "Dark", icon: MoonIcon },
+  { value: "system", label: "System", icon: MonitorIcon },
 ]
 
 /**

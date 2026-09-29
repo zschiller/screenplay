@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Monitor, type LucideIcon } from "lucide-react"
+import { type Icon, MonitorIcon } from "@workspace/ui/components/icons"
 import type { AnchorCorner, SnapCandidate } from "@/lib/canvas/snap"
 import {
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
@@ -28,7 +28,7 @@ interface ResizeSnapUnderlayProps {
   snappedPresetId: string | null
 }
 
-const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, LucideIcon> =
+const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, Icon> =
   IFRAME_LAYER_SIZE_CATEGORY_ICONS
 
 /**
@@ -180,7 +180,8 @@ export function ResizeSnapUnderlay({
       {snapped &&
         snappedLabelPos &&
         (() => {
-          const Icon = CATEGORY_LABEL_ICON[snapped.preset.category] ?? Monitor
+          const Icon =
+            CATEGORY_LABEL_ICON[snapped.preset.category] ?? MonitorIcon
           const orientationSuffix =
             snapped.orientation === "landscape" ? " · Landscape" : ""
           const dimensions = `${Math.round(snapped.ghostWidth)} × ${Math.round(snapped.ghostHeight)}`

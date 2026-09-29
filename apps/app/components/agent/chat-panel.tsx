@@ -9,21 +9,20 @@ import {
   useSyncExternalStore,
 } from "react"
 import {
-  Plus,
-  X,
-  PanelRightClose,
-  ChevronsUpDown,
-  ChevronDown,
-  Check,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitMerge,
-  GitMergeConflict,
-  ArrowUpRight,
-  Logs,
-  MessageCircle,
-  SquareTerminal,
-} from "lucide-react"
+  ArrowUpRightIcon,
+  CaretDownIcon,
+  CaretUpDownIcon,
+  ChatCircleIcon,
+  CheckIcon,
+  GitDiffIcon,
+  GitMergeIcon,
+  GitPullRequestIcon,
+  ListDashesIcon,
+  PlusIcon,
+  SidebarSimpleIcon,
+  TerminalWindowIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
 import { AnimatePresence, motion, Reorder } from "motion/react"
 import { toast } from "sonner"
 import { createPullRequestAction } from "@/lib/create-pr-action"
@@ -338,7 +337,7 @@ function TerminalTabLabel({
 }) {
   return (
     <span className="flex items-center gap-1.5">
-      <SquareTerminal
+      <TerminalWindowIcon
         aria-hidden
         className="size-3 shrink-0 text-muted-foreground"
       />
@@ -563,12 +562,10 @@ export function ChatPanel({
   // merge-blocked icon.
   const prBlocked = displayPr?.state === "open" && !!displayPr.blocked
   const PrStateIcon = prBlocked
-    ? GitMergeConflict
+    ? GitDiffIcon
     : displayPr?.state === "merged"
-      ? GitMerge
-      : displayPr?.state === "closed"
-        ? GitPullRequestClosed
-        : GitPullRequest
+      ? GitMergeIcon
+      : GitPullRequestIcon
   const prColor = prStateColor(
     prBlocked ? "closed" : (displayPr?.state ?? "open")
   )
@@ -926,7 +923,7 @@ export function ChatPanel({
               className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
               onClick={onCollapse}
             >
-              <PanelRightClose />
+              <SidebarSimpleIcon mirrored />
             </button>
           </IconButton>
         )}
@@ -980,7 +977,7 @@ export function ChatPanel({
                   className={cn("group", prColor)}
                 >
                   <PrStateIcon />#{displayPr.number}
-                  <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
+                  <ArrowUpRightIcon className="opacity-60 group-hover:opacity-100" />
                 </a>
               </Button>
             ) : (
@@ -1002,7 +999,7 @@ export function ChatPanel({
                       : undefined
                 }
               >
-                <GitPullRequest />
+                <GitPullRequestIcon />
                 Create PR
               </Button>
             ))}
@@ -1030,7 +1027,7 @@ export function ChatPanel({
                 aria-label="Sandbox logs"
                 title="Sandbox logs"
               >
-                <Logs className="size-3.5" />
+                <ListDashesIcon className="size-3.5" />
               </TabsTrigger>
             )}
             {/* Drag-reorderable chat/terminal tabs. The logs trigger and the
@@ -1133,7 +1130,7 @@ export function ChatPanel({
                             onCloseChat(tab.id, neighbourTabId(tab.id))
                           }
                         >
-                          <X className="size-3" />
+                          <XIcon className="size-3" />
                         </IconButton>
                       </div>
                     </motion.div>
@@ -1154,7 +1151,7 @@ export function ChatPanel({
                   onClick={createStickyTab}
                   disabled={isAgentBusy}
                 >
-                  <Plus className="size-3" />
+                  <PlusIcon className="size-3" />
                 </IconButton>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1163,12 +1160,12 @@ export function ChatPanel({
                       className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
                       disabled={isAgentBusy}
                     >
-                      <ChevronDown className="size-3" />
+                      <CaretDownIcon className="size-3" />
                     </IconButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => createChatTab()}>
-                      <MessageCircle className="size-3 shrink-0 text-muted-foreground" />
+                      <ChatCircleIcon className="size-3 shrink-0 text-muted-foreground" />
                       New chat
                     </DropdownMenuItem>
                     {installedHarnesses.length > 1 ? (
@@ -1182,7 +1179,7 @@ export function ChatPanel({
                             key={h.key}
                             onSelect={() => createTerminalTab(h.key)}
                           >
-                            <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
+                            <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
                             <span className="truncate">{h.label}</span>
                           </DropdownMenuItem>
                         ))}
@@ -1200,7 +1197,7 @@ export function ChatPanel({
                           )
                         }
                       >
-                        <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
+                        <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
                         New terminal
                       </DropdownMenuItem>
                     )}
@@ -1215,7 +1212,7 @@ export function ChatPanel({
                   onClick={onCreateChat}
                   disabled={isAgentBusy}
                 >
-                  <Plus className="size-3" />
+                  <PlusIcon className="size-3" />
                 </IconButton>
               </span>
             )}
@@ -1383,7 +1380,7 @@ function TargetPicker({
       <PopoverTrigger asChild>
         <button className="flex min-w-0 items-center gap-1">
           <TargetPill target={target} />
-          <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
+          <CaretUpDownIcon className="size-3 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" side="bottom" align="start">
@@ -1406,7 +1403,7 @@ function TargetPicker({
                         setOpen(false)
                       }}
                     >
-                      <Check
+                      <CheckIcon
                         className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
                       />
                       <WorkspaceMention
@@ -1455,7 +1452,7 @@ function TargetPicker({
                           setOpen(false)
                         }}
                       >
-                        <Check
+                        <CheckIcon
                           className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
                         />
                         {/* In the Workspace rows' icon column (#974). */}

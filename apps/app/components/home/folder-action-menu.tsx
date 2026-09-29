@@ -1,6 +1,13 @@
 "use client"
 
-import { FolderInput, Pencil, Pin, PinOff, Plus, Trash2 } from "lucide-react"
+import {
+  FolderSimpleIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  PushPinIcon,
+  PushPinSlashIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,25 +51,25 @@ export function FolderActionMenu({
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem onSelect={onNewCanvas}>
-          <Plus />
+          <PlusIcon />
           New canvas
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onRename}>
-          <Pencil />
+          <PencilSimpleIcon />
           Rename
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onMove}>
-          <FolderInput />
+          <FolderSimpleIcon />
           Move to…
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onTogglePin}>
-          {pinned ? <PinOff /> : <Pin />}
+          {pinned ? <PushPinSlashIcon /> : <PushPinIcon />}
           {pinned ? "Unpin" : "Pin to sidebar"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-          <Trash2 />
+          <TrashIcon />
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>

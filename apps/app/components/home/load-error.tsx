@@ -1,7 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { CircleAlert, RotateCw } from "lucide-react"
+import {
+  ArrowClockwiseIcon,
+  WarningCircleIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Empty,
@@ -38,7 +41,7 @@ function RetryButton({ onRetry }: { onRetry: () => Promise<unknown> }) {
         }
       }}
     >
-      {retrying ? <Spinner className="size-4" /> : <RotateCw />}
+      {retrying ? <Spinner className="size-4" /> : <ArrowClockwiseIcon />}
       Retry
     </Button>
   )
@@ -61,7 +64,7 @@ export function LoadErrorState({
     <Empty className="h-full" role="alert">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <CircleAlert className="text-destructive" />
+          <WarningCircleIcon className="text-destructive" />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
@@ -91,7 +94,7 @@ export function LoadErrorRow({
     <SettingsRowList>
       <SettingsRow
         role="alert"
-        icon={CircleAlert}
+        icon={WarningCircleIcon}
         iconClassName="text-destructive"
         title={title}
         detail={detail}

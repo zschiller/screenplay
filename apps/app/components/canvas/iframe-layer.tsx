@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  GitBranch,
-  Maximize2,
-  MoreHorizontal,
-  MousePointer,
-  Play,
-  Trash2,
-} from "lucide-react"
+  ArrowsOutSimpleIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  CopyIcon,
+  CursorIcon,
+  DotsThreeIcon,
+  GitBranchIcon,
+  PlayIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -971,7 +971,7 @@ export function IframeLayer({
                   }
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
                 >
-                  <MousePointer />
+                  <CursorIcon />
                 </FloatingToolbarButton>
                 <FloatingToolbarSeparator />
                 <FloatingToolbarButton
@@ -979,14 +979,14 @@ export function IframeLayer({
                   disabled={!onSelectRoute || !canGoBack(history)}
                   onClick={() => navigateHistory(goBack(history))}
                 >
-                  <ChevronLeft />
+                  <CaretLeftIcon />
                 </FloatingToolbarButton>
                 <FloatingToolbarButton
                   label="Forward"
                   disabled={!onSelectRoute || !canGoForward(history)}
                   onClick={() => navigateHistory(goForward(history))}
                 >
-                  <ChevronRight />
+                  <CaretRightIcon />
                 </FloatingToolbarButton>
                 <FrameAddressBar
                   workspace={frameWorkspaceOf(
@@ -1034,7 +1034,7 @@ export function IframeLayer({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <FloatingToolbarButton label="More">
-                      <MoreHorizontal className="text-muted-foreground" />
+                      <DotsThreeIcon className="text-muted-foreground" />
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
@@ -1052,13 +1052,13 @@ export function IframeLayer({
                     )}
                     {showFit && (
                       <DropdownMenuItem onSelect={handleFitToContent}>
-                        <Maximize2 />
+                        <ArrowsOutSimpleIcon />
                         Fit to content
                       </DropdownMenuItem>
                     )}
                     {onDuplicate && (
                       <DropdownMenuItem onSelect={onDuplicate}>
-                        <Copy />
+                        <CopyIcon />
                         Duplicate
                       </DropdownMenuItem>
                     )}
@@ -1067,7 +1067,7 @@ export function IframeLayer({
                         <DropdownMenuSeparator />
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger>
-                            <GitBranch />
+                            <GitBranchIcon />
                             Workspace
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
@@ -1075,7 +1075,7 @@ export function IframeLayer({
                               <DropdownMenuItem
                                 onSelect={() => onPlay?.(iframeLayer.id)}
                               >
-                                <Play />
+                                <PlayIcon />
                                 Open prototype player
                               </DropdownMenuItem>
                             )}
@@ -1091,7 +1091,7 @@ export function IframeLayer({
                       variant="destructive"
                       onSelect={() => onRemove(iframeLayer.id)}
                     >
-                      <Trash2 />
+                      <TrashIcon />
                       Delete frame
                     </DropdownMenuItem>
                   </DropdownMenuContent>

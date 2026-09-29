@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Anser from "anser"
-import { RotateCcw } from "lucide-react"
+import { ArrowCounterClockwiseIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { withBasePath } from "@/lib/base-path"
@@ -287,7 +287,7 @@ export function LogsPanel({
           className="shrink-0 font-sans"
           onClick={retry}
         >
-          <RotateCcw /> Retry
+          <ArrowCounterClockwiseIcon /> Retry
         </Button>
       </span>
     ) : null

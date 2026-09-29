@@ -38,7 +38,7 @@ import { inputStore } from "@/lib/input-store"
 import { restoreAgentChatSelection } from "@/lib/chat/chat-target"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { withBasePath } from "@/lib/base-path"
-import { PanelRightOpen } from "lucide-react"
+import { SidebarSimpleIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
@@ -2002,7 +2002,7 @@ export function Canvas({
                     tooltipSide="bottom"
                     onClick={() => chatPanelRef.current?.expand()}
                   >
-                    <PanelRightOpen />
+                    <SidebarSimpleIcon mirrored />
                   </IconButton>
                 )}
               </div>
