@@ -416,7 +416,9 @@ function WorkspaceRow({
   return (
     <div>
       <div className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-2">
+        {/* -ml-2 cancels the ghost pickers' padding so the first icon sits
+            on the dialog gutter with the title and the prompt box. */}
+        <div className="-ml-2 flex items-center gap-1">
           {repos.length > 1 && repo ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
