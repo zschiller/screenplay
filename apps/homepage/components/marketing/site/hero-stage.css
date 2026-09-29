@@ -33,6 +33,28 @@
 .hc-stage[data-playing] .hc-track {
   animation-play-state: running;
 }
+/* Phones: the text fills the hero, so the copies go below it instead of
+   under it, smaller, and with no veil (hero-stage.tsx skips it). */
+@media (max-width: 767px) {
+  .hc-stage {
+    display: flex;
+    flex-direction: column;
+  }
+  .hc-content {
+    order: 1;
+  }
+  .hc-backdrop {
+    position: relative;
+    order: 2;
+    inset: auto;
+  }
+  .hc-rows {
+    gap: 36px;
+  }
+  .hc-copy {
+    width: 220px;
+  }
+}
 @keyframes hc-pan {
   to {
     transform: translateX(calc(-50% - 14px));
