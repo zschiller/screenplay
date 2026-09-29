@@ -414,11 +414,6 @@ html {
       animation: underline-draw 1.1s 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
     }
 
-    /* Wordmark mascot does a little hop when you hover the logo. */
-    .group:hover .mascot-hop {
-      animation: mascot-hop 0.55s cubic-bezier(0.3, 1.6, 0.5, 1);
-    }
-
     .mascot-peek {
       animation: mascot-peek 1s 2.4s cubic-bezier(0.3, 1.5, 0.5, 1) both;
     }

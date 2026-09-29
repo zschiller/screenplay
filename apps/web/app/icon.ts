@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises"
-import { join } from "node:path"
+import { DEV_MARK_FILLS, markSvg } from "@workspace/ui/lib/brand"
 
 export const size = {
   width: 32,
@@ -8,10 +7,10 @@ export const size = {
 
 export const contentType = "image/svg+xml"
 
-export default async function Icon() {
-  const filename =
-    process.env.NODE_ENV === "development" ? "icon-dev.svg" : "icon-prod.svg"
-  const icon = await readFile(join(process.cwd(), "app", filename), "utf8")
+export default function Icon() {
+  const icon = markSvg(
+    process.env.NODE_ENV === "development" ? DEV_MARK_FILLS : undefined
+  )
 
   return new Response(icon, {
     headers: {

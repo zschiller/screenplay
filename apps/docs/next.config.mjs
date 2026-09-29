@@ -10,6 +10,8 @@ const nextConfig = {
   // routes, Nextra assets — beneath the `/docs` prefix. Wrapped by Nextra
   // below so the config still flows through `withNextra`.
   basePath: "/docs",
+  // The logo (mark and favicon) comes from the shared UI package.
+  transpilePackages: ["@workspace/ui"],
 }
 
 export default withNextra(nextConfig)
