@@ -151,7 +151,7 @@ export function FrameAddressBar({
       aria-hidden
       className="flex size-5 shrink-0 items-center justify-center"
     >
-      <span className="size-1.5 animate-pulse rounded-full bg-destructive-fill" />
+      <span className="size-1.5 animate-pulse rounded-full bg-current" />
     </span>
   ) : status && status !== "live" ? (
     <StatusIndicator status={status} />
@@ -164,8 +164,8 @@ export function FrameAddressBar({
       className={cn(
         "flex h-6 max-w-[28rem] min-w-56 items-center rounded-md bg-muted pr-0.5 text-muted-foreground",
         (leading || showHost) && "pl-0.5",
-        // Recording keeps the grey bar: the red dot and stop square carry it.
-        recording && "text-foreground"
+        // A recording fills the bar, black on red like every solid fill.
+        recording && "bg-destructive-fill text-destructive-foreground"
       )}
       {...stopPointer}
     >
@@ -206,13 +206,19 @@ export function FrameAddressBar({
         label={recording ? "Stop recording" : "Record flow"}
         pressed={recording}
         size="icon-xs"
-        className={cn("size-5", recording && "aria-pressed:bg-transparent")}
+        className={cn(
+          "size-5",
+          recording &&
+            "text-destructive-foreground hover:text-destructive-foreground aria-pressed:bg-transparent"
+        )}
         onClick={onToggleRecording}
       >
         <span
           className={cn(
-            "size-2 bg-destructive-fill",
-            recording ? "rounded-[1.5px]" : "rounded-full"
+            "size-2",
+            recording
+              ? "rounded-[1.5px] bg-current"
+              : "rounded-full bg-destructive-fill"
           )}
         />
       </IconButton>
@@ -326,7 +332,7 @@ interface FrameRouteFieldProps {
   inset: boolean
   /** Leave a little room after the Workspace host, whose hover fill ends here. */
   afterHost?: boolean
-  /** A recording's text is already full strength, so hover doesn't change it. */
+  /** A recording is black on its red fill, so hover doesn't brighten it. */
   recording: boolean
 }
 
@@ -404,7 +410,7 @@ export function FrameRouteField({
           className={cn(
             "flex min-w-0 flex-1 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
             // Brighten on hover or open, like the route pill; a recording
-            // is already bright.
+            // stays black on its fill.
             !recording &&
               "hover:text-foreground data-[state=open]:text-foreground"
           )}

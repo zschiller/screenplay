@@ -1290,12 +1290,9 @@ export function AgentMessageItem({
         // line with no spaces to break on.
         <div
           data-testid="chat-error"
-          className="flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs"
+          className="flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs text-destructive"
         >
-          <WarningCircleIcon
-            aria-hidden
-            className="mt-px size-3 shrink-0 text-destructive"
-          />
+          <WarningCircleIcon aria-hidden className="mt-px size-3 shrink-0" />
           <p className="min-w-0 flex-1 [overflow-wrap:anywhere] whitespace-pre-wrap">
             {message.content}
           </p>
