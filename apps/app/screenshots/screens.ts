@@ -1091,6 +1091,19 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-chat-composer-selection",
+    description:
+      "A draft in a chat's composer with its text selected: the accent selection tint (#1033).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Make the order summary sticky on mobile")
+      await page.keyboard.press("ControlOrMeta+A")
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-chat-draft-reload",
     description:
       "A draft typed into a chat, after the page reloads: what's left in the composer.",
@@ -2774,6 +2787,19 @@ export const SCREENS: Screen[] = [
       await page.getByRole("dialog").getByRole("textbox").fill("Checkout v2")
       await page.getByRole("button", { name: "Save" }).click()
       await page.waitForTimeout(800)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-rename-selection",
+    description:
+      "The Rename dialog with the Canvas name selected in its input: the accent selection tint (#1033).",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await openCanvasMenu(page, "Checkout flow")
+      await page.getByRole("menuitem", { name: "Rename" }).click()
+      await page.getByRole("dialog").getByRole("textbox").selectText()
     },
     settleMs: 300,
   },
