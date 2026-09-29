@@ -99,7 +99,7 @@ const CHANNEL_TOLERANCE = 24
  * pixels between runs; without this, every regeneration would rewrite every
  * file and a continuous refresh would never go quiet.
  */
-async function looksTheSame(
+export async function looksTheSame(
   webp: Buffer,
   existingPath: string
 ): Promise<boolean> {
