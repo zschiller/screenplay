@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import {
   AlertTriangle,
+  CircleCheck,
   CircleDashed,
   CircleSmall,
   GitMerge,
@@ -39,6 +40,7 @@ export type WorkspaceMentionBranch = Pick<
   | "status"
   | "statusMessage"
   | "error"
+  | "doneAt"
   | "prNumber"
   | "prState"
 >
@@ -46,7 +48,8 @@ export type WorkspaceMentionBranch = Pick<
 /**
  * The Workspace's state as one glyph (#963): the regular spinner while setting
  * up, the 9-dot while its agent works, a small dot when ready, a dashed circle
- * when stopped, the warning triangle when setup failed. Never PR state. It
+ * when stopped, a muted check circle when Done (#976), the warning triangle
+ * when setup failed. Never PR state. It
  * takes its colour from the text around it, so it reads the same in the
  * sidebar and in a popover.
  */
@@ -58,6 +61,8 @@ export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
       <Spinner className="size-3.5 opacity-70" />
     ) : line.state === "working" ? (
       <GripSpinner className="size-3.5 opacity-70" />
+    ) : line.state === "done" ? (
+      <CircleCheck className="size-3.5 opacity-50" />
     ) : line.state === "stopped" ? (
       // Lucide's dashed circle is drawn larger than CircleSmall; shrink it to
       // about the same size (past a menu button's own svg size), with a
@@ -78,7 +83,7 @@ export function WorkspaceStateIcon({
   branch,
   agentWorking,
 }: {
-  branch: Pick<BranchData, "status" | "statusMessage" | "error">
+  branch: Pick<BranchData, "status" | "statusMessage" | "error" | "doneAt">
   agentWorking: boolean
 }) {
   const line = workspaceStatusLine(branch, { agentWorking })

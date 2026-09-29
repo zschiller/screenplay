@@ -221,6 +221,33 @@ export async function stopDevServers(sandboxNames: string[]): Promise<void> {
 }
 
 /**
+ * Spin one Workspace's Sandbox down when it's marked Done (#976): stop its dev
+ * server and bridge proxy, leaving the Sandbox and its working tree in place.
+ * Unlike {@link stopDevServers} this runs on both backends: a member asked for
+ * it, so a hosted preview stops now too, and the VM then hibernates on its own
+ * timer (the keep-alive heartbeat only pings running Workspaces). Reopen rides
+ * {@link reconnectSandbox}, which relaunches the dev server.
+ */
+export async function stopWorkspaceSandbox(
+  sandboxName: string
+): Promise<SandboxActionResult<void>> {
+  try {
+    const sandbox = await sandboxProvider.get({
+      name: sandboxName,
+      resume: false,
+    })
+    // A hibernated VM has nothing left running to stop.
+    if (isSandboxRunning(sandbox)) await stopDevAndProxy(sandbox)
+    return { success: true, value: undefined }
+  } catch (e) {
+    return {
+      success: false,
+      error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
+  }
+}
+
+/**
  * Permanently delete Sandboxes: stop each one's dev server + bridge proxy,
  * delete the Sandbox itself (hosted: the VM; desktop: the git worktree, its
  * allocated host ports, and its meta), and forget its persisted env vars.
@@ -279,9 +306,7 @@ export async function getStableDevUrl(
       name: sandboxName,
       resume: false,
     })
-    const url = await lookupStableDevUrl(
-      sandbox.hostPort(repo.devServerPort)
-    )
+    const url = await lookupStableDevUrl(sandbox.hostPort(repo.devServerPort))
     return { success: true, value: { url } }
   } catch (e) {
     return {

@@ -68,7 +68,8 @@ Each workspace row shows:
 
 - a **status icon** for what the workspace is doing: a spinner while it
   starts, an activity spinner while the agent works, a small circle when it's
-  ready, a dashed circle when it's stopped, or a warning when setup failed.
+  ready, a dashed circle when it's stopped, a check circle when it's
+  [done](#marking-a-workspace-done), or a warning when setup failed.
   Click the warning for the error, with **Retry**, **Recreate** and
   **Copy error**;
 - the workspace's **title** (double-click to rename). Workspaces created
@@ -106,7 +107,7 @@ Hover a workspace row, or a workspace named on a group or frame label or in
 the address bar, to see its details:
 
 - its title and what it's doing now, such as the setup step and how long it
-  has taken, that the agent is working, or that it's ready or stopped;
+  has taken, that the agent is working, or that it's ready, stopped or done;
 - its **repository**, its **git branch**, the **base** branch its changes are
   compared with, and its **changes** as +/− line counts.
 
@@ -117,7 +118,7 @@ its title.
 
 Hover a workspace and click **…**. The menu starts with the one action the
 workspace's state calls for (**Retry setup** after a failed setup, the pull
-request, or **Open prototype player**), then groups the rest under **View**,
+request, **Reopen** on a done workspace, or **Open prototype player**), then groups the rest under **View**,
 **Git** and **Manage**:
 
 <Screenshot name="ws-menu" alt="The workspace menu" />
@@ -134,6 +135,7 @@ request, or **Open prototype player**), then groups the rest under **View**,
 | **New workspace from here…** | Opens **Create workspaces** with this workspace's branch as the base. |
 | **Rename** | Renames the workspace's title. The git branch stays as it is. |
 | **Restart** | See [Restarting](#restarting). |
+| **Mark as done** / **Reopen** | See [Marking a workspace done](#marking-a-workspace-done). |
 | **Delete** | Removes the workspace, and optionally its branch on GitHub. |
 
 ## Restarting
@@ -158,6 +160,25 @@ When a preview gets stuck, **Restart** offers escalating fixes:
   after every change for this reason. On desktop, worktrees live on your disk
   and survive restarts.
 </Callout>
+
+## Marking a workspace done
+
+When you're finished with a workspace, **… → Mark as done** puts it away
+without deleting anything:
+
+- its dev server stops;
+- its frames leave the canvas. A group on the workspace hides whole, and a
+  frame on it inside another group hides on its own;
+- its row moves into a collapsed **Done** section at the bottom of the
+  Workspaces list, with a check circle for its status icon;
+- its chats and history stay, and frame workspace lists stop offering it.
+
+Everyone on the canvas sees it as done. It isn't available while the agent is
+working. Merging its pull request doesn't mark a workspace done; only the menu
+does.
+
+To bring one back, open **Done** and choose **… → Reopen**. The workspace
+starts again and its frames return where they were.
 
 ## Pull requests
 

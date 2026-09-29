@@ -7,7 +7,9 @@ import {
   type BranchRecoveryDeps,
   type RecoveryAgent,
   type RecoveryPatch,
+  markDone,
   recreate,
+  reopen,
   restartDevServer,
   restartSandbox,
   startWorkspace,
@@ -20,6 +22,8 @@ const lifecycle = vi.hoisted(() => ({
   restartDevServer: vi.fn(),
   restartSandbox: vi.fn(),
   recreateSandbox: vi.fn(),
+  reconnectSandbox: vi.fn(),
+  stopWorkspaceSandbox: vi.fn(),
 }))
 
 vi.mock("@/lib/sandbox/lifecycle", () => lifecycle)
@@ -82,6 +86,8 @@ beforeEach(() => {
   lifecycle.restartDevServer.mockReset()
   lifecycle.restartSandbox.mockReset()
   lifecycle.recreateSandbox.mockReset()
+  lifecycle.reconnectSandbox.mockReset()
+  lifecycle.stopWorkspaceSandbox.mockReset()
 })
 
 describe("restartSandbox (Sandbox Restart)", () => {
@@ -333,5 +339,73 @@ describe("startWorkspace", () => {
       kind: "error",
       message: "Couldn't restart dev server",
     })
+  })
+})
+
+describe("markDone and reopen (#976)", () => {
+  it("marks the Workspace Done and stopped, then spins its sandbox down", async () => {
+    lifecycle.stopWorkspaceSandbox.mockResolvedValue({
+      success: true,
+      value: undefined,
+    })
+    const deps = makeDeps()
+    await markDone("branch-1", deps, 1234)
+    expect(deps.patches).toEqual([
+      {
+        id: "branch-1",
+        patch: {
+          doneAt: 1234,
+          status: "stopped",
+          statusMessage: "",
+          error: "",
+        },
+      },
+    ])
+    expect(lifecycle.stopWorkspaceSandbox).toHaveBeenCalledWith("sandbox-1")
+    expect(deps.toasts).toEqual([])
+  })
+
+  it("stays Done when the stop fails", async () => {
+    lifecycle.stopWorkspaceSandbox.mockRejectedValue(new Error("gone"))
+    const deps = makeDeps()
+    await markDone("branch-1", deps, 1)
+    expect(deps.patches).toHaveLength(1)
+    expect(deps.toasts).toEqual([])
+  })
+
+  it("reopens: clears Done, then starts the sandbox through reconnect", async () => {
+    lifecycle.reconnectSandbox.mockResolvedValue(ok)
+    const deps = makeDeps()
+    await reopen("branch-1", deps)
+    expect(deps.patches[0]).toEqual({
+      id: "branch-1",
+      patch: { doneAt: undefined },
+    })
+    expect(deps.patches.slice(1).map((p) => p.patch.status)).toEqual([
+      "starting",
+      "running",
+    ])
+    expect(lifecycle.reconnectSandbox).toHaveBeenCalledWith("sandbox-1", REPO)
+    expect(deps.toasts).toEqual([])
+  })
+
+  it("lands a failed reopen on error, out of the Done section", async () => {
+    lifecycle.reconnectSandbox.mockResolvedValue({
+      success: false,
+      error: "expired",
+    } satisfies SandboxResult)
+    const deps = makeDeps()
+    await reopen("branch-1", deps)
+    expect(deps.patches.at(-1)?.patch).toMatchObject({
+      status: "error",
+      error: "expired",
+    })
+    expect(deps.toasts).toEqual([
+      {
+        kind: "error",
+        message: "Couldn't reopen workspace",
+        description: "expired",
+      },
+    ])
   })
 })

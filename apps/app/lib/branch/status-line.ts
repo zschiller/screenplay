@@ -4,7 +4,7 @@ import type { BranchData } from "@/lib/types"
  * Workspace status line — the words behind each Workspace row's status icon
  * in the in-room sidebar (#791), shown in its tooltip. It says what the
  * Workspace is doing right now: the setup step it's on, that its agent is
- * working, that it's ready or stopped, or that setup failed. Its PR is not a
+ * working, that it's ready, stopped or Done (#976), or that setup failed. Its PR is not a
  * state: the row shows it at its end (#963).
  *
  * Pure: it reads the slice of a Branch below plus one fact the sidebar
@@ -15,7 +15,7 @@ import type { BranchData } from "@/lib/types"
 /** The slice of a Branch the status line reads. {@link BranchData} satisfies it. */
 export type StatusLineBranch = Pick<
   BranchData,
-  "status" | "statusMessage" | "error"
+  "status" | "statusMessage" | "error" | "doneAt"
 >
 
 export interface StatusLineContext {
@@ -30,7 +30,11 @@ export type WorkspaceStatusLine =
   /** Setup (or a recovery) failed. `title` names what failed, for the detail
    *  card; `detail` is the raw error. */
   | { kind: "error"; title: string; detail: string }
-  | { kind: "idle"; state: "working" | "ready" | "stopped"; text: string }
+  | {
+      kind: "idle"
+      state: "working" | "ready" | "stopped" | "done"
+      text: string
+    }
 
 /** "Installing dependencies…" → "Installing dependencies". */
 function stepLabel(message: string | undefined): string {
@@ -54,6 +58,8 @@ export function workspaceStatusLine(
   branch: StatusLineBranch,
   ctx: StatusLineContext
 ): WorkspaceStatusLine {
+  // Done is the member's word on the Workspace, so it wins over the sandbox.
+  if (branch.doneAt) return { kind: "idle", state: "done", text: "Done" }
   if (branch.status === "error" || branch.error) {
     return {
       kind: "error",

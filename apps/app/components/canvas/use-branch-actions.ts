@@ -11,7 +11,9 @@ import {
 } from "@/lib/branch/actions"
 import {
   type BranchRecoveryDeps,
+  markDone as markDoneRecovery,
   recreate as recreateBranchRecovery,
+  reopen as reopenRecovery,
   restartDevServer as restartDevServerRecovery,
   restartSandbox as restartSandboxRecovery,
   startWorkspace as startWorkspaceRecovery,
@@ -73,6 +75,10 @@ export interface BranchActions {
   restartSandbox: (agentId: string) => void
   /** A frame's Retry / Start on a failed or stopped Workspace (issue #731). */
   startWorkspace: (agentId: string) => void
+  /** Mark the Workspace Done: stop its sandbox, hide its frames (#976). */
+  markDone: (agentId: string) => void
+  /** Undo Mark as done: start it again and show its frames where they were. */
+  reopen: (agentId: string) => void
   /**
    * Destructive reclone — runs only after the sidebar's confirm, which awaits
    * it. Rejects with the failure so the confirm can show it inline.
@@ -236,6 +242,8 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         void startWorkspaceRecovery(agentId, recoveryDeps, {
           local: isLocalBuild,
         }),
+      markDone: (agentId) => void markDoneRecovery(agentId, recoveryDeps),
+      reopen: (agentId) => void reopenRecovery(agentId, recoveryDeps),
       recreate: async (agentId) => {
         const outcome = (await run("recreate", agentId)) as
           | RecoveryOutcome

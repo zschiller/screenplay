@@ -1,5 +1,7 @@
 import {
+  reconnectSandbox,
   recreateSandbox,
+  stopWorkspaceSandbox,
   restartDevServer as restartDevServerSandbox,
   restartSandbox as restartSandboxVm,
 } from "@/lib/sandbox/lifecycle"
@@ -53,9 +55,10 @@ export interface RecoveryAgent {
 export interface RecoveryPatch {
   sandboxName?: string
   previewDomain?: string
-  status?: "starting" | "running" | "error"
+  status?: "starting" | "running" | "error" | "stopped"
   statusMessage?: string
   error?: string
+  doneAt?: number
 }
 
 /** Surface success / failure to the user. Adapts the sonner `toast` at the call site. */
@@ -97,8 +100,8 @@ type SandboxRecoveryResult = SandboxActionResult<{
 interface SandboxRecoverySpec {
   /** Transient status line while the sandbox fn runs ("Restarting sandbox…"). */
   startingMessage: string
-  /** Toast on success ("Sandbox restarted"). */
-  successMessage: string
+  /** Toast on success ("Sandbox restarted"); none when the change speaks for itself. */
+  successMessage?: string
   /** Toast title on failure / a missing repo ("Couldn't restart sandbox"). */
   failureTitle: string
   /** The sandbox fn to await — bound to restartSandbox / recreateSandbox. */
@@ -150,7 +153,7 @@ async function runSandboxRecovery(
       statusMessage: "",
       error: "",
     })
-    deps.toast.success(spec.successMessage)
+    if (spec.successMessage) deps.toast.success(spec.successMessage)
     return { ok: true }
   } else {
     // The status message stays: it names the step that failed, which titles
@@ -268,6 +271,53 @@ export function startWorkspace(
           },
         }
       },
+    },
+    deps
+  )
+}
+
+/**
+ * **Mark as done** (#976) — the member is finished with the Workspace. It is
+ * Done at once (its frames leave the Canvas and its row moves to the sidebar's
+ * Done section, for every member), then its dev server spins down. The stop is
+ * best-effort: a sandbox that's already gone is as stopped as it gets, and
+ * Reopen relaunches whatever is left. Chats and history are untouched.
+ */
+export async function markDone(
+  id: string,
+  deps: BranchRecoveryDeps,
+  now: number = Date.now()
+): Promise<void> {
+  const agent = deps.findAgent(id)
+  if (!agent) return
+  deps.patchAgent(id, {
+    doneAt: now,
+    status: "stopped",
+    statusMessage: "",
+    error: "",
+  })
+  if (!agent.sandboxName) return
+  await stopWorkspaceSandbox(agent.sandboxName).catch(() => undefined)
+}
+
+/**
+ * **Reopen** (#976) — undo Mark as done: the Workspace leaves the Done section,
+ * its frames come back where they were, and its sandbox starts again through
+ * the reconnect path (resume a hibernated VM, relaunch the dev server), shown
+ * as `starting` until it runs.
+ */
+export function reopen(
+  id: string,
+  deps: BranchRecoveryDeps
+): Promise<RecoveryOutcome> {
+  if (!deps.findAgent(id)) return Promise.resolve({ ok: true })
+  deps.patchAgent(id, { doneAt: undefined })
+  return runSandboxRecovery(
+    id,
+    {
+      startingMessage: "Starting…",
+      failureTitle: "Couldn't reopen workspace",
+      run: (agent, repo) => reconnectSandbox(agent.sandboxName, repo),
     },
     deps
   )

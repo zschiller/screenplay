@@ -2,6 +2,7 @@
 
 import { Fragment, type ReactNode } from "react"
 import {
+  CircleCheck,
   ExternalLink,
   GitBranch,
   GitBranchPlus,
@@ -15,6 +16,7 @@ import {
   RotateCw,
   Route,
   Trash2,
+  Undo2,
 } from "lucide-react"
 import {
   DropdownMenuContent,
@@ -49,6 +51,8 @@ export type BranchMenuItemKey =
   | "create-pr"
   | "rebase"
   | "open-github"
+  | "mark-done"
+  | "reopen"
   | "delete"
 
 export type BranchMenuSectionId = "view" | "git" | "manage" | "danger"
@@ -87,13 +91,32 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
       "new-branch-from-here",
     ],
   },
-  { id: "manage", label: "Manage", itemKeys: ["rename", "restart"] },
+  {
+    id: "manage",
+    label: "Manage",
+    itemKeys: ["rename", "restart", "mark-done"],
+  },
   { id: "danger", label: "Danger", itemKeys: ["delete"] },
 ]
 
+/**
+ * What a Done Workspace's menu leaves out (#976): everything that needs its
+ * sandbox running. Reopen leads instead, and a PR that's still open keeps its
+ * link (see {@link BranchOverflowMenuContent}).
+ */
+const HIDDEN_WHILE_DONE: ReadonlySet<BranchMenuItemKey> = new Set([
+  "play",
+  "open-in-browser",
+  "routes",
+  "rebase",
+  "rename-branch",
+  "restart",
+  "mark-done",
+])
+
 /** What the lead action reads. {@link BranchData} satisfies the branch half. */
 export interface WorkspaceMenuLeadInput {
-  branch: Pick<BranchData, "status" | "error" | "previewDomain">
+  branch: Pick<BranchData, "status" | "error" | "previewDomain" | "doneAt">
   pr?: Pick<BranchPrInfo, "state"> | null
   /** The Workspace has a diff against its base (the sidebar's diff stat). */
   hasChanges: boolean
@@ -105,7 +128,8 @@ export interface WorkspaceMenuLeadInput {
  * The one action that leads the Workspace menu, from its state: Retry when
  * setup failed, the open PR when there is one, Create pull request when there
  * are changes to propose, otherwise the prototype player. A Workspace that's
- * still being set up (or stopped) has no lead: nothing in it works yet.
+ * still being set up (or stopped) has no lead: nothing in it works yet. A Done
+ * one leads with Reopen (#976).
  */
 export function workspaceMenuLead({
   branch,
@@ -113,6 +137,7 @@ export function workspaceMenuLead({
   hasChanges,
   isBusy,
 }: WorkspaceMenuLeadInput): BranchMenuItemKey | null {
+  if (branch.doneAt) return "reopen"
   if (branch.status === "error" || branch.error) return "retry"
   if (
     branch.status === "creating" ||
@@ -169,6 +194,10 @@ export interface BranchOverflowMenuContentProps {
    */
   pr?: BranchPrInfo | null
   onRebase: (branchId: string) => void
+  /** Marks the Workspace Done (#976): stops its sandbox and hides its frames. */
+  onMarkDone: (branchId: string) => void
+  /** Undoes Mark as done: starts the Workspace and shows its frames again. */
+  onReopen: (branchId: string) => void
   onDelete: (branchId: string) => void
   onCloseAutoFocus?: (event: Event) => void
   /**
@@ -200,6 +229,8 @@ export function BranchOverflowMenuContent({
   onShowRoutes,
   onCreatePr,
   onRebase,
+  onMarkDone,
+  onReopen,
   onDelete,
   onCloseAutoFocus,
   pr,
@@ -368,6 +399,25 @@ export function BranchOverflowMenuContent({
         Open branch on GitHub
       </DropdownMenuItem>
     ),
+    // Not while the agent works (its turn needs the sandbox) or while setup
+    // is still running.
+    "mark-done": (
+      <DropdownMenuItem
+        disabled={
+          isBusy || branch.status === "creating" || branch.status === "starting"
+        }
+        onClick={() => onMarkDone(branch.id)}
+      >
+        <CircleCheck />
+        Mark as done
+      </DropdownMenuItem>
+    ),
+    reopen: (
+      <DropdownMenuItem onClick={() => onReopen(branch.id)}>
+        <Undo2 />
+        Reopen
+      </DropdownMenuItem>
+    ),
     delete: (
       <DropdownMenuItem
         variant="destructive"
@@ -380,11 +430,17 @@ export function BranchOverflowMenuContent({
   }
 
   const lead = workspaceMenuLead({ branch, pr, hasChanges, isBusy })
+  const shown = (key: BranchMenuItemKey) => {
+    if (key === lead) return false
+    if (!branch.doneAt) return true
+    if (key === "create-pr") return pr?.state === "open"
+    return !HIDDEN_WHILE_DONE.has(key)
+  }
   const groups = [
     ...(lead ? [{ id: "lead", itemKeys: [lead] }] : []),
     ...BRANCH_MENU_SECTIONS.map((section) => ({
       id: section.id,
-      itemKeys: section.itemKeys.filter((key) => key !== lead),
+      itemKeys: section.itemKeys.filter(shown),
     })),
   ].filter((group) => group.itemKeys.length > 0)
 

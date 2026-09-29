@@ -51,8 +51,8 @@ export type ReconnectAction =
    */
   | { kind: "repo-missing" }
   /**
-   * Nothing to recover: a non-`creating` Branch that never had a sandbox. The
-   * controller skips it.
+   * Nothing to recover: a non-`creating` Branch that never had a sandbox, or a
+   * Done one (#976). The controller skips it.
    */
   | { kind: "none" }
 
@@ -83,6 +83,8 @@ export function resolveReconnect(
     }
   }
 
+  // A Done Workspace stays spun down until someone reopens it (#976).
+  if (agent.doneAt) return { kind: "none" }
   if (!agent.sandboxName) return { kind: "none" }
   if (!repo) return { kind: "repo-missing" }
 
