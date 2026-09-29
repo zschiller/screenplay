@@ -980,7 +980,8 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
           isStreaming: true,
         },
       ],
-      savedViewport: { x: 60, y: 60, zoom: 0.5 },
+      // Low enough that the Pricing group's label clears the top chrome.
+      savedViewport: { x: 60, y: 120, zoom: 0.5 },
     },
     thumbnailFrames: ["layer-pricing-desktop", "layer-pricing-mobile"],
   }

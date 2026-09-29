@@ -776,20 +776,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
-    name: "ws-color",
-    viewport: TALL_VIEWPORT,
-    description: "The Workspace menu's Color submenu.",
-    path: ROOM,
-    cookies: WITH_CHAT,
-    crop: [0, 40, 700, 500],
-    focus: MENU,
-    prepare: async (page) => {
-      await camera(page, VIEW.hero)
-      await openRowMenu(page, "Hero gradient")
-      await hoverMenuItem(page, "Color")
-    },
-  }),
-  screen({
     name: "delete-branch-dialog",
     description: "Deleting a Workspace.",
     path: ROOM,

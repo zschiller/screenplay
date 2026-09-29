@@ -6,7 +6,6 @@ import { MoreHorizontal } from "lucide-react"
 import { CanvasIcon } from "@/components/canvas-icon"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
-import { getBranchColorByIndex } from "@/lib/branch-colors"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
@@ -66,10 +65,8 @@ export function EmptyThumbnail({
  * against the manifest bounds. The composite box keeps the bounds' aspect ratio
  * and is centered inside the 4:3 card (contain, not stretch), inset by a small
  * padding so frames breathe rather than butting up against the card edge. Frames
- * without a
- * capture yet (booting, skipped, or never captured) render as branch-tinted,
- * labeled placeholder rectangles — the snapshotted palette index is re-resolved
- * through `getBranchColorByIndex` so the tint stays theme-aware. Returns null
+ * without a capture yet (booting, skipped, or never captured) render as neutral
+ * placeholder blocks. Returns null
  * when there's nothing to place, so the card's gradient shows through (legacy
  * rows have a null manifest and never reach here).
  */
@@ -115,23 +112,14 @@ export function ThumbnailComposite({
             height: `${(frame.height / bounds.height) * 100}%`,
           }
           if (!frame.capture) {
-            // Branch-tinted placeholder: re-resolve the snapshotted palette
-            // index to theme-aware classes (light/dark). A frame bound to no
-            // Branch (or a legacy v1 manifest with no index) falls back to a
-            // neutral tint. The thumbnail render never draws text — the tinted
-            // block stands in for an uncaptured frame on its own.
-            const color =
-              frame.paletteIndex != null
-                ? getBranchColorByIndex(frame.paletteIndex)
-                : undefined
+            // Neutral placeholder. The thumbnail render never draws text — the
+            // block stands in for an uncaptured frame on its own. (A legacy
+            // `paletteIndex` on a stored manifest is ignored.)
             return (
               <div
                 key={frame.id}
                 style={style}
-                className={cn(
-                  "absolute overflow-hidden",
-                  color ? color.badge : "bg-foreground/5"
-                )}
+                className="absolute overflow-hidden bg-foreground/5"
               />
             )
           }

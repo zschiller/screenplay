@@ -7,7 +7,7 @@ import sharp from "sharp"
  *
  * A Room's home-grid card is composed at display time from its manifest (#468):
  * each Iframe Layer's rect paired with the last screenshot of that frame. With no
- * captures every card falls back to branch-tinted placeholders, which hides the
+ * captures every card falls back to neutral placeholders, which hides the
  * compositor — the exact thing a home-grid polish ticket needs to see.
  *
  * Real captures would mean booting a dev server per Workspace, so these are
@@ -32,8 +32,8 @@ export interface FrameCaptureRequest {
   width: number
   height: number
   label: string
-  /** Index into the branch palette, only used to tint the wireframe's accent. */
-  paletteIndex: number | null
+  /** Picks the wireframe's accent from `ACCENTS` (fake screenshot pixels only). */
+  accentIndex: number | null
 }
 
 export interface RenderedFrameCapture {
@@ -45,10 +45,9 @@ export interface RenderedFrameCapture {
 }
 
 /**
- * A small, theme-neutral accent ramp. Deliberately independent of
- * `lib/branch-colors` — these are pixels baked into an image that both themes
- * display, so they need mid-tone hues that read on either background, not the
- * theme-aware CSS variables the live placeholders use.
+ * A small, theme-neutral accent ramp for the fake screenshots. These are pixels
+ * baked into an image that both themes display, so they need mid-tone hues that
+ * read on either background.
  */
 const ACCENTS = [
   "#6366f1",
@@ -116,9 +115,9 @@ function wireframeSvg(
   height: number
 ): string {
   const accent =
-    request.paletteIndex == null
+    request.accentIndex == null
       ? "#94a3b8"
-      : ACCENTS[Math.abs(request.paletteIndex) % ACCENTS.length]!
+      : ACCENTS[Math.abs(request.accentIndex) % ACCENTS.length]!
   const narrow = width < 420
   const pad = Math.round(width * 0.06)
   const barHeight = Math.round(height * 0.055)

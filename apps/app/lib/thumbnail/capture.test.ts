@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { IframeLayerLayout } from "@/lib/canvas/layout"
-import { resolveBranchColorIndex } from "@/lib/branch-colors"
 import type { ThumbnailCapturer } from "./capturer"
 import type { RoomCaptureLayout } from "./room-layout"
 import type { ThumbnailManifest } from "./manifest"
@@ -100,14 +99,11 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Home",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
         {
           id: "b",
           label: "Settings",
           previewUrl: "https://b.preview.example/settings",
-          branchKey: "branch-b",
-          branchColorIndex: 3,
         },
       ],
     }
@@ -152,7 +148,6 @@ describe("captureRoomThumbnail", () => {
         y: 0,
         width: 400,
         height: 300,
-        paletteIndex: resolveBranchColorIndex("branch-a"),
         capture: {
           url: "https://blob.example/thumbnails/room-1/a.webp",
           capturedAt: NOW,
@@ -167,7 +162,6 @@ describe("captureRoomThumbnail", () => {
         y: 0,
         width: 400,
         height: 300,
-        paletteIndex: 3,
         capture: {
           url: "https://blob.example/thumbnails/room-1/b.webp",
           capturedAt: NOW,
@@ -192,9 +186,8 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Home",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
-        { id: "b", label: "Booting", previewUrl: null, branchKey: "branch-b" },
+        { id: "b", label: "Booting", previewUrl: null },
       ],
     } satisfies RoomCaptureLayout)
 
@@ -208,11 +201,8 @@ describe("captureRoomThumbnail", () => {
       width: 400,
       height: 300,
     })
-    // The booting frame lands captureless but still carries its placeholder tint.
+    // The booting frame lands captureless (a neutral placeholder).
     expect(manifest.frames[1]!.capture).toBeNull()
-    expect(manifest.frames[1]!.paletteIndex).toBe(
-      resolveBranchColorIndex("branch-b")
-    )
   })
 
   it("skips a frame whose capture throws, persisting every other frame's capture", async () => {
@@ -235,13 +225,11 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Home",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
         {
           id: "b",
           label: "Booting",
           previewUrl: "https://b.preview.example/",
-          branchKey: "branch-b",
         },
       ],
     } satisfies RoomCaptureLayout)
@@ -279,7 +267,6 @@ describe("captureRoomThumbnail", () => {
           y: 0,
           width: 400,
           height: 300,
-          paletteIndex: resolveBranchColorIndex("branch-a"),
           capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
         },
         {
@@ -289,7 +276,6 @@ describe("captureRoomThumbnail", () => {
           y: 0,
           width: 400,
           height: 300,
-          paletteIndex: resolveBranchColorIndex("branch-b"),
           capture: { url: "https://blob.example/old/b.webp", capturedAt: 1 },
         },
       ],
@@ -307,9 +293,8 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Home",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
-        { id: "b", label: "Settings", previewUrl: null, branchKey: "branch-b" },
+        { id: "b", label: "Settings", previewUrl: null },
       ],
     } satisfies RoomCaptureLayout)
 
@@ -345,7 +330,6 @@ describe("captureRoomThumbnail", () => {
           y: 0,
           width: 400,
           height: 300,
-          paletteIndex: resolveBranchColorIndex("branch-a"),
           capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
         },
         {
@@ -355,7 +339,6 @@ describe("captureRoomThumbnail", () => {
           y: 0,
           width: 400,
           height: 300,
-          paletteIndex: resolveBranchColorIndex("branch-b"),
           capture: { url: "https://blob.example/old/b.webp", capturedAt: 1 },
         },
       ],
@@ -372,13 +355,11 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Home",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
         {
           id: "b",
           label: "Settings",
           previewUrl: "https://b.preview.example/settings",
-          branchKey: "branch-b",
         },
       ],
     } satisfies RoomCaptureLayout)
@@ -426,7 +407,6 @@ describe("captureRoomThumbnail", () => {
           y: 0,
           width: 400,
           height: 300,
-          paletteIndex: resolveBranchColorIndex("branch-a"),
           capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
         },
       ],
@@ -443,7 +423,6 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Home",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
       ],
     } satisfies RoomCaptureLayout)
@@ -489,7 +468,6 @@ describe("captureRoomThumbnail", () => {
           y: 0,
           width: 400,
           height: 300,
-          paletteIndex: resolveBranchColorIndex("branch-a"),
           capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
         },
       ],
@@ -497,7 +475,7 @@ describe("captureRoomThumbnail", () => {
     getRoom.mockResolvedValue({ thumbnailManifest: previousManifest })
 
     // The doc changed (a layout-lane / webhook trigger fired) but nothing that
-    // affects the layout moved — same rect, label, palette, frame set.
+    // affects the layout moved — same rect, label, frame set.
     readRoomCaptureLayout.mockResolvedValue({
       layouts: new Map([
         ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
@@ -507,7 +485,6 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Home",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
       ],
     } satisfies RoomCaptureLayout)
@@ -540,7 +517,6 @@ describe("captureRoomThumbnail", () => {
           id: "a",
           label: "Booting",
           previewUrl: "https://a.preview.example/",
-          branchKey: "branch-a",
         },
       ],
     } satisfies RoomCaptureLayout)

@@ -1,5 +1,7 @@
-import type { IframeLayerLayout, IframeLayerLayoutMap } from "@/lib/canvas/layout"
-import { resolveBranchColorIndex } from "@/lib/branch-colors"
+import type {
+  IframeLayerLayout,
+  IframeLayerLayoutMap,
+} from "@/lib/canvas/layout"
 
 /**
  * The Thumbnail Manifest — the per-Room snapshot a thumbnail is *composed from
@@ -41,7 +43,7 @@ export type FrameCapture = {
  * One Iframe Layer's placement in the composed thumbnail, with its capture when
  * one exists. `capture` is `null` for a frame whose preview hasn't been captured
  * yet (booting, skipped, or never captured) — the compositor renders those as
- * branch-tinted, labeled placeholder rectangles rather than dropping them.
+ * neutral placeholder rectangles rather than dropping them.
  */
 export type ManifestFrame = {
   /** Iframe Layer id. */
@@ -52,28 +54,15 @@ export type ManifestFrame = {
   y: number
   width: number
   height: number
-  /**
-   * Resolved index into `BRANCH_COLORS`, snapshotted from the Y.Doc at build
-   * time. `null` for a frame bound to no Branch. The compositor re-resolves it
-   * through `getBranchColorByIndex` so a placeholder's tint stays theme-aware.
-   */
-  paletteIndex: number | null
   capture: FrameCapture | null
 }
 
 /**
- * The per-layer input `buildThumbnailManifest` needs: identity, label, and the
- * bound Branch's palette inputs (its id is the hash key; `branchColorIndex` is
- * the manual override). Kept separate from `IframeLayerData` because the palette
- * override lives on `BranchData`, not the layer.
+ * The per-layer input `buildThumbnailManifest` needs: identity and label.
  */
 export type ManifestLayer = {
   id: string
   label: string
-  /** The bound Branch's id (the palette hash key), or `null` for a frame with no Branch. */
-  branchKey: string | null
-  /** The Branch's manual palette override, if any. */
-  branchColorIndex?: number
 }
 
 export type ManifestBounds = {
@@ -86,8 +75,9 @@ export type ManifestBounds = {
 export type ThumbnailManifest = {
   /**
    * Schema version, so the compositor can evolve the shape without a migration.
-   * v2 added each frame's snapshotted Branch `paletteIndex`; legacy v1 rows lack
-   * it and the compositor treats the missing index as a neutral placeholder.
+   * v2 added a per-frame Branch `paletteIndex`, which is now legacy: stored rows
+   * may still carry it, but nothing writes or reads it — every uncaptured frame
+   * renders as the same neutral placeholder.
    */
   version: 2
   /**
@@ -124,7 +114,10 @@ const SIZE_DRIFT_EPSILON = 0.5
  *
  * Legacy captures with no recorded size can't be judged and are kept.
  */
-function sizeDrifted(capture: FrameCapture, layout: IframeLayerLayout): boolean {
+function sizeDrifted(
+  capture: FrameCapture,
+  layout: IframeLayerLayout
+): boolean {
   if (capture.width == null || capture.height == null) return false
   return (
     Math.abs(layout.width - capture.width) > SIZE_DRIFT_EPSILON ||
@@ -154,16 +147,15 @@ function computeBounds(frames: readonly ManifestFrame[]): ManifestBounds {
  * giving each frame a stable identity keyed by Iframe Layer id across capture
  * rounds (#470):
  *
- * - **Reposition / rename / recolor.** Every placed frame takes its rect, label,
- *   and resolved Branch palette index from the *current* layout, so a moved,
- *   resized, renamed, or recolored frame is reflected on its next rebuild —
- *   independent of whether a new image was captured.
+ * - **Reposition / rename.** Every placed frame takes its rect and label from
+ *   the *current* layout, so a moved, resized, or renamed frame is reflected on
+ *   its next rebuild — independent of whether a new image was captured.
  * - **Merge.** A frame whose id is in `captures` adopts that fresh capture
  *   (overwriting only its own image + timestamp); siblings are untouched.
  * - **Retain last-good.** A frame with no fresh capture this round (booting,
  *   skipped, or a failed/timed-out capture) keeps the capture it carried in
  *   `previous`, rather than reverting to a placeholder. It lands captureless —
- *   a branch-tinted placeholder — only when neither source has an image.
+ *   a neutral placeholder — only when neither source has an image.
  * - **Discard on resize.** A retained capture whose baked size no longer matches
  *   the frame's current rect is dropped (the frame was resized since it was last
  *   shot), so the compositor shows a placeholder instead of scaling/cropping a
@@ -171,10 +163,8 @@ function computeBounds(frames: readonly ManifestFrame[]): ManifestBounds {
  * - **Prune.** Frames that were in `previous` but are absent from the current
  *   layout simply aren't iterated, so they drop out of the rebuilt manifest.
  *
- * The palette index is *resolved here*, at build time, against the Branch info
- * snapshotted off the Y.Doc — so the manifest is decoupled from the live doc and
- * the compositor only re-resolves the index to theme-aware classes. Layers with
- * no layout (not in any group) are skipped — there's nowhere to place them.
+ * Layers with no layout (not in any group) are skipped — there's nowhere to
+ * place them.
  *
  * Pure and order-preserving: frames come out in `iframeLayers` order.
  */
@@ -209,10 +199,6 @@ export function buildThumbnailManifest(
       y: layout.y,
       width: layout.width,
       height: layout.height,
-      paletteIndex:
-        layer.branchKey === null
-          ? null
-          : resolveBranchColorIndex(layer.branchKey, layer.branchColorIndex),
       capture,
     })
   }

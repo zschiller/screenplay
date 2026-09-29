@@ -91,7 +91,8 @@ export function docsPreviews(firstPort: number): DemoPreview[] {
   }))
 }
 
-// Palette indices in `lib/branch-colors`.
+// Legacy Workspace `colorIndex` values (Workspaces have no colour in the UI;
+// stored rooms may still carry one).
 const COLOR = { orange: 1, lime: 4, emerald: 6, sky: 9, purple: 13, rose: 15 }
 
 const ROUTES = [
