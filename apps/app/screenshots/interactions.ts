@@ -553,6 +553,43 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(2500)
     },
   },
+  {
+    name: "frame-route-edit",
+    description:
+      "Editing a frame's route in place (#1149): hover, click to select it, type to filter, arrow to a suggestion and Enter; then click again and Esc puts the route back.",
+    path: `/${ids.rooms.checkout}`,
+    run: async (page) => {
+      await click(
+        page,
+        page.getByText("Checkout · desktop", { exact: true }).first()
+      )
+      const route = page
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: /^Route:/ })
+      await step(async () => {
+        const box = await route.boundingBox({ timeout: 10_000 })
+        if (!box) return
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, {
+          steps: 15,
+        })
+      })
+      await page.waitForTimeout(900)
+      await click(page, route)
+      await page.waitForTimeout(1200)
+      await page.keyboard.type("/ca", { delay: 180 })
+      await page.waitForTimeout(900)
+      await page.keyboard.press("ArrowDown")
+      await page.waitForTimeout(700)
+      await page.keyboard.press("Enter")
+      await page.waitForTimeout(1500)
+      await click(page, route)
+      await page.waitForTimeout(700)
+      await page.keyboard.type("/nowhere", { delay: 120 })
+      await page.waitForTimeout(900)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(1500)
+    },
+  },
 ]
 
 /**
