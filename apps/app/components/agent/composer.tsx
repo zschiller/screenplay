@@ -1038,10 +1038,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   <IconButton label="Stop" asChild>
                     <InputGroupButton
                       size="icon-xs"
-                      variant="secondary"
+                      variant="default"
                       onClick={onStop}
                     >
-                      <SquareIcon fill="currentColor" />
+                      <SquareIcon weight="fill" className="size-2.5" />
                     </InputGroupButton>
                   </IconButton>
                 ) : (
