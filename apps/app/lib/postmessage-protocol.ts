@@ -42,6 +42,9 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:pick-start"; id: string }
   | { type: "screenplay:pick-stop"; id: string }
   | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
+  // Follow another viewer's route client-side (#999). Answered with a
+  // `dom-result` whose value is true when the page's router took the route.
+  | { type: "screenplay:navigate"; id: string; path: string }
   | { type: "screenplay:knob-values"; values: JsonObject }
   | { type: "screenplay:cursor-mode"; mode: CursorMode }
   // `initial` marks the answer to `screenplay:shared-state-request`: the

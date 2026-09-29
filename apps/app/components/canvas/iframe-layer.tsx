@@ -410,6 +410,10 @@ export function IframeLayer({
   // RPC to come back. The proxy never injects the bridge into its "not ready"
   // placeholder, so this only fires for genuine dev-server pages.
   const [contentReady, setContentReady] = useState(false)
+  const contentReadyRef = useRef(false)
+  useEffect(() => {
+    contentReadyRef.current = contentReady
+  })
 
   // Back/forward (issue #795). The preview is cross-origin, so the frame keeps
   // its own list of the routes it has shown and steps its route through it.
@@ -442,8 +446,19 @@ export function IframeLayer({
     recordingRef.current = { createFlow, shownRoute }
   })
 
+  // The route the frame is following client-side (#999), until the page
+  // reports it. That report is the echo of a route the room already holds, so
+  // it's recorded as a replace, like the first report after a reload, and
+  // never counts as a new step.
+  const followingRouteRef = useRef<string | null>(null)
+
   const handleNavigation = useCallback(
-    (id: string, path: string, replace: boolean) => {
+    (id: string, path: string, pageReplace: boolean) => {
+      let replace = pageReplace
+      if (followingRouteRef.current !== null) {
+        if (path === followingRouteRef.current) replace = true
+        followingRouteRef.current = null
+      }
       reportedPathRef.current = path
       setHistory((h) => visitRoute(h, path, replace))
       const recording = recordingRef.current
@@ -706,6 +721,9 @@ export function IframeLayer({
   }, [iframeSrc])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Bumped per route follow so a late answer for a superseded route is ignored.
+  const followSeqRef = useRef(0)
+
   // This synchronizes the iframe (an external system) with the desired
   // url/route while suppressing reload loops from in-iframe navigation echoes.
   // The decision depends on ref-tracked history (last applied url, last path
@@ -727,15 +745,45 @@ export function IframeLayer({
       // matches what the previous iframe last reported.
       lastIframeUrlRef.current = iframeLayer.iframeUrl
       reportedPathRef.current = null
+      followSeqRef.current++
+      followingRouteRef.current = null
       // New page incoming — re-show the overlay until the bridge reports back.
       setContentReady(false)
       setIframeSrc(iframeLayer.iframeUrl + route)
       return
     }
     if (route === reportedPathRef.current) return
-    setContentReady(false)
-    setIframeSrc(iframeLayer.iframeUrl + route)
-  }, [iframeLayer.iframeUrl, iframeLayer.route])
+    const src = iframeLayer.iframeUrl + route
+    const reload = () => {
+      followingRouteRef.current = null
+      // The applied `src` can already equal the route when the page navigated
+      // away from it on its own; setting it again wouldn't reload.
+      if (iframeSrcRef.current === src) reloadIframe()
+      else {
+        setContentReady(false)
+        setIframeSrc(src)
+      }
+    }
+    // A loaded page follows the route client-side (another viewer's
+    // navigation, the route field, back/forward), so what this viewer typed
+    // or opened in it survives (#999). The bridge answers false when the page
+    // has no router to take it; only then does the frame reload onto it.
+    if (!contentReadyRef.current) {
+      reload()
+      return
+    }
+    const token = ++followSeqRef.current
+    const path = route || "/"
+    followingRouteRef.current = path
+    dom.navigate(path).then(
+      (followed) => {
+        if (!followed && token === followSeqRef.current) reload()
+      },
+      () => {
+        if (token === followSeqRef.current) reload()
+      }
+    )
+  }, [iframeLayer.iframeUrl, iframeLayer.route, dom, reloadIframe])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Probe the dev server as an explicit state machine: spinner while

@@ -43,6 +43,12 @@ switch pages: pick a route the workspace has visited, or type any
 path and choose **Go to _path_**. Routes you visit while interacting are added
 to the list automatically.
 
+The route and scroll position are shared: when anyone viewing the canvas
+navigates a frame, everyone else's copy follows. Your copy changes page
+through the app's own router (Next's router, or the history API for React
+Router, Vite and similar apps), so anything you typed or opened in the frame
+stays put. Only a page with no client-side router reloads onto the new route.
+
 <Screenshot
   name="route-picker"
   alt="The route picker: search or type a route, with /, /customers and /pricing listed"
