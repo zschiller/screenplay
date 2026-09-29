@@ -1,9 +1,13 @@
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 
-import { parseFrontmatter, type SkillMetadata } from "./frontmatter"
+import {
+  parseFrontmatter,
+  type SkillAudience,
+  type SkillMetadata,
+} from "./frontmatter"
 
-export type { SkillMetadata }
+export type { SkillAudience, SkillMetadata }
 
 /**
  * Skills are markdown documents that teach the agent how to use a particular
@@ -21,6 +25,11 @@ export type { SkillMetadata }
  * returns the full body, served to the agent via the `read_skill` custom tool
  * when it decides a skill is relevant.
  *
+ * A Skill's `audience` frontmatter says which chat it is for: Workspace agents
+ * by default, or the Coordinator (`audience: coordinator`), whose prompt and
+ * `read_skill` tool see only its own Skills. Every lookup here takes the
+ * audience and defaults to Workspace agents.
+ *
  * To add a skill: drop a `lib/skills/<name>/SKILL.md` with frontmatter. No
  * registration code needed.
  */
@@ -30,6 +39,7 @@ const dir = join(process.cwd(), "lib", "skills")
 interface LoadedSkill {
   metadata: SkillMetadata
   body: string
+  audience: SkillAudience
 }
 
 const skills = loadAllSkills()
@@ -72,24 +82,32 @@ function loadSkillFromDir(skillDir: string): LoadedSkill | null {
   } catch {
     return null
   }
-  const { metadata, body } = parseFrontmatter(raw, skillMd)
-  return { metadata, body }
+  return parseFrontmatter(raw, skillMd)
 }
 
-export function getSkillIndex(): SkillMetadata[] {
+export function getSkillIndex(
+  audience: SkillAudience = "workspace"
+): SkillMetadata[] {
   return Array.from(skills.values())
+    .filter((s) => s.audience === audience)
     .map((s) => s.metadata)
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function getSkill(name: string): string | null {
+export function getSkill(
+  name: string,
+  audience: SkillAudience = "workspace"
+): string | null {
   const skill = skills.get(name)
-  if (!skill) return null
+  if (!skill || skill.audience !== audience) return null
   // Re-emit frontmatter alongside the body so the agent sees its own
   // declared name/description in the tool result, not just the body.
   return `---\nname: ${skill.metadata.name}\ndescription: ${skill.metadata.description}\n---\n\n${skill.body}`
 }
 
-export function hasSkill(name: string): boolean {
-  return skills.has(name)
+export function hasSkill(
+  name: string,
+  audience: SkillAudience = "workspace"
+): boolean {
+  return skills.get(name)?.audience === audience
 }

@@ -24,6 +24,13 @@ export interface SkillMetadata {
 }
 
 /**
+ * Which chat a Skill is written for. Workspace agents (the default) work in a
+ * sandbox; the Coordinator (`audience: coordinator`) works the whole canvas
+ * with its own tools, so neither sees the other's Skills.
+ */
+export type SkillAudience = "workspace" | "coordinator"
+
+/**
  * Parse a SKILL.md's raw text into `{ metadata, body }`. Throws when the
  * frontmatter block is missing or doesn't declare both `name` and
  * `description` — a malformed Skill is a hard error, not a silent skip, so it
@@ -33,7 +40,7 @@ export interface SkillMetadata {
 export function parseFrontmatter(
   raw: string,
   origin: string
-): { metadata: SkillMetadata; body: string } {
+): { metadata: SkillMetadata; body: string; audience: SkillAudience } {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/)
   if (!match) {
     throw new Error(`Skill ${origin} is missing a YAML frontmatter block.`)
@@ -51,8 +58,15 @@ export function parseFrontmatter(
       `Skill ${origin} frontmatter must declare both "name" and "description".`
     )
   }
+  const audience = fields.audience || "workspace"
+  if (audience !== "workspace" && audience !== "coordinator") {
+    throw new Error(
+      `Skill ${origin} frontmatter declares audience="${audience}"; use "workspace" or "coordinator".`
+    )
+  }
   return {
     metadata: { name: fields.name, description: fields.description },
     body,
+    audience,
   }
 }

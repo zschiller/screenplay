@@ -864,3 +864,36 @@ describe("open_pull_request and remove_workspace (#901)", () => {
     )
   })
 })
+
+describe("read_skill (#905)", () => {
+  async function readSkill(name: string): Promise<string> {
+    const { collections } = makeHarness()
+    const tools = buildRoomTools("room-1", portsOver(collections))
+    const execute = tools.read_skill.execute!
+    return (await execute(
+      { name },
+      { toolCallId: "t1", messages: [] }
+    )) as string
+  }
+
+  it("loads a Coordinator Skill's instructions", async () => {
+    const out = await readSkill("screenplay-try-variants")
+
+    expect(out).toContain("name: screenplay-try-variants")
+    expect(out).toContain("create_workspaces")
+  })
+
+  it("won't load a Workspace agent's Skill, and lists its own instead", async () => {
+    const out = await readSkill("screenplay-add-knob")
+
+    expect(out).toContain('Unknown skill: "screenplay-add-knob"')
+    expect(out).toContain("- screenplay-try-variants:")
+  })
+
+  it("names its Skills in the description, for a desktop harness", () => {
+    const { collections } = makeHarness()
+    const tools = buildRoomTools("room-1", portsOver(collections))
+
+    expect(tools.read_skill.description).toContain("screenplay-try-variants")
+  })
+})
