@@ -31,7 +31,7 @@ describe("useWorkspaceListView", () => {
   it("is stored in this browser under its own key, not in the room", () => {
     // The hook has no room doc to write: the whole view is one local entry.
     const { result } = renderHook(() => useWorkspaceListView("u1", "r1"))
-    act(() => result.current[1]({ sort: "name", collapsed: ["idle"] }))
+    act(() => result.current[1]({ sort: "name" }))
     expect(Object.keys(window.localStorage)).toEqual([
       "workspace-list-view:u1:r1",
     ])

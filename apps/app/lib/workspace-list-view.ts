@@ -38,15 +38,12 @@ export const WORKSPACE_SORT_LABELS: Record<WorkspaceSort, string> = {
 export interface WorkspaceListView {
   sort: WorkspaceSort
   groupByState: boolean
-  /** Sections the member folded away in the grouped list. */
-  collapsed: WorkspaceSection[]
 }
 
 /** A list never touched: manual order, ungrouped, as before #885. */
 export const DEFAULT_WORKSPACE_LIST_VIEW: WorkspaceListView = {
   sort: "manual",
   groupByState: false,
-  collapsed: [],
 }
 
 /** Drag reorder writes manual order, so it only makes sense where rows show it. */
@@ -155,9 +152,6 @@ export function parseWorkspaceListView(
       ? (v.sort as WorkspaceSort)
       : DEFAULT_WORKSPACE_LIST_VIEW.sort,
     groupByState: v.groupByState === true,
-    collapsed: Array.isArray(v.collapsed)
-      ? WORKSPACE_SECTIONS.filter((s) => (v.collapsed as unknown[]).includes(s))
-      : [],
   }
 }
 

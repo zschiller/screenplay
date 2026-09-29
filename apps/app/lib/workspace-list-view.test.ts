@@ -141,7 +141,7 @@ describe("parseWorkspaceListView", () => {
     expect(parseWorkspaceListView("{")).toEqual(DEFAULT_WORKSPACE_LIST_VIEW)
     expect(
       parseWorkspaceListView(
-        JSON.stringify({ sort: "size", groupByState: "yes", collapsed: ["x"] })
+        JSON.stringify({ sort: "size", groupByState: "yes" })
       )
     ).toEqual(DEFAULT_WORKSPACE_LIST_VIEW)
   })
@@ -150,7 +150,6 @@ describe("parseWorkspaceListView", () => {
     const view = {
       sort: "recent",
       groupByState: true,
-      collapsed: ["idle"],
     } as const
     expect(parseWorkspaceListView(JSON.stringify(view))).toEqual(view)
   })
@@ -163,7 +162,6 @@ describe("stored view", () => {
     const view: WorkspaceListView = {
       sort: "name",
       groupByState: true,
-      collapsed: [],
     }
     writeWorkspaceListView("user_1", "room_1", view)
     expect(readWorkspaceListView("user_1", "room_1")).toEqual(view)

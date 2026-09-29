@@ -49,6 +49,7 @@ import {
   SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarSeparator,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -1314,7 +1315,14 @@ export function RoomSidebar({
           >
             <BranchesDropHintContext.Provider value={branchesDropHint}>
               <SidebarGroup className="pt-0">
-                <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
+                {/* Grouped by state (#885), each section is its own label,
+                    and the first one takes this label's place beside the
+                    actions. */}
+                <SidebarGroupLabel>
+                  {branchSections?.[0]
+                    ? WORKSPACE_SECTION_LABELS[branchSections[0].section]
+                    : "Workspaces"}
+                </SidebarGroupLabel>
                 {sortedRepos.length > 0 && (
                   <>
                     {/* + creates a Workspace in one step (#884); the rarer
@@ -1408,45 +1416,25 @@ export function RoomSidebar({
                 )}
                 <SidebarGroupContent>
                   {branchSections ? (
-                    // Grouped by state (#885): each live section is the same
-                    // collapsible row as Done below; empty ones are left out.
-                    branchSections.map(({ section, branches: rows }) => (
-                      <Collapsible
-                        key={section}
-                        open={!listView.collapsed.includes(section)}
-                        onOpenChange={(open) =>
-                          updateListView({
-                            collapsed: open
-                              ? listView.collapsed.filter((s) => s !== section)
-                              : [...listView.collapsed, section],
-                          })
-                        }
-                        className="group/state-section mb-1"
-                      >
+                    branchSections.map(({ section, branches: rows }, i) => (
+                      <Fragment key={section}>
+                        {i > 0 && (
+                          <SidebarGroupLabel className="mt-2">
+                            {WORKSPACE_SECTION_LABELS[section]}
+                          </SidebarGroupLabel>
+                        )}
                         <SidebarMenu>
-                          <SidebarMenuItem>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuButton className="text-sidebar-foreground/70">
-                                <CaretRightIcon className="transition-transform group-data-[state=open]/state-section:rotate-90" />
-                                <span>{`${WORKSPACE_SECTION_LABELS[section]} (${rows.length})`}</span>
-                              </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                          </SidebarMenuItem>
+                          {rows.map((branch) => {
+                            const repo = reposById.get(branch.repoId)
+                            if (!repo) return null
+                            return (
+                              <Fragment key={branch.id}>
+                                {renderBranchRow(branch, repo)}
+                              </Fragment>
+                            )
+                          })}
                         </SidebarMenu>
-                        <CollapsibleContent>
-                          <SidebarMenu className="mt-1">
-                            {rows.map((branch) => {
-                              const repo = reposById.get(branch.repoId)
-                              if (!repo) return null
-                              return (
-                                <Fragment key={branch.id}>
-                                  {renderBranchRow(branch, repo)}
-                                </Fragment>
-                              )
-                            })}
-                          </SidebarMenu>
-                        </CollapsibleContent>
-                      </Collapsible>
+                      </Fragment>
                     ))
                   ) : canDrag ? (
                     <SidebarMenu>
@@ -1581,8 +1569,10 @@ export function RoomSidebar({
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
           >
+            {/* A divider, not a heading, sets the canvas's layers apart
+                from the Workspaces above. */}
+            <SidebarSeparator />
             <SidebarGroup>
-              <SidebarGroupLabel>Canvas</SidebarGroupLabel>
               <SidebarGroupContent>
                 <DropHintContext.Provider value={dropHint}>
                   <SortableContext
