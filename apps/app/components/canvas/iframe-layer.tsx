@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   ArrowsOutSimpleIcon,
-  CaretLeftIcon,
-  CaretRightIcon,
   CopyIcon,
   CursorIcon,
   DotsThreeIcon,
@@ -959,35 +959,18 @@ export function IframeLayer({
                 onClick={(e) => e.stopPropagation()}
               >
                 <FloatingToolbarButton
-                  label="Interact"
-                  shortcut={focused ? ["Esc"] : undefined}
-                  pressed={focused}
-                  // While interacting, the pressed button takes the selection
-                  // fill (the hot pink that carries black), like the ring
-                  // around the frame.
-                  className={
-                    focused
-                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
-                      : undefined
-                  }
-                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                >
-                  <CursorIcon />
-                </FloatingToolbarButton>
-                <FloatingToolbarSeparator />
-                <FloatingToolbarButton
                   label="Back"
                   disabled={!onSelectRoute || !canGoBack(history)}
                   onClick={() => navigateHistory(goBack(history))}
                 >
-                  <CaretLeftIcon />
+                  <ArrowLeftIcon />
                 </FloatingToolbarButton>
                 <FloatingToolbarButton
                   label="Forward"
                   disabled={!onSelectRoute || !canGoForward(history)}
                   onClick={() => navigateHistory(goForward(history))}
                 >
-                  <CaretRightIcon />
+                  <ArrowRightIcon />
                 </FloatingToolbarButton>
                 <FrameAddressBar
                   workspace={frameWorkspaceOf(
@@ -1097,6 +1080,23 @@ export function IframeLayer({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <FloatingToolbarSeparator />
+                <FloatingToolbarButton
+                  label="Interact"
+                  shortcut={focused ? ["Esc"] : undefined}
+                  pressed={focused}
+                  // While interacting, the pressed button takes the selection
+                  // fill (the hot pink that carries black), like the ring
+                  // around the frame.
+                  className={
+                    focused
+                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
+                      : undefined
+                  }
+                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                >
+                  <CursorIcon />
+                </FloatingToolbarButton>
               </FloatingToolbar>,
               toolbarPortalTarget!
             )}

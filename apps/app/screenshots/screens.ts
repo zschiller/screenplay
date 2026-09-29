@@ -1381,15 +1381,13 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-frame-toolbar",
     description:
-      "A selected frame's floating toolbar, hovering its first button to show the tooltip.",
+      "A selected frame's floating toolbar, hovering Interact to show the tooltip.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await selectCheckoutFrame(page)
-      // Positional, not by name, so the same step shoots a branch whose
-      // buttons have no accessible name yet.
       await page
-        .locator("#frame-toolbar-portal button")
-        .first()
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: "Interact" })
         .hover({ timeout: 15_000 })
       await showTooltip(page)
     },
@@ -1422,8 +1420,8 @@ export const SCREENS: Screen[] = [
       await frame.waitFor({ state: "visible", timeout: 15_000 })
       await frame.click({ timeout: 15_000 })
       await page
-        .locator("#frame-toolbar-portal button")
-        .first()
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: "Interact" })
         .click({ timeout: 15_000 })
       // Focus now lives inside the preview's iframe, where the canvas's own
       // keydown listener can't hear it.
@@ -1441,10 +1439,9 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await selectCheckoutFrame(page)
-      // The menu trigger is the toolbar's last button, before and after #796.
       await page
-        .locator("#frame-toolbar-portal button")
-        .last()
+        .locator("#frame-toolbar-portal")
+        .getByRole("button", { name: "More" })
         .click({ timeout: 15_000 })
       await page
         .getByRole("menu")
