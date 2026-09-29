@@ -1104,6 +1104,34 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "composer-mention-list",
+    description: "The composer's @ menu: the Canvas's Documents to mention.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "Match the tone in @")
+      await page
+        .getByText("Documents", { exact: true })
+        .waitFor({ timeout: 10_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "composer-skill-list",
+    description: "The composer's / menu: the Skills the agent can run.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await typeInComposer(page, "/")
+      await page
+        .getByText("Skills", { exact: true })
+        .waitFor({ timeout: 10_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-chat-draft-reload",
     description:
       "A draft typed into a chat, after the page reloads: what's left in the composer.",
@@ -3131,6 +3159,25 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   // --- Hosted build only (`--hosted`): comments (#789) ---
+  {
+    name: "canvas-share-dialog",
+    description:
+      "Share in the canvas top bar: invite by email, people with access.",
+    hosted: true,
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "Share", exact: true })
+        .click({ timeout: 30_000 })
+      const dialog = page.getByRole("dialog")
+      await dialog.waitFor({ state: "visible", timeout: 10_000 })
+      await dialog
+        .getByRole("list")
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {})
+    },
+    settleMs: 400,
+  },
   {
     name: "player-comments",
     description:
