@@ -8,11 +8,11 @@ export function CTA() {
   return (
     <section className={cn(measure, "py-[clamp(88px,12vw,160px)]")}>
       <h2 className="max-w-[14ch] font-heading text-[clamp(40px,6vw,76px)] leading-none font-normal tracking-[-0.02em] text-balance">
-        Quiet on set. Roll camera.
+        Try it on your own repository.
       </h2>
       <p className="mt-5.5 max-w-[48ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
-        Download Screenplay, point it at a repo, and ask for three takes of
-        anything. See them all at once.
+        Download Screenplay, add a repository, and ask your agent for a few
+        versions of a change. Review them side by side.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
         <a

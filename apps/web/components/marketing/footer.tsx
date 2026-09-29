@@ -54,9 +54,7 @@ export function Footer() {
             A multiplayer canvas where every branch your agents write is live,
             side by side.
           </p>
-          <p className={cn(monoLabel, "text-muted-foreground")}>
-            Fade out. &nbsp;·&nbsp; MIT licensed
-          </p>
+          <p className={cn(monoLabel, "text-muted-foreground")}>MIT licensed</p>
         </div>
         {columns.map((col) => (
           <nav key={col.title} className="flex flex-col gap-3 text-sm">

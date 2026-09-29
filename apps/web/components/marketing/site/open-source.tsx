@@ -13,7 +13,7 @@ const packages = [
   {
     name: "@screenplay.space/state",
     href: stateNpmUrl,
-    pitch: "One state, every frame, every viewer.",
+    pitch: "Shared state across frames and viewers.",
   },
 ]
 
@@ -23,7 +23,10 @@ export function OpenSource() {
       id="open-source"
       className={cn(measure, "scroll-mt-20 pt-[clamp(72px,10vw,140px)]")}
     >
-      <SectionHeading slug="Credits" title="Open source, down to the props." />
+      <SectionHeading
+        slug="Open source"
+        title="MIT licensed and self-hostable."
+      />
       <div className="mt-12 grid gap-12 md:grid-cols-2">
         <div className="flex flex-col items-start gap-5">
           <p className="max-w-[52ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">

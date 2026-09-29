@@ -27,9 +27,9 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Screenplay — every take, running at once",
+  title: "Screenplay — every branch, running at once",
   description:
-    "Screenplay gives each coding agent its own branch, its own sandbox, and a frame on a shared canvas. Ask for three directions, click through all three live, and ship the one that works. Works with Claude Code, Codex and opencode.",
+    "Screenplay runs each coding agent on its own branch, in its own sandbox, and shows every result as a live frame on one canvas. Compare them side by side and ship the one that works. Works with Claude Code, Codex and opencode.",
 }
 
 export default function RootLayout({

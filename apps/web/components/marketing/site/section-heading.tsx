@@ -2,7 +2,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { monoLabel } from "./editorial"
 
-/** A section's slug line (screenplay scene heading), serif title and intro. */
+/** A section's eyebrow, serif title and intro. */
 export function SectionHeading({
   slug,
   title,

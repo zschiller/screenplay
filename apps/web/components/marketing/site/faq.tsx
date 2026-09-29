@@ -33,7 +33,7 @@ const faqs = [
 export function Faq() {
   return (
     <section className={cn(measure, "pt-[clamp(72px,10vw,140px)]")}>
-      <SectionHeading slug="Q & A" title="Questions from the audience." />
+      <SectionHeading slug="FAQ" title="Common questions." />
       <div className="mt-12 border-t border-foreground">
         {faqs.map((f) => (
           <details

@@ -11,7 +11,6 @@ const dance = [
   ["$", "pnpm install"],
   ["$", "pnpm dev"],
   ["", "▲ Ready in 14.2s"],
-  ["#", "wait… what did the bold one look like?"],
   ["$", "git checkout pricing-bold"],
   ["$", "pnpm dev"],
 ] as const
@@ -20,9 +19,9 @@ export function Problem() {
   return (
     <section className={cn(measure, "pt-[clamp(72px,10vw,140px)]")}>
       <SectionHeading
-        slug="INT. Your editor — late night"
-        title="Your agent wrote three versions. You can only see one."
-        body="Agents are great at trying things. But every idea lands in a different branch, and comparing them means stashing, checking out, reinstalling and rebuilding, then comparing memory to reality. Screenshots don't click."
+        slug="The problem"
+        title="Agents write several versions. You can run one at a time."
+        body="Each version lives on its own branch. Comparing them means stashing, checking out, reinstalling and rebuilding, one branch at a time. A screenshot doesn't show how a change behaves."
       />
 
       <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -55,7 +54,7 @@ export function Problem() {
             alt="A selected frame on the canvas, with its address bar underneath, next to the other Workspaces' frames."
           />
           <p className={cn(monoLabel, "text-muted-foreground")}>
-            With Screenplay · every branch built, running and clickable
+            With Screenplay · every branch running at once
           </p>
         </div>
       </div>
