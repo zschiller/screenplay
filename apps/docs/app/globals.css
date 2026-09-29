@@ -152,6 +152,47 @@ html.dark article [role="tab"][aria-selected="true"] {
   color: rgb(255 255 255);
 }
 
+/* Cards (#1102): Nextra renders the description before the title and pads
+   only the title. Put the title first, pad the whole card, and drop the grey
+   fill and shadow for a hairline border with the neutral accent on hover. */
+.nextra-card {
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 16px;
+  background: transparent;
+  border-color: rgb(0 0 0 / 0.12);
+  box-shadow: none;
+}
+.nextra-card:hover {
+  background: oklch(0.965 0 0);
+  border-color: rgb(0 0 0 / 0.12);
+  box-shadow: none;
+}
+html.dark .nextra-card {
+  border-color: rgb(255 255 255 / 0.14);
+}
+html.dark .nextra-card:hover {
+  background: oklch(0.18 0 0);
+}
+.nextra-card > span {
+  padding: 0;
+  font-weight: 500;
+  color: oklch(0 0 0);
+}
+article .nextra-card > p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: oklch(0.556 0 0);
+}
+html.dark .nextra-card > span {
+  color: oklch(1 0 0);
+}
+html.dark article .nextra-card > p {
+  color: oklch(0.708 0 0);
+}
+
 /* The navbar's "DOCS" beside the wordmark. */
 .sp-docs-label {
   font-family: var(--x-font-mono);
