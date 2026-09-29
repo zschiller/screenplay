@@ -25,32 +25,34 @@ export function Hero() {
           >
             Every branch, <em>side by side</em>.
           </h1>
-          <p
-            data-veil
-            className="mt-10 max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]"
-          >
-            Screenplay runs each coding agent on its own branch, in its own
-            sandbox, and shows every result as a live frame on one canvas.
-            Compare them and ship the one that works.
-          </p>
-          <div data-veil className="mt-8 flex flex-wrap gap-3">
-            <a
-              href={releasesUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={buttonClass("solid", "lg")}
+          <div className="mt-14 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
+            <p
+              data-veil
+              className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]"
             >
-              <AppleLogo className="size-4 -translate-y-px" />
-              Download for Mac
-            </a>
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={buttonClass("outline", "lg")}
-            >
-              Star on GitHub
-            </a>
+              Screenplay runs each coding agent on its own branch, in its own
+              sandbox, and shows every result as a live frame on one canvas.
+              Compare them and ship the one that works.
+            </p>
+            <div data-veil className="flex flex-wrap gap-3">
+              <a
+                href={releasesUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonClass("solid", "lg")}
+              >
+                <AppleLogo className="size-4 -translate-y-px" />
+                Download for Mac
+              </a>
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonClass("outline", "lg")}
+              >
+                Star on GitHub
+              </a>
+            </div>
           </div>
           <p
             data-veil
