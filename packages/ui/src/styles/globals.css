@@ -170,3 +170,23 @@
     @apply font-sans;
     }
 }
+
+/* Icons (packages/ui/src/components/icons.tsx) draw Phosphor Light above
+   16px and Regular at 16px and under, where Light's lines are too thin. Each
+   icon carries both: Light as its own paths, Regular as a nested svg. */
+@layer base {
+  .ph-dual {
+    container-type: inline-size;
+  }
+  .ph-dual > svg {
+    display: none;
+  }
+  @container (width <= 16px) {
+    .ph-dual > path {
+      display: none;
+    }
+    .ph-dual > svg {
+      display: inline;
+    }
+  }
+}

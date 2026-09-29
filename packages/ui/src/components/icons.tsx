@@ -122,15 +122,17 @@ import { XCircleIcon as XCircleBase } from "@phosphor-icons/react/dist/ssr/XCirc
 export type { Icon, IconProps }
 
 /**
- * The app's icon set: Phosphor at its Light weight. Each export wraps the
- * Phosphor icon so it draws Light by default and keeps lucide-react's old
- * defaults: 24px when no size class applies, hidden from assistive tech unless
- * it is labelled, and a class naming the glyph (`ph-caret-down`) that tests
- * and the screenshot harness can select. Pass `weight` to override the weight
- * for one glyph.
+ * The app's icon set: Phosphor at its Light weight, switching to Regular when
+ * the icon renders at 16px or smaller. Phosphor's lines scale with the icon,
+ * so Light's line is 0.56px at the 12px toolbar size, too faint to read;
+ * Regular's is 0.75px. The icon carries both weights and a container query
+ * (`.ph-dual` in globals.css) shows the one that fits its rendered size, so
+ * sizing classes on the icon or its parent pick the weight with no extra prop.
  *
- * Light lines get a constant extra width (see LIGHT_COMPENSATION) so small
- * icons stay legible.
+ * Each export also keeps lucide-react's old defaults: 24px when no size class
+ * applies, hidden from assistive tech unless it is labelled, and a class
+ * naming the glyph (`ph-caret-down`) that tests and the screenshot harness can
+ * select. Passing `weight` pins that weight at every size.
  *
  * Dot glyphs (the ⋯ menu, the drag grip) have no stroke to thin out: their
  * weight only sets the dot size, and Light's dots vanish at 12–16px. They
@@ -139,212 +141,214 @@ export type { Icon, IconProps }
  * Icons come from the per-icon SSR entry points, so they render in server
  * components and never load Phosphor's full barrel.
  */
-/**
- * Screen pixels added to every Light line, like Lucide's `absoluteStrokeWidth`.
- * Phosphor draws its lines as filled outlines that scale with the icon, so
- * Light's line is 0.56px at 12px: too faint for toolbar glyphs. A thin
- * non-scaling stroke around each outline thickens every line by the same
- * amount at any size (about 0.9px at 12px, 1.1px at 16px) while large icons
- * keep Light's look.
- */
-const LIGHT_COMPENSATION = 0.35
-
-function light(
+function phosphor(
   Base: Icon,
   name: string,
-  weight: IconProps["weight"] = "light"
+  weight?: IconProps["weight"]
 ): Icon {
-  const Light = React.forwardRef<SVGSVGElement, IconProps>((props, ref) => {
+  const Wrapped = React.forwardRef<SVGSVGElement, IconProps>((props, ref) => {
     const labelled =
       props.alt != null ||
       props["aria-label"] != null ||
       props["aria-labelledby"] != null
-    const compensate = (props.weight ?? weight) === "light"
+    const pinned = props.weight ?? weight
     return (
       <Base
         ref={ref}
         size={24}
-        weight={weight}
+        weight={pinned ?? "light"}
         aria-hidden={labelled ? undefined : true}
-        {...(compensate && {
-          stroke: props.color ?? "currentColor",
-          strokeWidth: LIGHT_COMPENSATION,
-          strokeLinejoin: "round" as const,
-        })}
         {...props}
-        className={cn(
-          name,
-          compensate && "[&_path]:[vector-effect:non-scaling-stroke]",
-          props.className
+        className={cn(name, !pinned && "ph-dual", props.className)}
+      >
+        {!pinned && (
+          // Inline size: a parent's `[&_svg]:size-*` must not resize it.
+          <Base
+            weight="regular"
+            color={props.color}
+            style={{ width: "100%", height: "100%" }}
+          />
         )}
-      />
+      </Base>
     )
   })
-  Light.displayName = Base.displayName
-  return Light
+  Wrapped.displayName = Base.displayName
+  return Wrapped
 }
 
-export const AppWindowIcon = light(AppWindowBase, "ph-app-window")
-export const ArchiveIcon = light(ArchiveBase, "ph-archive")
-export const ArrowClockwiseIcon = light(
+export const AppWindowIcon = phosphor(AppWindowBase, "ph-app-window")
+export const ArchiveIcon = phosphor(ArchiveBase, "ph-archive")
+export const ArrowClockwiseIcon = phosphor(
   ArrowClockwiseBase,
   "ph-arrow-clockwise"
 )
-export const ArrowCounterClockwiseIcon = light(
+export const ArrowCounterClockwiseIcon = phosphor(
   ArrowCounterClockwiseBase,
   "ph-arrow-counter-clockwise"
 )
-export const ArrowDownIcon = light(ArrowDownBase, "ph-arrow-down")
-export const ArrowLeftIcon = light(ArrowLeftBase, "ph-arrow-left")
-export const ArrowSquareOutIcon = light(
+export const ArrowDownIcon = phosphor(ArrowDownBase, "ph-arrow-down")
+export const ArrowLeftIcon = phosphor(ArrowLeftBase, "ph-arrow-left")
+export const ArrowSquareOutIcon = phosphor(
   ArrowSquareOutBase,
   "ph-arrow-square-out"
 )
-export const ArrowUUpLeftIcon = light(ArrowUUpLeftBase, "ph-arrow-u-up-left")
-export const ArrowUpIcon = light(ArrowUpBase, "ph-arrow-up")
-export const ArrowUpRightIcon = light(ArrowUpRightBase, "ph-arrow-up-right")
-export const ArrowsClockwiseIcon = light(
+export const ArrowUUpLeftIcon = phosphor(ArrowUUpLeftBase, "ph-arrow-u-up-left")
+export const ArrowUpIcon = phosphor(ArrowUpBase, "ph-arrow-up")
+export const ArrowUpRightIcon = phosphor(ArrowUpRightBase, "ph-arrow-up-right")
+export const ArrowsClockwiseIcon = phosphor(
   ArrowsClockwiseBase,
   "ph-arrows-clockwise"
 )
-export const ArrowsMergeIcon = light(ArrowsMergeBase, "ph-arrows-merge")
-export const ArrowsOutCardinalIcon = light(
+export const ArrowsMergeIcon = phosphor(ArrowsMergeBase, "ph-arrows-merge")
+export const ArrowsOutCardinalIcon = phosphor(
   ArrowsOutCardinalBase,
   "ph-arrows-out-cardinal"
 )
-export const ArrowsOutSimpleIcon = light(
+export const ArrowsOutSimpleIcon = phosphor(
   ArrowsOutSimpleBase,
   "ph-arrows-out-simple"
 )
-export const BookBookmarkIcon = light(BookBookmarkBase, "ph-book-bookmark")
-export const BookOpenIcon = light(BookOpenBase, "ph-book-open")
-export const BracketsCurlyIcon = light(BracketsCurlyBase, "ph-brackets-curly")
-export const BrainIcon = light(BrainBase, "ph-brain")
-export const CaretDownIcon = light(CaretDownBase, "ph-caret-down")
-export const CaretLeftIcon = light(CaretLeftBase, "ph-caret-left")
-export const CaretRightIcon = light(CaretRightBase, "ph-caret-right")
-export const CaretUpIcon = light(CaretUpBase, "ph-caret-up")
-export const CaretUpDownIcon = light(CaretUpDownBase, "ph-caret-up-down")
-export const ChatIcon = light(ChatBase, "ph-chat")
-export const ChatCircleIcon = light(ChatCircleBase, "ph-chat-circle")
-export const ChatSlashIcon = light(ChatSlashBase, "ph-chat-slash")
-export const ChatTextIcon = light(ChatTextBase, "ph-chat-text")
-export const ChatsIcon = light(ChatsBase, "ph-chats")
-export const CheckIcon = light(CheckBase, "ph-check")
-export const CheckCircleIcon = light(CheckCircleBase, "ph-check-circle")
-export const CircleIcon = light(CircleBase, "ph-circle")
-export const CircleDashedIcon = light(CircleDashedBase, "ph-circle-dashed")
-export const CircleNotchIcon = light(CircleNotchBase, "ph-circle-notch")
-export const ClipboardTextIcon = light(ClipboardTextBase, "ph-clipboard-text")
-export const ClockIcon = light(ClockBase, "ph-clock")
-export const ClockCounterClockwiseIcon = light(
+export const BookBookmarkIcon = phosphor(BookBookmarkBase, "ph-book-bookmark")
+export const BookOpenIcon = phosphor(BookOpenBase, "ph-book-open")
+export const BracketsCurlyIcon = phosphor(
+  BracketsCurlyBase,
+  "ph-brackets-curly"
+)
+export const BrainIcon = phosphor(BrainBase, "ph-brain")
+export const CaretDownIcon = phosphor(CaretDownBase, "ph-caret-down")
+export const CaretLeftIcon = phosphor(CaretLeftBase, "ph-caret-left")
+export const CaretRightIcon = phosphor(CaretRightBase, "ph-caret-right")
+export const CaretUpIcon = phosphor(CaretUpBase, "ph-caret-up")
+export const CaretUpDownIcon = phosphor(CaretUpDownBase, "ph-caret-up-down")
+export const ChatIcon = phosphor(ChatBase, "ph-chat")
+export const ChatCircleIcon = phosphor(ChatCircleBase, "ph-chat-circle")
+export const ChatSlashIcon = phosphor(ChatSlashBase, "ph-chat-slash")
+export const ChatTextIcon = phosphor(ChatTextBase, "ph-chat-text")
+export const ChatsIcon = phosphor(ChatsBase, "ph-chats")
+export const CheckIcon = phosphor(CheckBase, "ph-check")
+export const CheckCircleIcon = phosphor(CheckCircleBase, "ph-check-circle")
+export const CircleIcon = phosphor(CircleBase, "ph-circle")
+export const CircleDashedIcon = phosphor(CircleDashedBase, "ph-circle-dashed")
+export const CircleNotchIcon = phosphor(CircleNotchBase, "ph-circle-notch")
+export const ClipboardTextIcon = phosphor(
+  ClipboardTextBase,
+  "ph-clipboard-text"
+)
+export const ClockIcon = phosphor(ClockBase, "ph-clock")
+export const ClockCounterClockwiseIcon = phosphor(
   ClockCounterClockwiseBase,
   "ph-clock-counter-clockwise"
 )
-export const CodeIcon = light(CodeBase, "ph-code")
-export const CodeBlockIcon = light(CodeBlockBase, "ph-code-block")
-export const CopyIcon = light(CopyBase, "ph-copy")
-export const CrosshairIcon = light(CrosshairBase, "ph-crosshair")
-export const CursorIcon = light(CursorBase, "ph-cursor")
-export const DeviceMobileIcon = light(DeviceMobileBase, "ph-device-mobile")
-export const DeviceTabletIcon = light(DeviceTabletBase, "ph-device-tablet")
-export const DevicesIcon = light(DevicesBase, "ph-devices")
-export const DotsSixVerticalIcon = light(
+export const CodeIcon = phosphor(CodeBase, "ph-code")
+export const CodeBlockIcon = phosphor(CodeBlockBase, "ph-code-block")
+export const CopyIcon = phosphor(CopyBase, "ph-copy")
+export const CrosshairIcon = phosphor(CrosshairBase, "ph-crosshair")
+export const CursorIcon = phosphor(CursorBase, "ph-cursor")
+export const DeviceMobileIcon = phosphor(DeviceMobileBase, "ph-device-mobile")
+export const DeviceTabletIcon = phosphor(DeviceTabletBase, "ph-device-tablet")
+export const DevicesIcon = phosphor(DevicesBase, "ph-devices")
+export const DotsSixVerticalIcon = phosphor(
   DotsSixVerticalBase,
   "ph-dots-six-vertical",
   "bold"
 )
-export const DotsThreeIcon = light(DotsThreeBase, "ph-dots-three", "bold")
-export const EyeIcon = light(EyeBase, "ph-eye")
-export const EyeSlashIcon = light(EyeSlashBase, "ph-eye-slash")
-export const FilePlusIcon = light(FilePlusBase, "ph-file-plus")
-export const FileTextIcon = light(FileTextBase, "ph-file-text")
-export const FilesIcon = light(FilesBase, "ph-files")
-export const FolderIcon = light(FolderBase, "ph-folder")
-export const FolderLockIcon = light(FolderLockBase, "ph-folder-lock")
-export const FolderOpenIcon = light(FolderOpenBase, "ph-folder-open")
-export const FolderPlusIcon = light(FolderPlusBase, "ph-folder-plus")
-export const FolderSimpleIcon = light(FolderSimpleBase, "ph-folder-simple")
-export const FunnelSimpleIcon = light(FunnelSimpleBase, "ph-funnel-simple")
-export const GearIcon = light(GearBase, "ph-gear")
-export const GitBranchIcon = light(GitBranchBase, "ph-git-branch")
-export const GitDiffIcon = light(GitDiffBase, "ph-git-diff")
-export const GitForkIcon = light(GitForkBase, "ph-git-fork")
-export const GitMergeIcon = light(GitMergeBase, "ph-git-merge")
-export const GitPullRequestIcon = light(
+export const DotsThreeIcon = phosphor(DotsThreeBase, "ph-dots-three", "bold")
+export const EyeIcon = phosphor(EyeBase, "ph-eye")
+export const EyeSlashIcon = phosphor(EyeSlashBase, "ph-eye-slash")
+export const FilePlusIcon = phosphor(FilePlusBase, "ph-file-plus")
+export const FileTextIcon = phosphor(FileTextBase, "ph-file-text")
+export const FilesIcon = phosphor(FilesBase, "ph-files")
+export const FolderIcon = phosphor(FolderBase, "ph-folder")
+export const FolderLockIcon = phosphor(FolderLockBase, "ph-folder-lock")
+export const FolderOpenIcon = phosphor(FolderOpenBase, "ph-folder-open")
+export const FolderPlusIcon = phosphor(FolderPlusBase, "ph-folder-plus")
+export const FolderSimpleIcon = phosphor(FolderSimpleBase, "ph-folder-simple")
+export const FunnelSimpleIcon = phosphor(FunnelSimpleBase, "ph-funnel-simple")
+export const GearIcon = phosphor(GearBase, "ph-gear")
+export const GitBranchIcon = phosphor(GitBranchBase, "ph-git-branch")
+export const GitDiffIcon = phosphor(GitDiffBase, "ph-git-diff")
+export const GitForkIcon = phosphor(GitForkBase, "ph-git-fork")
+export const GitMergeIcon = phosphor(GitMergeBase, "ph-git-merge")
+export const GitPullRequestIcon = phosphor(
   GitPullRequestBase,
   "ph-git-pull-request"
 )
-export const GlobeIcon = light(GlobeBase, "ph-globe")
-export const FrameCornersIcon = light(FrameCornersBase, "ph-frame-corners")
-export const LayoutIcon = light(LayoutBase, "ph-layout")
-export const LinkSimpleHorizontalIcon = light(
+export const GlobeIcon = phosphor(GlobeBase, "ph-globe")
+export const FrameCornersIcon = phosphor(FrameCornersBase, "ph-frame-corners")
+export const LayoutIcon = phosphor(LayoutBase, "ph-layout")
+export const LinkSimpleHorizontalIcon = phosphor(
   LinkSimpleHorizontalBase,
   "ph-link-simple-horizontal"
 )
-export const ListBulletsIcon = light(ListBulletsBase, "ph-list-bullets")
-export const ListDashesIcon = light(ListDashesBase, "ph-list-dashes")
-export const ListNumbersIcon = light(ListNumbersBase, "ph-list-numbers")
-export const MagnifyingGlassIcon = light(
+export const ListBulletsIcon = phosphor(ListBulletsBase, "ph-list-bullets")
+export const ListDashesIcon = phosphor(ListDashesBase, "ph-list-dashes")
+export const ListNumbersIcon = phosphor(ListNumbersBase, "ph-list-numbers")
+export const MagnifyingGlassIcon = phosphor(
   MagnifyingGlassBase,
   "ph-magnifying-glass"
 )
-export const MinusIcon = light(MinusBase, "ph-minus")
-export const MonitorIcon = light(MonitorBase, "ph-monitor")
-export const MoonIcon = light(MoonBase, "ph-moon")
-export const NavigationArrowIcon = light(
+export const MinusIcon = phosphor(MinusBase, "ph-minus")
+export const MonitorIcon = phosphor(MonitorBase, "ph-monitor")
+export const MoonIcon = phosphor(MoonBase, "ph-moon")
+export const NavigationArrowIcon = phosphor(
   NavigationArrowBase,
   "ph-navigation-arrow"
 )
-export const NotePencilIcon = light(NotePencilBase, "ph-note-pencil")
-export const PaletteIcon = light(PaletteBase, "ph-palette")
-export const PathIcon = light(PathBase, "ph-path")
-export const PauseCircleIcon = light(PauseCircleBase, "ph-pause-circle")
-export const PencilSimpleIcon = light(PencilSimpleBase, "ph-pencil-simple")
-export const PencilSimpleLineIcon = light(
+export const NotePencilIcon = phosphor(NotePencilBase, "ph-note-pencil")
+export const PaletteIcon = phosphor(PaletteBase, "ph-palette")
+export const PathIcon = phosphor(PathBase, "ph-path")
+export const PauseCircleIcon = phosphor(PauseCircleBase, "ph-pause-circle")
+export const PencilSimpleIcon = phosphor(PencilSimpleBase, "ph-pencil-simple")
+export const PencilSimpleLineIcon = phosphor(
   PencilSimpleLineBase,
   "ph-pencil-simple-line"
 )
-export const PlayIcon = light(PlayBase, "ph-play")
-export const PlugIcon = light(PlugBase, "ph-plug")
-export const PlusIcon = light(PlusBase, "ph-plus")
-export const PushPinIcon = light(PushPinBase, "ph-push-pin")
-export const PushPinSlashIcon = light(PushPinSlashBase, "ph-push-pin-slash")
-export const QuotesIcon = light(QuotesBase, "ph-quotes")
-export const RecycleIcon = light(RecycleBase, "ph-recycle")
-export const RobotIcon = light(RobotBase, "ph-robot")
-export const ScanIcon = light(ScanBase, "ph-scan")
-export const ScrollIcon = light(ScrollBase, "ph-scroll")
-export const SelectionIcon = light(SelectionBase, "ph-selection")
-export const ShareNetworkIcon = light(ShareNetworkBase, "ph-share-network")
-export const SidebarSimpleIcon = light(SidebarSimpleBase, "ph-sidebar-simple")
-export const SignOutIcon = light(SignOutBase, "ph-sign-out")
-export const SlidersHorizontalIcon = light(
+export const PlayIcon = phosphor(PlayBase, "ph-play")
+export const PlugIcon = phosphor(PlugBase, "ph-plug")
+export const PlusIcon = phosphor(PlusBase, "ph-plus")
+export const PushPinIcon = phosphor(PushPinBase, "ph-push-pin")
+export const PushPinSlashIcon = phosphor(PushPinSlashBase, "ph-push-pin-slash")
+export const QuotesIcon = phosphor(QuotesBase, "ph-quotes")
+export const RecycleIcon = phosphor(RecycleBase, "ph-recycle")
+export const RobotIcon = phosphor(RobotBase, "ph-robot")
+export const ScanIcon = phosphor(ScanBase, "ph-scan")
+export const ScrollIcon = phosphor(ScrollBase, "ph-scroll")
+export const SelectionIcon = phosphor(SelectionBase, "ph-selection")
+export const ShareNetworkIcon = phosphor(ShareNetworkBase, "ph-share-network")
+export const SidebarSimpleIcon = phosphor(
+  SidebarSimpleBase,
+  "ph-sidebar-simple"
+)
+export const SignOutIcon = phosphor(SignOutBase, "ph-sign-out")
+export const SlidersHorizontalIcon = phosphor(
   SlidersHorizontalBase,
   "ph-sliders-horizontal"
 )
-export const SparkleIcon = light(SparkleBase, "ph-sparkle")
-export const SquareIcon = light(SquareBase, "ph-square")
-export const SquaresFourIcon = light(SquaresFourBase, "ph-squares-four")
-export const StopCircleIcon = light(StopCircleBase, "ph-stop-circle")
-export const SunIcon = light(SunBase, "ph-sun")
-export const TerminalIcon = light(TerminalBase, "ph-terminal")
-export const TerminalWindowIcon = light(
+export const SparkleIcon = phosphor(SparkleBase, "ph-sparkle")
+export const SquareIcon = phosphor(SquareBase, "ph-square")
+export const SquaresFourIcon = phosphor(SquaresFourBase, "ph-squares-four")
+export const StopCircleIcon = phosphor(StopCircleBase, "ph-stop-circle")
+export const SunIcon = phosphor(SunBase, "ph-sun")
+export const TerminalIcon = phosphor(TerminalBase, "ph-terminal")
+export const TerminalWindowIcon = phosphor(
   TerminalWindowBase,
   "ph-terminal-window"
 )
-export const TrashIcon = light(TrashBase, "ph-trash")
-export const TextBIcon = light(TextBBase, "ph-text-b")
-export const TextHOneIcon = light(TextHOneBase, "ph-text-h-one")
-export const TextHThreeIcon = light(TextHThreeBase, "ph-text-h-three")
-export const TextHTwoIcon = light(TextHTwoBase, "ph-text-h-two")
-export const TextItalicIcon = light(TextItalicBase, "ph-text-italic")
-export const TextStrikethroughIcon = light(
+export const TrashIcon = phosphor(TrashBase, "ph-trash")
+export const TextBIcon = phosphor(TextBBase, "ph-text-b")
+export const TextHOneIcon = phosphor(TextHOneBase, "ph-text-h-one")
+export const TextHThreeIcon = phosphor(TextHThreeBase, "ph-text-h-three")
+export const TextHTwoIcon = phosphor(TextHTwoBase, "ph-text-h-two")
+export const TextItalicIcon = phosphor(TextItalicBase, "ph-text-italic")
+export const TextStrikethroughIcon = phosphor(
   TextStrikethroughBase,
   "ph-text-strikethrough"
 )
-export const TextTIcon = light(TextTBase, "ph-text-t")
-export const WarningIcon = light(WarningBase, "ph-warning")
-export const WarningCircleIcon = light(WarningCircleBase, "ph-warning-circle")
-export const XIcon = light(XBase, "ph-x")
-export const XCircleIcon = light(XCircleBase, "ph-x-circle")
+export const TextTIcon = phosphor(TextTBase, "ph-text-t")
+export const WarningIcon = phosphor(WarningBase, "ph-warning")
+export const WarningCircleIcon = phosphor(
+  WarningCircleBase,
+  "ph-warning-circle"
+)
+export const XIcon = phosphor(XBase, "ph-x")
+export const XCircleIcon = phosphor(XCircleBase, "ph-x-circle")
