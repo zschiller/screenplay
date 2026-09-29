@@ -64,7 +64,8 @@ type Copy = {
  * The hero's backdrop: copies of this homepage pan past in two rows, each a
  * Workspace an agent is changing live, under a dither in the page's own
  * background colour that keeps the text on top readable. Everything marked
- * `data-veil` inside gets solid background behind its lines.
+ * `data-veil` inside gets solid background behind its lines. On phones,
+ * where the text fills the hero, the copies sit below it instead, unveiled.
  *
  * The copies are built on the client only; they're decoration, hidden from
  * assistive tech. With reduced motion they hold still.
@@ -199,11 +200,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Phones stack the copies under the text instead, with no veil.
+    const wide = matchMedia("(min-width: 768px)")
     const play = () => {
       if (reduce || alive) return
       alive = true
       host.dataset.playing = ""
-      veil.start()
+      if (wide.matches) veil.start()
       void tick()
     }
     const pause = () => {
@@ -216,8 +219,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     }
 
     const remeasure = () => {
+      if (!wide.matches) return veil.stop()
       veil.measure()
       if (reduce || !alive) veil.drawOnce()
+      else veil.start()
     }
     veil.setColor(getComputedStyle(host).backgroundColor)
     remeasure()
@@ -226,6 +231,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
 
     const resize = new ResizeObserver(remeasure)
     resize.observe(host)
+    wide.addEventListener("change", remeasure)
     // Only animate while the hero is on screen.
     const seen = new IntersectionObserver(([entry]) => {
       visibleNow = !!entry?.isIntersecting
@@ -237,6 +243,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     return () => {
       pause()
       resize.disconnect()
+      wide.removeEventListener("change", remeasure)
       seen.disconnect()
       rowsEl.replaceChildren()
     }
@@ -253,9 +260,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       <canvas
         ref={canvas}
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1] size-full"
+        className="pointer-events-none absolute inset-0 z-[1] size-full max-md:hidden"
       />
-      <div className="relative z-[2]">{children}</div>
+      <div className="hc-content relative z-[2]">{children}</div>
     </div>
   )
 }
