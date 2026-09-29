@@ -11,7 +11,10 @@ import {
   terminalWebSocketUrl,
   TTYD_SUBPROTOCOL,
 } from "@/lib/terminal/ttyd-protocol"
-import { TERMINAL_FONT_SIZE, xtermAnsiTheme } from "@/lib/terminal/ansi-palette"
+import {
+  TERMINAL_FONT_SIZE,
+  xtermAnsiTheme,
+} from "@workspace/ui/lib/ansi-palette"
 
 /**
  * The hardened xterm + ttyd-wire-protocol terminal pane, extracted out of

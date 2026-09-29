@@ -1,6 +1,14 @@
 import nextra from "nextra"
+import { ansiCodeTheme } from "./ansi-code-theme.mjs"
 
-const withNextra = nextra({})
+const withNextra = nextra({
+  // Code blocks in the terminal's ANSI palette, for both themes (#1104).
+  mdxOptions: {
+    rehypePrettyCodeOptions: {
+      theme: { light: ansiCodeTheme, dark: ansiCodeTheme },
+    },
+  },
+})
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

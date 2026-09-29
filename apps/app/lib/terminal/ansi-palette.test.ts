@@ -8,7 +8,7 @@ import {
   xterm256Rgb,
   xtermAnsiTheme,
   type AnsiMode,
-} from "./ansi-palette"
+} from "@workspace/ui/lib/ansi-palette"
 
 /**
  * The theme backgrounds the palette is painted on: `--background` in

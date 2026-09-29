@@ -11,6 +11,7 @@ import { getPageMap } from "nextra/page-map"
 import "nextra-theme-docs/style.css"
 import "./globals.css"
 import { ScreenplayMark } from "@workspace/ui/components/screenplay-mark"
+import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
 
 // The type voice the app uses (#1005, #1077): Instrument Sans for the text,
 // Unbounded for headings, Geist Mono for code and the sidebar's section
@@ -80,7 +81,10 @@ export default async function RootLayout({
           lightness: { light: 45, dark: 62 },
         }}
         backgroundColor={{ light: "#ffffff", dark: "#000000" }}
-      />
+      >
+        {/* The terminal's ANSI palette as `--ansi-*`, which code blocks read. */}
+        <style>{ANSI_PALETTE_CSS}</style>
+      </Head>
       <body>
         <Layout
           navbar={navbar}
