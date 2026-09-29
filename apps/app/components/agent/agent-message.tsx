@@ -741,8 +741,12 @@ export function TurnSummaryRow({
             // Inline, so it follows the text onto a wrapped line.
             <span
               data-testid="turn-summary-failure"
-              className="ml-1.5 inline-flex h-[18px] items-center rounded-md bg-destructive/10 px-1.5 align-[1px] text-2xs font-medium whitespace-nowrap text-destructive"
+              className="ml-1.5 inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-[1px] text-2xs font-medium whitespace-nowrap text-foreground"
             >
+              <WarningCircleIcon
+                aria-hidden
+                className="size-3 shrink-0 text-destructive"
+              />
               {failures.length === 1
                 ? `${failures[0]} failed`
                 : `${failures.length} failed`}
@@ -795,11 +799,8 @@ function PlanMessage({
   const statusBadge = {
     pending: null,
     approved: (
-      <Badge
-        variant="secondary"
-        className="h-4 gap-1 bg-success/10 px-1.5 py-0 text-2xs text-success"
-      >
-        <CheckCircleIcon className="size-3" /> Approved
+      <Badge variant="outline" className="h-4 gap-1 px-1.5 py-0 text-2xs">
+        <CheckCircleIcon className="size-3 text-success" /> Approved
       </Badge>
     ),
     rejected: (
@@ -1289,7 +1290,7 @@ export function AgentMessageItem({
         // line with no spaces to break on.
         <div
           data-testid="chat-error"
-          className="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-xs text-destructive"
+          className="flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs text-destructive"
         >
           <WarningCircleIcon aria-hidden className="mt-px size-3 shrink-0" />
           <p className="min-w-0 flex-1 [overflow-wrap:anywhere] whitespace-pre-wrap">

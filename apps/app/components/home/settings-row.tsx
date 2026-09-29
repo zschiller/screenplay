@@ -1,4 +1,4 @@
-import { type Icon } from "@workspace/ui/components/icons"
+import { CheckCircleIcon, type Icon } from "@workspace/ui/components/icons"
 import { Badge } from "@workspace/ui/components/badge"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { cn } from "@workspace/ui/lib/utils"
@@ -16,7 +16,7 @@ const GROUP_FRAME = "divide-y rounded-lg border"
  * Project presets and Account all render their rows, skeletons and load errors
  * through this, so every section reads as one list.
  *
- * `status` colours the chip: `on` is green and only for something that works
+ * `status` marks the chip: `on` gets a green check and is only for something that works
  * (signed in, connected); `off` is neutral. `icon` is for rows that stand for a
  * problem (a load error), not decoration.
  */
@@ -69,14 +69,15 @@ export function SettingsRow({
           </span>
           {state && (
             <Badge
-              variant="secondary"
+              variant={status === "on" ? "outline" : "secondary"}
               className={cn(
-                "shrink-0 font-normal",
-                status === "on"
-                  ? "bg-success/10 text-success"
-                  : "text-muted-foreground"
+                "shrink-0 gap-1 font-normal",
+                status !== "on" && "text-muted-foreground"
               )}
             >
+              {status === "on" && (
+                <CheckCircleIcon aria-hidden className="size-3 text-success" />
+              )}
               {state}
             </Badge>
           )}
