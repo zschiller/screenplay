@@ -25,7 +25,10 @@ const EDITS: {
 }[] = [
   { ws: "New headline", type: true, diff: [1, 1] },
   { ws: "Tinted page", cls: "soft", diff: [3, 1] },
-  { ws: "Centered hero", cls: "center", diff: [6, 2] },
+  { ws: "Centered hero", cls: "center", diff: [6, 2], not: "split" },
+  { ws: "Split hero", cls: "split", diff: [9, 4], not: "center" },
+  { ws: "Feature cards", cls: "cards", diff: [14, 3] },
+  { ws: "Launch banner", cls: "banner", diff: [5, 0] },
   { ws: "Pill buttons", cls: "pill", diff: [2, 2] },
   { ws: "Mono headline", cls: "mono", diff: [3, 1], not: "sans" },
   { ws: "Bigger headline", cls: "big", diff: [1, 1] },
@@ -36,7 +39,7 @@ const EDITS: {
 
 // What each copy has already done when the page loads, so the first frame
 // shows variety. Index 0 is main, untouched.
-const SEED = [[], [1], [0], [2, 3], [4], [6, 3], [7, 1], [5], [8, 2]]
+const SEED = [[], [1, 4], [0], [2, 6], [7], [9, 6], [10, 1], [5, 8], [11, 3]]
 
 const PAGE = `
   <div class="hc-page">
@@ -48,6 +51,18 @@ const PAGE = `
       <div class="hc-fig"><span></span><span></span><span></span></div>
     </div>
   </div>`
+
+// A Workspace's state, as in the app: a ring when it's ready, the twinkling
+// 3×3 grid while its agent works.
+const GLYPH = `<svg class="hc-glyph" viewBox="0 0 24 24"><circle class="hc-ring" cx="12" cy="12" r="8.5" /><g class="hc-grip">${[
+  5, 12, 19,
+]
+  .flatMap((cy) => [5, 12, 19].map((cx) => [cx, cy]))
+  .map(
+    ([cx, cy], i) =>
+      `<circle class="grip-dot" cx="${cx}" cy="${cy}" r="2" style="animation-delay:${-((i * 7) % 9) * 0.21}s" />`
+  )
+  .join("")}</g></svg>`
 
 type Copy = {
   el: HTMLElement
@@ -116,13 +131,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         for (const seed of seeds) {
           const el = document.createElement("div")
           el.className = "hc-copy"
-          el.innerHTML = `<div class="hc-head"><span></span><span class="hc-diff"></span></div><div class="hc-box">${PAGE}</div>`
+          el.innerHTML = `<div class="hc-head">${GLYPH}<span class="hc-name"></span><span class="hc-diff"></span></div><div class="hc-box">${PAGE}</div>`
           const f: Copy = {
             el,
             page: el.querySelector(".hc-page")!,
             box: el.querySelector(".hc-box")!,
             h1: el.querySelector(".hc-h1")!,
-            name: el.querySelector(".hc-head span")!,
+            name: el.querySelector(".hc-name")!,
             diff: el.querySelector(".hc-diff")!,
             done: [],
             busy: false,
@@ -158,57 +173,74 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       f.h1.textContent = cur
     }
 
-    // Every so often one copy on screen changes: an agent edit, or, after a
-    // few, it wipes back to main and starts over.
-    async function tick() {
+    // Narrower screens stack the copies under the text instead, unveiled.
+    const wide = matchMedia("(min-width: 1024px)")
+
+    // A few agents at once each keep picking a copy on screen and changing
+    // it, or, after a few edits, wiping it back to main to start over.
+    async function agent(delay: number) {
+      await wait(delay)
       while (alive) {
-        await wait(1300)
-        if (!alive) return
         const s = rowsEl.getBoundingClientRect()
         const onScreen = copies.filter((f) => {
           const r = f.el.getBoundingClientRect()
           return !f.busy && r.left > s.left + 20 && r.right < s.right - 20
         })
-        const f = onScreen[Math.floor(Math.random() * onScreen.length)]
-        if (!f) continue
-        f.busy = true
-        if (f.done.length >= 3) {
-          f.box.classList.add("wipe")
-          await wait(700)
-          f.page.className = "hc-page"
-          f.h1.textContent = HEAD
-          f.done = []
-          label(f)
-          f.box.classList.remove("wipe")
-        } else {
-          const blocked = new Set(
-            f.done.flatMap((i) => [EDITS[i]!.cls, EDITS[i]!.not])
-          )
-          const pool = EDITS.map((_, i) => i).filter(
-            (i) => !f.done.includes(i) && !blocked.has(EDITS[i]!.cls)
-          )
-          const i = pool[Math.floor(Math.random() * pool.length)]!
-          f.done.push(i)
-          label(f)
-          const e = EDITS[i]!
-          if (e.type) await type(f, nextHeadline())
-          else {
-            f.page.classList.add(e.cls!)
-            await wait(800)
-          }
-        }
-        f.busy = false
+        // Mostly the ones clear of the veil, where the change shows.
+        const clear = onScreen.filter(
+          (f) => f.el.getBoundingClientRect().left > s.left + s.width * 0.5
+        )
+        const pool =
+          wide.matches && clear.length && Math.random() < 0.75
+            ? clear
+            : onScreen
+        const f = pool[Math.floor(Math.random() * pool.length)]
+        if (f) await edit(f)
+        await wait(500 + Math.random() * 700)
       }
     }
+    async function edit(f: Copy) {
+      f.busy = true
+      f.el.classList.add("working")
+      if (f.done.length >= 3) {
+        f.box.classList.add("wipe")
+        await wait(700)
+        f.page.className = "hc-page"
+        f.h1.textContent = HEAD
+        f.done = []
+        label(f)
+        f.box.classList.remove("wipe")
+        await wait(700)
+      } else {
+        const blocked = new Set(
+          f.done.flatMap((i) => [EDITS[i]!.cls, EDITS[i]!.not])
+        )
+        const pool = EDITS.map((_, i) => i).filter(
+          (i) => !f.done.includes(i) && !blocked.has(EDITS[i]!.cls)
+        )
+        const i = pool[Math.floor(Math.random() * pool.length)]!
+        // The agent thinks for a moment, then the change lands.
+        await wait(600)
+        if (!alive) return
+        f.done.push(i)
+        label(f)
+        const e = EDITS[i]!
+        if (e.type) await type(f, nextHeadline())
+        else {
+          f.page.classList.add(e.cls!)
+          await wait(900)
+        }
+      }
+      f.el.classList.remove("working")
+      f.busy = false
+    }
 
-    // Narrower screens stack the copies under the text instead, unveiled.
-    const wide = matchMedia("(min-width: 1024px)")
     const play = () => {
       if (reduce || alive) return
       alive = true
       host.dataset.playing = ""
       if (wide.matches) veil.start()
-      void tick()
+      for (let k = 0; k < 3; k++) void agent(k * 450)
     }
     const pause = () => {
       alive = false
@@ -216,7 +248,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       veil.stop()
       timers.forEach(clearTimeout)
       timers.clear()
-      copies.forEach((f) => (f.busy = false))
+      copies.forEach((f) => {
+        f.busy = false
+        f.el.classList.remove("working")
+      })
     }
 
     // At most once a frame, and drawn straight away, so dragging the window
