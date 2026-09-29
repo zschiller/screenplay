@@ -1,8 +1,7 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-import frameDark from "../shots/frame-selected.dark.webp"
-import frameLight from "../shots/frame-selected.light.webp"
-import { measure, monoLabel, ProductShot } from "./editorial"
+import { FrameExcerpt } from "../excerpts/canvas"
+import { measure, monoLabel } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const dance = [
@@ -47,12 +46,7 @@ export function Problem() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-2.5">
-          <ProductShot
-            light={frameLight}
-            dark={frameDark}
-            sizes="(min-width: 1024px) 640px, 100vw"
-            alt="A selected frame on the canvas, with its address bar underneath, next to the other Workspaces' frames."
-          />
+          <FrameExcerpt />
           <p className={cn(monoLabel, "text-muted-foreground")}>
             With Screenplay · every branch running at once
           </p>

@@ -200,20 +200,11 @@ A run that finds `--boot` serving shoots against it instead of re-seeding.
 `--list` prints the screen list, `--no-frame` stops after capturing, and
 `--frame-only` re-frames the last capture.
 
-### The homepage's product images
-
-The same run writes the marketing homepage's product images into
-`apps/web/components/marketing/shots/`: plain captures of a few docs screens
-(`hero`, `frame-selected`, `home-recents`, `new-workspace-multi`, `ws-menu`),
-with no window chrome, some cropped to a detail for the "how it works" scenes.
-`apps/app/screenshots/docs/homepage.ts` lists which screen and crop each image
-uses.
-
 ### Kept up to date automatically
 
 The **Docs screenshots** workflow (`.github/workflows/docs-screenshots.yml`)
 reruns this on every push to `main` that touches the app, the UI packages, or
-the docs. When any image changes (the homepage's included), it opens a `docs: refresh screenshots` pull
+the docs. When any image changes, it opens a `docs: refresh screenshots` pull
 request (or updates the open one) for someone to look over and merge. It runs
 with `--strict`, so a screen whose steps fail stops the run instead of
 proposing a wrong image; the raw captures are attached to the run.

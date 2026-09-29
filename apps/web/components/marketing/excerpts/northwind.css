@@ -1,0 +1,273 @@
+/* The docs world's demo site, Northwind (apps/app/screenshots/docs/northwind),
+   redrawn at any size for the homepage's product excerpts. Sizes are in em of
+   a 16px design, and `.nw` sets 1em from its frame's width (`container-type:
+   inline-size` on the frame), so a frame of any width shows the same page.
+   It's the user's site, so it keeps its own light colours in both themes. */
+.nw {
+  --accent: #4f46e5;
+  --radius: 0.875em;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  font-size: calc(100cqw / 80);
+  color: #0f172a;
+  background: #fff;
+  line-height: 1.2;
+  height: 100%;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-align: center;
+}
+.nw.nw-mobile {
+  font-size: calc(100cqw / 24.375);
+}
+.nw * {
+  box-sizing: border-box;
+}
+.nw-nav {
+  display: flex;
+  align-items: center;
+  gap: 2em;
+  padding: 1.125em 3em;
+  border-bottom: 1px solid #eef0f4;
+  font-size: 1em;
+}
+.nw-mobile .nw-nav {
+  padding: 0.875em 1.25em;
+  justify-content: space-between;
+}
+.nw-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.555em;
+  font-weight: 700;
+  font-size: 1.125em;
+  letter-spacing: -0.02em;
+}
+.nw-logo {
+  width: 1.22em;
+  height: 1.22em;
+  border-radius: 0.39em;
+  background: conic-gradient(
+    from 200deg,
+    var(--accent),
+    #06b6d4,
+    var(--accent)
+  );
+}
+.nw-links {
+  display: flex;
+  gap: 1.733em;
+  font-size: 0.9375em;
+  color: #475569;
+  flex: 1;
+}
+.nw-ctas {
+  display: flex;
+  align-items: center;
+  gap: 1.2em;
+  font-size: 0.9375em;
+  color: #475569;
+}
+.nw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.866em 1.466em;
+  border-radius: 0.65em;
+  font-size: 0.9375em;
+  white-space: nowrap;
+  box-shadow: 0 0.4em 1.33em -0.4em
+    color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.nw-btn.nw-sm {
+  padding: 0.64em 1.14em;
+  font-size: 0.875em;
+}
+.nw-btn.nw-outline {
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+.nw-hero {
+  padding: 5em 3em 3.5em;
+  background: radial-gradient(
+    60% 80% at 50% 0%,
+    color-mix(in srgb, var(--accent) 14%, #fff),
+    #fff 70%
+  );
+}
+.nw-mobile .nw-hero {
+  padding: 2.5em 1.25em 2em;
+}
+.nw-pill {
+  display: inline-block;
+  font-size: 0.8125em;
+  font-weight: 500;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, #fff);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, #fff);
+  padding: 0.46em 0.92em;
+  border-radius: 99em;
+}
+.nw-h1 {
+  font-size: 3.75em;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+  font-weight: 800;
+  max-width: 13.66em;
+  margin: 0.3em auto;
+}
+.nw-mobile .nw-h1 {
+  font-size: 2.25em;
+}
+.nw-gradient .nw-h1 {
+  background: linear-gradient(90deg, var(--accent), #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.nw-lede {
+  font-size: 1.1875em;
+  color: #475569;
+  max-width: 31.5em;
+  margin: 0 auto 1.58em;
+  line-height: 1.55;
+}
+.nw-mobile .nw-lede {
+  font-size: 1em;
+}
+.nw-row {
+  display: flex;
+  gap: 0.75em;
+  justify-content: center;
+}
+.nw-trust {
+  margin-top: 1.25em;
+  font-size: 0.8125em;
+  color: #94a3b8;
+}
+.nw-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.625em;
+  height: 11.25em;
+  max-width: 47.5em;
+  margin: 3.25em auto 0;
+  padding: 1.5em;
+  border: 1px solid #eef0f4;
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 1.25em 3.125em -1.5em #0f172a33;
+}
+.nw-mobile .nw-chart {
+  height: 8em;
+  margin-top: 2em;
+  padding: 1em;
+  gap: 0.375em;
+}
+.nw-bar {
+  flex: 1;
+  border-radius: 0.375em 0.375em 0.125em 0.125em;
+  background: linear-gradient(
+    180deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 30%, #fff)
+  );
+}
+/* Pricing */
+.nw-hero.nw-compact {
+  padding: 4em 3em 2em;
+}
+.nw-mobile .nw-hero.nw-compact {
+  padding: 2.25em 1.25em 1.25em;
+}
+.nw-toggle {
+  display: inline-flex;
+  background: #f1f5f9;
+  border-radius: 99em;
+  padding: 0.25em;
+  gap: 0.25em;
+  font-size: 0.875em;
+  font-weight: 500;
+  color: #475569;
+}
+.nw-toggle span {
+  padding: 0.57em 1.14em;
+  border-radius: 99em;
+}
+.nw-toggle .nw-on {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px #0002;
+}
+.nw-plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25em;
+  padding: 2em 3em;
+  max-width: 73.75em;
+  margin: 0 auto;
+  text-align: left;
+}
+.nw-mobile .nw-plans {
+  grid-template-columns: 1fr;
+  padding: 1em 1.25em;
+}
+.nw-plan {
+  position: relative;
+  border: 1px solid #eef0f4;
+  border-radius: var(--radius);
+  padding: 1.625em;
+  background: #fff;
+  box-shadow: 0 1px 2px #0f172a0a;
+}
+.nw-plan.nw-featured {
+  border: 2px solid var(--accent);
+  box-shadow: 0 1.5em 3.125em -1.5em
+    color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.nw-plan h3 {
+  margin: 0;
+  font-size: 1.125em;
+}
+.nw-price {
+  font-size: 2.75em;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  margin: 0.18em 0;
+}
+.nw-price small {
+  font-size: 0.34em;
+  color: #94a3b8;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.nw-plan p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9375em;
+  line-height: 1.5;
+}
+.nw-plan .nw-btn {
+  width: 100%;
+  margin-top: 1.33em;
+}
+.nw-tag {
+  position: absolute;
+  top: -0.9em;
+  right: 1.66em;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75em;
+  font-weight: 600;
+  padding: 0.33em 0.83em;
+  border-radius: 99em;
+}

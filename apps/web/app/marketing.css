@@ -11,12 +11,18 @@
     var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --color-selection: var(--selection);
+  --color-plane: var(--plane);
 }
 
 /* The canvas's selection magenta (apps/app `--canvas-selection`), used only
-   where something on the page is "selected". */
+   where something on the page is "selected", and the canvas plane behind
+   frames (`--canvas-plane`), for the product excerpts. */
 :root {
   --selection: oklch(0.667 0.295 322.15);
+  --plane: oklch(0.975 0 0);
+}
+.dark {
+  --plane: oklch(0.07 0 0);
 }
 
 html {
@@ -24,18 +30,18 @@ html {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* The hero's selected word: the selection box draws in once. */
-  .select-in {
-    animation: select-in 0.9s 0.2s ease-out both;
-  }
   .caret-blink {
     animation: caret-blink 1s steps(1, end) infinite;
   }
+  /* A working Workspace's 3×3 grid (the app's GripSpinner). */
+  .grip-dot {
+    animation: grip-dot-twinkle 1.4s ease-in-out infinite;
+  }
 }
 
-@keyframes select-in {
-  from {
-    outline-color: transparent;
+@keyframes grip-dot-twinkle {
+  50% {
+    opacity: 0.15;
   }
 }
 

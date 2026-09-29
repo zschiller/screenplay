@@ -1,5 +1,3 @@
-import Image, { type StaticImageData } from "next/image"
-
 import { cn } from "@workspace/ui/lib/utils"
 
 /** The page's measure: one left edge for every section. */
@@ -20,46 +18,5 @@ export function buttonClass(
     variant === "solid"
       ? "bg-foreground text-background hover:bg-foreground/85"
       : "hover:bg-muted"
-  )
-}
-
-/**
- * A real capture of the app, in the theme the page is showing, inside a
- * hairline frame. The images come from the docs screenshot run
- * (apps/app/screenshots/docs/homepage.ts).
- */
-export function ProductShot({
-  light,
-  dark,
-  alt,
-  sizes,
-  priority,
-  className,
-}: {
-  light: StaticImageData
-  dark: StaticImageData
-  alt: string
-  sizes: string
-  priority?: boolean
-  className?: string
-}) {
-  const img = "block h-auto w-full"
-  return (
-    <div className={cn("overflow-hidden border border-border", className)}>
-      <Image
-        src={light}
-        alt={alt}
-        sizes={sizes}
-        priority={priority}
-        className={cn(img, "dark:hidden")}
-      />
-      <Image
-        src={dark}
-        alt={alt}
-        sizes={sizes}
-        priority={priority}
-        className={cn(img, "hidden dark:block")}
-      />
-    </div>
   )
 }
