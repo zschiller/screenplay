@@ -23,6 +23,8 @@
      inspect      the element under the pointer while commenting / picking
      highlight    the element a hovered composer token references
      group-merge  the slot a dragged Group would merge into (drawn at 40%)
+     plane        the surface behind frames: a faint grey, so white (or
+                  black) frames still separate from it with no shadow
 
    Layers, bottom to top, inside the canvas wrapper (its `isolate` keeps them
    local, so app-level popovers portalled to <body> always sit above all of
@@ -43,6 +45,7 @@
   --canvas-highlight: oklch(0.66 0.2 300);
   --canvas-group-merge: var(--canvas-snap);
   --canvas-comment: oklch(0.769 0.188 70.08);
+  --canvas-plane: oklch(0.975 0 0);
 
   --z-canvas-overlay: 10;
   --z-canvas-annotations: 20;
@@ -57,6 +60,7 @@
   --canvas-inspect: oklch(0.62 0.22 300);
   --canvas-highlight: oklch(0.66 0.2 300);
   --canvas-comment: oklch(0.769 0.188 70.08);
+  --canvas-plane: oklch(0.07 0 0);
 }
 
 @theme inline {
@@ -66,6 +70,7 @@
   --color-canvas-highlight: var(--canvas-highlight);
   --color-canvas-group-merge: var(--canvas-group-merge);
   --color-canvas-comment: var(--canvas-comment);
+  --color-canvas-plane: var(--canvas-plane);
 }
 
 /* Disable browser swipe-to-navigate so two-finger horizontal pans on the

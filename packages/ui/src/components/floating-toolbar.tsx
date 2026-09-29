@@ -28,7 +28,7 @@ function FloatingToolbar({
         aria-orientation={orientation}
         data-slot="floating-toolbar"
         className={cn(
-          "pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5",
+          "pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10",
           orientation === "vertical" && "flex-col",
           className
         )}

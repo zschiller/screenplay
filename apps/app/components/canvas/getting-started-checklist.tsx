@@ -49,7 +49,7 @@ export function GettingStartedChecklist({
     <section
       data-slot="getting-started"
       aria-labelledby="getting-started-title"
-      className="flex animate-in flex-col gap-3 rounded-lg bg-background p-3 text-foreground shadow-md outline outline-1 outline-foreground/5 duration-300 fade-in-0"
+      className="flex animate-in flex-col gap-3 rounded-lg bg-background p-3 text-foreground shadow-md outline outline-1 outline-foreground/10 duration-300 fade-in-0"
     >
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">

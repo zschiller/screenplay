@@ -1469,7 +1469,7 @@ export function Canvas({
       ))}
       <ResizablePanelGroup
         orientation="horizontal"
-        className="fixed inset-0 bg-muted/30"
+        className="fixed inset-0 bg-canvas-plane"
         defaultLayout={initialLayout}
         onLayoutChanged={onLayoutChanged}
       >
@@ -1954,7 +1954,7 @@ export function Canvas({
                 sidebar is collapsed). */}
             <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
               <div
-                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
+                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
                 onClick={(e) => e.stopPropagation()}
               >
                 <CanvasZoomMenu

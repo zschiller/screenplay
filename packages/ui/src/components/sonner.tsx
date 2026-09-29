@@ -15,11 +15,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
+          "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
-      // The toast stays neutral; only its icon takes the status colour.
+      // The toast stays neutral; only its icon takes the status colour. Like
+      // every floating surface it is flat, set off by its border (#1006).
       toastOptions={{
         classNames: {
+          toast: "shadow-none!",
           error: "[&_[data-icon]]:text-destructive",
           success: "[&_[data-icon]]:text-success",
           warning: "[&_[data-icon]]:text-warning",

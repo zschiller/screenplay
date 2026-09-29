@@ -55,7 +55,7 @@ export function CanvasSkeleton({
 
   return (
     <div
-      className="fixed inset-0 flex bg-muted/30"
+      className="fixed inset-0 flex bg-canvas-plane"
       aria-busy="true"
       aria-label="Loading canvas"
     >
@@ -151,7 +151,7 @@ function SidebarSection({
 /** The floating pill the canvas chrome sits in — same box as the real ones. */
 function Pill({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5">
+    <div className="flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10">
       {children}
     </div>
   )

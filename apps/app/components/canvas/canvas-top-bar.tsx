@@ -95,7 +95,7 @@ export function CanvasTopBar({
       }`}
     >
       <div
-        className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
+        className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
         onClick={(e) => e.stopPropagation()}
       >
         {sidebarCollapsed && (

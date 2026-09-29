@@ -273,7 +273,7 @@ export function PlayerHud({
       className="z-[9998] select-none"
     >
       <TooltipProvider>
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5">
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10">
           <span
             className="flex h-6 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
             aria-label="Drag to a corner"
@@ -417,7 +417,7 @@ export function PlayerHud({
           // Block drag from starting on the panel — clicks/inputs inside
           // shouldn't move the HUD.
           onPointerDown={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg bg-background shadow-md outline outline-1 outline-foreground/5"
+          className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg bg-background shadow-md outline outline-1 outline-foreground/10"
         >
           {panel === "comments" ? (
             <CommentsPanel

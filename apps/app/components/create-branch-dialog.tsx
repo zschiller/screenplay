@@ -263,13 +263,12 @@ export function CreateBranchDialog({
         </DialogHeader>
 
         <div ref={scrollWrapRef} className="relative">
-          {/* A single box-shadow draws both the hairline (the crisp 0 1px 0 line)
-              and the soft drop beneath it — revealed only while content is tucked
-              under the header. */}
+          {/* A hairline, revealed only while content is tucked under the
+              header. */}
           <div
             aria-hidden
             className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-10 h-px shadow-[inset_0_1px_0_0_rgb(0_0_0/0.08),0_3px_8px_0_rgb(0_0_0/0.06)] transition-opacity duration-150 dark:shadow-[inset_0_1px_0_0_rgb(255_255_255/0.1),0_3px_8px_0_rgb(255_255_255/0.06)]",
+              "pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-border transition-opacity duration-150",
               scrolled ? "opacity-100" : "opacity-0"
             )}
           />
