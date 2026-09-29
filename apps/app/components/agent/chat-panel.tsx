@@ -1072,7 +1072,11 @@ export function ChatPanel({
             usingMouse ? "" : "[&_[data-slot=scroll-area-scrollbar]]:hidden"
           }`}
         >
-          <TabsList variant="line" className="h-9 px-2">
+          <TabsList
+            variant="line"
+            // Tall enough for the 28px close buttons to sit inside the tabs.
+            className="px-2 group-data-horizontal/tabs:h-10"
+          >
             {isAgentTarget && (
               <TabsTrigger
                 value={LOGS_TAB_VALUE}
