@@ -35,7 +35,7 @@ import {
 
 import {
   ArrowsDownUpIcon,
-  CardsThreeIcon,
+  CaretDownIcon,
   CaretRightIcon,
   ChatsIcon,
   CheckIcon,
@@ -646,7 +646,7 @@ export function WorkspacesMenuProvider({
 }
 
 /**
- * The Workspaces button at the far right of the chat panel header, with a dot
+ * The labelled Workspaces button at the far right of the chat panel header, with a dot
  * while any Workspace needs you. Renders nothing outside a provider.
  */
 export function WorkspacesMenuButton() {
@@ -655,21 +655,23 @@ export function WorkspacesMenuButton() {
   return (
     <Popover open={menu.open} onOpenChange={menu.setOpen}>
       <PopoverTrigger asChild>
-        <IconButton
-          label="Workspaces"
-          hint={menu.needsYou ? "A workspace needs you" : undefined}
-          tooltipSide="bottom"
-          className="relative text-muted-foreground"
+        <Button
+          variant="ghost"
+          size="xs"
+          aria-label="Workspaces"
+          aria-description={menu.needsYou ? "A workspace needs you" : undefined}
+          className="text-muted-foreground"
         >
-          <CardsThreeIcon className="size-4" />
+          Workspaces
           {menu.needsYou ? (
             <span
               aria-hidden
               data-slot="needs-you-dot"
-              className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-info-fill ring-2 ring-background"
+              className="size-1.5 rounded-full bg-info-fill"
             />
           ) : null}
-        </IconButton>
+          <CaretDownIcon data-icon="inline-end" />
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         data-workspaces-menu=""

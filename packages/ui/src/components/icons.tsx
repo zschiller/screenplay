@@ -23,7 +23,6 @@ import { BookBookmarkIcon as BookBookmarkBase } from "@phosphor-icons/react/dist
 import { BookOpenIcon as BookOpenBase } from "@phosphor-icons/react/dist/ssr/BookOpen"
 import { BracketsCurlyIcon as BracketsCurlyBase } from "@phosphor-icons/react/dist/ssr/BracketsCurly"
 import { BrainIcon as BrainBase } from "@phosphor-icons/react/dist/ssr/Brain"
-import { CardsThreeIcon as CardsThreeBase } from "@phosphor-icons/react/dist/ssr/CardsThree"
 import { CaretDownIcon as CaretDownBase } from "@phosphor-icons/react/dist/ssr/CaretDown"
 import { CaretLeftIcon as CaretLeftBase } from "@phosphor-icons/react/dist/ssr/CaretLeft"
 import { CaretRightIcon as CaretRightBase } from "@phosphor-icons/react/dist/ssr/CaretRight"
@@ -227,7 +226,6 @@ export const BracketsCurlyIcon = phosphor(
   "ph-brackets-curly"
 )
 export const BrainIcon = phosphor(BrainBase, "ph-brain")
-export const CardsThreeIcon = phosphor(CardsThreeBase, "ph-cards-three")
 export const CaretDownIcon = phosphor(CaretDownBase, "ph-caret-down")
 export const CaretLeftIcon = phosphor(CaretLeftBase, "ph-caret-left")
 export const CaretRightIcon = phosphor(CaretRightBase, "ph-caret-right")
