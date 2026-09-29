@@ -12,6 +12,7 @@ import {
   THEMES,
   type Theme,
 } from "./browser"
+import { encodeReviewVideo, type ReviewVideo } from "./review-video"
 import { sleep } from "./server"
 
 /**
@@ -213,7 +214,9 @@ export interface RecordOptions {
 }
 
 /**
- * Record one named interaction to `<captureRoot>/<label>/<name>.<theme>.webm`.
+ * Record one named interaction to `<captureRoot>/<label>/<name>.<theme>.gif`
+ * (embed in the PR) and `.mp4` (full quality, link it). See `review-video.ts`
+ * for why not the `.webm` Playwright writes.
  *
  * Playwright names a recording after an internal page id and only finalises it on
  * `context.close()`, so the file is renamed afterwards — the harness's output
@@ -222,7 +225,7 @@ export interface RecordOptions {
 export async function recordInteraction(
   profile: CaptureProfile,
   options: RecordOptions
-): Promise<{ file: string }> {
+): Promise<ReviewVideo> {
   const log = options.log ?? ((m: string) => console.log(m))
   const theme = options.theme ?? "light"
   const label = options.label ?? "videos"
@@ -259,5 +262,6 @@ export async function recordInteraction(
   } finally {
     await browser.close()
   }
-  return { file: target }
+  log("  → encoding GIF and MP4")
+  return encodeReviewVideo(target, { log })
 }

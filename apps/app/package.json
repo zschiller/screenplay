@@ -21,6 +21,7 @@
     "screenshots:boot": "tsx screenshots/bin/boot.ts",
     "screenshots:shots": "tsx screenshots/bin/shots.ts",
     "screenshots:video": "tsx screenshots/bin/video.ts",
+    "screenshots:review-video": "tsx screenshots/bin/review-video.ts",
     "screenshots:docs": "tsx screenshots/bin/docs.ts"
   },
   "dependencies": {

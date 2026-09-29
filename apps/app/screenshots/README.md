@@ -8,7 +8,8 @@ design-polish PR (issue #716). Full contributor docs:
 pnpm screenshots:browsers   # once per machine
 pnpm screenshots:boot       # seed a fresh world, serve it at :3947
 pnpm screenshots:shots      # every named screen, light and dark
-pnpm screenshots:video open-canvas
+pnpm screenshots:video open-canvas     # GIF to embed + MP4 to link
+pnpm screenshots:review-video x.webm  # same, for a recording made elsewhere
 pnpm screenshots:shots --hosted   # the hosted build's screens (comments)
 pnpm screenshots:docs       # regenerate the product docs' screenshots
 ```
@@ -25,6 +26,7 @@ pnpm screenshots:docs       # regenerate the product docs' screenshots
 | `interactions.ts`            | The **named interactions** recorded to video.                                                                   |
 | `lib/preview-server.ts`      | Serves fixture pages for Iframe Layers, with the real Sandbox Bridge inlined.                                   |
 | `lib/capture.ts`             | Runs a capture set; one context per screen-and-theme.                                                           |
+| `lib/review-video.ts`        | Turns a recording's `.webm` into a GIF (plays inline in a PR) and an H.264 MP4.                                 |
 | `lib/hosted.ts`              | The signed-in session a `--hosted` capture runs as (comments live only in the hosted build).                    |
 | `lib/server.ts`              | Boots (or reuses) the app and the preview server.                                                               |
 | `bin/`                       | The entry points behind the `screenshots:*` package scripts.                                                    |

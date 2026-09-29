@@ -19,7 +19,7 @@ Run them from `apps/app`.
 pnpm screenshots:browsers   # once per machine: download Chromium + ffmpeg
 pnpm screenshots:boot       # seed a fresh world and serve it at :3947
 pnpm screenshots:shots      # capture every named screen, light and dark
-pnpm screenshots:video open-canvas   # record one named interaction
+pnpm screenshots:video open-canvas   # record one named interaction (GIF + MP4)
 ```
 
 `shots` and `video` boot the app themselves when nothing is serving the port,
@@ -78,11 +78,27 @@ it.
 
 A still can't review motion — an entrance animation, a drag, a panel that
 slides. `video` records one named flow to
-`.screenshots/captures/videos/<name>.<theme>.webm`:
+`.screenshots/captures/videos/<name>.<theme>.gif` and `.mp4`:
 
 ```bash
 pnpm screenshots:video --list
 pnpm screenshots:video canvas-zoom --theme dark
+```
+
+Embed the GIF in the PR description as an image (`![](…/canvas-zoom.dark.gif)`):
+it plays inline. Link the MP4 under it for full quality; it plays in QuickTime,
+Safari and Chrome. Don't post the `.webm` Playwright records: GitHub downloads
+it instead of playing it, and a Mac can't open it. A busy recording steps down
+in size and frame rate until the GIF is under 10 MB, so the PR stays quick to
+open.
+
+The encoder uses `ffmpeg` from your `PATH` when it can write GIF and H.264, and
+otherwise installs a static build once into `.screenshots/tools/`
+(`SCREENSHOTS_FFMPEG` points it at a specific binary). A recording
+made outside the harness (a one-off Playwright script) converts the same way:
+
+```bash
+pnpm screenshots:review-video path/to/recording.webm
 ```
 
 Name the flow in the PR ("recorded `open-canvas`") so a reviewer can re-record
