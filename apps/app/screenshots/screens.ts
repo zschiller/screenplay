@@ -784,7 +784,7 @@ export const SCREENS: Screen[] = [
   {
     name: "chat-header-workspace",
     description:
-      "A Workspace's chat header (#1152): the Coordinator crumb, the Workspace's state icon and name, its PR button, and the Workspaces button with its needs-you dot.",
+      "A Workspace's chat header (#1152): the Coordinator crumb, the Workspace's state icon and name, and its PR button. No Workspaces button: that lives on the Coordinator header.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -817,19 +817,6 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
-      await page.mouse.move(900, 900)
-    },
-    settleMs: 400,
-  },
-  {
-    name: "workspaces-menu-from-workspace",
-    description:
-      "The Workspaces menu open inside a Workspace (#1152): that Workspace checked, the button in the same spot.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await selectWorkspace(page, "Checkout polish")
       await openWorkspacesMenu(page)
       await page.mouse.move(900, 900)
     },
@@ -3996,7 +3983,11 @@ export async function openWorkspacesMenu(page: Page): Promise<Locator> {
   const button = page.getByRole("button", { name: "Workspaces", exact: true })
   await button.waitFor({ timeout: 15_000 }).catch(() => {})
   if (!(await button.isVisible())) {
-    await page.keyboard.press("Meta+i")
+    // The button lives on the Coordinator header only (#1152): from a
+    // Workspace chat, go back up through the Coordinator crumb.
+    const crumb = page.getByRole("button", { name: "Coordinator", exact: true })
+    if (await crumb.isVisible()) await crumb.click()
+    else await page.keyboard.press("Meta+i")
   }
   await button.click({ timeout: 15_000 })
   await menu.waitFor({ timeout: 10_000 })

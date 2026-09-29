@@ -58,7 +58,6 @@ import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
 import { ChatHistoryMenu } from "./chat-history-menu"
-import { WorkspacesMenuButton } from "./workspaces-menu"
 import {
   WorkspaceMention,
   useWorkspaceAgentWorking,
@@ -942,7 +941,7 @@ export function ChatPanel({
       onValueChange={handleTabChange}
       className="flex h-full flex-col gap-0"
     >
-      <div className="@container/chat-header flex h-12 items-center bg-background px-3">
+      <div className="flex h-12 items-center bg-background px-3">
         {onCollapse && (
           <IconButton
             label="Collapse chat"
@@ -971,8 +970,8 @@ export function ChatPanel({
             </span>
           </>
         )}
-        {/* Where you are, not a switcher: the Workspaces button at the far
-            right is how you move between chats (#1152). */}
+        {/* Where you are, not a switcher: the Coordinator crumb goes back to
+            the top level, where the Workspaces button lives (#1152). */}
         <TargetPill target={target} />
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
           {/* Diff stats and the PR button are agent-only — there's no
@@ -1022,7 +1021,6 @@ export function ChatPanel({
                 Create PR
               </Button>
             ))}
-          <WorkspacesMenuButton collapsible />
         </div>
       </div>
       <div

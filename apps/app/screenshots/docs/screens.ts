@@ -321,6 +321,9 @@ const BRANCH_ROW = "[data-workspaces-menu] [cmdk-item]"
 /** Open the chat panel's Workspaces menu, unless it's open already. */
 async function openWorkspacesMenu(page: Page) {
   if (await page.locator("[data-workspaces-menu]").isVisible()) return
+  // The button lives on the Coordinator header only (#1152).
+  const crumb = page.getByRole("button", { name: "Coordinator", exact: true })
+  if (await crumb.isVisible()) await crumb.click()
   await page
     .getByRole("button", { name: "Workspaces", exact: true })
     .click({ timeout: 15_000 })
