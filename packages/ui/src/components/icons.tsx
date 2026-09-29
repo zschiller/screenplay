@@ -164,10 +164,15 @@ function phosphor(
         className={cn(name, !pinned && "ph-dual", props.className)}
       >
         {!pinned && (
-          // Inline size: a parent's `[&_svg]:size-*` must not resize it.
+          // Fills the outer icon. The size must be the width/height
+          // attributes: browsers ignore CSS width on a nested svg, so a style
+          // alone left Phosphor's 1em (16 of 256 user units, under 1px). The
+          // inline style still beats a parent's `[&_svg]:size-*` where the
+          // CSS does apply.
           <Base
             weight="regular"
             color={props.color}
+            size="100%"
             style={{ width: "100%", height: "100%" }}
           />
         )}
