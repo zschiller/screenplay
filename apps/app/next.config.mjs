@@ -2,7 +2,7 @@
 // path like `/app` to serve every page, `_next/static` asset, and route handler
 // beneath it. This file is plain Node config loaded before the TS pipeline, so
 // it can't import lib/base-path.ts — both read the same env var to stay in sync.
-// In this monorepo the `web` app proxies `/app/*` here (see apps/web/vercel.json)
+// In this monorepo the `homepage` app proxies `/app/*` here (see apps/homepage/vercel.json)
 // and the `app` Vercel project sets NEXT_PUBLIC_BASE_PATH=/app.
 const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
 
