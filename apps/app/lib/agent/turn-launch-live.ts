@@ -59,6 +59,7 @@ import {
 import { prependTurnMarkers } from "./message-markers"
 import {
   createWorkspaces,
+  settleConfirm,
   wakeRequesterId,
   type WorkspacePlanInput,
   type WorkspaceTurnRequest,
@@ -73,6 +74,10 @@ import { toolKindFor } from "./acp/adapter"
 import type { RoomTarget } from "./chat-target-kinds"
 import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
 import { isLocalBuild } from "@/lib/local-mode"
+import { createGitHubPr } from "@/lib/github-pr"
+import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
+import { redactSensitiveInfo } from "./redact"
+import type { ConfirmGateInput } from "./confirm-card"
 import {
   createKeyedQueue,
   wakeMessage,
@@ -353,6 +358,10 @@ export function coordinatorTarget(
     },
     stopWorkspaceTurn: (chatId) =>
       stopTurn(liveTurnStopDeps, { roomId: room.roomId, chatId }),
+    // As the Workspace's owner, whoever confirmed (#901).
+    openPullRequest: ({ sandboxName, ownerId }) =>
+      createGitHubPr({ userId: ownerId, room, sandboxName }),
+    deleteSandbox: (sandboxName) => deleteSandboxes([sandboxName]),
   }
 }
 
@@ -387,6 +396,48 @@ export async function settleWorkspacePlan(
     kind: toolKindFor(CREATE_WORKSPACES_TOOL),
     status: approved ? ("completed" as const) : ("failed" as const),
     rawInput: { workspaces: plan.workspaces },
+    content: [{ type: "content" as const, content: textBlock(text) }],
+  }
+  const record: AcpToolCallRecord = { role: "tool_call", ...call }
+  await upsertAcpToolCall(chatId, runId, record)
+  await broadcastAcpUpdate(room.roomId, chatId, toolCallStart(call))
+}
+
+/**
+ * Settle a confirm the user just decided (#901), once its resume turn has
+ * started: on Open PR or Remove, act; then record the call with its outcome in
+ * the Coordinator chat ahead of the resumed turn reading it. Cancel records
+ * the call as not done. A failure records the call as failed with the reason.
+ */
+export async function settleConfirmGate(
+  room: RoomAccess,
+  input: {
+    chatId: string
+    runId: string
+    planId: string
+    gate: ConfirmGateInput
+    approved: boolean
+  }
+): Promise<void> {
+  const { chatId, runId, planId, gate, approved } = input
+  let status: "completed" | "failed" = approved ? "completed" : "failed"
+  let text: string
+  try {
+    text = await settleConfirm(
+      liveRoomToolPorts(room, coordinatorTarget(room, chatId)),
+      gate,
+      approved
+    )
+  } catch (e) {
+    status = "failed"
+    text = redactSensitiveInfo(e instanceof Error ? e.message : String(e))
+  }
+  const call = {
+    toolCallId: planId,
+    title: gate.gate,
+    kind: toolKindFor(gate.gate),
+    status,
+    rawInput: { workspace_id: gate.workspaceId },
     content: [{ type: "content" as const, content: textBlock(text) }],
   }
   const record: AcpToolCallRecord = { role: "tool_call", ...call }

@@ -7,6 +7,7 @@ import {
   type SessionUpdate,
 } from "@/lib/agent/acp/schema"
 import { applyToolCallUpdate } from "@/lib/agent/acp/record"
+import { confirmCardOf } from "@/lib/agent/confirm-card"
 import { withBasePath } from "@/lib/base-path"
 import { isFixtureWorld } from "@/lib/fixture-world"
 
@@ -567,7 +568,8 @@ class ChatStore {
     chatId: string,
     request: RequestPermissionRequest
   ) {
-    const { toolCallId, plan } = planFromPermissionRequest(request)
+    const { toolCallId, plan, input } = planFromPermissionRequest(request)
+    const confirm = confirmCardOf(input)
     // A permission request closes any in-flight agent text block.
     this.acpAgentText.delete(chatId)
     const prev = this.getOrCreate(chatId).messages
@@ -579,6 +581,7 @@ class ChatStore {
           content: plan,
           status: "pending" as const,
           planId: toolCallId,
+          ...(confirm ? { confirm } : {}),
         },
       ],
     })

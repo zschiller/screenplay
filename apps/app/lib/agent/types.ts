@@ -1,3 +1,4 @@
+import type { ConfirmCard } from "@/lib/agent/confirm-card"
 // Tool names are derived from the builders, not hand-maintained: each builder's
 // return type is its `{ name: Tool }` map, so the keys *are* the tool names.
 // Add a tool to a builder and it shows up here automatically; there's no second
@@ -42,6 +43,11 @@ export type AgentMessage =
        * — previously dropped, which is the "feedback never shown" gap #379 closes.
        */
       feedback?: string
+      /**
+       * Set when the gate is a Coordinator confirm (Open PR, Remove, #901):
+       * the chat draws this Alert instead of the plan card.
+       */
+      confirm?: ConfirmCard
     }
   // ACP-native tool call (issue #377), keyed by `toolCallId` and updated in
   // place through its status lifecycle. This single row

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildRoomTools,
   createWorkspaces,
+  settleConfirm,
   isWorkspacePlanInput,
   wakeRequesterId,
   type WorkspacePlanInput,
@@ -14,6 +15,11 @@ import {
 import type { RoomCollections } from "@/lib/yjs/schema"
 import { readMemory } from "@/lib/canvas/memory"
 import { planGateOf } from "@/lib/agent/plan-gate"
+import {
+  confirmCardOf,
+  isConfirmGateInput,
+  type ConfirmGateInput,
+} from "@/lib/agent/confirm-card"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import {
@@ -42,6 +48,8 @@ function portsOver(
     listTerminalTabs: async () => terminalTabs,
     provisionWorkspace: async () => {},
     stopWorkspaceTurn: async () => {},
+    openPullRequest: unused,
+    deleteSandbox: async () => {},
     requesterId: "user-1",
     coordinatorChatId: "room-chat-1",
     readChatTranscript: unused,
@@ -459,7 +467,9 @@ describe("create_workspaces", () => {
     const tool = buildRoomTools("room-1", ports).create_workspaces
     const planGate = planGateOf(tool)
     if (!planGate) throw new Error("create_workspaces has no plan gate")
-    return { tool, request: await planGate(input) }
+    const request = await planGate(input)
+    if ("refusal" in request) throw new Error(request.refusal)
+    return { tool, request }
   }
 
   it("goes through plan review: it can't run on its own, and its plan lists each Workspace", async () => {
@@ -677,5 +687,180 @@ describe("stop_workspace", () => {
   it("fails for an unknown Workspace", async () => {
     const { stop } = stopHarness()
     await expect(stop("nope")).rejects.toThrow(/No Workspace has the id nope/)
+  })
+})
+
+describe("open_pull_request and remove_workspace (#901)", () => {
+  function createHarness(overrides: Partial<RoomToolPorts> = {}) {
+    const { collections } = makeHarness()
+    collections.repos.set(
+      "repo-1",
+      baseRepo("repo-1", { repoFullName: "acme/web" })
+    )
+    // Alice owns the Workspace; Bob is the member talking to the Coordinator.
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", {
+        title: "Fix sign-in redirect",
+        ref: "fix-sign-in",
+        diffAdditions: 18,
+        diffDeletions: 3,
+        createdBy: "alice",
+      })
+    )
+    collections.chatSessions.set(
+      "chat-1",
+      baseChat("chat-1", { branchId: "ws-1" })
+    )
+    collections.iframeLayers.set(
+      "frame-1",
+      baseLayer("frame-1", { branchId: "ws-1" })
+    )
+    const opened: { sandboxName: string; ownerId: string }[] = []
+    const deleted: string[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      requesterId: "bob",
+      openPullRequest: async (request) => {
+        opened.push(request)
+        return { url: "https://github.com/acme/web/pull/7", number: 7 }
+      },
+      deleteSandbox: async (name) => {
+        deleted.push(name)
+      },
+      ...overrides,
+    }
+    return { collections, ports, opened, deleted }
+  }
+
+  async function gate(ports: RoomToolPorts, name: string, input: unknown) {
+    const tool = buildRoomTools("room-1", ports)[name]
+    const planGate = planGateOf(tool)
+    if (!planGate) throw new Error(`${name} has no gate`)
+    return { tool, request: await planGate(input) }
+  }
+
+  async function confirmOf(ports: RoomToolPorts, name: string) {
+    const { request } = await gate(ports, name, { workspace_id: "ws-1" })
+    if ("refusal" in request) throw new Error(request.refusal)
+    if (!isConfirmGateInput(request.input)) throw new Error("not a confirm")
+    return request.input
+  }
+
+  it("can't run on their own: each waits on the confirm card", async () => {
+    const { ports, opened, deleted } = createHarness()
+    for (const name of ["open_pull_request", "remove_workspace"]) {
+      const { tool, request } = await gate(ports, name, {
+        workspace_id: "ws-1",
+      })
+      expect(tool.execute).toBeUndefined()
+      expect("refusal" in request).toBe(false)
+    }
+    expect(opened).toEqual([])
+    expect(deleted).toEqual([])
+  })
+
+  it("shows the branch into the base, with the changed lines, and the verb", async () => {
+    const { ports } = createHarness()
+    const input = await confirmOf(ports, "open_pull_request")
+    expect(confirmCardOf(input)).toEqual({
+      action: "open_pull_request",
+      title: "Open a pull request for Fix sign-in redirect?",
+      description: "From `fix-sign-in` into `main`, +18 −3.",
+      confirmLabel: "Open PR",
+    })
+    expect(input.workspaceId).toBe("ws-1")
+  })
+
+  it("says what removing takes with it", async () => {
+    const { ports, collections } = createHarness()
+    collections.branches.update("ws-1", { prNumber: 4, prState: "open" })
+    const input = await confirmOf(ports, "remove_workspace")
+    expect(confirmCardOf(input)).toEqual({
+      action: "remove_workspace",
+      title: "Remove Fix sign-in redirect?",
+      description: "Removes 1 chat, 1 frame and its sandbox. Keeps PR #4.",
+      confirmLabel: "Remove",
+    })
+  })
+
+  it("refuses without a card for a missing Workspace or one with a PR open", async () => {
+    const { ports, collections } = createHarness()
+    const missing = await gate(ports, "remove_workspace", {
+      workspace_id: "ws-9",
+    })
+    expect(missing.request).toEqual({
+      refusal:
+        "No Workspace has the id ws-9. Call read_canvas for current ids.",
+    })
+    collections.branches.update("ws-1", { prNumber: 4, prState: "open" })
+    const open = await gate(ports, "open_pull_request", {
+      workspace_id: "ws-1",
+    })
+    expect(open.request).toEqual({
+      refusal: '"Fix sign-in redirect" already has PR #4 open.',
+    })
+  })
+
+  it("does nothing on Cancel", async () => {
+    const { ports, opened, deleted, collections } = createHarness()
+    for (const name of ["open_pull_request", "remove_workspace"]) {
+      const input = await confirmOf(ports, name)
+      expect(await settleConfirm(ports, input, false)).toMatch(/cancelled/)
+    }
+    expect(opened).toEqual([])
+    expect(deleted).toEqual([])
+    expect(collections.branches.get("ws-1")).toBeDefined()
+  })
+
+  it("opens the PR with the Workspace owner's GitHub account, not the member who confirmed", async () => {
+    const { ports, opened, collections } = createHarness()
+    const input = await confirmOf(ports, "open_pull_request")
+    const result = await settleConfirm(ports, input, true)
+    expect(opened).toEqual([{ sandboxName: "sandbox-ws-1", ownerId: "alice" }])
+    expect(result).toBe(
+      'Opened PR #7 for "Fix sign-in redirect": https://github.com/acme/web/pull/7'
+    )
+    expect(collections.branches.get("ws-1")).toMatchObject({
+      prNumber: 7,
+      prUrl: "https://github.com/acme/web/pull/7",
+      prState: "open",
+    })
+  })
+
+  it("falls back to whoever asked for a Workspace with no recorded owner", async () => {
+    const { ports, opened, collections } = createHarness()
+    collections.branches.update("ws-1", { createdBy: undefined })
+    const input = await confirmOf(ports, "open_pull_request")
+    await settleConfirm(ports, input, true)
+    expect(opened).toEqual([{ sandboxName: "sandbox-ws-1", ownerId: "bob" }])
+  })
+
+  it("removes the Workspace as the sidebar does: record, frames, chats, then its sandbox", async () => {
+    const { ports, deleted, collections } = createHarness()
+    const input = await confirmOf(ports, "remove_workspace")
+    const result = await settleConfirm(ports, input, true)
+    expect(result).toBe(
+      'Removed "Fix sign-in redirect" and tore down its sandbox.'
+    )
+    expect(collections.branches.get("ws-1")).toBeUndefined()
+    expect(collections.iframeLayers.get("frame-1")).toBeUndefined()
+    expect(collections.chatSessions.get("chat-1")).toBeUndefined()
+    expect(deleted).toEqual(["sandbox-ws-1"])
+  })
+
+  it("acts on the Workspace as it is when confirmed, not as the card showed it", async () => {
+    const { ports, opened, collections } = createHarness()
+    const input: ConfirmGateInput = await confirmOf(ports, "open_pull_request")
+    collections.branches.update("ws-1", { prNumber: 9, prState: "open" })
+    expect(await settleConfirm(ports, input, true)).toBe(
+      '"Fix sign-in redirect" already has PR #9 open.'
+    )
+    expect(opened).toEqual([])
+    collections.branches.delete("ws-1")
+    const removal = await confirmOf(createHarness().ports, "remove_workspace")
+    expect(await settleConfirm(ports, removal, true)).toBe(
+      "Already removed: the Workspace was gone."
+    )
   })
 })

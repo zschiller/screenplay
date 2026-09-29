@@ -42,6 +42,10 @@ function setup(overrides: Partial<RoomToolPorts> = {}) {
     listTerminalTabs: async () => [],
     provisionWorkspace: async () => {},
     stopWorkspaceTurn: async () => {},
+    openPullRequest: async () => {
+      throw new Error("no GitHub")
+    },
+    deleteSandbox: async () => {},
     requesterId: "user-1",
     coordinatorChatId: "room-chat-1",
     launchWorkspaceTurn: vi.fn(async () => {}),

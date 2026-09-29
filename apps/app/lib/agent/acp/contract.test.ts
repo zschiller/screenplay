@@ -147,4 +147,58 @@ describe("InProcessEngine — plan-gated tools (#898)", () => {
       input: { gate: "create_things", n: 2, plan: "Create 2" },
     })
   })
+
+  it("records a refused gate's call as failed, with the reason, and raises no card (#901)", async () => {
+    const updates: EngineUpdate[] = []
+    const gated = withPlanGate(
+      tool({ inputSchema: jsonSchema<{ id: string }>({ type: "object" }) }),
+      async () => ({ refusal: "No Workspace has the id w9." })
+    )
+    const driver: StreamDriver = (config) => ({
+      consumeStream: async () => {
+        const chunk = (c: unknown) =>
+          config.onChunk?.({ chunk: c } as never) as Promise<void>
+        await chunk({ type: "tool-input-start", id: "t1", toolName: "gated" })
+        await chunk({
+          type: "tool-call",
+          toolCallId: "t1",
+          toolName: "gated",
+          input: { id: "w9" },
+        })
+      },
+    })
+    await new InProcessEngine(driver).run(
+      {
+        chatId: "c",
+        runId: "r",
+        roomId: "rm",
+        systemPrompt: "s",
+        model: "anthropic:test",
+        history: [],
+        tools: { gated },
+      },
+      (u) => {
+        updates.push(u)
+      },
+      new AbortController().signal
+    )
+    expect(updates).toEqual([
+      {
+        kind: "session_update",
+        update: expect.objectContaining({
+          sessionUpdate: "tool_call",
+          toolCallId: "t1",
+          title: "gated",
+          status: "failed",
+          rawInput: { id: "w9" },
+          content: [
+            {
+              type: "content",
+              content: { type: "text", text: "No Workspace has the id w9." },
+            },
+          ],
+        }),
+      },
+    ])
+  })
 })

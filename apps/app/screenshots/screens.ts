@@ -30,6 +30,7 @@ import {
 } from "@/lib/agent/workspace-task"
 import { wakeMessage } from "@/lib/agent/coordinator-wake"
 import { planPermissionRequest } from "@/lib/agent/acp/schema"
+import type { ConfirmCard } from "@/lib/agent/confirm-card"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
@@ -667,6 +668,44 @@ export const SCREENS: Screen[] = [
         .getByTestId("workspace-task")
         .first()
         .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-confirm-pr",
+    description:
+      "The Coordinator asking to open a Workspace's pull request: the confirm card with Open PR and Cancel (#901).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      const chatId = roomChatId(ids.rooms.checkout)
+      await replayRun(page, chatId, openPrConfirmRun(chatId))
+      await page.getByTestId("chat-confirm").first().waitFor()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-confirm-remove",
+    description:
+      "The pull request opened after Open PR, then the confirm card for removing a Workspace (#901).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      const chatId = roomChatId(ids.rooms.checkout)
+      await replayRun(page, chatId, [
+        ...openPrConfirmRun(chatId),
+        ...openPrConfirmedRun(),
+        ...removeConfirmRun(chatId),
+      ])
+      await page.getByText("Remove gift-cards?").first().waitFor()
     },
     settleMs: 400,
   },
@@ -4049,6 +4088,122 @@ export function workspacesCreatedRun(): RunEvent[] {
         ),
       },
     },
+    { type: "chat-stream-end" },
+  ]
+}
+
+const OPEN_PR_CONFIRM_ID = "fixture-open-pull-request"
+const REMOVE_CONFIRM_ID = "fixture-remove-workspace"
+
+/** A confirm card's permission request, as the confirm gates raise it. */
+function confirmRequest(
+  chatId: string,
+  toolCallId: string,
+  confirm: ConfirmCard
+): RunEvent {
+  return {
+    type: "chat-acp-permission",
+    request: planPermissionRequest({
+      sessionId: chatId,
+      toolCallId,
+      plan: `**${confirm.title}**\n\n${confirm.description}`,
+      input: { gate: confirm.action, confirm, workspaceId: "fixture" },
+    }),
+  }
+}
+
+/**
+ * A Coordinator turn halting on the Open PR confirm for Empty cart state
+ * (#901), with the card the gate builds from its branch and changed lines.
+ */
+export function openPrConfirmRun(chatId: string): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Empty cart state looks good. Open a PR for it."),
+      },
+    },
+    { type: "chat-stream-start" },
+    confirmRequest(chatId, OPEN_PR_CONFIRM_ID, {
+      action: "open_pull_request",
+      title: "Open a pull request for Empty cart state?",
+      description: "From `empty-cart-state` into `main`, +46 −4.",
+      confirmLabel: "Open PR",
+    }),
+    { type: "chat-stream-end" },
+  ]
+}
+
+/** {@link openPrConfirmRun} confirmed: the recorded call and the report. */
+export function openPrConfirmedRun(): RunEvent[] {
+  return [
+    { type: "chat-stream-start" },
+    {
+      type: "chat-control",
+      control: {
+        kind: "plan_resolved",
+        planId: OPEN_PR_CONFIRM_ID,
+        approved: true,
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Confirmed."),
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: OPEN_PR_CONFIRM_ID,
+        title: "open_pull_request",
+        status: "completed",
+        rawInput: { workspace_id: ids.branches.emptyCart },
+        content: [
+          {
+            type: "content",
+            content: text(
+              'Opened PR #483 for "Empty cart state": https://github.com/acme/storefront/pull/483'
+            ),
+          },
+        ],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "Opened [PR #483](https://github.com/acme/storefront/pull/483) for Empty cart state."
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
+/** A Coordinator turn halting on the Remove confirm for gift-cards (#901). */
+export function removeConfirmRun(chatId: string): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("And remove gift-cards, it never started."),
+      },
+    },
+    { type: "chat-stream-start" },
+    confirmRequest(chatId, REMOVE_CONFIRM_ID, {
+      action: "remove_workspace",
+      title: "Remove gift-cards?",
+      // gift-cards has no chats or frames in the fixture world.
+      description: "Removes its sandbox.",
+      confirmLabel: "Remove",
+    }),
     { type: "chat-stream-end" },
   ]
 }

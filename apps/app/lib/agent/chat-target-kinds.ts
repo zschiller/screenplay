@@ -249,6 +249,10 @@ export interface RoomTarget {
   provisionWorkspace?: RoomToolPorts["provisionWorkspace"]
   /** Stops a Workspace chat's turn for `stop_workspace`, injected likewise. */
   stopWorkspaceTurn?: RoomToolPorts["stopWorkspaceTurn"]
+  /** Opens a Workspace's PR once the user confirms (#901), injected likewise. */
+  openPullRequest?: RoomToolPorts["openPullRequest"]
+  /** Tears down a removed Workspace's sandbox (#901), injected likewise. */
+  deleteSandbox?: RoomToolPorts["deleteSandbox"]
   /** The Coordinator chat. */
   coordinatorChatId?: string
   /**
@@ -271,6 +275,8 @@ export function liveRoomToolPorts(
     launchWorkspaceTurn,
     provisionWorkspace,
     stopWorkspaceTurn,
+    openPullRequest,
+    deleteSandbox,
     coordinatorChatId,
     requesterId,
   }: RoomTarget
@@ -287,6 +293,8 @@ export function liveRoomToolPorts(
     provisionWorkspace:
       provisionWorkspace ?? unavailable("Starting Workspaces"),
     stopWorkspaceTurn: stopWorkspaceTurn ?? unavailable("Stopping Workspaces"),
+    openPullRequest: openPullRequest ?? unavailable("Opening pull requests"),
+    deleteSandbox: deleteSandbox ?? unavailable("Removing Workspaces"),
     requesterId: requesterId ?? userId,
     coordinatorChatId: coordinatorChatId ?? "",
     listTerminalTabs: async () =>

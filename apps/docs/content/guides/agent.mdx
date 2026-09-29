@@ -89,8 +89,26 @@ workspace brings it up and sends that first message then.
 The Coordinator can also stop a workspace's running turn, which happens right
 away. The workspace's chat keeps everything so far.
 
+### Pull requests and removing workspaces
+
+Ask the Coordinator to open a workspace's pull request or to remove a
+workspace, and it asks you first with a card in its chat. Nothing happens until
+you click **Open PR** or **Remove**; **Cancel** drops it, and the Coordinator
+is told you said no.
+
+The pull request goes from the workspace's git branch into the repository's
+default branch, with its title and description taken from the branch's
+commits, as the workspace chat's **Create PR** button does. It's opened with the
+GitHub account of whoever owns the workspace, even when someone else asked or
+the Coordinator followed up on its own.
+
+Removing a workspace works like **Delete** in the sidebar: its chats and
+frames go and its sandbox is torn down. The git branch and any pull request
+stay on GitHub.
+
 When the Coordinator runs on a desktop harness (Claude Code or Codex), it can't
-show you a plan yet, so it can't start workspaces there.
+show you a plan or a confirm card yet, so it can't start workspaces, open pull
+requests or remove workspaces there.
 
 ### When a workspace finishes
 
