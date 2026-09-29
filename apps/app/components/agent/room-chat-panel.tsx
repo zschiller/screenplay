@@ -59,7 +59,10 @@ export function RoomChatPanel({
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-12 items-center border-b border-border bg-background px-3">
+      {/* `box-content` keeps the border outside the 48px row, so the title sits
+          where the Workspace header's Coordinator crumb does and doesn't
+          jump half a pixel when you switch between them. */}
+      <div className="box-content flex h-12 items-center border-b border-border bg-background px-3">
         <IconButton
           label="Collapse chat"
           shortcut="⌘I"
