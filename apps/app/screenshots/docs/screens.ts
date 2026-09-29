@@ -908,7 +908,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "route-picker",
-    description: "A frame's route picker.",
+    description: "A frame's route edited in place, with its suggestions.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     crop: [250, 40, 560, 340],
