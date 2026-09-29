@@ -111,7 +111,9 @@ export default async function RootLayout({
         <ThemeProvider>
           <MotionProvider>
             {body}
-            <Toaster />
+            {/* Top center, clear of the chat composer and the canvas tool
+                pill along the bottom (#1029). */}
+            <Toaster position="top-center" />
           </MotionProvider>
         </ThemeProvider>
       </body>
