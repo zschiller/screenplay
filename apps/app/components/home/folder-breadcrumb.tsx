@@ -35,10 +35,11 @@ const MAX_INLINE_ANCESTORS = 3
 // the row with the toolbar. Instead every crumb can shrink and truncate — the
 // ancestors ("All files" included) first, four times as fast, then the current
 // folder, which keeps its leading characters to the last.
-const LIST_CLASS = "min-w-0 flex-nowrap gap-1.5 text-2xl font-normal sm:gap-2.5"
+const LIST_CLASS =
+  "min-w-0 flex-nowrap gap-1.5 font-heading text-4xl leading-none sm:gap-2.5"
 const ANCESTOR_ITEM_CLASS = "min-w-8 shrink-[100]"
 const CURRENT_ITEM_CLASS = "min-w-0"
-const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
+const CURRENT_PAGE_CLASS = "truncate font-heading text-4xl leading-none"
 // A parent crumb is a drop target (issue #808): drop a canvas or folder on it
 // to move the item up to that level. The hover ring matches the sidebar's drop
 // targets; the padding it needs is cancelled by a matching negative margin so

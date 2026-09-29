@@ -88,9 +88,7 @@ export function DefaultAgentPicker({ label }: { label: string }) {
             {groups.map((group, idx) => (
               <div key={group.key}>
                 {idx > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  {group.label}
-                </DropdownMenuLabel>
+                <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
                 {group.models.map((m) => (
                   <DropdownMenuItem
                     key={m.id}

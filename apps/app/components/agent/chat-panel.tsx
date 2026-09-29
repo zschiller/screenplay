@@ -1176,9 +1176,7 @@ export function ChatPanel({
                       // name, since "New terminal" alone wouldn't say which.
                       <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-2xs font-normal text-muted-foreground">
-                          New terminal
-                        </DropdownMenuLabel>
+                        <DropdownMenuLabel>New terminal</DropdownMenuLabel>
                         {installedHarnesses.map((h) => (
                           <DropdownMenuItem
                             key={h.key}

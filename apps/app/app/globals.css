@@ -1,5 +1,16 @@
 @import "@workspace/ui/globals.css";
 
+/* Type (#1005): Instrument Sans is the UI face, Instrument Serif sets the
+   titles that use `font-heading` (dialogs, empty states, page titles). Both
+   come from `next/font` in app/layout.tsx; code, terminal and section labels
+   stay on `font-mono` (Geist Mono). Overrides the shared package's Geist
+   defaults, which the marketing site still uses. */
+@theme inline {
+  --font-sans:
+    var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-instrument-serif), ui-serif, Georgia, serif;
+}
+
 /* Canvas tokens (issue #719). One source for the canvas chrome's colours and
    its stacking order, read by both the drawn overlays (`lib/canvas/tokens.ts`
    resolves these for the 2D contexts) and the DOM (`text-canvas-selection`,

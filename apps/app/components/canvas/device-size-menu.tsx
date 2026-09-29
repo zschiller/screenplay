@@ -46,9 +46,7 @@ export function DeviceSizeSubMenu({
           return (
             <DropdownMenuGroup key={group.category}>
               {index > 0 && <DropdownMenuSeparator />}
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                {group.category}
-              </DropdownMenuLabel>
+              <DropdownMenuLabel>{group.category}</DropdownMenuLabel>
               {group.presets.map((preset) => {
                 const active =
                   preset.width === width && preset.height === height
