@@ -338,7 +338,7 @@ html.dark .nextra-search input::placeholder {
   border-radius: 2px;
   background: oklch(0.975 0 0);
   color: oklch(0.556 0 0);
-  font-family: system-ui, sans-serif;
+  font-family: var(--x-font-sans);
   font-size: 0.75rem;
   font-weight: 500;
 }
@@ -448,8 +448,8 @@ article kbd {
   border-radius: 2px;
   background: oklch(0.975 0 0);
   color: oklch(0.556 0 0);
-  /* system-ui has the widest coverage of key symbols like ⌘ ⌥ ⇧. */
-  font-family: system-ui, sans-serif;
+  /* The text face; symbols it lacks (⌘ ⌥ ⇧) fall back to system-ui. */
+  font-family: var(--x-font-sans);
   font-size: 12px;
   font-weight: 500;
   line-height: 1;
