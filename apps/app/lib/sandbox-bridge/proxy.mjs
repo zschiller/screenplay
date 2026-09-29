@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url"
 const UPSTREAM_PORT = Number(process.env.SCREENPLAY_UPSTREAM_PORT) || 3000
 const LISTEN_PORT = Number(process.env.SCREENPLAY_LISTEN_PORT) || 3001
 const UPSTREAM_HOST = "127.0.0.1"
+// Hosted sandboxes need every interface (the platform forwards the port in);
+// the desktop's local backend sets loopback so previews stay off the LAN (#997).
+const LISTEN_HOST = process.env.SCREENPLAY_LISTEN_HOST || "0.0.0.0"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const BRIDGE_PATH = join(__dirname, "bridge.js")
@@ -154,7 +157,7 @@ server.on("upgrade", (req, clientSocket, head) => {
   clientSocket.on("error", () => upstream.destroy())
 })
 
-server.listen(LISTEN_PORT, "0.0.0.0", () => {
-  log(`listening on 0.0.0.0:${LISTEN_PORT} -> ${UPSTREAM_HOST}:${UPSTREAM_PORT}`)
+server.listen(LISTEN_PORT, LISTEN_HOST, () => {
+  log(`listening on ${LISTEN_HOST}:${LISTEN_PORT} -> ${UPSTREAM_HOST}:${UPSTREAM_PORT}`)
   log("CSP headers are stripped; intended for dev use only")
 })

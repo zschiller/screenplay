@@ -52,8 +52,12 @@ from `instrumentation.ts` and saves each canvas to disk.
 | `NEXT_PUBLIC_YJS_WS_PORT` | `1234` |
 | `YJS_PERSISTENCE_DIR` | `<cwd>/.data/yjs` |
 
-With one local user, membership checks and presence tokens have nothing to
-do, so `/api/yjs/auth` simply issues tokens to that user.
+The server listens on `127.0.0.1` only, so other machines on the network can't
+reach it. It also accepts a connection only from the app's own page (a
+`localhost` or `127.0.0.1` origin on the app's `PORT`) carrying a secret the app
+mints at each launch and keeps in memory. `/api/yjs/auth` hands that secret to
+the page. Other websites open in the browser, and local programs that don't
+have the secret, are refused.
 
 ## Adding a host
 

@@ -25,6 +25,11 @@ import {
 // changed, and prove a tab survives a "reload" (socket drop + reconnect).
 
 const SHELL = "/bin/bash"
+// The server's gate (#997): the app's own origin, carrying the secret.
+const SECRET = "test-secret"
+const APP_PORT = "3947"
+const APP_ORIGIN = `http://localhost:${APP_PORT}`
+const GATE = { secret: SECRET, appPort: APP_PORT }
 const decoder = new TextDecoder()
 
 /** A connected client that accumulates decoded OUTPUT and exposes senders. */
@@ -40,8 +45,8 @@ function connect(
   sessionKey: string,
   query = "sandbox=test"
 ): Promise<Client> {
-  const url = `ws://127.0.0.1:${server.port}/ws?${query}&arg=${sessionKey}`
-  const ws = new WebSocket(url, [TTYD_SUBPROTOCOL])
+  const url = `ws://127.0.0.1:${server.port}/ws?${query}&token=${SECRET}&arg=${sessionKey}`
+  const ws = new WebSocket(url, [TTYD_SUBPROTOCOL], { origin: APP_ORIGIN })
   let text = ""
   ws.binaryType = "arraybuffer"
   ws.on("message", (data: ArrayBuffer | Buffer) => {
@@ -64,6 +69,23 @@ function connect(
   })
 }
 
+/** Open a raw upgrade and resolve with the HTTP status it's refused with. */
+function refusedStatus(url: string, origin?: string): Promise<number> {
+  const ws = new WebSocket(url, [TTYD_SUBPROTOCOL], origin ? { origin } : {})
+  return new Promise((resolve, reject) => {
+    // Aborting a refused handshake reports an error; the status is the result.
+    ws.on("error", () => {})
+    ws.on("unexpected-response", (_req, res) => {
+      resolve(res.statusCode ?? 0)
+      ws.terminate()
+    })
+    ws.on("open", () => {
+      ws.close()
+      reject(new Error("upgrade was accepted"))
+    })
+  })
+}
+
 async function waitFor(
   predicate: () => boolean,
   { timeout = 4000, step = 25 } = {}
@@ -82,6 +104,7 @@ describe("startLocalTerminalServer", () => {
   async function start(): Promise<void> {
     sessions = new TerminalSessions()
     server = await startLocalTerminalServer({
+      ...GATE,
       sessions,
       shell: SHELL,
       // Isolate from the sandbox seam — every connection runs in tmp.
@@ -93,6 +116,41 @@ describe("startLocalTerminalServer", () => {
     if (sessions) sessions.kill("screenplay-tab")
     if (server) await server.close()
   })
+
+  it("listens on loopback only", async () => {
+    await start()
+    expect(server.address).toBe("127.0.0.1")
+  })
+
+  describe.each(["sandbox=test", "host=1"])(
+    "the upgrade gate (%s)",
+    (target) => {
+      const url = (token?: string) =>
+        `ws://127.0.0.1:${server.port}/ws?${target}&arg=screenplay-tab` +
+        (token === undefined ? "" : `&token=${token}`)
+
+      it("refuses a foreign Origin, even with the secret", async () => {
+        await start()
+        expect(await refusedStatus(url(SECRET), "https://evil.example")).toBe(
+          403
+        )
+        expect(await refusedStatus(url(SECRET), "http://localhost:4000")).toBe(
+          403
+        )
+      })
+
+      it("refuses an upgrade with no Origin", async () => {
+        await start()
+        expect(await refusedStatus(url(SECRET))).toBe(403)
+      })
+
+      it("refuses the app's own Origin without the right secret", async () => {
+        await start()
+        expect(await refusedStatus(url(), APP_ORIGIN)).toBe(401)
+        expect(await refusedStatus(url("wrong"), APP_ORIGIN)).toBe(401)
+      })
+    }
+  )
 
   it("round-trips I/O over the WebSocket after the handshake", async () => {
     await start()
@@ -141,8 +199,8 @@ describe("startLocalTerminalServer", () => {
 
   it("rejects a connection that names no session key", async () => {
     await start()
-    const url = `ws://127.0.0.1:${server.port}/ws?sandbox=test`
-    const ws = new WebSocket(url, [TTYD_SUBPROTOCOL])
+    const url = `ws://127.0.0.1:${server.port}/ws?sandbox=test&token=${SECRET}`
+    const ws = new WebSocket(url, [TTYD_SUBPROTOCOL], { origin: APP_ORIGIN })
     const code = await new Promise<number>((resolve, reject) => {
       ws.on("close", (c) => resolve(c))
       ws.on("error", reject)
@@ -152,8 +210,8 @@ describe("startLocalTerminalServer", () => {
 
   it("rejects a connection that names neither a sandbox nor a host session", async () => {
     await start()
-    const url = `ws://127.0.0.1:${server.port}/ws?arg=screenplay-tab`
-    const ws = new WebSocket(url, [TTYD_SUBPROTOCOL])
+    const url = `ws://127.0.0.1:${server.port}/ws?arg=screenplay-tab&token=${SECRET}`
+    const ws = new WebSocket(url, [TTYD_SUBPROTOCOL], { origin: APP_ORIGIN })
     const code = await new Promise<number>((resolve, reject) => {
       ws.on("close", (c) => resolve(c))
       ws.on("error", reject)
@@ -167,6 +225,7 @@ describe("startLocalTerminalServer", () => {
     sessions = new TerminalSessions()
     const home = os.tmpdir()
     server = await startLocalTerminalServer({
+      ...GATE,
       sessions,
       shell: SHELL,
       resolveHomeDir: () => home,

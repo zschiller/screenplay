@@ -665,6 +665,9 @@ describe("startDevServer", () => {
       SCREENPLAY_UPSTREAM_PORT: "3000",
       SCREENPLAY_LISTEN_PORT: "4000",
     })
+    // A hosted sandbox forwards the port in, so the proxy keeps its
+    // every-interface default.
+    expect(proxyLaunch!.env).not.toHaveProperty("SCREENPLAY_LISTEN_HOST")
   })
 
   it("threads resolved — not logical — ports through dev, proxy, and env on a port-mapped backend", async () => {
@@ -729,6 +732,8 @@ describe("startDevServer", () => {
       expect(proxyLaunch!.env).toMatchObject({
         SCREENPLAY_UPSTREAM_PORT: "53000",
         SCREENPLAY_LISTEN_PORT: "54000",
+        // On the Mac the preview stays off the LAN (#997).
+        SCREENPLAY_LISTEN_HOST: "127.0.0.1",
       })
     } finally {
       vi.unstubAllEnvs()

@@ -7,6 +7,11 @@ import os from "node:os"
 import { WebSocketServer, type WebSocket, type RawData } from "ws"
 
 import {
+  checkLocalUpgrade,
+  type GuardOptions,
+  rejectUpgrade,
+} from "@/lib/local-ws-guard"
+import {
   decodeClientMessage,
   encodeOutput,
   TTYD_SUBPROTOCOL,
@@ -23,7 +28,8 @@ import {
  * the sidecar that bridges the unchanged xterm.js client to a node-pty process
  * (`pty.ts`). It is the no-VM replacement for the hosted build's chain of
  * "ttyd daemon on a forwarded `domain(port)` + bearer-link URL" — there is no
- * public URL and no firewall, just `127.0.0.1`.
+ * public URL and no firewall, just `127.0.0.1`, the app's own Origin and a
+ * per-launch secret the URL routes append as `?token=` (#997).
  *
  * The bridge speaks the **same** wire protocol the client already drives
  * (`ttyd-protocol.ts`), so swapping the transport touches nothing on the client.
@@ -45,10 +51,12 @@ import {
 export interface LocalTerminalServer {
   /** The bound localhost port the client connects to. */
   port: number
+  /** The bound address; always loopback. */
+  address: string
   close(): Promise<void>
 }
 
-export interface StartOptions {
+export interface StartOptions extends GuardOptions {
   /** Port to bind; `0` (default) takes an ephemeral one. Bound to 127.0.0.1. */
   port?: number
   /** Resolve a sandbox name → its worktree dir. Defaults to the sandbox seam. */
@@ -90,8 +98,8 @@ export function parseConnectionTarget(
 /**
  * The cwd a connection's PTY spawns in. A **host session** runs in `$HOME` with
  * no sandbox — deliberately outside the room/membership gate, safe under the
- * same `127.0.0.1` desktop-local trust boundary the transport already relies on
- * (ADR 0014). A **sandbox session** resolves its worktree through the seam,
+ * same desktop-local trust boundary the transport already relies on (loopback,
+ * own Origin, per-launch secret; ADR 0014, #997). A **sandbox session** resolves its worktree through the seam,
  * exactly as before. Pure but for the injected resolvers, so it's unit-testable
  * without a real sandbox or a real socket.
  */
@@ -133,12 +141,26 @@ export function startLocalTerminalServer(
   })
 
   const wss = new WebSocketServer({
-    server: httpServer,
+    noServer: true,
     path: "/ws",
     // Echo back the client's `tty` subprotocol; a browser aborts the handshake
     // if the server doesn't select one of the protocols it offered.
     handleProtocols: (protocols) =>
       protocols.has(TTYD_SUBPROTOCOL) ? TTYD_SUBPROTOCOL : false,
+  })
+
+  // Only the app's own origin, carrying the per-launch secret, gets a socket:
+  // `?host=1` opens a shell in `$HOME`, so loopback alone isn't enough (#997).
+  httpServer.on("upgrade", (req, socket, head) => {
+    const refused = checkLocalUpgrade(req, opts)
+    if (refused) return rejectUpgrade(socket, refused)
+    if (!wss.shouldHandle(req)) {
+      socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")
+      return
+    }
+    wss.handleUpgrade(req, socket, head, (ws) =>
+      wss.emit("connection", ws, req)
+    )
   })
 
   wss.on("connection", (ws, req) => {
@@ -152,9 +174,10 @@ export function startLocalTerminalServer(
 
   return new Promise((resolve) => {
     httpServer.listen(opts.port ?? 0, "127.0.0.1", () => {
-      const { port } = httpServer.address() as AddressInfo
+      const { port, address } = httpServer.address() as AddressInfo
       resolve({
         port,
+        address,
         close: () =>
           new Promise<void>((res) => {
             wss.close(() => httpServer.close(() => res()))

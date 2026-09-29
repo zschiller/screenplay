@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic"
  * already relies on — so the hosted build, which has no such surface and no
  * local WS server, simply 404s.
  *
- * The response is the local server's `ws` origin tagged with `?host=1`; the
+ * The response is the local server's `ws` origin tagged with `?host=1` and the
+ * per-launch secret the server requires (#997); the
  * unchanged client appends its session key + launch argv as the wire protocol's
  * `?arg=`s, exactly as the sandbox path does.
  */
@@ -27,8 +28,9 @@ export async function GET() {
   const { ensureLocalTerminalServer } =
     await import("@/lib/terminal/local/server")
   const { port } = await ensureLocalTerminalServer()
+  const { localTerminalUrl } = await import("@/lib/terminal/local/url")
   return NextResponse.json(
-    { url: `http://localhost:${port}/?host=1` },
+    { url: localTerminalUrl(port, { host: "1" }) },
     { status: 200 }
   )
 }

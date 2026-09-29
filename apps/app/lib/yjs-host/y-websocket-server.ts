@@ -11,6 +11,12 @@ import {
   setupWSConnection,
 } from "y-websocket/bin/utils"
 import { LOCAL_USER } from "@/lib/local-user"
+import {
+  checkLocalUpgrade,
+  type GuardOptions,
+  localWsSecret,
+  rejectUpgrade,
+} from "@/lib/local-ws-guard"
 import { FileYjsPersistence } from "@/lib/yjs-host/file-persistence"
 import type { IssueTokenResult, YjsHost } from "@/lib/yjs-host/types"
 
@@ -126,15 +132,16 @@ class LocalYjsHost implements YjsHost {
   }
 
   /**
-   * The local webview connects straight to `ws://localhost` and needs no
-   * token, but the seam still issues one bound to the single local user so the
-   * `/api/yjs/auth` contract holds.
+   * The token is the sidecar's per-launch secret: the webview presents it on
+   * its `ws://localhost` connection and the server refuses any upgrade without
+   * it (#997). Bound to the single local user, as the `/api/yjs/auth` contract
+   * expects.
    */
   async issueToken(): Promise<IssueTokenResult> {
     return {
       status: 200,
       body: JSON.stringify({
-        token: "local",
+        token: localWsSecret(),
         user: { id: LOCAL_USER.id, name: LOCAL_USER.name },
       }),
     }
@@ -152,9 +159,14 @@ export function getLocalYjsHost(): LocalYjsHost {
  * webview. Booted once from `instrumentation.ts` in local mode. Idempotent and
  * test-friendly: pass `port: 0` for an ephemeral port and use the returned
  * handle to read the bound port / shut down.
+ *
+ * It listens on loopback only and accepts an upgrade only from the app's own
+ * origin carrying the per-launch secret (`lib/local-ws-guard.ts`, #997).
  */
 export interface YjsServerHandle {
   port: number
+  /** The bound address; always loopback. */
+  address: string
   close: () => Promise<void>
 }
 
@@ -198,7 +210,7 @@ async function connectWhenLoaded(
 }
 
 export async function startLocalYjsServer(
-  opts: { port?: number } = {}
+  opts: { port?: number } & GuardOptions = {}
 ): Promise<YjsServerHandle> {
   if (serverHandle) return serverHandle
 
@@ -212,6 +224,8 @@ export async function startLocalYjsServer(
   const wss = new WebSocketServer({ noServer: true })
   wss.on("connection", (conn, req) => void connectWhenLoaded(conn, req))
   server.on("upgrade", (req, socket, head) => {
+    const refused = checkLocalUpgrade(req, opts)
+    if (refused) return rejectUpgrade(socket, refused)
     wss.handleUpgrade(req, socket, head, (conn) => {
       wss.emit("connection", conn, req)
     })
@@ -219,18 +233,20 @@ export async function startLocalYjsServer(
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject)
-    server.listen(requestedPort, () => {
+    server.listen(requestedPort, "127.0.0.1", () => {
       server.off("error", reject)
       resolve()
     })
   })
 
-  const address = server.address()
-  const port =
-    typeof address === "object" && address ? address.port : requestedPort
+  const bound = server.address()
+  const port = typeof bound === "object" && bound ? bound.port : requestedPort
+  const address =
+    typeof bound === "object" && bound ? bound.address : "127.0.0.1"
 
   serverHandle = {
     port,
+    address,
     close: () =>
       new Promise<void>((resolve, reject) => {
         wss.close()

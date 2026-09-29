@@ -391,9 +391,14 @@ export async function launchDevAndProxy(
     // Resolved, not logical: the proxy must bind the port the preview URL
     // (`domain`, which maps identically) advertises, and upstream to the port
     // the dev server was told to bind.
+    // The local backend keeps the proxy on loopback, off the LAN; a hosted
+    // sandbox must listen on every interface for its forwarded port (#997).
     env: {
       SCREENPLAY_UPSTREAM_PORT: String(devPort),
       SCREENPLAY_LISTEN_PORT: String(proxyPort),
+      ...(isLocalSandboxBackend()
+        ? { SCREENPLAY_LISTEN_HOST: "127.0.0.1" }
+        : {}),
     },
   })
 
