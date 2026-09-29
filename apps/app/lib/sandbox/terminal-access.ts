@@ -129,7 +129,8 @@ const ttydCredentialStrategy: TerminalAccessStrategy = {
  * localhost WebSocket (`lib/terminal/local/`). Hand back that server's origin
  * for the target Sandbox and ignore the minted credential — the transport never
  * leaves `127.0.0.1`, so the leaky-URL concern `TERMINAL_AUTH` addresses on the
- * hosted backend doesn't apply. The dynamic import keeps node-pty/`ws` out of
+ * hosted backend doesn't apply. The URL carries the sidecar's per-launch secret,
+ * which the server requires on every upgrade (#997). The dynamic import keeps node-pty/`ws` out of
  * the hosted build's module graph.
  */
 const localPassthroughStrategy: TerminalAccessStrategy = {
@@ -137,8 +138,9 @@ const localPassthroughStrategy: TerminalAccessStrategy = {
     const { ensureLocalTerminalServer } =
       await import("@/lib/terminal/local/server")
     const { port } = await ensureLocalTerminalServer()
+    const { localTerminalUrl } = await import("@/lib/terminal/local/url")
     return {
-      url: `http://localhost:${port}/?sandbox=${encodeURIComponent(sandbox.name)}`,
+      url: localTerminalUrl(port, { sandbox: sandbox.name }),
     }
   },
 }

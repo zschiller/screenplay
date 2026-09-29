@@ -8,6 +8,7 @@ import {
 } from "react"
 import { WebsocketProvider } from "y-websocket"
 import * as Y from "yjs"
+import { withBasePath } from "@/lib/base-path"
 import {
   YjsConnectionProvider,
   type AwarenessLike,
@@ -30,6 +31,49 @@ function websocketUrl(): string {
   const host =
     typeof window !== "undefined" ? window.location.hostname : "localhost"
   return `ws://${host}:${port}`
+}
+
+// The sidecar refuses a connection without its per-launch secret (#997), which
+// `/api/yjs/auth` hands out. Fetched once per page and shared by every room.
+let tokenRequest: Promise<string> | null = null
+
+function fetchToken(): Promise<string> {
+  tokenRequest ??= fetch(withBasePath("/api/yjs/auth"), { method: "POST" })
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`yjs auth failed: ${res.status}`)
+      return ((await res.json()) as { token: string }).token
+    })
+    .catch((err: unknown) => {
+      tokenRequest = null
+      throw err
+    })
+  return tokenRequest
+}
+
+/**
+ * Open the provider once it holds the secret, retrying until the fetch
+ * succeeds. Every dropped connection re-fetches it before y-websocket's backoff
+ * reconnects, so a sidecar restart (a new secret) heals like any other outage.
+ */
+function connectWithToken(provider: WebsocketProvider): void {
+  const apply = (refresh: boolean) => {
+    if (refresh) tokenRequest = null
+    fetchToken().then(
+      (token) => {
+        if (provider.doc.isDestroyed) return
+        provider.params = { ...provider.params, token }
+        if (!refresh) provider.connect()
+      },
+      (err: unknown) => {
+        console.warn("yjs-host: couldn't fetch the sync token", err)
+        if (!refresh && !provider.doc.isDestroyed) {
+          setTimeout(() => apply(false), 1000)
+        }
+      }
+    )
+  }
+  provider.on("connection-close", () => apply(true))
+  apply(false)
 }
 
 type CachedConn = {
@@ -81,7 +125,10 @@ function getOrCreate(roomId: string): CachedConn {
   let conn = connections.get(roomId)
   if (!conn) {
     const doc = new Y.Doc()
-    const provider = new WebsocketProvider(websocketUrl(), roomId, doc)
+    const provider = new WebsocketProvider(websocketUrl(), roomId, doc, {
+      connect: false,
+    })
+    connectWithToken(provider)
     const created: CachedConn = { doc, provider, refs: 0, destroyTimer: null }
     provider.on("sync", (isSynced: boolean) => {
       if (isSynced) notify(roomId)

@@ -9,10 +9,14 @@ vi.mock("@/lib/terminal/local/server", () => ({
   ensureLocalTerminalServer: vi.fn(async () => ({ port: LOCAL_SERVER_PORT })),
 }))
 
+import { localWsSecret } from "@/lib/local-ws-guard"
 import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
 import { selectTerminalAccessStrategy } from "@/lib/sandbox/terminal-access"
 import type { TerminalCredential } from "@/lib/sandbox/terminal-credential"
 import type { SandboxInstance } from "@/lib/sandbox/types"
+
+// The sidecar's URL for the Sandbox, carrying its per-launch secret (#997).
+const LOCAL_URL = `http://localhost:${LOCAL_SERVER_PORT}/?sandbox=branch-42&token=${localWsSecret()}`
 
 // A gated request's inputs. Only the surface the strategies read is real: a
 // Sandbox `name` + `domain(port)`; the credential is a recognizable token so a
@@ -148,7 +152,7 @@ describe("selectTerminalAccessStrategy — ttyd-credential", () => {
     })
 
     expect(access).toEqual({
-      url: `http://localhost:${LOCAL_SERVER_PORT}/?sandbox=branch-42`,
+      url: LOCAL_URL,
     })
     expect(access.basicAuth).toBeUndefined()
   })
@@ -163,7 +167,7 @@ describe("selectTerminalAccessStrategy — local backend", () => {
 
     // The client is told to connect to the localhost sidecar for this Sandbox…
     expect(access).toEqual({
-      url: `http://localhost:${LOCAL_SERVER_PORT}/?sandbox=branch-42`,
+      url: LOCAL_URL,
     })
     // …and the decorative credential never rides along in the URL.
     expect(access.url).not.toContain(credential.token)
@@ -175,9 +179,7 @@ describe("selectTerminalAccessStrategy — local backend", () => {
       backend: "worktree",
     })
 
-    expect(access.url).toBe(
-      `http://localhost:${LOCAL_SERVER_PORT}/?sandbox=branch-42`
-    )
+    expect(access.url).toBe(LOCAL_URL)
   })
 
   it("stays the pass-through even for a TERMINAL_AUTH the hosted fold would reject", async () => {
@@ -192,8 +194,6 @@ describe("selectTerminalAccessStrategy — local backend", () => {
       credential,
       binding,
     })
-    expect(access.url).toBe(
-      `http://localhost:${LOCAL_SERVER_PORT}/?sandbox=branch-42`
-    )
+    expect(access.url).toBe(LOCAL_URL)
   })
 })

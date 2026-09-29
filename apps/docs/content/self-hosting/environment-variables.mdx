@@ -146,4 +146,4 @@ yourself when running the local build by hand.
 | `SCREENPLAY_COORDINATOR_ROOT` | Where each canvas's Coordinator chat runs its coding CLI, one folder per canvas. The desktop app sets it under its data directory. Default: `~/.screenplay/coordinator`. |
 | `PGLITE_DATA_DIR` | Directory for the embedded PGlite database. Default: `./.pglite`. |
 | `PGLITE_MIGRATIONS_DIR` | Where PGlite migrations are read from. The packaged app points it at its bundled `drizzle/local`. |
-| `SCREENPLAY_TERMINAL_WS_PORT` | Port for the local terminal WebSocket server. Default: an ephemeral port. |
+| `SCREENPLAY_TERMINAL_WS_PORT` | Port for the local terminal WebSocket server. Default: an ephemeral port. The server listens on `127.0.0.1` and accepts only the app's own page with the secret minted at launch. |

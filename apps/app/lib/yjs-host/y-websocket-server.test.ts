@@ -7,6 +7,7 @@ import { WebsocketProvider } from "y-websocket"
 import { docs } from "y-websocket/bin/utils"
 import * as Y from "yjs"
 import { LOCAL_USER_ID } from "@/lib/local-user"
+import { localWsSecret } from "@/lib/local-ws-guard"
 import {
   getLocalYjsHost,
   startLocalYjsServer,
@@ -23,6 +24,37 @@ async function waitFor(
     if (Date.now() - start > timeout) throw new Error("waitFor timed out")
     await new Promise((r) => setTimeout(r, interval))
   }
+}
+
+// The server's gate (#997): the app's own origin, carrying the secret.
+const SECRET = "test-secret"
+const APP_PORT = "3947"
+const APP_ORIGIN = `http://127.0.0.1:${APP_PORT}`
+
+/** A `ws` client that stamps an Origin, as the browser does for the page. */
+function wsWithOrigin(origin: string) {
+  return class extends WebSocket {
+    constructor(url: string, protocols?: string | string[]) {
+      super(url, protocols, { origin })
+    }
+  }
+}
+
+/** Open a raw upgrade and resolve with the HTTP status it's refused with. */
+function refusedStatus(url: string, origin?: string): Promise<number> {
+  const ws = new WebSocket(url, origin ? { origin } : {})
+  return new Promise((resolve, reject) => {
+    // Aborting a refused handshake reports an error; the status is the result.
+    ws.on("error", () => {})
+    ws.on("unexpected-response", (_req, res) => {
+      resolve(res.statusCode ?? 0)
+      ws.terminate()
+    })
+    ws.on("open", () => {
+      ws.close()
+      reject(new Error("upgrade was accepted"))
+    })
+  })
 }
 
 describe("LocalYjsHost", () => {
@@ -45,13 +77,19 @@ describe("LocalYjsHost", () => {
   afterAll(async () => {
     // Background debounced flushes can recreate files in `dir`; retry removal
     // so teardown doesn't race them.
-    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    await rm(dir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    })
   })
 
-  it("issues a token bound to the single local user", async () => {
+  it("issues the per-launch secret as a token bound to the single local user", async () => {
     const { status, body } = await getLocalYjsHost().issueToken()
     expect(status).toBe(200)
     expect(JSON.parse(body).user.id).toBe(LOCAL_USER_ID)
+    expect(JSON.parse(body).token).toBe(localWsSecret())
   })
 
   it("persists mutations and reloads them from disk (write, reload, same state)", async () => {
@@ -91,7 +129,11 @@ describe("LocalYjsHost", () => {
     const room = "liveroom"
 
     beforeAll(async () => {
-      server = await startLocalYjsServer({ port: 0 })
+      server = await startLocalYjsServer({
+        port: 0,
+        secret: SECRET,
+        appPort: APP_PORT,
+      })
     })
 
     afterAll(async () => {
@@ -101,6 +143,28 @@ describe("LocalYjsHost", () => {
       await new Promise((r) => setTimeout(r, 350))
     })
 
+    it("listens on loopback only", () => {
+      expect(server.address).toBe("127.0.0.1")
+    })
+
+    it("refuses a foreign Origin, even with the secret", async () => {
+      const url = `ws://127.0.0.1:${server.port}/${room}?token=${SECRET}`
+      expect(await refusedStatus(url, "https://evil.example")).toBe(403)
+      // Loopback on another port is another site (e.g. a prototype's preview).
+      expect(await refusedStatus(url, "http://localhost:4000")).toBe(403)
+    })
+
+    it("refuses an upgrade with no Origin", async () => {
+      const url = `ws://127.0.0.1:${server.port}/${room}?token=${SECRET}`
+      expect(await refusedStatus(url)).toBe(403)
+    })
+
+    it("refuses the app's own Origin without the right secret", async () => {
+      const base = `ws://127.0.0.1:${server.port}/${room}`
+      expect(await refusedStatus(base, APP_ORIGIN)).toBe(401)
+      expect(await refusedStatus(`${base}?token=wrong`, APP_ORIGIN)).toBe(401)
+    })
+
     it("a connected peer and the server share one authoritative doc", async () => {
       const host = getLocalYjsHost()
       const clientDoc = new Y.Doc()
@@ -108,7 +172,11 @@ describe("LocalYjsHost", () => {
         `ws://localhost:${server.port}`,
         room,
         clientDoc,
-        { WebSocketPolyfill: WebSocket as never, disableBc: true }
+        {
+          WebSocketPolyfill: wsWithOrigin(APP_ORIGIN) as never,
+          disableBc: true,
+          params: { token: SECRET },
+        }
       )
 
       try {
@@ -156,7 +224,11 @@ describe("LocalYjsHost", () => {
         `ws://localhost:${server.port}`,
         coldRoom,
         clientDoc,
-        { WebSocketPolyfill: WebSocket as never, disableBc: true }
+        {
+          WebSocketPolyfill: wsWithOrigin(APP_ORIGIN) as never,
+          disableBc: true,
+          params: { token: SECRET },
+        }
       )
       let atSync: unknown = "never synced"
       provider.once("sync", () => {

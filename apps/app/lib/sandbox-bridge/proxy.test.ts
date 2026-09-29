@@ -38,13 +38,16 @@ async function until(fn: () => Promise<boolean>, ms = 5000): Promise<void> {
 }
 
 describe("bridge proxy", () => {
-  let upstream: http.Server
+  let upstream: http.Server | undefined
   let proxy: ChildProcess
   let listenPort: number
 
   afterEach(async () => {
     proxy?.kill("SIGKILL")
-    await new Promise<void>((resolve) => upstream?.close(() => resolve()))
+    const server = upstream
+    upstream = undefined
+    if (server)
+      await new Promise<void>((resolve) => server.close(() => resolve()))
   })
 
   /**
@@ -71,7 +74,7 @@ describe("bridge proxy", () => {
       res.end()
     })
     await new Promise<void>((resolve) =>
-      upstream.listen(upstreamPort, "127.0.0.1", resolve)
+      upstream!.listen(upstreamPort, "127.0.0.1", resolve)
     )
 
     proxy = spawn(process.execPath, [PROXY_PATH], {
@@ -95,5 +98,40 @@ describe("bridge proxy", () => {
     // The bridge tag was injected and the original markup survived.
     expect(body).toContain("__screenplay-bridge.js")
     expect(body).toContain("<body>hi</body>")
+  })
+
+  /** Start the proxy with `env` and resolve with the address it logs. */
+  async function boundAddress(env: Record<string, string>): Promise<string> {
+    listenPort = await freePort()
+    proxy = spawn(process.execPath, [PROXY_PATH], {
+      env: {
+        ...process.env,
+        SCREENPLAY_LISTEN_PORT: String(listenPort),
+        ...env,
+      },
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    let out = ""
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("no listen log")), 5000)
+      proxy.stdout!.on("data", (chunk: Buffer) => {
+        out += chunk.toString()
+        const match = /listening on (\S+) ->/.exec(out)
+        if (match) {
+          clearTimeout(timer)
+          resolve(match[1]!)
+        }
+      })
+    })
+  }
+
+  it("binds every interface by default, as a hosted sandbox needs", async () => {
+    expect(await boundAddress({})).toBe(`0.0.0.0:${listenPort}`)
+  })
+
+  it("binds loopback when the local backend asks, keeping previews off the LAN", async () => {
+    expect(await boundAddress({ SCREENPLAY_LISTEN_HOST: "127.0.0.1" })).toBe(
+      `127.0.0.1:${listenPort}`
+    )
   })
 })

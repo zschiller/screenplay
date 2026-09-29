@@ -31,14 +31,26 @@ const BRANCH_ID = FIXTURE_IDS.branches.framesLive
 export async function connectWorkspaceLifecycle(): Promise<WorkspaceLifecycle> {
   // The app's y-websocket server; the port matches `yjsWebsocketPort()`.
   const port = Number(process.env.NEXT_PUBLIC_YJS_WS_PORT ?? 1234)
+  const { baseUrl, previewOrigin } = resolveCaptureProfile()
+  // The server only accepts the app's own Origin carrying the per-launch token
+  // the app hands its webview (#997), so join the way the page does.
+  const res = await fetch(`${baseUrl}/api/yjs/auth`, { method: "POST" })
+  if (!res.ok) throw new Error(`yjs auth failed: ${res.status}`)
+  const { token } = (await res.json()) as { token: string }
+  class AppOriginWebSocket extends WebSocket {
+    constructor(url: string, protocols?: string | string[]) {
+      super(url, protocols, { origin: baseUrl })
+    }
+  }
   const doc = new Y.Doc()
   const provider = new WebsocketProvider(
     `ws://127.0.0.1:${port}`,
     ROOM_ID,
     doc,
     {
-      WebSocketPolyfill: WebSocket as never,
+      WebSocketPolyfill: AppOriginWebSocket as never,
       disableBc: true,
+      params: { token },
     }
   )
   await new Promise<void>((resolve, reject) => {
@@ -52,7 +64,6 @@ export async function connectWorkspaceLifecycle(): Promise<WorkspaceLifecycle> {
     })
   })
   const branches = getRoomCollections(doc).branches
-  const { previewOrigin } = resolveCaptureProfile()
   const patch = (value: Partial<BranchData>) =>
     branches.update(BRANCH_ID, value)
   return {

@@ -23,6 +23,7 @@ const INTERNAL: Record<string, string> = {
   PORTLESS_STATE_DIR: "mirrors the portless CLI's own override",
   SCREENPLAY_LISTEN_PORT: "set inside a sandbox by provisioning",
   SCREENPLAY_UPSTREAM_PORT: "set inside a sandbox by provisioning",
+  SCREENPLAY_LISTEN_HOST: "set inside a sandbox by provisioning",
   SCREENPLAY_SHELL_PID: "set by the desktop shell for its own watchdog",
 }
 
