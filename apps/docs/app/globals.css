@@ -1,3 +1,76 @@
+/*
+ * Editorial theme (#1011), matching the app: Instrument Sans text, Instrument
+ * Serif titles, Geist Mono section labels, 2px corners. The magenta primary
+ * and the white/black page are set on <Head> in app/layout.tsx. Nextra's own
+ * styles sit in cascade layers, so these plain rules win without !important.
+ */
+:root {
+  --x-font-sans:
+    var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  --x-font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --x-radius-sm: 2px;
+  --x-radius-md: 2px;
+  --x-radius-lg: 2px;
+  --x-radius-xl: 2px;
+}
+.x\:rounded {
+  border-radius: 2px;
+}
+
+/* Page titles in the serif, at its one weight. */
+article h1,
+article h2 {
+  font-family: var(--font-instrument-serif), serif;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+article h1 {
+  font-size: 3rem;
+  line-height: 1.1;
+}
+article h2 {
+  font-size: 2rem;
+}
+
+/* Sidebar: mono uppercase section labels, regular-weight links, and the
+   current page in magenta with a hairline bar instead of a filled pill. */
+.nextra-sidebar li:not(:has(*)),
+.nextra-mobile-nav li:not(:has(*)) {
+  font-family: var(--x-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(0 0 0 / 0.55);
+}
+html.dark .nextra-sidebar li:not(:has(*)),
+html.dark .nextra-mobile-nav li:not(:has(*)) {
+  color: rgb(255 255 255 / 0.55);
+}
+.nextra-sidebar a,
+.nextra-mobile-nav a {
+  font-weight: 400;
+}
+.nextra-sidebar a.x\:bg-primary-100,
+.nextra-mobile-nav a.x\:bg-primary-100 {
+  background: transparent;
+  color: var(--x-color-primary-600);
+  box-shadow: inset 2px 0 0 var(--x-color-primary-600);
+}
+.nextra-toc a {
+  font-weight: 400;
+}
+
+/* The navbar's "DOCS" beside the wordmark. */
+.sp-docs-label {
+  font-family: var(--x-font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
 /* Framed screenshots: show the variant that matches the docs theme. */
 .sp-screenshot {
   margin: 1.75rem 0;
@@ -10,7 +83,7 @@
   max-height: 36rem;
   height: auto;
   margin-inline: auto;
-  border-radius: 12px;
+  border-radius: 2px;
   /* Details are the bare UI, so a hairline keeps a white panel off a white page. */
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
 }
@@ -38,8 +111,8 @@ kbd {
   padding: 0.05em 0.4em;
   border: 1px solid rgb(0 0 0 / 0.15);
   border-bottom-width: 2px;
-  border-radius: 5px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border-radius: 2px;
+  font-family: var(--x-font-mono);
   font-size: 0.85em;
   text-align: center;
   white-space: nowrap;

@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Instrument_Serif } from "next/font/google"
+import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google"
 import { Footer, Layout, Navbar } from "nextra-theme-docs"
 import { Head } from "nextra/components"
 import { getPageMap } from "nextra/page-map"
@@ -7,7 +7,20 @@ import "nextra-theme-docs/style.css"
 import "./globals.css"
 import { ScreenplayMark } from "@workspace/ui/components/screenplay-mark"
 
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400" })
+// The Editorial type voice the app uses (#1005, #1011): Instrument Sans for
+// the text, Instrument Serif for page titles and the wordmark, Geist Mono for
+// code and the sidebar's section labels. `globals.css` maps these variables
+// onto Nextra's fonts.
+const sans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-instrument-sans",
+})
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-instrument-serif",
+})
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 
 export const metadata: Metadata = {
   title: {
@@ -27,7 +40,7 @@ const navbar = (
           <span className={serif.className} style={{ fontSize: 26 }}>
             Screenplay
           </span>
-          <span style={{ opacity: 0.55 }}>Docs</span>
+          <span className="sp-docs-label">Docs</span>
         </span>
       </span>
     }
@@ -43,8 +56,21 @@ export default async function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
-      <Head />
+    <html
+      lang="en"
+      dir="ltr"
+      suppressHydrationWarning
+      className={`${sans.variable} ${serif.variable} ${mono.variable}`}
+    >
+      {/* Magenta (hue 326) for links and the current page, on pure white and black. */}
+      <Head
+        color={{
+          hue: 326,
+          saturation: 100,
+          lightness: { light: 45, dark: 62 },
+        }}
+        backgroundColor={{ light: "#ffffff", dark: "#000000" }}
+      />
       <body>
         <Layout
           navbar={navbar}

@@ -18,7 +18,7 @@ export const DOCS_SCREENSHOT_DIR = resolve(
  * Turn raw captures into the images the docs embed:
  *
  * - **Full-window** screens (`crop` unset) are drawn as a Screenplay desktop
- *   window on a light or dark gradient that matches the docs theme: the
+ *   window on a flat light or dark backdrop that matches the docs theme: the
  *   Tauri overlay title bar's traffic lights at the app's
  *   `trafficLightPosition`, rounded corners, and a soft shadow. A screen
  *   with a `browser` address is drawn as a plain browser window instead (the
@@ -183,9 +183,8 @@ function framePage(
   browser?: string
 ): { width: number; height: number; html: string } {
   const { width: W0, height: H0 } = viewport
-  const bg = dark
-    ? "radial-gradient(90% 90% at 0% 0%, #2e2350 0%, transparent 60%), radial-gradient(90% 90% at 100% 100%, #13304d 0%, transparent 60%), #0b0b0f"
-    : "radial-gradient(90% 90% at 0% 0%, #ffe6d5 0%, transparent 60%), radial-gradient(90% 90% at 100% 100%, #dde5ff 0%, transparent 60%), #f5f4f2"
+  // Flat, like the docs' Editorial theme: a step off its white or black page.
+  const bg = dark ? "#111111" : "#f0f0f0"
   const border = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.09)"
   const shadow = `0 0 0 1px ${border}, 0 30px 70px -24px rgba(15,10,40,${dark ? 0.9 : 0.38}), 0 10px 24px -12px rgba(15,10,40,${dark ? 0.6 : 0.2})`
   const [x, y, w, h] = focus ? detailRegion(focus, viewport) : [0, 0, W0, H0]
