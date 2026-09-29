@@ -10,7 +10,8 @@ import { isServerUp, startCaptureStack } from "../lib/server"
 import { resolveCaptureProfile } from "../profile"
 
 /**
- * `pnpm screenshots:video <interaction>` — record one named interaction to a webm.
+ * `pnpm screenshots:video <interaction>` — record one named interaction to a GIF
+ * (embed it in the PR) and an MP4 (link it for full quality).
  *
  * Boots and reuses a server exactly like `shots` does. One interaction per run:
  * a recording is something a reviewer scrubs, so it is named and chosen, never a
@@ -66,7 +67,10 @@ async function main(): Promise<void> {
       label,
     })
     console.log("")
-    console.log(`Wrote ${relative(process.cwd(), result.file)}`)
+    console.log(
+      `Wrote ${relative(process.cwd(), result.gif)} (${result.gifWidth}px, ${result.gifFps}fps)`
+    )
+    console.log(`Wrote ${relative(process.cwd(), result.mp4)}`)
   } finally {
     await stack.stop()
   }

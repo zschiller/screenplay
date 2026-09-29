@@ -12,7 +12,7 @@ anything. Nothing reads this directory.
 | `canvas-agent-chat.<theme>.webp`  | `--screens canvas-agent-chat`                   |
 | `canvas-plan-review.<theme>.webp` | `--screens canvas-plan-review`                  |
 | `settings.<theme>.webp`           | `--screens settings`                            |
-| `open-canvas.light.webm`          | `pnpm screenshots:video open-canvas`            |
+| `open-canvas.light.gif`           | `pnpm screenshots:video open-canvas`            |
 
 A real capture run writes **PNGs at 2× device scale** to
 `apps/app/.screenshots/captures/<label>/` — that's what you attach to a PR.
