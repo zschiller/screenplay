@@ -1489,9 +1489,6 @@ function TargetPicker({
                         setOpen(false)
                       }}
                     >
-                      <CheckIcon
-                        className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
-                      />
                       <WorkspaceMention
                         branch={a}
                         agentWorking={agentWorking(a.id)}
@@ -1509,6 +1506,9 @@ function TargetPicker({
                             </span>
                           ) : null
                         }
+                      />
+                      <CheckIcon
+                        className={`ml-auto shrink-0 ${isCurrent ? "" : "opacity-0"}`}
                       />
                     </CommandItem>
                   )
@@ -1538,14 +1538,14 @@ function TargetPicker({
                           setOpen(false)
                         }}
                       >
-                        <CheckIcon
-                          className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
-                        />
                         {/* In the Workspace rows' icon column (#974). */}
                         <span className="flex size-4 shrink-0 items-center justify-center">
                           <descriptor.Icon className="size-3.5 opacity-70" />
                         </span>
                         <span className="truncate">{label}</span>
+                        <CheckIcon
+                          className={`ml-auto shrink-0 ${isCurrent ? "" : "opacity-0"}`}
+                        />
                       </CommandItem>
                     )
                   })}
