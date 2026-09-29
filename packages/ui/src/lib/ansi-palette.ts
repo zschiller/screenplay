@@ -1,7 +1,8 @@
 /**
  * The one **ANSI palette** the app paints terminal output with — shared by the
  * xterm terminal tab and the sandbox logs panel, so a line reads the same colour
- * in both, in both themes.
+ * in both, in both themes. The docs colour their code blocks from it too
+ * (`apps/docs/ansi-code-theme.mjs` reads the `--ansi-*` variables below).
  *
  * The stock 16 colours (xterm's, anser's) are tuned for black: on the light
  * theme's white, yellow, white and the bright cyan/green/yellow wash out to near

@@ -12,7 +12,7 @@ import {
   ansiColorVar,
   TERMINAL_FONT_SIZE,
   xterm256Rgb,
-} from "@/lib/terminal/ansi-palette"
+} from "@workspace/ui/lib/ansi-palette"
 
 const MAX_TOKENS = 10_000
 const FLUSH_PENDING_MAX_BYTES = 64 * 1024
