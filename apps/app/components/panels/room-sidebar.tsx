@@ -66,8 +66,12 @@ import {
 } from "@workspace/ui/components/collapsible"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -103,6 +107,15 @@ import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { groupBranchId } from "@/lib/canvas/group-workspace"
 import { sortForSidebar } from "@/lib/sidebar-order"
+import {
+  WORKSPACE_SECTION_LABELS,
+  WORKSPACE_SORT_LABELS,
+  canDragWorkspaces,
+  groupWorkspaces,
+  sortWorkspaces,
+  type WorkspaceSort,
+} from "@/lib/workspace-list-view"
+import { useWorkspaceListView } from "@/components/panels/use-workspace-list-view"
 import {
   parseSidebarRowId,
   resolveRepoListDrop,
@@ -547,6 +560,9 @@ interface RoomSidebarProps {
   newWorkspaceRequest?: { repoId: string; seq: number } | null
   /** Pinned under the scrolling lists (the getting-started checklist, #780). */
   footer?: React.ReactNode
+  /** Who is viewing which canvas: keys this member's list view (#885). */
+  userId: string
+  roomId: string
 }
 
 /** A sidebar Layer awaiting its delete confirm. */
@@ -602,6 +618,8 @@ export function RoomSidebar({
   branchPrs,
   newWorkspaceRequest = null,
   footer,
+  userId,
+  roomId,
 }: RoomSidebarProps) {
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
     null
@@ -937,6 +955,25 @@ export function RoomSidebar({
     [flatBranches]
   )
   const [doneOpen, setDoneOpen] = useState(false)
+  // This member's sort and grouping (#885), a local view preference: manual
+  // drag order until they pick another. Done keeps its own section in every
+  // view; drag only writes manual order, so it only runs where rows show it.
+  const [listView, updateListView] = useWorkspaceListView(userId, roomId)
+  const canDrag = canDragWorkspaces(listView)
+  const listedBranches = useMemo(
+    () => sortWorkspaces(activeBranches, listView.sort),
+    [activeBranches, listView.sort]
+  )
+  const branchSections = useMemo(
+    () =>
+      listView.groupByState
+        ? groupWorkspaces(activeBranches, listView.sort, (b) => ({
+            agentWorking: activeBranchIds?.has(b.id) ?? false,
+            openPr: (branchPrs.get(b.id)?.state ?? b.prState) === "open",
+          }))
+        : null,
+    [activeBranches, listView, activeBranchIds, branchPrs]
+  )
   // With one repository the list never mentions it (#884).
   const showRepoNames = sortedRepos.length > 1
   // New workspace starts in the Repo used last: the newest Workspace's.
@@ -1295,6 +1332,34 @@ export function RoomSidebar({
                         </IconButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent side="bottom" align="end">
+                        {/* The list's view options (#885), this member's only. */}
+                        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={listView.sort}
+                          onValueChange={(v) =>
+                            updateListView({ sort: v as WorkspaceSort })
+                          }
+                        >
+                          {(
+                            Object.keys(
+                              WORKSPACE_SORT_LABELS
+                            ) as WorkspaceSort[]
+                          ).map((sort) => (
+                            <DropdownMenuRadioItem key={sort} value={sort}>
+                              {WORKSPACE_SORT_LABELS[sort]}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuCheckboxItem
+                          checked={listView.groupByState}
+                          onCheckedChange={(checked) =>
+                            updateListView({ groupByState: checked === true })
+                          }
+                        >
+                          Group by state
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuSeparator />
                         {sortedRepos.length === 1 ? (
                           <DropdownMenuItem
                             onClick={() =>
@@ -1342,27 +1407,84 @@ export function RoomSidebar({
                   </>
                 )}
                 <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SortableContext
-                      items={activeBranches.map((b) => `branch:${b.id}`)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {activeBranches.map((branch) => {
+                  {branchSections ? (
+                    // Grouped by state (#885): each live section is the same
+                    // collapsible row as Done below; empty ones are left out.
+                    branchSections.map(({ section, branches: rows }) => (
+                      <Collapsible
+                        key={section}
+                        open={!listView.collapsed.includes(section)}
+                        onOpenChange={(open) =>
+                          updateListView({
+                            collapsed: open
+                              ? listView.collapsed.filter((s) => s !== section)
+                              : [...listView.collapsed, section],
+                          })
+                        }
+                        className="group/state-section mb-1"
+                      >
+                        <SidebarMenu>
+                          <SidebarMenuItem>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuButton className="text-sidebar-foreground/70">
+                                <CaretRightIcon className="transition-transform group-data-[state=open]/state-section:rotate-90" />
+                                <span>{`${WORKSPACE_SECTION_LABELS[section]} (${rows.length})`}</span>
+                              </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                          </SidebarMenuItem>
+                        </SidebarMenu>
+                        <CollapsibleContent>
+                          <SidebarMenu className="mt-1">
+                            {rows.map((branch) => {
+                              const repo = reposById.get(branch.repoId)
+                              if (!repo) return null
+                              return (
+                                <Fragment key={branch.id}>
+                                  {renderBranchRow(branch, repo)}
+                                </Fragment>
+                              )
+                            })}
+                          </SidebarMenu>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ))
+                  ) : canDrag ? (
+                    <SidebarMenu>
+                      <SortableContext
+                        items={listedBranches.map((b) => `branch:${b.id}`)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {listedBranches.map((branch) => {
+                          const repo = reposById.get(branch.repoId)
+                          if (!repo) return null
+                          return (
+                            <BranchesSortableRow
+                              key={branch.id}
+                              id={`branch:${branch.id}`}
+                              repoId={repo.id}
+                              className="cursor-grab active:cursor-grabbing"
+                            >
+                              {renderBranchRow(branch, repo)}
+                            </BranchesSortableRow>
+                          )
+                        })}
+                      </SortableContext>
+                    </SidebarMenu>
+                  ) : (
+                    // Recent activity and Name don't show manual order, so
+                    // their rows don't drag.
+                    <SidebarMenu>
+                      {listedBranches.map((branch) => {
                         const repo = reposById.get(branch.repoId)
                         if (!repo) return null
                         return (
-                          <BranchesSortableRow
-                            key={branch.id}
-                            id={`branch:${branch.id}`}
-                            repoId={repo.id}
-                            className="cursor-grab active:cursor-grabbing"
-                          >
+                          <Fragment key={branch.id}>
                             {renderBranchRow(branch, repo)}
-                          </BranchesSortableRow>
+                          </Fragment>
                         )
                       })}
-                    </SortableContext>
-                  </SidebarMenu>
+                    </SidebarMenu>
+                  )}
                   {doneBranches.length > 0 && (
                     <Collapsible
                       open={doneOpen}

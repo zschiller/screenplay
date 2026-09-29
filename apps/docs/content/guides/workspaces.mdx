@@ -92,6 +92,25 @@ request button instead).
 Workspaces keep their repository's order, and within it the order you give
 them: drag a row to move it among its repository's workspaces.
 
+### Sorting and grouping
+
+<Screenshot name="ws-list-view" alt="The Workspaces list's … menu with Sort by and Group by state" />
+
+The **…** beside **Workspaces** sets how the list is shown:
+
+- **Sort by** **Manual** (the order you drag, and the default),
+  **Recent activity** (the workspace whose agent was last asked something
+  first; one that never ran a turn counts from when it was created) or
+  **Name**. Rows drag only in **Manual** order with grouping off.
+- **Group by state** splits the list into **Working** (the agent is working
+  or setup is running), **Needs you** (setup failed, or its pull request is
+  open) and **Idle** (ready or stopped). Each section folds like **Done**,
+  and rows inside it follow the sort you picked. Empty sections are hidden.
+
+[Done](#marking-a-workspace-done) workspaces stay in their own section at the
+bottom whatever you pick. The choice is yours alone: it's remembered for each
+canvas in this browser, and collaborators keep their own.
+
 Click a row to make it the agent panel's target. Double-click to also open
 the panel.
 

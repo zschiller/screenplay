@@ -80,6 +80,12 @@ export type BranchData = {
    */
   doneAt?: number
   /**
+   * When a chat turn last started on the Workspace, stamped by Turn Launch.
+   * The sidebar's Recent activity sort reads it (#885); absent until the
+   * first turn, when `createdAt` stands in.
+   */
+  lastActivityAt?: number
+  /**
    * How the Workspace was created, and the branch a duplicate forked from. The
    * sidebar's Retry re-runs a failed create with these (#791).
    */

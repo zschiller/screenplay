@@ -40,6 +40,7 @@ import {
   renameClaimedBranch,
   type BranchRenameClaim,
 } from "./auto-naming"
+import { stampWorkspaceActivity } from "./workspace-activity"
 import { resolveLiveEngine } from "./acp/resolve-live-engine"
 import { wireToContentBlocks } from "./acp/markers"
 import { launchEngineTurn } from "./launch-turn"
@@ -572,6 +573,8 @@ export function sandboxTurn(input: {
         loadLayerDirectory(room),
         getMergedSkillIndexForSandbox(sandboxName),
         loadCanvasMemory(room),
+        // Recent activity (#885): this Workspace just saw a turn start.
+        stampWorkspaceActivity(room, sandboxName, Date.now()).catch(() => {}),
       ])
       const systemPrompt = buildAgentSystemPrompt({
         repoSystemPrompt: branchState?.systemPrompt ?? undefined,
