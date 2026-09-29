@@ -14,13 +14,14 @@ export function Hero() {
           Open source · Works with Claude Code, Codex &amp; opencode
         </p>
         <h1 className="mt-7 font-heading text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance">
-          Every take, <Selected label="take 3 of 3">running</Selected> at once.
+          Every branch, <Selected label="branch 3 of 3">running</Selected> at
+          once.
         </h1>
         <div className="mt-14 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
           <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
-            Screenplay gives each coding agent its own branch, its own sandbox,
-            and a frame on a shared canvas. Ask for three directions, click
-            through all three live, and ship the one that works.
+            Screenplay runs each coding agent on its own branch, in its own
+            sandbox, and shows every result as a live frame on one canvas.
+            Compare them side by side and ship the one that works.
           </p>
           <div className="flex flex-wrap gap-3">
             <a
@@ -68,7 +69,7 @@ export function Hero() {
             "mt-2.5 flex justify-between gap-4 text-muted-foreground"
           )}
         >
-          <span>Fig. 1 · Three Workspaces, one canvas</span>
+          <span>Fig. 1 · Three Workspaces on one canvas</span>
           <span className="max-sm:hidden">The real app</span>
         </figcaption>
       </figure>

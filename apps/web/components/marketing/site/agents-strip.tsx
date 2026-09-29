@@ -19,9 +19,7 @@ export function AgentsStrip() {
           "flex flex-wrap items-center gap-x-9 gap-y-3 py-5.5"
         )}
       >
-        <p className={cn(monoLabel, "text-muted-foreground")}>
-          Bring the agents you already use
-        </p>
+        <p className={cn(monoLabel, "text-muted-foreground")}>Works with</p>
         {items.map((item) => (
           <span key={item} className="font-heading text-[22px] leading-none">
             {item}

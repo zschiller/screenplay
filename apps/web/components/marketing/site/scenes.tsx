@@ -21,30 +21,30 @@ const scenes: {
   alt: string
 }[] = [
   {
-    slug: "Scene 1",
-    title: "Point it at a repo",
-    body: "Add a repository and Screenplay boots its dev server in a sandbox. That's your main Workspace, live on the canvas.",
+    slug: "Step 1",
+    title: "Add a repository",
+    body: "Screenplay starts its dev server in a sandbox. That becomes your main Workspace, running on the canvas.",
     shot: [repoLight, repoDark],
     alt: "Home, with recent canvases.",
   },
   {
-    slug: "Scene 2",
-    title: "Call for takes",
-    body: "Ask your agent for three directions. Each gets its own Workspace: a real git branch with its own running sandbox.",
+    slug: "Step 2",
+    title: "Ask for versions",
+    body: "Ask your agent for several approaches. Each one gets its own Workspace: a git branch with its own running sandbox.",
     shot: [takesLight, takesDark],
     alt: "Creating two Workspaces at once, each with its own prompt.",
   },
   {
-    slug: "Scene 3",
-    title: "Watch them all run",
-    body: "Frames appear side by side as they build. Click through them, resize to mobile, tweak knobs. Invite the team to poke around.",
+    slug: "Step 3",
+    title: "Compare them live",
+    body: "Frames appear side by side as they build. Click through them, check mobile sizes and adjust knobs. Invite your team to review.",
     shot: [runLight, runDark],
     alt: "Desktop and mobile frames of the same page running side by side.",
   },
   {
-    slug: "Scene 4",
-    title: "Print the winner",
-    body: "Keep iterating on the one you love, then open a pull request straight from the canvas. Cut the rest.",
+    slug: "Step 4",
+    title: "Open a pull request",
+    body: "Keep iterating on the version you want, then open a pull request from the canvas.",
     shot: [prLight, prDark],
     alt: "A Workspace's menu, with Create pull request at the top.",
   },
@@ -57,9 +57,9 @@ export function Scenes() {
       className={cn(measure, "scroll-mt-20 pt-[clamp(72px,10vw,140px)]")}
     >
       <SectionHeading
-        slug="Ext. The canvas — day"
-        title="From one prompt to a wall of working prototypes."
-        body="Screenplay turns “what if we tried…” into something everyone can click, in about the time it takes to refill your coffee."
+        slug="How it works"
+        title="From one prompt to several running versions."
+        body="Describe a change once, let your agents build it several ways, and review every version on the same canvas."
       />
       <ol className="mt-14 grid gap-x-9 border-t border-foreground sm:grid-cols-2 lg:grid-cols-4">
         {scenes.map(({ slug, title, body, shot, alt }, i) => (

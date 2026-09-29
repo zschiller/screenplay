@@ -5,36 +5,36 @@ import { SectionHeading } from "./section-heading"
 
 const features: { title: string; body: React.ReactNode }[] = [
   {
-    title: "Real sandboxes, not screenshots",
-    body: "Every frame is a live dev server on its own branch. Click, scroll, fill in forms, flip to mobile. It's the actual app.",
+    title: "Live sandboxes",
+    body: "Every frame is a running dev server on its own branch. Click, scroll, fill in forms and switch to mobile sizes.",
   },
   {
-    title: "Multiplayer by default",
+    title: "Multiplayer",
     body: "Deploy the web app and share a link. Everyone sees the same canvas, cursors, comments and running branches. Follow a teammate with one click.",
   },
   {
-    title: "Point at anything",
-    body: "Hit ⌘E, click an element in any frame, and send it to the agent. No more “the button, no, the other button.”",
+    title: "Pick elements",
+    body: "Press ⌘E and click an element in any frame to send it to the agent as context.",
   },
   {
-    title: "Knobs for every take",
+    title: "Knobs",
     body: (
       <>
         Your agent exposes spacing, color and copy as knobs with{" "}
         <code className="font-mono text-[13px] text-foreground">
           @screenplay.space/knobs
         </code>
-        . Drag a slider and watch every branch respond, no re-prompting.
+        . Drag a slider and every branch updates without another prompt.
       </>
     ),
   },
   {
-    title: "Bring your own harness",
-    body: "Run Claude Code, Codex or opencode with the models you already pay for. Switch models per chat.",
+    title: "Your agents and models",
+    body: "Run Claude Code, Codex or opencode with the accounts you already have. Choose the model per chat.",
   },
   {
-    title: "Local-first on your Mac",
-    body: "The desktop app runs entirely offline: git worktrees for sandboxes, your installed CLIs for agents. Your code stays put.",
+    title: "Runs locally on your Mac",
+    body: "The desktop app works offline: git worktrees for sandboxes, your installed CLIs for agents. Your code stays on your machine.",
   },
 ]
 
@@ -45,8 +45,8 @@ export function Features() {
       className={cn(measure, "scroll-mt-20 pt-[clamp(72px,10vw,140px)]")}
     >
       <SectionHeading
-        slug="Int. The writers' room — continuous"
-        title="Everything a canvas needs to direct a room full of agents."
+        slug="Features"
+        title="Built for comparing what your agents build."
       />
       <div className="mt-14 grid border-t border-border md:grid-cols-3 md:gap-x-13">
         {features.map((f, i) => (
