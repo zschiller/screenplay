@@ -5,7 +5,7 @@ export function Wordmark({ size = 24 }: { size?: number }) {
   return (
     <span className="flex items-center gap-2">
       <ScreenplayMark width={size} height={size} className="shrink-0" />
-      <span className="font-heading text-[26px] leading-none">Screenplay</span>
+      <span className="font-wordmark text-[26px] leading-none">Screenplay</span>
     </span>
   )
 }

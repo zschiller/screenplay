@@ -17,7 +17,7 @@ export function SectionHeading({
   return (
     <div className={cn("flex flex-col", className)}>
       <span className={cn(monoLabel, "text-info")}>{slug}</span>
-      <h2 className="mt-4.5 max-w-[18ch] font-heading text-[clamp(40px,6vw,76px)] leading-none font-normal tracking-[-0.02em] text-balance">
+      <h2 className="mt-4.5 max-w-[18ch] font-heading text-[clamp(30px,4.5vw,56px)] leading-[1.05] font-normal tracking-[-0.03em] text-balance">
         {title}
       </h2>
       {body ? (

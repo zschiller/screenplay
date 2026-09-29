@@ -69,7 +69,7 @@ export function Scenes() {
             <span className={cn(monoLabel, "text-muted-foreground")}>
               {slug}
             </span>
-            <h3 className="font-heading text-[30px] leading-[1.05] font-normal">
+            <h3 className="font-heading text-[22px] leading-[1.2] font-normal tracking-[-0.03em]">
               {title}
             </h3>
             <Excerpt />

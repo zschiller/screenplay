@@ -62,7 +62,7 @@ export function Features() {
                 "md:before:absolute md:before:inset-y-0 md:before:-left-6.5 md:before:w-px md:before:bg-border"
             )}
           >
-            <h3 className="font-heading text-[28px] leading-[1.05] font-normal">
+            <h3 className="font-heading text-[20px] leading-[1.2] font-normal tracking-[-0.03em]">
               {f.title}
             </h3>
             <p className="text-[15.5px] leading-normal text-muted-foreground">

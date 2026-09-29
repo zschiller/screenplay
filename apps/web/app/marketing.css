@@ -4,12 +4,14 @@
 /* Marketing site, Editorial (#1010)                                   */
 /* ------------------------------------------------------------------ */
 
-/* Type: Instrument Sans for text, Instrument Serif for headlines, both from
-   `next/font` in app/layout.tsx; labels use `font-mono` (Geist Mono). */
+/* Type: Instrument Sans for text, Unbounded for headlines (as the app's
+   titles), both from `next/font` in app/layout.tsx; labels use `font-mono`
+   (Geist Mono). */
 @theme inline {
   --font-sans:
     var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-heading: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
+  --font-wordmark: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --color-selection: var(--selection);
   --color-plane: var(--plane);
 }

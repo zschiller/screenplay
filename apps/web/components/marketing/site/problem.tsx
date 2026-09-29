@@ -48,7 +48,7 @@ export function Problem() {
         <div className="flex min-w-0 flex-col gap-2.5">
           <FrameExcerpt />
           <p className={cn(monoLabel, "text-muted-foreground")}>
-            With Screenplay · every branch running at once
+            With Screenplay · every branch side by side
           </p>
         </div>
       </div>
