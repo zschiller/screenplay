@@ -149,9 +149,9 @@ export function SidebarSearch() {
               {query ? (
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   aria-label="Clear search"
-                  className="absolute top-1/2 right-1 -translate-y-1/2"
+                  className="absolute top-1/2 right-0.5 -translate-y-1/2"
                   onClick={() => {
                     onChange("")
                     inputRef.current?.focus()

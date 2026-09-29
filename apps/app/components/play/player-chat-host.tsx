@@ -236,12 +236,12 @@ function PlayerChatPlaceholder({
         <IconButton
           label="Collapse chat"
           tooltipSide="left"
-          // Same box as ChatPanel's collapse button (20px, 16px icon), so it
-          // sits in the same spot when the chat mounts.
-          className="size-5 rounded-md text-muted-foreground"
+          // Same button as ChatPanel's collapse, so it sits in the same spot
+          // when the chat mounts.
+          className="text-muted-foreground"
           onClick={onCollapse}
         >
-          <SidebarSimpleIcon mirrored className="size-4" />
+          <SidebarSimpleIcon mirrored />
         </IconButton>
       </div>
       {/* Same type and copy as AgentChat's provisioning state, so the panel

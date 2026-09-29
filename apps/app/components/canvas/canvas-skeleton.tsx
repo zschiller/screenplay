@@ -67,7 +67,7 @@ export function CanvasSkeleton({
               data-tauri-drag-region
               className="flex h-12 items-center justify-end px-4 pr-3"
             >
-              <SidebarSimpleIcon className="size-4 text-sidebar-foreground/40" />
+              <PillIcon icon={<SidebarSimpleIcon />} />
             </div>
             <SidebarSection label="Workspaces" rows={2} className="pt-0" />
             <SidebarSection label="Canvas" rows={3} />
@@ -81,19 +81,19 @@ export function CanvasSkeleton({
         <div className="absolute top-0 left-0 flex h-12 items-center pl-2">
           <Pill>
             {!showSidebar && <PillIcon icon={<SidebarSimpleIcon />} />}
-            <div className="flex h-6 items-center gap-2 px-1.5">
+            <div className="flex h-7 items-center gap-2 px-1.5">
               <Skeleton className="h-3 w-12" />
               <span className="text-xs text-muted-foreground/40">/</span>
               <Skeleton className="h-3 w-24" />
             </div>
-            <div className="size-6" />
+            <div className="size-7" />
           </Pill>
         </div>
         {/* Top-right: the zoom menu (always), Share on web, and the
             chat-expand button while chat is closed. */}
         <div className="absolute top-0 right-0 flex h-12 items-center px-2">
           <Pill>
-            <div className="flex h-6 w-13 items-center px-1.5">
+            <div className="flex h-7 w-13 items-center px-1.5">
               <Skeleton className="h-3 w-full" />
             </div>
             {!isLocalBuild && <Skeleton className="ml-1 h-6 w-14" />}
@@ -156,10 +156,10 @@ function Pill({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** An `icon-xs` button's footprint with its icon drawn inert. */
+/** An `icon-sm` button's footprint with its icon drawn inert. */
 function PillIcon({ icon }: { icon: React.ReactNode }) {
   return (
-    <div className="flex size-6 items-center justify-center text-muted-foreground/40 [&_svg]:size-3.5">
+    <div className="flex size-7 items-center justify-center text-muted-foreground/40 [&_svg]:size-4">
       {icon}
     </div>
   )

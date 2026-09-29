@@ -974,14 +974,10 @@ export function ChatPanel({
             label="Collapse chat"
             shortcut="⌘I"
             tooltipSide="left"
-            asChild
+            className="mr-1.5 text-muted-foreground"
+            onClick={onCollapse}
           >
-            <button
-              className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-              onClick={onCollapse}
-            >
-              <SidebarSimpleIcon mirrored />
-            </button>
+            <SidebarSimpleIcon mirrored />
           </IconButton>
         )}
         {onShowRoomChat && (
@@ -1084,7 +1080,7 @@ export function ChatPanel({
                 aria-label="Sandbox logs"
                 title="Sandbox logs"
               >
-                <ListDashesIcon className="size-3.5" />
+                <ListDashesIcon />
               </TabsTrigger>
             )}
             {/* Drag-reorderable chat/terminal tabs. The logs trigger and the
@@ -1178,7 +1174,6 @@ export function ChatPanel({
                               ? "Close terminal"
                               : "Close chat"
                           }
-                          size="icon-xxs"
                           className="relative text-muted-foreground"
                           tabIndex={tab.id === tabsValue ? 0 : -1}
                           // Keep the press from starting a tab drag.
@@ -1187,7 +1182,7 @@ export function ChatPanel({
                             onCloseChat(tab.id, neighbourTabId(tab.id))
                           }
                         >
-                          <XIcon className="size-3" />
+                          <XIcon />
                         </IconButton>
                       </div>
                     </motion.div>
@@ -1208,7 +1203,7 @@ export function ChatPanel({
                   onClick={createStickyTab}
                   disabled={isAgentBusy}
                 >
-                  <PlusIcon className="size-3" />
+                  <PlusIcon />
                 </IconButton>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1217,7 +1212,7 @@ export function ChatPanel({
                       className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
                       disabled={isAgentBusy}
                     >
-                      <CaretDownIcon className="size-3" />
+                      <CaretDownIcon />
                     </IconButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -1269,7 +1264,7 @@ export function ChatPanel({
                   onClick={onCreateChat}
                   disabled={isAgentBusy}
                 >
-                  <PlusIcon className="size-3" />
+                  <PlusIcon />
                 </IconButton>
               </span>
             )}

@@ -374,7 +374,7 @@ async function selectLayer(page: Page, title: string) {
 
 /** The selected frame's floating toolbar button, by its label. */
 const frameToolbar = (label: string) =>
-  `button[data-size='icon-xs'][aria-label='${label}']`
+  `button[data-size='icon-sm'][aria-label='${label}']`
 
 async function clickFrameToolbar(page: Page, label: string, wait = 900) {
   const at = await centerOf(page, frameToolbar(label), null, { minX: 250 })

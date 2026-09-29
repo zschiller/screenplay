@@ -42,7 +42,7 @@ export function AccountMenu() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           className="rounded-full"
           aria-label="Account"
         >

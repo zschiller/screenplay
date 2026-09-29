@@ -67,14 +67,10 @@ export function RoomChatPanel({
           label="Collapse chat"
           shortcut="⌘I"
           tooltipSide="left"
-          asChild
+          className="mr-1.5 text-muted-foreground"
+          onClick={onCollapse}
         >
-          <button
-            className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-            onClick={onCollapse}
-          >
-            <SidebarSimpleIcon mirrored />
-          </button>
+          <SidebarSimpleIcon mirrored />
         </IconButton>
         <h2 className="text-sm font-medium">{ROOM_CHAT_LABEL}</h2>
       </div>
