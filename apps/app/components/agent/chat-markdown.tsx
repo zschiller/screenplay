@@ -12,7 +12,7 @@ import {
 import Markdown, { type Components, type UrlTransform } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
-import { Check, Copy } from "lucide-react"
+import { CheckIcon, CopyIcon } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
@@ -156,9 +156,9 @@ function CodeBlock({
           className="chat-markdown-copy"
         >
           {copied ? (
-            <Check className="size-3.5" />
+            <CheckIcon className="size-3.5" />
           ) : (
-            <Copy className="size-3.5" />
+            <CopyIcon className="size-3.5" />
           )}
         </button>
       </div>

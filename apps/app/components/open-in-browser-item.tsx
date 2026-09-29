@@ -1,6 +1,6 @@
 "use client"
 
-import { ExternalLink } from "lucide-react"
+import { ArrowSquareOutIcon } from "@workspace/ui/components/icons"
 import { DropdownMenuItem } from "@workspace/ui/components/dropdown-menu"
 
 /**
@@ -23,7 +23,7 @@ export function OpenInBrowserItem({
 }) {
   return (
     <DropdownMenuItem disabled={disabled} onSelect={onOpen}>
-      <ExternalLink />
+      <ArrowSquareOutIcon />
       Open in browser
     </DropdownMenuItem>
   )

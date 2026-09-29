@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react"
-import { Sparkles } from "lucide-react"
+import { SparkleIcon } from "@workspace/ui/components/icons"
 
 /**
  * Item shape for the `/` skill picker. `origin` is shown as a tag on each row
@@ -102,7 +102,7 @@ export const SkillMentionList = forwardRef<
           }`}
         >
           <span className="flex items-center gap-2">
-            <Sparkles className="size-3 shrink-0 text-muted-foreground" />
+            <SparkleIcon className="size-3 shrink-0 text-muted-foreground" />
             <span className="truncate font-medium">{item.name}</span>
             <span className="ml-auto shrink-0 text-2xs text-muted-foreground">
               {ORIGIN_LABEL[item.origin]}

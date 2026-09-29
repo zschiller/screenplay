@@ -1,4 +1,9 @@
-import { Monitor, Smartphone, Tablet, type LucideIcon } from "lucide-react"
+import {
+  type Icon,
+  DeviceMobileIcon,
+  DeviceTabletIcon,
+  MonitorIcon,
+} from "@workspace/ui/components/icons"
 
 export type IframeLayerSizeCategory = "Desktop" | "Tablet" | "Mobile"
 
@@ -198,11 +203,11 @@ export const DEFAULT_IFRAME_LAYER_SIZE_ID = "desktop-default"
 
 export const IFRAME_LAYER_SIZE_CATEGORY_ICONS: Record<
   IframeLayerSizeCategory,
-  LucideIcon
+  Icon
 > = {
-  Desktop: Monitor,
-  Tablet: Tablet,
-  Mobile: Smartphone,
+  Desktop: MonitorIcon,
+  Tablet: DeviceTabletIcon,
+  Mobile: DeviceMobileIcon,
 }
 
 const CATEGORY_ORDER: IframeLayerSizeCategory[] = [

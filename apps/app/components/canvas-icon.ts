@@ -1,9 +1,9 @@
-import { Scan } from "lucide-react"
+import { ScanIcon } from "@workspace/ui/components/icons"
 
 /**
  * The one icon that stands for a Canvas, wherever a Canvas is named with an
- * icon: sidebar pins, the empty state, menus. Import this rather than a lucide
+ * icon: sidebar pins, the empty state, menus. Import this rather than an icon
  * glyph directly so a Canvas can't drift back into wearing three different
  * icons in three places.
  */
-export const CanvasIcon = Scan
+export const CanvasIcon = ScanIcon

@@ -1,6 +1,11 @@
 "use client"
 
-import { FileText, FolderPlus, Frame, LayoutDashboard } from "lucide-react"
+import {
+  FileTextIcon,
+  FolderPlusIcon,
+  FrameCornersIcon,
+  LayoutIcon,
+} from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -64,7 +69,7 @@ export function CanvasEmptyState({
       <Empty className="flex-none animate-in duration-300 fade-in-0">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <LayoutDashboard />
+            <LayoutIcon />
           </EmptyMedia>
           <EmptyTitle>This canvas is empty</EmptyTitle>
           <EmptyDescription>
@@ -74,19 +79,19 @@ export function CanvasEmptyState({
         </EmptyHeader>
         <EmptyContent className="pointer-events-auto w-56 gap-1">
           <EmptyAction
-            icon={<Frame />}
+            icon={<FrameCornersIcon />}
             label="Add a frame"
             shortcut="F"
             onClick={() => toolMode.set("frame")}
           />
           <EmptyAction
-            icon={<FileText />}
+            icon={<FileTextIcon />}
             label="Add a Document"
             shortcut="D"
             onClick={() => toolMode.set("document")}
           />
           <EmptyAction
-            icon={<FolderPlus />}
+            icon={<FolderPlusIcon />}
             label="Add a repository"
             onClick={onAddProject}
           />

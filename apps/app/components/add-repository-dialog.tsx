@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
-import { FolderOpen, Globe } from "lucide-react"
+import { FolderOpenIcon, GlobeIcon } from "@workspace/ui/components/icons"
 import {
   Dialog,
   DialogContent,
@@ -156,11 +156,11 @@ export function AddRepositoryMenuItems({ flow }: { flow: AddRepositoryFlow }) {
   return (
     <>
       <DropdownMenuItem onSelect={flow.openLocalFolder}>
-        <FolderOpen />
+        <FolderOpenIcon />
         Open folder
       </DropdownMenuItem>
       <DropdownMenuItem onSelect={flow.openGitHub}>
-        <Globe />
+        <GlobeIcon />
         Open GitHub repository
       </DropdownMenuItem>
     </>

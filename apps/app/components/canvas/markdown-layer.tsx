@@ -10,22 +10,22 @@ import {
 } from "react"
 import { createPortal } from "react-dom"
 import {
-  Bold,
-  Check,
-  ChevronDown,
-  Code,
-  Heading1,
-  Heading2,
-  Heading3,
-  Italic,
-  List,
-  ListOrdered,
-  SquareCode,
-  Strikethrough,
-  TextQuote,
-  Type,
-  type LucideIcon,
-} from "lucide-react"
+  type Icon,
+  CaretDownIcon,
+  CheckIcon,
+  CodeBlockIcon,
+  CodeIcon,
+  ListBulletsIcon,
+  ListNumbersIcon,
+  QuotesIcon,
+  TextBIcon,
+  TextHOneIcon,
+  TextHThreeIcon,
+  TextHTwoIcon,
+  TextItalicIcon,
+  TextStrikethroughIcon,
+  TextTIcon,
+} from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -174,60 +174,60 @@ function FormatButton({
 const NODE_TYPES: {
   key: string
   label: string
-  Icon: LucideIcon
+  Icon: Icon
   run: (editor: Editor) => void
 }[] = [
   {
     key: "paragraph",
     label: "Text",
-    Icon: Type,
+    Icon: TextTIcon,
     run: (editor) => editor.chain().focus().clearNodes().run(),
   },
   {
     key: "h1",
     label: "Heading 1",
-    Icon: Heading1,
+    Icon: TextHOneIcon,
     run: (editor) =>
       editor.chain().focus().clearNodes().setHeading({ level: 1 }).run(),
   },
   {
     key: "h2",
     label: "Heading 2",
-    Icon: Heading2,
+    Icon: TextHTwoIcon,
     run: (editor) =>
       editor.chain().focus().clearNodes().setHeading({ level: 2 }).run(),
   },
   {
     key: "h3",
     label: "Heading 3",
-    Icon: Heading3,
+    Icon: TextHThreeIcon,
     run: (editor) =>
       editor.chain().focus().clearNodes().setHeading({ level: 3 }).run(),
   },
   {
     key: "bulletList",
     label: "Bullet list",
-    Icon: List,
+    Icon: ListBulletsIcon,
     run: (editor) =>
       editor.chain().focus().clearNodes().toggleBulletList().run(),
   },
   {
     key: "orderedList",
     label: "Numbered list",
-    Icon: ListOrdered,
+    Icon: ListNumbersIcon,
     run: (editor) =>
       editor.chain().focus().clearNodes().toggleOrderedList().run(),
   },
   {
     key: "blockquote",
     label: "Quote",
-    Icon: TextQuote,
+    Icon: QuotesIcon,
     run: (editor) => editor.chain().focus().clearNodes().setBlockquote().run(),
   },
   {
     key: "codeBlock",
     label: "Code block",
-    Icon: SquareCode,
+    Icon: CodeBlockIcon,
     run: (editor) => editor.chain().focus().clearNodes().setCodeBlock().run(),
   },
 ]
@@ -260,7 +260,7 @@ function NodeTypeDropdown({
         >
           <current.Icon />
           <span className="whitespace-nowrap">{current.label}</span>
-          <ChevronDown />
+          <CaretDownIcon />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -275,7 +275,7 @@ function NodeTypeDropdown({
             <t.Icon />
             <span className="whitespace-nowrap">{t.label}</span>
             {t.key === blockType && (
-              <Check className="ml-auto size-3.5 text-foreground" />
+              <CheckIcon className="ml-auto size-3.5 text-foreground" />
             )}
           </DropdownMenuItem>
         ))}
@@ -939,28 +939,28 @@ export function MarkdownLayer({
                     active={!!activeFormats?.bold}
                     onRun={() => editor.chain().focus().toggleBold().run()}
                   >
-                    <Bold />
+                    <TextBIcon />
                   </FormatButton>
                   <FormatButton
                     label="Italic"
                     active={!!activeFormats?.italic}
                     onRun={() => editor.chain().focus().toggleItalic().run()}
                   >
-                    <Italic />
+                    <TextItalicIcon />
                   </FormatButton>
                   <FormatButton
                     label="Strikethrough"
                     active={!!activeFormats?.strike}
                     onRun={() => editor.chain().focus().toggleStrike().run()}
                   >
-                    <Strikethrough />
+                    <TextStrikethroughIcon />
                   </FormatButton>
                   <FormatButton
                     label="Code"
                     active={!!activeFormats?.code}
                     onRun={() => editor.chain().focus().toggleCode().run()}
                   >
-                    <Code />
+                    <CodeIcon />
                   </FormatButton>
                   <FloatingToolbarSeparator />
                   <FormatButton
@@ -970,7 +970,7 @@ export function MarkdownLayer({
                       editor.chain().focus().toggleBulletList().run()
                     }
                   >
-                    <List />
+                    <ListBulletsIcon />
                   </FormatButton>
                   <FormatButton
                     label="Numbered list"
@@ -979,7 +979,7 @@ export function MarkdownLayer({
                       editor.chain().focus().toggleOrderedList().run()
                     }
                   >
-                    <ListOrdered />
+                    <ListNumbersIcon />
                   </FormatButton>
                 </FloatingToolbar>
               </div>,

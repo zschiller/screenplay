@@ -1,5 +1,5 @@
 import { cn } from "@workspace/ui/lib/utils"
-import { Loader2Icon } from "lucide-react"
+import { CircleNotchIcon } from "@workspace/ui/components/icons"
 
 /**
  * The progress spinner: loading data, a request in flight, a tool call running,
@@ -10,7 +10,12 @@ import { Loader2Icon } from "lucide-react"
  */
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
   return (
-    <Loader2Icon role="status" aria-label="Loading" className={cn("size-4 animate-spin", className)} {...props} />
+    <CircleNotchIcon
+      role="status"
+      aria-label="Loading"
+      className={cn("size-4 animate-spin", className)}
+      {...props}
+    />
   )
 }
 

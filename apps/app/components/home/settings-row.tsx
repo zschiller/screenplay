@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react"
+import { type Icon } from "@workspace/ui/components/icons"
 import { Badge } from "@workspace/ui/components/badge"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { cn } from "@workspace/ui/lib/utils"
@@ -32,7 +32,7 @@ export function SettingsRow({
   role,
   wrap = false,
 }: {
-  icon?: LucideIcon
+  icon?: Icon
   iconClassName?: string
   /** Leading content in place of an icon (an avatar). */
   media?: React.ReactNode

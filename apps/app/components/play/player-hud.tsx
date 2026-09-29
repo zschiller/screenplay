@@ -11,13 +11,13 @@ import {
 import Link from "next/link"
 import { animate, motion, useMotionValue, useReducedMotion } from "motion/react"
 import {
-  ArrowLeft,
-  GripVertical,
-  MessageSquare,
-  MessageSquarePlus,
-  MessagesSquare,
-  SlidersHorizontal,
-} from "lucide-react"
+  ArrowLeftIcon,
+  ChatIcon,
+  ChatTextIcon,
+  ChatsIcon,
+  DotsSixVerticalIcon,
+  SlidersHorizontalIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
@@ -278,7 +278,7 @@ export function PlayerHud({
             className="flex h-6 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
             aria-label="Drag to a corner"
           >
-            <GripVertical className="size-3.5" />
+            <DotsSixVerticalIcon className="size-3.5" />
           </span>
           {/* The desktop (local) build has no room route to go back to. */}
           {!isLocalBuild && (
@@ -294,7 +294,7 @@ export function PlayerHud({
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <Link href={`/${roomId}`}>
-                  <ArrowLeft />
+                  <ArrowLeftIcon />
                 </Link>
               </Button>
             </IconButton>
@@ -320,9 +320,7 @@ export function PlayerHud({
                 return (
                   <SelectGroup key={group.category}>
                     {index > 0 ? <SelectSeparator /> : null}
-                    <SelectLabel>
-                      {group.category}
-                    </SelectLabel>
+                    <SelectLabel>{group.category}</SelectLabel>
                     {group.presets.map((preset) => (
                       <SelectItem
                         key={preset.id}
@@ -359,7 +357,7 @@ export function PlayerHud({
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => setPanel(panel === "knobs" ? null : "knobs")}
           >
-            <SlidersHorizontal />
+            <SlidersHorizontalIcon />
           </IconButton>
           {/* Comments are excluded from the local build (PRD #404, #417). */}
           {!isLocalBuild && (
@@ -373,7 +371,7 @@ export function PlayerHud({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={comments.toggleCommentMode}
               >
-                <MessageSquarePlus />
+                <ChatTextIcon />
               </IconButton>
               <IconButton
                 label="Comments"
@@ -388,7 +386,7 @@ export function PlayerHud({
                   setPanel(panel === "comments" ? null : "comments")
                 }
               >
-                <MessageSquare />
+                <ChatIcon />
               </IconButton>
             </>
           )}
@@ -401,7 +399,7 @@ export function PlayerHud({
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onToggleChat}
             >
-              <MessagesSquare />
+              <ChatsIcon />
             </IconButton>
           ) : null}
         </div>

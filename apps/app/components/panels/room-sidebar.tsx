@@ -33,16 +33,16 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import {
-  Folder,
-  ChevronRight,
-  GitBranch,
-  Plus,
-  FolderOpen,
-  Trash2,
-  MoreHorizontal,
-  Pencil,
-  PanelLeftClose,
-} from "lucide-react"
+  CaretRightIcon,
+  DotsThreeIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  GitBranchIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  SidebarSimpleIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   SidebarGroup,
@@ -1252,7 +1252,7 @@ export function RoomSidebar({
               className="flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
               onClick={onCollapseSidebar}
             >
-              <PanelLeftClose />
+              <SidebarSimpleIcon />
             </button>
           </IconButton>
         </div>
@@ -1283,7 +1283,7 @@ export function RoomSidebar({
                           asChild
                         >
                           <SidebarGroupAction className="top-1.5 right-9">
-                            <MoreHorizontal />
+                            <DotsThreeIcon />
                           </SidebarGroupAction>
                         </IconButton>
                       </DropdownMenuTrigger>
@@ -1294,13 +1294,13 @@ export function RoomSidebar({
                               setBranchPickerRepoId(sortedRepos[0]!.id)
                             }
                           >
-                            <GitBranch />
+                            <GitBranchIcon />
                             Open existing git branch
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
-                              <GitBranch />
+                              <GitBranchIcon />
                               Open existing git branch
                             </DropdownMenuSubTrigger>
                             <DropdownMenuSubContent>
@@ -1329,7 +1329,7 @@ export function RoomSidebar({
                           setNewWorkspaceRepoId(lastUsedRepoId)
                         }}
                       >
-                        <Plus />
+                        <PlusIcon />
                       </SidebarGroupAction>
                     </IconButton>
                   </>
@@ -1366,7 +1366,7 @@ export function RoomSidebar({
                         <SidebarMenuItem>
                           <CollapsibleTrigger asChild>
                             <SidebarMenuButton className="text-sidebar-foreground/70">
-                              <ChevronRight className="transition-transform group-data-[state=open]/done-section:rotate-90" />
+                              <CaretRightIcon className="transition-transform group-data-[state=open]/done-section:rotate-90" />
                               <span>Done ({doneBranches.length})</span>
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
@@ -1418,7 +1418,7 @@ export function RoomSidebar({
                 <div className="rounded-md bg-sidebar opacity-95 shadow-lg ring-1 ring-sidebar-border">
                   <SidebarMenuButton asChild isActive={false}>
                     <div>
-                      <GitBranch className="shrink-0 text-sidebar-foreground/70" />
+                      <GitBranchIcon className="shrink-0 text-sidebar-foreground/70" />
                       {activeBranchesDrag.ref ? (
                         <span
                           className={cn(
@@ -1571,9 +1571,9 @@ export function RoomSidebar({
                                             }
                                           >
                                             <span className="relative shrink-0">
-                                              <Folder className="block text-sidebar-foreground/70 group-hover/frame-group-row:hidden group-data-[state=open]/frame-collapsible:hidden" />
-                                              <FolderOpen className="hidden text-sidebar-foreground/70 group-hover/frame-group-row:!hidden group-data-[state=open]/frame-collapsible:block" />
-                                              <ChevronRight className="hidden cursor-pointer text-sidebar-foreground/70 transition-transform group-hover/frame-group-row:!block group-data-[state=open]/frame-collapsible:rotate-90" />
+                                              <FolderIcon className="block text-sidebar-foreground/70 group-hover/frame-group-row:hidden group-data-[state=open]/frame-collapsible:hidden" />
+                                              <FolderOpenIcon className="hidden text-sidebar-foreground/70 group-hover/frame-group-row:!hidden group-data-[state=open]/frame-collapsible:block" />
+                                              <CaretRightIcon className="hidden cursor-pointer text-sidebar-foreground/70 transition-transform group-hover/frame-group-row:!block group-data-[state=open]/frame-collapsible:rotate-90" />
                                             </span>
                                           </CollapsibleTrigger>
                                           <EditableText
@@ -1619,7 +1619,7 @@ export function RoomSidebar({
                                               asChild
                                             >
                                               <SidebarMenuAction className="group-focus-within/frame-group-row:opacity-100 group-hover/frame-group-row:opacity-100 aria-expanded:opacity-100 md:opacity-0">
-                                                <MoreHorizontal />
+                                                <DotsThreeIcon />
                                               </SidebarMenuAction>
                                             </IconButton>
                                           </DropdownMenuTrigger>
@@ -1633,7 +1633,7 @@ export function RoomSidebar({
                                             <DropdownMenuItem
                                               onClick={triggerGroupRename}
                                             >
-                                              <Pencil />
+                                              <PencilSimpleIcon />
                                               Rename
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
@@ -1645,7 +1645,7 @@ export function RoomSidebar({
                                                 )
                                               }
                                             >
-                                              <Trash2 />
+                                              <TrashIcon />
                                               Delete
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
@@ -1695,7 +1695,7 @@ export function RoomSidebar({
                 <div className="rounded-md bg-sidebar opacity-95 shadow-lg ring-1 ring-sidebar-border">
                   {activeDragRow.kind === "group-header" ? (
                     <SidebarMenuButton className="!pr-2">
-                      <Folder className="text-sidebar-foreground/70" />
+                      <FolderIcon className="text-sidebar-foreground/70" />
                       <span className="truncate font-medium text-sidebar-foreground/70">
                         {iframeLayerGroups.find(
                           (g) => g.id === activeDragRow.groupId
@@ -2120,7 +2120,7 @@ function BranchDropdownSlot({
               className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
               onClick={(e) => e.stopPropagation()}
             >
-              <MoreHorizontal className="size-4" />
+              <DotsThreeIcon className="size-4" />
             </button>
           </IconButton>
         </DropdownMenuTrigger>

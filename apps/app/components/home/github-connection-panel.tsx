@@ -1,7 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useReducer, useState } from "react"
-import { ExternalLink, RotateCw } from "lucide-react"
+import {
+  ArrowClockwiseIcon,
+  ArrowSquareOutIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
@@ -391,7 +394,7 @@ export function ConnectGitHubDialog({
               className="inline-flex items-center gap-1 text-sm underline"
             >
               Enter this code at {state.verificationUri}
-              <ExternalLink className="size-3.5" />
+              <ArrowSquareOutIcon className="size-3.5" />
             </a>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner className="size-4" />
@@ -413,7 +416,7 @@ export function ConnectGitHubDialog({
                 setAttempt((n) => n + 1)
               }}
             >
-              <RotateCw />
+              <ArrowClockwiseIcon />
               Try again
             </Button>
           </div>

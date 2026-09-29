@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation"
 import {
-  LogOut,
-  MoreHorizontal,
-  PanelLeftOpen,
-  Pencil,
-  Settings,
-  Trash2,
-} from "lucide-react"
+  DotsThreeIcon,
+  GearIcon,
+  PencilSimpleIcon,
+  SidebarSimpleIcon,
+  SignOutIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
@@ -105,7 +105,7 @@ export function CanvasTopBar({
             tooltipSide="bottom"
             onClick={() => sidebarPanelRef.current?.expand()}
           >
-            <PanelLeftOpen />
+            <SidebarSimpleIcon />
           </IconButton>
         )}
         <Breadcrumb>
@@ -162,7 +162,7 @@ export function CanvasTopBar({
                     tooltipSide="bottom"
                     className="text-muted-foreground"
                   >
-                    <MoreHorizontal />
+                    <DotsThreeIcon />
                   </IconButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -177,14 +177,14 @@ export function CanvasTopBar({
                         pendingRoomRenameRef.current = true
                       }}
                     >
-                      <Pencil />
+                      <PencilSimpleIcon />
                       Rename
                     </DropdownMenuItem>
                   )}
                   {/* Everyone on the canvas can edit its repositories, as
                       from the sidebar. */}
                   <DropdownMenuItem onSelect={onOpenSettings}>
-                    <Settings />
+                    <GearIcon />
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -193,7 +193,7 @@ export function CanvasTopBar({
                       variant="destructive"
                       onSelect={() => onDeleteDialogOpenChange(true)}
                     >
-                      <Trash2 />
+                      <TrashIcon />
                       Delete
                     </DropdownMenuItem>
                   )}
@@ -203,7 +203,7 @@ export function CanvasTopBar({
                     <DropdownMenuItem
                       onSelect={() => onDeleteDialogOpenChange(true)}
                     >
-                      <LogOut />
+                      <SignOutIcon />
                       Leave
                     </DropdownMenuItem>
                   )}

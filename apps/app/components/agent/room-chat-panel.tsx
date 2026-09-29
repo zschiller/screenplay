@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef } from "react"
-import { PanelRightClose } from "lucide-react"
+import { SidebarSimpleIcon } from "@workspace/ui/components/icons"
 
 import { IconButton } from "@workspace/ui/components/icon-button"
 
@@ -70,7 +70,7 @@ export function RoomChatPanel({
             className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
             onClick={onCollapse}
           >
-            <PanelRightClose />
+            <SidebarSimpleIcon mirrored />
           </button>
         </IconButton>
         <h2 className="text-sm font-medium">{ROOM_CHAT_LABEL}</h2>

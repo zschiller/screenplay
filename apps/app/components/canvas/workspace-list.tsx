@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Undo2 } from "lucide-react"
+import { ArrowUUpLeftIcon, CheckIcon } from "@workspace/ui/components/icons"
 import {
   Command,
   CommandEmpty,
@@ -126,7 +126,7 @@ export function WorkspaceCommandList({
                 value={`Follow ${followGroup.name}`}
                 onSelect={() => onPick(followGroup.workspace.branchId)}
               >
-                <Undo2 />
+                <ArrowUUpLeftIcon />
                 <span className="truncate">Follow {followGroup.name}</span>
                 <WorkspaceName
                   workspace={followGroup.workspace}
@@ -163,7 +163,7 @@ export function WorkspaceCommandList({
                     ) : null
                   }
                 />
-                <Check
+                <CheckIcon
                   className={cn(
                     "size-3.5",
                     a.id !== currentBranchId && "invisible"

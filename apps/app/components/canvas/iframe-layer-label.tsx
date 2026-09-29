@@ -1,7 +1,10 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Braces, ChevronsUpDown } from "lucide-react"
+import {
+  BracketsCurlyIcon,
+  CaretUpDownIcon,
+} from "@workspace/ui/components/icons"
 import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import {
   Popover,
@@ -157,7 +160,7 @@ export function SharedStateIndicator({
             onClick={(e) => e.stopPropagation()}
             aria-label="Synced UI state"
           >
-            <Braces className="size-2.5" />
+            <BracketsCurlyIcon className="size-2.5" />
           </span>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[360px] p-0">
@@ -209,7 +212,7 @@ function BranchPicker({
             ) : (
               <span className="truncate">Choose a workspace</span>
             )}
-            <ChevronsUpDown
+            <CaretUpDownIcon
               aria-hidden
               className={
                 workspace

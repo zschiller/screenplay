@@ -3,13 +3,13 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 import type { Editor } from "@tiptap/core"
 import {
-  ChevronLeft,
-  Eye,
-  EyeOff,
-  MessageSquare,
-  MessageSquareOff,
-  X,
-} from "lucide-react"
+  CaretLeftIcon,
+  ChatIcon,
+  ChatSlashIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
@@ -66,7 +66,7 @@ export function CommentsButton({
     `${openThreads.length} ${openThreads.length === 1 ? "comment" : "comments"}` +
     (unreadCount > 0 ? `, ${unreadCount} unread` : "") +
     (pinsHidden ? ", pins hidden" : "")
-  const Icon = pinsHidden ? MessageSquareOff : MessageSquare
+  const Icon = pinsHidden ? ChatSlashIcon : ChatIcon
   return (
     <TooltipProvider>
       <Tooltip>
@@ -315,7 +315,7 @@ export function CommentsPanel({
               className="-ml-1 flex items-center gap-0.5 rounded-sm font-medium outline-none hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setOpenDetachedId(null)}
             >
-              <ChevronLeft className="size-4" />
+              <CaretLeftIcon className="size-4" />
               Comments
             </button>
           </div>
@@ -347,7 +347,7 @@ export function CommentsPanel({
               pressed={pinsHidden}
               onClick={() => onPinsHiddenChange(!pinsHidden)}
             >
-              {pinsHidden ? <EyeOff /> : <Eye />}
+              {pinsHidden ? <EyeSlashIcon /> : <EyeIcon />}
             </IconButton>
             <IconButton
               label="Close"
@@ -355,7 +355,7 @@ export function CommentsPanel({
               tooltipSide="bottom"
               onClick={onClose}
             >
-              <X />
+              <XIcon />
             </IconButton>
           </div>
           <div

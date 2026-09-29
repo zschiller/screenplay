@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from "react"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
-import { Clock, X } from "lucide-react"
+import { ClockIcon, XIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -658,7 +658,7 @@ function QueuedRow({
 }) {
   return (
     <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs">
-      <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+      <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="shrink-0 text-muted-foreground">Queued</span>
       <span className="min-w-0 flex-1 truncate" title={message}>
         {message}
@@ -667,7 +667,7 @@ function QueuedRow({
         Edit
       </Button>
       <IconButton label="Remove from queue" size="icon-xs" onClick={onRemove}>
-        <X />
+        <XIcon />
       </IconButton>
     </li>
   )

@@ -1,6 +1,6 @@
 "use client"
 
-import { X } from "lucide-react"
+import { XIcon } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -67,7 +67,7 @@ export function GettingStartedChecklist({
           className="-mt-0.5 -mr-1.5"
           onClick={onDismiss}
         >
-          <X />
+          <XIcon />
         </IconButton>
       </div>
 

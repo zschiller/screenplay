@@ -1,7 +1,12 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Bot, Check, Clock, MoreHorizontal } from "lucide-react"
+import {
+  CheckIcon,
+  ClockIcon,
+  DotsThreeIcon,
+  RobotIcon,
+} from "@workspace/ui/components/icons"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -65,7 +70,7 @@ export function CommentPinMark({
         className
       )}
     >
-      {resolved ? <Check className="size-3.5" /> : number}
+      {resolved ? <CheckIcon className="size-3.5" /> : number}
       {unread && !resolved && (
         <span
           aria-hidden
@@ -140,7 +145,7 @@ export function ThreadCard({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <IconButton label="Thread actions">
-                <MoreHorizontal />
+                <DotsThreeIcon />
               </IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -241,7 +246,7 @@ function ResolvedNote({ resolvedAt }: { resolvedAt: number | null }) {
   const now = useNow()
   return (
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <Check className="size-3.5" />
+      <CheckIcon className="size-3.5" />
       {resolvedAt ? `Resolved ${formatAgo(resolvedAt, now)}` : "Resolved"}
     </p>
   )
@@ -299,7 +304,7 @@ function CommentRow({
                   label="Comment actions"
                   className="-my-1 ml-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                 >
-                  <MoreHorizontal />
+                  <DotsThreeIcon />
                 </IconButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -557,7 +562,7 @@ export function AgentStatusChip({
     >
       {status === "queued" ? (
         <>
-          <Clock aria-hidden className="size-3" />
+          <ClockIcon aria-hidden className="size-3" />
           Queued
         </>
       ) : status === "working" ? (
@@ -567,7 +572,7 @@ export function AgentStatusChip({
         </>
       ) : (
         <>
-          <Check aria-hidden className="size-3 text-success" />
+          <CheckIcon aria-hidden className="size-3 text-success" />
           Addressed
           {commit && (
             <span className="font-mono" title={commit}>
@@ -598,7 +603,7 @@ function AgentPendingRow({
 function AgentAvatar() {
   return (
     <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-      <Bot aria-hidden className="size-3" />
+      <RobotIcon aria-hidden className="size-3" />
     </div>
   )
 }

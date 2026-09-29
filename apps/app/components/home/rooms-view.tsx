@@ -2,13 +2,13 @@
 
 import { useState } from "react"
 import {
-  FolderOpen,
-  FolderPlus,
-  LayoutGrid,
-  List,
-  ListFilter,
-  Plus,
-} from "lucide-react"
+  FolderOpenIcon,
+  FolderPlusIcon,
+  FunnelSimpleIcon,
+  ListBulletsIcon,
+  PlusIcon,
+  SquaresFourIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Empty,
@@ -116,7 +116,7 @@ export function RoomsView({
                     variant="outline"
                     aria-label={`Owner: ${OWNER_LABELS[owner]}`}
                   >
-                    <ListFilter />
+                    <FunnelSimpleIcon />
                     <HomeToolbarLabel>{OWNER_LABELS[owner]}</HomeToolbarLabel>
                   </Button>
                 </DropdownMenuTrigger>
@@ -147,7 +147,7 @@ export function RoomsView({
                 aria-label="Add folder"
                 onClick={() => setNewFolderOpen(true)}
               >
-                <FolderPlus />
+                <FolderPlusIcon />
                 <HomeToolbarLabel>Add folder</HomeToolbarLabel>
               </Button>
             </HomeToolbarTooltip>
@@ -159,7 +159,7 @@ export function RoomsView({
               disabled={creating}
               onClick={newCanvas}
             >
-              {creating ? <Spinner /> : <Plus />}
+              {creating ? <Spinner /> : <PlusIcon />}
               <HomeToolbarLabel>New canvas</HomeToolbarLabel>
             </Button>
           </HomeToolbarTooltip>
@@ -172,10 +172,10 @@ export function RoomsView({
           >
             <TabsList>
               <TabsTrigger value="grid" aria-label="Grid view">
-                <LayoutGrid />
+                <SquaresFourIcon />
               </TabsTrigger>
               <TabsTrigger value="table" aria-label="Table view">
-                <List />
+                <ListBulletsIcon />
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -209,7 +209,7 @@ export function RoomsView({
           // A nested folder with nothing in it reads as "empty", not first-run.
           folderView && currentFolderId !== null ? (
             <EmptyState
-              icon={<FolderOpen />}
+              icon={<FolderOpenIcon />}
               title="This folder is empty"
               description="Add a folder or a canvas to fill it."
               onCreate={newCanvas}
@@ -293,7 +293,7 @@ function FilterResults({
       <Empty className="h-full">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <ListFilter />
+            <FunnelSimpleIcon />
           </EmptyMedia>
           <EmptyTitle>No matches</EmptyTitle>
           <EmptyDescription>
@@ -349,7 +349,7 @@ function EmptyState({
       </EmptyHeader>
       <EmptyContent>
         <Button size="sm" disabled={creating} onClick={onCreate}>
-          {creating ? <Spinner /> : <Plus />}
+          {creating ? <Spinner /> : <PlusIcon />}
           New canvas
         </Button>
       </EmptyContent>

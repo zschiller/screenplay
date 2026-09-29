@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type SyntheticEvent } from "react"
-import { AlertTriangle, Copy } from "lucide-react"
+import { CopyIcon, WarningIcon } from "@workspace/ui/components/icons"
 import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -86,7 +86,7 @@ export function WorkspaceStatusIcon({
           className="-m-0.5 box-content flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           {...isolate}
         >
-          <AlertTriangle className="size-3.5 text-destructive" />
+          <WarningIcon className="size-3.5 text-destructive" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -127,7 +127,7 @@ export function WorkspaceStatusIcon({
             className="ml-auto"
             onClick={copyError}
           >
-            <Copy />
+            <CopyIcon />
             Copy error
           </Button>
         </div>

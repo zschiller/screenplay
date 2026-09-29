@@ -1,6 +1,6 @@
 "use client"
 
-import { Eye } from "lucide-react"
+import { EyeIcon } from "@workspace/ui/components/icons"
 
 import {
   Avatar,
@@ -101,7 +101,7 @@ export function FollowingToolbar({
                 className={`absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full ${presenceInkClass(presence.color)}`}
                 style={{ backgroundColor: presence.color }}
               >
-                <Eye className="size-2.5" strokeWidth={2.5} />
+                <EyeIcon className="size-2.5" weight="bold" />
               </span>
             )}
           </IconButton>

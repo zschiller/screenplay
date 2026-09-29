@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronsUpDown } from "lucide-react"
+import { CaretUpDownIcon } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 import { EditableText } from "@workspace/ui/components/editable-text"
 import {
@@ -146,7 +146,7 @@ function GroupWorkspaceSwitcher({
             onClick={(e) => e.stopPropagation()}
           >
             <CompactWorkspaceMention workspace={workspace} />
-            <ChevronsUpDown
+            <CaretUpDownIcon
               aria-hidden
               className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
             />
@@ -199,7 +199,7 @@ function GroupWorkspaceChooser({
           <span className="truncate text-xs text-muted-foreground">
             Choose a workspace
           </span>
-          <ChevronsUpDown
+          <CaretUpDownIcon
             aria-hidden
             className="ml-1 size-3 shrink-0 text-muted-foreground"
           />

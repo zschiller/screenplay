@@ -1,12 +1,10 @@
 import {
-  FileText,
-  Frame,
-  MessageSquare,
-  MousePointer2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightOpen,
-} from "lucide-react"
+  ChatIcon,
+  FileTextIcon,
+  FrameCornersIcon,
+  NavigationArrowIcon,
+  SidebarSimpleIcon,
+} from "@workspace/ui/components/icons"
 
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
@@ -69,7 +67,7 @@ export function CanvasSkeleton({
               data-tauri-drag-region
               className="flex h-12 items-center justify-end px-4 pr-3"
             >
-              <PanelLeftClose className="size-4 text-sidebar-foreground/40" />
+              <SidebarSimpleIcon className="size-4 text-sidebar-foreground/40" />
             </div>
             <SidebarSection label="Repositories" rows={2} className="pt-0" />
             <SidebarSection label="Canvas" rows={3} />
@@ -82,7 +80,7 @@ export function CanvasSkeleton({
         {/* Top-left: the room pill (breadcrumb, name, menu). */}
         <div className="absolute top-0 left-0 flex h-12 items-center pl-2">
           <Pill>
-            {!showSidebar && <PillIcon icon={<PanelLeftOpen />} />}
+            {!showSidebar && <PillIcon icon={<SidebarSimpleIcon />} />}
             <div className="flex h-6 items-center gap-2 px-1.5">
               <Skeleton className="h-3 w-12" />
               <span className="text-xs text-muted-foreground/40">/</span>
@@ -97,17 +95,17 @@ export function CanvasSkeleton({
           <div className="absolute top-0 right-0 flex h-12 items-center px-2">
             <Pill>
               {!isLocalBuild && <Skeleton className="h-6 w-14" />}
-              {!showChat && <PillIcon icon={<PanelRightOpen />} />}
+              {!showChat && <PillIcon icon={<SidebarSimpleIcon mirrored />} />}
             </Pill>
           </div>
         )}
         {/* Bottom: the tool pill. */}
         <div className="absolute bottom-0 left-1/2 flex h-12 -translate-x-1/2 items-center px-2">
           <Pill>
-            <PillIcon icon={<MousePointer2 />} />
-            <PillIcon icon={<Frame />} />
-            <PillIcon icon={<FileText />} />
-            {!isLocalBuild && <PillIcon icon={<MessageSquare />} />}
+            <PillIcon icon={<NavigationArrowIcon />} />
+            <PillIcon icon={<FrameCornersIcon />} />
+            <PillIcon icon={<FileTextIcon />} />
+            {!isLocalBuild && <PillIcon icon={<ChatIcon />} />}
           </Pill>
         </div>
       </div>

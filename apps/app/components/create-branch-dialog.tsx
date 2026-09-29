@@ -1,7 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronDown, FolderGit2, GitBranch, Plus, Trash2 } from "lucide-react"
+import {
+  BookBookmarkIcon,
+  CaretDownIcon,
+  GitBranchIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import {
@@ -318,7 +324,7 @@ export function CreateBranchDialog({
                 className="self-start"
                 onClick={addRow}
               >
-                <Plus />
+                <PlusIcon />
                 Add another
                 <KbdGroup>
                   <Kbd>⌘</Kbd>
@@ -420,9 +426,9 @@ function WorkspaceRow({
                   variant="ghost"
                   title="Choose the repository"
                 >
-                  <FolderGit2 className="size-3.5" />
+                  <BookBookmarkIcon className="size-3.5" />
                   {repoShortName(repo)}
-                  <ChevronDown className="size-3 opacity-60" />
+                  <CaretDownIcon className="size-3 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -457,9 +463,9 @@ function WorkspaceRow({
                 variant="ghost"
                 title="Choose the base branch"
               >
-                <GitBranch className="size-3.5" />
+                <GitBranchIcon className="size-3.5" />
                 <span className="font-mono">{row.baseBranch}</span>
-                <ChevronDown className="size-3 opacity-60" />
+                <CaretDownIcon className="size-3 opacity-60" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
@@ -483,7 +489,7 @@ function WorkspaceRow({
               title="Remove this row"
               onClick={onRemove}
             >
-              <Trash2 />
+              <TrashIcon />
             </Button>
           )}
         </div>

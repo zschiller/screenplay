@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Folder as FolderIcon, Search, X } from "lucide-react"
+import {
+  FolderIcon,
+  MagnifyingGlassIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Command,
@@ -141,7 +145,7 @@ export function SidebarSearch() {
                   else e.currentTarget.blur()
                 }}
               />
-              <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 opacity-50 select-none" />
+              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 opacity-50 select-none" />
               {query ? (
                 <Button
                   variant="ghost"
@@ -153,7 +157,7 @@ export function SidebarSearch() {
                     inputRef.current?.focus()
                   }}
                 >
-                  <X />
+                  <XIcon />
                 </Button>
               ) : (
                 !focused && (

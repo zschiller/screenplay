@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react"
-import { FileText } from "lucide-react"
+import { FileTextIcon } from "@workspace/ui/components/icons"
 
 export interface MentionItem {
   /** Discriminator so the popover can group mentions by kind and propagate
@@ -89,7 +89,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
               i === selected ? "bg-accent text-accent-foreground" : ""
             }`}
           >
-            <FileText className="size-3 shrink-0 text-muted-foreground" />
+            <FileTextIcon className="size-3 shrink-0 text-muted-foreground" />
             <span className="truncate">{item.label || "Untitled"}</span>
           </button>
         ))}

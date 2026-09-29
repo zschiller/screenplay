@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { MoreHorizontal } from "lucide-react"
+import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import { CanvasIcon } from "@/components/canvas-icon"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
@@ -249,7 +249,7 @@ export function RoomTileDragPreview({ room }: { room: RoomSummary }) {
             aria-hidden
             tabIndex={-1}
           >
-            <MoreHorizontal />
+            <DotsThreeIcon />
           </Button>
         }
       />
@@ -337,7 +337,7 @@ function RoomCard({
               className={ACTION_TRIGGER_REVEAL}
               aria-label="Canvas actions"
             >
-              <MoreHorizontal />
+              <DotsThreeIcon />
             </Button>
           </RoomActionMenu>
         }

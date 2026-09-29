@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, MonitorSmartphone } from "lucide-react"
+import { CheckIcon, DevicesIcon } from "@workspace/ui/components/icons"
 import {
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -37,7 +37,7 @@ export function DeviceSizeSubMenu({
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
-        <MonitorSmartphone />
+        <DevicesIcon />
         Device size
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
@@ -60,7 +60,7 @@ export function DeviceSizeSubMenu({
                     <span className="ml-auto flex items-center gap-1.5 pl-4 text-xs text-muted-foreground tabular-nums">
                       {formatIframeLayerSize(preset)}
                       {/* Always laid out so the sizes stay one column. */}
-                      <Check
+                      <CheckIcon
                         className={cn(
                           "size-3 text-foreground",
                           !active && "invisible"

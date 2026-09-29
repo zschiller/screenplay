@@ -6,7 +6,12 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
-import { AlertCircle, Check, ChevronRight, CircleDashed } from "lucide-react"
+import {
+  CaretRightIcon,
+  CheckIcon,
+  CircleDashedIcon,
+  WarningCircleIcon,
+} from "@workspace/ui/components/icons"
 
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
@@ -65,13 +70,20 @@ function StateIcon({ state }: { state: WorkspaceTaskState }) {
       // The Workspace's agent at work: LLM activity, so the grid.
       return <GripSpinner className={cls} />
     case "needs-you":
-      return <AlertCircle aria-hidden className={cn(cls, "text-warning")} />
+      return (
+        <WarningCircleIcon aria-hidden className={cn(cls, "text-warning")} />
+      )
     case "failed":
-      return <AlertCircle aria-hidden className={cn(cls, "text-destructive")} />
+      return (
+        <WarningCircleIcon
+          aria-hidden
+          className={cn(cls, "text-destructive")}
+        />
+      )
     case "removed":
-      return <CircleDashed aria-hidden className={cls} />
+      return <CircleDashedIcon aria-hidden className={cls} />
     case "done":
-      return <Check aria-hidden className={cn(cls, "text-success")} />
+      return <CheckIcon aria-hidden className={cn(cls, "text-success")} />
   }
 }
 
@@ -133,7 +145,7 @@ export function WorkspaceTaskRow({
         </span>
       )}
       <span className="shrink-0 text-2xs">{label}</span>
-      {branch && <ChevronRight aria-hidden className="size-3 shrink-0" />}
+      {branch && <CaretRightIcon aria-hidden className="size-3 shrink-0" />}
     </button>
   )
 }

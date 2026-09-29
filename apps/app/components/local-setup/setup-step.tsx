@@ -1,7 +1,7 @@
 "use client"
 
 import { useId } from "react"
-import { Check, Minus } from "lucide-react"
+import { CheckIcon, MinusIcon } from "@workspace/ui/components/icons"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
@@ -137,9 +137,9 @@ export function StepMarker({
       )}
     >
       {state === "done" ? (
-        <Check className="size-2.5" strokeWidth={3.5} aria-hidden />
+        <CheckIcon className="size-2.5" weight="bold" aria-hidden />
       ) : state === "skipped" ? (
-        <Minus className="size-2.5" strokeWidth={3.5} aria-hidden />
+        <MinusIcon className="size-2.5" weight="bold" aria-hidden />
       ) : (
         <span aria-hidden>{step}</span>
       )}

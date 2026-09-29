@@ -2,7 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, Clock, Files, Settings, type LucideIcon } from "lucide-react"
+import {
+  type Icon,
+  BookOpenIcon,
+  ClockIcon,
+  FilesIcon,
+  GearIcon,
+} from "@workspace/ui/components/icons"
 import {
   SidebarContent,
   SidebarFooter,
@@ -25,22 +31,22 @@ import { PinnedList } from "./pinned-list"
 import { SidebarSearch } from "./sidebar-search"
 import { useRootDroppable } from "./file-dnd"
 
-type NavLink = { href: string; label: string; icon: LucideIcon }
+type NavLink = { href: string; label: string; icon: Icon }
 
 /** Top group: the recently-edited canvases list. */
-const RECENTS: NavLink = { href: "/", label: "Recents", icon: Clock }
+const RECENTS: NavLink = { href: "/", label: "Recents", icon: ClockIcon }
 
 /** Lower group, below the divider. */
 const SECTIONS: NavLink[] = [
   // The root of the folder tree (PRD #475): top-level folders above the files.
   // Not the Canvas icon: this is every file, folders included, and a Canvas
   // wears `CanvasIcon` alone.
-  { href: "/files", label: "All files", icon: Files },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/files", label: "All files", icon: FilesIcon },
+  { href: "/settings", label: "Settings", icon: GearIcon },
 ]
 
 /** Opens the product docs in the browser, anchored at the bottom of the nav. */
-const DOCS: NavLink = { href: docsUrl, label: "Docs", icon: BookOpen }
+const DOCS: NavLink = { href: docsUrl, label: "Docs", icon: BookOpenIcon }
 
 export function HomeSidebar() {
   const pathname = usePathname()

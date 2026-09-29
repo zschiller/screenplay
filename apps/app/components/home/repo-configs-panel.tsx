@@ -1,7 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Copy, Folder, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import {
+  CopyIcon,
+  DotsThreeIcon,
+  FolderIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -134,7 +140,7 @@ export function RepoConfigsPanel({
       variant={variant}
       onClick={() => openForm({ kind: "new" })}
     >
-      <Plus className="size-3.5" />
+      <PlusIcon className="size-3.5" />
       New preset
     </Button>
   )
@@ -158,7 +164,7 @@ export function RepoConfigsPanel({
           <Empty className="border py-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <Folder />
+                <FolderIcon />
               </EmptyMedia>
               <EmptyTitle>No repository presets yet</EmptyTitle>
               <EmptyDescription>
@@ -214,7 +220,7 @@ export function RepoConfigsPanel({
                               size="icon-sm"
                               aria-label="More actions"
                             >
-                              <MoreHorizontal />
+                              <DotsThreeIcon />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
@@ -228,7 +234,7 @@ export function RepoConfigsPanel({
                                 openForm({ kind: "duplicate", config })
                               }
                             >
-                              <Copy />
+                              <CopyIcon />
                               Duplicate
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -236,7 +242,7 @@ export function RepoConfigsPanel({
                               variant="destructive"
                               onSelect={() => setPendingDelete(config)}
                             >
-                              <Trash2 />
+                              <TrashIcon />
                               Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>

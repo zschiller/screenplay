@@ -1,7 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronsUpDown, RotateCw } from "lucide-react"
+import {
+  ArrowClockwiseIcon,
+  CaretUpDownIcon,
+  CheckIcon,
+} from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Badge } from "@workspace/ui/components/badge"
 import {
@@ -195,7 +199,7 @@ export function FrameAddressBar({
           className="size-5 text-muted-foreground"
           onClick={onReload}
         >
-          <RotateCw className="size-3" />
+          <ArrowClockwiseIcon className="size-3" />
         </IconButton>
       )}
       <IconButton
@@ -284,7 +288,7 @@ function FrameWorkspaceHost({
             )}
           >
             {host}
-            <ChevronsUpDown
+            <CaretUpDownIcon
               aria-hidden
               className="size-2.5 shrink-0 opacity-60"
             />
@@ -440,7 +444,7 @@ export function FrameRouteField({
                     value={r.route}
                     onSelect={() => handleSelect(r.route)}
                   >
-                    <Check
+                    <CheckIcon
                       className={`shrink-0 ${r.route === currentRoute ? "" : "opacity-0"}`}
                     />
                     <Badge
@@ -456,7 +460,7 @@ export function FrameRouteField({
                     value={`__create__ ${typedRoute}`}
                     onSelect={() => handleSelect(typedRoute)}
                   >
-                    <Check className="shrink-0 opacity-0" />
+                    <CheckIcon className="shrink-0 opacity-0" />
                     <span className="flex items-center gap-1">
                       <span className="text-xs">Go to</span>
                       <Badge

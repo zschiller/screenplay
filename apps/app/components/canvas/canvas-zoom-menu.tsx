@@ -1,7 +1,7 @@
 "use client"
 
 import { useSyncExternalStore } from "react"
-import { ChevronDown } from "lucide-react"
+import { CaretDownIcon } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -57,7 +57,7 @@ export function CanvasZoomMenu({
           className="gap-0.5 px-1.5 font-normal tabular-nums"
         >
           {percent}%
-          <ChevronDown className="text-muted-foreground" />
+          <CaretDownIcon className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

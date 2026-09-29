@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Link2 } from "lucide-react"
+import { LinkSimpleHorizontalIcon } from "@workspace/ui/components/icons"
 import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
@@ -186,7 +186,7 @@ export function ShareRoomDialog({
 
         <DialogFooter className="sm:justify-start">
           <Button type="button" variant="outline" onClick={handleCopyLink}>
-            <Link2 />
+            <LinkSimpleHorizontalIcon />
             Copy link
           </Button>
         </DialogFooter>

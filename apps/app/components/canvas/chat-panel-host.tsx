@@ -1,6 +1,9 @@
 "use client"
 
-import { FolderPlus, PanelRightClose } from "lucide-react"
+import {
+  FolderPlusIcon,
+  SidebarSimpleIcon,
+} from "@workspace/ui/components/icons"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
 import { Button } from "@workspace/ui/components/button"
@@ -197,7 +200,7 @@ export function ChatPanelHost({
               className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
               onClick={() => chatPanelRef.current?.collapse()}
             >
-              <PanelRightClose />
+              <SidebarSimpleIcon mirrored />
             </button>
           </IconButton>
           <span className="text-xs text-muted-foreground">No repositories</span>
@@ -213,7 +216,7 @@ export function ChatPanelHost({
             size="sm"
             onClick={onAddProject}
           >
-            <FolderPlus />
+            <FolderPlusIcon />
             Add repository
           </Button>
         </div>

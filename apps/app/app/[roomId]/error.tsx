@@ -3,7 +3,7 @@
 import { startTransition, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { RotateCw, TriangleAlert } from "lucide-react"
+import { ArrowClockwiseIcon, WarningIcon } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
 
@@ -29,7 +29,7 @@ export default function CanvasError({
 
   return (
     <CanvasRouteState
-      icon={<TriangleAlert />}
+      icon={<WarningIcon />}
       title="Couldn't open this canvas"
       description="Something went wrong while loading it. Try again, or head back to your files."
       footer={
@@ -49,7 +49,7 @@ export default function CanvasError({
           })
         }
       >
-        <RotateCw />
+        <ArrowClockwiseIcon />
         Retry
       </Button>
       <Button size="sm" variant="outline" asChild>

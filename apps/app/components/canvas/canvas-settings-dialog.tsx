@@ -1,7 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Brain, FolderGit2, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import {
+  BookBookmarkIcon,
+  BrainIcon,
+  DotsThreeIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -62,10 +68,10 @@ export type CanvasSettingsSection = "repositories" | "memory"
 const SECTIONS: {
   id: CanvasSettingsSection
   title: string
-  icon: typeof FolderGit2
+  icon: typeof BookBookmarkIcon
 }[] = [
-  { id: "repositories", title: "Repositories", icon: FolderGit2 },
-  { id: "memory", title: "Memory", icon: Brain },
+  { id: "repositories", title: "Repositories", icon: BookBookmarkIcon },
+  { id: "memory", title: "Memory", icon: BrainIcon },
 ]
 
 /**
@@ -225,7 +231,7 @@ function RepositoriesSection({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button size="sm">
-          <Plus />
+          <PlusIcon />
           Add repository
         </Button>
       </DropdownMenuTrigger>
@@ -240,7 +246,7 @@ function RepositoriesSection({
     </DropdownMenu>
   ) : (
     <Button size="sm" onClick={addRepository.openGitHub}>
-      <Plus />
+      <PlusIcon />
       Add repository
     </Button>
   )
@@ -257,7 +263,7 @@ function RepositoriesSection({
         <Empty className="flex-none border py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <FolderGit2 />
+              <BookBookmarkIcon />
             </EmptyMedia>
             <EmptyTitle>No repositories yet</EmptyTitle>
             <EmptyDescription>
@@ -294,7 +300,7 @@ function RepositoriesSection({
                           size="icon-sm"
                           aria-label={`More actions for ${repoShortName(repo)}`}
                         >
-                          <MoreHorizontal />
+                          <DotsThreeIcon />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -305,7 +311,7 @@ function RepositoriesSection({
                           variant="destructive"
                           onSelect={() => setRemovingId(repo.id)}
                         >
-                          <Trash2 />
+                          <TrashIcon />
                           Remove
                         </DropdownMenuItem>
                       </DropdownMenuContent>

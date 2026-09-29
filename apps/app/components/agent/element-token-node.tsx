@@ -2,7 +2,7 @@
 
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
-import { Crosshair } from "lucide-react"
+import { CrosshairIcon } from "@workspace/ui/components/icons"
 import {
   HoverCard,
   HoverCardContent,
@@ -56,7 +56,7 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
               (zero width) and composer-only; the sent bubble uses renderHTML.
             */}
             {"\u200B"}
-            <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+            <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
             {label}
           </span>
         </HoverCardTrigger>

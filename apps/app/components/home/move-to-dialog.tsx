@@ -2,11 +2,11 @@
 
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
-  Check,
-  Folder as FolderIcon,
-  FolderOpen,
-  FolderPlus,
-} from "lucide-react"
+  CheckIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  FolderPlusIcon,
+} from "@workspace/ui/components/icons"
 import {
   Dialog,
   DialogContent,
@@ -291,7 +291,7 @@ function MoveToForm({
           <DestinationRow
             label="All files"
             icon={
-              <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+              <FolderOpenIcon className="size-4 shrink-0 text-muted-foreground" />
             }
             depth={0}
             selected={selected === null}
@@ -329,7 +329,7 @@ function MoveToForm({
             disabled={newFolderParent !== undefined || pending}
             onClick={openNewFolder}
           >
-            <FolderPlus />
+            <FolderPlusIcon />
             New folder
           </Button>
         )}
@@ -385,7 +385,7 @@ function DestinationRow({
     >
       {icon}
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      {selected && <Check className="size-4 shrink-0" />}
+      {selected && <CheckIcon className="size-4 shrink-0" />}
     </button>
   )
 }

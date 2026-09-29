@@ -3,12 +3,12 @@
 import { useState } from "react"
 import Link from "next/link"
 import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
-  Folder as FolderIcon,
-  MoreHorizontal,
-} from "lucide-react"
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CaretUpDownIcon,
+  DotsThreeIcon,
+  FolderIcon,
+} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
   Table,
@@ -238,7 +238,7 @@ function FolderRow({
             className={ACTION_TRIGGER_REVEAL}
             aria-label="Folder actions"
           >
-            <MoreHorizontal />
+            <DotsThreeIcon />
           </Button>
         </FolderActionMenu>
       </TableCell>
@@ -382,7 +382,7 @@ function RoomRow({
             className={ACTION_TRIGGER_REVEAL}
             aria-label="Canvas actions"
           >
-            <MoreHorizontal />
+            <DotsThreeIcon />
           </Button>
         </RoomActionMenu>
       </TableCell>
@@ -475,12 +475,12 @@ function SortableHead({
         {label}
         {active ? (
           order === "asc" ? (
-            <ArrowUp />
+            <ArrowUpIcon />
           ) : (
-            <ArrowDown />
+            <ArrowDownIcon />
           )
         ) : (
-          <ChevronsUpDown className="opacity-50" />
+          <CaretUpDownIcon className="opacity-50" />
         )}
       </Button>
     </TableHead>
