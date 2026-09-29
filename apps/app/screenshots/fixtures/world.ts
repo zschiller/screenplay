@@ -567,6 +567,8 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       port: 3000,
       status: "running",
       createdAt: daysAgo(now, 2),
+      // Recent activity (#885) puts it second, behind Empty cart state.
+      lastActivityAt: minutesAgo(now, 40),
       colorIndex: 0,
       sidebarOrder: 0,
       discoveredRoutes: [
@@ -593,6 +595,7 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       port: 3001,
       status: "running",
       createdAt: daysAgo(now, 1),
+      lastActivityAt: minutesAgo(now, 12),
       colorIndex: 2,
       sidebarOrder: 1,
       diffAdditions: 46,

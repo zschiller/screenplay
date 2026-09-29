@@ -14,6 +14,7 @@ import { ArrowUUpLeftIcon as ArrowUUpLeftBase } from "@phosphor-icons/react/dist
 import { ArrowUpIcon as ArrowUpBase } from "@phosphor-icons/react/dist/ssr/ArrowUp"
 import { ArrowUpRightIcon as ArrowUpRightBase } from "@phosphor-icons/react/dist/ssr/ArrowUpRight"
 import { ArrowsClockwiseIcon as ArrowsClockwiseBase } from "@phosphor-icons/react/dist/ssr/ArrowsClockwise"
+import { ArrowsDownUpIcon as ArrowsDownUpBase } from "@phosphor-icons/react/dist/ssr/ArrowsDownUp"
 import { ArrowsMergeIcon as ArrowsMergeBase } from "@phosphor-icons/react/dist/ssr/ArrowsMerge"
 import { ArrowsOutCardinalIcon as ArrowsOutCardinalBase } from "@phosphor-icons/react/dist/ssr/ArrowsOutCardinal"
 import { ArrowsOutSimpleIcon as ArrowsOutSimpleBase } from "@phosphor-icons/react/dist/ssr/ArrowsOutSimple"
@@ -92,6 +93,7 @@ import { PushPinSlashIcon as PushPinSlashBase } from "@phosphor-icons/react/dist
 import { QuotesIcon as QuotesBase } from "@phosphor-icons/react/dist/ssr/Quotes"
 import { RecycleIcon as RecycleBase } from "@phosphor-icons/react/dist/ssr/Recycle"
 import { RobotIcon as RobotBase } from "@phosphor-icons/react/dist/ssr/Robot"
+import { RowsIcon as RowsBase } from "@phosphor-icons/react/dist/ssr/Rows"
 import { ScanIcon as ScanBase } from "@phosphor-icons/react/dist/ssr/Scan"
 import { ScrollIcon as ScrollBase } from "@phosphor-icons/react/dist/ssr/Scroll"
 import { SelectionIcon as SelectionBase } from "@phosphor-icons/react/dist/ssr/Selection"
@@ -199,6 +201,7 @@ export const ArrowsClockwiseIcon = phosphor(
   ArrowsClockwiseBase,
   "ph-arrows-clockwise"
 )
+export const ArrowsDownUpIcon = phosphor(ArrowsDownUpBase, "ph-arrows-down-up")
 export const ArrowsMergeIcon = phosphor(ArrowsMergeBase, "ph-arrows-merge")
 export const ArrowsOutCardinalIcon = phosphor(
   ArrowsOutCardinalBase,
@@ -311,6 +314,7 @@ export const PushPinSlashIcon = phosphor(PushPinSlashBase, "ph-push-pin-slash")
 export const QuotesIcon = phosphor(QuotesBase, "ph-quotes")
 export const RecycleIcon = phosphor(RecycleBase, "ph-recycle")
 export const RobotIcon = phosphor(RobotBase, "ph-robot")
+export const RowsIcon = phosphor(RowsBase, "ph-rows")
 export const ScanIcon = phosphor(ScanBase, "ph-scan")
 export const ScrollIcon = phosphor(ScrollBase, "ph-scroll")
 export const SelectionIcon = phosphor(SelectionBase, "ph-selection")

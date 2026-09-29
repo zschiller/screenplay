@@ -20,6 +20,12 @@ import { fixtureFaultCookieName, type FixtureFault } from "@/lib/fixture-faults"
 import { fixtureGitHubCookieName } from "@/lib/fixture-github"
 import { fixtureModelCookieName } from "@/lib/fixture-model"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
+import { LOCAL_USER_ID } from "@/lib/local-user"
+import {
+  DEFAULT_WORKSPACE_LIST_VIEW,
+  workspaceListViewKey,
+  type WorkspaceListView,
+} from "@/lib/workspace-list-view"
 import { roomChatId } from "@/lib/chat/room-chat"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
 import {
@@ -1743,6 +1749,52 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "sidebar-workspaces-view-menu",
+    description:
+      "The Workspaces … menu (#885): the Sort by submenu open, Group by state and Open existing git branch.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "More workspace actions" })
+        .click({ timeout: 15_000 })
+      await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
+      await page
+        .getByRole("menuitemradio", { name: "Manual" })
+        .waitFor({ timeout: 5_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspaces-sort-recent",
+    description:
+      "The Workspaces list sorted by Recent activity (#885): the last chat turn first.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: (page) =>
+      setWorkspaceListView(page, ids.rooms.checkout, { sort: "recent" }),
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspaces-sort-name",
+    description: "The Workspaces list sorted by Name (#885).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: (page) =>
+      setWorkspaceListView(page, ids.rooms.checkout, { sort: "name" }),
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspaces-grouped",
+    description:
+      "The Workspaces list grouped by state (#885): Working, Needs you and Idle sections, with Done still its own section once.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await setWorkspaceListView(page, ids.rooms.checkout, {
+        groupByState: true,
+      })
+      await markWorkspaceDone(page, "Empty cart state")
+    },
+    settleMs: 600,
+  },
+  {
     name: "sidebar-layer-menu-hover",
     description: "Hovering a Layer row's overflow (…) button in the sidebar.",
     path: `/${ids.rooms.checkout}`,
@@ -3433,6 +3485,29 @@ export async function serveYjsDoc(
       ws.send(message)
     })
   })
+}
+
+/**
+ * Open a Canvas with this Workspaces list view (#885), as a member who picked
+ * it earlier would: the view lives in browser storage, so it is seeded before
+ * the page loads and applied on the reload.
+ */
+export async function setWorkspaceListView(
+  page: Page,
+  roomId: string,
+  view: Partial<WorkspaceListView>
+): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => localStorage.setItem(key!, value!),
+    [
+      workspaceListViewKey(LOCAL_USER_ID, roomId),
+      JSON.stringify({ ...DEFAULT_WORKSPACE_LIST_VIEW, ...view }),
+    ]
+  )
+  await page.reload()
+  await page
+    .getByRole("button", { name: "More workspace actions" })
+    .waitFor({ timeout: 15_000 })
 }
 
 /**

@@ -1498,6 +1498,8 @@ export function Canvas({
           }}
         >
           <RoomSidebar
+            userId={userId ?? "anonymous"}
+            roomId={roomId}
             repos={repos}
             branches={agents}
             iframeLayers={iframeLayers}

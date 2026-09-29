@@ -749,6 +749,25 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "ws-list-view",
+    description:
+      "The Workspaces list's … menu with the Sort by submenu open (#885).",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    crop: [0, 40, 620, 480],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await page
+        .getByRole("button", { name: "More workspace actions" })
+        .click({ timeout: 15_000 })
+      await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
+      await page
+        .getByRole("menuitemradio", { name: "Manual" })
+        .waitFor({ timeout: 5_000 })
+    },
+  }),
+  screen({
     name: "ws-restart",
     description: "The Workspace menu's Restart submenu.",
     path: ROOM,
