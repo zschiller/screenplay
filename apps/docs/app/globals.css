@@ -328,3 +328,16 @@ html.dark .sp-callout-info {
 html.dark .sp-callout-warning {
   color: oklch(0.88 0.179 95);
 }
+
+/* Footer on the page background (#1108): Nextra paints its wrapper grey. The
+   hairline above it stays; the text is the app's muted foreground. */
+div:has(> footer) {
+  background: transparent;
+}
+footer {
+  color: oklch(0.556 0 0);
+  font-size: 0.875rem;
+}
+html.dark footer {
+  color: oklch(0.708 0 0);
+}
