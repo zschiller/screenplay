@@ -154,7 +154,7 @@ export function WorkspaceCommandList({
                   agentWorking={agentWorking(a.id)}
                   fallback={
                     hasDiff ? (
-                      <span className="flex items-center gap-1 font-mono text-3xs">
+                      <span className="flex items-center gap-1 font-mono text-xs">
                         <span className="text-success">+{a.diffAdditions}</span>
                         <span className="text-destructive">
                           -{a.diffDeletions}

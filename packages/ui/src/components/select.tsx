@@ -101,7 +101,7 @@ function SelectLabel({
     <SelectPrimitive.Label
       data-slot="select-label"
       className={cn(
-        "px-2 py-1.5 font-mono text-2xs font-normal tracking-wider text-muted-foreground uppercase",
+        "px-2 py-1.5 font-mono text-xs font-normal tracking-wider text-muted-foreground uppercase",
         className
       )}
       {...props}

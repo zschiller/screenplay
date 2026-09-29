@@ -194,7 +194,7 @@ body {
   top: -1.4em;
   left: -1px;
   visibility: hidden;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
   /* Ink comes from `presenceInkClass` in the caret's render (issue #719). */
@@ -230,12 +230,12 @@ body {
   line-height: var(--text-title-md--line-height);
   margin: 1.25rem 0 0.25rem;
 }
-/* Sans H3 steps down from the H2: body size plus a little, medium
-   weight, so it doesn't outweigh the heading above it. */
+/* Sans H3 steps down from the H2 to body size (14px, #1141); semibold
+   weight is what sets it apart from the paragraph under it. */
 .tiptap-document h3 {
-  font-size: 1rem;
-  line-height: 1.5rem;
-  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
   margin: 1rem 0 0.25rem;
 }
 .tiptap-document p {
@@ -365,7 +365,7 @@ body {
   background-color: var(--chat-code-bg);
   border-radius: 0.25rem;
   padding: 0.1em 0.3em;
-  font-size: 0.85em;
+  font-size: 0.875em;
   font-weight: 500;
   color: var(--chat-code-fg);
   overflow-wrap: anywhere;
@@ -388,7 +388,7 @@ body {
   border-bottom: 1px solid var(--chat-block-border);
   color: var(--chat-block-muted);
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.5rem;
 }
 .chat-markdown-copy {

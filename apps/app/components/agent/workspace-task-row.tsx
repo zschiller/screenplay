@@ -140,7 +140,7 @@ export function WorkspaceTaskRow({
         {branch ? workspaceLabel(branch) : "Removed Workspace"}
       </span>
       {hasDiff && (
-        <span className="flex shrink-0 items-center gap-1 font-mono text-2xs">
+        <span className="flex shrink-0 items-center gap-1 font-mono text-xs">
           <span className="text-success">+{added}</span>
           <span className="text-destructive">-{removed}</span>
         </span>

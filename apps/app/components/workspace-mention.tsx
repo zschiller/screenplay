@@ -123,7 +123,7 @@ export function WorkspacePrBadge({
       variant="outline"
       data-slot="workspace-pr"
       className={cn(
-        "h-4 shrink-0 gap-0.5 rounded-sm px-1 py-0 text-3xs font-medium text-muted-foreground tabular-nums",
+        "h-4 shrink-0 gap-0.5 rounded-sm px-1 py-0 text-xs font-medium text-muted-foreground tabular-nums",
         className
       )}
     >
