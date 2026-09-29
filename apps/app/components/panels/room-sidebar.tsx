@@ -1079,6 +1079,13 @@ export function RoomSidebar({
             <BranchRowShell
               branchId={branch.id}
               isPanelActive={isPanelActive}
+              // The hover that reached the row's … menu would otherwise open
+              // the card behind the confirm that menu opened.
+              hoverCardSuppressed={
+                branch.id === pendingDeleteBranchId ||
+                branch.id === pendingRecreateBranchId ||
+                branch.id === pendingRenameBranchId
+              }
               onClick={(e) => {
                 e.stopPropagation()
                 onSelectBranch(branch.id, {
@@ -1808,6 +1815,7 @@ export function RoomSidebar({
                 if (!open) setPendingRecreateBranchId(null)
               }}
               branchName={branch?.ref ?? ""}
+              workspaceTitle={branch ? workspaceLabel(branch) : undefined}
               onConfirm={async () => {
                 if (!branch) return
                 // The confirm stays open ("Recreating…") until this settles;
@@ -2060,11 +2068,13 @@ function GroupRowButton({
 function BranchRowShell({
   branchId,
   isPanelActive,
+  hoverCardSuppressed,
   children,
   ...rest
 }: {
   branchId: string
   isPanelActive: boolean
+  hoverCardSuppressed: boolean
   children: React.ReactNode
 } & Pick<React.ComponentProps<"div">, "onClick" | "onDoubleClick">) {
   const isHighlighted = useIsWorkspaceHighlighted(branchId)
@@ -2078,7 +2088,7 @@ function BranchRowShell({
   return (
     // The whole row opens the Workspace hover card (#882), so the card clears
     // the row's line count and menu instead of covering them.
-    <WorkspaceHoverCard branchId={branchId}>
+    <WorkspaceHoverCard branchId={branchId} suppressed={hoverCardSuppressed}>
       <div
         {...rest}
         className={branchRowClassName({ isPanelActive, isHighlighted })}
