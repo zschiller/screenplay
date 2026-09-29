@@ -162,7 +162,8 @@ export function SettingsView({ section }: { section?: string }) {
                 className={cn(
                   buttonVariants({ variant: "ghost" }),
                   "justify-start font-normal",
-                  current && "bg-muted font-medium hover:bg-muted"
+                  current &&
+                    "bg-muted font-medium font-stretch-[98.8%] hover:bg-muted"
                 )}
               >
                 {s.title}
