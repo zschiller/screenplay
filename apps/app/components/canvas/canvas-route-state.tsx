@@ -36,7 +36,7 @@ export function CanvasRouteState({
   return (
     <main
       className={cn(
-        "fixed inset-0 flex items-center justify-center bg-muted/30",
+        "fixed inset-0 flex items-center justify-center bg-canvas-plane",
         className
       )}
     >

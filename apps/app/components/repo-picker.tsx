@@ -168,13 +168,12 @@ export function RepoPicker({
           }
         />
         <div className="relative min-h-0 flex-1">
-          {/* A single box-shadow draws both the hairline and the soft drop
-              beneath it — revealed only while the list is tucked under the
+          {/* A hairline, revealed only while the list is tucked under the
               search box. */}
           <div
             aria-hidden
             className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-10 h-px shadow-[inset_0_1px_0_0_rgb(0_0_0/0.08),0_3px_8px_0_rgb(0_0_0/0.06)] transition-opacity duration-150 dark:shadow-[inset_0_1px_0_0_rgb(255_255_255/0.1),0_3px_8px_0_rgb(255_255_255/0.06)]",
+              "pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-border transition-opacity duration-150",
               listScrolled ? "opacity-100" : "opacity-0"
             )}
           />
