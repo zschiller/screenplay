@@ -1248,8 +1248,12 @@ async function pointAtStartTrial(page: Page, click: boolean) {
   )) as [number, number]
   const scale = box.width / 1280
   const at = { x: box.x + target[0] * scale, y: box.y + target[1] * scale }
-  await page.mouse.move(at.x, at.y)
-  await sleep(page, 900)
+  // Glide onto the button rather than jumping there: a single move sometimes
+  // lands before the frame's bridge reports hover, so no inspect outline shows.
+  await page.mouse.move(at.x - 20, at.y)
+  await sleep(page, 400)
+  await page.mouse.move(at.x, at.y, { steps: 8 })
+  await sleep(page, 1500)
   if (click) {
     await page.mouse.click(at.x, at.y)
     await sleep(page, 1200)

@@ -16,4 +16,4 @@
  * Base variant — for normal surfaces (light fill in light mode, dark in dark):
  * the composer and in-doc mentions.
  */
-export const MENTION_TEXT_CLASS = "text-sky-600 no-underline dark:text-sky-400"
+export const MENTION_TEXT_CLASS = "text-info no-underline"

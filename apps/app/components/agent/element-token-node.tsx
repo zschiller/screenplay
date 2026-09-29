@@ -14,7 +14,7 @@ import { useElementHighlight } from "./use-element-highlight"
 
 /**
  * React node view for the composer's atomic element token (PRD #616, slice
- * #620). It renders the same sky-blue, `font-mono`, crosshair-prefixed label as
+ * #620). It renders the same mention-coloured, `font-mono`, crosshair-prefixed label as
  * the static `renderHTML`, but wraps it in a shadcn HoverCard so hovering
  * reveals the messy detail hidden from the inline label — the full CSS selector
  * (mono), the route, and the frame label.
