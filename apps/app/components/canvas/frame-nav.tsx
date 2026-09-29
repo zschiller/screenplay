@@ -5,6 +5,7 @@ import {
   ArrowClockwiseIcon,
   CaretUpDownIcon,
   CheckIcon,
+  RecordIcon,
 } from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
@@ -208,19 +209,18 @@ export function FrameAddressBar({
         size="icon-xs"
         className={cn(
           "size-5",
-          recording &&
-            "text-destructive-foreground hover:text-destructive-foreground aria-pressed:bg-transparent"
+          // Idle it's a muted glyph like Reload; red is for a recording.
+          recording
+            ? "text-destructive-foreground hover:bg-transparent hover:text-destructive-foreground aria-pressed:bg-transparent dark:hover:bg-transparent"
+            : "text-muted-foreground"
         )}
         onClick={onToggleRecording}
       >
-        <span
-          className={cn(
-            "size-2",
-            recording
-              ? "rounded-[1.5px] bg-current"
-              : "rounded-full bg-destructive-fill"
-          )}
-        />
+        {recording ? (
+          <span className="size-2 rounded-[1.5px] bg-current" />
+        ) : (
+          <RecordIcon className="size-3" />
+        )}
       </IconButton>
     </div>
   )
