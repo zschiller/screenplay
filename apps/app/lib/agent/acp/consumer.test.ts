@@ -18,6 +18,7 @@ import {
   planPermissionRequest,
   toolCallStart,
   toolCallUpdate,
+  userMessageChunk,
   type RequestPermissionRequest,
   type SessionUpdate,
   type ToolCallContent,
@@ -144,6 +145,25 @@ describe("AcpUpdateConsumer — text path", () => {
     ])
     expect(h.statusOf()).toBe("completed")
     expect(h.endCount()).toBe(1)
+  })
+
+  it("drops an agent's own user_message_chunk: the server echoes the user turn", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: userMessageChunk(
+          "[workspace update: ws-1] Workspace finished."
+        ),
+      },
+      { kind: "session_update", update: agentMessageChunk("Done") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.broadcasts).toEqual([agentMessageChunk("Done")])
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      { role: "agent", content: [{ type: "text", text: "Done" }] },
+    ])
   })
 
   it("broadcasts reasoning and persists it as a thought record before the agent reply", async () => {

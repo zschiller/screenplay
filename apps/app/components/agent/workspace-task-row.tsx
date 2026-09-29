@@ -90,9 +90,10 @@ function StateIcon({ state }: { state: WorkspaceTaskState }) {
 /**
  * A Workspace the Coordinator messaged, as one row in its transcript (#896):
  * status icon, Workspace title, changed lines, the state in a word and a
- * chevron, in the subagent task row's frame. It reads the Workspace's live
- * Branch and chat state, so it updates in place as the Workspace works.
- * Clicking it opens the Workspace on the chat the message went to.
+ * chevron, drawn as a muted line like a finished turn's summary row. It reads
+ * the Workspace's live Branch and chat state, so it updates in place as the
+ * Workspace works. Clicking it opens the Workspace on the chat the message
+ * went to.
  */
 export function WorkspaceTaskRow({
   call,
@@ -132,19 +133,22 @@ export function WorkspaceTaskRow({
       data-state={state}
       disabled={!branch}
       onClick={() => tasks.onOpen(task)}
-      className="flex w-full min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-left text-xs text-muted-foreground outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:hover:bg-muted/30"
+      className="flex max-w-full min-w-0 items-center gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:hover:text-muted-foreground"
     >
       <StateIcon state={state} />
-      <span className="min-w-0 flex-1 truncate text-foreground">
+      <span className="min-w-0 truncate">
         {branch ? workspaceLabel(branch) : "Removed Workspace"}
       </span>
       {hasDiff && (
-        <span className="flex shrink-0 items-center gap-1 font-mono text-3xs">
+        <span className="flex shrink-0 items-center gap-1 font-mono text-2xs">
           <span className="text-success">+{added}</span>
           <span className="text-destructive">-{removed}</span>
         </span>
       )}
-      <span className="shrink-0 text-2xs">{label}</span>
+      <span aria-hidden className="shrink-0">
+        ·
+      </span>
+      <span className="shrink-0">{label}</span>
       {branch && <CaretRightIcon aria-hidden className="size-3 shrink-0" />}
     </button>
   )

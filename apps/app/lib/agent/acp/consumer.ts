@@ -135,6 +135,12 @@ export class AcpUpdateConsumer {
   }
 
   private async onSessionUpdate(update: SessionUpdate): Promise<void> {
+    // The user turn is the server's own echo (Turn Launch broadcasts it and
+    // persists it with its markers). An agent's user_message_chunk (a harness
+    // replaying a prompt or a subagent's ask) is never persisted, so passing
+    // it on would draw a bubble that vanishes on reload, without the markers
+    // that hide a Coordinator wake.
+    if (isUpdate(update, "user_message_chunk")) return
     // Accumulate streamed agent / reasoning text into the current block. We
     // still broadcast every chunk so clients render both the reply and the
     // reasoning as they stream; the durable record is written at the next
