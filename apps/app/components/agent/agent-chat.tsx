@@ -426,7 +426,7 @@ export function AgentChat({
               onPickStarter={(text) => composerRef.current?.insertText(text)}
             />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {foldFinishedTurns(groupToolCalls(messages), {
                 streaming: isStreaming,
               }).map((item) =>
