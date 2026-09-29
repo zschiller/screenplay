@@ -1034,7 +1034,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "New chat")
       await page.getByRole("button", { name: /^Claude Code · / }).click()
-      await page.getByRole("menuitem", { name: "Sonnet 5" }).click()
+      await page.getByRole("menuitem", { name: "Sonnet 5.5" }).click()
       await page.getByText("· not default").waitFor()
     },
     settleMs: 400,
@@ -1968,21 +1968,18 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "composer-model-locked-hover",
+    name: "composer-model-switch",
     description:
-      "Hovering the model picker of a chat that has started, where the model is locked.",
+      "The model menu open in a chat that has started: its model can still change.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
-      // force: the locked picker is disabled, so it takes no pointer events of
-      // its own; hovering its box is what a person does.
       await page
-        .locator('[data-slot="input-group"] button:has(svg.ph-caret-down)')
-        .filter({ visible: true })
+        .getByRole("button", { name: /^Claude Code · / })
         .last()
-        .hover({ force: true, timeout: 15_000 })
-      await showTooltip(page)
+        .click({ timeout: 15_000 })
+      await page.getByRole("menuitem", { name: "Sonnet 5.5" }).waitFor()
     },
     settleMs: 400,
   },

@@ -23,8 +23,13 @@ const getAcpSessionId = vi.fn(
 )
 const setAcpSessionId = vi.fn(async (_chatId: string, _id: string) => {})
 const setChatModel = vi.fn(async (_chatId: string, _model: string) => {})
+// The model the chat's last turn ran on (null: none yet, the env default).
+const getChatModel = vi.fn(
+  async (_chatId: string): Promise<string | null> => null
+)
 vi.mock("@/lib/agent/persistence", () => ({
   getAcpSessionId: (chatId: string) => getAcpSessionId(chatId),
+  getChatModel: (chatId: string) => getChatModel(chatId),
   setAcpSessionId: (chatId: string, id: string) => setAcpSessionId(chatId, id),
   setChatModel: (chatId: string, model: string) => setChatModel(chatId, model),
 }))
@@ -87,6 +92,8 @@ describe("resolveLiveEngine", () => {
     getAcpSessionId.mockClear()
     setAcpSessionId.mockClear()
     setChatModel.mockClear()
+    getChatModel.mockReset()
+    getChatModel.mockImplementation(async () => null)
     factoryConfig.mockClear()
   })
 
@@ -116,6 +123,34 @@ describe("resolveLiveEngine", () => {
     process.env[ENGINE_ENV_VAR] = "external"
     await resolveLiveEngine({ sandboxName: "branch-7", chatId: "chat-9" })
     expect(getAcpSessionId).toHaveBeenCalledWith("chat-9")
+  })
+
+  // Switching models mid-chat: a model of the same Harness resumes its session
+  // (the new model is applied to it); another Harness's starts a fresh one.
+  it("resumes the stored session when the chat switches model within its Harness", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    getChatModel.mockImplementation(async () => "harness:claude-code:opus")
+    await resolveLiveEngine({
+      sandboxName: "branch-7",
+      chatId: "chat-9",
+      model: "harness:claude-code:sonnet",
+    })
+    expect(getAcpSessionId).toHaveBeenCalledWith("chat-9")
+  })
+
+  it("starts a fresh session when the chat switches to another Harness", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    getChatModel.mockImplementation(async () => "harness:claude-code:opus")
+    await resolveLiveEngine({
+      sandboxName: "branch-7",
+      chatId: "chat-9",
+      model: "harness:codex:gpt-6-astra",
+    })
+    expect(getAcpSessionId).not.toHaveBeenCalled()
+    expect(factoryConfig).toHaveBeenCalledWith({
+      harnessKey: "codex",
+      modelId: "gpt-6-astra",
+    })
   })
 
   it("does not touch the persistence seam without a chatId", async () => {

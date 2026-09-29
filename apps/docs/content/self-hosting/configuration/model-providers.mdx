@@ -46,13 +46,13 @@ At least one provider is required.
 ## Model ids and the default
 
 Model ids always name their provider: `<provider>:<model>`, for example
-`anthropic:claude-sonnet-4-6`, `openai:gpt-4o`,
-`vercel:anthropic/claude-sonnet-4-6`, or `compat:llama-3.3-70b`. Ids without a
+`anthropic:claude-sonnet-5-5`, `openai:gpt-6-astra`,
+`vercel:anthropic/claude-sonnet-5.5`, or `compat:llama-3.3-70b`. Ids without a
 provider are rejected, so a request can never quietly reach a provider you
 didn't intend.
 
 `AGENT_DEFAULT_MODEL` sets the default for new chats. It defaults to
-`anthropic:claude-sonnet-4-6`. If you don't run Anthropic, point it at a
+`anthropic:claude-sonnet-5-5`. If you don't run Anthropic, point it at a
 provider you do. Each user's last-picked model is remembered in their browser.
 
 A chat whose model belongs to a provider that's no longer configured fails

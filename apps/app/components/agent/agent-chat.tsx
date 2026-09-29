@@ -302,7 +302,8 @@ export function AgentChat({
     models,
   })
 
-  // Picking a model here changes only this chat; the default lives in Settings.
+  // Picking a model here changes only this chat, from its next turn on (the
+  // server re-reads the model every turn); the default lives in Settings.
   const handleModelChange = useCallback(
     (m: string) => onModelChange?.(m),
     [onModelChange]
@@ -374,11 +375,6 @@ export function AgentChat({
       void sendMessage(text, { model: effectiveModel })
     })
   }, [chatId, sendMessage, effectiveModel, model, onModelChange])
-
-  // Once a chat has at least one message in its log, the model used for the
-  // first turn is locked — switching mid-conversation can confuse the
-  // existing tool-call/result message pairs.
-  const modelLocked = messages.length > 0
 
   // While the sandbox is still booting there's no agent to talk to yet — show
   // the same provisioning spinner the terminal does (terminal-tab.tsx) instead
@@ -486,7 +482,6 @@ export function AgentChat({
         model={effectiveModel}
         defaultModel={defaultModel}
         onModelChange={handleModelChange}
-        modelLocked={modelLocked}
         planMode={planMode}
         onPlanModeChange={isAgentChat ? onPlanModeChange : undefined}
         onSubmit={handleSubmit}

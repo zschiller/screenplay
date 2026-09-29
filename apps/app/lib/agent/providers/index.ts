@@ -53,10 +53,10 @@ export function getModelProviders(): ModelProvider[] {
  * Default model used when a caller doesn't pass one. Override per
  * deployment via `AGENT_DEFAULT_MODEL`. The value is a fully-qualified
  * `<provider>:<model>` id — there's no implicit provider, so a deployment
- * configured only for OpenAI must set this to e.g. `openai:gpt-4o`.
+ * configured only for OpenAI must set this to e.g. `openai:gpt-6-astra`.
  */
 export const DEFAULT_MODEL =
-  process.env.AGENT_DEFAULT_MODEL || "anthropic:claude-sonnet-4-6"
+  process.env.AGENT_DEFAULT_MODEL || "anthropic:claude-sonnet-5-5"
 
 export function parseModelId(id: string): {
   providerKey: string
@@ -65,7 +65,7 @@ export function parseModelId(id: string): {
   const idx = id.indexOf(":")
   if (idx === -1) {
     throw new Error(
-      `Model id "${id}" is missing a provider prefix. Use "<provider>:<model>", e.g. "anthropic:claude-sonnet-4-6".`
+      `Model id "${id}" is missing a provider prefix. Use "<provider>:<model>", e.g. "anthropic:claude-sonnet-5-5".`
     )
   }
   return { providerKey: id.slice(0, idx), model: id.slice(idx + 1) }

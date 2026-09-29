@@ -205,7 +205,7 @@ export const claudeCodeHarness: Harness = {
   // catalog (#527) only appends discovered-once-and-cached live models on top.
   // The ids are the Claude Code model aliases (https://code.claude.com/docs/en/model-config):
   // `opus` is the pre-selected per-Harness default. `fable` selects the most
-  // capable model (Fable 5, always 1M context). Aliases track the latest version
+  // capable model (Fable 5.1, always 1M context). Aliases track the latest version
   // of each family, so this floor doesn't pin a dated model id. We don't expose a
   // `default` alias entry: the bare `harness:claude-code` row (no `:model` suffix)
   // already means "ride the CLI's own default" and stays backward-compatible.
@@ -220,9 +220,9 @@ export const claudeCodeHarness: Harness = {
   // is omitted too: it's the interactive CLI's plan/execute hybrid, with no
   // analogue over the ACP adapter.
   models: [
-    { id: "fable", label: "Fable 5" },
-    { id: "opus", label: "Opus 4.8" },
-    { id: "sonnet", label: "Sonnet 5" },
+    { id: "fable", label: "Fable 5.1" },
+    { id: "opus", label: "Opus 5.5" },
+    { id: "sonnet", label: "Sonnet 5.5" },
     { id: "haiku", label: "Haiku 4.5" },
   ],
   defaultModelId: "opus",

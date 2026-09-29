@@ -3,6 +3,7 @@ import "server-only"
 import { sandboxProvider } from "@/lib/sandbox"
 import {
   getAcpSessionId,
+  getChatModel,
   setAcpSessionId,
   setChatModel,
 } from "@/lib/agent/persistence"
@@ -115,9 +116,16 @@ export async function resolveLiveEngine(
   // Resume the agent's own session across turns/reloads when we have a chat to
   // key it on. The id is loaded once here (per-request) and re-bound by the
   // engine on a fresh `session/new`.
-  const loadSessionId = opts.chatId
-    ? ((await getAcpSessionId(opts.chatId)) ?? undefined)
-    : undefined
+  //
+  // The stored session belongs to the Harness that made it. A chat that switched
+  // to another Harness's model since its last turn starts a fresh session there
+  // (the engine replays the history into it) rather than handing one adapter
+  // another's session id. The chat's stored model is still the last turn's
+  // here: the turn's own model is written when its target prepares, after this.
+  const loadSessionId =
+    opts.chatId && (await sameHarnessAsLastTurn(opts.chatId, harnessKey))
+      ? ((await getAcpSessionId(opts.chatId)) ?? undefined)
+      : undefined
   const onSessionId = opts.chatId
     ? (sessionId: string) => setAcpSessionId(opts.chatId!, sessionId)
     : undefined
@@ -141,6 +149,18 @@ export async function resolveLiveEngine(
       sessionMeta: mcp?.sessionMeta,
     },
   })
+}
+
+/**
+ * Whether a chat's last turn ran on `harnessKey`, so its stored ACP session can
+ * be resumed. A chat with no stored model ran on the env-default Harness.
+ */
+async function sameHarnessAsLastTurn(
+  chatId: string,
+  harnessKey: string
+): Promise<boolean> {
+  const last = decodeHarnessModelId(await getChatModel(chatId))
+  return (last?.key ?? acpHarnessFromEnv()) === harnessKey
 }
 
 /**

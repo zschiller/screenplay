@@ -342,13 +342,11 @@ export interface ComposerProps {
    * the picker says the chat is off the default.
    */
   defaultModel?: string
-  /** Called when the user picks a different model from the dropdown. */
-  onModelChange: (model: string) => void
   /**
-   * Locks the model picker — e.g. once a chat has its first turn, the model is
-   * pinned for the conversation.
+   * Called when the user picks a different model from the dropdown. A chat can
+   * switch at any point; the pick applies from its next turn.
    */
-  modelLocked?: boolean
+  onModelChange: (model: string) => void
   /** Plan-mode toggle state. Omit `onPlanModeChange` to hide the toggle. */
   planMode?: boolean
   onPlanModeChange?: (planMode: boolean) => void
@@ -466,7 +464,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       model,
       defaultModel,
       onModelChange,
-      modelLocked = false,
       planMode,
       onPlanModeChange,
       submitMode = "enter",
@@ -929,16 +926,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               <DropdownMenu>
                 <TooltipProvider>
                   <Tooltip>
-                    {/* The span carries the tooltip: a locked (disabled)
-                        picker emits no pointer events, and the lock is exactly
-                        what needs explaining. */}
                     <TooltipTrigger asChild>
                       <span className="-ml-1 inline-flex">
                         <DropdownMenuTrigger asChild>
                           <InputGroupButton
                             size="xs"
-                            className="text-xs text-foreground disabled:opacity-100"
-                            disabled={modelLocked}
+                            className="text-xs text-foreground"
                           >
                             {currentModelLabel}
                             {offDefault && (
@@ -946,16 +939,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                                 · not default
                               </span>
                             )}
-                            {!modelLocked && <CaretDownIcon />}
+                            <CaretDownIcon />
                           </InputGroupButton>
                         </DropdownMenuTrigger>
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent side="top">
-                      {modelLocked
-                        ? "A chat keeps the model it started with. Start a new chat to switch."
-                        : "Change model"}
-                    </TooltipContent>
+                    <TooltipContent side="top">Change model</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 <DropdownMenuContent align="start">

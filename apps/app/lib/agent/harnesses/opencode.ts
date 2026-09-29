@@ -271,10 +271,10 @@ export const opencodeGatewayHarness: Harness = {
       baseUrlEnv: "OPENCODE_GATEWAY_BASE_URL",
       apiKeyEnv: "AI_GATEWAY_API_KEY",
       models: {
-        "anthropic/claude-sonnet-4-6": { name: "Claude Sonnet 4.6" },
-        "openai/gpt-4o": { name: "GPT-4o" },
+        "anthropic/claude-sonnet-5.5": { name: "Claude Sonnet 5.5" },
+        "openai/gpt-6-astra": { name: "GPT-6 Astra" },
       },
-      defaultModel: "gateway/anthropic/claude-sonnet-4-6",
+      defaultModel: "gateway/anthropic/claude-sonnet-5.5",
     })
   ),
   ...opencodeSetup,
