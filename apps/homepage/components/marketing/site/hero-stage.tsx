@@ -199,10 +199,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const recolor = () => {
-      veil.setColor(getComputedStyle(host).backgroundColor)
-      if (reduce || !visibleNow) veil.drawOnce()
-    }
     const play = () => {
       if (reduce || alive) return
       alive = true
@@ -237,18 +233,11 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       else pause()
     })
     seen.observe(host)
-    // next-themes flips the `dark` class on <html>.
-    const theme = new MutationObserver(recolor)
-    theme.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "style"],
-    })
 
     return () => {
       pause()
       resize.disconnect()
       seen.disconnect()
-      theme.disconnect()
       rowsEl.replaceChildren()
     }
   }, [])

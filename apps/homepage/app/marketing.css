@@ -29,6 +29,8 @@
 
 html {
   scroll-behavior: smooth;
+  /* Always dark (layout.tsx), so native scrollbars and controls match. */
+  color-scheme: dark;
 }
 
 @media (prefers-reduced-motion: no-preference) {

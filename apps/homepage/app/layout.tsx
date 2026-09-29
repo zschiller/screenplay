@@ -8,7 +8,6 @@ import {
 
 import "./marketing.css"
 import { cn } from "@workspace/ui/lib/utils"
-import { ThemeProvider } from "@/components/theme-provider"
 
 // The Editorial type voice (#1005, #1010), with the app's titles (#1077):
 // Instrument Sans for text, Unbounded for headlines, Geist Mono for small
@@ -52,8 +51,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      suppressHydrationWarning
+      // The marketing site is always dark, whatever the system theme. Docs
+      // and the app still follow the system.
       className={cn(
+        "dark",
         "antialiased",
         fontMono.variable,
         fontSerif.variable,
@@ -62,9 +63,7 @@ export default function RootLayout({
         fontSans.variable
       )}
     >
-      <body>
-        <ThemeProvider>{children}</ThemeProvider>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
