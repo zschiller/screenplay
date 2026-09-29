@@ -7,6 +7,11 @@ type RecreateBranchDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   branchName: string
+  /**
+   * The Workspace's display title, used in the dialog title so Recreate names
+   * the Workspace the same way Delete does. The body keeps the git branch.
+   */
+  workspaceTitle?: string
   /** Runs the recreation; throws with the failure to show it inline. */
   onConfirm: () => Promise<void>
 }
@@ -30,6 +35,7 @@ export function RecreateBranchDialog({
   open,
   onOpenChange,
   branchName,
+  workspaceTitle,
   onConfirm,
 }: RecreateBranchDialogProps) {
   return (
@@ -37,7 +43,7 @@ export function RecreateBranchDialog({
       open={open}
       onOpenChange={onOpenChange}
       verb="Recreate"
-      itemName={branchName}
+      itemName={workspaceTitle ?? branchName}
       itemNoun="workspace"
       description={
         <>

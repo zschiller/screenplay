@@ -45,6 +45,8 @@ export function useCloseWorkspaceHoverCard(): () => void {
  * to the click would otherwise open the card over it once its delay runs out.
  * A menu opened from inside the trigger (a sidebar row's …) does the same on
  * its own: the card stays shut while anything in the trigger is expanded.
+ * A confirm opened from that menu (Recreate, Delete) is outside the trigger,
+ * so its caller passes `suppressed` while it is up.
  */
 export function WorkspaceHoverCard({
   branchId,
@@ -62,6 +64,13 @@ export function WorkspaceHoverCard({
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLAnchorElement>(null)
   const close = () => setOpen(false)
+  // Drop an open that landed before the suppression, so the card doesn't
+  // reappear when it lifts.
+  const [wasSuppressed, setWasSuppressed] = useState(suppressed)
+  if (suppressed !== wasSuppressed) {
+    setWasSuppressed(suppressed)
+    if (suppressed) setOpen(false)
+  }
   const menuOpen = () =>
     !!triggerRef.current?.querySelector('[aria-expanded="true"]')
   return (
