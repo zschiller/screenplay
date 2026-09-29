@@ -217,7 +217,7 @@ export function WorkspaceMention({
         className={cn(
           // One line tall; a badge that doesn't fit wraps onto a second line
           // pushed past the clip.
-          "flex h-5 min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-5 overflow-hidden",
+          "flex h-5 min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-5 overflow-hidden leading-5",
           // Renaming inline: let the field's ring show, and drop the badge.
           "has-[[data-editable-text=editing]]:overflow-visible has-[[data-editable-text=editing]]:[&>[data-slot=workspace-mention-end]]:hidden"
         )}

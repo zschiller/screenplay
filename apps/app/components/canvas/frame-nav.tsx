@@ -45,7 +45,7 @@ import {
 /**
  * The address field in a selected frame's floating toolbar (issue #795), like
  * Safari's: the frame's Workspace as the host (press it to switch, #867), the
- * route (press it to go anywhere), reload, and record. Record
+ * route (press it to go anywhere), record, and reload. Record
  * runs Create Flow; while it runs the field turns red and counts the screens
  * laid down. The preview's status shows at the field's start only when it
  * isn't live, so a healthy frame carries no dot.
@@ -193,16 +193,6 @@ export function FrameAddressBar({
         afterHost={!!showHost}
         recording={recording}
       />
-      {!recording && (
-        <IconButton
-          label="Reload"
-          size="icon-xs"
-          className="size-5 text-muted-foreground"
-          onClick={onReload}
-        >
-          <ArrowClockwiseIcon className="size-3" />
-        </IconButton>
-      )}
       <IconButton
         label={recording ? "Stop recording" : "Record flow"}
         pressed={recording}
@@ -222,6 +212,16 @@ export function FrameAddressBar({
           <RecordIcon className="size-3" />
         )}
       </IconButton>
+      {!recording && (
+        <IconButton
+          label="Reload"
+          size="icon-xs"
+          className="size-5 text-muted-foreground"
+          onClick={onReload}
+        >
+          <ArrowClockwiseIcon className="size-3" />
+        </IconButton>
+      )}
     </div>
   )
 }
