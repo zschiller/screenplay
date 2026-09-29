@@ -42,6 +42,15 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
 import { Button } from "@workspace/ui/components/button"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@workspace/ui/components/alert"
+import {
+  OPEN_PULL_REQUEST_TOOL,
+  type ConfirmCard,
+} from "@/lib/agent/confirm-card"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import type { TurnSummary } from "@/lib/agent/turn-summary"
@@ -101,6 +110,8 @@ const toolIcons: Record<string, typeof FileText> = {
   undo_changes: Undo2,
   create_workspaces: FolderGit2,
   stop_workspace: CircleStop,
+  open_pull_request: GitPullRequest,
+  remove_workspace: Trash2,
 }
 
 const toolLabels: Record<string, string> = {
@@ -128,6 +139,8 @@ const toolLabels: Record<string, string> = {
   undo_changes: "Undo changes",
   create_workspaces: "Create Workspaces",
   stop_workspace: "Stop Workspace",
+  open_pull_request: "Open pull request",
+  remove_workspace: "Remove Workspace",
 }
 
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
@@ -853,6 +866,78 @@ function PlanMessage({
 }
 
 /**
+ * A Coordinator confirm (#899, #901): stock Alert with the action's icon, the
+ * action as a question, the target, and the action's verb beside Cancel.
+ * Nothing happens until the user picks one; once decided, the buttons go and
+ * the recorded call below it says what happened.
+ */
+function ConfirmMessage({
+  message,
+  confirm,
+  roomId,
+  chatId,
+}: {
+  message: AgentMessage & { role: "plan" }
+  confirm: ConfirmCard
+  roomId: string
+  chatId: string
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const decide = async (approved: boolean) => {
+    setIsSubmitting(true)
+    if (approved) await chatStore.approvePlan(roomId, chatId, message.planId)
+    else await chatStore.rejectPlan(roomId, chatId, message.planId, "")
+    setIsSubmitting(false)
+  }
+  const Icon =
+    confirm.action === OPEN_PULL_REQUEST_TOOL ? GitPullRequest : Trash2
+
+  return (
+    <Alert data-testid="chat-confirm">
+      <Icon aria-hidden />
+      <AlertTitle className="line-clamp-none">{confirm.title}</AlertTitle>
+      <AlertDescription>
+        <p>
+          <InlineCode text={confirm.description} />
+        </p>
+        {message.status === "pending" && (
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => decide(true)}
+              disabled={isSubmitting}
+            >
+              {confirm.confirmLabel}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => decide(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+/** Text with `backtick` spans set in the mono face, as git refs are. */
+function InlineCode({ text }: { text: string }) {
+  return text.split(/(`[^`]+`)/).map((part, i) =>
+    part.length > 2 && part.startsWith("`") && part.endsWith("`") ? (
+      <code key={i} className="font-mono text-xs">
+        {part.slice(1, -1)}
+      </code>
+    ) : (
+      part
+    )
+  )
+}
+
+/**
  * The agent's reasoning (ACP `agent_thought_chunk`), rendered in a collapsible
  * block kept visually distinct from the assistant message body. Collapsed by
  * default — reasoning is supporting context, not the answer — and minimally
@@ -1177,9 +1262,17 @@ export function AgentMessageItem({
       return <ToolCallItem message={message} />
 
     case "plan":
-      return roomId && chatId ? (
+      if (!roomId || !chatId) return null
+      return message.confirm ? (
+        <ConfirmMessage
+          message={message}
+          confirm={message.confirm}
+          roomId={roomId}
+          chatId={chatId}
+        />
+      ) : (
         <PlanMessage message={message} roomId={roomId} chatId={chatId} />
-      ) : null
+      )
 
     case "error":
       return (

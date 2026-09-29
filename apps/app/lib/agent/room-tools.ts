@@ -25,7 +25,19 @@ import {
   CREATE_WORKSPACES_TOOL,
   type WorkspaceCreateOutcome,
 } from "@/lib/agent/workspace-task"
-import { withPlanGate, type PlanGateRequest } from "@/lib/agent/plan-gate"
+import {
+  withPlanGate,
+  type PlanGateRefusal,
+  type PlanGateRequest,
+} from "@/lib/agent/plan-gate"
+import {
+  confirmCancelledResult,
+  OPEN_PULL_REQUEST_TOOL,
+  REMOVE_WORKSPACE_TOOL,
+  type ConfirmCard,
+  type ConfirmGateInput,
+} from "@/lib/agent/confirm-card"
+import { hasGitHubRemote } from "@/lib/repo-identity"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
@@ -76,6 +88,16 @@ export interface RoomToolPorts extends WorkspaceReadPorts {
   provisionWorkspace(request: BranchProvisionRequest): Promise<void>
   /** Stop a Workspace chat's running turn, as that chat's Stop button does. */
   stopWorkspaceTurn(chatId: string): Promise<void>
+  /**
+   * Open a GitHub PR for a Workspace's branch as `ownerId`, the Workspace's
+   * owner (#901), the way the sidebar's Create PR does.
+   */
+  openPullRequest(request: {
+    sandboxName: string
+    ownerId: string
+  }): Promise<{ url: string; number: number }>
+  /** Tear down a removed Workspace's sandbox, as the sidebar's delete does. */
+  deleteSandbox(sandboxName: string): Promise<void>
   /**
    * The member Workspaces this turn creates belong to: whoever sent the
    * message the turn answers or, on a wake turn, the owner of the Workspace
@@ -136,6 +158,10 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   create_workspaces: { destructiveHint: false, openWorldHint: false },
   // Stops a turn the user can resume by messaging the Workspace again.
   stop_workspace: { destructiveHint: false, openWorldHint: false },
+  // Act only after the user confirms (#901): a PR on GitHub, and a removal
+  // that tears the sandbox down for good.
+  open_pull_request: { destructiveHint: false, openWorldHint: true },
+  remove_workspace: { destructiveHint: true, openWorldHint: false },
   // Shared by every chat's toolset (`layer-read-tools.ts`).
   read_document: { readOnlyHint: true, openWorldHint: false },
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
@@ -265,6 +291,40 @@ export function buildRoomTools(
         }),
       }),
       (input) => workspacePlan(ports, input as CreateWorkspacesInput)
+    ),
+    [OPEN_PULL_REQUEST_TOOL]: withPlanGate(
+      tool({
+        description:
+          "Open a pull request on GitHub for a Workspace's branch, into its repository's default branch. The user sees a confirm card and nothing happens until they click Open PR; you hear the result in the next turn. It's opened with the GitHub account of the Workspace's owner. Its title and description come from the branch's commits, so make sure the Workspace's agent has committed and pushed first.",
+        inputSchema: jsonSchema<{ workspace_id: string }>({
+          type: "object",
+          properties: {
+            workspace_id: {
+              type: "string",
+              description: "The Workspace's id, from `read_canvas`.",
+            },
+          },
+          required: ["workspace_id"],
+        }),
+      }),
+      (input) => openPullRequestGate(ports, input as { workspace_id?: string })
+    ),
+    [REMOVE_WORKSPACE_TOOL]: withPlanGate(
+      tool({
+        description:
+          "Remove a Workspace from the canvas, as the sidebar's Delete does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. The user sees a confirm card and nothing happens until they click Remove; you hear the result in the next turn.",
+        inputSchema: jsonSchema<{ workspace_id: string }>({
+          type: "object",
+          properties: {
+            workspace_id: {
+              type: "string",
+              description: "The Workspace's id, from `read_canvas`.",
+            },
+          },
+          required: ["workspace_id"],
+        }),
+      }),
+      (input) => removeWorkspaceGate(ports, input as { workspace_id?: string })
     ),
     stop_workspace: tool({
       description:
@@ -507,6 +567,227 @@ export async function createWorkspaces(
     }
   }
   return createdWorkspacesResult(outcomes)
+}
+
+/**
+ * The Workspace a confirm gate acts on, or the refusal when there is none.
+ * Reads the raw map, never a cached collection snapshot.
+ */
+async function confirmTarget(
+  ports: RoomToolPorts,
+  workspaceId: unknown
+): Promise<
+  | {
+      branch: BranchData
+      repo: RepoData | undefined
+      chats: number
+      frames: number
+    }
+  | PlanGateRefusal
+> {
+  const id = typeof workspaceId === "string" ? workspaceId.trim() : ""
+  const found = await ports
+    .readDoc((c) => {
+      const branch = records<BranchData>(c, COLLECTION_KEYS.branches).find(
+        (b) => b.id === id
+      )
+      if (!branch) return null
+      return {
+        branch,
+        repo: records<RepoData>(c, COLLECTION_KEYS.repos).find(
+          (r) => r.id === branch.repoId
+        ),
+        chats: records<ChatSessionData>(c, COLLECTION_KEYS.chatSessions).filter(
+          (chat) => chat.branchId === id
+        ).length,
+        frames: records<IframeLayerData>(
+          c,
+          COLLECTION_KEYS.iframeLayers
+        ).filter((f) => f.branchId === id).length,
+      }
+    })
+    .catch(() => null)
+  return (
+    found ?? {
+      refusal: `No Workspace has the id ${id || "(none)"}. Call read_canvas for current ids.`,
+    }
+  )
+}
+
+function confirmRequest(
+  card: ConfirmCard,
+  workspaceId: string,
+  ports: RoomToolPorts
+): PlanGateRequest {
+  const input: ConfirmGateInput = {
+    gate: card.action,
+    confirm: card,
+    workspaceId,
+    requesterId: ports.requesterId,
+  }
+  // The plan text is what the card falls back to, and what the model and a
+  // reload read beside the card.
+  return { plan: `**${card.title}**\n\n${card.description}`, input }
+}
+
+/** A Workspace's open PR, if it has one. */
+function openPr(branch: BranchData): number | null {
+  return branch.prNumber && (branch.prState ?? "open") === "open"
+    ? branch.prNumber
+    : null
+}
+
+/**
+ * The confirm card `open_pull_request` raises (#901): the branch into the
+ * repository's default branch, with the changed lines.
+ */
+async function openPullRequestGate(
+  ports: RoomToolPorts,
+  input: { workspace_id?: string }
+): Promise<PlanGateRequest | PlanGateRefusal> {
+  const target = await confirmTarget(ports, input?.workspace_id)
+  if ("refusal" in target) return target
+  const { branch, repo } = target
+  const title = workspaceLabel(branch)
+  const pr = openPr(branch)
+  if (pr) return { refusal: `"${title}" already has PR #${pr} open.` }
+  if (!repo || !hasGitHubRemote(repo)) {
+    return {
+      refusal: `"${title}" isn't in a GitHub repository, so it can't have a pull request.`,
+    }
+  }
+  const lines = lineCounts(branch)
+  return confirmRequest(
+    {
+      action: OPEN_PULL_REQUEST_TOOL,
+      title: `Open a pull request for ${title}?`,
+      description: `From \`${branch.ref}\` into \`${repo.defaultBranch}\`${lines ? `, ${lines}` : ""}.`,
+      confirmLabel: "Open PR",
+    },
+    branch.id,
+    ports
+  )
+}
+
+/**
+ * The confirm card `remove_workspace` raises (#901): what goes, in the delete
+ * dialog's words, and the PR that stays.
+ */
+async function removeWorkspaceGate(
+  ports: RoomToolPorts,
+  input: { workspace_id?: string }
+): Promise<PlanGateRequest | PlanGateRefusal> {
+  const target = await confirmTarget(ports, input?.workspace_id)
+  if ("refusal" in target) return target
+  const { branch, chats, frames } = target
+  const removes = [
+    chats > 0 && plural(chats, "chat"),
+    frames > 0 && plural(frames, "frame"),
+    "its sandbox",
+  ].filter((f): f is string => Boolean(f))
+  const pr = openPr(branch)
+  return confirmRequest(
+    {
+      action: REMOVE_WORKSPACE_TOOL,
+      title: `Remove ${workspaceLabel(branch)}?`,
+      description: `Removes ${joinFacts(removes)}.${pr ? ` Keeps PR #${pr}.` : ""}`,
+      confirmLabel: "Remove",
+    },
+    branch.id,
+    ports
+  )
+}
+
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`
+}
+
+function joinFacts(facts: string[]): string {
+  if (facts.length <= 1) return facts[0] ?? ""
+  return `${facts.slice(0, -1).join(", ")} and ${facts[facts.length - 1]}`
+}
+
+/**
+ * Act on a confirm the user decided (#901) and return the tool result the
+ * Coordinator reads. A cancel does nothing. The Workspace is read again, since
+ * it may have changed while the card waited.
+ */
+export async function settleConfirm(
+  ports: RoomToolPorts,
+  gate: ConfirmGateInput,
+  approved: boolean
+): Promise<string> {
+  if (!approved) return confirmCancelledResult()
+  return gate.gate === OPEN_PULL_REQUEST_TOOL
+    ? openPullRequest(ports, gate)
+    : removeWorkspace(ports, gate)
+}
+
+/**
+ * Open the Workspace's PR with its owner's GitHub account (#890: the
+ * Coordinator acts as each Workspace's owner, whoever confirms), then record
+ * it on the Workspace so its row and badge show it now.
+ */
+async function openPullRequest(
+  ports: RoomToolPorts,
+  gate: ConfirmGateInput
+): Promise<string> {
+  const branch = await ports.readDoc(({ branches }) =>
+    branches.get(gate.workspaceId)
+  )
+  if (!branch) throw new Error("Not opened: the Workspace is gone.")
+  const title = workspaceLabel(branch)
+  const existing = openPr(branch)
+  if (existing) return `"${title}" already has PR #${existing} open.`
+  const requester =
+    typeof gate.requesterId === "string" ? gate.requesterId : ports.requesterId
+  const { url, number } = await ports.openPullRequest({
+    sandboxName: branch.sandboxName,
+    ownerId: workspaceOwnerId(branch, requester),
+  })
+  await ports.mutateDoc(({ branches }) =>
+    branches.update(branch.id, {
+      prNumber: number,
+      prUrl: url,
+      prState: "open",
+    })
+  )
+  return `Opened PR #${number} for "${title}": ${url}`
+}
+
+/**
+ * The member whose GitHub account acts for a Workspace: its owner, or
+ * `fallback` (whoever asked) for one created before owners were recorded.
+ */
+export function workspaceOwnerId(
+  branch: Pick<BranchData, "createdBy">,
+  fallback: string
+): string {
+  return branch.createdBy ?? fallback
+}
+
+/**
+ * Remove the Workspace the way the sidebar's Delete does: the Branch, its
+ * frames and chats leave the doc in one change, then its sandbox is torn
+ * down. The git branch stays wherever it is.
+ */
+async function removeWorkspace(
+  ports: RoomToolPorts,
+  gate: ConfirmGateInput
+): Promise<string> {
+  const removed = await ports.mutateDoc((collections) => {
+    const branch = collections.branches.get(gate.workspaceId)
+    if (!branch) return null
+    createCanvasOps(createRoomCollections(collections.doc)).removeBranch(
+      branch.id
+    )
+    return branch
+  })
+  if (!removed) return "Already removed: the Workspace was gone."
+  if (removed.sandboxName) {
+    await ports.deleteSandbox(removed.sandboxName).catch(() => {})
+  }
+  return `Removed "${workspaceLabel(removed)}" and tore down its sandbox.`
 }
 
 /** A branch name from the title, unique among `taken` (which it joins). */

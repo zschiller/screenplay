@@ -7,6 +7,7 @@ import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { renderHistory, type HistoryEntry } from "@/lib/agent/history-render"
 import { STOPPED_RUN_STATUS } from "@/lib/agent/turn-launch"
 import type { AgentMessage } from "@/lib/agent/types"
+import { confirmCardOf, type ConfirmCard } from "@/lib/agent/confirm-card"
 
 /**
  * A chat's whole transcript as the chat UI draws it, rebuilt from its
@@ -82,6 +83,7 @@ export async function loadChatTranscript(
         planId: p.id,
         plan: String((p.input as { plan?: unknown }).plan ?? ""),
         status: p.status,
+        ...confirmEntry(p.input as Record<string, unknown>),
       },
     })
   }
@@ -92,4 +94,11 @@ export async function loadChatTranscript(
   timeline.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
 
   return renderHistory(timeline.map((t) => t.entry))
+}
+
+function confirmEntry(input: Record<string, unknown>): {
+  confirm?: ConfirmCard
+} {
+  const confirm = confirmCardOf(input)
+  return confirm ? { confirm } : {}
 }

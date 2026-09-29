@@ -9,10 +9,15 @@ import {
   liveTurnLaunchDeps,
   planResumeTurn,
   roomTurn,
+  settleConfirmGate,
   settleWorkspacePlan,
 } from "@/lib/agent/turn-launch-live"
 import { isWorkspacePlanInput } from "@/lib/agent/room-tools"
 import { workspacePlanResolutionText } from "@/lib/agent/workspace-task"
+import {
+  confirmResolutionText,
+  isConfirmGateInput,
+} from "@/lib/agent/confirm-card"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -67,12 +72,18 @@ export async function POST(req: Request) {
   // A `create_workspaces` plan (#898) comes from the Coordinator: it resumes
   // with the Coordinator's own tools, and approving it creates exactly the
   // Workspaces the plan showed.
+  //
+  // A confirm (Open PR, Remove, #901) comes from the Coordinator too: Cancel
+  // does nothing, and the action runs only on the confirm.
   const workspacePlan = isWorkspacePlanInput(pending.input)
     ? pending.input
     : null
-  const message = workspacePlan
-    ? workspacePlanResolutionText({ approved, feedback })
-    : planResolutionText({ approved, feedback })
+  const confirmGate = isConfirmGateInput(pending.input) ? pending.input : null
+  const message = confirmGate
+    ? confirmResolutionText(approved)
+    : workspacePlan
+      ? workspacePlanResolutionText({ approved, feedback })
+      : planResolutionText({ approved, feedback })
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
     {
@@ -83,7 +94,7 @@ export async function POST(req: Request) {
       model: chat.model,
       planDecision: { planId, approved, feedback },
     },
-    workspacePlan
+    workspacePlan || confirmGate
       ? roomTurn({ room, chatId, message, model: chat.model })
       : planResumeTurn({ room, userId, message, chat })
   )
@@ -94,7 +105,15 @@ export async function POST(req: Request) {
   }
   // Before the response: the resumed turn runs after it, and reads the
   // outcome this records.
-  if (workspacePlan) {
+  if (confirmGate) {
+    await settleConfirmGate(room, {
+      chatId,
+      runId: result.runId,
+      planId,
+      gate: confirmGate,
+      approved,
+    })
+  } else if (workspacePlan) {
     await settleWorkspacePlan(room, {
       chatId,
       runId: result.runId,

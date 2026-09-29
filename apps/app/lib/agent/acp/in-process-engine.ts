@@ -4,6 +4,7 @@ import {
   acpHistoryToModelMessages,
   aiSdkChunkToAcpUpdate,
   cachedSystem,
+  toolKindFor,
   withConversationCacheBreakpoint,
 } from "./adapter"
 import type {
@@ -16,6 +17,8 @@ import type {
 import {
   planPermissionRequest,
   SUBMIT_PLAN_TOOL,
+  textBlock,
+  toolCallStart,
   type StopReason,
 } from "./schema"
 import { planGateOf } from "../plan-gate"
@@ -133,7 +136,27 @@ export class InProcessEngine implements UsageReportingEngine {
           // A plan-gated tool's call becomes the same gate, with the plan its
           // gate renders from the call; the tool runs only once approved.
           if (chunk.type === "tool-call" && gate) {
-            const { plan, input } = await gate(chunk.input)
+            const request = await gate(chunk.input)
+            // A gate that can't raise its card for this call (#901) records
+            // the call as failed with the reason, so the user sees why and the
+            // next turn's history carries it; nothing waits on the user.
+            if ("refusal" in request) {
+              await sink({
+                kind: "session_update",
+                update: toolCallStart({
+                  toolCallId: chunk.toolCallId,
+                  title: chunk.toolName,
+                  kind: toolKindFor(chunk.toolName),
+                  status: "failed",
+                  rawInput: chunk.input as Record<string, unknown>,
+                  content: [
+                    { type: "content", content: textBlock(request.refusal) },
+                  ],
+                }),
+              })
+              return
+            }
+            const { plan, input } = request
             await sink({
               kind: "permission_request",
               request: planPermissionRequest({

@@ -7,13 +7,24 @@ import type { Tool } from "ai"
  * from the call. What the gate returns as `input` is kept on the pending plan,
  * so approving it acts on exactly what the user reviewed (`/api/agent/plan`).
  */
-export type PlanGate = (input: unknown) => Promise<PlanGateRequest>
+export type PlanGate = (
+  input: unknown
+) => Promise<PlanGateRequest | PlanGateRefusal>
 
 export interface PlanGateRequest {
   /** The plan the approval card shows, as markdown. */
   plan: string
   /** Stored with the pending plan; `gate` names the tool that raised it. */
   input: { gate: string } & Record<string, unknown>
+}
+
+/**
+ * A gate that can't raise its card for this call (the Workspace it names is
+ * gone, or already has a PR): the call shows as failed with `refusal` as its
+ * result, and nothing waits on the user.
+ */
+export interface PlanGateRefusal {
+  refusal: string
 }
 
 const PLAN_GATE = "planGate"

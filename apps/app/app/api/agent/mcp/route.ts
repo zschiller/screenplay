@@ -98,10 +98,12 @@ function methodNotAllowed(): Response {
 }
 
 /**
- * A plan-gated tool (`create_workspaces`, #898) needs Screenplay's plan review,
+ * A plan-gated tool (`create_workspaces`, #898; `open_pull_request` and
+ * `remove_workspace`, #901) needs Screenplay's plan review or confirm card,
  * which only the built-in engine raises: a harness runs MCP tools itself and
- * never halts on our approval card. Over MCP it says so instead, so the
- * Coordinator can tell the user rather than retrying.
+ * never halts on our card, and a harness permission prompt doesn't count as
+ * the user's confirm. Over MCP it says so instead, so the Coordinator can tell
+ * the user rather than retrying.
  */
 function withoutPlanGates(tools: ToolSet): ToolSet {
   const out: ToolSet = {}
@@ -110,12 +112,33 @@ function withoutPlanGates(tools: ToolSet): ToolSet {
       ? {
           ...t,
           execute: async () => {
-            throw new Error(
-              "Creating Workspaces needs the user to approve a plan, which this harness can't show yet. Tell the user to create them from the canvas, or to switch the Coordinator's model to a built-in one."
-            )
+            throw new Error(harnessGateRefusal(name))
           },
         }
       : t
   }
   return out
+}
+
+const GATED_ACTIONS: Record<string, { needs: string; instead: string }> = {
+  create_workspaces: {
+    needs: "Creating Workspaces needs the user to approve a plan",
+    instead: "create them from the canvas",
+  },
+  open_pull_request: {
+    needs: "Opening a pull request needs the user to confirm it",
+    instead: "open it from the Workspace's menu",
+  },
+  remove_workspace: {
+    needs: "Removing a Workspace needs the user to confirm it",
+    instead: "delete it from the sidebar",
+  },
+}
+
+function harnessGateRefusal(tool: string): string {
+  const action = GATED_ACTIONS[tool] ?? {
+    needs: "This needs the user's approval",
+    instead: "do it from the canvas",
+  }
+  return `${action.needs}, which this harness can't show yet. Tell the user to ${action.instead}, or to switch the Coordinator's model to a built-in one.`
 }

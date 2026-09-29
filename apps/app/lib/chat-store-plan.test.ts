@@ -40,6 +40,41 @@ describe("chat-store — plan gate (ACP)", () => {
     chatStore.cleanup(chatId)
   })
 
+  it("carries a Coordinator confirm's card on the plan message (#901)", () => {
+    const chatId = `chat_${++seq}`
+    const confirm = {
+      action: "remove_workspace",
+      title: "Remove Dark mode toggle?",
+      description: "Removes 1 chat and its sandbox.",
+      confirmLabel: "Remove",
+    }
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      {
+        type: "chat-acp-permission",
+        chatId,
+        id: nextId(),
+        request: planPermissionRequest({
+          sessionId: chatId,
+          toolCallId: "toolu_confirm_1",
+          plan: "**Remove Dark mode toggle?**",
+          input: { gate: "remove_workspace", confirm, workspaceId: "ws-1" },
+        }),
+      },
+    ])
+
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      {
+        role: "plan",
+        content: "**Remove Dark mode toggle?**",
+        status: "pending",
+        planId: "toolu_confirm_1",
+        confirm,
+      },
+    ])
+    chatStore.cleanup(chatId)
+  })
+
   it("flips the plan card to rejected and shows the feedback as the human's next turn", () => {
     const chatId = `chat_${++seq}`
     play(chatId, [
