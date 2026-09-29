@@ -334,6 +334,51 @@ html.dark .sp-screenshot .sp-screenshot-dark {
   opacity: 0.7;
 }
 
+/* Tables as the stock shadcn Table: full width, 14px, left-aligned medium
+   headers, row dividers only (no grid, no stripes), 8px top-aligned cells. */
+.sp-table {
+  width: 100%;
+  overflow-x: auto;
+  /* nextra-scrollbar reserves a gutter, which would stop the table short. */
+  scrollbar-gutter: auto;
+}
+.sp-table:not(:first-child) {
+  margin-top: 1.25em;
+}
+.sp-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.sp-table tr {
+  border: 0;
+  border-bottom: 1px solid rgb(0 0 0 / 0.12);
+  background: transparent;
+}
+html.dark .sp-table tr {
+  border-bottom-color: rgb(255 255 255 / 0.14);
+}
+html.dark .sp-table th {
+  color: #fff;
+}
+.sp-table tbody tr:last-child {
+  border-bottom: 0;
+}
+.sp-table th,
+.sp-table td {
+  border: 0;
+  padding: 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.sp-table th {
+  height: 2.5rem;
+  font-weight: 500;
+  color: #000;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* Keys in the text, styled like the app's Kbd (packages/ui): a muted cap in
    12px medium, 20px high, no border. Scoped to the article so the search
    box's own key hint is left alone. */
@@ -356,7 +401,7 @@ article kbd {
   vertical-align: 0.1em;
 }
 /* One step lighter than the app's dark muted so the cap still reads on the
-   black page and on striped table rows. */
+   black page. */
 html.dark article kbd {
   background: oklch(0.2 0 0);
   color: oklch(0.708 0 0);
