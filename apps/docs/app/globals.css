@@ -132,6 +132,23 @@ html.dark .nextra-mobile-nav a.x\:bg-primary-100 {
   display: none;
 }
 
+/* <Tabs>: the stock line variant (packages/ui tabs.tsx). Muted labels, and the
+   active label and its underline in the foreground instead of magenta. */
+article [role="tab"]:not(:disabled) {
+  color: rgb(0 0 0 / 0.6);
+}
+article [role="tab"]:not(:disabled):hover,
+article [role="tab"][aria-selected="true"] {
+  color: rgb(0 0 0);
+}
+html.dark article [role="tab"]:not(:disabled) {
+  color: oklch(0.708 0 0);
+}
+html.dark article [role="tab"]:not(:disabled):hover,
+html.dark article [role="tab"][aria-selected="true"] {
+  color: rgb(255 255 255);
+}
+
 /* The navbar's "DOCS" beside the wordmark. */
 .sp-docs-label {
   font-family: var(--x-font-mono);
