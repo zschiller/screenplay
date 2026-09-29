@@ -908,6 +908,11 @@ function ConfirmMessage({
           <div className="mt-2 flex items-center gap-2">
             <Button
               size="sm"
+              variant={
+                confirm.action === OPEN_PULL_REQUEST_TOOL
+                  ? "default"
+                  : "destructive"
+              }
               onClick={() => decide(true)}
               disabled={isSubmitting}
             >
