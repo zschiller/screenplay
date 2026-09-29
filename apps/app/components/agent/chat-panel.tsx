@@ -11,9 +11,7 @@ import {
 import {
   ArrowUpRightIcon,
   CaretDownIcon,
-  CaretUpDownIcon,
   ChatCircleIcon,
-  CheckIcon,
   GitDiffIcon,
   GitMergeIcon,
   GitPullRequestIcon,
@@ -56,35 +54,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@workspace/ui/components/popover"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@workspace/ui/components/command"
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
 import { ChatHistoryMenu } from "./chat-history-menu"
+import { WorkspacesMenuButton } from "./workspaces-menu"
 import {
   WorkspaceMention,
   useWorkspaceAgentWorking,
 } from "@/components/workspace-mention"
+import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type {
   BranchData,
   ChatSessionData,
-  MarkdownLayerData,
   TabKind,
   TerminalTabData,
 } from "@/lib/types"
-import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
+import { getLayerKind } from "@/lib/layer-kinds"
 import {
   DEFAULT_HARNESS_KEY,
   readLastHarnessKey,
@@ -441,12 +427,6 @@ export type ChatPanelTarget =
 
 interface ChatPanelProps {
   target: ChatPanelTarget
-  agents: BranchData[]
-  markdownLayers: MarkdownLayerData[]
-  onSelectAgent: (id: string) => void
-  /** Generalised "pick a layer-kind target" callback — receives the kind
-   *  ("markdown-layer", future kinds, …) and the layer id. */
-  onSelectLayer: (layerKind: string, layerId: string) => void
   chatSessions: ChatSessionData[]
   /** This client's local terminal tabs for the current target. Held in their
    *  own collection (never `chatSessions`), so a terminal can't enter the
@@ -496,15 +476,10 @@ interface ChatPanelProps {
    * target, so a request made alongside a target switch lands after it.
    */
   logsRequest?: { agentId: string; nonce: number } | null
-  disableBranchPicker?: boolean
 }
 
 export function ChatPanel({
   target,
-  agents,
-  markdownLayers,
-  onSelectAgent,
-  onSelectLayer,
   chatSessions,
   terminalTabs,
   selectedChatId,
@@ -525,7 +500,6 @@ export function ChatPanel({
   onCollapse,
   onLogsReady,
   logsRequest,
-  disableBranchPicker,
 }: ChatPanelProps) {
   const isAgentTarget = target.kind === "agent"
   const agent = target.kind === "agent" ? target.agent : null
@@ -997,17 +971,9 @@ export function ChatPanel({
             </span>
           </>
         )}
-        {disableBranchPicker ? (
-          <TargetPill target={target} />
-        ) : (
-          <TargetPicker
-            agents={agents}
-            markdownLayers={markdownLayers}
-            target={target}
-            onSelectAgent={onSelectAgent}
-            onSelectLayer={onSelectLayer}
-          />
-        )}
+        {/* Where you are, not a switcher: the Workspaces button at the far
+            right is how you move between chats (#1152). */}
+        <TargetPill target={target} />
         <div className="ml-auto flex items-center gap-1.5">
           {/* Diff stats and the PR button are agent-only — there's no
               git/branch concept for a doc target. */}
@@ -1056,6 +1022,7 @@ export function ChatPanel({
                 Create PR
               </Button>
             ))}
+          <WorkspacesMenuButton />
         </div>
       </div>
       <div
@@ -1394,10 +1361,11 @@ export function ChatPanel({
 }
 
 /**
- * Renders the picker trigger's label for the panel's current target. A
- * Workspace is the shared Workspace mention without its PR; every layer
- * kind renders generically through its `LayerKindDescriptor` (icon +
- * label), so adding a new chat-targetable kind doesn't touch this file.
+ * The header's name for the panel's current target. A Workspace is the shared
+ * Workspace mention without its PR, and hovering it shows the Workspace hover
+ * card; every layer kind renders generically through its
+ * `LayerKindDescriptor` label, so adding a new chat-targetable kind doesn't
+ * touch this file.
  */
 function TargetPill({ target }: { target: ChatPanelTarget }) {
   const agentWorking = useWorkspaceAgentWorking()
@@ -1405,12 +1373,20 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
     // State icon and plain name (#974); no PR badge, since the header keeps
     // its own PR button on the right (#799).
     return (
-      <WorkspaceMention
-        branch={target.agent}
-        agentWorking={agentWorking(target.agent.id)}
-        pr={false}
-        className="flex-initial text-sm"
-      />
+      <WorkspaceHoverCard
+        branchId={target.agent.id}
+        side="bottom"
+        align="start"
+      >
+        <span className="flex min-w-0">
+          <WorkspaceMention
+            branch={target.agent}
+            agentWorking={agentWorking(target.agent.id)}
+            pr={false}
+            className="flex-initial text-sm"
+          />
+        </span>
+      </WorkspaceHoverCard>
     )
   }
   const descriptor = getLayerKind(target.layerKind)
@@ -1420,140 +1396,5 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
     <span className="inline-flex items-center gap-2 text-sm">
       <span className="max-w-[14rem] truncate">{label}</span>
     </span>
-  )
-}
-
-/**
- * Unified picker for the chat panel's target. Lists every available agent
- * branch *and* every chat-targetable layer kind. Sections are driven by
- * `CHAT_TARGETABLE_LAYER_KINDS` from the layer-kinds registry, so a new
- * layer kind that opts in via `canBeChatTarget: true` automatically gets
- * its own section here without any edits to this component.
- */
-function TargetPicker({
-  agents,
-  markdownLayers,
-  target,
-  onSelectAgent,
-  onSelectLayer,
-}: {
-  agents: BranchData[]
-  /** All chat-targetable layers, keyed by kind. The picker renders one
-   *  CommandGroup per kind in registry order. */
-  markdownLayers: MarkdownLayerData[]
-  target: ChatPanelTarget
-  onSelectAgent: (id: string) => void
-  onSelectLayer: (layerKind: string, layerId: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const agentWorking = useWorkspaceAgentWorking()
-  const pickableAgents = agents.filter(
-    (a) => a.ref && a.status !== "error" && a.status !== "stopped"
-  )
-
-  // Keyed by `descriptor.kind` so the picker loop below can look up each
-  // chat-targetable kind without a per-kind branch.
-  const layersByKind: Record<
-    string,
-    Array<{ id: string } & Record<string, unknown>>
-  > = {
-    "markdown-layer": markdownLayers,
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button className="flex min-w-0 items-center gap-1">
-          <TargetPill target={target} />
-          <CaretUpDownIcon className="size-3 shrink-0 text-muted-foreground" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" side="bottom" align="start">
-        <Command>
-          <CommandInput placeholder="Search workspaces and layers…" />
-          <CommandList>
-            <CommandEmpty>No matches.</CommandEmpty>
-            {pickableAgents.length > 0 && (
-              <CommandGroup heading="Workspaces">
-                {pickableAgents.map((a) => {
-                  const isCurrent =
-                    target.kind === "agent" && a.id === target.agent.id
-                  return (
-                    <CommandItem
-                      key={a.id}
-                      value={`branch ${a.ref}`}
-                      keywords={a.title ? [a.title] : undefined}
-                      onSelect={() => {
-                        onSelectAgent(a.id)
-                        setOpen(false)
-                      }}
-                    >
-                      <WorkspaceMention
-                        branch={a}
-                        agentWorking={agentWorking(a.id)}
-                        fallback={
-                          a.status === "running" &&
-                          ((a.diffAdditions ?? 0) > 0 ||
-                            (a.diffDeletions ?? 0) > 0) ? (
-                            <span className="flex items-center gap-1 font-mono text-xs">
-                              <span className="text-success">
-                                +{a.diffAdditions}
-                              </span>
-                              <span className="text-destructive">
-                                -{a.diffDeletions}
-                              </span>
-                            </span>
-                          ) : null
-                        }
-                      />
-                      <CheckIcon
-                        className={`ml-auto shrink-0 ${isCurrent ? "" : "opacity-0"}`}
-                      />
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
-            )}
-            {CHAT_TARGETABLE_LAYER_KINDS.map((descriptor) => {
-              const items = layersByKind[descriptor.kind] ?? []
-              if (items.length === 0) return null
-              return (
-                <CommandGroup
-                  key={descriptor.kind}
-                  heading={descriptor.pluralLabel}
-                >
-                  {items.map((item) => {
-                    const isCurrent =
-                      target.kind === "layer" &&
-                      target.layerKind === descriptor.kind &&
-                      item.id === target.layer.id
-                    const label = descriptor.getLabel(item as never)
-                    return (
-                      <CommandItem
-                        key={item.id}
-                        value={`${descriptor.kind} ${label}`}
-                        onSelect={() => {
-                          onSelectLayer(descriptor.kind, item.id)
-                          setOpen(false)
-                        }}
-                      >
-                        {/* In the Workspace rows' icon column (#974). */}
-                        <span className="flex size-4 shrink-0 items-center justify-center">
-                          <descriptor.Icon className="size-3.5 opacity-70" />
-                        </span>
-                        <span className="truncate">{label}</span>
-                        <CheckIcon
-                          className={`ml-auto shrink-0 ${isCurrent ? "" : "opacity-0"}`}
-                        />
-                      </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
-              )
-            })}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   )
 }

@@ -1,9 +1,9 @@
 /**
- * Workspaces list view (#885) — how one member sees the sidebar's Workspaces
- * list: its sort (manual drag order, recent activity, or name) and whether it
- * is grouped into state sections. A local view preference: it lives in this
- * browser's storage, keyed by user and canvas, and never enters the room doc,
- * so collaborators' lists don't move.
+ * Workspaces list view (#885) — how one member sees the Workspaces list in
+ * the chat panel's Workspaces menu (#1152): its sort (manual drag order,
+ * recent activity, or name) and whether it is grouped into state sections. A
+ * local view preference: it lives in this browser's storage, keyed by user and
+ * canvas, and never enters the room doc, so collaborators' lists don't move.
  *
  * Pure apart from the storage helpers at the bottom, so the ordering and
  * section rules are tested with no React (`workspace-list-view.test.ts`).
@@ -77,6 +77,20 @@ export function workspaceSection(
   if (line.kind === "error") return "needs-you"
   if (line.state === "working") return "working"
   return ctx.openPr ? "needs-you" : "idle"
+}
+
+/**
+ * Whether any Workspace needs the member (#1152): at least one that isn't Done
+ * falls in the Needs you section, by the same rule that files it there. It
+ * drives the dot on the chat panel's Workspaces button.
+ */
+export function anyWorkspaceNeedsYou<T extends SectionBranch>(
+  branches: readonly T[],
+  context: (branch: T) => SectionContext
+): boolean {
+  return branches.some(
+    (b) => !b.doneAt && workspaceSection(b, context(b)) === "needs-you"
+  )
 }
 
 export type SortBranch = Pick<

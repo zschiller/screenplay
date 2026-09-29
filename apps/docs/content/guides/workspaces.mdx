@@ -1,23 +1,27 @@
 ---
 title: Workspaces
-description: Create workspaces with their own live environment, and manage them from the sidebar.
+description: Create workspaces with their own live environment, and manage them from the Workspaces menu.
 ---
 
 # Workspaces
 
 A workspace is one git branch of a repository, running in its own sandbox with
-its own dev server, frames, agent chats, and terminals. The sidebar's
-**Workspaces** section lists every workspace on the canvas in one flat list,
-by title. Wherever a workspace is named, on a row, a group or frame label, or
+its own dev server, frames, agent chats, and terminals. The **Workspaces**
+button at the top right of the agent panel opens the list of every workspace
+on the canvas, by title. Wherever a workspace is named, on a row, a group or frame label, or
 the address bar, it shows the same way: an icon for what it's doing, its
 title, and its pull request when there's room.
 
 ## Creating workspaces
 
-Click **+** (**New workspace**) next to **Workspaces** in the sidebar.
+Open the **Workspaces** menu and click **+** (**New workspace**) next to
+**Workspaces**.
 **Create workspaces** can create several at once:
 
-<Screenshot name="new-workspace-multi" alt="Create workspaces with two rows, each with a prompt" />
+<Screenshot
+  name="new-workspace-multi"
+  alt="Create workspaces with two rows, each with a prompt"
+/>
 
 - Each row starts from a **base branch** (the chip above the prompt), which
   defaults to the repository's default branch.
@@ -49,18 +53,38 @@ A canvas with no repository yet says that workspaces need one, with an
 
 ## Titles
 
-A workspace is named by its title everywhere: the sidebar, the agent panel's
-picker, the canvas list and each frame's workspace badge and address bar. The
+A workspace is named by its title everywhere: the Workspaces menu, the agent
+panel's header, the canvas list and each frame's workspace badge and address bar. The
 agent writes it from the first message in the workspace's first chat, the
 same way it names the chat. Later chats never change it.
 
-Renaming a workspace (double-click its title, or **… → Rename**) changes only
+Renaming a workspace (**… → Rename**, then type over its title) changes only
 the title, so it never touches the branch, its pull request or anyone's
 checkout. To rename the branch itself, use **… → Rename branch…**.
 
-## The sidebar row
+## The Workspaces menu
 
-<Screenshot name="canvas-overview" alt="The canvas sidebar: the flat Workspaces list above, the Canvas layers list below" />
+<Screenshot
+  name="workspaces-menu"
+  alt="The agent panel's Workspaces menu open: the Coordinator, the Workspaces list with + and …, and Documents"
+/>
+
+The **Workspaces** button sits at the far right of the agent panel's header,
+in the same place whether the panel shows the
+[Coordinator](/guides/agent#the-coordinator) or a workspace. A pink dot on it
+means a workspace needs you: its setup failed or its pull request is open.
+Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
+
+- a **search** field that finds a workspace by its title or branch, including
+  done ones;
+- the **Coordinator**, checked when the panel shows it;
+- the **Workspaces** list, with **+** and **…** beside its heading;
+- **Documents**, whose chats you can open the same way.
+
+Pick a row to open that chat; the menu closes. <kbd>Esc</kbd> or a click
+outside closes it without picking. The arrow keys move through the rows.
+With the agent panel collapsed (<kbd>⌘</kbd> <kbd>I</kbd>), open the panel
+first.
 
 Each workspace row shows:
 
@@ -70,7 +94,7 @@ Each workspace row shows:
   [done](#marking-a-workspace-done), or a warning when setup failed.
   Click the warning for the error, with **Retry**, **Recreate** and
   **Copy error**;
-- the workspace's **title** (double-click to rename). Workspaces created
+- the workspace's **title**. Workspaces created
   before titles existed show their branch name until you rename them;
 - at the end, the workspace's **pull request** as a small outlined badge:
   its icon in GitHub's colours (green open, purple merged, red closed) and
@@ -82,7 +106,7 @@ Each workspace row shows:
   at the end, so you can tell web and API work apart. With one repository
   it's never shown.
 
-The agent panel's header and its picker, a frame's workspace list and the
+The agent panel's header, a frame's workspace list and the
 **Remove** repository dialog show a workspace the same way: the status icon,
 then the title, then the pull request badge (the header keeps its own pull
 request button instead).
@@ -92,7 +116,10 @@ them: drag a row to move it among its repository's workspaces.
 
 ### Sorting and grouping
 
-<Screenshot name="ws-list-view" alt="The Workspaces list's … menu with the Sort by submenu open" />
+<Screenshot
+  name="ws-list-view"
+  alt="The Workspaces menu's … with the Sort by submenu open"
+/>
 
 The **…** beside **Workspaces** sets how the list is shown:
 
@@ -111,19 +138,17 @@ The **…** beside **Workspaces** sets how the list is shown:
 bottom whatever you pick. The choice is yours alone: it's remembered for each
 canvas in this browser, and collaborators keep their own.
 
-Click a row to make it the agent panel's target. Double-click to also open
-the panel.
-
 Hover a row to see where the workspace is used: the canvas list lights up the
 [groups](/guides/canvas#a-groups-workspace) on it and the frames that show
-it, and the canvas outlines those frames. It works the other way too:
-hovering a group, a frame, or a group's workspace lights up its
-workspace's row.
+it, and the canvas outlines those frames. It works the other way too: while
+the menu is open, hovering a group, a frame, or a group's workspace lights up
+its workspace's row.
 
 ### The hover card
 
-Hover a workspace row, or a workspace named on a group or frame label or in
-the address bar, to see its details:
+Hover a workspace row, the workspace's name in the agent panel's header, or a
+workspace named on a group or frame label or in the address bar, to see its
+details:
 
 - its title and what it's doing now, such as the setup step and how long it
   has taken, that the agent is working, or that it's ready, stopped or done;
@@ -135,49 +160,55 @@ its title.
 
 ## The workspace menu
 
-Hover a workspace and click **…**. The menu starts with the one action the
+In the Workspaces menu, hover a workspace and click **…**. The menu starts with the one action the
 workspace's state calls for (**Retry setup** after a failed setup, the pull
 request, **Reopen** on a done workspace, or **Open prototype player**), then groups the rest under **View**,
 **Git** and **Manage**:
 
 <Screenshot name="ws-menu" alt="The workspace menu" />
 
-| Item | What it does |
-| --- | --- |
-| **Open prototype player** | Opens [play mode](/guides/play-mode) for this workspace. |
-| **Open in browser** | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
-| **Show all routes** | Adds a group with one frame per route the workspace has visited. |
-| **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one. |
-| **Rebase on *main*** | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
-| **Open branch on GitHub** | Opens the branch on GitHub. |
-| **Rename branch…** | Renames the git branch, on GitHub and in the workspace. Names already used on the remote are refused. The workspace keeps its title. |
-| **New workspace from here…** | Opens **Create workspaces** with this workspace's branch as the base. |
-| **Rename** | Renames the workspace's title. The git branch stays as it is. |
-| **Restart** | See [Restarting](#restarting). |
-| **Mark as done** / **Reopen** | See [Marking a workspace done](#marking-a-workspace-done). |
-| **Delete** | Removes the workspace, and optionally its branch on GitHub. |
+| Item                                               | What it does                                                                                                                           |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Open prototype player**                          | Opens [play mode](/guides/play-mode) for this workspace.                                                                               |
+| **Open in browser**                                | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`.                   |
+| **Show all routes**                                | Adds a group with one frame per route the workspace has visited.                                                                       |
+| **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one.                                                         |
+| **Rebase on _main_**                               | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
+| **Open branch on GitHub**                          | Opens the branch on GitHub.                                                                                                            |
+| **Rename branch…**                                 | Renames the git branch, on GitHub and in the workspace. Names already used on the remote are refused. The workspace keeps its title.   |
+| **New workspace from here…**                       | Opens **Create workspaces** with this workspace's branch as the base.                                                                  |
+| **Rename**                                         | Renames the workspace's title. The git branch stays as it is.                                                                          |
+| **Restart**                                        | See [Restarting](#restarting).                                                                                                         |
+| **Mark as done** / **Reopen**                      | See [Marking a workspace done](#marking-a-workspace-done).                                                                             |
+| **Delete**                                         | Removes the workspace, and optionally its branch on GitHub.                                                                            |
 
 ## Restarting
 
 When a preview gets stuck, **Restart** offers escalating fixes:
 
-<Screenshot name="ws-restart" alt="The Restart submenu: Restart dev server and Recreate from scratch" />
+<Screenshot
+  name="ws-restart"
+  alt="The Restart submenu: Restart dev server and Recreate from scratch"
+/>
 
 - **Restart dev server** restarts only the dev server process. It's quick,
   keeps every file, and works even while the agent is busy. Try it first.
-- **Restart sandbox** *(hosted)* restarts the whole sandbox VM. Your working
+- **Restart sandbox** _(hosted)_ restarts the whole sandbox VM. Your working
   tree, including uncommitted changes, is restored from a snapshot.
 - **Recreate from scratch** deletes the sandbox and checks the branch out
   fresh. **Uncommitted changes are permanently discarded**, so you'll be asked
   to confirm.
 
-<Screenshot name="recreate-dialog" alt="The Recreate from scratch confirmation" />
+<Screenshot
+  name="recreate-dialog"
+  alt="The Recreate from scratch confirmation"
+/>
 
 <Callout type="warning">
   On the hosted app, sandboxes are ephemeral VMs that are reclaimed when idle.
-  Anything worth keeping has to be committed and pushed. The agent commits
-  after every change for this reason. On desktop, worktrees live on your disk
-  and survive restarts.
+  Anything worth keeping has to be committed and pushed. The agent commits after
+  every change for this reason. On desktop, worktrees live on your disk and
+  survive restarts.
 </Callout>
 
 ## Marking a workspace done
@@ -226,7 +257,10 @@ by default. If the remote
 delete fails, the workspace is still deleted and a warning names the branch
 left on the remote.
 
-<Screenshot name="delete-branch-dialog" alt="The Delete workspace dialog with the Also delete the branch on GitHub option" />
+<Screenshot
+  name="delete-branch-dialog"
+  alt="The Delete workspace dialog with the Also delete the branch on GitHub option"
+/>
 
 ## One branch, one workspace (desktop)
 

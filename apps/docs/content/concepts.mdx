@@ -10,7 +10,10 @@ UI follows.
 
 <ConceptsDiagram />
 
-<Screenshot name="canvas-overview" alt="A canvas with its sidebar: the flat Workspaces list above, the Canvas layers list below" />
+<Screenshot
+  name="canvas-overview"
+  alt="A canvas with its layers in the sidebar"
+/>
 
 ## Canvas
 
@@ -45,9 +48,10 @@ A **workspace** is one git branch of a repository, running in its own isolated
   repository.
 
 Each workspace has a title (the agent writes it from your first message), its
-own dev server, and its own agent chats and terminals. The sidebar lists every
-workspace in one flat **Workspaces** section, like threads in a project; on a
-canvas with several repositories each row ends with its repository's name.
+own dev server, and its own agent chats and terminals. The **Workspaces**
+button at the top right of the agent panel lists every workspace in one flat
+list, like threads in a project; on a canvas with several repositories each
+row ends with its repository's name.
 Workspaces are cheap: create one for every idea you want to try and compare
 them side by side.
 → [Workspaces](/guides/workspaces)
@@ -89,10 +93,10 @@ sandbox, with a coding CLI pre-launched. → [Agent chat](/guides/agent),
 The UI labels are deliberately friendlier than the code's names. If you read
 the source or the self-hosting docs:
 
-| In the UI | In the code |
-| --- | --- |
-| Canvas | Room |
-| Repository | Repo |
-| Workspace | Branch |
-| Frame | Iframe Layer |
-| Document | Markdown Layer |
+| In the UI  | In the code    |
+| ---------- | -------------- |
+| Canvas     | Room           |
+| Repository | Repo           |
+| Workspace  | Branch         |
+| Frame      | Iframe Layer   |
+| Document   | Markdown Layer |

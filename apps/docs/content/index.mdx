@@ -14,7 +14,7 @@ panel beside it and watch the previews update as it works.
 
 <Screenshot
   name="hero"
-  alt="A Screenplay canvas: three workspaces in the sidebar, desktop and mobile previews of a marketing site on the canvas, and the agent's chat on the right"
+  alt="A Screenplay canvas: its layers in the sidebar, desktop and mobile previews of a marketing site on the canvas, and the agent's chat on the right"
 />
 
 Instead of juggling terminals, browser tabs and branches, you lay the work out
@@ -37,23 +37,15 @@ spatially:
 ## Two ways to run it
 
 <Cards num={2}>
-  <Cards.Card
-    title="Desktop app"
-    href="/quickstart"
-    arrow
-  >
+  <Cards.Card title="Desktop app" href="/quickstart" arrow>
     A single-user macOS app. Workspaces are git worktrees on your machine, and
-    the agent is the coding CLI you already use (Claude Code, Codex, …),
-    signed in with your own account.
+    the agent is the coding CLI you already use (Claude Code, Codex, …), signed
+    in with your own account.
   </Cards.Card>
-  <Cards.Card
-    title="Self-hosted web app"
-    href="/self-hosting"
-    arrow
-  >
+  <Cards.Card title="Self-hosted web app" href="/self-hosting" arrow>
     A multi-user deployment. Each workspace is a cloud sandbox VM, the agent
-    runs on your model provider keys, and teammates share canvases, cursors,
-    and comments.
+    runs on your model provider keys, and teammates share canvases, cursors, and
+    comments.
   </Cards.Card>
 </Cards>
 
@@ -66,7 +58,11 @@ few places where they differ.
   <Cards.Card title="Quickstart" href="/quickstart" arrow />
   <Cards.Card title="Core concepts" href="/concepts" arrow />
   <Cards.Card title="Agent chat" href="/guides/agent" arrow />
-  <Cards.Card title="Keyboard shortcuts" href="/guides/keyboard-shortcuts" arrow />
+  <Cards.Card
+    title="Keyboard shortcuts"
+    href="/guides/keyboard-shortcuts"
+    arrow
+  />
   <Cards.Card title="Knobs for your app" href="/building/knobs" arrow />
   <Cards.Card title="Self-hosting" href="/self-hosting" arrow />
 </Cards>
