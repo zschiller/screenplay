@@ -107,6 +107,10 @@ const SCROLL_VIEWPORT_SELECTOR = '[data-slot="scroll-area-viewport"]'
 // px of slack absorbs sub-pixel rounding from fractional widths/zoom.
 const RIGHT_EDGE_SLACK_PX = 2
 
+// Width of the fade at a strip edge that has tabs scrolled past it, and the
+// inset a revealed tab keeps from the edge (the same, so it clears the fade).
+const EDGE_FADE_PX = 16
+
 // Scroll `viewport` the minimum amount so `el` is fully visible, with a little
 // padding so a revealed tab isn't flush against the edge. A tab already in view
 // but flush (the browser scrolls a clicked tab just into view on focus) gets
@@ -114,7 +118,7 @@ const RIGHT_EDGE_SLACK_PX = 2
 function ensureTabVisible(viewport: HTMLElement, el: HTMLElement) {
   const vpRect = viewport.getBoundingClientRect()
   const elRect = el.getBoundingClientRect()
-  const pad = 8
+  const pad = EDGE_FADE_PX
   if (elRect.left < vpRect.left + pad) {
     // Back at the start when the tab fits there, so the strip rests where it
     // began (with the logs tab in view) rather than just short of it.
@@ -124,6 +128,19 @@ function ensureTabVisible(viewport: HTMLElement, el: HTMLElement) {
   } else if (elRect.right > vpRect.right - pad) {
     viewport.scrollLeft += elRect.right - vpRect.right + pad
   }
+}
+
+// Fade out whichever edges of the strip have tabs scrolled past them, so a
+// clipped tab reads as "more this way" rather than cut off. Set imperatively,
+// like the scrolling, since it follows every scroll event.
+function updateEdgeFade(viewport: HTMLElement) {
+  const overflow = viewport.scrollWidth - viewport.clientWidth
+  const left = viewport.scrollLeft > RIGHT_EDGE_SLACK_PX
+  const right = overflow - viewport.scrollLeft > RIGHT_EDGE_SLACK_PX
+  viewport.style.maskImage =
+    left || right
+      ? `linear-gradient(to right, transparent, #000 ${left ? EDGE_FADE_PX : 0}px, #000 calc(100% - ${right ? EDGE_FADE_PX : 0}px), transparent)`
+      : ""
 }
 
 // Whether the operator is parked at the strip's right edge. Only when the strip
@@ -802,37 +819,41 @@ export function ChatPanel({
   )
 
   // Bring the active tab (a chat/terminal tab or the logs trigger) fully into
-  // view. When the operator is parked at the right edge, stay there unless that
-  // would leave the active tab cut off.
+  // view. When the operator is parked at the right edge, or the active tab is
+  // the last one, go to the right edge unless that would leave the active tab
+  // cut off.
   const revealActiveTab = useCallback(() => {
     const vp = getViewport()
     if (!vp) return
-    if (pinnedRightRef.current) vp.scrollLeft = vp.scrollWidth
     const trigger = vp.querySelector<HTMLElement>(
       '[role="tab"][data-state="active"]'
     )
-    if (trigger) {
-      ensureTabVisible(
-        vp,
-        trigger.closest<HTMLElement>("[data-tab-id]") ?? trigger
-      )
+    const tab = trigger?.closest<HTMLElement>("[data-tab-id]") ?? trigger
+    // The last tab is revealed along with the "+" button after it.
+    if (pinnedRightRef.current || (tab && !tab.nextElementSibling)) {
+      vp.scrollLeft = vp.scrollWidth
     }
+    if (tab) ensureTabVisible(vp, tab)
     pinnedRightRef.current = isPinnedRight(vp)
   }, [getViewport])
 
-  // Keep `pinnedRightRef` current as the operator scrolls, and keep the active
-  // tab in view whenever the strip or its content changes size: the panel
-  // resizing, tabs being added by another client in the room, or tabs settling
-  // after their enter animation.
+  // Keep `pinnedRightRef` and the edge fade current as the operator scrolls,
+  // and keep the active tab in view whenever the strip or its content changes
+  // size: the panel resizing, tabs being added by another client in the room,
+  // or tabs settling after their enter animation.
   useEffect(() => {
     const vp = getViewport()
     if (!vp) return
     const updatePinned = () => {
       pinnedRightRef.current = isPinnedRight(vp)
+      updateEdgeFade(vp)
     }
     updatePinned()
     vp.addEventListener("scroll", updatePinned, { passive: true })
-    const ro = new ResizeObserver(revealActiveTab)
+    const ro = new ResizeObserver(() => {
+      revealActiveTab()
+      updateEdgeFade(vp)
+    })
     ro.observe(vp)
     if (vp.firstElementChild) ro.observe(vp.firstElementChild)
     return () => {
