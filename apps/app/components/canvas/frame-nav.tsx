@@ -264,7 +264,7 @@ function FrameWorkspaceHost({
     <span className="truncate">Choose a workspace</span>
   )
   const hostClass =
-    "flex h-5 max-w-48 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-xs font-medium text-muted-foreground"
+    "flex h-5 max-w-56 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-xs font-medium text-muted-foreground"
 
   if (!onAssignWorkspace) {
     return (

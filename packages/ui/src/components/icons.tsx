@@ -9,6 +9,7 @@ import { ArrowClockwiseIcon as ArrowClockwiseBase } from "@phosphor-icons/react/
 import { ArrowCounterClockwiseIcon as ArrowCounterClockwiseBase } from "@phosphor-icons/react/dist/ssr/ArrowCounterClockwise"
 import { ArrowDownIcon as ArrowDownBase } from "@phosphor-icons/react/dist/ssr/ArrowDown"
 import { ArrowLeftIcon as ArrowLeftBase } from "@phosphor-icons/react/dist/ssr/ArrowLeft"
+import { ArrowRightIcon as ArrowRightBase } from "@phosphor-icons/react/dist/ssr/ArrowRight"
 import { ArrowSquareOutIcon as ArrowSquareOutBase } from "@phosphor-icons/react/dist/ssr/ArrowSquareOut"
 import { ArrowUUpLeftIcon as ArrowUUpLeftBase } from "@phosphor-icons/react/dist/ssr/ArrowUUpLeft"
 import { ArrowUpIcon as ArrowUpBase } from "@phosphor-icons/react/dist/ssr/ArrowUp"
@@ -197,6 +198,7 @@ export const ArrowCounterClockwiseIcon = phosphor(
 )
 export const ArrowDownIcon = phosphor(ArrowDownBase, "ph-arrow-down")
 export const ArrowLeftIcon = phosphor(ArrowLeftBase, "ph-arrow-left")
+export const ArrowRightIcon = phosphor(ArrowRightBase, "ph-arrow-right")
 export const ArrowSquareOutIcon = phosphor(
   ArrowSquareOutBase,
   "ph-arrow-square-out"
