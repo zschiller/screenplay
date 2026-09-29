@@ -1018,7 +1018,7 @@ export function ChatPanel({
           {isAgentTarget &&
             diffStats &&
             (diffStats.additions > 0 || diffStats.deletions > 0) && (
-              <span className="flex items-center gap-1 font-mono text-3xs">
+              <span className="flex items-center gap-1 font-mono text-xs">
                 <span className="text-success">+{diffStats.additions}</span>
                 <span className="text-destructive">-{diffStats.deletions}</span>
               </span>
@@ -1496,7 +1496,7 @@ function TargetPicker({
                           a.status === "running" &&
                           ((a.diffAdditions ?? 0) > 0 ||
                             (a.diffDeletions ?? 0) > 0) ? (
-                            <span className="flex items-center gap-1 font-mono text-3xs">
+                            <span className="flex items-center gap-1 font-mono text-xs">
                               <span className="text-success">
                                 +{a.diffAdditions}
                               </span>

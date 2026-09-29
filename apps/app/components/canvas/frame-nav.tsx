@@ -264,7 +264,7 @@ function FrameWorkspaceHost({
     <span className="truncate">Choose a workspace</span>
   )
   const hostClass =
-    "flex h-5 max-w-48 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-2xs font-medium text-muted-foreground"
+    "flex h-5 max-w-48 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-xs font-medium text-muted-foreground"
 
   if (!onAssignWorkspace) {
     return (
@@ -373,7 +373,7 @@ export function FrameRouteField({
   const field = (
     <span
       className={cn(
-        "flex h-6 min-w-0 flex-1 items-center pr-1 font-mono text-2xs",
+        "flex h-6 min-w-0 flex-1 items-center pr-1 font-mono text-xs",
         inset && "pl-2",
         afterHost && "pl-1"
       )}

@@ -1159,7 +1159,7 @@ export function RoomSidebar({
                         endClassName={underMenu}
                         fallback={
                           hasStats ? (
-                            <span className="flex items-center gap-1 font-mono text-3xs">
+                            <span className="flex items-center gap-1 font-mono text-xs">
                               <span className="text-success">
                                 +{stats.additions}
                               </span>

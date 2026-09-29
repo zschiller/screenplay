@@ -131,7 +131,7 @@ function SidebarSection({
 }) {
   return (
     <div className={`flex flex-col p-2 ${className ?? ""}`}>
-      <div className="flex h-8 items-center px-2 font-mono text-2xs tracking-wider text-sidebar-foreground/70 uppercase">
+      <div className="flex h-8 items-center px-2 font-mono text-xs tracking-wider text-sidebar-foreground/70 uppercase">
         {label}
       </div>
       {Array.from({ length: rows }, (_, i) => (

@@ -128,8 +128,8 @@ export function StepMarker({
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full font-semibold tabular-nums",
         state === "current"
-          ? "size-5 border-[1.5px] border-foreground text-2xs"
-          : "size-4 text-3xs",
+          ? "size-5 border-[1.5px] border-foreground text-xs"
+          : "size-4 text-xs",
         state === "upcoming" && "border border-border text-muted-foreground",
         state === "done" && "bg-success-fill text-success-foreground",
         state === "skipped" && "bg-muted text-muted-foreground",

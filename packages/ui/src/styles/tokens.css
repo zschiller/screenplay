@@ -8,12 +8,9 @@
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-    /* Small steps below Tailwind's text-xs (12px), for dense chrome: tool rows,
-       Layer labels, badges and captions. Use these instead of text-[Npx]
-       (apps/app/lib/type-scale.test.ts fails on arbitrary sizes). They set no
-       line height, so they inherit the surrounding leading as text-[Npx] did. */
-    --text-2xs: 0.6875rem;
-    --text-3xs: 0.625rem;
+    /* UI text has two steps, Tailwind's text-xs (12px) and text-sm (14px),
+       plus the title sizes below (#1141). Nothing goes under 12px:
+       apps/app/lib/type-scale.test.ts fails on smaller or arbitrary sizes. */
     /* Title sizes for `font-heading` titles (#1077), tapered so the biggest
        step shrinks most: 27px page titles, 24px sign-in and setup, 20px
        dialogs and Settings sections, 17px empty states and sheets. Each

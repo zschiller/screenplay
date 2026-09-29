@@ -331,7 +331,7 @@ export function PlayerHud({
                         <span className="flex w-full items-center gap-2">
                           <Icon className="text-muted-foreground" />
                           <span className="truncate">{preset.label}</span>
-                          <span className="ml-auto pl-4 text-3xs text-muted-foreground tabular-nums">
+                          <span className="ml-auto pl-4 text-xs text-muted-foreground tabular-nums">
                             {formatIframeLayerSize(preset)}
                           </span>
                         </span>

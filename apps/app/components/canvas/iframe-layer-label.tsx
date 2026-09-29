@@ -164,7 +164,7 @@ export function SharedStateIndicator({
           </span>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[360px] p-0">
-          <pre className="max-h-[300px] overflow-auto p-2 font-mono text-3xs leading-snug break-words whitespace-pre-wrap">
+          <pre className="max-h-[300px] overflow-auto p-2 font-mono text-xs leading-snug break-words whitespace-pre-wrap">
             {json}
           </pre>
         </TooltipContent>

@@ -187,7 +187,7 @@ export function ResizeSnapUnderlay({
           const dimensions = `${Math.round(snapped.ghostWidth)} × ${Math.round(snapped.ghostHeight)}`
           return (
             <div
-              className="absolute flex items-center gap-1 text-2xs leading-none font-semibold whitespace-nowrap text-canvas-snap"
+              className="absolute flex items-center gap-1 text-xs leading-none font-semibold whitespace-nowrap text-canvas-snap"
               style={{
                 left: snappedLabelPos.screenX,
                 top: snappedLabelPos.screenY,
