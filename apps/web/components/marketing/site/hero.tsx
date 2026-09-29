@@ -12,7 +12,7 @@ export function Hero() {
         <p className={cn(monoLabel, "text-muted-foreground")}>
           Open source · Works with Claude Code, Codex &amp; opencode
         </p>
-        <h1 className="mt-7 font-heading text-[clamp(40px,7.5vw,104px)] leading-[1.02] font-normal tracking-[-0.03em] text-balance">
+        <h1 className="font-wordmark mt-7 text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance">
           Every branch, <Selected label="3 branches">side by side</Selected>.
         </h1>
         <div className="mt-14 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
@@ -82,7 +82,7 @@ function Selected({
   const handle =
     "absolute size-2.5 border-2 border-selection bg-background max-sm:size-2"
   return (
-    <span className="outline-selection relative inline-block px-[0.06em] outline-2 -outline-offset-2">
+    <span className="outline-selection relative inline-block px-[0.06em] italic outline-2 -outline-offset-2">
       {children}
       <span aria-hidden className={cn(handle, "-top-[5px] -left-[5px]")} />
       <span aria-hidden className={cn(handle, "-top-[5px] -right-[5px]")} />
@@ -90,7 +90,7 @@ function Selected({
       <span aria-hidden className={cn(handle, "-right-[5px] -bottom-[5px]")} />
       <span
         aria-hidden
-        className="bg-selection absolute top-full -left-0.5 mt-1.5 px-1.5 py-1 font-mono text-xs leading-none tracking-[0.02em] whitespace-nowrap text-white"
+        className="bg-selection absolute top-full -left-0.5 mt-1.5 px-1.5 py-1 font-mono text-xs leading-none tracking-[0.02em] whitespace-nowrap text-white not-italic"
       >
         {label}
       </span>

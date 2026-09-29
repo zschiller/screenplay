@@ -13,7 +13,8 @@ import { ThemeProvider } from "@/components/theme-provider"
 // The Editorial type voice (#1005, #1010), with the app's titles (#1077):
 // Instrument Sans for text, Unbounded for headlines, Geist Mono for small
 // uppercase labels. `marketing.css` maps these onto `font-sans` and
-// `font-heading`. Instrument Serif stays for the wordmark only.
+// `font-heading`. Instrument Serif (with its italic) stays for the wordmark
+// and the hero headline.
 const fontSans = Instrument_Sans({
   subsets: ["latin"],
   variable: "--font-instrument-sans",
@@ -22,6 +23,7 @@ const fontSans = Instrument_Sans({
 const fontSerif = Instrument_Serif({
   subsets: ["latin"],
   weight: "400",
+  style: ["normal", "italic"],
   variable: "--font-instrument-serif",
 })
 
