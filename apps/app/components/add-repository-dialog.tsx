@@ -223,8 +223,7 @@ export function AddRepositoryDialog({
           </DialogTitle>
           {pickerView === "settings" && pendingPick && (
             <DialogDescription>
-              Confirm the run settings for {pickLabel(pendingPick)} before
-              it&apos;s added.
+              {`Confirm the run settings for ${pickLabel(pendingPick)} before it's added.`}
             </DialogDescription>
           )}
         </DialogHeader>

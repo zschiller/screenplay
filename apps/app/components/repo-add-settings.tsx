@@ -321,7 +321,7 @@ export function RepoAddSettings({
             checked={savePreset}
             onCheckedChange={(checked) => setSavePreset(checked === true)}
           />
-          Save these settings for next time
+          Save as a preset
         </Label>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onCancel}>
