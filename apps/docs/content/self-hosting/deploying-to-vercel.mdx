@@ -60,6 +60,20 @@ sign-in. That's why some values must be identical everywhere.
   database branch per preview automatically.
 </Callout>
 
+## Preview deploys are opt-in
+
+Each app's `vercel.json` sets an ignored build step
+(`scripts/vercel-ignore-build.sh`) so previews don't spend build credits on
+every push. Production deploys always build. A preview builds only when:
+
+- the pull request has the `preview` label (add it, then push; adding a label
+  alone doesn't start a deploy), or
+- the pushed commit's message contains `[preview]`.
+
+The label check calls the GitHub API unauthenticated, which works for a
+public repository. For a private fork, add a `GITHUB_TOKEN` environment
+variable (Preview scope) with read access to its pull requests.
+
 ## Serving under a path
 
 The reference deployment serves the marketing site at the domain root, the
