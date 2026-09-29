@@ -224,7 +224,7 @@ function BranchPicker({
         </PopoverTrigger>
       </MaybeWorkspaceHoverCard>
       <PopoverContent
-        className="inverted w-72 p-0"
+        className="w-72 p-0"
         side="bottom"
         align="start"
         onPointerDown={(e) => e.stopPropagation()}
