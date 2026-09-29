@@ -136,7 +136,7 @@ export function WorkspaceTaskRow({
       data-state={state}
       disabled={!branch}
       onClick={() => tasks.onOpen(task)}
-      className="flex w-full min-w-0 flex-col gap-0.5 rounded-lg bg-muted px-2.5 py-2 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:hover:bg-muted"
+      className="flex w-full min-w-0 flex-col gap-0.5 rounded-lg bg-muted px-2.5 py-2 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:hover:bg-muted dark:bg-input/70 dark:hover:bg-input dark:disabled:hover:bg-input/70"
     >
       <span className="flex w-full min-w-0 items-center gap-2">
         <StateIcon state={state} />
