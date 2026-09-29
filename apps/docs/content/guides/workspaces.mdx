@@ -10,7 +10,9 @@ import { Callout } from "nextra/components"
 A workspace is one git branch of a repository, running in its own sandbox with
 its own dev server, frames, agent chats, and terminals. The sidebar's
 **Workspaces** section lists every workspace on the canvas in one flat list,
-by title. Each has a color that tags its frames across the canvas.
+by title. Wherever a workspace is named, on a row, a group or frame label, or
+the address bar, it shows the same way: an icon for what it's doing, its
+title, and its pull request when there's room.
 
 ## Creating workspaces
 
@@ -95,12 +97,12 @@ the panel.
 Hover a row to see where the workspace is used: the canvas list lights up the
 [groups](/guides/canvas#a-groups-workspace) on it and the frames that show
 it, and the canvas outlines those frames. It works the other way too:
-hovering a group, a frame, or a group's workspace pill lights up its
+hovering a group, a frame, or a group's workspace lights up its
 workspace's row.
 
 ### The hover card
 
-Hover a workspace row, or a workspace's badge on a group or frame label or in
+Hover a workspace row, or a workspace named on a group or frame label or in
 the address bar, to see its details:
 
 - its title and what it's doing now, such as the setup step and how long it
@@ -108,7 +110,7 @@ the address bar, to see its details:
 - its **repository**, its **git branch**, the **base** branch its changes are
   compared with, and its **changes** as +/− line counts.
 
-This is where you find a workspace's branch name, since rows and badges show
+This is where you find a workspace's branch name, since rows and labels show
 its title.
 
 ## The workspace menu
@@ -131,11 +133,8 @@ request, or **Open prototype player**), then groups the rest under **View**,
 | **Rename branch…** | Renames the git branch, on GitHub and in the workspace. Names already used on the remote are refused. The workspace keeps its title. |
 | **New workspace from here…** | Opens **Create workspaces** with this workspace's branch as the base. |
 | **Rename** | Renames the workspace's title. The git branch stays as it is. |
-| **Color** | Picks one of 16 colors, or **Reset to default**. |
 | **Restart** | See [Restarting](#restarting). |
 | **Delete** | Removes the workspace, and optionally its branch on GitHub. |
-
-<Screenshot name="ws-color" alt="The Color submenu with 16 colors" />
 
 ## Restarting
 

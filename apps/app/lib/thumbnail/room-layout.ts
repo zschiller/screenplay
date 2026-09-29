@@ -7,25 +7,21 @@ import {
 import type { RoomReader } from "@/lib/room-access"
 
 /**
- * One layer as the capture path sees it: its label (for the manifest), the live
- * preview URL to screenshot, and its bound Branch's palette inputs (`branchKey`
- * is the hash key; `branchColorIndex` the manual override).
- * `previewUrl` is `null` when the layer's Branch has no ready preview yet (no
- * `previewDomain`), so the capture loop skips it and the manifest records a
- * branch-tinted, captureless placeholder. `branchKey` is `null` for a frame
- * bound to no Branch.
+ * One layer as the capture path sees it: its label (for the manifest) and the
+ * live preview URL to screenshot. `previewUrl` is `null` when the layer has no
+ * bound Branch or its Branch has no ready preview yet (no `previewDomain`), so
+ * the capture loop skips it and the manifest records a neutral, captureless
+ * placeholder.
  *
  * Markdown (document) layers ride this same path: they have no preview to
- * screenshot, so they land with `previewUrl` and `branchKey` both `null` — a
- * neutral, captureless placeholder labeled by the document's title — and still
- * occupy their place in the composed thumbnail.
+ * screenshot, so they land with a `null` `previewUrl` — a captureless
+ * placeholder labeled by the document's title — and still occupy their place in
+ * the composed thumbnail.
  */
 export type CaptureFrame = {
   id: string
   label: string
   previewUrl: string | null
-  branchKey: string | null
-  branchColorIndex?: number
 }
 
 /**
@@ -60,20 +56,15 @@ export async function readRoomCaptureLayout(
         id: a.id,
         label: a.label,
         previewUrl: previewDomain ? previewDomain + (a.route ?? "") : null,
-        // Snapshot the bound Branch's palette inputs so the manifest can resolve
-        // a placeholder tint without re-reading the doc at grid time.
-        branchKey: a.branchId ?? null,
-        branchColorIndex: branch?.colorIndex,
       }
     })
     // Markdown (document) layers have nothing to screenshot, so they ride the
-    // path as captureless, Branch-less placeholders labeled by their title —
+    // path as captureless placeholders labeled by their title —
     // they hold their place in the composed thumbnail alongside iframe layers.
     const markdownFrames: CaptureFrame[] = markdownLayers.map((m) => ({
       id: m.id,
       label: m.title,
       previewUrl: null,
-      branchKey: null,
     }))
     return { layouts, frames: [...iframeFrames, ...markdownFrames] }
   })

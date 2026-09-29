@@ -26,13 +26,17 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import type { JsonObject } from "@/lib/postmessage-protocol"
-import { branchTextClass, getBranchColor } from "@/lib/branch-colors"
-import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
+import { workspaceLabel } from "@/lib/workspace-label"
 import type { BranchData } from "@/lib/types"
 import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
 import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
-import { WorkspaceCommandList, type FollowGroup } from "./workspace-list"
+import type { WorkspaceMentionBranch } from "@/components/workspace-mention"
+import {
+  CompactWorkspaceMention,
+  WorkspaceCommandList,
+  type FollowGroup,
+} from "./workspace-list"
 
 /**
  * The address field in a selected frame's floating toolbar (issue #795), like
@@ -215,20 +219,23 @@ export function FrameAddressBar({
   )
 }
 
-/** The frame's Workspace, as the address field names it. */
-export interface FrameWorkspace {
-  branchId: string
-  ref: string
-  /** Shown over `ref` when set (#881); see `workspaceLabel`. */
-  title?: string
-  colorIndex?: number
+/** The frame's Workspace, as the address field and the canvas labels name
+ *  it: enough of its Branch for the shared mention (#975). */
+export type FrameWorkspace = WorkspaceMentionBranch & { branchId: string }
+
+/** A Branch as a {@link FrameWorkspace}, or undefined while it has no ref. */
+export function frameWorkspaceOf(
+  branch: BranchData | undefined
+): FrameWorkspace | undefined {
+  return branch?.ref ? { ...branch, branchId: branch.id } : undefined
 }
 
 /**
- * The address field's host (issue #867): the frame's Workspace as a dot and its
- * name in the Workspace's text colour, like the site before a browser's path.
- * Pressing it opens the Workspace list; picking one switches only this frame,
- * which keeps its route and state. A long name truncates before the route does.
+ * The address field's host (issue #867): the frame's Workspace as the shared
+ * mention (#975: state icon, plain name, PR badge when there's room), like the
+ * site before a browser's path. Pressing it opens the Workspace list; picking
+ * one switches only this frame, which keeps its route and state. A long name
+ * truncates before the route does.
  */
 function FrameWorkspaceHost({
   workspace,
@@ -242,24 +249,15 @@ function FrameWorkspaceHost({
   onAssignWorkspace?: (branchId: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const color = workspace
-    ? getBranchColor(workspace.branchId, workspace.colorIndex)
-    : undefined
   const label = workspace ? workspaceLabel(workspace) : undefined
 
-  const host = (
-    <>
-      {color && (
-        <span className={cn("size-1.5 shrink-0 rounded-full", color.swatch)} />
-      )}
-      <span className="truncate">{label ?? "Choose a workspace"}</span>
-    </>
+  const host = workspace ? (
+    <CompactWorkspaceMention workspace={workspace} />
+  ) : (
+    <span className="truncate">Choose a workspace</span>
   )
-  const hostClass = cn(
-    "flex h-5 max-w-40 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1.5 text-2xs font-medium",
-    workspace && !hasWorkspaceTitle(workspace) && "font-mono",
-    color ? branchTextClass(color) : "text-muted-foreground"
-  )
+  const hostClass =
+    "flex h-5 max-w-48 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-2xs font-medium text-muted-foreground"
 
   if (!onAssignWorkspace) {
     return (

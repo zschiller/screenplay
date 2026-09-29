@@ -53,6 +53,34 @@ export function WorkspaceName({
   )
 }
 
+/**
+ * A Workspace named beside something else's name (#975): canvas labels, the
+ * address bar's host and the Canvas list's rows. The shared mention, muted by
+ * its container.
+ *
+ * - `"label"`: sized to its content, the PR badge right after the Workspace's
+ *   name while there's room.
+ * - `"row"`: fills the room a list row's name leaves, with the PR badge at the
+ *   row's end, like the Workspaces list.
+ */
+export function CompactWorkspaceMention({
+  workspace,
+  layout = "label",
+}: {
+  workspace: FrameWorkspace
+  layout?: "label" | "row"
+}) {
+  const agentWorking = useWorkspaceAgentWorking()
+  return (
+    <WorkspaceMention
+      branch={workspace}
+      agentWorking={agentWorking(workspace.branchId)}
+      pr={layout === "row" ? "end" : "after"}
+      className={cn("gap-1", layout === "label" && "flex-initial")}
+    />
+  )
+}
+
 /** An exception frame's way back to its Group's Workspace (#868). */
 export interface FollowGroup {
   /** The Group's name. */

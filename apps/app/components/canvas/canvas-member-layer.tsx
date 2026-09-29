@@ -34,6 +34,7 @@ import type { CanvasSelection } from "./use-canvas-selection"
 import type { ElementReference } from "./use-element-reference"
 import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
+import { frameWorkspaceOf } from "./frame-nav"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -216,19 +217,10 @@ function CanvasMemberLayerImpl({
 
         // Each Group's Workspace (#868), as its label and its frames name it.
         const framesById = new Map(iframeLayers.map((l) => [l.id, l]))
-        const workspaceOf = (branchId: string | undefined) => {
-          const branch = branchId
-            ? agents.find((a) => a.id === branchId)
-            : undefined
-          return branch?.ref
-            ? {
-                branchId: branch.id,
-                ref: branch.ref,
-                title: branch.title,
-                colorIndex: branch.colorIndex,
-              }
-            : undefined
-        }
+        const workspaceOf = (branchId: string | undefined) =>
+          frameWorkspaceOf(
+            branchId ? agents.find((a) => a.id === branchId) : undefined
+          )
 
         // The group label's pill, as a switcher for the whole Group (#869).
         const groupSwitcherOf = (
@@ -426,8 +418,6 @@ function CanvasMemberLayerImpl({
               iframeLayer={{
                 ...iframeLayer,
                 iframeUrl: agentInfo?.previewDomain,
-                branch: agentInfo?.branch ?? assignedAgent?.ref,
-                branchTitle: assignedAgent?.title,
               }}
               zoom={zoom}
               focused={focusedIframeLayerId === iframeLayer.id}

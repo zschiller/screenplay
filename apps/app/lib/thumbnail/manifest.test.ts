@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import type { IframeLayerLayout } from "@/lib/canvas/layout"
-import { resolveBranchColorIndex } from "@/lib/branch-colors"
 import {
   buildThumbnailManifest,
   type FrameCapture,
   type ManifestLayer,
+  type ThumbnailManifest,
 } from "./manifest"
 
 /** A layout-map entry with sensible defaults for the fields the manifest ignores. */
@@ -23,13 +23,9 @@ function layout(
   }
 }
 
-/** A layer input bound to a Branch, with the palette fields overridable. */
-function input(
-  id: string,
-  label: string,
-  branch?: Partial<Pick<ManifestLayer, "branchKey" | "branchColorIndex">>
-): ManifestLayer {
-  return { id, label, branchKey: `branch-${id}`, ...branch }
+/** A layer input. */
+function input(id: string, label: string): ManifestLayer {
+  return { id, label }
 }
 
 /** A fresh capture for `id`, captured at `capturedAt`, optionally sized. */
@@ -66,7 +62,6 @@ describe("buildThumbnailManifest", () => {
         y: 0,
         width: 400,
         height: 300,
-        paletteIndex: resolveBranchColorIndex("branch-a"),
         capture: null,
       },
       {
@@ -76,7 +71,6 @@ describe("buildThumbnailManifest", () => {
         y: 0,
         width: 400,
         height: 300,
-        paletteIndex: resolveBranchColorIndex("branch-b"),
         capture: null,
       },
     ])
@@ -96,47 +90,6 @@ describe("buildThumbnailManifest", () => {
 
     expect(manifest.frames[0]!.capture).toEqual(capture("a", 1000))
     expect(manifest.frames[1]!.capture).toBeNull()
-  })
-
-  it("snapshots a Branch's manual palette override over the hash", () => {
-    const layouts = new Map([
-      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
-    ])
-    const manifest = buildThumbnailManifest(
-      layouts,
-      [input("a", "Home", { branchKey: "branch-a", branchColorIndex: 7 })],
-      new Map()
-    )
-
-    expect(manifest.frames[0]!.paletteIndex).toBe(7)
-  })
-
-  it("snapshots the hashed palette index when the Branch has no override", () => {
-    const layouts = new Map([
-      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
-    ])
-    const manifest = buildThumbnailManifest(
-      layouts,
-      [input("a", "Home", { branchKey: "feature-login" })],
-      new Map()
-    )
-
-    expect(manifest.frames[0]!.paletteIndex).toBe(
-      resolveBranchColorIndex("feature-login")
-    )
-  })
-
-  it("snapshots a null palette index for a frame bound to no Branch", () => {
-    const layouts = new Map([
-      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
-    ])
-    const manifest = buildThumbnailManifest(
-      layouts,
-      [{ id: "a", label: "Empty frame", branchKey: null }],
-      new Map()
-    )
-
-    expect(manifest.frames[0]!.paletteIndex).toBeNull()
   })
 
   it("computes bounds as the union of every placed frame's rect", () => {
@@ -178,7 +131,11 @@ describe("buildThumbnailManifest", () => {
       ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
     ])
     // First build (no previous) lands at revision 1.
-    const first = buildThumbnailManifest(layouts, [input("a", "Home")], new Map())
+    const first = buildThumbnailManifest(
+      layouts,
+      [input("a", "Home")],
+      new Map()
+    )
     expect(first.revision).toBe(1)
 
     // A layout-only rebuild (no fresh captures) still advances the revision, so
@@ -349,12 +306,12 @@ describe("buildThumbnailManifest", () => {
       expect(next.frames[0]!.capture).toEqual(capture("a", 1000))
     })
 
-    it("re-snapshots label and palette index from the current layout while retaining the image", () => {
+    it("re-snapshots the label from the current layout while retaining the image", () => {
       const next = buildThumbnailManifest(
         layouts,
         [
-          // `a` was renamed and recolored on the canvas; no new capture this round.
-          input("a", "Dashboard", { branchColorIndex: 9 }),
+          // `a` was renamed on the canvas; no new capture this round.
+          input("a", "Dashboard"),
           input("b", "Settings"),
         ],
         new Map(),
@@ -363,10 +320,27 @@ describe("buildThumbnailManifest", () => {
 
       expect(next.frames[0]).toMatchObject({
         label: "Dashboard",
-        paletteIndex: 9,
         // ...while still carrying the retained image.
         capture: capture("a", 1000),
       })
+    })
+
+    it("accepts a stored manifest carrying a legacy paletteIndex and drops it", () => {
+      // v2 rows written before Workspace colours were removed still carry a
+      // per-frame `paletteIndex`; they must keep their captures on rebuild.
+      const legacy = {
+        ...previous,
+        frames: previous.frames.map((f) => ({ ...f, paletteIndex: 3 })),
+      } as ThumbnailManifest
+      const next = buildThumbnailManifest(
+        layouts,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map(),
+        legacy
+      )
+
+      expect(next.frames[0]!.capture).toEqual(capture("a", 1000))
+      expect(next.frames[0]).not.toHaveProperty("paletteIndex")
     })
   })
 })

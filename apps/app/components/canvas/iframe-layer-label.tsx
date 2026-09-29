@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react"
 import { Braces, ChevronsUpDown } from "lucide-react"
-import { BranchBadge } from "@/components/branch-badge"
 import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import {
   Popover,
@@ -18,14 +17,16 @@ import {
 import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { workspaceLabel } from "@/lib/workspace-label"
+import { frameWorkspaceOf, type FrameWorkspace } from "./frame-nav"
 import { LayerLabelRow } from "./layer-title-bar"
-import { WorkspaceCommandList, type FollowGroup } from "./workspace-list"
+import {
+  CompactWorkspaceMention,
+  WorkspaceCommandList,
+  type FollowGroup,
+} from "./workspace-list"
 
 interface IframeLayerLabelProps {
   label: string
-  branch?: string
-  /** The Workspace's title (#881); the badge shows it over `branch`. */
-  branchTitle?: string
   branchId?: string
   /** Name the frame's Workspace after its name: the frame differs from its
    *  Group's Workspace, or it is a Group of one with no group label (#868).
@@ -56,8 +57,6 @@ interface IframeLayerLabelProps {
  */
 export function IframeLayerLabel({
   label,
-  branch,
-  branchTitle,
   branchId,
   showWorkspace,
   followGroup,
@@ -68,11 +67,12 @@ export function IframeLayerLabel({
   onSelectFrame,
   onRename,
 }: IframeLayerLabelProps) {
-  const colorIndex = assignableBranches?.find(
-    (a) => a.id === branchId
-  )?.colorIndex
+  // The frame's Workspace as the list knows it, for its state and PR (#975).
+  const workspace = frameWorkspaceOf(
+    branchId ? assignableBranches?.find((a) => a.id === branchId) : undefined
+  )
   let trailing: React.ReactNode = null
-  if (!branch) {
+  if (!workspace) {
     // An unassigned frame offers the list, as its body does, unless its
     // Group's label offers it for every frame at once (#871).
     if (onAssignBranch && showWorkspace) {
@@ -86,25 +86,16 @@ export function IframeLayerLabel({
   } else if (showWorkspace) {
     trailing = onAssignBranch ? (
       <BranchPicker
-        branch={branch}
-        branchTitle={branchTitle}
-        currentBranchId={branchId}
-        colorIndex={colorIndex}
+        workspace={workspace}
         followGroup={followGroup}
         assignableBranches={assignableBranches ?? []}
         onAssignBranch={onAssignBranch}
       />
     ) : (
-      <MaybeWorkspaceHoverCard branchId={branchId} side="bottom">
-        {/* BranchBadge doesn't take the trigger's props; this span does. */}
-        <span className="flex min-w-10 shrink-[100]">
-          <BranchBadge
-            branch={branch}
-            title={branchTitle}
-            colorKey={branchId}
-            colorIndex={colorIndex}
-            className="min-w-0 px-1 py-0 text-3xs"
-          />
+      <MaybeWorkspaceHoverCard branchId={workspace.branchId} side="bottom">
+        {/* The mention doesn't take the trigger's props; this span does. */}
+        <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
+          <CompactWorkspaceMention workspace={workspace} />
         </span>
       </MaybeWorkspaceHoverCard>
     )
@@ -123,10 +114,8 @@ export function IframeLayerLabel({
 }
 
 interface BranchPickerProps {
-  branch?: string
-  branchTitle?: string
-  currentBranchId?: string
-  colorIndex?: number
+  /** Unset on an unassigned frame, which offers "Choose a workspace". */
+  workspace?: FrameWorkspace
   followGroup?: FollowGroup
   assignableBranches: BranchData[]
   onAssignBranch: (branchId: string) => void
@@ -182,25 +171,23 @@ export function SharedStateIndicator({
 }
 
 /**
- * The Workspace a frame names on its label, as a switcher: its pill (the one
- * the Workspace list uses), with the up-down chevron on hover. An unassigned
- * frame shows "Choose a workspace" instead.
+ * The Workspace a frame names on its label, as a switcher: the shared mention
+ * (the one the Workspace list uses), with the up-down chevron on hover. An
+ * unassigned frame shows "Choose a workspace" instead.
  */
 function BranchPicker({
-  branch,
-  branchTitle,
-  currentBranchId,
-  colorIndex,
+  workspace,
   followGroup,
   assignableBranches,
   onAssignBranch,
 }: BranchPickerProps) {
   const [open, setOpen] = useState(false)
+  const currentBranchId = workspace?.branchId
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <MaybeWorkspaceHoverCard
-        branchId={branch ? currentBranchId : undefined}
+        branchId={currentBranchId}
         side="bottom"
         suppressed={open}
       >
@@ -208,32 +195,24 @@ function BranchPicker({
           <button
             type="button"
             aria-label={
-              branch
-                ? `Workspace: ${workspaceLabel({ ref: branch, title: branchTitle })}`
+              workspace
+                ? `Workspace: ${workspaceLabel(workspace)}`
                 : "Choose a workspace"
             }
-            // Names win: the pill gives up its width first.
-            className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
+            // Names win: the Workspace gives up its width first.
+            className="group flex min-w-10 shrink-[100] items-center text-xs text-muted-foreground outline-none focus-visible:outline-none"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            {branch ? (
-              <BranchBadge
-                branch={branch}
-                title={branchTitle}
-                colorKey={currentBranchId}
-                colorIndex={colorIndex}
-                className="px-1 py-0 text-3xs"
-              />
+            {workspace ? (
+              <CompactWorkspaceMention workspace={workspace} />
             ) : (
-              <span className="truncate text-xs text-muted-foreground">
-                Choose a workspace
-              </span>
+              <span className="truncate">Choose a workspace</span>
             )}
             <ChevronsUpDown
               aria-hidden
               className={
-                branch
+                workspace
                   ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
                   : "ml-1 size-3 shrink-0 text-muted-foreground"
               }

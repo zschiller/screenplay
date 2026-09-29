@@ -15,7 +15,7 @@ import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceHoverProps } from "@/lib/workspace-hover-store"
 import type { FrameWorkspace } from "./frame-nav"
-import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
+import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
 /** Switching a whole Group's Workspace from its label (#869). */
 interface GroupWorkspaceSwitch {
@@ -73,7 +73,7 @@ interface GroupLabelProps {
  * `MarkdownLayer` so both kinds of group members render the same label.
  */
 export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
-  // Hovering the pill lights up its Workspace in the sidebar (#872).
+  // Hovering the Workspace lights up its Workspace in the sidebar (#872).
   const hoverProps = useWorkspaceHoverProps(workspace?.branchId, "group")
   if (!workspace) return <GroupName {...props} className="mb-0.5" />
   return (
@@ -94,7 +94,7 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
         <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
           <span
             data-slot="group-workspace"
-            className="flex min-w-10 shrink-[100]"
+            className="flex min-w-10 shrink-[100] text-xs text-muted-foreground"
             {...hoverProps}
             onPointerDown={(e) => {
               if (e.button !== 0) return
@@ -102,10 +102,7 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
               props.onSelectGroup?.(e.shiftKey)
             }}
           >
-            <WorkspaceName
-              workspace={workspace}
-              className="text-xs text-muted-foreground"
-            />
+            <CompactWorkspaceMention workspace={workspace} />
           </span>
         </WorkspaceHoverCard>
       )}
@@ -114,7 +111,7 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
 }
 
 /**
- * The Group's Workspace as a switcher (#869): its plain name, muted, with the
+ * The Group's Workspace as a switcher (#869): the shared mention, muted, with the
  * up-down chevron on hover, and pressing it opens the Workspace list. Picking one
  * shows the whole Group from it; the footer says what moves before you pick.
  */
@@ -144,14 +141,11 @@ function GroupWorkspaceSwitcher({
             {...hoverProps}
             aria-label={`Show ${label} from another workspace (now ${workspaceLabel(workspace)})`}
             // Names win: the Workspace gives up its width first.
-            className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
+            className="group flex min-w-10 shrink-[100] items-center text-xs text-muted-foreground outline-none focus-visible:outline-none"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <WorkspaceName
-              workspace={workspace}
-              className="text-xs text-muted-foreground"
-            />
+            <CompactWorkspaceMention workspace={workspace} />
             <ChevronsUpDown
               aria-hidden
               className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"

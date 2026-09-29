@@ -588,16 +588,9 @@ async function seedRoomThumbnail(
       width: layout.width,
       height: layout.height,
       label: layer.label,
-      paletteIndex: branch?.colorIndex ?? null,
+      accentIndex: branch?.colorIndex ?? null,
     })
-    manifestLayers.push({
-      id: frameId,
-      label: layer.label,
-      branchKey: layer.branchId ?? null,
-      ...(branch?.colorIndex !== undefined
-        ? { branchColorIndex: branch.colorIndex }
-        : {}),
-    })
+    manifestLayers.push({ id: frameId, label: layer.label })
   }
   if (requests.length === 0) return 0
 

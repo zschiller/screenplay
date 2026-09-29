@@ -117,7 +117,6 @@ function renderMenu(
         pr={pr}
         onRename={vi.fn()}
         onRenameBranch={vi.fn()}
-        onUpdateBranch={vi.fn()}
         onNewBranchFromHere={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
         onRestart={onRestart ?? vi.fn()}
@@ -155,7 +154,7 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
           "new-branch-from-here",
         ],
       ],
-      ["manage", ["rename", "color", "restart"]],
+      ["manage", ["rename", "restart"]],
       ["danger", ["delete"]],
     ])
   })
@@ -232,7 +231,6 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Rename branch…",
       "New workspace from here…",
       "Rename",
-      "Color",
       "Restart",
       "Delete",
     ])
@@ -360,7 +358,6 @@ function MenuToDialogHarness() {
           onRetry={vi.fn()}
           onRename={vi.fn()}
           onRenameBranch={vi.fn()}
-          onUpdateBranch={vi.fn()}
           onNewBranchFromHere={() => {
             setBase(branch.ref ?? null)
             setOpen(true)

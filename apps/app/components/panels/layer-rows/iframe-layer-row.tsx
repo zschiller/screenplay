@@ -17,7 +17,8 @@ import {
 import { EditableText } from "@workspace/ui/components/editable-text"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
-import { BranchBadge } from "@/components/branch-badge"
+import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
+import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { isWorkspaceException } from "@/lib/canvas/group-workspace"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
@@ -58,17 +59,13 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     const showWorkspace =
       variant === "flat" ||
       isWorkspaceException(item, extras.groupBranchIdByLayerId.get(item.id))
-    const workspacePill =
-      showWorkspace && branch?.ref ? (
-        <BranchBadge
-          branch={branch.ref}
-          title={branch.title}
-          colorKey={branch.id}
-          colorIndex={branch.colorIndex}
-          // Names win: the pill gives up its width first.
-          className="ml-auto min-w-10 shrink-[100] px-1 py-0 text-3xs"
-        />
-      ) : null
+    const workspace = showWorkspace ? frameWorkspaceOf(branch) : undefined
+    const workspaceMention = workspace ? (
+      // Names win: the Workspace takes only the room the name leaves.
+      <span className="flex min-w-10 flex-1 basis-0 text-xs text-muted-foreground">
+        <CompactWorkspaceMention workspace={workspace} layout="row" />
+      </span>
+    ) : null
 
     // Hovering this row lights up its Workspace in the sidebar; hovering the
     // Workspace lights up this row (#793). The highlight is the row's own
@@ -113,7 +110,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
         >
           <Icon className="shrink-0 text-sidebar-foreground/70" />
           {nameEditable}
-          {workspacePill}
+          {workspaceMention}
         </SidebarMenuButton>
       )
     }
@@ -137,7 +134,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
         >
           <Icon className="shrink-0 text-sidebar-foreground/70" />
           {nameEditable}
-          {workspacePill}
+          {workspaceMention}
         </button>
       </SidebarMenuSubButton>
     )

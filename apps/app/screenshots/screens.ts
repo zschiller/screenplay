@@ -2824,6 +2824,38 @@ export const SCREENS: Screen[] = [
     settleMs: 800,
   },
   {
+    name: "canvas-group-workspace-agent-working",
+    description:
+      "A Group whose Workspace has an agent working: its label shows the 9-dot, the plain name and the merged PR, and so does the Canvas list's Group row (#975).",
+    path: `/${ids.rooms.pricing}`,
+    prepare: async (page) => {
+      await page
+        .getByText("Pricing · laptop", { exact: true })
+        .first()
+        .waitFor({ state: "visible", timeout: 15_000 })
+      await page.mouse.move(5, 5)
+    },
+    settleMs: 800,
+  },
+  {
+    name: "canvas-frame-workspace-host-agent-working",
+    description:
+      "A selected frame whose Workspace has an agent working: the address bar's host shows the 9-dot, the plain name and the PR (#975).",
+    path: `/${ids.rooms.pricing}`,
+    prepare: async (page) => {
+      await page
+        .getByText("Pricing · laptop", { exact: true })
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .locator("#frame-toolbar-portal button")
+        .first()
+        .waitFor({ state: "visible", timeout: 15_000 })
+      await page.mouse.move(5, 5)
+    },
+    settleMs: 800,
+  },
+  {
     name: "canvas-group-choose-workspace",
     description:
       "A Group whose frames have no Workspace yet: Choose a workspace sits on its group label, not on each frame (#871).",

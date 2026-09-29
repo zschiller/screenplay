@@ -18,7 +18,6 @@ function manifest(label: string, revision?: number): ThumbnailManifest {
         y: 0,
         width: 100,
         height: 100,
-        paletteIndex: null,
         capture: null,
       },
     ],
@@ -120,7 +119,11 @@ describe("mergeRoomThumbnails", () => {
     const rooms = [room("a", 200, manifest("old", 5))]
 
     const merged = mergeRoomThumbnails(rooms, [
-      { id: "a", thumbnailUpdatedAt: 200, thumbnailManifest: manifest("moved", 6) },
+      {
+        id: "a",
+        thumbnailUpdatedAt: 200,
+        thumbnailManifest: manifest("moved", 6),
+      },
     ])
 
     expect(merged).not.toBe(rooms)
@@ -131,10 +134,18 @@ describe("mergeRoomThumbnails", () => {
     const rooms = [room("a", 100, manifest("current", 6))]
 
     const equal = mergeRoomThumbnails(rooms, [
-      { id: "a", thumbnailUpdatedAt: 999, thumbnailManifest: manifest("stale", 6) },
+      {
+        id: "a",
+        thumbnailUpdatedAt: 999,
+        thumbnailManifest: manifest("stale", 6),
+      },
     ])
     const older = mergeRoomThumbnails(rooms, [
-      { id: "a", thumbnailUpdatedAt: 999, thumbnailManifest: manifest("stale", 4) },
+      {
+        id: "a",
+        thumbnailUpdatedAt: 999,
+        thumbnailManifest: manifest("stale", 4),
+      },
     ])
 
     expect(equal).toBe(rooms)
@@ -145,7 +156,11 @@ describe("mergeRoomThumbnails", () => {
     const rooms = [room("a", 500, manifest("legacy"))]
 
     const merged = mergeRoomThumbnails(rooms, [
-      { id: "a", thumbnailUpdatedAt: 100, thumbnailManifest: manifest("fresh", 1) },
+      {
+        id: "a",
+        thumbnailUpdatedAt: 100,
+        thumbnailManifest: manifest("fresh", 1),
+      },
     ])
 
     expect(merged).not.toBe(rooms)

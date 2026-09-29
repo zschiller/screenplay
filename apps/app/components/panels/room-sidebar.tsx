@@ -99,7 +99,8 @@ import type {
   RepoData,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/canvas/layout"
-import { BranchBadge } from "@/components/branch-badge"
+import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
+import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { groupBranchId } from "@/lib/canvas/group-workspace"
 import { sortForSidebar } from "@/lib/sidebar-order"
 import {
@@ -1317,9 +1318,6 @@ export function RoomSidebar({
                                                   onRenameBranch={
                                                     setPendingRenameBranchId
                                                   }
-                                                  onUpdateBranch={
-                                                    onUpdateBranch
-                                                  }
                                                   onNewBranchFromHere={() => {
                                                     setNewWorkspaceBaseBranch(
                                                       branch.ref ?? null
@@ -1573,15 +1571,16 @@ export function RoomSidebar({
                                             const branch = id
                                               ? branchesById.get(id)
                                               : undefined
-                                            return branch?.ref ? (
-                                              <BranchBadge
-                                                branch={branch.ref}
-                                                title={branch.title}
-                                                colorKey={branch.id}
-                                                colorIndex={branch.colorIndex}
-                                                // Names win: the pill gives up its width first.
-                                                className="ml-auto min-w-10 shrink-[100] px-1 py-0 text-3xs"
-                                              />
+                                            const workspace =
+                                              frameWorkspaceOf(branch)
+                                            return workspace ? (
+                                              // Names win: the Workspace takes only the room the name leaves.
+                                              <span className="flex min-w-10 flex-1 basis-0 text-xs font-normal text-muted-foreground">
+                                                <CompactWorkspaceMention
+                                                  workspace={workspace}
+                                                  layout="row"
+                                                />
+                                              </span>
                                             ) : null
                                           })()}
                                         </GroupRowButton>

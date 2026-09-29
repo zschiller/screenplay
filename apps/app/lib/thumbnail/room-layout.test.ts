@@ -75,17 +75,13 @@ describe("readRoomCaptureLayout", () => {
       id: "d1",
       label: "Spec",
       previewUrl: null,
-      branchKey: null,
     })
   })
 
-  it("keeps iframe-layer frames bound to their Branch's preview URL and palette", async () => {
+  it("keeps iframe-layer frames bound to their Branch's preview URL", async () => {
     withDoc({
       branches: new Map([
-        [
-          "b1",
-          { previewDomain: "https://b1.example", colorIndex: 3 } as BranchData,
-        ],
+        ["b1", { previewDomain: "https://b1.example" } as BranchData],
       ]),
       iframeLayers: [
         iframeLayer({
@@ -115,8 +111,6 @@ describe("readRoomCaptureLayout", () => {
       id: "a1",
       label: "Frame",
       previewUrl: "https://b1.example/home",
-      branchKey: "b1",
-      branchColorIndex: 3,
     })
   })
 })

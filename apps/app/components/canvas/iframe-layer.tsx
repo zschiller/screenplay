@@ -53,7 +53,11 @@ import {
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
-import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
+import {
+  FrameAddressBar,
+  frameWorkspaceOf,
+  type FramePreviewStatus,
+} from "./frame-nav"
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import type { FollowGroup } from "./workspace-list"
@@ -117,9 +121,6 @@ export interface IframeLayerData {
   route?: string
   scrollX?: number
   scrollY?: number
-  branch?: string
-  /** The assigned Workspace's title (#881), shown over `branch`. */
-  branchTitle?: string
   knobs?: JsonValue[]
   knobValues?: JsonObject
   sharedState?: JsonObject
@@ -924,8 +925,6 @@ export function IframeLayer({
       renderTitle={(api) => (
         <IframeLayerLabel
           label={iframeLayer.label}
-          branch={iframeLayer.branch}
-          branchTitle={iframeLayer.branchTitle}
           branchId={iframeLayer.branchId}
           showWorkspace={showWorkspace}
           followGroup={followGroup}
@@ -990,18 +989,11 @@ export function IframeLayer({
                   <ChevronRight />
                 </FloatingToolbarButton>
                 <FrameAddressBar
-                  workspace={
-                    iframeLayer.branchId && iframeLayer.branch
-                      ? {
-                          branchId: iframeLayer.branchId,
-                          ref: iframeLayer.branch,
-                          title: iframeLayer.branchTitle,
-                          colorIndex: assignableBranches?.find(
-                            (a) => a.id === iframeLayer.branchId
-                          )?.colorIndex,
-                        }
-                      : undefined
-                  }
+                  workspace={frameWorkspaceOf(
+                    assignableBranches?.find(
+                      (a) => a.id === iframeLayer.branchId
+                    )
+                  )}
                   workspaces={assignableBranches ?? []}
                   followGroup={followGroup}
                   onAssignWorkspace={

@@ -7,7 +7,6 @@ import {
   GitBranchPlus,
   GitMerge,
   GitPullRequest,
-  Palette,
   Pencil,
   Play,
   RefreshCw,
@@ -20,15 +19,11 @@ import {
 import {
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { cn } from "@workspace/ui/lib/utils"
-import { BRANCH_COLORS } from "@/lib/branch-colors"
 import { openExternal } from "@/lib/open-external"
 import { openPreviewInBrowser } from "@/lib/open-preview"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -46,7 +41,6 @@ export type BranchMenuItemKey =
   | "retry"
   | "rename"
   | "rename-branch"
-  | "color"
   | "play"
   | "open-in-browser"
   | "routes"
@@ -93,7 +87,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
       "new-branch-from-here",
     ],
   },
-  { id: "manage", label: "Manage", itemKeys: ["rename", "color", "restart"] },
+  { id: "manage", label: "Manage", itemKeys: ["rename", "restart"] },
   { id: "danger", label: "Danger", itemKeys: ["delete"] },
 ]
 
@@ -144,7 +138,6 @@ export interface BranchOverflowMenuContentProps {
   onRename: () => void
   /** Opens the Rename branch dialog for the git branch (#881). */
   onRenameBranch: (branchId: string) => void
-  onUpdateBranch: (id: string, data: Partial<BranchData>) => void
   /**
    * Opens the create dialog seeded with this branch as the base and an empty
    * prompt (#353) — no longer an immediate fork with a random name.
@@ -200,7 +193,6 @@ export function BranchOverflowMenuContent({
   hasChanges = false,
   onRename,
   onRenameBranch,
-  onUpdateBranch,
   onNewBranchFromHere,
   onRestartDevServer,
   onRestart,
@@ -234,38 +226,6 @@ export function BranchOverflowMenuContent({
         <GitBranch />
         Rename branch…
       </DropdownMenuItem>
-    ),
-    color: (
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <Palette />
-          Color
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-40">
-          <DropdownMenuRadioGroup
-            value={
-              branch.colorIndex !== undefined ? String(branch.colorIndex) : ""
-            }
-            onValueChange={(v) =>
-              onUpdateBranch(branch.id, { colorIndex: Number(v) })
-            }
-          >
-            {BRANCH_COLORS.map((c, i) => (
-              <DropdownMenuRadioItem key={c.name} value={String(i)}>
-                <span className={cn("size-4 rounded-[3px]", c.swatch)} />
-                <span className="capitalize">{c.name}</span>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={branch.colorIndex === undefined}
-            onClick={() => onUpdateBranch(branch.id, { colorIndex: undefined })}
-          >
-            Reset to default
-          </DropdownMenuItem>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
     ),
     play: (
       <DropdownMenuItem
