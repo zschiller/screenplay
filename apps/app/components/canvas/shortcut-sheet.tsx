@@ -41,7 +41,7 @@ export function ShortcutSheet({
         <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
           {groups.map((group) => (
             <section key={group.title} className="flex flex-col gap-1.5">
-              <h3 className="text-xs font-medium text-muted-foreground">
+              <h3 className="font-mono text-2xs font-normal tracking-wider text-muted-foreground uppercase">
                 {group.title}
               </h3>
               <dl className="flex flex-col gap-1">

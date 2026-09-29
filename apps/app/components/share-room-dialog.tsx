@@ -141,7 +141,7 @@ export function ShareRoomDialog({
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <div className="flex flex-col gap-2">
-          <div className="text-xs font-medium text-muted-foreground">
+          <div className="font-mono text-2xs font-normal tracking-wider text-muted-foreground uppercase">
             People with access
           </div>
           {loading ? (
