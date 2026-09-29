@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { prewarmRoom } from "@/lib/yjs-host/client"
@@ -17,29 +17,37 @@ import { useHome } from "./home-provider"
 export function useCreateCanvas() {
   const router = useRouter()
   const { createRoom } = useHome()
-  const [creating, setCreating] = useState(false)
+  // The create and the navigation run as one transition, so home stays as it
+  // was (the button's spinner up) until the Canvas route renders, then swaps
+  // in one go. Updating the list first flashed the new tile, which from an
+  // empty state turned the page into a grid before the Canvas opened.
+  const [creating, startCreating] = useTransition()
   const busy = useRef(false)
 
   const create = useCallback(
-    async (folderId?: string | null) => {
+    (folderId?: string | null) => {
       if (busy.current) return
       busy.current = true
-      setCreating(true)
-      try {
-        const room = await createRoom("Untitled", folderId)
-        // Open the connection before navigating so the new canvas renders
-        // synced on its first frame rather than flashing the sync gate.
-        prewarmRoom(room.id)
-        router.push(`/${room.id}`)
-      } catch {
-        toast.error("Couldn't create the canvas. Try again.")
-      } finally {
-        busy.current = false
-        setCreating(false)
-      }
+      startCreating(async () => {
+        try {
+          const room = await createRoom("Untitled", folderId)
+          // Open the connection before navigating so the new canvas renders
+          // synced on its first frame rather than flashing the sync gate.
+          prewarmRoom(room.id)
+          startCreating(() => router.push(`/${room.id}`))
+        } catch {
+          toast.error("Couldn't create the canvas. Try again.")
+        }
+      })
     },
     [createRoom, router]
   )
+
+  // Let the next create through once this one settles: it failed, or the
+  // navigation was dropped (home unmounts when the Canvas opens).
+  useEffect(() => {
+    if (!creating) busy.current = false
+  }, [creating])
 
   return { create, creating }
 }

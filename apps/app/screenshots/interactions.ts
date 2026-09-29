@@ -503,6 +503,33 @@ export const INTERACTIONS: Interaction[] = [
     beforeNavigate: resetBootWorkspace,
     run: (page) => bootWorkspace(page),
   },
+  {
+    name: "new-canvas-empty",
+    description:
+      "An empty folder's New canvas: home holds with a spinner, then the new Canvas opens.",
+    path: `/files/${ids.folders.drafts}`,
+    // Compile the Canvas route first, so `next dev` isn't what the recording
+    // waits on.
+    beforeNavigate: async (page) => {
+      await page.request.get(`/${ids.rooms.empty}`, { timeout: 120_000 })
+    },
+    run: async (page) => {
+      await page.waitForTimeout(800)
+      await click(
+        page,
+        page
+          .getByRole("main")
+          .getByRole("button", { name: "New canvas" })
+          .last()
+      )
+      await page
+        .waitForURL((url) => !url.pathname.startsWith("/files"), {
+          timeout: 30_000,
+        })
+        .catch(() => {})
+      await page.waitForTimeout(2500)
+    },
+  },
 ]
 
 /**

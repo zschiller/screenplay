@@ -7,6 +7,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  startTransition,
 } from "react"
 import { toast } from "sonner"
 import {
@@ -439,17 +440,29 @@ export function HomeProvider({
   const createRoom = useCallback(
     async (name: string, folderId?: string | null) => {
       const room = await createRoomAction(name)
-      setRooms((prev) => [room, ...prev])
       // New canvas lands in the folder asked for, else the folder you're
       // viewing (root needs no row).
       const target =
         folderId !== undefined ? folderId : folderView ? currentFolderId : null
-      if (target !== null) {
-        await placeRoomAction(room.id, target)
-        setPlacements((prev) => [
-          ...prev.filter((p) => p.roomId !== room.id),
-          { roomId: room.id, folderId: target },
-        ])
+      let placed = false
+      try {
+        if (target !== null) {
+          await placeRoomAction(room.id, target)
+          placed = true
+        }
+      } finally {
+        // A transition, so a create that opens the new Canvas (useCreateCanvas)
+        // commits in the same render as the navigation: the list doesn't swap
+        // to show the new tile (or an empty state to a grid) first.
+        startTransition(() => {
+          setRooms((prev) => [room, ...prev])
+          if (placed && target !== null) {
+            setPlacements((prev) => [
+              ...prev.filter((p) => p.roomId !== room.id),
+              { roomId: room.id, folderId: target },
+            ])
+          }
+        })
       }
       return room
     },
