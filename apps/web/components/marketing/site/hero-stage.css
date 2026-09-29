@@ -1,0 +1,264 @@
+/* The hero's backdrop (hero-stage.tsx): copies of the homepage panning past
+   under the dither veil. Plain CSS because the copies are built on the
+   client. */
+
+.hc-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.hc-rows {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+  overflow: hidden;
+}
+.hc-track {
+  display: flex;
+  gap: 28px;
+  width: max-content;
+  animation: hc-pan 80s linear infinite paused;
+}
+.hc-track + .hc-track {
+  animation-direction: reverse;
+  animation-duration: 95s;
+}
+.hc-stage[data-playing] .hc-track {
+  animation-play-state: running;
+}
+@keyframes hc-pan {
+  to {
+    transform: translateX(calc(-50% - 14px));
+  }
+}
+
+/* One copy: its Workspace name and diff above a 16:10 frame. */
+.hc-copy {
+  position: relative;
+  flex: none;
+  width: clamp(240px, 30vw, 380px);
+}
+.hc-head {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+  font:
+    500 11px/1 var(--font-instrument-sans),
+    sans-serif;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.hc-diff {
+  margin-left: auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+}
+.hc-diff .a {
+  color: #16a34a;
+}
+.hc-diff .d {
+  color: #dc2626;
+}
+.hc-box {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  container-type: inline-size;
+  outline: 1px solid var(--border);
+}
+.hc-box .hc-page {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.7s cubic-bezier(0.6, 0, 0.2, 1);
+}
+.hc-box.wipe .hc-page {
+  clip-path: inset(0 0 100% 0);
+}
+
+/* The mini homepage. 1em = 1/60 of the frame's width. It has its own tokens
+   so an agent's edit can change them. */
+.hc-page {
+  --pg-bg: var(--background);
+  --pg-fg: var(--foreground);
+  --pg-mut: var(--muted-foreground);
+  --pg-line: var(--border);
+  --pg-acc: var(--selection);
+  --pg-r: 0.2em;
+  --pg-head: var(--font-instrument-serif), serif;
+  height: 100%;
+  font-size: calc(100cqw / 60);
+  background: var(--pg-bg);
+  color: var(--pg-fg);
+  font-family: var(--font-instrument-sans), sans-serif;
+  transition:
+    background-color 0.8s,
+    color 0.8s;
+}
+.hc-page.soft {
+  --pg-bg: color-mix(in oklab, var(--foreground) 5%, var(--background));
+}
+.hc-page.blue {
+  --pg-acc: oklch(0.6 0.2 255);
+}
+.hc-page.pill {
+  --pg-r: 99em;
+}
+.hc-nav {
+  display: flex;
+  align-items: center;
+  gap: 2.2em;
+  padding: 1.3em 3em;
+  border-bottom: 1px solid var(--pg-line);
+}
+.hc-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-instrument-serif), serif;
+  font-size: 1.5em;
+}
+.hc-logo i {
+  width: 1em;
+  height: 0.8em;
+  background: var(--pg-acc);
+  border-radius: 0.2em;
+  transition: background-color 0.8s;
+}
+.hc-links {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: 1.8em;
+  color: var(--pg-mut);
+  font-size: 1.05em;
+}
+.hc-dl {
+  background: var(--pg-fg);
+  color: var(--pg-bg);
+  padding: 0.7em 1.2em;
+  border-radius: var(--pg-r);
+  transition: all 0.6s;
+}
+.hc-hero {
+  padding: 3.2em 3em 0;
+}
+.hc-eye {
+  font:
+    500 0.85em/1.4 var(--font-mono),
+    monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pg-mut);
+}
+.hc-h1 {
+  margin-top: 0.35em;
+  max-width: 9.5em;
+  min-height: 1.9em;
+  font-family: var(--pg-head);
+  font-size: 6em;
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  transition: font-size 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.hc-page.mono .hc-h1 {
+  --pg-head: var(--font-mono), monospace;
+  font-size: 4.6em;
+  letter-spacing: -0.05em;
+}
+.hc-page.sans .hc-h1 {
+  font-family: var(--font-instrument-sans), sans-serif;
+  font-weight: 600;
+  font-size: 5.2em;
+  letter-spacing: -0.045em;
+}
+.hc-page.big .hc-h1 {
+  font-size: 7.4em;
+}
+.hc-caret {
+  display: inline-block;
+  width: 0.06em;
+  height: 0.8em;
+  margin-left: 0.04em;
+  vertical-align: -0.05em;
+  background: var(--pg-acc);
+  animation: hc-blink 1s steps(2) infinite;
+}
+@keyframes hc-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.hc-row {
+  margin-top: 2.2em;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2em;
+}
+.hc-lede {
+  margin: 0;
+  max-width: 26em;
+  font-size: 1.35em;
+  line-height: 1.45;
+}
+.hc-btns {
+  display: flex;
+  flex: none;
+  gap: 0.8em;
+}
+.hc-b {
+  border: 1px solid var(--pg-fg);
+  padding: 0.9em 1.3em;
+  font-size: 1.1em;
+  border-radius: var(--pg-r);
+  white-space: nowrap;
+  transition: all 0.6s;
+}
+.hc-b.solid {
+  background: var(--pg-fg);
+  color: var(--pg-bg);
+}
+.hc-page.accent-btn .hc-b.solid {
+  background: var(--pg-acc);
+  border-color: var(--pg-acc);
+  color: #fff;
+}
+.hc-page.center .hc-hero,
+.hc-page.center .hc-lede {
+  text-align: center;
+}
+.hc-page.center .hc-h1 {
+  margin-inline: auto;
+}
+.hc-page.center .hc-row {
+  flex-direction: column;
+  align-items: center;
+}
+.hc-fig {
+  margin-top: 2.6em;
+  height: 16em;
+  display: flex;
+  gap: 1.4em;
+  padding: 2em;
+  background: var(--plane);
+  border: 1px solid var(--pg-line);
+}
+.hc-fig span {
+  flex: 1;
+  background: var(--pg-bg);
+  border: 1px solid var(--pg-line);
+  transition: all 0.8s;
+}
+.hc-fig span:first-child {
+  outline: 2px solid var(--pg-acc);
+  outline-offset: -1px;
+}
