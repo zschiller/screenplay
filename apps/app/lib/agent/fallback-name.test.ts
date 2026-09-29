@@ -9,7 +9,7 @@ describe("deriveFallbackName", () => {
     )
     // "please" and "the" are stop-words; the rest survive in order.
     expect(branch).toMatch(/^fix-flaky-login-test-[a-z0-9]{4}$/)
-    expect(label).toBe("Fix Flaky Login Test")
+    expect(label).toBe("Fix flaky login test")
     // No trace of the raw truncated-prompt slug that shipped before.
     expect(branch).not.toContain("please")
     expect(branch).not.toContain("the-flaky")
@@ -55,27 +55,27 @@ describe("deriveFallbackName", () => {
       "build export import migrate archive rollback pipeline"
     )
     expect(label.split(" ").length).toBeLessThanOrEqual(4)
-    expect(label).toBe("Build Export Import Migrate")
+    expect(label).toBe("Build export import migrate")
   })
 
   it("falls back to a prefix + id when only stop-words remain", () => {
     const { branch, label } = deriveFallbackName("please can you do the")
     expect(branch).toMatch(/^task-[a-z0-9]{4}$/)
-    expect(label).toBe("Untitled Task")
+    expect(label).toBe("Untitled task")
   })
 
   it("handles empty and whitespace-only prompts", () => {
     for (const prompt of ["", "   ", "\n\t"]) {
       const { branch, label } = deriveFallbackName(prompt)
       expect(branch).toMatch(/^task-[a-z0-9]{4}$/)
-      expect(label).toBe("Untitled Task")
+      expect(label).toBe("Untitled task")
     }
   })
 
   it("strips punctuation and collapses separators", () => {
     const { branch, label } = deriveFallbackName("Fix: the (login) bug!!!")
     expect(branch).toMatch(/^fix-login-bug-[a-z0-9]{4}$/)
-    expect(label).toBe("Fix Login Bug")
+    expect(label).toBe("Fix login bug")
   })
 
   it("produces a branch within the callers' 3..50 length bounds", () => {

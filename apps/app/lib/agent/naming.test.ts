@@ -23,13 +23,13 @@ describe("generateChatNames", () => {
   it("parses a two-line model result into a sanitized branch + label", async () => {
     const result = await generateChatNames(
       { message: "please fix the flaky login test", shouldNameBranch: true },
-      { runModel: transport("Fix Login Test\nFix Login Test") }
+      { runModel: transport("Fix Login Test\nFix login test") }
     )
     // Line 1 is lowercased + hyphen-sanitized; line 2 is the label verbatim.
     expect(result).toEqual({
       branch: "fix-login-test",
-      chatLabel: "Fix Login Test",
-      title: "Fix Login Test",
+      chatLabel: "Fix login test",
+      title: "Fix login test",
     })
   })
 
@@ -49,7 +49,7 @@ describe("generateChatNames", () => {
     })
     // The improved slug, not the raw truncated prompt (#675).
     expect(result.branch).toMatch(/^fix-flaky-login-test-/)
-    expect(result.chatLabel).toBe("Fix Flaky Login Test")
+    expect(result.chatLabel).toBe("Fix flaky login test")
   })
 
   it("keeps the branch blank on the null path when a branch wasn't wanted", async () => {
@@ -66,12 +66,12 @@ describe("generateChatNames", () => {
   it("names only the label when a branch wasn't wanted", async () => {
     const result = await generateChatNames(
       { message: "add dark mode", shouldNameBranch: false },
-      { runModel: transport("Add Dark Mode") }
+      { runModel: transport("Add dark mode") }
     )
     // A later chat never retitles its Workspace (#881).
     expect(result).toEqual({
       branch: "",
-      chatLabel: "Add Dark Mode",
+      chatLabel: "Add dark mode",
       title: "",
     })
   })
@@ -85,5 +85,27 @@ describe("generateChatNames", () => {
     )
     expect(result.branch).toBe("")
     expect(result.chatLabel).toBe(deriveFallbackName(message).label)
+  })
+
+  it("asks the model for sentence-case labels in both prompts", async () => {
+    const systems: string[] = []
+    const record: typeof runOneShotModel = async ({ system }) => {
+      systems.push(system)
+      return null
+    }
+    await generateChatNames(
+      { message: "add dark mode", shouldNameBranch: true },
+      { runModel: record }
+    )
+    await generateChatNames(
+      { message: "add dark mode", shouldNameBranch: false },
+      { runModel: record }
+    )
+    // Every other string in the app is sentence case (#1047).
+    for (const system of systems) {
+      expect(system).toContain("sentence case")
+      expect(system).toContain("Add dark mode")
+      expect(system).not.toContain("title case")
+    }
   })
 })

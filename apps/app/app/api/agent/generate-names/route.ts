@@ -19,11 +19,11 @@ interface NameResult {
 const NAMING_SYSTEM_PROMPT =
   "Generate two things for the user's request:\n" +
   "1. A short, lowercase, hyphenated git branch name (2-4 words)\n" +
-  "2. A short chat label (2-5 words, title case)\n\n" +
+  "2. A short chat label (2-5 words, sentence case)\n\n" +
   "Output ONLY as two lines, no explanation, backticks, or quotes.\n" +
   "Line 1: branch name\nLine 2: chat label\n\n" +
-  "Examples:\nfix-login-button\nFix Login Button\n\n" +
-  "add-dark-mode\nAdd Dark Mode"
+  "Examples:\nfix-login-button\nFix login button\n\n" +
+  "add-dark-mode\nAdd dark mode"
 
 /**
  * Name one prompt: try the model through {@link runOneShotModel} (hosted API-key
