@@ -1,0 +1,14 @@
+/* Tailwind utilities, animations, the design tokens and the icon rules,
+   without Tailwind's preflight or our page base, for hosts that ship their
+   own base styles.
+   The docs site uses it so shared components render inside Nextra, whose
+   own preflight sits in earlier layers. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./tokens.css";
+@import "./icons.css";
+
+@source "../components/**/*.tsx";
+@source "../../../../apps/docs/components/**/*.tsx";

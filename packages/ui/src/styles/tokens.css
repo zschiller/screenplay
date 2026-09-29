@@ -1,0 +1,204 @@
+/* The design tokens: Tailwind theme mappings and the light, dark and
+   inverted values. Imported by globals.css and embed.css. */
+
+/* `inverted` (menus, tooltips, toasts) takes the other theme: dark tokens and
+   `dark:` styles in light mode, light ones in dark mode. */
+@custom-variant dark (&:is(.dark *:not(.inverted, .inverted *), :root:not(.dark) .inverted *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+    /* Small steps below Tailwind's text-xs (12px), for dense chrome: tool rows,
+       Layer labels, badges and captions. Use these instead of text-[Npx]
+       (apps/app/lib/type-scale.test.ts fails on arbitrary sizes). They set no
+       line height, so they inherit the surrounding leading as text-[Npx] did. */
+    --text-2xs: 0.6875rem;
+    --text-3xs: 0.625rem;
+    /* Title sizes for `font-heading` titles (#1077), tapered so the biggest
+       step shrinks most: 27px page titles, 24px sign-in and setup, 20px
+       dialogs and Settings sections, 17px empty states and sheets. Each
+       carries its own line height and tracking, so titles set no leading. */
+    --text-title-xl: 1.6875rem;
+    --text-title-xl--line-height: 1.15;
+    --text-title-xl--letter-spacing: -0.03em;
+    --text-title-lg: 1.5rem;
+    --text-title-lg--line-height: 1.2;
+    --text-title-lg--letter-spacing: -0.03em;
+    --text-title-md: 1.25rem;
+    --text-title-md--line-height: 1.25;
+    --text-title-md--letter-spacing: -0.03em;
+    --text-title-sm: 1.0625rem;
+    --text-title-sm--line-height: 1.3;
+    --text-title-sm--letter-spacing: -0.03em;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-destructive-fill: var(--destructive-fill);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-success: var(--success);
+    --color-success-fill: var(--success-fill);
+    --color-success-foreground: var(--success-foreground);
+    --color-warning: var(--warning);
+    --color-warning-fill: var(--warning-fill);
+    --color-warning-foreground: var(--warning-foreground);
+    --color-info: var(--info);
+    --color-info-fill: var(--info-fill);
+    --color-info-foreground: var(--info-foreground);
+    --color-merged: var(--merged);
+    --color-merged-fill: var(--merged-fill);
+    --color-merged-foreground: var(--merged-foreground);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    /* Editorial surfaces (issue #1006): nothing casts a drop shadow. Floating
+       surfaces (popovers, menus, hover cards, dialogs) separate from the page
+       with their hairline ring or border instead. Zeroed rather than removed so
+       every stock `shadow-*` class still resolves, and rings still compose. */
+    --shadow-2xs: 0 0 #0000;
+    --shadow-xs: 0 0 #0000;
+    --shadow-sm: 0 0 #0000;
+    --shadow-md: 0 0 #0000;
+    --shadow-lg: 0 0 #0000;
+    --shadow-xl: 0 0 #0000;
+    --shadow-2xl: 0 0 #0000;
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root,
+.dark .inverted {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0 0 0);
+    --primary: oklch(0 0 0);
+    --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.975 0 0);
+    --secondary-foreground: oklch(0 0 0);
+    --muted: oklch(0.975 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.965 0 0);
+    --accent-foreground: oklch(0 0 0);
+    /* Status colours (Signal palette, #1071). Each hue has two steps:
+       - `--x` is the ink: icons and text on the page background. In light it
+         is a deep, fully saturated shade so it reads on white; in dark it
+         equals the fill.
+       - `--x-fill` is fluorescent and only ever sits behind black
+         (`--x-foreground`): solid chips, dots, the done circle.
+       Info is the magenta accent, but its fill is a lighter hot pink: black
+       on the full magenta reads muddy. Merged is GitHub's merged purple moved
+       to hue 293 so it stays apart from the magenta. */
+    --destructive: oklch(0.56 0.226 27);
+    --destructive-fill: oklch(0.66 0.225 27);
+    --destructive-foreground: oklch(0 0 0);
+    --success: oklch(0.56 0.16 148);
+    --success-fill: oklch(0.82 0.235 148);
+    --success-foreground: oklch(0 0 0);
+    --warning: oklch(0.6 0.139 60);
+    --warning-fill: oklch(0.88 0.179 95);
+    --warning-foreground: oklch(0 0 0);
+    --info: oklch(0.56 0.259 326);
+    --info-fill: oklch(0.72 0.284 330);
+    --info-foreground: oklch(0 0 0);
+    --merged: oklch(0.54 0.282 293);
+    --merged-fill: oklch(0.66 0.198 293);
+    --merged-foreground: oklch(0 0 0);
+    --border: oklch(0 0 0 / 12%);
+    --input: oklch(0 0 0 / 12%);
+    --ring: oklch(0.667 0.295 322.15);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.125rem;
+    --sidebar: oklch(1 0 0);
+    --sidebar-foreground: oklch(0 0 0);
+    --sidebar-primary: oklch(0 0 0);
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: oklch(0.965 0 0);
+    --sidebar-accent-foreground: oklch(0 0 0);
+    --sidebar-border: oklch(0 0 0 / 12%);
+    --sidebar-ring: oklch(0.667 0.295 322.15);
+}
+
+.dark,
+:root:not(.dark) .inverted {
+    --background: oklch(0 0 0);
+    --foreground: oklch(1 0 0);
+    --card: oklch(0 0 0);
+    --card-foreground: oklch(1 0 0);
+    --popover: oklch(0.1 0 0);
+    --popover-foreground: oklch(1 0 0);
+    --primary: oklch(1 0 0);
+    --primary-foreground: oklch(0 0 0);
+    --secondary: oklch(0.14 0 0);
+    --secondary-foreground: oklch(1 0 0);
+    --muted: oklch(0.14 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.18 0 0);
+    --accent-foreground: oklch(1 0 0);
+    --destructive: oklch(0.66 0.225 27);
+    --destructive-fill: oklch(0.66 0.225 27);
+    --destructive-foreground: oklch(0 0 0);
+    --success: oklch(0.82 0.235 148);
+    --success-fill: oklch(0.82 0.235 148);
+    --success-foreground: oklch(0 0 0);
+    --warning: oklch(0.88 0.179 95);
+    --warning-fill: oklch(0.88 0.179 95);
+    --warning-foreground: oklch(0 0 0);
+    --info: oklch(0.667 0.295 322.15);
+    --info-fill: oklch(0.72 0.284 330);
+    --info-foreground: oklch(0 0 0);
+    --merged: oklch(0.66 0.198 293);
+    --merged-fill: oklch(0.66 0.198 293);
+    --merged-foreground: oklch(0 0 0);
+    --border: oklch(1 0 0 / 16%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: oklch(0.667 0.295 322.15);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0 0 0);
+    --sidebar-foreground: oklch(1 0 0);
+    --sidebar-primary: oklch(1 0 0);
+    --sidebar-primary-foreground: oklch(0 0 0);
+    --sidebar-accent: oklch(0.18 0 0);
+    --sidebar-accent-foreground: oklch(1 0 0);
+    --sidebar-border: oklch(1 0 0 / 16%);
+    --sidebar-ring: oklch(0.667 0.295 322.15);
+}
