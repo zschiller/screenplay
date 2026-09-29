@@ -95,6 +95,8 @@ function renderMenu(
     onRestartDevServer,
     onRestart,
     onRecreate,
+    onMarkDone,
+    onReopen,
   }: {
     isBusy?: boolean
     hasChanges?: boolean
@@ -103,6 +105,8 @@ function renderMenu(
     onRestartDevServer?: () => void
     onRestart?: () => void
     onRecreate?: () => void
+    onMarkDone?: () => void
+    onReopen?: () => void
   } = {}
 ) {
   return render(
@@ -124,6 +128,8 @@ function renderMenu(
         onShowRoutes={vi.fn()}
         onCreatePr={vi.fn()}
         onRebase={vi.fn()}
+        onMarkDone={onMarkDone ?? vi.fn()}
+        onReopen={onReopen ?? vi.fn()}
         onDelete={vi.fn()}
         isBusy={isBusy}
       />
@@ -154,7 +160,7 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
           "new-branch-from-here",
         ],
       ],
-      ["manage", ["rename", "restart"]],
+      ["manage", ["rename", "restart", "mark-done"]],
       ["danger", ["delete"]],
     ])
   })
@@ -189,6 +195,16 @@ describe("workspaceMenuLead", () => {
         null
       )
     }
+  })
+
+  it("leads a Done Workspace with Reopen, whatever else it has", () => {
+    expect(
+      lead({
+        branch: { ...ready, status: "stopped", doneAt: 1 },
+        pr: { state: "open" },
+        hasChanges: true,
+      })
+    ).toBe("reopen")
   })
 
   it("leads with the PR when one is open, or when there are changes", () => {
@@ -232,8 +248,42 @@ describe("BranchOverflowMenuContent rendering", () => {
       "New workspace from here…",
       "Rename",
       "Restart",
+      "Mark as done",
       "Delete",
     ])
+  })
+
+  it("marks a Workspace done from Manage, but not while its agent works", () => {
+    const onMarkDone = vi.fn()
+    renderMenu({}, { onMarkDone })
+    fireEvent.click(screen.getByText("Mark as done"))
+    expect(onMarkDone).toHaveBeenCalledWith("branch-1")
+    cleanup()
+    renderMenu({}, { isBusy: true })
+    expect(
+      screen
+        .getByText("Mark as done")
+        .closest('[role="menuitem"]')
+        ?.getAttribute("aria-disabled")
+    ).toBe("true")
+  })
+
+  it("gives a Done Workspace Reopen and only what works without its sandbox", () => {
+    const onReopen = vi.fn()
+    renderMenu(
+      { status: "stopped", doneAt: 1 },
+      { onReopen, hasChanges: true, pr: { number: 7, state: "open", url: "x" } }
+    )
+    expect(menuLabels()).toEqual([
+      "Reopen",
+      "Open pull request #7",
+      "Open branch on GitHub",
+      "New workspace from here…",
+      "Rename",
+      "Delete",
+    ])
+    fireEvent.click(screen.getByText("Reopen"))
+    expect(onReopen).toHaveBeenCalledWith("branch-1")
   })
 
   it("leads with Create pull request once there are changes, listed once", () => {
@@ -368,6 +418,8 @@ function MenuToDialogHarness() {
           onShowRoutes={vi.fn()}
           onCreatePr={vi.fn()}
           onRebase={vi.fn()}
+          onMarkDone={vi.fn()}
+          onReopen={vi.fn()}
           onDelete={vi.fn()}
         />
       </DropdownMenu>

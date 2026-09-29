@@ -1106,6 +1106,7 @@ function clip(text: string): string {
  * its sandbox's state.
  */
 function workspaceStatus(branch: BranchData, agentWorking: boolean): string {
+  if (branch.doneAt) return "done"
   if (branch.status === "error") return "failed"
   if (branch.status === "stopped") return "stopped"
   if (branch.status === "creating" || branch.status === "starting") {

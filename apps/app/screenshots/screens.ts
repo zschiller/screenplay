@@ -1649,6 +1649,42 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-workspace-done",
+    description:
+      "The reference Canvas after Mark as done on Empty cart state (#976): its Cart group is hidden and its row sits in the collapsed Done section.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: (page) => markWorkspaceDone(page, "Empty cart state"),
+    settleMs: 600,
+  },
+  {
+    name: "sidebar-workspaces-done-open",
+    description:
+      "The Workspaces list's Done section opened, with the Done Workspace's check-circle row (#976).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await markWorkspaceDone(page, "Empty cart state")
+      await page
+        .getByRole("button", { name: /^Done \(\d+\)$/ })
+        .click({ timeout: 10_000 })
+      await page.mouse.move(900, 900)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-done",
+    description:
+      "A Done Workspace's … menu: Reopen leads, and only what works without its sandbox follows (#976).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await markWorkspaceDone(page, "Empty cart state")
+      await page
+        .getByRole("button", { name: /^Done \(\d+\)$/ })
+        .click({ timeout: 10_000 })
+      await openBranchRowMenu(page, "Empty cart state")
+    },
+    settleMs: 400,
+  },
+  {
     name: "sidebar-layer-menu-hover",
     description: "Hovering a Layer row's overflow (…) button in the sidebar.",
     path: `/${ids.rooms.checkout}`,
@@ -3203,6 +3239,25 @@ export async function branchRowMenu(page: Page, ref: string): Promise<Locator> {
     .first()
   await row.hover({ timeout: 15_000 })
   return row.locator('[aria-haspopup="menu"]').first()
+}
+
+/**
+ * Mark a Workspace done from its row's … menu (#976) without writing to the
+ * Fixture World: Yjs writes are frozen, and the sandbox stop is left hanging
+ * (there is no sandbox behind a fixture Workspace).
+ */
+export async function markWorkspaceDone(
+  page: Page,
+  title: string
+): Promise<void> {
+  await freezeYjs(page)
+  await holdServerActions(page, "hang")
+  await chooseFromMenu(page, await branchRowMenu(page, title), "Mark as done")
+  await page
+    .getByRole("button", { name: /^Done \(\d+\)$/ })
+    .waitFor({ timeout: 10_000 })
+  // Park the pointer on empty canvas so no row or frame shows its hover state.
+  await page.mouse.move(900, 900)
 }
 
 /** Click the confirm dialog's action button. */

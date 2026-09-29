@@ -2,6 +2,7 @@
 
 import { useCallback } from "react"
 
+import { keepHiddenMembers } from "@/lib/canvas/done-workspaces"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { GestureIntent } from "@/lib/canvas/gesture"
 import type { CanvasOps } from "@/lib/canvas/ops"
@@ -118,13 +119,19 @@ export function useGestureIntent({
           selection.setDocumentLayerIds(draggedDocumentIds)
           break
         }
-        case "reorderMember":
+        case "reorderMember": {
           // In-flow reorder commits live: each tick the cursor crosses a sibling
-          // center, the gesture emits the new ordering and we write it.
+          // center, the gesture emits the new ordering and we write it. The
+          // ordering comes from the Canvas's view, which leaves out a Done
+          // Workspace's hidden frames (#976); those keep their places.
+          const group = collections.iframeLayerGroups.get(intent.groupId)
           ops.patch("iframeLayerGroups", intent.groupId, {
-            members: intent.members,
+            members: group
+              ? keepHiddenMembers(getGroupMembers(group), intent.members)
+              : intent.members,
           })
           break
+        }
         case "popOutToNewGroup": {
           // Meta held at release → split the popped Member into a fresh Group
           // anchored where it was floating; select it like the old inline path.
@@ -162,6 +169,13 @@ export function useGestureIntent({
           break
       }
     },
-    [collections, ops, selection, setGroupGap, moveIframeLayersByDelta, resizeLayer]
+    [
+      collections,
+      ops,
+      selection,
+      setGroupGap,
+      moveIframeLayersByDelta,
+      resizeLayer,
+    ]
   )
 }

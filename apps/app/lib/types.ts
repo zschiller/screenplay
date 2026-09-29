@@ -73,6 +73,13 @@ export type BranchData = {
   error?: string
   createdAt: number
   /**
+   * When a member marked the Workspace Done (#976). A Done Workspace's sandbox
+   * is stopped, its frames are hidden from the Canvas and its sidebar row sits
+   * in the collapsed Done section; its chats stay. Reopen clears it. Merging a
+   * PR never sets it.
+   */
+  doneAt?: number
+  /**
    * How the Workspace was created, and the branch a duplicate forked from. The
    * sidebar's Retry re-runs a failed create with these (#791).
    */

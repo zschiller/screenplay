@@ -91,6 +91,12 @@ describe("resolveReconnect — reconnect candidates", () => {
     expect(action).toEqual<ReconnectAction>({ kind: "repo-missing" })
   })
 
+  it("leaves a Done Workspace spun down", () => {
+    expect(
+      resolveReconnect(branch({ status: "stopped", doneAt: 1 }), repo)
+    ).toEqual({ kind: "none" })
+  })
+
   it("does nothing for a non-creating Branch that never had a sandbox", () => {
     const action = resolveReconnect(
       branch({ status: "stopped", sandboxName: "" }),

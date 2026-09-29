@@ -69,6 +69,7 @@ import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
+import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
 import { useCommentRequests } from "@/components/canvas/use-comment-requests"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
@@ -288,8 +289,20 @@ export function Canvas({
 
   // Synced canvas collections — read by the controllers below (selection needs
   // the live Groups; the camera reads the saved viewport).
-  const iframeLayers = useIframeLayers()
-  const iframeLayerGroups = useIframeLayerGroups()
+  const agents = useBranches()
+  // A Done Workspace's frames leave the Canvas (#976): everything below lays
+  // out and renders this view, while their records stay in the Room doc.
+  const allIframeLayers = useIframeLayers()
+  const allIframeLayerGroups = useIframeLayerGroups()
+  const { iframeLayers, groups: iframeLayerGroups } = useMemo(
+    () =>
+      hideDoneWorkspaceFrames({
+        groups: allIframeLayerGroups,
+        iframeLayers: allIframeLayers,
+        branches: agents,
+      }),
+    [allIframeLayerGroups, allIframeLayers, agents]
+  )
   const markdownLayers = useMarkdownLayers()
   const savedViewport = useSavedViewport()
 
@@ -469,8 +482,8 @@ export function Canvas({
   // Prune capture bookkeeping for frames removed from the canvas so a deleted
   // frame's stale dirty flag never lands in a POSTed subset (#474).
   useEffect(() => {
-    captureTracker.retain(new Set(iframeLayers.map((layer) => layer.id)))
-  }, [captureTracker, iframeLayers])
+    captureTracker.retain(new Set(allIframeLayers.map((layer) => layer.id)))
+  }, [captureTracker, allIframeLayers])
   // Workspace ↔ frame hover cross-highlighting (#793): a frame hovered on the
   // Canvas lights up its Workspace in the sidebar, and a Workspace hovered in
   // the sidebar outlines its frames here.
@@ -696,7 +709,6 @@ export function Canvas({
   // `overlaySelectedIds` (the iframe ∪ markdown union the overlay reads) are
   // projections owned by the Canvas Selection controller, aliased above.
   const repos = useRepos()
-  const agents = useBranches()
   // Canvas memory (#902), oldest first, edited in Canvas settings › Memory.
   const memoryEntries = useMemories()
   const memories = useMemo(
@@ -1510,6 +1522,8 @@ export function Canvas({
             onRefreshBranch={branchActions.restartSandbox}
             onRecreateBranch={branchActions.recreate}
             onRetryBranch={retryBranch}
+            onMarkBranchDone={branchActions.markDone}
+            onReopenBranch={branchActions.reopen}
             onRemoveBranch={removeBranchIntake}
             onAddIframeLayer={handleAddIframeLayerForAgent}
             onPlayBranch={handlePlayAgent}

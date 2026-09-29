@@ -502,6 +502,9 @@ interface RoomSidebarProps {
   onRecreateBranch: (id: string) => void | Promise<void>
   /** Re-run a failed Workspace's setup (#791). */
   onRetryBranch: (id: string) => void
+  /** Mark a Workspace Done (#976), and Reopen one. */
+  onMarkBranchDone: (id: string) => void
+  onReopenBranch: (id: string) => void
   onRemoveBranch: (
     id: string,
     options: { deleteOnRemote: boolean }
@@ -573,6 +576,8 @@ export function RoomSidebar({
   onRefreshBranch,
   onRecreateBranch,
   onRetryBranch,
+  onMarkBranchDone,
+  onReopenBranch,
   onRemoveBranch,
   onPlayBranch,
   onShowRoutes,
@@ -918,6 +923,20 @@ export function RoomSidebar({
     () => sortedRepos.flatMap((r) => branchesByRepo(r.id)),
     [sortedRepos, branchesByRepo]
   )
+  // Done Workspaces (#976) leave the list for a collapsed Done section at its
+  // bottom, most recently done first.
+  const activeBranches = useMemo(
+    () => flatBranches.filter((b) => !b.doneAt),
+    [flatBranches]
+  )
+  const doneBranches = useMemo(
+    () =>
+      flatBranches
+        .filter((b) => b.doneAt)
+        .sort((a, b) => (b.doneAt ?? 0) - (a.doneAt ?? 0)),
+    [flatBranches]
+  )
+  const [doneOpen, setDoneOpen] = useState(false)
   // With one repository the list never mentions it (#884).
   const showRepoNames = sortedRepos.length > 1
   // New workspace starts in the Repo used last: the newest Workspace's.
@@ -962,7 +981,9 @@ export function RoomSidebar({
     () =>
       sortedRepos.map((r) => ({
         id: r.id,
-        branchIds: branchesByRepo(r.id).map((b) => b.id),
+        branchIds: branchesByRepo(r.id)
+          .filter((b) => !b.doneAt)
+          .map((b) => b.id),
       })),
     [sortedRepos, branchesByRepo]
   )
@@ -1038,6 +1059,179 @@ export function RoomSidebar({
     }
     prevStatusRef.current = new Map(branches.map((a) => [a.id, a.status]))
   }, [branches])
+
+  /**
+   * One Workspace row: state icon, title (renamed inline), PR badge or line
+   * count, and its … menu. The Done section (#976) draws the same row.
+   */
+  const renderBranchRow = (branch: BranchData, repo: RepoData) => {
+    const isActive = activeBranchIds?.has(branch.id) ?? false
+    const isPanelActive = chatPanelBranchId === branch.id
+    const pr = branchPrs.get(branch.id)
+    return (
+      <SidebarMenuItem>
+        <WithEditableRef>
+          {({
+            ref: branchRef,
+            triggerEdit: triggerBranchRename,
+            onCloseAutoFocus: onBranchMenuCloseAutoFocus,
+          }) => (
+            <BranchRowShell
+              branchId={branch.id}
+              isPanelActive={isPanelActive}
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelectBranch(branch.id, {
+                  expandPanel: false,
+                })
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                onSelectBranch(branch.id)
+              }}
+            >
+              <SidebarMenuButton
+                asChild
+                className="!bg-transparent !pr-0 hover:!bg-transparent"
+                isActive={false}
+              >
+                <div>
+                  {(() => {
+                    const stats = diffStats.get(branch.id)
+                    const hasStats =
+                      stats && (stats.additions > 0 || stats.deletions > 0)
+                    // Hidden while the row's menu shows in its place.
+                    const underMenu =
+                      "md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/branch-row:hidden"
+                    return (
+                      // The shared Workspace mention (#974): state icon,
+                      // title, and the PR badge, else the line count
+                      // (#963). The badge drops before the title truncates.
+                      <WorkspaceMention
+                        branch={branch}
+                        prOverride={pr ?? null}
+                        endClassName={underMenu}
+                        fallback={
+                          hasStats ? (
+                            <span className="flex items-center gap-1 font-mono text-3xs">
+                              <span className="text-success">
+                                +{stats.additions}
+                              </span>
+                              <span className="text-destructive">
+                                -{stats.deletions}
+                              </span>
+                            </span>
+                          ) : null
+                        }
+                        icon={
+                          <WorkspaceStatusIcon
+                            branch={branch}
+                            context={{
+                              agentWorking: isActive,
+                            }}
+                            onRetry={() => onRetryBranch(branch.id)}
+                            onRecreate={() =>
+                              setPendingRecreateBranchId(branch.id)
+                            }
+                          />
+                        }
+                        name={
+                          branch.ref ? (
+                            <span
+                              className={cn(
+                                "flex max-w-full min-w-0 has-[[data-editable-text=editing]]:overflow-visible",
+                                !hasWorkspaceTitle(branch) &&
+                                  "font-mono text-xs"
+                              )}
+                              // The sortable row's keyboard sensor eats
+                              // Space; keep the editor's keys here.
+                              onKeyDown={(e) => {
+                                if ((e.target as HTMLElement).isContentEditable)
+                                  e.stopPropagation()
+                              }}
+                            >
+                              <EditableText
+                                ref={branchRef}
+                                as="span"
+                                value={workspaceLabel(branch)}
+                                onCommit={(next) => {
+                                  // Renames the title only (#881); the branch
+                                  // moves through Rename branch in the menu.
+                                  const title = next.trim()
+                                  if (
+                                    !title ||
+                                    title === workspaceLabel(branch)
+                                  )
+                                    return
+                                  onUpdateBranch(branch.id, { title })
+                                }}
+                                className="min-w-0"
+                                viewClassName="truncate"
+                                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                              />
+                            </span>
+                          ) : (
+                            <span className="truncate font-mono text-xs text-muted-foreground">
+                              Creating…
+                            </span>
+                          )
+                        }
+                      />
+                    )
+                  })()}
+                </div>
+              </SidebarMenuButton>
+              <div className="group/slot flex shrink-0 items-center pr-1 pl-2">
+                {(() => {
+                  const stats = diffStats.get(branch.id)
+                  const hasStats =
+                    stats && (stats.additions > 0 || stats.deletions > 0)
+                  return (
+                    <>
+                      {showRepoNames && (
+                        <span className="truncate pr-1 pl-1.5 text-xs text-muted-foreground md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
+                          {repoShortName(repo)}
+                        </span>
+                      )}
+                      <BranchDropdownSlot
+                        menuContent={
+                          <BranchOverflowMenuContent
+                            branch={branch}
+                            repo={repo}
+                            onPlay={onPlayBranch}
+                            onRetry={onRetryBranch}
+                            hasChanges={!!hasStats}
+                            onRename={triggerBranchRename}
+                            onRenameBranch={setPendingRenameBranchId}
+                            onNewBranchFromHere={() => {
+                              setNewWorkspaceBaseBranch(branch.ref ?? null)
+                              setNewWorkspaceRepoId(branch.repoId)
+                            }}
+                            onRestartDevServer={onRestartDevServer}
+                            onRestart={onRefreshBranch}
+                            onRecreate={setPendingRecreateBranchId}
+                            onShowRoutes={onShowRoutes}
+                            onCreatePr={onCreatePr}
+                            pr={pr}
+                            onRebase={onRebaseOnDefault}
+                            onMarkDone={onMarkBranchDone}
+                            onReopen={onReopenBranch}
+                            onDelete={setPendingDeleteBranchId}
+                            onCloseAutoFocus={onBranchMenuCloseAutoFocus}
+                            isBusy={isActive}
+                          />
+                        }
+                      />
+                    </>
+                  )
+                })()}
+              </div>
+            </BranchRowShell>
+          )}
+        </WithEditableRef>
+      </SidebarMenuItem>
+    )
+  }
 
   return (
     <TooltipProvider>
@@ -1143,16 +1337,12 @@ export function RoomSidebar({
                 <SidebarGroupContent>
                   <SidebarMenu>
                     <SortableContext
-                      items={flatBranches.map((b) => `branch:${b.id}`)}
+                      items={activeBranches.map((b) => `branch:${b.id}`)}
                       strategy={verticalListSortingStrategy}
                     >
-                      {flatBranches.map((branch) => {
+                      {activeBranches.map((branch) => {
                         const repo = reposById.get(branch.repoId)
                         if (!repo) return null
-                        const isActive =
-                          activeBranchIds?.has(branch.id) ?? false
-                        const isPanelActive = chatPanelBranchId === branch.id
-                        const pr = branchPrs.get(branch.id)
                         return (
                           <BranchesSortableRow
                             key={branch.id}
@@ -1160,206 +1350,43 @@ export function RoomSidebar({
                             repoId={repo.id}
                             className="cursor-grab active:cursor-grabbing"
                           >
-                            <SidebarMenuItem>
-                              <WithEditableRef>
-                                {({
-                                  ref: branchRef,
-                                  triggerEdit: triggerBranchRename,
-                                  onCloseAutoFocus: onBranchMenuCloseAutoFocus,
-                                }) => (
-                                  <BranchRowShell
-                                    branchId={branch.id}
-                                    isPanelActive={isPanelActive}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      onSelectBranch(branch.id, {
-                                        expandPanel: false,
-                                      })
-                                    }}
-                                    onDoubleClick={(e) => {
-                                      e.stopPropagation()
-                                      onSelectBranch(branch.id)
-                                    }}
-                                  >
-                                    <SidebarMenuButton
-                                      asChild
-                                      className="!bg-transparent !pr-0 hover:!bg-transparent"
-                                      isActive={false}
-                                    >
-                                      <div>
-                                        {(() => {
-                                          const stats = diffStats.get(branch.id)
-                                          const hasStats =
-                                            stats &&
-                                            (stats.additions > 0 ||
-                                              stats.deletions > 0)
-                                          // Hidden while the row's menu shows in its place.
-                                          const underMenu =
-                                            "md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/branch-row:hidden"
-                                          return (
-                                            // The shared Workspace mention (#974): state icon,
-                                            // title, and the PR badge, else the line count
-                                            // (#963). The badge drops before the title truncates.
-                                            <WorkspaceMention
-                                              branch={branch}
-                                              prOverride={pr ?? null}
-                                              endClassName={underMenu}
-                                              fallback={
-                                                hasStats ? (
-                                                  <span className="flex items-center gap-1 font-mono text-3xs">
-                                                    <span className="text-success">
-                                                      +{stats.additions}
-                                                    </span>
-                                                    <span className="text-destructive">
-                                                      -{stats.deletions}
-                                                    </span>
-                                                  </span>
-                                                ) : null
-                                              }
-                                              icon={
-                                                <WorkspaceStatusIcon
-                                                  branch={branch}
-                                                  context={{
-                                                    agentWorking: isActive,
-                                                  }}
-                                                  onRetry={() =>
-                                                    onRetryBranch(branch.id)
-                                                  }
-                                                  onRecreate={() =>
-                                                    setPendingRecreateBranchId(
-                                                      branch.id
-                                                    )
-                                                  }
-                                                />
-                                              }
-                                              name={
-                                                branch.ref ? (
-                                                  <span
-                                                    className={cn(
-                                                      "flex max-w-full min-w-0 has-[[data-editable-text=editing]]:overflow-visible",
-                                                      !hasWorkspaceTitle(
-                                                        branch
-                                                      ) && "font-mono text-xs"
-                                                    )}
-                                                    // The sortable row's keyboard sensor eats
-                                                    // Space; keep the editor's keys here.
-                                                    onKeyDown={(e) => {
-                                                      if (
-                                                        (
-                                                          e.target as HTMLElement
-                                                        ).isContentEditable
-                                                      )
-                                                        e.stopPropagation()
-                                                    }}
-                                                  >
-                                                    <EditableText
-                                                      ref={branchRef}
-                                                      as="span"
-                                                      value={workspaceLabel(
-                                                        branch
-                                                      )}
-                                                      onCommit={(next) => {
-                                                        // Renames the title only (#881); the branch
-                                                        // moves through Rename branch in the menu.
-                                                        const title =
-                                                          next.trim()
-                                                        if (
-                                                          !title ||
-                                                          title ===
-                                                            workspaceLabel(
-                                                              branch
-                                                            )
-                                                        )
-                                                          return
-                                                        onUpdateBranch(
-                                                          branch.id,
-                                                          { title }
-                                                        )
-                                                      }}
-                                                      className="min-w-0"
-                                                      viewClassName="truncate"
-                                                      editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
-                                                    />
-                                                  </span>
-                                                ) : (
-                                                  <span className="truncate font-mono text-xs text-muted-foreground">
-                                                    Creating…
-                                                  </span>
-                                                )
-                                              }
-                                            />
-                                          )
-                                        })()}
-                                      </div>
-                                    </SidebarMenuButton>
-                                    <div className="group/slot flex shrink-0 items-center pr-1 pl-2">
-                                      {(() => {
-                                        const stats = diffStats.get(branch.id)
-                                        const hasStats =
-                                          stats &&
-                                          (stats.additions > 0 ||
-                                            stats.deletions > 0)
-                                        return (
-                                          <>
-                                            {showRepoNames && (
-                                              <span className="truncate pr-1 pl-1.5 text-xs text-muted-foreground md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
-                                                {repoShortName(repo)}
-                                              </span>
-                                            )}
-                                            <BranchDropdownSlot
-                                              menuContent={
-                                                <BranchOverflowMenuContent
-                                                  branch={branch}
-                                                  repo={repo}
-                                                  onPlay={onPlayBranch}
-                                                  onRetry={onRetryBranch}
-                                                  hasChanges={!!hasStats}
-                                                  onRename={triggerBranchRename}
-                                                  onRenameBranch={
-                                                    setPendingRenameBranchId
-                                                  }
-                                                  onNewBranchFromHere={() => {
-                                                    setNewWorkspaceBaseBranch(
-                                                      branch.ref ?? null
-                                                    )
-                                                    setNewWorkspaceRepoId(
-                                                      branch.repoId
-                                                    )
-                                                  }}
-                                                  onRestartDevServer={
-                                                    onRestartDevServer
-                                                  }
-                                                  onRestart={onRefreshBranch}
-                                                  onRecreate={
-                                                    setPendingRecreateBranchId
-                                                  }
-                                                  onShowRoutes={onShowRoutes}
-                                                  onCreatePr={onCreatePr}
-                                                  pr={pr}
-                                                  onRebase={onRebaseOnDefault}
-                                                  onDelete={
-                                                    setPendingDeleteBranchId
-                                                  }
-                                                  onCloseAutoFocus={
-                                                    onBranchMenuCloseAutoFocus
-                                                  }
-                                                  isBusy={isActive}
-                                                />
-                                              }
-                                            />
-                                          </>
-                                        )
-                                      })()}
-                                    </div>
-                                  </BranchRowShell>
-                                )}
-                              </WithEditableRef>
-                            </SidebarMenuItem>
+                            {renderBranchRow(branch, repo)}
                           </BranchesSortableRow>
                         )
                       })}
                     </SortableContext>
                   </SidebarMenu>
+                  {doneBranches.length > 0 && (
+                    <Collapsible
+                      open={doneOpen}
+                      onOpenChange={setDoneOpen}
+                      className="group/done-section mt-1"
+                    >
+                      <SidebarMenu>
+                        <SidebarMenuItem>
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton className="text-sidebar-foreground/70">
+                              <ChevronRight className="transition-transform group-data-[state=open]/done-section:rotate-90" />
+                              <span>Done ({doneBranches.length})</span>
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                        </SidebarMenuItem>
+                      </SidebarMenu>
+                      <CollapsibleContent>
+                        <SidebarMenu className="mt-1">
+                          {doneBranches.map((branch) => {
+                            const repo = reposById.get(branch.repoId)
+                            if (!repo) return null
+                            return (
+                              <Fragment key={branch.id}>
+                                {renderBranchRow(branch, repo)}
+                              </Fragment>
+                            )
+                          })}
+                        </SidebarMenu>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
 
                   {sortedRepos.length === 0 && (
                     // A canvas with no repository says why, and where to add

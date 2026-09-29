@@ -69,6 +69,16 @@ describe("workspaceStatusLine", () => {
       text: "Stopped",
     })
   })
+
+  it("reads Done once a member marked it done, whatever the sandbox says", () => {
+    const done = { kind: "idle", state: "done", text: "Done" }
+    expect(workspaceStatusLine({ status: "stopped", doneAt: 1 }, idle)).toEqual(
+      done
+    )
+    expect(
+      workspaceStatusLine({ status: "error", error: "x", doneAt: 1 }, idle)
+    ).toEqual(done)
+  })
 })
 
 describe("failureTitle", () => {
