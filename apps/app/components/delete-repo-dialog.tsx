@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Badge } from "@workspace/ui/components/badge"
+import { WarningIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import {
@@ -168,10 +169,13 @@ function StateChip({
     <Badge
       variant={chip.kind === "lost" ? "outline" : "secondary"}
       className={cn(
-        "ml-auto shrink-0 font-normal",
+        "ml-auto shrink-0 gap-1 font-normal",
         chip.kind !== "lost" && "text-muted-foreground"
       )}
     >
+      {chip.kind === "lost" && (
+        <WarningIcon aria-hidden className="size-3 text-warning" />
+      )}
       {chip.label}
     </Badge>
   )

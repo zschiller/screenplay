@@ -853,6 +853,26 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-plan-approve-failed",
+    description:
+      "Approve on a plan the server refuses: the chat's error box under the plan card.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page.route("**/api/agent/plan", (route) =>
+        route.fulfill({ status: 500, body: "" })
+      )
+      await selectWorkspace(page, "Empty cart state")
+      await waitForPlanCard(page)
+      await page
+        .getByRole("button", { name: "Approve", exact: true })
+        .click({ timeout: 15_000 })
+      await page.getByTestId("chat-error").waitFor()
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-plan-request-changes",
     description:
       "Request changes on a pending plan: the composer is focused with the plan quoted.",

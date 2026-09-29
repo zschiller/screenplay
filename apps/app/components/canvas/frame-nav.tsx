@@ -164,7 +164,8 @@ export function FrameAddressBar({
       className={cn(
         "flex h-6 max-w-[28rem] min-w-56 items-center rounded-md bg-muted pr-0.5 text-muted-foreground",
         (leading || showHost) && "pl-0.5",
-        recording && "bg-destructive/10 text-destructive"
+        // Recording keeps the grey bar: the red dot and stop square carry it.
+        recording && "text-foreground"
       )}
       {...stopPointer}
     >
@@ -205,10 +206,7 @@ export function FrameAddressBar({
         label={recording ? "Stop recording" : "Record flow"}
         pressed={recording}
         size="icon-xs"
-        className={cn(
-          "size-5",
-          recording && "hover:bg-destructive/15 aria-pressed:bg-transparent"
-        )}
+        className={cn("size-5", recording && "aria-pressed:bg-transparent")}
         onClick={onToggleRecording}
       >
         <span
@@ -328,7 +326,7 @@ interface FrameRouteFieldProps {
   inset: boolean
   /** Leave a little room after the Workspace host, whose hover fill ends here. */
   afterHost?: boolean
-  /** Keep the recording red instead of brightening on hover. */
+  /** A recording's text is already full strength, so hover doesn't change it. */
   recording: boolean
 }
 
@@ -406,7 +404,7 @@ export function FrameRouteField({
           className={cn(
             "flex min-w-0 flex-1 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
             // Brighten on hover or open, like the route pill; a recording
-            // keeps its red.
+            // is already bright.
             !recording &&
               "hover:text-foreground data-[state=open]:text-foreground"
           )}
