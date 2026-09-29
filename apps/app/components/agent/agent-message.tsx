@@ -1167,7 +1167,7 @@ function UserBubble({
         tone="bubble"
         urlTransform={(url) => url}
         components={components}
-        className="max-w-[85%] rounded-xl bg-muted px-3 py-1.5"
+        className="max-w-[85%] rounded-xl bg-muted px-3 py-1.5 dark:bg-input/70"
       >
         {displayContent}
       </ChatMarkdown>

@@ -685,7 +685,7 @@ function QueuedRow({
   onRemove: () => void
 }) {
   return (
-    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs">
+    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50">
       <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="shrink-0 text-muted-foreground">Queued</span>
       <span className="min-w-0 flex-1 truncate" title={message}>
