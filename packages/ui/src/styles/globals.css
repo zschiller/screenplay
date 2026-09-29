@@ -106,8 +106,9 @@
          equals the fill.
        - `--x-fill` is fluorescent and only ever sits behind black
          (`--x-foreground`): solid chips, dots, the done circle.
-       Info is the magenta accent; merged is GitHub's merged purple moved to
-       hue 293 so it stays apart from the magenta. */
+       Info is the magenta accent, but its fill is a lighter hot pink: black
+       on the full magenta reads muddy. Merged is GitHub's merged purple moved
+       to hue 293 so it stays apart from the magenta. */
     --destructive: oklch(0.56 0.226 27);
     --destructive-fill: oklch(0.66 0.225 27);
     --destructive-foreground: oklch(0 0 0);
@@ -118,7 +119,7 @@
     --warning-fill: oklch(0.88 0.179 95);
     --warning-foreground: oklch(0 0 0);
     --info: oklch(0.56 0.259 326);
-    --info-fill: oklch(0.667 0.295 322.15);
+    --info-fill: oklch(0.72 0.284 330);
     --info-foreground: oklch(0 0 0);
     --merged: oklch(0.54 0.282 293);
     --merged-fill: oklch(0.66 0.198 293);
@@ -168,7 +169,7 @@
     --warning-fill: oklch(0.88 0.179 95);
     --warning-foreground: oklch(0 0 0);
     --info: oklch(0.667 0.295 322.15);
-    --info-fill: oklch(0.667 0.295 322.15);
+    --info-fill: oklch(0.72 0.284 330);
     --info-foreground: oklch(0 0 0);
     --merged: oklch(0.66 0.198 293);
     --merged-fill: oklch(0.66 0.198 293);
