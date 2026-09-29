@@ -1,3 +1,5 @@
+import { createFluid } from "./fluid"
+
 /**
  * Paints a background colour over whatever sits under `canvas` as a fine
  * dither: solid behind the target elements' text, breaking into grain and then
@@ -71,15 +73,12 @@ export function createDitherVeil(
   let band = new Int32Array(0)
   let inBand = new Uint8Array(0)
   // The pointer peek: where it's heading and where it's drawn (eased). It
-  // stamps into a coarse field that fades each frame, which leaves a trail;
-  // `lit` bounds the field's non-zero cells and `touched` the grains it
-  // reached last frame, to put back.
+  // stirs a little fluid on the coarse grid whose dye opens the veil and
+  // whose flow swirls the marbling; `touched` is the grains it reached last
+  // frame, to put back.
   const aim = { x: 0, y: 0, on: false }
   const peek = { x: 0, y: 0, fresh: true }
-  let field = new Float32Array(0)
-  let fc = 0
-  let fr = 0
-  let lit: [number, number, number, number] | null = null
+  let fluid: ReturnType<typeof createFluid> | null = null
   let touched: [number, number, number, number] | null = null
   let rgb = [255, 255, 255]
   let raf = 0
@@ -166,10 +165,8 @@ export function createDitherVeil(
     band = fade.subarray(0, n)
     inBand = new Uint8Array(cols * rows)
     for (let b = 0; b < n; b++) inBand[fade[b]!] = 1
-    fc = gc
-    fr = gr
-    field = new Float32Array(gc * gr)
-    lit = touched = null
+    fluid = createFluid(gc, gr)
+    touched = null
     peek.fresh = true
     fill()
   }
@@ -189,67 +186,41 @@ export function createDitherVeil(
     }
   }
 
-  // Fades the peek field, then stamps the pointer along the path it moved
-  // since last frame, so a fast swipe leaves an unbroken trail.
+  // Eases the peek toward the pointer and stirs the fluid along the path it
+  // moved since last frame, so a fast swipe leaves an unbroken, swirling
+  // trail.
   function updatePeek(snap: boolean) {
-    if (!field.length) return
-    if (snap) field.fill(0)
-    else for (let i = 0; i < field.length; i++) field[i]! *= 0.955
+    if (!fluid) return
+    const R = PEEK / COARSE
+    if (snap) {
+      // A still frame: an unstirred hole right under the pointer.
+      fluid.rest()
+      if (aim.on) fluid.splat(aim.x / COARSE, aim.y / COARSE, 0, 0, R, 1)
+      peek.fresh = true
+      return
+    }
     if (aim.on) {
       const px = peek.fresh ? aim.x : peek.x
       const py = peek.fresh ? aim.y : peek.y
-      peek.x = snap || peek.fresh ? aim.x : px + (aim.x - px) * 0.12
-      peek.y = snap || peek.fresh ? aim.y : py + (aim.y - py) * 0.12
+      peek.x = peek.fresh ? aim.x : px + (aim.x - px) * 0.12
+      peek.y = peek.fresh ? aim.y : py + (aim.y - py) * 0.12
       peek.fresh = false
-      const steps = Math.max(
-        1,
-        Math.ceil(Math.hypot(peek.x - px, peek.y - py) / 12)
-      )
-      // Blooms open slowly rather than popping.
-      const s = snap ? 1 : 0.12
-      const R = PEEK / COARSE
+      const dx = (peek.x - px) / COARSE
+      const dy = (peek.y - py) / COARSE
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 1.5))
       for (let n = 1; n <= steps; n++) {
-        const cx = (px + ((peek.x - px) * n) / steps) / COARSE
-        const cy = (py + ((peek.y - py) * n) / steps) / COARSE
-        for (
-          let r = Math.max(0, Math.floor(cy - R));
-          r <= Math.min(fr - 1, Math.ceil(cy + R));
-          r++
-        ) {
-          for (
-            let c = Math.max(0, Math.floor(cx - R));
-            c <= Math.min(fc - 1, Math.ceil(cx + R));
-            c++
-          ) {
-            const e = Math.min(
-              Math.max((R - Math.hypot(c - cx, r - cy)) / (R * 0.65), 0),
-              1
-            )
-            const i = r * fc + c
-            field[i] = Math.max(
-              field[i]!,
-              Math.min(field[i]! + s * e * e * (3 - 2 * e), 1)
-            )
-          }
-        }
+        fluid.splat(
+          px / COARSE + (dx * n) / steps,
+          py / COARSE + (dy * n) / steps,
+          (dx * 0.5) / steps,
+          (dy * 0.5) / steps,
+          R,
+          // Blooms open slowly rather than popping.
+          0.12 / steps
+        )
       }
     } else peek.fresh = true
-    let b: typeof lit = null
-    for (let r = 0, i = 0; r < fr; r++) {
-      for (let c = 0; c < fc; c++, i++) {
-        if (field[i]! < 0.02) {
-          field[i] = 0
-          continue
-        }
-        if (!b) b = [c, r, c, r]
-        else {
-          if (c < b[0]) b[0] = c
-          if (c > b[2]) b[2] = c
-          b[3] = r
-        }
-      }
-    }
-    lit = b
+    fluid.step()
   }
 
   // One grain's opacity: the fade by distance, a billowing edge, a creeping
@@ -261,7 +232,8 @@ export function createDitherVeil(
     let k = dist[i]! <= 0 ? 1.3 : 1 - dist[i]! / FALL
     const n = noise(c * cell * 0.007 + t * 0.45, r * cell * 0.007 - t * 0.3)
     k += (n - 0.5) * 0.55
-    if (lit) {
+    const lit = fluid?.lit
+    if (fluid && lit) {
       const gx = (c * cell) / COARSE
       const gy = (r * cell) / COARSE
       if (
@@ -270,21 +242,18 @@ export function createDitherVeil(
         gy >= lit[1] - 1 &&
         gy <= lit[3] + 1
       ) {
-        const x0 = Math.floor(gx)
-        const y0 = Math.floor(gy)
-        const fx = gx - x0
-        const fy = gy - y0
-        const j = y0 * fc + x0
-        const top = field[j]! + (field[j + 1]! - field[j]!) * fx
-        const bot = field[j + fc]! + (field[j + fc + 1]! - field[j + fc]!) * fx
-        // Rather than a clean hole, the peek opens in slow marbled bands
-        // that swirl as they drift.
-        const w = noise(
-          c * cell * 0.018 + t * 0.35,
-          r * cell * 0.018 - t * 0.28
-        )
-        k -=
-          (top + (bot - top) * fy) * (1.25 + 0.8 * Math.sin(w * 14 + t * 1.6))
+        const p = fluid.dye(gx, gy)
+        if (p > 0) {
+          // Rather than a clean hole, the peek opens in marbled bands drawn
+          // from where the fluid carried each spot from, so moving the mouse
+          // stirs them into swirls.
+          const [ux, uy] = fluid.material(gx, gy)
+          const w = noise(
+            ux * COARSE * 0.022 + t * 0.35,
+            uy * COARSE * 0.022 - t * 0.28
+          )
+          k -= p * (0.95 + 1.05 * Math.sin(w * 16 + t * 1.6))
+        }
       }
     }
     const kk = Math.min(Math.max(k, 0), 1)
@@ -307,6 +276,7 @@ export function createDitherVeil(
     }
     // Grains outside the fade only change under the pointer: redraw the
     // ones it covers now and put back the ones it covered last frame.
+    const lit = fluid?.lit
     const box: typeof touched = lit
       ? [
           Math.max(0, Math.floor(((lit[0] - 1) * COARSE) / cell)),
