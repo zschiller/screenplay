@@ -91,6 +91,7 @@ export default async function RootLayout({
           pageMap={await getPageMap()}
           docsRepositoryBase="https://github.com/zschiller/screenplay/tree/main/apps/docs"
           footer={footer}
+          toc={{ title: "On this page" }}
         >
           {children}
         </Layout>
