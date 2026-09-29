@@ -101,7 +101,6 @@ import { ShareNetworkIcon as ShareNetworkBase } from "@phosphor-icons/react/dist
 import { SidebarSimpleIcon as SidebarSimpleBase } from "@phosphor-icons/react/dist/ssr/SidebarSimple"
 import { SignOutIcon as SignOutBase } from "@phosphor-icons/react/dist/ssr/SignOut"
 import { SlidersHorizontalIcon as SlidersHorizontalBase } from "@phosphor-icons/react/dist/ssr/SlidersHorizontal"
-import { SortAscendingIcon as SortAscendingBase } from "@phosphor-icons/react/dist/ssr/SortAscending"
 import { SparkleIcon as SparkleBase } from "@phosphor-icons/react/dist/ssr/Sparkle"
 import { SquareIcon as SquareBase } from "@phosphor-icons/react/dist/ssr/Square"
 import { SquaresFourIcon as SquaresFourBase } from "@phosphor-icons/react/dist/ssr/SquaresFour"
@@ -328,10 +327,6 @@ export const SignOutIcon = phosphor(SignOutBase, "ph-sign-out")
 export const SlidersHorizontalIcon = phosphor(
   SlidersHorizontalBase,
   "ph-sliders-horizontal"
-)
-export const SortAscendingIcon = phosphor(
-  SortAscendingBase,
-  "ph-sort-ascending"
 )
 export const SparkleIcon = phosphor(SparkleBase, "ph-sparkle")
 export const SquareIcon = phosphor(SquareBase, "ph-square")

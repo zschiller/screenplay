@@ -35,8 +35,6 @@ import {
 import {
   ArrowsDownUpIcon,
   CaretRightIcon,
-  ClockCounterClockwiseIcon,
-  DotsSixVerticalIcon,
   DotsThreeIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -45,7 +43,6 @@ import {
   PlusIcon,
   RowsIcon,
   SidebarSimpleIcon,
-  SortAscendingIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
@@ -75,7 +72,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -171,13 +167,6 @@ type ResolvedMember = { kind: string; id: string; data: unknown }
 
 /** One visible row in the sidebar's Canvas section (see Sidebar Drop). */
 type SidebarDragRow = SidebarRow<ResolvedMember>
-
-/** Each sort's icon in the Workspaces sort menu (#885). */
-const WORKSPACE_SORT_ICONS: Record<WorkspaceSort, typeof ArrowsDownUpIcon> = {
-  manual: DotsSixVerticalIcon,
-  recent: ClockCounterClockwiseIcon,
-  name: SortAscendingIcon,
-}
 
 /**
  * Which edge of `rect` a drop lands on — purely from the live POINTER Y vs the
@@ -1337,55 +1326,9 @@ export function RoomSidebar({
                 </SidebarGroupLabel>
                 {sortedRepos.length > 0 && (
                   <>
-                    {/* The list's view options (#885), this member's only. */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <IconButton
-                          label="Sort and group workspaces"
-                          tooltipSide="right"
-                          asChild
-                        >
-                          <SidebarGroupAction className="top-1.5 right-15">
-                            <ArrowsDownUpIcon />
-                          </SidebarGroupAction>
-                        </IconButton>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent side="bottom" align="end">
-                        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={listView.sort}
-                          onValueChange={(v) =>
-                            updateListView({ sort: v as WorkspaceSort })
-                          }
-                        >
-                          {(
-                            Object.keys(
-                              WORKSPACE_SORT_LABELS
-                            ) as WorkspaceSort[]
-                          ).map((sort) => {
-                            const SortIcon = WORKSPACE_SORT_ICONS[sort]
-                            return (
-                              <DropdownMenuRadioItem key={sort} value={sort}>
-                                <SortIcon />
-                                {WORKSPACE_SORT_LABELS[sort]}
-                              </DropdownMenuRadioItem>
-                            )
-                          })}
-                        </DropdownMenuRadioGroup>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuCheckboxItem
-                          checked={listView.groupByState}
-                          onCheckedChange={(checked) =>
-                            updateListView({ groupByState: checked === true })
-                          }
-                        >
-                          <RowsIcon />
-                          Group by state
-                        </DropdownMenuCheckboxItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {/* + creates a Workspace in one step (#884); the rarer
-                        Open existing git branch sits in the … beside it. */}
+                    {/* + creates a Workspace in one step (#884); the list's
+                        view options (#885, this member's only) and the rarer
+                        Open existing git branch sit in the … beside it. */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <IconButton
@@ -1399,6 +1342,43 @@ export function RoomSidebar({
                         </IconButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent side="bottom" align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <ArrowsDownUpIcon />
+                            Sort by
+                            <span className="flex-1 text-right text-muted-foreground">
+                              {WORKSPACE_SORT_LABELS[listView.sort]}
+                            </span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuRadioGroup
+                              value={listView.sort}
+                              onValueChange={(v) =>
+                                updateListView({ sort: v as WorkspaceSort })
+                              }
+                            >
+                              {(
+                                Object.keys(
+                                  WORKSPACE_SORT_LABELS
+                                ) as WorkspaceSort[]
+                              ).map((sort) => (
+                                <DropdownMenuRadioItem key={sort} value={sort}>
+                                  {WORKSPACE_SORT_LABELS[sort]}
+                                </DropdownMenuRadioItem>
+                              ))}
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuCheckboxItem
+                          checked={listView.groupByState}
+                          onCheckedChange={(checked) =>
+                            updateListView({ groupByState: checked === true })
+                          }
+                        >
+                          <RowsIcon />
+                          Group by state
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuSeparator />
                         {sortedRepos.length === 1 ? (
                           <DropdownMenuItem
                             onClick={() =>
