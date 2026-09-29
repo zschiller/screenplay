@@ -32,6 +32,9 @@ export const metadata: Metadata = {
 // variables onto `font-sans` and `font-heading`.
 const fontSans = Instrument_Sans({
   subsets: ["latin"],
+  // The width axis lets a label that bolds on selection (`font-medium
+  // font-stretch-[98.8%]`) keep its regular width, so nothing beside it moves.
+  axes: ["wdth"],
   variable: "--font-instrument-sans",
 })
 

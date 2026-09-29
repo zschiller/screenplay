@@ -88,7 +88,7 @@ export function GettingStartedChecklist({
                 <span
                   className={cn(
                     "text-sm",
-                    state === "current" && "font-medium",
+                    state === "current" && "font-medium font-stretch-[98.8%]",
                     state === "upcoming" && "text-muted-foreground"
                   )}
                 >

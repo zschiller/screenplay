@@ -12,6 +12,8 @@ import {
   fixtureCheckouts,
   fixtureGitHub,
   homeView,
+  NARROW_HOME_VIEWPORT,
+  narrowHome,
   openAddProject,
   openChatTab,
   openTerminalTab,
@@ -235,6 +237,27 @@ export const INTERACTIONS: Interaction[] = [
         page.locator('[title="Stop"], [aria-label="Stop"]').first()
       )
       await page.waitForTimeout(2500)
+    },
+  },
+  {
+    name: "settings-sections",
+    description:
+      "Settings at the narrow width, stepping through its sections: the current one bolds without moving the ones beside it.",
+    path: "/settings",
+    viewport: NARROW_HOME_VIEWPORT,
+    cookies: narrowHome(),
+    run: async (page) => {
+      const nav = page.getByRole("navigation", { name: "Settings" })
+      for (const name of [
+        "Coding agents",
+        "GitHub",
+        "Repository presets",
+        "Account",
+        "General",
+      ]) {
+        await click(page, nav.getByRole("link", { name, exact: true }))
+        await page.waitForTimeout(900)
+      }
     },
   },
   {
