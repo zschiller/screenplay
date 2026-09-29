@@ -38,6 +38,14 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
@@ -1240,6 +1248,35 @@ export function ChatPanel({
             onConnected={handleLogsConnected}
           />
         </TabsContent>
+      )}
+
+      {openTabs.length === 0 && !showLogs && (
+        // Every chat closed (or none yet): something to press instead of a
+        // blank panel under the tab strip.
+        <Empty className="rounded-none bg-background">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <ChatCircleIcon />
+            </EmptyMedia>
+            <EmptyTitle>No open chats</EmptyTitle>
+            <EmptyDescription>
+              {isAgentTarget
+                ? "Start a chat or a terminal in this Workspace."
+                : "Start a chat about this Document."}
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={createChatTab}
+            >
+              <PlusIcon />
+              New chat
+            </Button>
+          </EmptyContent>
+        </Empty>
       )}
 
       {openTabs.map((tab) => {
