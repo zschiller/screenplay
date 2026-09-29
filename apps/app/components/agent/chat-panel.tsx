@@ -942,7 +942,7 @@ export function ChatPanel({
       onValueChange={handleTabChange}
       className="flex h-full flex-col gap-0"
     >
-      <div className="flex h-12 items-center bg-background px-3">
+      <div className="@container/chat-header flex h-12 items-center bg-background px-3">
         {onCollapse && (
           <IconButton
             label="Collapse chat"
@@ -974,7 +974,7 @@ export function ChatPanel({
         {/* Where you are, not a switcher: the Workspaces button at the far
             right is how you move between chats (#1152). */}
         <TargetPill target={target} />
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
           {/* Diff stats and the PR button are agent-only — there's no
               git/branch concept for a doc target. */}
           {isAgentTarget &&
@@ -1022,7 +1022,7 @@ export function ChatPanel({
                 Create PR
               </Button>
             ))}
-          <WorkspacesMenuButton />
+          <WorkspacesMenuButton collapsible />
         </div>
       </div>
       <div

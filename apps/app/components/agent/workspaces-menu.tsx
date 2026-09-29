@@ -90,6 +90,12 @@ import {
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { BranchPicker } from "@/components/branch-picker"
@@ -646,33 +652,70 @@ export function WorkspacesMenuProvider({
 }
 
 /**
- * The labelled Workspaces button at the far right of the chat panel header, with a dot
- * while any Workspace needs you. Renders nothing outside a provider.
+ * The labelled Workspaces button at the far right of the chat panel header,
+ * with a dot while any Workspace needs you. With `collapsible`, the label hides
+ * when the `chat-header` container is narrow (a Workspace chat's header also
+ * holds the title, diff stats and PR button), leaving the caret and a tooltip.
+ * Renders nothing outside a provider.
  */
-export function WorkspacesMenuButton() {
+export function WorkspacesMenuButton({
+  collapsible = false,
+}: {
+  collapsible?: boolean
+}) {
   const menu = useContext(WorkspacesMenuContext)
+  const labelRef = useRef<HTMLSpanElement>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const hasMenu = menu !== null
+
+  useEffect(() => {
+    const label = labelRef.current
+    if (!collapsible || !label) return
+    const observer = new ResizeObserver(() =>
+      setCollapsed(label.offsetWidth === 0)
+    )
+    observer.observe(label)
+    return () => observer.disconnect()
+  }, [collapsible, hasMenu])
+
   if (!menu) return null
   return (
     <Popover open={menu.open} onOpenChange={menu.setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="xs"
-          aria-label="Workspaces"
-          aria-description={menu.needsYou ? "A workspace needs you" : undefined}
-          className="text-muted-foreground"
-        >
-          Workspaces
-          {menu.needsYou ? (
-            <span
-              aria-hidden
-              data-slot="needs-you-dot"
-              className="size-1.5 rounded-full bg-info-fill"
-            />
-          ) : null}
-          <CaretDownIcon data-icon="inline-end" />
-        </Button>
-      </PopoverTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                aria-label="Workspaces"
+                aria-description={
+                  menu.needsYou ? "A workspace needs you" : undefined
+                }
+                className="text-muted-foreground"
+              >
+                <span
+                  ref={labelRef}
+                  className={cn(collapsible && "hidden @lg/chat-header:inline")}
+                >
+                  Workspaces
+                </span>
+                {menu.needsYou ? (
+                  <span
+                    aria-hidden
+                    data-slot="needs-you-dot"
+                    className="size-1.5 rounded-full bg-info-fill"
+                  />
+                ) : null}
+                <CaretDownIcon data-icon="inline-end" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className={cn(!collapsed && "hidden")}>
+            {menu.needsYou ? "Workspaces · one needs you" : "Workspaces"}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <PopoverContent
         data-workspaces-menu=""
         side="bottom"
