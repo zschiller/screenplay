@@ -17,6 +17,10 @@ everything: `apps/app/next.config.mjs` feeds it to Next's `basePath` (pages,
 auto-prefix — `fetch`, `WebSocket`, and third-party `authEndpoint`s. Set it on
 both build and runtime (it's `NEXT_PUBLIC_`, so it's inlined at build time).
 
+With a prefix set, the deployment's own root redirects to the prefix, and
+`/favicon.ico` redirects to the product's icon, so the bare deployment URL (and
+the favicon Vercel's dashboard shows for it) still works.
+
 This is how the reference deployment serves all three apps under one domain: the
 marketing `web` app owns the apex and rewrites `/app/*` to this project
 (`apps/homepage/vercel.json`), and this project sets `NEXT_PUBLIC_BASE_PATH=/app`.
