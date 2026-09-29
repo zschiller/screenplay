@@ -21,7 +21,10 @@ export function AgentsStrip() {
       >
         <p className={cn(monoLabel, "text-muted-foreground")}>Works with</p>
         {items.map((item) => (
-          <span key={item} className="font-heading text-[22px] leading-none">
+          <span
+            key={item}
+            className="font-heading text-[17px] leading-none tracking-[-0.03em]"
+          >
             {item}
           </span>
         ))}

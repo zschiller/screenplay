@@ -2,9 +2,8 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { githubUrl, releasesUrl } from "@/lib/app-url"
 import { AppleLogo } from "../header"
-import heroDark from "../shots/hero.dark.webp"
-import heroLight from "../shots/hero.light.webp"
-import { buttonClass, measure, monoLabel, ProductShot } from "./editorial"
+import { CanvasExcerpt } from "../excerpts/canvas"
+import { buttonClass, measure, monoLabel } from "./editorial"
 
 export function Hero() {
   return (
@@ -13,15 +12,14 @@ export function Hero() {
         <p className={cn(monoLabel, "text-muted-foreground")}>
           Open source · Works with Claude Code, Codex &amp; opencode
         </p>
-        <h1 className="mt-7 font-heading text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance">
-          Every branch, <Selected label="branch 3 of 3">running</Selected> at
-          once.
+        <h1 className="font-wordmark mt-7 text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance">
+          Every branch, <Selected label="3 branches">side by side</Selected>.
         </h1>
         <div className="mt-14 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
           <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
             Screenplay runs each coding agent on its own branch, in its own
             sandbox, and shows every result as a live frame on one canvas.
-            Compare them side by side and ship the one that works.
+            Compare them and ship the one that works.
           </p>
           <div className="flex flex-wrap gap-3">
             <a
@@ -56,13 +54,7 @@ export function Hero() {
       </div>
 
       <figure className={cn(measure, "mt-12")}>
-        <ProductShot
-          light={heroLight}
-          dark={heroDark}
-          priority
-          sizes="(min-width: 1152px) 1088px, 100vw"
-          alt="The Screenplay canvas: Workspaces and frames in the sidebar, live desktop and mobile previews of the Northwind site, and the agent's chat on the right."
-        />
+        <CanvasExcerpt />
         <figcaption
           className={cn(
             monoLabel,
@@ -70,7 +62,6 @@ export function Hero() {
           )}
         >
           <span>Fig. 1 · Three Workspaces on one canvas</span>
-          <span className="max-sm:hidden">The real app</span>
         </figcaption>
       </figure>
     </section>
@@ -91,7 +82,7 @@ function Selected({
   const handle =
     "absolute size-2.5 border-2 border-selection bg-background max-sm:size-2"
   return (
-    <span className="select-in outline-selection relative inline-block px-[0.06em] italic outline-2 -outline-offset-2">
+    <span className="outline-selection relative inline-block px-[0.06em] italic outline-2 -outline-offset-2">
       {children}
       <span aria-hidden className={cn(handle, "-top-[5px] -left-[5px]")} />
       <span aria-hidden className={cn(handle, "-top-[5px] -right-[5px]")} />
