@@ -2,7 +2,8 @@ name: Docs screenshots
 
 # Keeps the product docs' screenshots in step with the app. After every change
 # to the UI (or the docs) lands on main, regenerate them from the docs world
-# (`apps/app/screenshots/docs/`) and, if any image actually changed, open or
+# (`apps/app/screenshots/docs/`), along with the homepage's product images,
+# and, if any image actually changed, open or
 # update one pull request with the new images for a person to look over.
 #
 # Re-runs are stable: the docs world and the capture clock are pinned, and the
@@ -41,8 +42,9 @@ env:
 
 jobs:
   refresh:
-    # Merging the refresh PR changes only apps/docs/public/screenshots, which
-    # isn't in `paths`, so it doesn't re-trigger this workflow.
+    # Merging the refresh PR changes only apps/docs/public/screenshots and the
+    # homepage's product images, neither in `paths`, so it doesn't re-trigger
+    # this workflow.
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -95,15 +97,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$(git status --porcelain -- apps/docs/public/screenshots)" ]; then
+          paths="apps/docs/public/screenshots apps/web/components/marketing/shots"
+          if [ -z "$(git status --porcelain -- $paths)" ]; then
             echo "Screenshots are up to date."
             exit 0
           fi
-          changed=$(git status --porcelain -- apps/docs/public/screenshots | wc -l)
+          changed=$(git status --porcelain -- $paths | wc -l)
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add apps/docs/public/screenshots
+          git add $paths
           git commit -m "docs: refresh screenshots for ${GITHUB_SHA::7}"
           git push --force origin "$BRANCH"
 

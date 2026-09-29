@@ -1,17 +1,24 @@
 import type { Metadata } from "next"
-import { Courier_Prime, Geist, Geist_Mono } from "next/font/google"
+import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google"
 
-import "@workspace/ui/globals.css"
 import "./marketing.css"
 import { cn } from "@workspace/ui/lib/utils"
 import { ThemeProvider } from "@/components/theme-provider"
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
-
-const fontScreenplay = Courier_Prime({
+// The Editorial type voice (#1005, #1010): Instrument Sans for text,
+// Instrument Serif (with its italic, for the hero's selected word) for
+// headlines, Geist Mono for small uppercase labels. `marketing.css` maps these
+// onto `font-sans` and `font-heading`.
+const fontSans = Instrument_Sans({
   subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-screenplay",
+  variable: "--font-instrument-sans",
+})
+
+const fontSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
 })
 
 const fontMono = Geist_Mono({
@@ -37,9 +44,9 @@ export default function RootLayout({
       className={cn(
         "antialiased",
         fontMono.variable,
-        fontScreenplay.variable,
+        fontSerif.variable,
         "font-sans",
-        geist.variable
+        fontSans.variable
       )}
     >
       <body>

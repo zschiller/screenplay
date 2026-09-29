@@ -16,6 +16,7 @@ import {
   startDemoPreviews,
 } from "../docs/demo-site"
 import { frameScreens } from "../docs/frame"
+import { writeHomepageShots } from "../docs/homepage"
 import { resolveDocsProfile } from "../docs/profile"
 import {
   DOCS_SCREENS,
@@ -36,7 +37,8 @@ import type { CaptureProfile } from "../profile"
 
 /**
  * `pnpm screenshots:docs` — regenerate the product docs' screenshots
- * (`apps/docs/public/screenshots/<name>.<theme>.webp`).
+ * (`apps/docs/public/screenshots/<name>.<theme>.webp`) and the marketing
+ * homepage's product images (`../docs/homepage.ts`).
  *
  * Seeds the docs world (`../docs/world.ts`), serves its demo-site previews and
  * the local build, captures the docs screen list in light and dark, then frames
@@ -70,6 +72,7 @@ async function main(): Promise<void> {
 
   if (boolFlag(args, "frame-only")) {
     await frameScreens(profile, { label, screens, themes })
+    await writeHomepageShots(profile, { label, screens, themes })
     return
   }
 
@@ -138,6 +141,7 @@ async function main(): Promise<void> {
 
   if (!boolFlag(args, "no-frame")) {
     await frameScreens(profile, { label, screens, themes })
+    await writeHomepageShots(profile, { label, screens, themes })
   }
 }
 

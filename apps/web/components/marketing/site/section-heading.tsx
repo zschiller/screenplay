@@ -1,35 +1,27 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-/** Section header styled like a screenplay scene heading. */
+import { monoLabel } from "./editorial"
+
+/** A section's slug line (screenplay scene heading), serif title and intro. */
 export function SectionHeading({
   slug,
   title,
   body,
-  align = "left",
   className,
 }: {
   slug: string
   title: React.ReactNode
   body?: React.ReactNode
-  align?: "left" | "center"
   className?: string
 }) {
   return (
-    <div
-      className={cn(
-        "flex flex-col",
-        align === "center" && "items-center text-center",
-        className
-      )}
-    >
-      <span className="font-screenplay text-[13px] tracking-wide text-[#106BE3] uppercase dark:text-[#6AA8FF]">
-        {slug}
-      </span>
-      <h2 className="mt-4 max-w-3xl text-3xl leading-[1.08] font-semibold tracking-[-0.03em] text-balance sm:text-5xl">
+    <div className={cn("flex flex-col", className)}>
+      <span className={cn(monoLabel, "text-info")}>{slug}</span>
+      <h2 className="mt-4.5 max-w-[18ch] font-heading text-[clamp(40px,6vw,76px)] leading-none font-normal tracking-[-0.02em] text-balance">
         {title}
       </h2>
       {body ? (
-        <p className="mt-5 max-w-2xl text-base leading-relaxed text-balance text-muted-foreground sm:text-lg">
+        <p className="mt-5.5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
           {body}
         </p>
       ) : null}
