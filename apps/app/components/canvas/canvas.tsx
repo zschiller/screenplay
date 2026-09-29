@@ -1220,16 +1220,21 @@ export function Canvas({
   // Draw tools (Document / Frame) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
   // draws; the gesture seam shares its pointer stream with `drawTool`.
-  const { drawTool, documentDraft, frameDraft } = useDrawTool({
-    documentMode,
-    frameMode,
-    addDocumentLayer,
-    addFrame,
-    toolMode,
-    setSelectedIframeLayerIds,
-    setSelectedDocumentLayerIds,
-    setEditingDocumentLayerId,
-  })
+  const { drawTool, documentDraft, frameDraft, addAtPlaceholder } = useDrawTool(
+    {
+      documentMode,
+      frameMode,
+      addDocumentLayer,
+      addFrame,
+      addIframeLayerToGroup: groupActions.addIframeLayerToGroup,
+      addDocumentLayerToGroup: groupActions.addDocumentLayerToGroup,
+      toolMode,
+      setSelectedIframeLayerIds,
+      setSelectedDocumentLayerIds,
+      setSelectedGroupIds,
+      setEditingDocumentLayerId,
+    }
+  )
 
   // Repopulate the gesture seam's inputs every render so its pointer handlers
   // read the latest geometry, mode flags, and Canvas Operations — the same
@@ -1714,6 +1719,7 @@ export function Canvas({
                     placeholderTool={
                       frameMode ? "frame" : documentMode ? "document" : null
                     }
+                    onPlaceholderAdd={addAtPlaceholder}
                     remoteSelectionColors={remoteSelectionColors}
                     remoteGroupSelectionColors={remoteGroupSelectionColors}
                     agentDomains={agentDomains}

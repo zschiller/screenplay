@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 
 import {
   DEFAULT_IFRAME_LAYER_WIDTH,
@@ -28,6 +28,12 @@ export interface DrawToolController {
   documentDraft: Draft | null
   /** The frame-tool draft rect drawn by SelectionOverlay, or null when idle. */
   frameDraft: Draft | null
+  /**
+   * A click on a group's trailing add-member placeholder: appends a member of
+   * the armed tool's kind to that group, selects it, and drops back to Select,
+   * the same as releasing a drawn draft.
+   */
+  addAtPlaceholder: (groupId: string) => void
 }
 
 /**
@@ -45,9 +51,12 @@ export function useDrawTool({
   frameMode,
   addDocumentLayer,
   addFrame,
+  addIframeLayerToGroup,
+  addDocumentLayerToGroup,
   toolMode,
   setSelectedIframeLayerIds,
   setSelectedDocumentLayerIds,
+  setSelectedGroupIds,
   setEditingDocumentLayerId,
 }: {
   documentMode: boolean
@@ -59,9 +68,12 @@ export function useDrawTool({
     height: number
   ) => string
   addFrame: (x: number, y: number, width: number, height: number) => string
+  addIframeLayerToGroup: (groupId: string) => string | undefined
+  addDocumentLayerToGroup: (groupId: string) => string | undefined
   toolMode: ToolModeController
   setSelectedIframeLayerIds: React.Dispatch<React.SetStateAction<Set<string>>>
   setSelectedDocumentLayerIds: React.Dispatch<React.SetStateAction<Set<string>>>
+  setSelectedGroupIds: React.Dispatch<React.SetStateAction<Set<string>>>
   setEditingDocumentLayerId: (id: string | null) => void
 }): DrawToolController {
   const [documentDraft, setDocumentDraft] = useState<Draft | null>(null)
@@ -189,5 +201,37 @@ export function useDrawTool({
     ]
   )
 
-  return { drawTool, documentDraft, frameDraft }
+  const addAtPlaceholder = useCallback(
+    (groupId: string) => {
+      if (documentMode) {
+        const newId = addDocumentLayerToGroup(groupId)
+        if (!newId) return
+        toolMode.set("select")
+        setSelectedDocumentLayerIds(new Set([newId]))
+        setSelectedIframeLayerIds(new Set())
+        setSelectedGroupIds(new Set())
+        return
+      }
+      if (frameMode) {
+        const newId = addIframeLayerToGroup(groupId)
+        if (!newId) return
+        toolMode.set("select")
+        setSelectedIframeLayerIds(new Set([newId]))
+        setSelectedGroupIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
+      }
+    },
+    [
+      documentMode,
+      frameMode,
+      addDocumentLayerToGroup,
+      addIframeLayerToGroup,
+      toolMode,
+      setSelectedIframeLayerIds,
+      setSelectedDocumentLayerIds,
+      setSelectedGroupIds,
+    ]
+  )
+
+  return { drawTool, documentDraft, frameDraft, addAtPlaceholder }
 }

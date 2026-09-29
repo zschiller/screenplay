@@ -84,6 +84,7 @@ function CanvasMemberLayerImpl({
   groupDisplayNames,
   placeholderRects,
   placeholderTool,
+  onPlaceholderAdd,
   remoteSelectionColors,
   remoteGroupSelectionColors,
   agentDomains,
@@ -131,6 +132,11 @@ function CanvasMemberLayerImpl({
   placeholderRects: PlaceholderRect[]
   /** The armed tool whose kind a placeholder click appends; null hides them. */
   placeholderTool: PlaceholderTool | null
+  /**
+   * A placeholder click: appends a member of the armed tool's kind, selects
+   * it, and drops back to Select (`useDrawTool`'s `addAtPlaceholder`).
+   */
+  onPlaceholderAdd: (groupId: string) => void
   remoteSelectionColors: Map<string, string>
   remoteGroupSelectionColors: Map<string, string>
   agentDomains: AgentDomains
@@ -190,9 +196,6 @@ function CanvasMemberLayerImpl({
   const selectedIframeLayerIds = selection.iframeLayerIds
   const selectedGroupIds = selection.groupIds
   const selectedDocumentLayerIds = selection.documentLayerIds
-  const setSelectedIframeLayerIds = selection.setIframeLayerIds
-  const setSelectedGroupIds = selection.setGroupIds
-  const setSelectedDocumentLayerIds = selection.setDocumentLayerIds
   const handleIframeLayerSelect = selection.selectIframeLayer
   const handleGroupSelect = selection.selectGroup
   const handleDocumentLayerSelect = selection.selectDocumentLayer
@@ -530,7 +533,7 @@ function CanvasMemberLayerImpl({
           the Frame or Document tool is armed. The visible outline is painted by
           PlaceholderRectsUnderlay; this is just the transparent hit target,
           positioned absolutely in world space. A click appends a member of the
-          armed tool's kind and selects it. */}
+          armed tool's kind, selects it, and drops back to Select. */}
       {placeholderRects.map((rect) => (
         <button
           key={`placeholder-${rect.groupId}`}
@@ -547,21 +550,7 @@ function CanvasMemberLayerImpl({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
-            if (placeholderTool === "document") {
-              const newId = groupActions.addDocumentLayerToGroup(rect.groupId)
-              if (newId) {
-                setSelectedDocumentLayerIds(new Set([newId]))
-                setSelectedIframeLayerIds(new Set())
-                setSelectedGroupIds(new Set())
-              }
-              return
-            }
-            const newId = groupActions.addIframeLayerToGroup(rect.groupId)
-            if (newId) {
-              setSelectedIframeLayerIds(new Set([newId]))
-              setSelectedGroupIds(new Set())
-              setSelectedDocumentLayerIds(new Set())
-            }
+            onPlaceholderAdd(rect.groupId)
           }}
           aria-label={
             placeholderTool === "document"
