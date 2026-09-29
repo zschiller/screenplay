@@ -92,6 +92,7 @@ import { PlusIcon as PlusBase } from "@phosphor-icons/react/dist/ssr/Plus"
 import { PushPinIcon as PushPinBase } from "@phosphor-icons/react/dist/ssr/PushPin"
 import { PushPinSlashIcon as PushPinSlashBase } from "@phosphor-icons/react/dist/ssr/PushPinSlash"
 import { QuotesIcon as QuotesBase } from "@phosphor-icons/react/dist/ssr/Quotes"
+import { RecordIcon as RecordBase } from "@phosphor-icons/react/dist/ssr/Record"
 import { RecycleIcon as RecycleBase } from "@phosphor-icons/react/dist/ssr/Recycle"
 import { RobotIcon as RobotBase } from "@phosphor-icons/react/dist/ssr/Robot"
 import { RowsIcon as RowsBase } from "@phosphor-icons/react/dist/ssr/Rows"
@@ -319,6 +320,7 @@ export const PlusIcon = phosphor(PlusBase, "ph-plus")
 export const PushPinIcon = phosphor(PushPinBase, "ph-push-pin")
 export const PushPinSlashIcon = phosphor(PushPinSlashBase, "ph-push-pin-slash")
 export const QuotesIcon = phosphor(QuotesBase, "ph-quotes")
+export const RecordIcon = phosphor(RecordBase, "ph-record")
 export const RecycleIcon = phosphor(RecycleBase, "ph-recycle")
 export const RobotIcon = phosphor(RobotBase, "ph-robot")
 export const RowsIcon = phosphor(RowsBase, "ph-rows")
