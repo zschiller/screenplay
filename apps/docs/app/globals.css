@@ -291,3 +291,40 @@ html.dark article kbd {
   background: oklch(0.2 0 0);
   color: oklch(0.708 0 0);
 }
+
+/* Callouts as the app's outline Alert (#1100): hairline border, no fill,
+   regular text, and only the Phosphor icon in the status ink (`--info` and
+   `--warning` in packages/ui globals.css). Icons come from
+   components/callout.tsx. */
+.nextra-callout {
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-color: oklch(0 0 0 / 12%);
+  background: transparent;
+  color: inherit;
+}
+html.dark .nextra-callout {
+  border-color: oklch(1 0 0 / 16%);
+}
+.nextra-callout > div:first-child {
+  padding: 0;
+  font-size: inherit;
+  /* The body's leading, so the icon centres on the first line of text. */
+  line-height: 1.75rem;
+}
+.sp-callout-icon {
+  width: 1rem;
+  height: 1lh;
+}
+.sp-callout-info {
+  color: oklch(0.56 0.259 326);
+}
+.sp-callout-warning {
+  color: oklch(0.6 0.139 60);
+}
+html.dark .sp-callout-info {
+  color: oklch(0.667 0.295 322.15);
+}
+html.dark .sp-callout-warning {
+  color: oklch(0.88 0.179 95);
+}
