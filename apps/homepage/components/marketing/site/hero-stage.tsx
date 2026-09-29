@@ -68,7 +68,8 @@ type Copy = {
  * where the text fills the hero, the copies sit below it instead, unveiled.
  *
  * The copies are built on the client only; they're decoration, hidden from
- * assistive tech. With reduced motion they hold still.
+ * assistive tech. With reduced motion they hold still. Hovering clears a hole
+ * in the veil to peek at them.
  */
 export function HeroStage({ children }: { children: React.ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
@@ -236,6 +237,20 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     // Webfonts change where the lines fall.
     void document.fonts.ready.then(remeasure)
 
+    // Hovering clears a hole in the veil to peek at the copies underneath.
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || !wide.matches) return
+      const r = host.getBoundingClientRect()
+      veil.peekAt({ x: e.clientX - r.left, y: e.clientY - r.top })
+      if (reduce) veil.drawOnce()
+    }
+    const onLeave = () => {
+      veil.peekAt(null)
+      if (reduce && wide.matches) veil.drawOnce()
+    }
+    host.addEventListener("pointermove", onMove)
+    host.addEventListener("pointerleave", onLeave)
+
     const resize = new ResizeObserver(remeasure)
     resize.observe(host)
     wide.addEventListener("change", remeasure)
@@ -251,6 +266,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       pause()
       cancelAnimationFrame(pending)
       resize.disconnect()
+      host.removeEventListener("pointermove", onMove)
+      host.removeEventListener("pointerleave", onLeave)
       wide.removeEventListener("change", remeasure)
       seen.disconnect()
       rowsEl.replaceChildren()

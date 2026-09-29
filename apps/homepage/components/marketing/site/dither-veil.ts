@@ -56,6 +56,8 @@ export function createDitherVeil(
   const FALL = 190
   // The spacing of the grid distances are measured on, in CSS px.
   const COARSE = 8
+  // How far around the pointer the veil clears, in CSS px.
+  const PEEK = 150
 
   let W = 0
   let H = 0
@@ -67,6 +69,12 @@ export function createDitherVeil(
   let dist = new Float32Array(0)
   // The grains in the fade, the only ones that change from frame to frame.
   let band = new Int32Array(0)
+  let inBand = new Uint8Array(0)
+  // The pointer peek: where it's heading, where it's drawn (eased), how
+  // strong it is, and the grains it touched last frame.
+  const aim = { x: 0, y: 0, on: false }
+  const peek = { x: 0, y: 0, s: 0 }
+  let touched: [number, number, number, number] | null = null
   let rgb = [255, 255, 255]
   let raf = 0
   let last = 0
@@ -150,11 +158,14 @@ export function createDitherVeil(
       }
     }
     band = fade.subarray(0, n)
+    inBand = new Uint8Array(cols * rows)
+    for (let b = 0; b < n; b++) inBand[fade[b]!] = 1
+    touched = null
     fill()
   }
 
-  // Paints the grains that never change: solid behind the text, clear far
-  // from it.
+  // Paints the grains that only change under the pointer: solid behind the
+  // text, clear far from it.
   function fill() {
     if (!img) return
     const data = img.data
@@ -168,9 +179,33 @@ export function createDitherVeil(
     }
   }
 
-  function draw(now: number) {
+  // One grain's opacity: the fade by distance, a billowing edge, a creeping
+  // grain, and a hole where the pointer is.
+  function grain(i: number, t: number, sx: number, sy: number) {
+    const c = i % cols
+    const r = (i - c) / cols
+    // Behind the text it stays solid whatever the edge noise does.
+    let k = dist[i]! <= 0 ? 1.3 : 1 - dist[i]! / FALL
+    const n = noise(c * cell * 0.007 + t * 0.45, r * cell * 0.007 - t * 0.3)
+    k += (n - 0.5) * 0.55
+    if (peek.s > 0.01) {
+      const d = Math.hypot(c * cell - peek.x, r * cell - peek.y)
+      const e = Math.min(Math.max((PEEK - d) / (PEEK * 0.65), 0), 1)
+      k -= peek.s * e * e * (3 - 2 * e) * 1.6
+    }
+    const kk = Math.min(Math.max(k, 0), 1)
+    const v = kk * kk * (3 - 2 * kk)
+    return v > ign(c + sx, r - sy) ? 255 : v * 150
+  }
+
+  function draw(now: number, snap = false) {
     if (!img) return
     const t = (now - t0) / 1000
+    // Ease the peek toward the pointer, and in and out.
+    const ease = snap ? 1 : 0.3
+    peek.x += (aim.x - peek.x) * ease
+    peek.y += (aim.y - peek.y) * ease
+    peek.s += ((aim.on ? 1 : 0) - peek.s) * (snap ? 1 : 0.18)
     // The grain pattern creeps diagonally and the edge billows, so the veil
     // reads as moving rather than a still texture.
     const sx = Math.floor(t * 9)
@@ -178,14 +213,33 @@ export function createDitherVeil(
     const data = img.data
     for (let b = 0; b < band.length; b++) {
       const i = band[b]!
-      const c = i % cols
-      const r = (i - c) / cols
-      const k = 1 - dist[i]! / FALL
-      const n = noise(c * cell * 0.007 + t * 0.45, r * cell * 0.007 - t * 0.3)
-      const kk = Math.min(Math.max(k + (n - 0.5) * 0.55, 0), 1)
-      const v = kk * kk * (3 - 2 * kk)
-      data[i * 4 + 3] = v > ign(c + sx, r - sy) ? 255 : v * 150
+      data[i * 4 + 3] = grain(i, t, sx, sy)
     }
+    // Grains outside the fade only change under the pointer: redraw the
+    // ones it covers now and put back the ones it covered last frame.
+    const box: typeof touched =
+      peek.s > 0.01
+        ? [
+            Math.max(0, Math.floor((peek.x - PEEK) / cell)),
+            Math.max(0, Math.floor((peek.y - PEEK) / cell)),
+            Math.min(cols - 1, Math.ceil((peek.x + PEEK) / cell)),
+            Math.min(rows - 1, Math.ceil((peek.y + PEEK) / cell)),
+          ]
+        : null
+    for (const [b, under] of [
+      [touched, false],
+      [box, true],
+    ] as const) {
+      if (!b) continue
+      for (let r = b[1]; r <= b[3]; r++) {
+        for (let c = b[0]; c <= b[2]; c++) {
+          const i = r * cols + c
+          if (inBand[i] || dist[i]! > 0) continue
+          data[i * 4 + 3] = under ? grain(i, t, sx, sy) : 255
+        }
+      }
+    }
+    touched = box
     octx.putImageData(img, 0, 0)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, W, H)
@@ -217,7 +271,18 @@ export function createDitherVeil(
     measure,
     /** Draws one frame now, e.g. right after `measure`. */
     drawOnce() {
-      draw(performance.now())
+      draw(performance.now(), true)
+    },
+    /**
+     * Clears a hole around a point (in the host's CSS px) to peek at what's
+     * underneath, or closes it with `null`. The next frame eases to it.
+     */
+    peekAt(point: { x: number; y: number } | null) {
+      if (point) {
+        if (!aim.on && peek.s < 0.01) Object.assign(peek, point)
+        Object.assign(aim, point)
+      }
+      aim.on = !!point
     },
     start() {
       cancelAnimationFrame(raf)
