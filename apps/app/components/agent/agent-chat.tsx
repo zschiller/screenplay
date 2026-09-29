@@ -589,14 +589,16 @@ function ChatEmptyState({
       </div>
       <div className="flex flex-wrap justify-center gap-1.5">
         {starters.map((text) => (
-          <button
+          <Button
             key={text}
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => onPickStarter(text)}
-            className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="font-normal text-muted-foreground hover:text-foreground"
           >
             {text}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
