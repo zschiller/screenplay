@@ -5,7 +5,6 @@ import {
   ArrowClockwiseIcon,
   CaretUpDownIcon,
   CheckIcon,
-  RecordIcon,
 } from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
@@ -45,7 +44,7 @@ import {
 /**
  * The address field in a selected frame's floating toolbar (issue #795), like
  * Safari's: the frame's Workspace as the host (press it to switch, #867), the
- * route (press it to go anywhere), reload, and record. Record
+ * route (press it to go anywhere), record, and reload. Record
  * runs Create Flow; while it runs the field turns red and counts the screens
  * laid down. The preview's status shows at the field's start only when it
  * isn't live, so a healthy frame carries no dot.
@@ -193,6 +192,26 @@ export function FrameAddressBar({
         afterHost={!!showHost}
         recording={recording}
       />
+      <IconButton
+        label={recording ? "Stop recording" : "Record flow"}
+        pressed={recording}
+        size="icon-xs"
+        className={cn(
+          "size-5",
+          // Idle it's a muted dot like Reload's grey; red is for a recording.
+          recording
+            ? "text-destructive-foreground hover:bg-transparent hover:text-destructive-foreground aria-pressed:bg-transparent dark:hover:bg-transparent"
+            : "text-muted-foreground"
+        )}
+        onClick={onToggleRecording}
+      >
+        <span
+          className={cn(
+            "size-2 bg-current",
+            recording ? "rounded-[1.5px]" : "rounded-full"
+          )}
+        />
+      </IconButton>
       {!recording && (
         <IconButton
           label="Reload"
@@ -203,25 +222,6 @@ export function FrameAddressBar({
           <ArrowClockwiseIcon className="size-3" />
         </IconButton>
       )}
-      <IconButton
-        label={recording ? "Stop recording" : "Record flow"}
-        pressed={recording}
-        size="icon-xs"
-        className={cn(
-          "size-5",
-          // Idle it's a muted glyph like Reload; red is for a recording.
-          recording
-            ? "text-destructive-foreground hover:bg-transparent hover:text-destructive-foreground aria-pressed:bg-transparent dark:hover:bg-transparent"
-            : "text-muted-foreground"
-        )}
-        onClick={onToggleRecording}
-      >
-        {recording ? (
-          <span className="size-2 rounded-[1.5px] bg-current" />
-        ) : (
-          <RecordIcon className="size-3" />
-        )}
-      </IconButton>
     </div>
   )
 }
