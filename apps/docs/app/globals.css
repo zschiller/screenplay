@@ -88,6 +88,74 @@ html.dark .nextra-mobile-nav li:not(:has(*)) {
   opacity: 0.55;
 }
 
+/* Copy page split button: the app's outline Button pair, transparent halves
+   split by a hairline, 32px high, with the neutral hover fill. */
+.nextra-border.x\:float-end {
+  border-color: oklch(0 0 0 / 12%);
+  border-radius: 2px;
+}
+.nextra-border.x\:float-end > button {
+  height: 2rem;
+  background: transparent;
+  color: oklch(0 0 0);
+}
+.nextra-border.x\:float-end > button + button {
+  border-inline-start: 1px solid oklch(0 0 0 / 12%);
+}
+.nextra-border.x\:float-end > button:hover {
+  background: oklch(0.965 0 0);
+}
+html.dark .nextra-border.x\:float-end {
+  border-color: oklch(1 0 0 / 16%);
+}
+html.dark .nextra-border.x\:float-end > button {
+  color: oklch(1 0 0);
+}
+html.dark .nextra-border.x\:float-end > button + button {
+  border-inline-start-color: oklch(1 0 0 / 16%);
+}
+html.dark .nextra-border.x\:float-end > button:hover {
+  background: oklch(0.18 0 0);
+}
+
+/* Copy page and theme menus: the app's inverted DropdownMenu (#1073), dark in
+   light mode and light in dark mode. Values are the app's popover, border,
+   accent and muted-foreground tokens from the other theme. Search results
+   are a listbox too and keep their own look. */
+[role="listbox"]:not(.nextra-search-results) {
+  --sp-menu-bg: oklch(0.1 0 0);
+  --sp-menu-fg: oklch(1 0 0);
+  --sp-menu-border: oklch(1 0 0 / 16%);
+  --sp-menu-accent: oklch(0.18 0 0);
+  --sp-menu-muted: oklch(0.708 0 0);
+  padding: 0.25rem;
+  border: 1px solid var(--sp-menu-border);
+  border-radius: 2px;
+  background: var(--sp-menu-bg);
+  color: var(--sp-menu-fg);
+  backdrop-filter: none;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  outline: none;
+}
+html.dark [role="listbox"]:not(.nextra-search-results) {
+  --sp-menu-bg: oklch(1 0 0);
+  --sp-menu-fg: oklch(0 0 0);
+  --sp-menu-border: oklch(0 0 0 / 12%);
+  --sp-menu-accent: oklch(0.965 0 0);
+  --sp-menu-muted: oklch(0.556 0 0);
+}
+[role="listbox"]:not(.nextra-search-results) [role="option"] {
+  border-radius: 2px;
+  background: transparent;
+  color: var(--sp-menu-fg);
+}
+[role="listbox"]:not(.nextra-search-results) [role="option"][data-focus] {
+  background: var(--sp-menu-accent);
+}
+[role="listbox"]:not(.nextra-search-results) .x\:flex-col > .x\:text-xs {
+  color: var(--sp-menu-muted);
+}
+
 /* Framed screenshots: show the variant that matches the docs theme. */
 .sp-screenshot {
   margin: 1.75rem 0;
