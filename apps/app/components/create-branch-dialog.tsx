@@ -470,7 +470,7 @@ function WorkspaceRow({
                 <CaretDownIcon className="size-3 opacity-60" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="inverted w-72 p-0" align="start">
+            <PopoverContent className="w-72 p-0" align="start">
               <BranchPicker
                 owner={repo?.repoOwner ?? ""}
                 repo={repo?.repoName ?? ""}

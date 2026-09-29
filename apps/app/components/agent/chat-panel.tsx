@@ -1469,7 +1469,7 @@ function TargetPicker({
           <CaretUpDownIcon className="size-3 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="inverted w-72 p-0" side="bottom" align="start">
+      <PopoverContent className="w-72 p-0" side="bottom" align="start">
         <Command>
           <CommandInput placeholder="Search workspaces and layers…" />
           <CommandList>

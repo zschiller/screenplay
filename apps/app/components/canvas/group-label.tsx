@@ -154,7 +154,7 @@ function GroupWorkspaceSwitcher({
         </PopoverTrigger>
       </WorkspaceHoverCard>
       <PopoverContent
-        className="inverted w-72 p-0"
+        className="w-72 p-0"
         side="bottom"
         align="start"
         onPointerDown={(e) => e.stopPropagation()}
@@ -206,7 +206,7 @@ function GroupWorkspaceChooser({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="inverted w-72 p-0"
+        className="w-72 p-0"
         side="bottom"
         align="start"
         onPointerDown={(e) => e.stopPropagation()}

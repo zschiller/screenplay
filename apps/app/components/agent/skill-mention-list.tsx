@@ -77,14 +77,14 @@ export const SkillMentionList = forwardRef<
     // While the per-Branch index is still loading, say so rather than "No
     // skills found" — the menu shouldn't look broken the instant it opens.
     return (
-      <div className="inverted rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-muted-foreground shadow-md">
+      <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-muted-foreground shadow-md">
         {loading ? "Loading skills…" : "No skills found"}
       </div>
     )
   }
 
   return (
-    <div className="inverted max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-xs text-popover-foreground shadow-md">
+    <div className="max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-xs text-popover-foreground shadow-md">
       <div className="px-2 py-1.5 font-mono text-2xs font-normal tracking-wider text-muted-foreground uppercase">
         Skills
       </div>
