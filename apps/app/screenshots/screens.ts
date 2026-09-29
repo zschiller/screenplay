@@ -1751,11 +1751,11 @@ export const SCREENS: Screen[] = [
   {
     name: "sidebar-workspaces-view-menu",
     description:
-      "The Workspaces … menu with the list's view options (#885): Sort by and Group by state above Open existing git branch.",
+      "The Workspaces sort menu (#885): Sort by and Group by state, each with an icon.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await page
-        .getByRole("button", { name: "More workspace actions" })
+        .getByRole("button", { name: "Sort and group workspaces" })
         .click({ timeout: 15_000 })
       await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
       await page.mouse.move(5, 5)
