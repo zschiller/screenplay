@@ -135,6 +135,31 @@ describe("LocalSandboxProvider", () => {
     expect((await pwd.stdout()).trim()).toBe(real)
   })
 
+  it("runCommand hides the host app's Next.js env from the child", async () => {
+    // The desktop sidecar's standalone server leaves these in process.env; a
+    // user project's `next dev` crashes if it inherits them.
+    const leaked = {
+      __NEXT_PRIVATE_STANDALONE_CONFIG: '{"distDir":"./.next"}',
+      NEXT_DEPLOYMENT_ID: "dpl_123",
+      TURBOPACK: "1",
+    }
+    const prevNodeEnv = process.env.NODE_ENV
+    Object.assign(process.env, leaked)
+    ;(process.env as Record<string, string>).NODE_ENV = "production"
+    try {
+      const sandbox = await provider.create(createOpts("branch-a", sourceRepo))
+      const result = await sandbox.runCommand("sh", [
+        "-c",
+        'echo "${__NEXT_PRIVATE_STANDALONE_CONFIG-unset} ${NEXT_DEPLOYMENT_ID-unset} ${TURBOPACK-unset} $NODE_ENV"',
+      ])
+      expect(await result.stdout()).toBe("unset unset unset development\n")
+    } finally {
+      for (const name of Object.keys(leaked)) delete process.env[name]
+      ;(process.env as Record<string, string | undefined>).NODE_ENV =
+        prevNodeEnv
+    }
+  })
+
   it("surfaces a non-zero exit code with stderr", async () => {
     const sandbox = await provider.create(createOpts("branch-a", sourceRepo))
 

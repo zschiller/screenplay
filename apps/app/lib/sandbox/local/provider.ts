@@ -6,6 +6,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
+import { devServerEnv } from "@/lib/sandbox/local/host-env"
 import { acquireRepo, type RepoSource } from "@/lib/sandbox/local/worktree"
 import { PortAllocator } from "@/lib/sandbox/port-allocator"
 import type {
@@ -503,7 +504,10 @@ function execHost(
   const detached = opts.detached ?? false
   const child = spawn(opts.cmd, opts.args ?? [], {
     cwd,
-    env: { ...process.env, ...(opts.env ?? {}) },
+    // Never the sidecar's raw env: it carries this app's own Next.js runtime
+    // state, which crashes a user project's `next dev` (see host-env.ts). The
+    // cast: Next.js augments `ProcessEnv` to require `NODE_ENV`, set here.
+    env: devServerEnv(opts.env) as NodeJS.ProcessEnv,
     detached,
   })
 
