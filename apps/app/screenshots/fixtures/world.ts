@@ -1013,7 +1013,7 @@ function tokensRoom(now: number): FixtureRoom {
           sidebarOrder: 0,
         },
       ],
-      savedViewport: { x: 40, y: 40, zoom: 0.6 },
+      savedViewport: { x: 40, y: 90, zoom: 0.6 },
       markdownBodies: {
         "doc-tokens-color": [
           "# Color",
@@ -1043,6 +1043,10 @@ function tokensRoom(now: number): FixtureRoom {
           "- `2` — 8px, inside a control",
           "- `4` — 16px, between controls",
           "- `6` — 24px, between sections",
+          "",
+          "### Exceptions",
+          "",
+          "Dense tables may drop to `1` between rows. Nothing else does.",
         ].join("\n"),
       },
     },

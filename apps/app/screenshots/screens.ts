@@ -1848,9 +1848,7 @@ export const SCREENS: Screen[] = [
       // force: the locked picker is disabled, so it takes no pointer events of
       // its own; hovering its box is what a person does.
       await page
-        .locator(
-          '[data-slot="input-group"] button:has(svg.ph-caret-down)'
-        )
+        .locator('[data-slot="input-group"] button:has(svg.ph-caret-down)')
         .filter({ visible: true })
         .last()
         .hover({ force: true, timeout: 15_000 })
@@ -2991,6 +2989,28 @@ export const SCREENS: Screen[] = [
       "The prototype player before the room syncs, held by a silent Yjs socket.",
     path: playPath(ids.branches.framesReady, "layer-frames-ready"),
     beforeNavigate: holdYjsConnection,
+  },
+  {
+    name: "canvas-document-type",
+    // After every other Design tokens screen on purpose: the zoom persists
+    // into the Canvas's saved viewport.
+    description:
+      "Two Documents zoomed in to read their type: serif headings, lists and inline code (#1048).",
+    path: `/${ids.rooms.tokens}`,
+    prepare: async (page) => {
+      // Double-clicking the Group's sidebar row zooms the Canvas to both
+      // Documents; Escape and a blur drop the selection and focus rings.
+      await page
+        .locator('[data-sidebar="menu-button"]')
+        .filter({ hasText: /^Tokens$/ })
+        .first()
+        .dblclick({ timeout: 15_000 })
+      await page.waitForTimeout(800)
+      await page.keyboard.press("Escape")
+      await page.evaluate(() => (document.activeElement as HTMLElement)?.blur())
+      await page.mouse.move(4, 600)
+    },
+    settleMs: 400,
   },
   {
     name: "canvas-zoomed-out",
