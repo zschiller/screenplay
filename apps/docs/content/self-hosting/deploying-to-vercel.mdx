@@ -64,12 +64,19 @@ sign-in. That's why some values must be identical everywhere.
 
 Each app's `vercel.json` sets an ignored build step
 (`scripts/vercel-ignore-build.sh`) so previews don't spend build credits on
-every push. Production deploys always build. A preview builds only when:
+every push. Production deploys always build. A preview builds only when you
+opt in, for every app or for one:
 
-- the pull request has the `preview` label (add it, then push; adding a label
-  alone doesn't start a deploy), or
-- the pushed commit's subject line contains `[preview]` (the body doesn't
-  count).
+| Opt in with | Builds |
+| --- | --- |
+| `preview` label on the PR | app, docs and web |
+| `preview:app`, `preview:docs` or `preview:web` label | that app only |
+| `[preview]` in the pushed commit's subject line | app, docs and web |
+| `[preview:app]`, `[preview:docs]` or `[preview:web]` in the subject line | that app only |
+
+Adding a label doesn't start a deploy on its own: push afterwards, or redeploy
+from Vercel. Only the subject line counts, so a commit body that mentions a
+token doesn't opt in.
 
 The label check calls the GitHub API unauthenticated, which works for a
 public repository. For a private fork, add a `GITHUB_TOKEN` environment
