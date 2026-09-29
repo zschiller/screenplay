@@ -308,7 +308,7 @@ function ChatTabLabel({
       {isStreaming ? (
         <GripSpinner className="size-3 shrink-0 text-muted-foreground" />
       ) : hasUnread ? (
-        <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
+        <span className="size-1.5 shrink-0 rounded-full bg-info" />
       ) : null}
       <EditableText
         as="span"
