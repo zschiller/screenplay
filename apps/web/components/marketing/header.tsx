@@ -15,7 +15,7 @@ export function Header() {
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
         <Link
           href="/"
-          className="group flex items-center gap-2"
+          className="flex items-center gap-2"
           aria-label="Screenplay home"
         >
           <Wordmark />

@@ -1,10 +1,13 @@
 import type { Metadata } from "next"
+import { Instrument_Serif } from "next/font/google"
 import { Footer, Layout, Navbar } from "nextra-theme-docs"
 import { Head } from "nextra/components"
 import { getPageMap } from "nextra/page-map"
 import "nextra-theme-docs/style.css"
 import "./globals.css"
-import { ScreenplayLogo } from "../components/screenplay-logo"
+import { ScreenplayMark } from "@workspace/ui/components/screenplay-mark"
+
+const serif = Instrument_Serif({ subsets: ["latin"], weight: "400" })
 
 export const metadata: Metadata = {
   title: {
@@ -19,9 +22,13 @@ const navbar = (
   <Navbar
     logo={
       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <ScreenplayLogo width={24} height={24} />
-        <b>Screenplay</b>
-        <span style={{ opacity: 0.55, fontWeight: 400 }}>Docs</span>
+        <ScreenplayMark width={24} height={24} />
+        <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span className={serif.className} style={{ fontSize: 26 }}>
+            Screenplay
+          </span>
+          <span style={{ opacity: 0.55 }}>Docs</span>
+        </span>
       </span>
     }
     projectLink="https://github.com/zschiller/screenplay"

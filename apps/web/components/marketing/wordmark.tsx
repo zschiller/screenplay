@@ -1,12 +1,17 @@
-import { Mascot } from "./site/mascot"
+import { Instrument_Serif } from "next/font/google"
 
-export function Wordmark({ size = 22 }: { size?: number }) {
+import { ScreenplayMark } from "@workspace/ui/components/screenplay-mark"
+import { cn } from "@workspace/ui/lib/utils"
+
+const serif = Instrument_Serif({ subsets: ["latin"], weight: "400" })
+
+/** The logo lockup: the static mark and "Screenplay" in Instrument Serif. */
+export function Wordmark({ size = 24 }: { size?: number }) {
   return (
     <span className="flex items-center gap-2">
-      <Mascot size={size} className="mascot-hop" />
-      <span className="text-[15px] font-semibold tracking-tight">
+      <ScreenplayMark width={size} height={size} className="shrink-0" />
+      <span className={cn(serif.className, "text-[26px] leading-none")}>
         Screenplay
-        <span className="text-muted-foreground">.space</span>
       </span>
     </span>
   )
