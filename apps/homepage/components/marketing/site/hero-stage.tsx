@@ -64,11 +64,12 @@ type Copy = {
  * The hero's backdrop: copies of this homepage pan past in two rows, each a
  * Workspace an agent is changing live, under a dither in the page's own
  * background colour that keeps the text on top readable. Everything marked
- * `data-veil` inside gets solid background behind its lines. On phones,
+ * `data-veil` inside gets solid background behind its lines. Below 1024px,
  * where the text fills the hero, the copies sit below it instead, unveiled.
  *
  * The copies are built on the client only; they're decoration, hidden from
- * assistive tech. With reduced motion they hold still.
+ * assistive tech. With reduced motion they hold still. Hovering clears a hole
+ * in the veil to peek at them.
  */
 export function HeroStage({ children }: { children: React.ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
@@ -200,8 +201,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Phones stack the copies under the text instead, with no veil.
-    const wide = matchMedia("(min-width: 768px)")
+    // Narrower screens stack the copies under the text instead, unveiled.
+    const wide = matchMedia("(min-width: 1024px)")
     const play = () => {
       if (reduce || alive) return
       alive = true
@@ -218,16 +219,37 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       copies.forEach((f) => (f.busy = false))
     }
 
+    // At most once a frame, and drawn straight away, so dragging the window
+    // neither stalls nor flashes an empty veil.
+    let pending = 0
     const remeasure = () => {
-      if (!wide.matches) return veil.stop()
-      veil.measure()
-      if (reduce || !alive) veil.drawOnce()
-      else veil.start()
+      if (pending) return
+      pending = requestAnimationFrame(() => {
+        pending = 0
+        if (!wide.matches) return veil.stop()
+        veil.measure()
+        veil.drawOnce()
+        if (alive && !reduce) veil.start()
+      })
     }
     veil.setColor(getComputedStyle(host).backgroundColor)
     remeasure()
     // Webfonts change where the lines fall.
     void document.fonts.ready.then(remeasure)
+
+    // Hovering clears a hole in the veil to peek at the copies underneath.
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || !wide.matches) return
+      const r = host.getBoundingClientRect()
+      veil.peekAt({ x: e.clientX - r.left, y: e.clientY - r.top })
+      if (reduce) veil.drawOnce()
+    }
+    const onLeave = () => {
+      veil.peekAt(null)
+      if (reduce && wide.matches) veil.drawOnce()
+    }
+    host.addEventListener("pointermove", onMove)
+    host.addEventListener("pointerleave", onLeave)
 
     const resize = new ResizeObserver(remeasure)
     resize.observe(host)
@@ -242,7 +264,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
 
     return () => {
       pause()
+      cancelAnimationFrame(pending)
       resize.disconnect()
+      host.removeEventListener("pointermove", onMove)
+      host.removeEventListener("pointerleave", onLeave)
       wide.removeEventListener("change", remeasure)
       seen.disconnect()
       rowsEl.replaceChildren()
@@ -260,7 +285,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       <canvas
         ref={canvas}
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1] size-full max-md:hidden"
+        className="pointer-events-none absolute inset-0 z-[1] size-full max-lg:hidden"
       />
       <div className="hc-content relative z-[2]">{children}</div>
     </div>
