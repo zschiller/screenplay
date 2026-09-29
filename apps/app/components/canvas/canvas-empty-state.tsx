@@ -21,6 +21,14 @@ import { Kbd } from "@workspace/ui/components/kbd"
 import type { ToolModeController } from "./use-tool-mode"
 
 /**
+ * Fill for chrome drawn straight on the canvas plane. In light mode the plane
+ * and `--muted` are the same grey, so the stock muted fill disappears; a
+ * foreground tint gives it back. Dark mode keeps the stock fill, which already
+ * reads (#1032).
+ */
+const ON_PLANE = "bg-foreground/[0.06] dark:bg-muted"
+
+/**
  * The empty-canvas guidance (#735): what a Canvas with no Layers shows instead
  * of a blank field. Offers the three ways to start — a Frame, a Document, a
  * Project — each with the shortcut that does the same thing, so the guidance
@@ -55,7 +63,7 @@ export function CanvasEmptyState({
           {frameMode
             ? "Click or drag to place a frame"
             : "Click or drag to place a document"}
-          <Kbd>Esc</Kbd>
+          <Kbd className={ON_PLANE}>Esc</Kbd>
         </p>
       </div>
     )
@@ -68,7 +76,7 @@ export function CanvasEmptyState({
     >
       <Empty className="flex-none animate-in duration-300 fade-in-0">
         <EmptyHeader>
-          <EmptyMedia variant="icon">
+          <EmptyMedia variant="icon" className={ON_PLANE}>
             <LayoutIcon />
           </EmptyMedia>
           <EmptyTitle>This canvas is empty</EmptyTitle>
@@ -127,7 +135,7 @@ function EmptyAction({
     >
       {icon}
       <span className="flex-1 text-left">{label}</span>
-      {shortcut && <Kbd>{shortcut}</Kbd>}
+      {shortcut && <Kbd className={ON_PLANE}>{shortcut}</Kbd>}
     </Button>
   )
 }
