@@ -193,15 +193,55 @@ body {
   visibility: visible;
 }
 
-/* Document tile: the first heading inside the editor is the page title.
-   Notion styling — large, bold, flush with the top, then body sits below
-   without the prose default of giant top margins on the next heading. */
-.tiptap-document > :first-child {
+/* Document type (#1048): the Editorial scale from #1005. The first heading
+   is the page title and, like H1 and H2 below it, is set in Instrument Serif
+   at its only weight; H3 and smaller stay sans. Paragraphs and lists sit
+   tighter than Typography's `prose-sm` defaults, so a list reads as one
+   block instead of spaced-out lines. */
+.tiptap-document h1,
+.tiptap-document h2 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  letter-spacing: normal;
+}
+.tiptap-document h1 {
   font-size: 1.875rem;
   line-height: 2.25rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  margin: 0 0 0.75rem 0;
+  margin: 1.5rem 0 0.5rem;
+}
+.tiptap-document h2 {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  margin: 1.25rem 0 0.25rem;
+}
+/* Sans H3 steps down from the serif H2: body size plus a little, medium
+   weight, so it doesn't outweigh the heading above it. */
+.tiptap-document h3 {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+  margin: 1rem 0 0.25rem;
+}
+.tiptap-document p {
+  margin: 0.5rem 0;
+}
+.tiptap-document ul,
+.tiptap-document ol {
+  margin: 0.5rem 0;
+}
+.tiptap-document li {
+  margin: 0.125rem 0;
+}
+.tiptap-document li > p {
+  margin: 0;
+}
+
+/* The page title: larger than a body H1, flush with the top, and the block
+   after it drops its top margin. */
+.tiptap-document > :first-child {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  margin: 0 0 0.5rem 0;
 }
 .tiptap-document > :first-child + * {
   margin-top: 0;
@@ -217,14 +257,14 @@ body {
 }
 
 /* Inline code chip — Notion style. Scoped to code NOT inside a <pre> so code
-   blocks keep their own block styling. Overrides Typography's bold, oversized
-   inline-code defaults with a subtle rounded background pill. */
+   blocks keep their own block styling. Overrides Typography's bold inline-code
+   default: regular weight, sized to sit level with the body text (#1048). */
 .tiptap :not(pre) > code {
   background-color: var(--muted);
   border-radius: 0.25rem;
   padding: 0.1em 0.3em;
-  font-size: 0.85em;
-  font-weight: 500;
+  font-size: 0.875em;
+  font-weight: 400;
   color: var(--foreground);
 }
 
