@@ -193,6 +193,56 @@ html.dark article .nextra-card > p {
   color: oklch(0.708 0 0);
 }
 
+/* Search results (#1097): a solid popover like the app's, with the mono label
+   for page headings, the neutral accent for the active row and magenta ink for
+   matches. The values are the app's tokens (packages/ui globals.css). */
+.nextra-search-results {
+  --sp-popover: oklch(1 0 0);
+  --sp-border: oklch(0 0 0 / 12%);
+  --sp-accent: oklch(0.965 0 0);
+  --sp-fg: oklch(0 0 0);
+  --sp-muted-fg: oklch(0.556 0 0);
+  --sp-info: oklch(0.56 0.259 326);
+  backdrop-filter: none;
+  background: var(--sp-popover);
+  border-color: var(--sp-border);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
+}
+html.dark .nextra-search-results {
+  --sp-popover: oklch(0.1 0 0);
+  --sp-border: oklch(1 0 0 / 16%);
+  --sp-accent: oklch(0.18 0 0);
+  --sp-fg: oklch(1 0 0);
+  --sp-muted-fg: oklch(0.708 0 0);
+  --sp-info: oklch(0.667 0.295 322.15);
+}
+.nextra-search-results > div:not([role]) {
+  border: 0;
+  font-family: var(--x-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--sp-muted-fg);
+}
+.nextra-search-results a[role="option"] {
+  color: var(--sp-fg);
+}
+.nextra-search-results a[role="option"][data-focus] {
+  background: var(--sp-accent);
+}
+.nextra-search-results a[role="option"] > div:first-child {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.nextra-search-results a[role="option"] > div:last-child {
+  color: var(--sp-muted-fg);
+}
+.nextra-search-results mark {
+  background: transparent;
+  color: var(--sp-info);
+  font-weight: 500;
+}
+
 /* The navbar's "DOCS" beside the wordmark. */
 .sp-docs-label {
   font-family: var(--x-font-mono);
