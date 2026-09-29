@@ -250,6 +250,9 @@ async function runProbes() {
 
   const table = new Map()
   for (const [label, opts] of columns) {
+    // Progress on stderr only (not the report): each column takes ~10s and the
+    // table prints at the end, so without this the run looks stuck.
+    process.stderr.write(`  probing: ${label}…\n`)
     let child
     if (!opts) {
       child = spawn(process.execPath, [join(worktree, "probe-inside.mjs"), JSON.stringify(cfg)], {
@@ -394,6 +397,7 @@ async function runApp(key) {
   const installLog = join(state, "install.log")
   const installProfile = writeProfile(state, "install", { mode: "install", worktree })
   const t0 = Date.now()
+  process.stderr.write(`  npm install (sandboxed)…\n`)
   const npm = spawnSync(
     "/usr/bin/sandbox-exec",
     npmCli
