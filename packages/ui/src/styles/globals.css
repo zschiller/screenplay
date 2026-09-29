@@ -36,12 +36,20 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-destructive-fill: var(--destructive-fill);
+    --color-destructive-foreground: var(--destructive-foreground);
     --color-success: var(--success);
+    --color-success-fill: var(--success-fill);
     --color-success-foreground: var(--success-foreground);
     --color-warning: var(--warning);
+    --color-warning-fill: var(--warning-fill);
     --color-warning-foreground: var(--warning-foreground);
     --color-info: var(--info);
+    --color-info-fill: var(--info-fill);
     --color-info-foreground: var(--info-foreground);
+    --color-merged: var(--merged);
+    --color-merged-fill: var(--merged-fill);
+    --color-merged-foreground: var(--merged-foreground);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -92,17 +100,30 @@
     --muted-foreground: oklch(0.556 0 0);
     --accent: oklch(0.965 0 0);
     --accent-foreground: oklch(0 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    /* Status colours. Each reads as text/icon on the page background and as a
-       fill behind its -foreground. Light values sit at the 600-700 steps for
-       contrast on white; dark values at the 400 steps, paired with a dark
-       foreground. */
-    --success: oklch(0.527 0.154 150.069);
-    --success-foreground: oklch(0.985 0 0);
-    --warning: oklch(0.555 0.163 48.998);
-    --warning-foreground: oklch(0.985 0 0);
-    --info: oklch(0.55 0.24 326);
-    --info-foreground: oklch(0.985 0 0);
+    /* Status colours (Signal palette, #1071). Each hue has two steps:
+       - `--x` is the ink: icons and text on the page background. In light it
+         is a deep, fully saturated shade so it reads on white; in dark it
+         equals the fill.
+       - `--x-fill` is fluorescent and only ever sits behind black
+         (`--x-foreground`): solid chips, dots, the done circle.
+       Info is the magenta accent, but its fill is a lighter hot pink: black
+       on the full magenta reads muddy. Merged is GitHub's merged purple moved
+       to hue 293 so it stays apart from the magenta. */
+    --destructive: oklch(0.56 0.226 27);
+    --destructive-fill: oklch(0.66 0.225 27);
+    --destructive-foreground: oklch(0 0 0);
+    --success: oklch(0.56 0.16 148);
+    --success-fill: oklch(0.82 0.235 148);
+    --success-foreground: oklch(0 0 0);
+    --warning: oklch(0.6 0.139 60);
+    --warning-fill: oklch(0.88 0.179 95);
+    --warning-foreground: oklch(0 0 0);
+    --info: oklch(0.56 0.259 326);
+    --info-fill: oklch(0.72 0.284 330);
+    --info-foreground: oklch(0 0 0);
+    --merged: oklch(0.54 0.282 293);
+    --merged-fill: oklch(0.66 0.198 293);
+    --merged-foreground: oklch(0 0 0);
     --border: oklch(0 0 0 / 12%);
     --input: oklch(0 0 0 / 12%);
     --ring: oklch(0.667 0.295 322.15);
@@ -138,13 +159,21 @@
     --muted-foreground: oklch(0.708 0 0);
     --accent: oklch(0.18 0 0);
     --accent-foreground: oklch(1 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --success: oklch(0.792 0.209 151.711);
-    --success-foreground: oklch(0.145 0 0);
-    --warning: oklch(0.828 0.189 84.429);
-    --warning-foreground: oklch(0.145 0 0);
-    --info: oklch(0.74 0.19 326);
-    --info-foreground: oklch(0.145 0 0);
+    --destructive: oklch(0.66 0.225 27);
+    --destructive-fill: oklch(0.66 0.225 27);
+    --destructive-foreground: oklch(0 0 0);
+    --success: oklch(0.82 0.235 148);
+    --success-fill: oklch(0.82 0.235 148);
+    --success-foreground: oklch(0 0 0);
+    --warning: oklch(0.88 0.179 95);
+    --warning-fill: oklch(0.88 0.179 95);
+    --warning-foreground: oklch(0 0 0);
+    --info: oklch(0.667 0.295 322.15);
+    --info-fill: oklch(0.72 0.284 330);
+    --info-foreground: oklch(0 0 0);
+    --merged: oklch(0.66 0.198 293);
+    --merged-fill: oklch(0.66 0.198 293);
+    --merged-foreground: oklch(0 0 0);
     --border: oklch(1 0 0 / 16%);
     --input: oklch(1 0 0 / 16%);
     --ring: oklch(0.667 0.295 322.15);

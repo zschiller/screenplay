@@ -66,7 +66,7 @@ export function CommentPinMark({
         "relative flex size-6.5 items-center justify-center rounded-[13px_13px_13px_3px] text-xs font-semibold tabular-nums shadow-md",
         resolved
           ? "bg-muted-foreground text-background"
-          : "bg-canvas-comment text-white",
+          : "bg-canvas-comment text-black",
         className
       )}
     >
@@ -74,7 +74,7 @@ export function CommentPinMark({
       {unread && !resolved && (
         <span
           aria-hidden
-          className="absolute -top-1 -right-1 size-2.5 rounded-full border-2 border-background bg-info"
+          className="absolute -top-1 -right-1 size-2.5 rounded-full border-2 border-background bg-info-fill"
         />
       )}
     </span>

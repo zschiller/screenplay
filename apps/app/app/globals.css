@@ -41,11 +41,12 @@
 :root,
 .dark .inverted {
   --canvas-selection: oklch(0.667 0.295 322.15);
-  --canvas-snap: oklch(0.637 0.237 25.331);
-  --canvas-inspect: oklch(0.62 0.22 300);
-  --canvas-highlight: oklch(0.66 0.2 300);
+  --canvas-selection-fill: oklch(0.72 0.284 330);
+  --canvas-snap: oklch(0.66 0.225 27);
+  --canvas-inspect: oklch(0.66 0.198 293);
+  --canvas-highlight: oklch(0.66 0.198 293);
   --canvas-group-merge: var(--canvas-snap);
-  --canvas-comment: oklch(0.769 0.188 70.08);
+  --canvas-comment: oklch(0.88 0.179 95);
   --canvas-plane: oklch(0.975 0 0);
 
   --z-canvas-overlay: 10;
@@ -58,15 +59,17 @@
 .dark,
 :root:not(.dark) .inverted {
   --canvas-selection: oklch(0.667 0.295 322.15);
-  --canvas-snap: oklch(0.637 0.237 25.331);
-  --canvas-inspect: oklch(0.62 0.22 300);
-  --canvas-highlight: oklch(0.66 0.2 300);
-  --canvas-comment: oklch(0.769 0.188 70.08);
+  --canvas-selection-fill: oklch(0.72 0.284 330);
+  --canvas-snap: oklch(0.66 0.225 27);
+  --canvas-inspect: oklch(0.66 0.198 293);
+  --canvas-highlight: oklch(0.66 0.198 293);
+  --canvas-comment: oklch(0.88 0.179 95);
   --canvas-plane: oklch(0.07 0 0);
 }
 
 @theme inline {
   --color-canvas-selection: var(--canvas-selection);
+  --color-canvas-selection-fill: var(--canvas-selection-fill);
   --color-canvas-snap: var(--canvas-snap);
   --color-canvas-inspect: var(--canvas-inspect);
   --color-canvas-highlight: var(--canvas-highlight);

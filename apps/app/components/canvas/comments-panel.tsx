@@ -84,7 +84,7 @@ export function CommentsButton({
             {unreadCount > 0 && (
               <span
                 aria-hidden
-                className="absolute top-1 left-4 size-1.5 rounded-full bg-info"
+                className="absolute top-1 left-4 size-1.5 rounded-full bg-info-fill"
               />
             )}
           </Button>
