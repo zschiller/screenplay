@@ -735,11 +735,11 @@ export function TurnSummaryRow({
     >
       <CollapsibleTrigger
         data-testid="turn-summary-trigger"
-        className="group/summary flex max-w-full min-w-0 items-start gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="group/summary flex max-w-full min-w-0 items-start gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <CaretRightIcon
           aria-hidden
-          className="mt-0.5 size-3 shrink-0 transition-transform group-data-[state=open]/summary:rotate-90"
+          className="mt-1 size-3 shrink-0 transition-transform group-data-[state=open]/summary:rotate-90"
         />
         <span className="min-w-0">
           {summary.text}
@@ -747,7 +747,7 @@ export function TurnSummaryRow({
             // Inline, so it follows the text onto a wrapped line.
             <span
               data-testid="turn-summary-failure"
-              className="ml-1.5 inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-[1px] text-2xs font-medium whitespace-nowrap text-foreground"
+              className="mt-px ml-1.5 inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-top text-2xs font-medium whitespace-nowrap text-foreground"
             >
               <WarningCircleIcon
                 aria-hidden
