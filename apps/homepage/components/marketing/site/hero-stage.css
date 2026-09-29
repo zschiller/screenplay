@@ -82,6 +82,30 @@
   color: var(--muted-foreground);
   white-space: nowrap;
 }
+.hc-name {
+  margin-left: -3px;
+}
+.hc-glyph {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  margin-top: -1px;
+}
+.hc-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.hc-grip {
+  fill: currentColor;
+}
+.hc-copy:not(.working) .hc-grip,
+.hc-copy.working .hc-ring {
+  display: none;
+}
+.hc-copy.working .hc-head {
+  color: var(--foreground);
+}
 .hc-diff {
   margin-left: auto;
   font-family: var(--font-mono), monospace;
@@ -280,6 +304,7 @@
 }
 .hc-fig span {
   flex: 1;
+  height: 100%;
   background: var(--pg-bg);
   border: 1px solid var(--pg-line);
   transition: all 0.8s;
@@ -287,4 +312,83 @@
 .hc-fig span:first-child {
   outline: 2px solid var(--pg-acc);
   outline-offset: -1px;
+}
+
+/* Two columns: the words on the left, the figure on the right. */
+.hc-page.split .hc-hero {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  column-gap: 2.4em;
+  align-content: start;
+}
+.hc-page.split .hc-hero > :not(.hc-fig) {
+  grid-column: 1;
+}
+.hc-page.split .hc-h1 {
+  font-size: 4.4em;
+}
+.hc-page.split .hc-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.4em;
+}
+.hc-page.split .hc-hero .hc-fig {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  margin-top: 0;
+  height: 22em;
+  flex-direction: column;
+}
+/* The figure as three feature cards, each a title and two lines. */
+.hc-hero,
+.hc-row,
+.hc-fig {
+  transition:
+    padding 0.6s,
+    margin 0.6s;
+}
+/* The cards pull the figure up so its row shows. */
+.hc-page.cards .hc-hero {
+  padding-top: 2em;
+}
+.hc-page.cards .hc-row {
+  margin-top: 1.4em;
+}
+.hc-page.cards .hc-fig {
+  margin-top: 1.8em;
+  background: none;
+  border: 0;
+  padding: 0;
+  gap: 1.2em;
+}
+.hc-page.cards .hc-fig span {
+  padding: 1.6em;
+  border-radius: var(--pg-r);
+  background:
+    linear-gradient(var(--pg-fg), var(--pg-fg)) 1.6em 1.8em / 45% 0.7em
+      no-repeat,
+    linear-gradient(var(--pg-mut), var(--pg-mut)) 1.6em 3.4em / 70% 0.45em
+      no-repeat,
+    linear-gradient(var(--pg-mut), var(--pg-mut)) 1.6em 4.6em / 55% 0.45em
+      no-repeat,
+    var(--plane);
+}
+.hc-page.pill.cards .hc-fig span {
+  border-radius: 2em;
+}
+/* An announcement bar that slides in above the nav. */
+.hc-page::before {
+  content: "New · Linux beta →";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 0;
+  overflow: hidden;
+  background: var(--pg-acc);
+  color: var(--pg-bg);
+  font-size: 1em;
+  transition: height 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.hc-page.banner::before {
+  height: 2.4em;
 }
