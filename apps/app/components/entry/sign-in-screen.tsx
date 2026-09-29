@@ -22,7 +22,7 @@ export function SignInScreen() {
       <div className="flex w-full max-w-[360px] flex-col items-center gap-5 text-center">
         <ScreenplayLogo className="size-11" />
         <div className="flex flex-col items-center gap-2">
-          <h1 className="font-heading text-3xl leading-tight text-balance">
+          <h1 className="font-heading text-title-lg text-balance">
             Design on a canvas of your live app
           </h1>
           <p className="max-w-[34ch] text-sm text-balance text-muted-foreground">

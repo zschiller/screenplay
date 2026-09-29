@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { cookies } from "next/headers"
-import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google"
+import { Geist_Mono, Instrument_Sans, Unbounded } from "next/font/google"
 
 import "./globals.css"
 import { MotionProvider } from "@/components/motion-provider"
@@ -25,8 +25,8 @@ export const metadata: Metadata = {
     "Design UI on an infinite canvas. Each frame is a live preview of your app. Collaborate in real time.",
 }
 
-// The app's type voice (#1005): Instrument Sans for the UI, Instrument Serif
-// (one weight) for page, dialog and empty-state titles, Geist Mono for code and
+// The app's type voice (#1005, #1077): Instrument Sans for the UI, Unbounded
+// at 400 for page, dialog and empty-state titles, Geist Mono for code and
 // section labels. `next/font` downloads them at build time and serves them from
 // the app, so the desktop build works offline. `globals.css` maps these
 // variables onto `font-sans` and `font-heading`.
@@ -35,10 +35,10 @@ const fontSans = Instrument_Sans({
   variable: "--font-instrument-sans",
 })
 
-const fontSerif = Instrument_Serif({
+const fontHeading = Unbounded({
   subsets: ["latin"],
   weight: "400",
-  variable: "--font-instrument-serif",
+  variable: "--font-unbounded",
 })
 
 const fontMono = Geist_Mono({
@@ -102,7 +102,7 @@ export default async function RootLayout({
       className={cn(
         "antialiased",
         fontMono.variable,
-        fontSerif.variable,
+        fontHeading.variable,
         "font-sans",
         fontSans.variable
       )}

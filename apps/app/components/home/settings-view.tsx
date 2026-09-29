@@ -180,7 +180,7 @@ export function SettingsView({ section }: { section?: string }) {
               <div className="flex items-center gap-4">
                 <h2
                   id="settings-section-title"
-                  className="min-w-0 flex-1 font-heading text-2xl leading-7"
+                  className="min-w-0 flex-1 font-heading text-title-md leading-7"
                 >
                   {active.title}
                 </h2>
