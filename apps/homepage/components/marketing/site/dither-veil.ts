@@ -69,9 +69,27 @@ export function createDitherVeil(
   let rows = 0
   let img: ImageData | null = null
   let dist = new Float32Array(0)
-  // The grains in the fade, the only ones that change from frame to frame.
+  // Each grain's opacity before the edge noise and the peek.
+  let base = new Float32Array(0)
+  // The grains in the fade, the only ones that change from frame to frame,
+  // with where each sits on the coarse grid for reading the edge noise.
   let band = new Int32Array(0)
+  let bandC = new Uint16Array(0)
+  let bandR = new Uint16Array(0)
+  let bandAt = new Int32Array(0)
+  let bandFx = new Float32Array(0)
+  let bandFy = new Float32Array(0)
   let inBand = new Uint8Array(0)
+  // The edge noise this frame, on the coarse grid: it's smooth, so reading it
+  // there and interpolating looks the same as working it out per grain.
+  let gc = 0
+  let edge = new Float32Array(0)
+  // The marbling noise at each node of the fluid, this frame.
+  let marble = new Float32Array(0)
+  // The dye shown this frame, on the same grid.
+  let shown = new Float32Array(0)
+  // Time into the fluid's current 40ms step.
+  let into = 0
   // The pointer peek: where it's heading and where it's drawn (eased). It
   // stirs a little fluid on the coarse grid whose dye opens the veil and
   // whose flow swirls the marbling; `touched` is the grains it reached last
@@ -83,6 +101,12 @@ export function createDitherVeil(
   let rgb = [255, 255, 255]
   let raf = 0
   let last = 0
+  let lastDraw = 0
+  // Where the grain pattern had crept to at the last full redraw.
+  let sx = 0
+  let sy = 0
+  // How far through the fade the redraw has got, while the peek is running.
+  let sweepAt = 0
   const t0 = performance.now()
 
   function measure() {
@@ -126,8 +150,11 @@ export function createDitherVeil(
     // Distance to the text changes slowly, so it's worked out on a coarse
     // grid and interpolated per grain: measuring every grain against every
     // line made each resize take most of a second.
-    const gc = Math.ceil(W / COARSE) + 2
+    gc = Math.ceil(W / COARSE) + 2
     const gr = Math.ceil(H / COARSE) + 2
+    edge = new Float32Array(gc * gr)
+    marble = new Float32Array(gc * gr)
+    shown = new Float32Array(gc * gr)
     const grid = new Float32Array(gc * gr)
     for (let r = 0, i = 0; r < gr; r++) {
       for (let c = 0; c < gc; c++, i++) {
@@ -143,6 +170,7 @@ export function createDitherVeil(
       }
     }
     dist = new Float32Array(cols * rows)
+    base = new Float32Array(cols * rows)
     const fade = new Int32Array(cols * rows)
     let n = 0
     for (let r = 0, i = 0; r < rows; r++) {
@@ -158,13 +186,33 @@ export function createDitherVeil(
         const bot = grid[j + gc]! + (grid[j + gc + 1]! - grid[j + gc]!) * fx
         const d = top + (bot - top) * fy
         dist[i] = d
-        const k = 1 - d / FALL
+        // Behind the text it stays solid whatever the edge noise does.
+        const k = d <= 0 ? 1.3 : 1 - d / FALL
+        base[i] = k
         if (k < 1 && k > -0.4) fade[n++] = i
       }
     }
     band = fade.subarray(0, n)
+    bandC = new Uint16Array(n)
+    bandR = new Uint16Array(n)
+    bandAt = new Int32Array(n)
+    sweepAt = 0
+    bandFx = new Float32Array(n)
+    bandFy = new Float32Array(n)
     inBand = new Uint8Array(cols * rows)
-    for (let b = 0; b < n; b++) inBand[fade[b]!] = 1
+    for (let b = 0; b < n; b++) {
+      const i = fade[b]!
+      inBand[i] = 1
+      const c = i % cols
+      const r = (i - c) / cols
+      bandC[b] = c
+      bandR[b] = r
+      const gx = (c * cell) / COARSE
+      const gy = (r * cell) / COARSE
+      bandAt[b] = Math.floor(gy) * gc + Math.floor(gx)
+      bandFx[b] = gx - Math.floor(gx)
+      bandFy[b] = gy - Math.floor(gy)
+    }
     fluid = createFluid(gc, gr)
     touched = null
     peek.fresh = true
@@ -196,9 +244,11 @@ export function createDitherVeil(
       // A still frame: an unstirred hole right under the pointer.
       fluid.rest()
       if (aim.on) fluid.splat(aim.x / COARSE, aim.y / COARSE, 0, 0, R, 1)
+      fluid.keep()
       peek.fresh = true
       return
     }
+    fluid.keep()
     if (aim.on) {
       const px = peek.fresh ? aim.x : peek.x
       const py = peek.fresh ? aim.y : peek.y
@@ -223,60 +273,155 @@ export function createDitherVeil(
     fluid.step()
   }
 
-  // One grain's opacity: the fade by distance, a billowing edge, a creeping
-  // grain, and a hole where the pointer is.
-  function grain(i: number, t: number, sx: number, sy: number) {
-    const c = i % cols
-    const r = (i - c) / cols
-    // Behind the text it stays solid whatever the edge noise does.
-    let k = dist[i]! <= 0 ? 1.3 : 1 - dist[i]! / FALL
-    const n = noise(c * cell * 0.007 + t * 0.45, r * cell * 0.007 - t * 0.3)
-    k += (n - 0.5) * 0.55
-    const lit = fluid?.lit
-    if (fluid && lit) {
-      const gx = (c * cell) / COARSE
+  function lerpEdge(j: number, fx: number, fy: number) {
+    const top = edge[j]! + (edge[j + 1]! - edge[j]!) * fx
+    const bot = edge[j + gc]! + (edge[j + gc + 1]! - edge[j + gc]!) * fx
+    return top + (bot - top) * fy
+  }
+  function lerpMarble(j: number, fx: number, fy: number) {
+    const top = marble[j]! + (marble[j + 1]! - marble[j]!) * fx
+    const bot = marble[j + gc]! + (marble[j + gc + 1]! - marble[j + gc]!) * fx
+    return top + (bot - top) * fy
+  }
+
+  // Redraws the grains in `rect` that can change: the fade by distance, a
+  // billowing edge, a creeping grain and, with `peek`, a hole where the
+  // pointer is. Grains in `skip` are left alone; behind the text, without
+  // `peek`, grains go back to solid.
+  function paint(
+    rect: [number, number, number, number],
+    peek: boolean,
+    skip: typeof touched,
+    t: number
+  ) {
+    const data = img!.data
+    const d = fluid && shown
+    for (let r = rect[1]; r <= rect[3]; r++) {
       const gy = (r * cell) / COARSE
-      if (
-        gx >= lit[0] - 1 &&
-        gx <= lit[2] + 1 &&
-        gy >= lit[1] - 1 &&
-        gy <= lit[3] + 1
+      const y0 = Math.floor(gy)
+      const fy = gy - y0
+      const skipRow = !!skip && r >= skip[1] && r <= skip[3]
+      for (let c = rect[0]; c <= rect[2]; c++) {
+        const i = r * cols + c
+        if (!inBand[i] && dist[i]! > 0) continue
+        if (skipRow && c >= skip![0] && c <= skip![2]) continue
+        if (!peek && !inBand[i]) {
+          data[i * 4 + 3] = 255
+          continue
+        }
+        const gx = (c * cell) / COARSE
+        const x0 = Math.floor(gx)
+        const fx = gx - x0
+        const j = y0 * gc + x0
+        let k = base[i]! + (lerpEdge(j, fx, fy) - 0.5) * 0.55
+        if (peek && d) {
+          const top = d[j]! + (d[j + 1]! - d[j]!) * fx
+          const p =
+            top + (d[j + gc]! + (d[j + gc + 1]! - d[j + gc]!) * fx - top) * fy
+          if (p > 0) {
+            // Rather than a clean hole, the peek opens in marbled bands
+            // drawn from where the fluid carried each spot from, so moving
+            // the mouse stirs them into swirls.
+            const w = lerpMarble(j, fx, fy)
+            k -= p * (0.95 + 1.05 * Math.sin(w * 16 + t * 1.6))
+          }
+        }
+        const kk = k < 0 ? 0 : k > 1 ? 1 : k
+        const v = kk * kk * (3 - 2 * kk)
+        data[i * 4 + 3] = v > ign(c + sx, r - sy) ? 255 : v * 150
+      }
+    }
+  }
+
+  // Redraws the grains in the fade from `band[from]` up to `band[to]`,
+  // except those under the peek's `box`, which are drawn with it.
+  function sweep(from: number, to: number, box: typeof touched) {
+    const data = img!.data
+    for (let b = from; b < to; b++) {
+      const c = bandC[b]!
+      const r = bandR[b]!
+      if (box && c >= box[0] && c <= box[2] && r >= box[1] && r <= box[3])
+        continue
+      let k = base[band[b]!]!
+      k += (lerpEdge(bandAt[b]!, bandFx[b]!, bandFy[b]!) - 0.5) * 0.55
+      const kk = k < 0 ? 0 : k > 1 ? 1 : k
+      const v = kk * kk * (3 - 2 * kk)
+      data[band[b]! * 4 + 3] = v > ign(c + sx, r - sy) ? 255 : v * 150
+    }
+  }
+
+  // `full` redraws the whole fade. Otherwise, while the peek runs at the
+  // display's rate, each frame redraws the slice of the fade due in the
+  // time since the last, so the fade still takes 40ms to come round, plus
+  // the grains the peek covers.
+  function draw(now: number, snap = false, full = true) {
+    if (!img) return
+    const t = (now - t0) / 1000
+    // The fluid steps every 40ms whatever the frame rate, so it looks the
+    // same everywhere, and frames in between blend the last two steps. A
+    // long gap (a background tab) catches up by a few steps, not all.
+    const elapsed = lastDraw ? now - lastDraw : 40
+    lastDraw = now
+    into = Math.min(into + elapsed, 120)
+    if (snap) {
+      updatePeek(true)
+      into = 0
+    }
+    while (into >= 40) {
+      updatePeek(false)
+      into -= 40
+    }
+    const blend = snap ? 1 : into / 40
+    const now1 = fluid?.lit
+    const was = fluid?.prevLit
+    const lit: typeof touched =
+      now1 && was
+        ? [
+            Math.min(now1[0], was[0]),
+            Math.min(now1[1], was[1]),
+            Math.max(now1[2], was[2]),
+            Math.max(now1[3], was[3]),
+          ]
+        : (now1 ?? was ?? null)
+    if (fluid && lit) {
+      // The marbling is drawn from where the fluid carried each spot from.
+      const { dye, mx, my, prevDye, prevMx, prevMy } = fluid
+      const rows = marble.length / gc
+      for (
+        let r = Math.max(0, lit[1] - 2);
+        r <= Math.min(rows - 1, lit[3] + 2);
+        r++
       ) {
-        const p = fluid.dye(gx, gy)
-        if (p > 0) {
-          // Rather than a clean hole, the peek opens in marbled bands drawn
-          // from where the fluid carried each spot from, so moving the mouse
-          // stirs them into swirls.
-          const [ux, uy] = fluid.material(gx, gy)
-          const w = noise(
+        for (
+          let c = Math.max(0, lit[0] - 2);
+          c <= Math.min(gc - 1, lit[2] + 2);
+          c++
+        ) {
+          const j = r * gc + c
+          shown[j] = prevDye[j]! + (dye[j]! - prevDye[j]!) * blend
+          const ux = prevMx[j]! + (mx[j]! - prevMx[j]!) * blend
+          const uy = prevMy[j]! + (my[j]! - prevMy[j]!) * blend
+          marble[j] = noise(
             ux * COARSE * 0.022 + t * 0.35,
             uy * COARSE * 0.022 - t * 0.28
           )
-          k -= p * (0.95 + 1.05 * Math.sin(w * 16 + t * 1.6))
         }
       }
     }
-    const kk = Math.min(Math.max(k, 0), 1)
-    const v = kk * kk * (3 - 2 * kk)
-    return v > ign(c + sx, r - sy) ? 255 : v * 150
-  }
-
-  function draw(now: number, snap = false) {
-    if (!img) return
-    const t = (now - t0) / 1000
-    updatePeek(snap)
+    for (let j = 0, gx = 0, gy = 0; j < edge.length; j++) {
+      edge[j] = noise(
+        gx * COARSE * 0.007 + t * 0.45,
+        gy * COARSE * 0.007 - t * 0.3
+      )
+      if (++gx === gc) {
+        gx = 0
+        gy++
+      }
+    }
     // The grain pattern creeps diagonally and the edge billows, so the veil
     // reads as moving rather than a still texture.
-    const sx = Math.floor(t * 9)
-    const sy = Math.floor(t * 5)
-    const data = img.data
-    for (let b = 0; b < band.length; b++) {
-      const i = band[b]!
-      data[i * 4 + 3] = grain(i, t, sx, sy)
-    }
-    // Grains outside the fade only change under the pointer: redraw the
-    // ones it covers now and put back the ones it covered last frame.
-    const lit = fluid?.lit
+    sx = Math.floor(t * 9)
+    sy = Math.floor(t * 5)
     const box: typeof touched = lit
       ? [
           Math.max(0, Math.floor(((lit[0] - 1) * COARSE) / cell)),
@@ -285,30 +430,66 @@ export function createDitherVeil(
           Math.min(rows - 1, Math.ceil(((lit[3] + 1) * COARSE) / cell)),
         ]
       : null
-    for (const [b, under] of [
-      [touched, false],
-      [box, true],
-    ] as const) {
+    let dirty: number[] | null = null
+    const n = band.length
+    if (full || !n) {
+      sweep(0, n, box)
+      sweepAt = 0
+      dirty = [0, 0, cols - 1, rows - 1]
+    } else {
+      const from = sweepAt
+      const to = Math.min(
+        from + Math.ceil((n * Math.min(elapsed, 40)) / 40),
+        from + n
+      )
+      sweep(from, Math.min(to, n), box)
+      if (to > n) sweep(0, to - n, box)
+      sweepAt = to % n
+      dirty =
+        to > n
+          ? [0, 0, cols - 1, rows - 1]
+          : [0, bandR[from]!, cols - 1, bandR[to - 1]!]
+    }
+    // Redraw the grains the peek covers now and put back the ones it
+    // covered last frame. Grains far from the text stay clear.
+    for (const b of [touched, box]) {
       if (!b) continue
-      for (let r = b[1]; r <= b[3]; r++) {
-        for (let c = b[0]; c <= b[2]; c++) {
-          const i = r * cols + c
-          if (inBand[i] || dist[i]! > 0) continue
-          data[i * 4 + 3] = under ? grain(i, t, sx, sy) : 255
-        }
-      }
+      if (b === box) paint(b, true, null, t)
+      else paint(b, false, box, t)
+      dirty = [
+        Math.min(dirty[0]!, b[0]),
+        Math.min(dirty[1]!, b[1]),
+        Math.max(dirty[2]!, b[2]),
+        Math.max(dirty[3]!, b[3]),
+      ]
     }
     touched = box
-    octx.putImageData(img, 0, 0)
+    const [x0, y0, x1, y1] = dirty as [number, number, number, number]
+    octx.putImageData(img, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1)
+    // Clear and repaint only that part, snapped out to whole device pixels
+    // so no seam shows where it meets the rest.
+    const X0 = Math.floor(x0 * cell * dpr)
+    const Y0 = Math.floor(y0 * cell * dpr)
+    const X1 = Math.ceil((x1 + 1) * cell * dpr)
+    const Y1 = Math.ceil((y1 + 1) * cell * dpr)
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.beginPath()
+    ctx.rect(X0, Y0, X1 - X0, Y1 - Y0)
+    ctx.clip()
+    ctx.clearRect(X0, Y0, X1 - X0, Y1 - Y0)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, W, H)
     ctx.imageSmoothingEnabled = false
     ctx.drawImage(off, 0, 0, cols * cell, rows * cell)
+    ctx.restore()
   }
 
   function frame(now: number) {
-    // 25fps is plenty for a slow drift.
-    if (now - last > 40) {
+    // The peek's fluid runs at the display's rate so it moves smoothly;
+    // on its own the slow drift of the fade redraws at 25fps, which is
+    // plenty.
+    if (aim.on || fluid?.active) draw(now, false, false)
+    else if (now - last > 40) {
       last = now
       draw(now)
     }

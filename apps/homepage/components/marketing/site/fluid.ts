@@ -5,8 +5,11 @@
  * the coordinates of the "material" it holds, so a pattern drawn from those
  * coordinates gets swirled like marbled paper.
  *
- * Units are grid cells and frames. Everything decays back to rest, so a
- * still hero costs nothing: `step` returns early once the fluid is idle.
+ * Units are grid cells and steps. Each step also keeps the state before
+ * it (`prev*`), so a caller stepping at a fixed rate can draw the frames in
+ * between by blending the two. Everything decays back to rest, so a still
+ * hero costs nothing: `step` returns early once the fluid is idle, and
+ * otherwise only works on the region that's stirred.
  */
 export function createFluid(w: number, h: number) {
   const n = w * h
@@ -16,12 +19,31 @@ export function createFluid(w: number, h: number) {
   let mx = new Float32Array(n)
   let my = new Float32Array(n)
   let tmp = new Float32Array(n)
+  const prevDye = new Float32Array(n)
+  const prevMx = new Float32Array(n)
+  const prevMy = new Float32Array(n)
+  let prevLit: [number, number, number, number] | null = null
   const curl = new Float32Array(n)
   const div = new Float32Array(n)
   const pressure = new Float32Array(n)
   let active = false
   /** Bounds of the cells holding dye, in cells: [x0, y0, x1, y1]. */
   let lit: [number, number, number, number] | null = null
+  // The cells the solver works on this step, [x0, y0, x1, y1], kept 1 cell
+  // in from the edge. Outside it everything is at rest.
+  const M = 6
+  const box = [0, 0, 0, 0]
+  // The stirred cells, grown by each splat and recomputed each step.
+  let hot: [number, number, number, number] | null = null
+  const grow = (c: number, r: number) => {
+    if (!hot) hot = [c, r, c, r]
+    else {
+      if (c < hot[0]) hot[0] = c
+      if (r < hot[1]) hot[1] = r
+      if (c > hot[2]) hot[2] = c
+      if (r > hot[3]) hot[3] = r
+    }
+  }
 
   function rest() {
     vx.fill(0)
@@ -34,7 +56,16 @@ export function createFluid(w: number, h: number) {
       }
     }
     lit = null
+    hot = null
     active = false
+    keep()
+  }
+  // Remembers the state as it is now as the one before the next step.
+  function keep() {
+    prevDye.set(dye)
+    prevMx.set(mx)
+    prevMy.set(my)
+    prevLit = lit && [...lit]
   }
   rest()
 
@@ -54,8 +85,9 @@ export function createFluid(w: number, h: number) {
   // Carries a field along the velocity by looking back to where each cell's
   // contents came from.
   function advect(a: Float32Array<ArrayBuffer>) {
-    for (let r = 0, i = 0; r < h; r++) {
-      for (let c = 0; c < w; c++, i++) {
+    tmp.set(a)
+    for (let r = box[1]!; r <= box[3]!; r++) {
+      for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
         tmp[i] = at(a, c - vx[i]!, r - vy[i]!)
       }
     }
@@ -67,13 +99,18 @@ export function createFluid(w: number, h: number) {
   // Pushes the swirls back up that the coarse grid would otherwise smooth
   // away, so the stirring curls instead of just smearing.
   function confine(strength: number) {
-    for (let r = 1; r < h - 1; r++) {
-      for (let c = 1, i = r * w + 1; c < w - 1; c++, i++) {
+    for (let r = box[1]!; r <= box[3]!; r++) {
+      for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
         curl[i] = (vy[i + 1]! - vy[i - 1]! - vx[i + w]! + vx[i - w]!) / 2
       }
     }
-    for (let r = 2; r < h - 2; r++) {
-      for (let c = 2, i = r * w + 2; c < w - 2; c++, i++) {
+    for (let r = Math.max(box[1]!, 2); r <= Math.min(box[3]!, h - 3); r++) {
+      const c0 = Math.max(box[0]!, 2)
+      for (
+        let c = c0, i = r * w + c0;
+        c <= Math.min(box[2]!, w - 3);
+        c++, i++
+      ) {
         const gx = (Math.abs(curl[i + 1]!) - Math.abs(curl[i - 1]!)) / 2
         const gy = (Math.abs(curl[i + w]!) - Math.abs(curl[i - w]!)) / 2
         const len = Math.hypot(gx, gy) + 1e-5
@@ -85,15 +122,16 @@ export function createFluid(w: number, h: number) {
 
   // Makes the velocity swirl rather than spread out or bunch up.
   function project() {
-    for (let r = 1; r < h - 1; r++) {
-      for (let c = 1, i = r * w + 1; c < w - 1; c++, i++) {
+    const [x0, y0, x1, y1] = box as [number, number, number, number]
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
         div[i] = (vx[i + 1]! - vx[i - 1]! + vy[i + w]! - vy[i - w]!) / 2
       }
     }
     pressure.fill(0)
     for (let k = 0; k < 12; k++) {
-      for (let r = 1; r < h - 1; r++) {
-        for (let c = 1, i = r * w + 1; c < w - 1; c++, i++) {
+      for (let r = y0; r <= y1; r++) {
+        for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
           pressure[i] =
             (pressure[i - 1]! +
               pressure[i + 1]! +
@@ -104,8 +142,8 @@ export function createFluid(w: number, h: number) {
         }
       }
     }
-    for (let r = 1; r < h - 1; r++) {
-      for (let c = 1, i = r * w + 1; c < w - 1; c++, i++) {
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
         vx[i]! -= (pressure[i + 1]! - pressure[i - 1]!) / 2
         vy[i]! -= (pressure[i + w]! - pressure[i - w]!) / 2
       }
@@ -116,12 +154,28 @@ export function createFluid(w: number, h: number) {
     get lit() {
       return lit
     },
-    dye: (x: number, y: number) => at(dye, x, y),
-    /** Where the material now at (x, y) started out, in cells. */
-    material: (x: number, y: number): [number, number] => [
-      at(mx, x, y),
-      at(my, x, y),
-    ],
+    get active() {
+      return active
+    },
+    /** How much dye each cell holds. */
+    get dye() {
+      return dye
+    },
+    /** The same, before the last step. */
+    prevDye,
+    prevMx,
+    prevMy,
+    get prevLit() {
+      return prevLit
+    },
+    keep,
+    /** Where the material now in each cell started out, in cells. */
+    get mx() {
+      return mx
+    },
+    get my() {
+      return my
+    },
     /**
      * Stirs the fluid around (x, y) by (dx, dy) and drops `amount` of dye
      * within `radius`, all in cells.
@@ -146,6 +200,7 @@ export function createFluid(w: number, h: number) {
         ) {
           const d = Math.hypot(c - x, r - y)
           if (d > radius) continue
+          grow(c, r)
           if (!lit) lit = [c, r, c, r]
           else {
             lit[0] = Math.min(lit[0], c)
@@ -166,9 +221,13 @@ export function createFluid(w: number, h: number) {
       }
       active = true
     },
-    /** One frame of motion; a no-op once everything has settled. */
+    /** One step of motion; a no-op once everything has settled. */
     step() {
-      if (!active) return
+      if (!active || !hot) return
+      box[0] = Math.max(1, hot[0] - M)
+      box[1] = Math.max(1, hot[1] - M)
+      box[2] = Math.min(w - 2, hot[2] + M)
+      box[3] = Math.min(h - 2, hot[3] + M)
       confine(0.5)
       project()
       vx = advect(vx)
@@ -177,20 +236,25 @@ export function createFluid(w: number, h: number) {
       mx = advect(mx)
       my = advect(my)
       let b: typeof lit = null
-      let moving = false
-      for (let r = 0, i = 0; r < h; r++) {
-        for (let c = 0; c < w; c++, i++) {
+      hot = null
+      for (let r = box[1]!; r <= box[3]!; r++) {
+        for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
           vx[i]! *= 0.965
           vy[i]! *= 0.965
-          if (Math.abs(vx[i]!) + Math.abs(vy[i]!) > 0.005) moving = true
           // The marbling slowly relaxes back to its unstirred pattern.
           mx[i]! += (c - mx[i]!) * 0.012
           my[i]! += (r - my[i]!) * 0.012
           dye[i]! *= 0.955
+          if (
+            Math.abs(vx[i]!) + Math.abs(vy[i]!) > 0.005 ||
+            Math.abs(mx[i]! - c) + Math.abs(my[i]! - r) > 0.05
+          )
+            grow(c, r)
           if (dye[i]! < 0.02) {
             dye[i] = 0
             continue
           }
+          grow(c, r)
           if (!b) b = [c, r, c, r]
           else {
             if (c < b[0]) b[0] = c
@@ -200,7 +264,7 @@ export function createFluid(w: number, h: number) {
         }
       }
       lit = b
-      if (!b && !moving) rest()
+      if (!hot) rest()
     },
     /** Drops everything back to rest, e.g. for a still frame. */
     rest,
