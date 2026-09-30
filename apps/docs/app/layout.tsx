@@ -99,6 +99,8 @@ export default async function RootLayout({
           toc={{ title: "On this page" }}
           // components/copy-page.tsx renders it as the app's split button.
           copyPageButton={false}
+          // components/page-nav.tsx renders previous / next as buttons.
+          navigation={false}
         >
           {children}
         </Layout>

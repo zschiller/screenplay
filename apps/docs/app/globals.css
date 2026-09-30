@@ -545,13 +545,20 @@ html.dark article pre {
   --tw-ring-color: oklch(1 0 0 / 16%);
 }
 
-/* Previous / next links at the sidebar's 14px, not 18px. */
-article div.x\:mb-8.x\:border-t > a {
-  font-size: 0.875rem;
-  font-weight: 500;
+/* Previous / next pages (components/page-nav.tsx): outline buttons on the
+   article's closing rule, where Nextra's pagination sat. */
+.sp-page-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid oklch(0 0 0 / 12%);
 }
-article div.x\:mb-8.x\:border-t > a svg {
-  height: 16px;
+html.dark .sp-page-nav {
+  border-top-color: oklch(1 0 0 / 16%);
+}
+.sp-page-nav a {
+  text-decoration: none;
 }
 
 /* Sidebar section labels sit on their group, not halfway between groups. */
