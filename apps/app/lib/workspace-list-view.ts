@@ -5,22 +5,19 @@
  * local view preference: it lives in this browser's storage, keyed by user and
  * canvas, and never enters the room doc, so collaborators' lists don't move.
  *
- * Pure apart from the storage helpers at the bottom, so the ordering and
- * section rules are tested with no React (`workspace-list-view.test.ts`).
+ * Which section a Workspace sits in is its Workspace State's call
+ * (`lib/branch/workspace-state.ts`); this module only orders the list.
+ *
+ * Pure apart from the storage helpers at the bottom, so the ordering is
+ * tested with no React (`workspace-list-view.test.ts`).
  */
-import {
-  workspaceStatusLine,
-  type StatusLineBranch,
-  type StatusLineContext,
-} from "@/lib/branch/status-line"
+import type { WorkspaceSection } from "@/lib/branch/workspace-state"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 
 export type WorkspaceSort = "manual" | "recent" | "name"
 
-/** The live state sections of a grouped list. Done keeps its own section. */
-export type WorkspaceSection = "working" | "needs-you" | "idle"
-
+/** The live state sections of a grouped list, in order. Done keeps its own. */
 export const WORKSPACE_SECTIONS: readonly WorkspaceSection[] = [
   "working",
   "needs-you",
@@ -53,41 +50,6 @@ export const DEFAULT_WORKSPACE_LIST_VIEW: WorkspaceListView = {
 /** Drag reorder writes manual order, so it only makes sense where rows show it. */
 export function canDragWorkspaces(view: WorkspaceListView): boolean {
   return view.sort === "manual" && !view.groupByState
-}
-
-export type SectionBranch = StatusLineBranch
-
-export type SectionContext = StatusLineContext
-
-/**
- * Which live section a (not Done) Workspace sits in, from the same state its
- * row icon shows: an agent working or setup running is Working; a failed
- * setup, a plan waiting for approval or a blocked PR is Needs you; anything
- * else, an open PR waiting on review included, is Idle.
- */
-export function workspaceSection(
-  branch: SectionBranch,
-  ctx: SectionContext
-): WorkspaceSection {
-  const line = workspaceStatusLine(branch, ctx)
-  if (line.kind === "progress") return "working"
-  if (line.kind === "error") return "needs-you"
-  if (line.state === "working") return "working"
-  return line.state === "needs-you" ? "needs-you" : "idle"
-}
-
-/**
- * Whether any Workspace needs the member (#1152): at least one that isn't Done
- * falls in the Needs you section, by the same rule that files it there. It
- * drives the dot on the chat panel's Workspaces button.
- */
-export function anyWorkspaceNeedsYou<T extends SectionBranch>(
-  branches: readonly T[],
-  context: (branch: T) => SectionContext
-): boolean {
-  return branches.some(
-    (b) => !b.doneAt && workspaceSection(b, context(b)) === "needs-you"
-  )
 }
 
 export type SortBranch = Pick<
@@ -123,15 +85,15 @@ export function sortWorkspaces<T extends SortBranch>(
  * The grouped list: each live section with its Workspaces in the view's sort,
  * empty sections left out. Pass only Workspaces that aren't Done.
  */
-export function groupWorkspaces<T extends SortBranch & SectionBranch>(
+export function groupWorkspaces<T extends SortBranch>(
   branches: readonly T[],
   sort: WorkspaceSort,
-  context: (branch: T) => SectionContext
+  sectionOf: (branch: T) => WorkspaceSection | "done"
 ): { section: WorkspaceSection; branches: T[] }[] {
   const sorted = sortWorkspaces(branches, sort)
   return WORKSPACE_SECTIONS.map((section) => ({
     section,
-    branches: sorted.filter((b) => workspaceSection(b, context(b)) === section),
+    branches: sorted.filter((b) => sectionOf(b) === section),
   })).filter((g) => g.branches.length > 0)
 }
 

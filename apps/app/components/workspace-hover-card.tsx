@@ -17,7 +17,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import { workspaceDetails } from "@/lib/branch/workspace-details"
-import { formatElapsed } from "@/lib/branch/status-line"
+import { formatElapsed } from "@/lib/branch/workspace-state"
 import { useBranches, useRepos } from "@/lib/yjs/react"
 
 // The card portals out of sidebar rows and canvas labels while React events

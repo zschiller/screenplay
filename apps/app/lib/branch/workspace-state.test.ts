@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  anyWorkspaceNeedsYou,
+  formatElapsed,
   roomWorkspaceFacts,
   workspaceState,
   type WorkspaceState,
@@ -24,7 +26,7 @@ const CASES: {
   branch: WorkspaceStateBranch
   chats?: BranchBusyChat[]
   plans?: Plan[]
-  expected: Omit<WorkspaceState, "label">
+  expected: Omit<WorkspaceState, "label" | "agentWorking">
 }[] = [
   {
     name: "idle",
@@ -190,12 +192,105 @@ const CASES: {
       needsYou: false,
     },
   },
+  {
+    name: "setting up with no step on record",
+    branch: ws({ status: "creating" }),
+    expected: {
+      line: { kind: "progress", step: "Creating workspace" },
+      section: "working",
+      needsYou: false,
+    },
+  },
+  {
+    name: "starting with an empty step",
+    branch: ws({ status: "starting", statusMessage: "" }),
+    expected: {
+      line: { kind: "progress", step: "Starting" },
+      section: "working",
+      needsYou: false,
+    },
+  },
+  {
+    name: "plan rejected no longer needs you",
+    branch: ws(),
+    plans: [{ branchId: "ws", status: "rejected" }],
+    expected: {
+      line: { kind: "idle", state: "ready", text: "Ready" },
+      section: "idle",
+      needsYou: false,
+    },
+  },
+  {
+    name: "a blocked flag on a merged PR is ignored",
+    branch: ws({ prState: "merged", prBlocked: true }),
+    expected: {
+      line: { kind: "idle", state: "ready", text: "Ready" },
+      section: "idle",
+      needsYou: false,
+    },
+  },
+  {
+    name: "needs you when a stopped Workspace's merge is blocked",
+    branch: ws({ status: "stopped", prState: "open", prBlocked: true }),
+    expected: {
+      line: { kind: "idle", state: "needs-you", text: "Merge blocked" },
+      section: "needs-you",
+      needsYou: true,
+    },
+  },
+  {
+    name: "a failure titled from the three-dot step",
+    branch: ws({
+      status: "error",
+      statusMessage: "Cloning repository...",
+      error: "exit 128",
+    }),
+    expected: {
+      line: {
+        kind: "error",
+        title: "Cloning repository failed",
+        detail: "exit 128",
+      },
+      section: "needs-you",
+      needsYou: true,
+    },
+  },
+  {
+    name: "a failure with no step or error on record",
+    branch: ws({ status: "error" }),
+    expected: {
+      line: { kind: "error", title: "Setup failed", detail: "Unknown error" },
+      section: "needs-you",
+      needsYou: true,
+    },
+  },
+  {
+    name: "a stray error fails it even while the sandbox runs",
+    branch: ws({ error: "boom" }),
+    expected: {
+      line: { kind: "error", title: "Setup failed", detail: "boom" },
+      section: "needs-you",
+      needsYou: true,
+    },
+  },
+  {
+    name: "done wins over a failed setup",
+    branch: ws({ status: "error", error: "x", doneAt: 1 }),
+    expected: {
+      line: { kind: "idle", state: "done", text: "Done" },
+      section: "done",
+      needsYou: false,
+    },
+  },
 ]
 
 describe("workspaceState", () => {
   it.each(CASES)("$name", ({ branch, chats = [], plans = [], expected }) => {
     expect(workspaceState(branch, roomWorkspaceFacts(chats, plans))).toEqual({
       label: "Sticky header",
+      agentWorking: chats.some(
+        (c) => c.branchId === branch.id && c.isStreaming && !c.closedAt
+      ),
       ...expected,
     })
   })
@@ -204,5 +299,46 @@ describe("workspaceState", () => {
     expect(
       workspaceState(ws({ title: " " }), roomWorkspaceFacts([], [])).label
     ).toBe("New Workspace")
+  })
+})
+
+describe("anyWorkspaceNeedsYou", () => {
+  const room = roomWorkspaceFacts(
+    [{ branchId: "busy", isStreaming: true }],
+    [{ branchId: "plan", status: "pending" }]
+  )
+  const stateOf = (b: WorkspaceStateBranch) => workspaceState(b, room)
+
+  it("is true when a Workspace needs you", () => {
+    expect(
+      anyWorkspaceNeedsYou([ws({ id: "a" }), ws({ id: "plan" })], stateOf)
+    ).toBe(true)
+    expect(
+      anyWorkspaceNeedsYou(
+        [ws({ id: "a" }), ws({ id: "b", status: "error" })],
+        stateOf
+      )
+    ).toBe(true)
+  })
+
+  it("leaves Done Workspaces out", () => {
+    expect(anyWorkspaceNeedsYou([ws({ id: "plan", doneAt: 1 })], stateOf)).toBe(
+      false
+    )
+  })
+
+  it("is false when every Workspace is working or idle, or there are none", () => {
+    expect(
+      anyWorkspaceNeedsYou([ws({ id: "a" }), ws({ id: "busy" })], stateOf)
+    ).toBe(false)
+    expect(anyWorkspaceNeedsYou([], stateOf)).toBe(false)
+  })
+})
+
+describe("formatElapsed", () => {
+  it("formats seconds and minutes", () => {
+    expect(formatElapsed(0)).toBe("0s")
+    expect(formatElapsed(40_900)).toBe("40s")
+    expect(formatElapsed(125_000)).toBe("2m 05s")
   })
 })
