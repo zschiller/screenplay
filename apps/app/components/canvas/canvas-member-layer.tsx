@@ -419,7 +419,7 @@ function CanvasMemberLayerImpl({
                 remoteSelectedColor={remoteSelectedColor}
                 remoteGroupSelectedColor={remoteGroupSelectedColor}
                 groupLabel={index === 0 ? groupLabel : undefined}
-                groupWorkspace={groupWorkspace}
+                groupWorkspace={groupLabelWorkspace}
                 groupSelected={groupSelected}
                 onSelectGroup={
                   index === 0 && showGroupLabel
