@@ -22,7 +22,7 @@ Done when the question is one line, Today is captured and measured, and every co
 - **Structural** questions (where something lives, what the unit of work is, what a flow's first step is, what appears at which level): broad **wireframes**, grey boxes and real labels, several combinations of answers. Polish here is wasted and hides the structure.
 - **Visual** questions (type, colour, size, spacing, iconography, a component's look): **real screens**, restyled by injecting CSS or JS into the screenshot harness's captures, in light and dark. Hand-drawn mockups of existing UI drift from the product; real captures don't. [`CAPTURE.md`](CAPTURE.md) has the techniques.
 
-Keep captures **targeted**: the handful of screens where the thing appears, named with `--screens`, never a full sweep.
+Keep captures **targeted**: only the handful of screens where the thing appears, named with `--screens`.
 
 ## 3. Build the page
 
@@ -42,7 +42,7 @@ Done when every capture has been looked at in both themes and nothing visibly of
 
 ## 5. Ask for the pick
 
-Reply with the link and one line on the recommendation. Ask each open question as its own `ask_decision` card: 2 to 4 options, the recommendation marked, one card per question. A reply lists no questions.
+Reply with the link and one line on the recommendation. Ask each open question as its own `ask_decision` card: 2 to 4 options, the recommendation marked, one card per question.
 
 When the owner reacts:
 

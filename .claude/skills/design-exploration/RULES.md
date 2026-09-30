@@ -5,8 +5,8 @@ Reference for step 1 of [`design-exploration`](SKILL.md): the owner's standing d
 ## Restraint
 
 - Prefer a small fix inside the current UX over a redesign.
-- Keep visual changes restrained: no heavy borders or rings.
-- Use stock shadcn (Radix, radix-nova) components, patterns and variants. Customise our copies in `packages/ui/src/components`; add no new cva variants or JS workarounds without asking. Buttons are real `Button`s, not styled links.
+- Keep visual changes restrained: spacing, type and hairlines carry the change, rather than heavy borders or rings.
+- Use stock shadcn (Radix, radix-nova) components, patterns and variants. Customise our copies in `packages/ui/src/components`, and ask before adding a cva variant or a JS workaround. Buttons are real `Button`s, not styled links.
 - Follow other agentic tools' conventions (Claude, GitHub), including GitHub's PR colours with purple for merged.
 - Decorative UI never implies behaviour the app lacks.
 - Place a new mode hint or tag in existing chrome; a new pill style beside the canvas chrome is the pattern the owner rejected.
@@ -20,7 +20,7 @@ Reference for step 1 of [`design-exploration`](SKILL.md): the owner's standing d
 
 ## Colour
 
-- The Signal neon palette: ink for text and icons, outline, and fill. No tints. Text or icons on a solid fill are black, never white.
+- The Signal neon palette: each hue appears only as ink (text and icons), outline, or solid fill. Text or icons on a solid fill are black.
 - Status badge text is one shade calmer than its icon.
 - The Workspace carries no colour anywhere.
 - Tooltips, toasts and menus use inverted surfaces. Floating UI matches the shared floating toolbar surface.
