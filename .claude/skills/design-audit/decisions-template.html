@@ -1,0 +1,191 @@
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Unbounded:wght@400&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one form column. Summary and copy bar first, then questions grouped by surface, then the PRs that run regardless. Tokens match the three plan pages. */
+:root{--bg:#fcfbfc;--surface:#f5f2f6;--line:#e3dde5;--fg:#141116;--muted:#5f5864;--accent:oklch(0.52 0.24 322);--ok:#1f7a45;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded","Instrument Sans",ui-sans-serif,sans-serif;--mono:"Geist Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#09080a;--surface:#131115;--line:#29252c;--fg:#f2eff3;--muted:#a19aa6;--accent:oklch(0.72 0.25 322);--ok:#5fd08e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#09080a;--surface:#131115;--line:#29252c;--fg:#f2eff3;--muted:#a19aa6;--accent:oklch(0.72 0.25 322);--ok:#5fd08e;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:860px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:48px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:400 clamp(26px,5vw,38px)/1.1 var(--head);letter-spacing:-.03em;margin:10px 0 14px;text-wrap:balance}
+h2{font:400 clamp(19px,2.6vw,24px)/1.2 var(--head);letter-spacing:-.03em;margin:0;text-wrap:balance}
+h3{font:500 17px/1.35 var(--sans);margin:0;text-wrap:balance}
+p{margin:0}
+a{color:var(--accent)}
+code{font:12.5px var(--mono);background:color-mix(in srgb,var(--fg) 7%,transparent);padding:1px 4px;overflow-wrap:anywhere}
+.lede{color:var(--muted);max-width:64ch;font-size:16px}
+.srcs{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:16px}
+.srcs a{color:var(--fg);text-underline-offset:3px;text-decoration-color:var(--line)}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.bar .count{font:500 13px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted);margin-right:auto}
+.bar .count b{color:var(--fg);font-weight:500}
+.jump{display:flex;gap:14px;font-size:13px}
+.jump a{color:var(--muted);text-decoration:none}.jump a:hover{color:var(--fg)}
+button{font:500 13px var(--sans);border-radius:6px;padding:7px 12px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{font-size:13px;color:var(--ok)}
+section.surface{display:flex;flex-direction:column;gap:0;scroll-margin-top:72px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:16px;border-bottom:1px solid var(--fg)}
+.shead p{color:var(--muted);font-size:14px}
+.q{display:flex;flex-direction:column;gap:12px;padding:24px 0;border-bottom:1px solid var(--line)}
+.q header{display:flex;flex-direction:column;gap:4px}
+.qid{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.qid .id{font:500 12px var(--mono);color:var(--accent)}
+.qid .where{font:500 11px var(--mono);color:var(--muted);letter-spacing:.04em}
+.qid .done{font:500 11px var(--mono);color:var(--ok)}
+.ctx{color:var(--muted);max-width:68ch}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--surface);max-height:320px;overflow:auto}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.opt{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;align-items:start}
+.opt:hover{background:var(--surface)}
+.opt:has(input:checked){background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+.opt input{margin:3px 0 0;accent-color:var(--accent)}
+.opt .l{font-weight:500}
+.opt .rec{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-left:6px}
+.opt .d{display:block;color:var(--muted);font-size:14px}
+.opt.alt .l{font-weight:400;color:var(--muted)}
+.opt.alt:has(input:checked) .l{color:var(--fg)}
+textarea,input[type=text]{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+textarea{resize:vertical;min-height:40px}
+.own{margin:2px 0 4px 38px}
+.note{display:flex;flex-direction:column;gap:4px}
+.note label{font-size:13px;color:var(--muted)}
+.runs{display:flex;flex-direction:column;gap:18px}
+.runs .grp{display:flex;flex-direction:column;gap:6px}
+.runs ul{margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+.runs li{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);align-items:baseline;font-size:14px}
+.runs .n{font:400 14px var(--head);color:var(--accent);font-variant-numeric:tabular-nums}
+.runs .w{font:500 11px var(--mono);color:var(--muted);text-align:right}
+.runs .w.wait{color:var(--accent)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;max-height:320px;overflow:auto;margin:0}
+@media (max-width:600px){.own{margin-left:0}.runs li{grid-template-columns:28px minmax(0,1fr)}.runs .w{grid-column:2;text-align:left}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">{{SURFACES}} · {{DATE}}</p>
+<h1>{{H1}}</h1>
+<p class="lede">{{N}} questions from {{PLANS}}. Pick an option, pick <b>None of these</b>, or write your own, and add a note if you like. Anything you leave blank keeps my recommendation. When you're done, press <b>Copy decisions</b> and paste the text back in the project chat.</p>
+<div class="srcs lbl">
+<!-- one link per source plan -->
+<a href="{{PLAN_URL}}">{{Surface}} plan</a>
+<a href="#runs">PRs that need no decision</a>
+</div>
+</header>
+
+<div class="bar">
+<span class="count" id="count"><b>0</b> answered</span>
+<nav class="jump" aria-label="Surfaces"><!-- one link per surface key --><a href="#homepage">Homepage</a></nav>
+<button type="button" id="copy" class="primary">Copy decisions</button>
+<span class="status" id="status" role="status" aria-live="polite"></span>
+</div>
+
+<form id="form" class="wrap" style="padding:0;gap:48px"></form>
+
+<section class="runs" id="runs">
+<div class="shead"><p class="lbl">Runs regardless</p><h2>PRs that need no decision</h2><p>These go ahead once you hand the decisions back. A PR marked with a question id waits on that answer.</p></div>
+<div id="runlists"></div>
+</section>
+
+<section class="runs">
+<div class="shead"><p class="lbl">Preview</p><h2>What Copy decisions gives you</h2></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const TITLE_LINE="Decisions on the {{PLANS}} ({{DATE}})"; // first line of the copied text
+const KEY="decisions-{{SLUG}}"; // localStorage key, unique per page
+// One entry per surface. Question ids: surface letter + number. o[0] is always the recommendation.
+// img: {p: light (or only) path, cap: caption, dk: optional dark path}. Omit img when no capture shows the thing decided.
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const SURFACES=[
+{key:"homepage",name:"Homepage",plan:"{{PLAN_URL}}",intro:"8 proposed PRs. PR 1 and PR 2 start without any of these.",qs:[
+{id:"H1",where:"P1 · PR 4",t:"Should the figures sell versions of one change, or parallel tasks?",c:"One or two sentences of context: what's at stake and what the audits disagree on.",
+ o:[["Versions","One-line consequence."],["Parallel tasks","One-line consequence."]],
+ img:[IMG("hp/p/f1-0.jpg","Now · Fig. 1"),IMG("hp/p/f1-1.jpg","Mockup · Fig. 1","hp/p/f1-1.dark.jpg")]}
+]}
+];
+// Every PR per surface: [number, title, "" | "waits on H1, H3" | short note]. "" renders as "runs regardless".
+const RUNS={
+homepage:[[1,"Correct the claims that aren't true",""],[4,"Redraw the figures around one ask","waits on H1"]]
+};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const form=document.getElementById("form");
+let html="";
+for(const s of SURFACES){
+ html+=`<section class="surface" id="${s.key}"><div class="shead"><p class="lbl">${s.qs.length} questions · <a href="${s.plan}">open the plan</a></p><h2>${s.name}</h2><p>${esc(s.intro)}</p></div>`;
+ for(const q of s.qs){
+  const n=q.id;
+  html+=`<div class="q" id="q-${n}"><header><div class="qid"><span class="id">${n}</span><span class="where">${esc(q.where)}</span><span class="done" id="done-${n}"></span></div><h3>${esc(q.t)}</h3></header><p class="ctx">${esc(q.c)}</p>`;
+  if(q.img&&q.img.length){html+=`<div class="shots">`+q.img.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`}
+  html+=`<fieldset><legend>${esc(q.t)}</legend>`;
+  q.o.forEach((o,i)=>{html+=`<label class="opt"><input type="radio" name="${n}" id="${n}-o${i}" value="o${i}"><span><span class="l">${esc(o[0])}</span>${i===0?'<span class="rec">Recommended</span>':""}<span class="d">${esc(o[1])}</span></span></label>`});
+  html+=`<label class="opt alt"><input type="radio" name="${n}" id="${n}-none" value="none"><span><span class="l">None of these</span></span></label>`;
+  html+=`<label class="opt alt"><input type="radio" name="${n}" id="${n}-own" value="own"><span><span class="l">Write my own</span></span></label>`;
+  html+=`<div class="own" id="ownwrap-${n}" hidden><input type="text" id="${n}-owntext" aria-label="Your answer for ${n}" placeholder="Your answer"></div></fieldset>`;
+  html+=`<div class="note"><label for="${n}-note">Note (optional)</label><textarea id="${n}-note" rows="1"></textarea></div></div>`;
+ }
+ html+=`</section>`;
+}
+form.innerHTML=html;
+document.getElementById("runlists").innerHTML=SURFACES.map(s=>`<div class="grp"><p class="lbl">${s.name}</p><ul>`+RUNS[s.key].map(r=>`<li><span class="n">${r[0]}</span><span>${esc(r[1])}</span><span class="w${r[2].startsWith("waits")?" wait":""}">${esc(r[2]||"runs regardless")}</span></li>`).join("")+`</ul></div>`).join("");
+
+const ALL=SURFACES.flatMap(s=>s.qs.map(q=>({...q,surface:s.name})));
+function state(q){
+ const r=form.querySelector(`input[name="${q.id}"]:checked`);
+ return{v:r?r.value:"",own:document.getElementById(q.id+"-owntext").value.trim(),note:document.getElementById(q.id+"-note").value.trim()};
+}
+function restore(){
+ for(const q of ALL){const s=saved[q.id];if(!s)continue;
+  if(s.v){const r=document.getElementById(q.id+"-"+(s.v.startsWith("o")?s.v:s.v));if(r)r.checked=true}
+  document.getElementById(q.id+"-owntext").value=s.own||"";document.getElementById(q.id+"-note").value=s.note||"";}
+}
+function answerText(q,s){
+ if(s.v==="none")return"None of these";
+ if(s.v==="own")return s.own?`Write my own: ${s.own}`:"Write my own: (left blank)";
+ if(s.v){const i=+s.v.slice(1);return q.o[i][0]+(i===0?" (recommended)":"")}
+ return`No answer; recommendation stands (${q.o[0][0]})`;
+}
+function build(){
+ const lines=[TITLE_LINE,""];
+ for(const sf of SURFACES){lines.push(sf.name.toUpperCase());
+  for(const q of sf.qs){const s=state(q);lines.push(`${q.id}. ${q.t}`);lines.push(`   → ${answerText(q,s)}`);if(s.note)lines.push(`   Note: ${s.note}`)}
+  lines.push("")}
+ return lines.join("\n").trim();
+}
+function refresh(){
+ let n=0;const out={};
+ for(const q of ALL){const s=state(q);out[q.id]=s;
+  const answered=!!s.v&&!(s.v==="own"&&!s.own);if(answered)n++;
+  document.getElementById("done-"+q.id).textContent=answered?"Answered":"";
+  document.getElementById("ownwrap-"+q.id).hidden=s.v!=="own";}
+ document.getElementById("count").innerHTML=`<b>${n}</b> of ${ALL.length} answered`;
+ document.getElementById("preview").textContent=build();
+ try{localStorage.setItem(KEY,JSON.stringify(out))}catch(e){}
+}
+restore();refresh();
+form.addEventListener("input",e=>{refresh();if(e.target.value==="own"){const t=document.getElementById(e.target.name+"-owntext");t&&t.focus()}});
+form.addEventListener("submit",e=>e.preventDefault());
+document.getElementById("copy").addEventListener("click",()=>{
+ const text=build(),st=document.getElementById("status");
+ const fallback=()=>{const p=document.getElementById("preview");const r=document.createRange();r.selectNodeContents(p);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);p.scrollIntoView({block:"center"});st.textContent="Copy was blocked. The text below is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the project chat."},fallback)}catch(e){fallback()}
+});
+</script>
