@@ -1,9 +1,9 @@
 import type { AcpMessageRecord } from "./record"
 import type { AcpSession, AcpSessionPorts, OpenSessionOptions } from "./session"
 import type {
+  Engine,
   EngineTurn,
   EngineUpdateSink,
-  SteeringEngine,
   TakeSteers,
 } from "./engine-seam"
 import {
@@ -129,9 +129,8 @@ export interface ExternalEngineConfig {
  * {@link PromptSteering}. The engine reports whether it does once the session
  * is open; on a Harness that doesn't (codex) the chat queues instead.
  */
-export class ExternalEngine implements SteeringEngine {
+export class ExternalEngine implements Engine {
   readonly id = "external"
-  readonly steers = true
 
   constructor(private readonly config: ExternalEngineConfig) {}
 

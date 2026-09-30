@@ -55,19 +55,21 @@ export interface EngineTurn {
    */
   planMode?: boolean
   /**
-   * The pull port a {@link SteeringEngine} calls at each step boundary (#1190):
-   * it takes every pending Steer for this run, oldest first, and has already
-   * settled them into the transcript as user messages by the time it resolves.
-   * Absent when the turn can't be steered; an Engine without the capability
-   * never calls it.
+   * The pull port an Engine calls at each step boundary of a run that steers
+   * (#1190): it takes every pending Steer for this run, oldest first, and has
+   * already settled them into the transcript as user messages by the time it
+   * resolves. The Engine hands what it took to the model before its next step,
+   * and checks once more before the turn would finish. Absent when the turn
+   * can't be steered.
    */
   takeSteers?: TakeSteers
   /**
-   * Where a {@link SteeringEngine} says, once its session is open, whether
-   * this run takes Steers (#1250): the external engine learns at initialize
-   * whether the Harness queues prompts (#1191); the in-process engine always
-   * does. Until it reports, and after a no, every message sent mid-run is
-   * queued. Present only alongside {@link takeSteers}.
+   * Where the Engine says, once its session is open, whether this run takes
+   * Steers (#1250). Steerability is a fact about the run, not the Engine: the
+   * external engine learns at initialize whether the Harness queues prompts
+   * (#1191); the in-process engine always does. Until it reports, and after a
+   * no, every message sent mid-run is queued. Present only alongside
+   * {@link takeSteers}.
    */
   reportSteering?: (steers: boolean) => Promise<void>
 }
@@ -135,23 +137,4 @@ export function supportsUsageReporting(
   engine: Engine
 ): engine is UsageReportingEngine {
   return (engine as Partial<UsageReportingEngine>).reportsUsage === true
-}
-
-/**
- * Capability sub-interface (#1190): an engine that takes Steers mid-turn. It
- * calls {@link EngineTurn.takeSteers} at each step boundary, hands whatever it
- * took to the model before its next step, and checks once more before a turn
- * would finish, running another step when there are some. An engine that
- * can't isn't narrowed, and its runs never take a Steer. One that is narrowed
- * reports through {@link EngineTurn.reportSteering} whether each run does,
- * once its session is open (the external engine's Harness may not queue
- * prompts).
- */
-export interface SteeringEngine extends Engine {
-  readonly steers: true
-}
-
-/** The steering capability check, gated like {@link supportsUsageReporting}. */
-export function supportsSteering(engine: Engine): engine is SteeringEngine {
-  return (engine as Partial<SteeringEngine>).steers === true
 }
