@@ -69,7 +69,7 @@ export function SettingsRow({
           </span>
           {state && (
             <Badge
-              variant={status === "on" ? "outline" : "secondary"}
+              variant="outline"
               className={cn(
                 "shrink-0 gap-1 font-normal",
                 status !== "on" && "text-muted-foreground"
