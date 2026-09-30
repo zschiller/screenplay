@@ -6,12 +6,6 @@ import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { TerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import type { ChatSessionData } from "@/lib/types"
 
-vi.mock("@/lib/terminal-tabs-actions", () => ({
-  createTerminalTabAction: vi.fn().mockResolvedValue(undefined),
-  deleteTerminalTabAction: vi.fn().mockResolvedValue(undefined),
-  killTerminalSessionAction: vi.fn().mockResolvedValue(undefined),
-}))
-
 // Chat Sync rides along in `useChatTabs`; its effects are tested there.
 vi.mock("@/hooks/use-chat-sync", () => ({ useChatSync: () => {} }))
 
@@ -47,17 +41,18 @@ function setup(chatSessions: ChatSessionData[], selectedChatId: string) {
       selectAgentChat: vi.fn(),
     } as unknown as ChatTarget,
     terminalTabs: {
-      localTerminals: [],
-      setLocalTerminals: vi.fn(),
-      isLocalTerminal: () => false,
-    } as unknown as TerminalTabs,
+      tabs: [],
+      isTerminal: () => false,
+      open: vi.fn(),
+      close: vi.fn(),
+      rename: vi.fn(),
+    } satisfies TerminalTabs,
   }
   const { result } = renderHook(() =>
     useTabPool({
       ...deps,
       roomId: "room-1",
       userId: "user-1",
-      agents: [],
       chatSessions,
     })
   )

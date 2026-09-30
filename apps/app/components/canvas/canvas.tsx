@@ -130,6 +130,7 @@ import {
 import { useTabPool } from "@/components/canvas/use-tab-pool"
 
 import { useTerminalTabs } from "@/components/canvas/use-terminal-tabs"
+import { serverTerminalTabStore } from "@/lib/terminal/server-tab-store"
 
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 
@@ -341,9 +342,8 @@ export function Canvas({
   // Chat-Target selection — which target the panel shows, the per-target memory,
   // and the pending-agent readiness — is owned by the `useChatTarget` controller
   // (#569), created once its dependencies are in scope below. The client's
-  // Terminal Tabs (`localTerminals`) and their seed / re-fetch-merge /
-  // orphan-prune lifecycle are owned by the `useTerminalTabs` controller (#582),
-  // created once `agents` is in scope below; the Tab Pool composes it.
+  // Terminal Tabs are owned by `useTerminalTabs` (#1265), created once `agents`
+  // is in scope below; the Tab Pool composes it.
   // Element Reference controller (PRD #570): how the Canvas points at an
   // element or a Document passage. It owns the comment-mode placement state
   // (`newCommentPos`, `activeThreadId`, `inspectHover`) and the two registries
@@ -878,16 +878,15 @@ export function Canvas({
     if (names.length > 0) void stopDevServers(names).catch(() => {})
   }, [agents])
 
-  // Terminal Tab controller (PRD #579, cut 3/4): owns this client's
-  // `localTerminals` plus their first-paint seed, the `listTerminalTabsAction`
-  // re-fetch-and-merge, and the orphan prune (drop tab + delete persisted row
-  // when the Branch is gone). The Tab Pool composes it for the apply-side; the
-  // Chat-Target controller reads `localTerminals` to resolve a selected tab's
-  // target.
+  // Terminal Tabs (#1265): the one owner of this client's Terminal Tab list —
+  // open, close, rename, restore and prune, with the rows and sessions behind
+  // the server-action store. The Tab Pool composes it for the apply-side; the
+  // Chat-Target controller reads `tabs` to resolve a selected tab's target.
   const terminalTabs = useTerminalTabs({
     roomId,
     agents,
     initialTerminalTabs,
+    store: serverTerminalTabStore,
   })
 
   const diffStats = useDiffStats(agents, repos)
@@ -971,7 +970,7 @@ export function Canvas({
   const chatTarget = useChatTarget({
     agents,
     chatSessions,
-    localTerminals: terminalTabs.localTerminals,
+    localTerminals: terminalTabs.tabs,
     chatPanelRef,
   })
 
@@ -1260,7 +1259,6 @@ export function Canvas({
     removeChatSession,
     roomId,
     userId,
-    agents,
     chatSessions,
     terminalTabs,
     chatTarget,
@@ -2248,7 +2246,7 @@ export function Canvas({
                 chatTarget={chatTarget}
                 tabPool={tabPool}
                 chatSessions={chatSessions}
-                localTerminals={terminalTabs.localTerminals}
+                localTerminals={terminalTabs.tabs}
                 repos={repos}
                 roomId={roomId}
                 diffStats={diffStats}

@@ -10,25 +10,18 @@ import {
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { TerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import {
-  createTerminalTab,
   DEFAULT_HARNESS_KEY,
   readLastHarnessKey,
   readLastTabKind,
 } from "@/lib/canvas/tab-kind"
-import {
-  createTerminalTabAction,
-  deleteTerminalTabAction,
-  killTerminalSessionAction,
-} from "@/lib/terminal-tabs-actions"
-import type { BranchData, ChatSessionData, TabKind } from "@/lib/types"
+import type { ChatSessionData, TabKind } from "@/lib/types"
 
 /**
  * Tab Pool controller (PRD #563) — the apply-side of a Chat Target's tab pool,
  * lifted out of `components/canvas/canvas.tsx`. The component renders the tab
  * strip and calls the verbs this hook returns (`open`, `close`, `remove`,
  * `rename`, `reopen`, `seed`); the effects — the chat-store and Y.Doc tab
- * writes, the Terminal Tab server actions, and the tmux / PTY teardown — live
- * here, in one place, rather than smeared across the Canvas surface. The
+ * writes and the Terminal Tabs verbs — live here, in one place, rather than smeared across the Canvas surface. The
  * selection side effects each verb performs are delegated to the Chat-Target
  * controller (`useChatTarget`, #569), which owns *which* target is shown;
  * selecting a tab itself is now a Chat-Target verb (`selectChat`).
@@ -60,15 +53,12 @@ export interface TabPoolDeps {
   roomId: string
   /** The signed-in User's id, used to resolve the sticky harness pref (#290). */
   userId: string | undefined
-  agents: BranchData[]
   chatSessions: ChatSessionData[]
   /**
-   * The Terminal Tab controller (#582) — owns this client's `localTerminals`
-   * plus their seed / re-fetch-merge / orphan-prune lifecycle. The Tab Pool
-   * composes it for the apply-side reads and writes (`localTerminals`,
-   * `setLocalTerminals`, `isLocalTerminal`), the same way it composes
-   * Chat-Target for selection, so the Terminal Tab apply-side and lifecycle
-   * share one ownership chain. Terminal Tabs are a distinct type, never in
+   * Terminal Tabs (#1265) — the one owner of this client's Terminal Tab list.
+   * The Tab Pool reads the list for its pool decisions and changes it only
+   * through its verbs (`open`, `close`, `rename`), the same way it composes
+   * Chat-Target for selection. Terminal Tabs are a distinct type, never in
    * `chatSessions`.
    */
   terminalTabs: TerminalTabs
@@ -124,12 +114,11 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     removeChatSession,
     roomId,
     userId,
-    agents,
     chatSessions,
     terminalTabs,
     chatTarget,
   } = deps
-  const { localTerminals, setLocalTerminals, isLocalTerminal } = terminalTabs
+  const { tabs: terminals, isTerminal } = terminalTabs
 
   /**
    * Create the user's preferred default tab (chat or terminal) for an agent
@@ -143,29 +132,15 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     (branchId: string, kind: TabKind, options?: { select?: boolean }) => {
       const select = options?.select !== false
       if (kind === "terminal") {
-        const tab = createTerminalTab({
-          id: nanoid(),
+        // A terminal-default tab launches the same harness as the "+" button:
+        // the operator's last-selected harness (#290), falling back to the
+        // catalog default. If it's since been uninstalled the server resolves
+        // it to a plain shell, so a stale pref degrades gracefully.
+        const tab = terminalTabs.open(
           branchId,
-          createdAt: Date.now(),
-          // A terminal-default tab launches the same harness as the "+" button:
-          // the operator's last-selected harness (#290), falling back to the
-          // catalog default. If it's since been uninstalled the server resolves
-          // it to a plain shell, so a stale pref degrades gracefully.
-          harnessKey:
-            (userId ? readLastHarnessKey(userId) : null) ?? DEFAULT_HARNESS_KEY,
-        })
-        setLocalTerminals((prev) => [...prev, tab])
+          (userId ? readLastHarnessKey(userId) : null) ?? DEFAULT_HARNESS_KEY
+        )
         if (select) chatTarget.selectChatId(tab.id)
-        createTerminalTabAction({
-          roomId,
-          branch: branchId,
-          id: tab.id,
-          label: tab.label,
-          harnessKey: tab.harnessKey,
-          createdAt: tab.createdAt,
-        }).catch((err) => {
-          console.error("Failed to persist terminal tab", err)
-        })
         return tab.id
       }
       const id = nanoid()
@@ -178,7 +153,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
       if (select) chatTarget.selectChatId(id)
       return id
     },
-    [roomId, addChatSession, userId, setLocalTerminals, chatTarget]
+    [addChatSession, userId, terminalTabs, chatTarget]
   )
 
   const selectChat = useCallback(
@@ -216,26 +191,24 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     removeChatSession,
     selectedChatId: chatTarget.selectedChatId,
     selectChat,
-    terminals: localTerminals,
+    terminals,
     respawnAgent,
   })
 
-  // Close a local terminal tab: it's ephemeral, so closing simply drops it
-  // (no closed-chats archive). The Tab Pool decision keeps the never-empty
-  // invariant — if this terminal is the last tab on its branch (no sibling
-  // terminal and no open chat) it returns a respawn for the user's preferred
-  // default kind (which may be a chat); otherwise, if it was selected, it picks
-  // the fallback selection. We then apply the row/session teardown effects.
+  // Close a Terminal Tab: it's ephemeral, so closing drops it (no closed-chats
+  // archive), deletes its row and kills its session — all in Terminal Tabs.
+  // The Tab Pool decision keeps the never-empty invariant — if this terminal is
+  // the last tab on its branch (no sibling terminal and no open chat) it
+  // returns a respawn for the user's preferred default kind (which may be a
+  // chat); otherwise, if it was selected, it picks the fallback selection.
   const closeTerminal = useCallback(
     (id: string, nextSelectedId?: string) => {
-      const closing = localTerminals.find((t) => t.id === id)
-      const branchId = closing?.branchId
-      setLocalTerminals((prev) => prev.filter((t) => t.id !== id))
-      if (branchId) {
+      const closing = terminalTabs.close(id)
+      if (closing) {
         const pool = buildTabPool(
-          { kind: "agent", branchId },
+          { kind: "agent", branchId: closing.branchId },
           chatSessions,
-          localTerminals
+          terminals
         )
         const outcome = resolveTabClose(
           pool,
@@ -245,38 +218,12 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         )
         applyCloseOutcome(outcome)
       } else if (chatTarget.selectedChatId === id) {
-        // No branch to form a pool around (e.g. the row is already gone); just
-        // clear the selection if it was the selected tab.
+        // No tab to form a pool around; just clear the selection if it was the
+        // selected tab.
         chatTarget.selectChatId(nextSelectedId ?? null)
       }
-      // Closing an X permanently deletes the row (a reload alone never does).
-      deleteTerminalTabAction({ roomId, id }).catch((err) => {
-        console.error("Failed to delete terminal tab", err)
-      })
-      // …and kills the tab's tmux session so its shell + any running process
-      // (e.g. a harness) actually stops, not just the tab UI. Separate from the
-      // row delete so a down sandbox can't keep the tab around. Best-effort: a
-      // session that's already gone resolves fine.
-      const sandboxName = agents.find((a) => a.id === branchId)?.sandboxName
-      if (closing && sandboxName) {
-        killTerminalSessionAction({
-          roomId,
-          sandboxName,
-          terminalSessionId: closing.terminalSessionId,
-        }).catch((err) => {
-          console.error("Failed to kill terminal session", err)
-        })
-      }
     },
-    [
-      chatTarget,
-      chatSessions,
-      localTerminals,
-      roomId,
-      agents,
-      setLocalTerminals,
-      applyCloseOutcome,
-    ]
+    [terminalTabs, terminals, chatSessions, chatTarget, applyCloseOutcome]
   )
 
   const open = useCallback(
@@ -285,66 +232,37 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         openChat({ kind: "agent", branchId: spec.branchId })
         return
       }
-      // A new terminal tab builds a `TerminalTabData` (using the tab id as the
-      // shared live-view `terminalSessionId`) held in the client-local
-      // `localTerminals` collection — never in `chatSessions` — so the panel
-      // mounts a terminal body instead of the Engine chat and the conversation
-      // model can never, by type, see it.
-      const id = nanoid()
-      const tab = createTerminalTab({
-        id,
-        branchId: spec.branchId,
-        createdAt: Date.now(),
-        // The harness the operator picked (or the sticky default) — #290.
-        // Stored on the row so it's authoritative and survives reload/rebuild.
-        harnessKey: spec.harnessKey,
-      })
-      setLocalTerminals((prev) => [...prev, tab])
-      chatTarget.selectAgentChat(spec.branchId, id)
-      // Persist so the tab survives reload and follows the User across
-      // devices. Optimistic: the tab is already in local state; a failed write
-      // only means it won't be restored next load.
-      createTerminalTabAction({
-        roomId,
-        branch: spec.branchId,
-        id: tab.id,
-        label: tab.label,
-        harnessKey: tab.harnessKey,
-        createdAt: tab.createdAt,
-      }).catch((err) => {
-        console.error("Failed to persist terminal tab", err)
-      })
+      // A Terminal Tab lives in Terminal Tabs — never in `chatSessions` — so
+      // the panel mounts a terminal body instead of the Engine chat and the
+      // conversation model can never, by type, see it.
+      const tab = terminalTabs.open(spec.branchId, spec.harnessKey)
+      chatTarget.selectAgentChat(spec.branchId, tab.id)
     },
-    [openChat, roomId, setLocalTerminals, chatTarget]
+    [openChat, terminalTabs, chatTarget]
   )
 
   const close = useCallback(
     (chatId: string, nextSelectedId?: string) => {
-      if (isLocalTerminal(chatId)) closeTerminal(chatId, nextSelectedId)
+      if (isTerminal(chatId)) closeTerminal(chatId, nextSelectedId)
       else closeChat(chatId, nextSelectedId)
     },
-    [closeChat, isLocalTerminal, closeTerminal]
+    [closeChat, isTerminal, closeTerminal]
   )
 
   const remove = useCallback(
     (chatId: string) => {
-      if (isLocalTerminal(chatId)) closeTerminal(chatId)
+      if (isTerminal(chatId)) closeTerminal(chatId)
       else removeChat(chatId)
     },
-    [removeChat, isLocalTerminal, closeTerminal]
+    [removeChat, isTerminal, closeTerminal]
   )
 
   const rename = useCallback(
     (chatId: string, label: string) => {
-      if (isLocalTerminal(chatId)) {
-        setLocalTerminals((prev) =>
-          prev.map((t) => (t.id === chatId ? { ...t, label } : t))
-        )
-        return
-      }
-      renameChat(chatId, label)
+      if (isTerminal(chatId)) terminalTabs.rename(chatId, label)
+      else renameChat(chatId, label)
     },
-    [renameChat, isLocalTerminal, setLocalTerminals]
+    [renameChat, isTerminal, terminalTabs]
   )
 
   return { open, close, remove, rename, reopen, seed }
