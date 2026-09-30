@@ -100,12 +100,14 @@ export function Diff({ add, del }: { add: number; del: number }) {
 
 /**
  * A frame on the canvas: its label above, the page inside. Selected, it gets
- * the canvas's magenta ring, handles and label. The first frame of a Group
- * carries the Group's title above its own.
+ * the canvas's magenta ring, handles and label. As in the app, a Group of two
+ * or more names its Workspace once, on the title over its first frame; a
+ * frame on its own names its Workspace after its name.
  */
 export function Frame({
   label,
   group,
+  workspace,
   selected,
   device = "desktop",
   className,
@@ -113,8 +115,11 @@ export function Frame({
   children,
 }: {
   label: string
-  /** The Group's title over its first frame: its name and Workspace. */
+  /** The Group's title over its first frame: its name and Workspace. Only
+   *  on a Group of two or more. */
   group?: [name: string, workspace: string]
+  /** The Workspace a frame on its own shows, after its name. */
+  workspace?: string
   selected?: boolean
   device?: "desktop" | "mobile"
   className?: string
@@ -132,13 +137,19 @@ export function Frame({
           className="bottom-full left-0 mb-6 max-w-full"
         />
       ) : null}
-      <div
-        className={cn(
-          "absolute bottom-full left-0 mb-1.5 truncate text-xs leading-none whitespace-nowrap",
-          selected ? "text-selection" : "text-muted-foreground"
-        )}
-      >
-        {label}
+      <div className="absolute bottom-full left-0 mb-1.5 flex max-w-full items-center gap-2 overflow-hidden text-xs leading-none whitespace-nowrap text-muted-foreground">
+        {/* The figures' names are short: kept whole, as a rounding error would
+            otherwise clip them to an ellipsis. */}
+        <span className={cn("shrink-0", selected && "text-selection")}>
+          {label}
+        </span>
+        {workspace ? (
+          // The name keeps its room; the Workspace truncates first.
+          <span className="flex min-w-10 shrink-[100] items-center gap-1">
+            <WorkspaceGlyph className="size-2.5" />
+            <span className="truncate">{workspace}</span>
+          </span>
+        ) : null}
       </div>
       <div
         className={cn(
@@ -522,14 +533,15 @@ const columns =
 /**
  * The hero's figure: one ask to the Coordinator and its three Workspaces,
  * side by side on the canvas, desktop over phone, with the selected one's
- * bar. The chat drops out on narrow screens, leaving the canvas.
+ * bar. The chat drops out on narrow screens, leaving the canvas, and phones
+ * drop the phone frames, too narrow there to name their Workspace.
  */
 export function CanvasExcerpt() {
   return (
     <div
       role="img"
       aria-label="The Screenplay canvas: three versions of the Northwind homepage hero running side by side, each in its own Workspace, with the Coordinator chat that started them on the right."
-      className="flex aspect-square w-full overflow-hidden border border-border bg-background text-foreground sm:aspect-[16/10] lg:aspect-[16/9.4]"
+      className="flex aspect-[4/3] w-full overflow-hidden border border-border bg-background text-foreground sm:aspect-[16/10] lg:aspect-[16/9.4]"
     >
       <div
         className={cn(
@@ -551,7 +563,7 @@ export function CanvasExcerpt() {
           <Frame
             key={v.title}
             label="Home"
-            group={["Homepage", v.title]}
+            workspace={v.title}
             selected={i === 1}
             className={cn(i === 2 && "max-sm:hidden")}
             style={{
@@ -577,10 +589,12 @@ export function CanvasExcerpt() {
         {versions.map((v, i) => (
           <Frame
             key={v.title}
-            label="Home · mobile"
+            label="Mobile"
+            workspace={v.title}
             device="mobile"
-            className={cn(i === 2 && "max-sm:hidden")}
-            style={{ left: `var(--l${i})`, top: "var(--phone)", width: "12%" }}
+            className="max-sm:hidden"
+            // Wide enough for its name and most of its Workspace's.
+            style={{ left: `var(--l${i})`, top: "var(--phone)", width: "16%" }}
           >
             <Northwind device="mobile" version={v.version} />
           </Frame>
@@ -607,7 +621,7 @@ export function FrameExcerpt() {
         <Frame
           key={v.title}
           label="Home"
-          group={["Homepage", v.title]}
+          workspace={v.title}
           selected={i === 0}
           style={{ left: i ? "52%" : "4%", top: "var(--top)", width: "44%" }}
         >

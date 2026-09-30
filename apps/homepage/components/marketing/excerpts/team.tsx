@@ -180,7 +180,7 @@ export function TeamExcerpt() {
         <PeoplePill />
         <Frame
           label="Home"
-          group={["Homepage", "Hero gradient & trust line"]}
+          workspace="Hero gradient & trust line"
           selected
           style={{ left: 32, top: 84, width: 400 }}
         >
@@ -193,7 +193,7 @@ export function TeamExcerpt() {
         />
         <Frame
           label="Home"
-          group={["Homepage", "Main"]}
+          workspace="Main"
           style={{ left: 464, top: 84, width: 400 }}
         >
           <Northwind />

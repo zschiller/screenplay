@@ -117,7 +117,11 @@ export function CreateWorkspacesExcerpt() {
   )
 }
 
-/** Step 3: two of the versions of the same page, side by side. */
+/**
+ * Step 3: two of the versions of the same page, side by side. Each version is
+ * a Group of its desktop and mobile frames, so its title names the Workspace
+ * once for both.
+ */
 export function CompareExcerpt() {
   const [split, dark] = [versions[1], versions[2]]
   return (
