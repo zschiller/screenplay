@@ -859,11 +859,11 @@ export const SCREENS: Screen[] = [
   {
     name: "workspaces-menu",
     description:
-      "The Workspaces menu open from the Coordinator (#1152): search, the Coordinator checked, the Workspaces with + and …, Done, and Documents.",
+      "The Chats menu open from the Coordinator (#1152, #1317): search, the Coordinator checked, every chat with + and …, and Done.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page.mouse.move(900, 900)
     },
     settleMs: 400,
@@ -871,12 +871,12 @@ export const SCREENS: Screen[] = [
   {
     name: "workspaces-menu-search",
     description:
-      "Searching the Workspaces menu by branch name (#1152): Done Workspaces are searched too.",
+      "Searching the Chats menu by branch name (#1152): Done Workspaces are searched too.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      const menu = await openWorkspacesMenu(page)
-      await menu.getByPlaceholder("Search workspaces…").fill("cart")
+      const menu = await openChatsMenu(page)
+      await menu.getByPlaceholder("Search chats…").fill("cart")
       await page.mouse.move(900, 900)
     },
     settleMs: 400,
@@ -1544,7 +1544,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      const menu = await openWorkspacesMenu(page)
+      const menu = await openChatsMenu(page)
       await menu
         .getByRole("img", { name: "Running setup script" })
         .hover({ timeout: 15_000 })
@@ -1622,11 +1622,11 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspaces-two-repos",
     description:
-      "The Workspaces menu on a canvas with two repositories: each row ends with its repository (#884, #1152).",
+      "The Chats menu on a canvas with two repositories: each row ends with its repository (#884, #1152).",
     path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page.mouse.move(900, 900)
     },
     settleMs: 400,
@@ -1638,7 +1638,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page.mouse.move(900, 900)
     },
     settleMs: 400,
@@ -1650,7 +1650,7 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.onboarding}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page.mouse.move(900, 900)
     },
     settleMs: 400,
@@ -1953,7 +1953,7 @@ export const SCREENS: Screen[] = [
   {
     name: "workspaces-menu-new-hover",
     description:
-      "Hovering the Workspaces menu's New workspace (+) button, with its tooltip.",
+      "Hovering the Chats menu's New chat (+) button, with its tooltip.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -1994,7 +1994,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       // Light and dark share the Canvas, and the first run's rename commits
       // on close, so find the row by either name.
-      const menu = await openWorkspacesMenu(page)
+      const menu = await openChatsMenu(page)
       const name = (await menu
         .getByText("Empty cart illustration", { exact: true })
         .count())
@@ -2060,7 +2060,7 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspace-done",
     description:
-      "The reference Canvas after Mark as done on Empty cart state (#976): its Cart group is hidden and its row sits in the Workspaces menu's collapsed Done section.",
+      "The reference Canvas after Mark as done on Empty cart state (#976): its Cart group is hidden and its row sits in the Chats menu's collapsed Done section.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: (page) => markWorkspaceDone(page, "Empty cart state"),
@@ -2117,9 +2117,9 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      const menu = await openWorkspacesMenu(page)
+      const menu = await openChatsMenu(page)
       await menu
-        .getByRole("button", { name: "More workspace actions" })
+        .getByRole("button", { name: "More chat actions" })
         .click({ timeout: 15_000 })
       await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
       await page
@@ -2245,11 +2245,11 @@ export const SCREENS: Screen[] = [
   {
     name: "sidebar-frame-row-hover-workspace",
     description:
-      "Hovering a frame row in the layer list: its Workspace row lights up in the open Workspaces menu (#793).",
+      "Hovering a frame row in the layer list: its Workspace row lights up in the open Chats menu (#793).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page
         .locator(".group\\/frame-row")
         .filter({ hasText: "Empty cart" })
@@ -2261,11 +2261,11 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-frame-hover-workspace",
     description:
-      "Hovering a frame on the Canvas: its Workspace row lights up in the open Workspaces menu (#793).",
+      "Hovering a frame on the Canvas: its Workspace row lights up in the open Chats menu (#793).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       const frame = checkoutDesktopFrame(page)
       await frame.waitFor({ state: "visible", timeout: 15_000 })
       await frame.hover({ timeout: 15_000 })
@@ -2297,11 +2297,11 @@ export const SCREENS: Screen[] = [
   {
     name: "sidebar-group-row-hover-workspace",
     description:
-      "Hovering a Group row in the layer list: its Workspace row lights up in the open Workspaces menu (#872).",
+      "Hovering a Group row in the layer list: its Workspace row lights up in the open Chats menu (#872).",
     path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page
         .locator(".group\\/frame-group-row")
         .filter({ hasText: "Pricing" })
@@ -2550,11 +2550,11 @@ export const SCREENS: Screen[] = [
   {
     name: "workspaces-menu-no-projects",
     description:
-      "The Workspaces menu on a Canvas with no repository: why, and Add repository (#884, #1152).",
+      "The Chats menu on a Canvas with no repository: why, and Add repository (#884, #1152).",
     path: `/${ids.rooms.tokens}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      const menu = await openWorkspacesMenu(page)
+      const menu = await openChatsMenu(page)
       await menu
         .getByRole("button", { name: "Add repository", exact: true })
         .waitFor({ timeout: 15_000 })
@@ -2588,7 +2588,7 @@ export const SCREENS: Screen[] = [
   {
     name: "dialog-new-workspace",
     description:
-      "The prompt-first Create workspaces dialog, from the Workspaces menu's New workspace (+).",
+      "The prompt-first Create workspaces dialog, from the Chats menu's New chat (+).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -3929,7 +3929,7 @@ export async function markWorkspaceDone(
   await holdServerActions(page, "hang")
   await chooseFromMenu(page, await branchRowMenu(page, title), "Mark as done")
   await page
-    .locator(WORKSPACES_MENU)
+    .locator(CHATS_MENU)
     .locator("[cmdk-item]")
     .filter({ hasText: /^Done \(\d+\)$/ })
     .waitFor({ timeout: 10_000 })
@@ -4020,7 +4020,7 @@ export async function setWorkspaceListView(
     ]
   )
   await page.reload()
-  await openWorkspacesMenu(page)
+  await openChatsMenu(page)
 }
 
 /**
@@ -4440,7 +4440,7 @@ async function waitForPlanCard(page: Page): Promise<void> {
 const CHAT_WORKSPACE = "Checkout polish"
 
 /**
- * Select a Workspace from the Workspaces menu, which points the chat panel at
+ * Select a Workspace from the Chats menu, which points the chat panel at
  * it and restores that Workspace's remembered chat.
  */
 export async function selectWorkspace(page: Page, ref: string): Promise<void> {
@@ -4448,23 +4448,21 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
   // it has none: what a person reads off the screen.
   const row = await workspaceMenuRow(page, ref)
   await row.click({ timeout: 15_000 })
-  await page
-    .locator(WORKSPACES_MENU)
-    .waitFor({ state: "hidden", timeout: 10_000 })
+  await page.locator(CHATS_MENU).waitFor({ state: "hidden", timeout: 10_000 })
 }
 
-/** The chat panel's Workspaces menu (#1152) while it's open. */
-export const WORKSPACES_MENU = "[data-workspaces-menu]"
+/** The chat panel's Chats menu (#1152) while it's open. */
+export const CHATS_MENU = "[data-chats-menu]"
 
 /**
- * Open the chat panel's Workspaces menu (#1152), the one list of the canvas's
+ * Open the chat panel's Chats menu (#1152), the one list of the canvas's
  * chats. It sits in the panel's header, so a screen that left the panel
  * collapsed gets it opened (⌘I) first.
  */
-export async function openWorkspacesMenu(page: Page): Promise<Locator> {
-  const menu = page.locator(WORKSPACES_MENU)
+export async function openChatsMenu(page: Page): Promise<Locator> {
+  const menu = page.locator(CHATS_MENU)
   if (await menu.isVisible()) return menu
-  const button = page.getByRole("button", { name: "Workspaces", exact: true })
+  const button = page.getByRole("button", { name: "Chats", exact: true })
   await button.waitFor({ timeout: 15_000 }).catch(() => {})
   if (!(await button.isVisible())) {
     // The button lives on the Coordinator header only (#1152): from a
@@ -4478,12 +4476,12 @@ export async function openWorkspacesMenu(page: Page): Promise<Locator> {
   return menu
 }
 
-/** A Workspace's row in the Workspaces menu, opening the menu first. */
+/** A Workspace's row in the Chats menu, opening the menu first. */
 export async function workspaceMenuRow(
   page: Page,
   name: string
 ): Promise<Locator> {
-  const menu = await openWorkspacesMenu(page)
+  const menu = await openChatsMenu(page)
   const row = menu
     .locator("[cmdk-item]")
     .filter({ has: page.getByText(name, { exact: true }) })
@@ -4492,9 +4490,9 @@ export async function workspaceMenuRow(
   return row
 }
 
-/** Open the Workspaces menu's Done section (#976). */
+/** Open the Chats menu's Done section (#976). */
 async function openDoneSection(page: Page): Promise<void> {
-  const menu = await openWorkspacesMenu(page)
+  const menu = await openChatsMenu(page)
   await menu
     .locator("[cmdk-item]")
     .filter({ hasText: /^Done \(\d+\)$/ })
@@ -4502,7 +4500,7 @@ async function openDoneSection(page: Page): Promise<void> {
 }
 
 /**
- * Open the failed Workspace's setup error from the Workspaces menu. Where the indicator
+ * Open the failed Workspace's setup error from the Chats menu. Where the indicator
  * is a button, it is reached the way a keyboard user would — focus, then Enter —
  * so the shot proves the error is readable without a mouse. On builds where it
  * is still a bare icon (a hover card), fall back to hovering it, which is the
@@ -4511,7 +4509,7 @@ async function openDoneSection(page: Page): Promise<void> {
 export async function openSetupError(page: Page): Promise<void> {
   // The failed Workspace's status icon is labelled by what failed; it opens
   // the error card.
-  const menu = await openWorkspacesMenu(page)
+  const menu = await openChatsMenu(page)
   const button = menu.getByRole("button", { name: /failed$/ })
   await button.first().focus({ timeout: 15_000 })
   await page.keyboard.press("Enter")
@@ -5763,10 +5761,10 @@ async function openCanvasOptions(page: Page): Promise<void> {
   await settings.waitFor()
 }
 
-/** The Workspaces menu's New workspace (+) button (#1152), menu opened. */
+/** The Chats menu's New chat (+) button (#1152), menu opened. */
 async function newWorkspaceButton(page: Page): Promise<Locator> {
-  const menu = await openWorkspacesMenu(page)
-  const button = menu.getByRole("button", { name: "New workspace" })
+  const menu = await openChatsMenu(page)
+  const button = menu.getByRole("button", { name: "New chat" })
   await button.waitFor({ timeout: 15_000 })
   return button
 }
@@ -5892,7 +5890,7 @@ export async function addFixtureFolder(page: Page): Promise<void> {
     .waitFor({ state: "detached", timeout: 15_000 })
 }
 
-/** Hover a Workspace row in the Workspaces menu by its branch (or title). */
+/** Hover a Workspace row in the Chats menu by its branch (or title). */
 async function hoverWorkspaceRow(page: Page, name: string): Promise<void> {
   const row = await workspaceMenuRow(page, name)
   await row.hover({ timeout: 15_000 })

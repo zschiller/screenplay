@@ -1,6 +1,6 @@
 /**
  * Workspaces list view (#885) — how one member sees the Workspaces list in
- * the chat panel's Workspaces menu (#1152): its sort (manual drag order,
+ * the chat panel's Chats menu (#1152): its sort (manual drag order,
  * recent activity, or name) and whether it is grouped into state sections. A
  * local view preference: it lives in this browser's storage, keyed by user and
  * canvas, and never enters the room doc, so collaborators' lists don't move.

@@ -63,7 +63,7 @@ import { useTerminalCloseGuard } from "./use-terminal-close-guard"
 import { ChatHistoryMenu } from "./chat-history-menu"
 import { ChatPanelHeader } from "./chat-panel-header"
 import { CoordinatorChat } from "./coordinator-chat"
-import { WorkspacesMenuButton } from "./workspaces-menu"
+import { ChatsMenuButton } from "./chats-menu"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { ChatSessionData, TerminalTabData } from "@/lib/types"
@@ -485,7 +485,7 @@ export function ChatPanel(props: ChatPanelProps) {
         >
           <h2 className="text-sm font-medium">{ROOM_CHAT_LABEL}</h2>
           <div className="ml-auto flex items-center">
-            <WorkspacesMenuButton />
+            <ChatsMenuButton />
           </div>
         </ChatPanelHeader>
         <CoordinatorChat

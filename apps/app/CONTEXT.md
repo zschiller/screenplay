@@ -127,7 +127,7 @@ backend's no-limit applies on desktop.
 **Workspace State** (`@/lib/branch/workspace-state`, #1247):
 What a Branch shows about itself anywhere it appears: its **label**, its
 **status line** (setting up, Agent working, Needs you, Ready, Stopped, Done, or
-the failed step), its **section** in the Workspaces menu, and whether it
+the failed step), its **section** in the Chats menu, and whether it
 **needs you**. A pure function of the Branch plus the Room's Chat Sessions (a
 turn in flight) and plans (one waiting for approval). `useWorkspaceStates`
 reads those once from the Room doc and hands every caller a lookup, so callers

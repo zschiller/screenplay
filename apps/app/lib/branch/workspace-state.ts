@@ -7,7 +7,7 @@ import { workspaceLabel } from "@/lib/workspace-label"
  * out once from its Branch and the Room's Chat Sessions and plans. Its label,
  * its status line (the words and glyph behind its state icon), the Workspaces
  * menu section it sits in, and whether it needs you. Mentions, the hover card,
- * the Getting started checklist, the Canvas list and the Workspaces menu read
+ * the Getting started checklist, the Canvas list and the Chats menu read
  * it, so a Workspace reads the same everywhere; callers never build the facts
  * themselves. The status line, section and needs-you rules live here and
  * nowhere else.
@@ -122,7 +122,7 @@ export function formatElapsed(ms: number): string {
   return `${m}m ${String(s).padStart(2, "0")}s`
 }
 
-/** The live state sections of the Workspaces menu. Done keeps its own. */
+/** The live state sections of the Chats menu. Done keeps its own. */
 export type WorkspaceSection = "working" | "needs-you" | "idle"
 
 /**
@@ -148,7 +148,7 @@ export interface WorkspaceState {
   line: WorkspaceStatusLine
   /** A chat turn is in flight on it, whatever its line says. */
   agentWorking: boolean
-  /** Its Workspaces menu section; Done keeps its own. */
+  /** Its Chats menu section; Done keeps its own. */
   section: WorkspaceSection | "done"
   /** A plan to approve, a blocked merge or a failed setup waits on you. */
   needsYou: boolean
@@ -197,7 +197,7 @@ export function workspaceState(
 
 /**
  * Whether any Workspace needs the member (#1152): at least one that isn't Done
- * sits in Needs you. It drives the dot on the Workspaces button.
+ * sits in Needs you. It drives the dot on the Chats button.
  */
 export function anyWorkspaceNeedsYou<T extends WorkspaceStateBranch>(
   branches: readonly T[],

@@ -354,7 +354,7 @@ interface RoomSidebarProps {
 /**
  * The canvas's left sidebar: its layers, the groups, frames and documents on
  * it, and nothing else. The Workspaces list lives in the chat panel's
- * Workspaces menu (#1152).
+ * Chats menu (#1152).
  */
 export function RoomSidebar({
   branches,
