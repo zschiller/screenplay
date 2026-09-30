@@ -15,20 +15,10 @@ import {
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { cn } from "@workspace/ui/lib/utils"
-import { isBranchBusy } from "@/lib/branch-busy"
+import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import { workspaceDetails } from "@/lib/branch/workspace-details"
-import {
-  formatElapsed,
-  planPendingBranchIds,
-  workspaceStatusLine,
-} from "@/lib/branch/status-line"
-import { workspaceLabel } from "@/lib/workspace-label"
-import {
-  useBranches,
-  useChatSessions,
-  usePlans,
-  useRepos,
-} from "@/lib/yjs/react"
+import { formatElapsed } from "@/lib/branch/status-line"
+import { useBranches, useRepos } from "@/lib/yjs/react"
 
 // The card portals out of sidebar rows and canvas labels while React events
 // still bubble through them: keep its clicks and pointer-downs from selecting,
@@ -123,17 +113,12 @@ export function MaybeWorkspaceHoverCard({
 function WorkspaceHoverDetail({ branchId }: { branchId: string }) {
   const branch = useBranches().find((b) => b.id === branchId)
   const repos = useRepos()
-  const chats = useChatSessions()
-  const plans = usePlans()
+  const stateOf = useWorkspaceStates()
   if (!branch) return null
 
   const repo = repos.find((r) => r.id === branch.repoId)
-  const line = workspaceStatusLine(branch, {
-    agentWorking: isBranchBusy(branch.id, chats),
-    planPending: planPendingBranchIds(plans).has(branch.id),
-  })
+  const { label, line } = stateOf(branch)
   const details = workspaceDetails(branch, repo)
-  const label = workspaceLabel(branch)
 
   return (
     <>

@@ -44,10 +44,15 @@ vi.mock("@/lib/add-repo/actions", () => ({
 // The remove confirm reads each Workspace's git state, the GitHub token and
 // its chats' turns (for the state icon); none matters to what this dialog does
 // with the answer.
-vi.mock("@/components/workspace-mention", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/components/workspace-mention")>()),
-  useWorkspaceStatus: () => () => ({ agentWorking: false }),
-}))
+vi.mock("@/hooks/use-workspace-states", async () => {
+  const { roomWorkspaceFacts, workspaceState } =
+    await import("@/lib/branch/workspace-state")
+  const room = roomWorkspaceFacts([], [])
+  return {
+    useWorkspaceStates: () => (branch: Parameters<typeof workspaceState>[0]) =>
+      workspaceState(branch, room),
+  }
+})
 vi.mock("@/hooks/use-unsaved-work", () => ({
   useUnsavedWork: () => new Map(),
 }))

@@ -62,10 +62,7 @@ import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
 import { useTerminalCloseGuard } from "./use-terminal-close-guard"
 import { ChatHistoryMenu } from "./chat-history-menu"
-import {
-  WorkspaceMention,
-  useWorkspaceStatus,
-} from "@/components/workspace-mention"
+import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type {
   BranchData,
@@ -85,6 +82,7 @@ import {
 } from "@/lib/canvas/tab-kind"
 import { useAppSession } from "@/lib/auth-client"
 import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
+import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
@@ -1403,7 +1401,7 @@ export function ChatPanel({
  * touch this file.
  */
 function TargetPill({ target }: { target: ChatPanelTarget }) {
-  const workspaceStatus = useWorkspaceStatus()
+  const stateOf = useWorkspaceStates()
   if (target.kind === "agent") {
     // State icon and plain name (#974); no PR badge, since the header keeps
     // its own PR button on the right (#799).
@@ -1416,7 +1414,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
         <span className="flex min-w-0">
           <WorkspaceMention
             branch={target.agent}
-            status={workspaceStatus(target.agent.id)}
+            state={stateOf(target.agent)}
             pr={false}
             className="flex-initial text-sm"
           />

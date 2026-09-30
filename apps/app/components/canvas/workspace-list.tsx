@@ -11,10 +11,8 @@ import {
   CommandSeparator,
 } from "@workspace/ui/components/command"
 import { cn } from "@workspace/ui/lib/utils"
-import {
-  WorkspaceMention,
-  useWorkspaceStatus,
-} from "@/components/workspace-mention"
+import { WorkspaceMention } from "@/components/workspace-mention"
+import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 import type { FrameWorkspace } from "./frame-nav"
@@ -64,11 +62,11 @@ export function CompactWorkspaceMention({
   workspace: FrameWorkspace
   layout?: "label" | "row"
 }) {
-  const workspaceStatus = useWorkspaceStatus()
+  const stateOf = useWorkspaceStates()
   return (
     <WorkspaceMention
       branch={workspace}
-      status={workspaceStatus(workspace.branchId)}
+      state={stateOf({ ...workspace, id: workspace.branchId })}
       pr={layout === "row" ? "end" : "after"}
       className={cn("gap-1", layout === "label" && "flex-initial")}
     />
@@ -107,7 +105,7 @@ export function WorkspaceCommandList({
   /** Muted lines under the list, read before picking (#869). */
   footer?: string[]
 }) {
-  const workspaceStatus = useWorkspaceStatus()
+  const stateOf = useWorkspaceStates()
   return (
     <Command>
       <CommandInput placeholder={placeholder} />
@@ -145,7 +143,7 @@ export function WorkspaceCommandList({
               >
                 <WorkspaceMention
                   branch={a}
-                  status={workspaceStatus(a.id)}
+                  state={stateOf(a)}
                   fallback={
                     hasDiff ? (
                       <span className="flex items-center gap-1 font-mono text-xs">

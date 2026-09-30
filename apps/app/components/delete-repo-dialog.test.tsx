@@ -5,6 +5,10 @@ import {
   DeleteRepoDialog,
   type DeleteRepoWorkspace,
 } from "./delete-repo-dialog"
+import {
+  roomWorkspaceFacts,
+  workspaceState,
+} from "@/lib/branch/workspace-state"
 
 // Radix's AlertDialog uses pointer-capture / scroll APIs jsdom doesn't
 // implement, plus a ResizeObserver. Polyfill the bare minimum.
@@ -24,26 +28,33 @@ if (!Element.prototype.hasPointerCapture) {
 afterEach(cleanup)
 
 const clean = { onOrigin: true, unpushedCommits: 0, uncommittedFiles: 0 }
-const WORKSPACES: DeleteRepoWorkspace[] = [
-  {
-    id: "a",
-    ref: "checkout-polish",
-    title: "Checkout polish",
-    status: "running",
-    prNumber: 482,
-    prState: "open",
-    openPrNumber: 482,
-    work: clean,
-  },
-  {
-    id: "b",
-    ref: "empty-cart-state",
-    title: "Empty cart state",
-    status: "running",
-    work: { onOrigin: true, unpushedCommits: 2, uncommittedFiles: 0 },
-  },
-  { id: "c", ref: "apple-pay-button", status: "stopped", work: clean },
-]
+const idleRoom = roomWorkspaceFacts([], [])
+const withState = (w: Omit<DeleteRepoWorkspace, "state">) => ({
+  ...w,
+  state: workspaceState(w, idleRoom),
+})
+const WORKSPACES: DeleteRepoWorkspace[] = (
+  [
+    {
+      id: "a",
+      ref: "checkout-polish",
+      title: "Checkout polish",
+      status: "running",
+      prNumber: 482,
+      prState: "open",
+      openPrNumber: 482,
+      work: clean,
+    },
+    {
+      id: "b",
+      ref: "empty-cart-state",
+      title: "Empty cart state",
+      status: "running",
+      work: { onOrigin: true, unpushedCommits: 2, uncommittedFiles: 0 },
+    },
+    { id: "c", ref: "apple-pay-button", status: "stopped", work: clean },
+  ] satisfies Omit<DeleteRepoWorkspace, "state">[]
+).map(withState)
 
 function renderDialog(
   props: Partial<React.ComponentProps<typeof DeleteRepoDialog>> = {}

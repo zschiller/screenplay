@@ -15,18 +15,11 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
 import { prStateColor, prStateTextColor } from "@/components/pr-state-color"
-import { isBranchBusy } from "@/lib/branch-busy"
-import {
-  planPendingBranchIds,
-  workspaceStatusLine,
-  type StatusLineBranch,
-  type StatusLineContext,
-  type WorkspaceStatusLine,
-} from "@/lib/branch/status-line"
+import type { WorkspaceStatusLine } from "@/lib/branch/status-line"
+import type { WorkspaceState } from "@/lib/branch/workspace-state"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
-import { useChatSessions, usePlans } from "@/lib/yjs/react"
 
 /**
  * One way to draw a Workspace (#974): its state icon, its plain name, and its
@@ -86,14 +79,8 @@ export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
 }
 
 /** The state glyph for a Workspace, labelled with its state in words. */
-export function WorkspaceStateIcon({
-  branch,
-  status,
-}: {
-  branch: StatusLineBranch
-  status: StatusLineContext
-}) {
-  const line = workspaceStatusLine(branch, status)
+export function WorkspaceStateIcon({ state }: { state: WorkspaceState }) {
+  const { line } = state
   return (
     <span
       role="img"
@@ -163,20 +150,6 @@ export function workspacePr(
 }
 
 /**
- * Each Workspace's live facts for its status line, read from the room doc:
- * whether a chat turn is in flight and whether a plan waits for approval.
- */
-export function useWorkspaceStatus(): (branchId: string) => StatusLineContext {
-  const chats = useChatSessions()
-  const plans = usePlans()
-  const pending = planPendingBranchIds(plans)
-  return (branchId) => ({
-    agentWorking: isBranchBusy(branchId, chats),
-    planPending: pending.has(branchId),
-  })
-}
-
-/**
  * A Workspace mention: state icon, plain name, PR badge.
  *
  * The name and the badge share one line that wraps into a clipped second line,
@@ -188,12 +161,16 @@ export function useWorkspaceStatus(): (branchId: string) => StatusLineContext {
  *   own PR control).
  * - `fallback` takes the badge's slot when there's no PR (a list row's line
  *   count).
+ * - `state` is its {@link WorkspaceState}, from `useWorkspaceStates`, for the
+ *   state icon and the name. There's no default: a mention always shows the
+ *   Workspace's real state.
  * - `icon` and `name` replace the state icon and the name, for a row that makes
- *   them interactive (the sidebar's failure card and inline rename).
+ *   them interactive (the sidebar's failure card and inline rename). A row
+ *   with its own icon may leave `state` out.
  */
 export function WorkspaceMention({
   branch,
-  status = { agentWorking: false },
+  state,
   pr = "end",
   prOverride,
   fallback,
@@ -203,18 +180,18 @@ export function WorkspaceMention({
   className,
 }: {
   branch: WorkspaceMentionBranch
-  /** Its live facts, from {@link useWorkspaceStatus}. */
-  status?: StatusLineContext
   pr?: "end" | "after" | false
   /** The PR to show when the caller holds a fresher one than the doc. */
   prOverride?: WorkspacePr | null
   fallback?: ReactNode
-  icon?: ReactNode
   name?: ReactNode
   /** Classes for the badge or fallback slot (e.g. hiding it under a hover menu). */
   endClassName?: string
   className?: string
-}) {
+} & (
+  | { state: WorkspaceState; icon?: undefined }
+  | { state?: WorkspaceState; icon: ReactNode }
+)) {
   const shownPr = pr === false ? null : workspacePr(branch, prOverride)
   const end = shownPr ? (
     <WorkspacePrBadge number={shownPr.number} state={shownPr.state} />
@@ -229,7 +206,7 @@ export function WorkspaceMention({
         className
       )}
     >
-      {icon ?? <WorkspaceStateIcon branch={branch} status={status} />}
+      {icon ?? (state && <WorkspaceStateIcon state={state} />)}
       <span
         className={cn(
           // One line tall; a badge that doesn't fit wraps onto a second line
@@ -241,7 +218,7 @@ export function WorkspaceMention({
       >
         {name ?? (
           <span className="max-w-full min-w-0 truncate">
-            {workspaceLabel(branch)}
+            {state?.label ?? workspaceLabel(branch)}
           </span>
         )}
         {end && (

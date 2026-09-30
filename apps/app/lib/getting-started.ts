@@ -18,7 +18,16 @@ export type GettingStartedStep = "project" | "ask" | "open"
 
 type ProgressBranch = Pick<
   BranchData,
-  "id" | "status" | "statusMessage" | "error" | "lastActivityAt" | "pendingSeed"
+  | "id"
+  | "title"
+  | "status"
+  | "statusMessage"
+  | "error"
+  | "doneAt"
+  | "prState"
+  | "prBlocked"
+  | "lastActivityAt"
+  | "pendingSeed"
 >
 
 export interface GettingStartedProgress {
