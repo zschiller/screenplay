@@ -317,7 +317,7 @@ export function buildRoomTools(
     [REMOVE_WORKSPACE_TOOL]: withPlanGate(
       tool({
         description:
-          "Remove a Workspace from the canvas, as the sidebar's Delete does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. The user sees a confirm card and nothing happens until they click Remove; you hear the result in the next turn.",
+          "Remove a Workspace from the canvas, as Delete in the Workspaces menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. The user sees a confirm card and nothing happens until they click Remove; you hear the result in the next turn.",
         inputSchema: jsonSchema<{ workspace_id: string }>({
           type: "object",
           properties: {
@@ -792,7 +792,7 @@ export function workspaceOwnerId(
 }
 
 /**
- * Remove the Workspace the way the sidebar's Delete does: the Branch, its
+ * Remove the Workspace the way Delete in the Workspaces menu does: the Branch, its
  * frames and chats leave the doc in one change, then its sandbox is torn
  * down. The git branch stays wherever it is.
  */
