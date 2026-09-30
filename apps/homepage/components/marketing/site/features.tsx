@@ -3,7 +3,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { measure } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
-const features: { title: string; body: React.ReactNode }[] = [
+const features: { title: string; body: string }[] = [
   {
     title: "Live sandboxes",
     body: "Every frame is a running dev server on its own branch. Click, scroll, fill in forms and switch to mobile sizes.",
@@ -18,23 +18,15 @@ const features: { title: string; body: React.ReactNode }[] = [
   },
   {
     title: "Knobs",
-    body: (
-      <>
-        Your agent exposes spacing, color and copy as knobs with{" "}
-        <code className="font-mono text-[13px] text-foreground">
-          @screenplay.space/knobs
-        </code>
-        . Drag a slider and every branch updates without another prompt.
-      </>
-    ),
+    body: "Ask the agent to expose spacing, color or copy as knobs, then drag a slider to try values in a frame without another prompt.",
   },
   {
     title: "Your agents and models",
-    body: "Run Claude Code, Codex or opencode with the accounts you already have. Choose the model per chat.",
+    body: "Use Claude Code or Codex with the subscription you already have, and pick the model per chat.",
   },
   {
-    title: "Runs locally on your Mac",
-    body: "The desktop app works offline: git worktrees for sandboxes, your installed CLIs for agents. Your code stays on your machine.",
+    title: "Runs on your Mac",
+    body: "No account and no Screenplay servers. Sandboxes are git worktrees on your disk and your canvases live in a local database. Your agent talks to its model provider, just as it does in your terminal.",
   },
 ]
 

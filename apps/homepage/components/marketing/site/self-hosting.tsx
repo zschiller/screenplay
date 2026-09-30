@@ -33,8 +33,8 @@ export function SelfHosting() {
       <div className="mt-12 grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div className="flex flex-col items-start gap-8">
           <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
-            Deploy the web app for your team and share a canvas. It&rsquo;s free
-            and MIT licensed.
+            Deploy the web app for your team and share a canvas. The software is
+            free and MIT licensed; you pay for hosting and model usage.
           </p>
           <a
             href={`${docsUrl}/self-hosting`}

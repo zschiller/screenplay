@@ -30,7 +30,7 @@ const scenes: {
   {
     slug: "Step 3",
     title: "Compare them live",
-    body: "Frames appear side by side as they build. Click through them, check mobile sizes and adjust knobs. Invite your team to review.",
+    body: "Frames appear side by side as they build. Click through them and check phone sizes.",
     Excerpt: CompareExcerpt,
   },
   {
