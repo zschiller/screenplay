@@ -7,7 +7,7 @@ import { Toggle as TogglePrimitive } from "radix-ui"
 import { cn } from "@workspace/ui/lib/utils"
 
 const toggleVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 rounded-md border border-transparent text-sm font-medium whitespace-nowrap outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-muted data-[state=on]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex items-center justify-center gap-1.5 rounded-md border border-transparent text-sm font-medium whitespace-nowrap transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-muted data-[state=on]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -16,9 +16,9 @@ const toggleVariants = cva(
           "border-border bg-background hover:bg-muted data-[state=on]:bg-muted",
       },
       size: {
-        default: "h-8 px-2 min-w-8",
-        sm: "h-7 px-1.5 min-w-7 text-xs",
-        lg: "h-9 px-2.5 min-w-9",
+        default: "h-8 min-w-8 px-2",
+        sm: "h-7 min-w-7 px-1.5 text-xs",
+        lg: "h-9 min-w-9 px-2.5",
       },
     },
     defaultVariants: {

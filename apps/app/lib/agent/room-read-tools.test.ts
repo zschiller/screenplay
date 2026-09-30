@@ -210,12 +210,10 @@ describe("read_workspace_chat", () => {
   it("keeps the newest messages when the transcript runs long", async () => {
     const long = "x".repeat(WORKSPACE_READ_LIMITS.transcript)
     const { collections, ports } = setup({
-      readChatTranscript: vi.fn(
-        async (): Promise<AgentMessage[]> => [
-          { role: "user", content: `first ${long}` },
-          { role: "assistant", content: "the latest reply" },
-        ]
-      ),
+      readChatTranscript: vi.fn(async (): Promise<AgentMessage[]> => [
+        { role: "user", content: `first ${long}` },
+        { role: "assistant", content: "the latest reply" },
+      ]),
     })
     addChat(collections, "chat-1")
 
@@ -267,17 +265,15 @@ describe("read_workspace_chat", () => {
 
   it("says how the last turn ended when it didn't end in a reply", async () => {
     const { collections, ports } = setup({
-      readChatTranscript: vi.fn(
-        async (): Promise<AgentMessage[]> => [
-          { role: "user", content: "Plan the dark mode toggle" },
-          {
-            role: "plan",
-            content: "1. Add a toggle",
-            status: "pending",
-            planId: "p1",
-          },
-        ]
-      ),
+      readChatTranscript: vi.fn(async (): Promise<AgentMessage[]> => [
+        { role: "user", content: "Plan the dark mode toggle" },
+        {
+          role: "plan",
+          content: "1. Add a toggle",
+          status: "pending",
+          planId: "p1",
+        },
+      ]),
     })
     addChat(collections, "chat-1")
 

@@ -40,7 +40,7 @@ const SET_WINDOW_TITLE = "1"
 const SET_PREFERENCES = "2"
 
 /** Prefix a UTF-8 payload with a single-byte command marker. */
-function frame(command: string, payload: Uint8Array): Uint8Array {
+function frame(command: string, payload: Uint8Array): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(payload.length + 1)
   out[0] = command.charCodeAt(0)
   out.set(payload, 1)
@@ -60,7 +60,7 @@ export function encodeHandshake(input: {
   authToken: string
   columns: number
   rows: number
-}): Uint8Array {
+}): Uint8Array<ArrayBuffer> {
   return encoder.encode(
     JSON.stringify({
       AuthToken: input.authToken,
@@ -71,7 +71,7 @@ export function encodeHandshake(input: {
 }
 
 /** Raw keystroke bytes from the terminal, framed as an `INPUT` message. */
-export function encodeInput(data: string): Uint8Array {
+export function encodeInput(data: string): Uint8Array<ArrayBuffer> {
   return frame(INPUT, encoder.encode(data))
 }
 
@@ -79,7 +79,10 @@ export function encodeInput(data: string): Uint8Array {
  * Tell the daemon to resize the real PTY. The spike confirmed this reaches the
  * PTY (`stty size` reflected the new geometry), not just xterm's local view.
  */
-export function encodeResize(columns: number, rows: number): Uint8Array {
+export function encodeResize(
+  columns: number,
+  rows: number
+): Uint8Array<ArrayBuffer> {
   return frame(RESIZE, encoder.encode(JSON.stringify({ columns, rows })))
 }
 

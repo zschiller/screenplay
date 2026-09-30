@@ -33,8 +33,7 @@ export type ToolModeTool = Exclude<ToolMode, "select">
  *    behavior of pressing a tool's button or its single-letter shortcut twice.
  */
 export type ToolModeEvent =
-  | { type: "set"; mode: ToolMode }
-  | { type: "toggle"; tool: ToolModeTool }
+  { type: "set"; mode: ToolMode } | { type: "toggle"; tool: ToolModeTool }
 
 /**
  * Reduce the current Tool Mode against an event. A `set` is absolute; a

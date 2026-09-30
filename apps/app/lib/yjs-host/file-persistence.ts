@@ -114,9 +114,7 @@ export class FileYjsPersistence implements Persistence {
     // race on the same temp file. The chain link swallows the prior flush's
     // rejection (callers handle their own) so one failure can't poison the next.
     const prior = this.flushChains.get(docName) ?? Promise.resolve()
-    const next = prior
-      .catch(() => {})
-      .then(() => this.writeNow(docName, ydoc))
+    const next = prior.catch(() => {}).then(() => this.writeNow(docName, ydoc))
     this.flushChains.set(docName, next)
     // Drop the chain entry once it settles and nothing newer has replaced it.
     void next.finally(() => {

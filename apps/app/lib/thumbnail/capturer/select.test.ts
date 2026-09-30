@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  capturerChoiceFromEnv,
-  THUMBNAIL_CAPTURER_ENV_VAR,
-} from "./select"
+import { capturerChoiceFromEnv, THUMBNAIL_CAPTURER_ENV_VAR } from "./select"
 
 describe("capturerChoiceFromEnv", () => {
   it("defaults to puppeteer when the var is unset", () => {

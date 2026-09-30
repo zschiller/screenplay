@@ -31,7 +31,10 @@ const CAPTURE_TIMEOUT_MS = 20_000
  * is a drop-in sibling of the puppeteer capturer behind the same seam.
  */
 class TauriWebviewCapturer implements ThumbnailCapturer {
-  async capture(previewUrl: string, viewport: CaptureViewport): Promise<Buffer> {
+  async capture(
+    previewUrl: string,
+    viewport: CaptureViewport
+  ): Promise<Buffer> {
     const controlUrl = process.env[TAURI_CONTROL_URL_ENV_VAR]
     if (!controlUrl) {
       throw new Error(

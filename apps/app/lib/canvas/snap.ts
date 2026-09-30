@@ -491,7 +491,13 @@ export function computeMergeSnap(opts: {
     // World distance → screen pixels, so the threshold is a constant on-screen size.
     const distPx = Math.hypot(dx, dy) * zoom
     if (distPx < thresholdPx && (!best || distPx < best.dist)) {
-      best = { id: c.id, dist: distPx, x: placeholderX, y: placeholderY, gap: c.gap }
+      best = {
+        id: c.id,
+        dist: distPx,
+        x: placeholderX,
+        y: placeholderY,
+        gap: c.gap,
+      }
     }
   }
   if (!best) return null

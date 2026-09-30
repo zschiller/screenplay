@@ -48,11 +48,7 @@ import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
 /** What the preview is doing, as the address field reports it. */
 export type FramePreviewStatus =
-  | "live"
-  | "loading"
-  | "disconnected"
-  | "failed"
-  | "stopped"
+  "live" | "loading" | "disconnected" | "failed" | "stopped"
 
 const STATUS_LABEL: Record<Exclude<FramePreviewStatus, "live">, string> = {
   loading: "Loading",

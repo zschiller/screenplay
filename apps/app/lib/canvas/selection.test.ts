@@ -16,7 +16,9 @@ import {
 // group projections) against plain Sets and member lists, the same way the
 // other lib/canvas pure cores (layout, snap, escape) are tested.
 
-function snapshot(overrides: Partial<SelectionSnapshot> = {}): SelectionSnapshot {
+function snapshot(
+  overrides: Partial<SelectionSnapshot> = {}
+): SelectionSnapshot {
   return {
     iframeLayerIds: new Set(),
     groupIds: new Set(),

@@ -49,7 +49,7 @@ async function launchBrowser(): Promise<Browser> {
 
   const executablePath =
     process.env.CHROMIUM_PATH ??
-    (await import("puppeteer")).default.executablePath()
+    (await (await import("puppeteer")).default.executablePath())
 
   return puppeteer.launch({
     headless: true,
@@ -64,12 +64,18 @@ async function launchBrowser(): Promise<Browser> {
  * frame at the frame's aspect ratio.
  */
 class PuppeteerCapturer implements ThumbnailCapturer {
-  async capture(previewUrl: string, viewport: CaptureViewport): Promise<Buffer> {
+  async capture(
+    previewUrl: string,
+    viewport: CaptureViewport
+  ): Promise<Buffer> {
     const browser = await launchBrowser()
     try {
       const page = await browser.newPage()
       await page.setViewport(resolveViewport(viewport))
-      await page.goto(previewUrl, { waitUntil: "load", timeout: NAV_TIMEOUT_MS })
+      await page.goto(previewUrl, {
+        waitUntil: "load",
+        timeout: NAV_TIMEOUT_MS,
+      })
 
       const screenshot = await page.screenshot({ type: "png" })
       return Buffer.from(screenshot)

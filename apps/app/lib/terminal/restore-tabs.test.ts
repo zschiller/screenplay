@@ -4,7 +4,10 @@ import { mergeRestoredTabs, terminalTabsFromRecords } from "./restore-tabs"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import type { TerminalTabData } from "@/lib/types"
 
-function tab(id: string, overrides: Partial<TerminalTabData> = {}): TerminalTabData {
+function tab(
+  id: string,
+  overrides: Partial<TerminalTabData> = {}
+): TerminalTabData {
   return {
     id,
     branchId: "branch-1",
@@ -15,7 +18,10 @@ function tab(id: string, overrides: Partial<TerminalTabData> = {}): TerminalTabD
   }
 }
 
-function row(id: string, overrides: Partial<TerminalTabRecord> = {}): TerminalTabRecord {
+function row(
+  id: string,
+  overrides: Partial<TerminalTabRecord> = {}
+): TerminalTabRecord {
   return {
     id,
     userId: "user-1",
@@ -31,7 +37,12 @@ function row(id: string, overrides: Partial<TerminalTabRecord> = {}): TerminalTa
 describe("terminalTabsFromRecords", () => {
   it("maps persisted rows to client-local tab data", () => {
     const tabs = terminalTabsFromRecords([
-      row("a", { branch: "branch-9", label: "shell", harnessKey: "claude", createdAt: 42 }),
+      row("a", {
+        branch: "branch-9",
+        label: "shell",
+        harnessKey: "claude",
+        createdAt: 42,
+      }),
     ])
     expect(tabs).toEqual([
       {
@@ -57,13 +68,23 @@ describe("mergeRestoredTabs", () => {
       [tab("restored-1"), tab("restored-2")],
       [tab("restored-1"), tab("local-1")]
     )
-    expect(merged.map((t) => t.id)).toEqual(["restored-1", "restored-2", "local-1"])
+    expect(merged.map((t) => t.id)).toEqual([
+      "restored-1",
+      "restored-2",
+      "local-1",
+    ])
   })
 
   it("never drops a tab opened before the re-fetch resolved", () => {
     // `open` carries a tab the server didn't return yet — it must survive.
-    const merged = mergeRestoredTabs([tab("restored-1")], [tab("opened-mid-resolve")])
-    expect(merged.map((t) => t.id)).toEqual(["restored-1", "opened-mid-resolve"])
+    const merged = mergeRestoredTabs(
+      [tab("restored-1")],
+      [tab("opened-mid-resolve")]
+    )
+    expect(merged.map((t) => t.id)).toEqual([
+      "restored-1",
+      "opened-mid-resolve",
+    ])
   })
 
   it("dedupes a tab present in both, keeping the restored copy", () => {

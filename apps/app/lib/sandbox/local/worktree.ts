@@ -19,8 +19,7 @@ const execFileAsync = promisify(execFile)
  * widening: a Repo's "clone URL" is now "clone URL or local path."
  */
 export type RepoSource =
-  | { type: "local-path"; path: string }
-  | { type: "clone-url"; url: string }
+  { type: "local-path"; path: string } | { type: "clone-url"; url: string }
 
 export interface AcquireRepoOptions {
   /**

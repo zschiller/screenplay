@@ -160,8 +160,7 @@ export function CompareExcerpt() {
 }
 
 const menu: (
-  | { icon: React.ReactNode; label: string; on?: boolean }
-  | "separator"
+  { icon: React.ReactNode; label: string; on?: boolean } | "separator"
 )[] = [
   { icon: <GitPullRequestIcon />, label: "Create pull request", on: true },
   "separator",

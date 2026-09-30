@@ -15,7 +15,7 @@ import type { DetectedSettings } from "@/lib/add-repo/resolver"
  * The `detectSettings` seam (PRD #673, slice #678): deterministic, no-model
  * detection of the essential run settings from a project's files, run over the
  * abstract {@link DetectFileSystem}. **This is the only file that touches
- * `@netlify/build-info`** — it's pinned to the `10.x` line to match
+ * `@netlify/build-info`** — it's pinned to the `11.x` line to match
  * `netlify-cli`, imported via its library export (never `/node`), and kept
  * server-only. A future major bump, or the documented swap to
  * `@vercel/fs-detectors`, is a change to this file alone: the input

@@ -14,9 +14,7 @@
 
 /** What a detection probe found about the host tool's install/auth state. */
 export type DetectionResult =
-  | "not-installed"
-  | "installed-not-authed"
-  | "authed"
+  "not-installed" | "installed-not-authed" | "authed"
 
 /**
  * The step's phase.
@@ -27,11 +25,7 @@ export type DetectionResult =
  * `working` means the inline terminal is live (an install or sign-in running).
  */
 export type SetupPhase =
-  | "unknown"
-  | "not-installed"
-  | "installed-not-authed"
-  | "authed"
-  | "working"
+  "unknown" | "not-installed" | "installed-not-authed" | "authed" | "working"
 
 export interface SetupState {
   phase: SetupPhase

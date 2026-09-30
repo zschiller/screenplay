@@ -52,9 +52,7 @@ interface MixedGroupWorkspace {
 }
 
 export type GroupWorkspace =
-  | AssignedGroupWorkspace
-  | UnassignedGroupWorkspace
-  | MixedGroupWorkspace
+  AssignedGroupWorkspace | UnassignedGroupWorkspace | MixedGroupWorkspace
 
 interface GroupLabelProps {
   label: string
@@ -273,8 +271,7 @@ function GroupName({
   const colorStyle = remoteColor ? { color: remoteColor } : undefined
   if (onSelectGroup) {
     const dragPointerDown = dragHandlers?.onPointerDown as
-      | ((e: React.PointerEvent) => void)
-      | undefined
+      ((e: React.PointerEvent) => void) | undefined
     const handleSelectPointerDown = (e: React.PointerEvent) => {
       if (e.button !== 0) return
       // Stop the frame's label drag handlers (which run reorder/select for

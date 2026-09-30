@@ -179,8 +179,7 @@ export function FileDndProvider({ children }: { children: React.ReactNode }) {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const item = event.active.data.current?.[DRAG_DATA_KEY] as
-      | FileDragItem
-      | undefined
+      FileDragItem | undefined
     setActiveItem(item ?? null)
     setActivePreview(event.active.data.current?.[DRAG_PREVIEW_KEY] ?? null)
     setActiveWidth(event.active.rect.current.initial?.width ?? null)

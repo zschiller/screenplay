@@ -326,8 +326,7 @@ function migrateLegacyGroups(c: RoomCollections): void {
   const referenced = new Set<string>()
   groupsMap.forEach((groupMap) => {
     const members = groupMap.get("members") as
-      | Array<{ kind: string; id: string }>
-      | undefined
+      Array<{ kind: string; id: string }> | undefined
     if (Array.isArray(members) && members.length > 0) {
       for (const m of members)
         if (m && typeof m.id === "string") referenced.add(m.id)
@@ -393,8 +392,7 @@ function migrateLegacyGroups(c: RoomCollections): void {
   groupsMap.forEach((groupMap, id) => {
     if (groupMap.get("branchId")) return
     const members = groupMap.get("members") as
-      | Array<{ kind: string; id: string }>
-      | undefined
+      Array<{ kind: string; id: string }> | undefined
     if (!Array.isArray(members)) return
     for (const m of members) {
       if (m?.kind !== "iframe-layer") continue

@@ -30,8 +30,7 @@ export interface DetectRepoSettingsInput {
 }
 
 export type DetectRepoSettingsResult =
-  | { ok: true; settings: DetectedSettings }
-  | { ok: false }
+  { ok: true; settings: DetectedSettings } | { ok: false }
 
 export async function detectRepoSettings(
   input: DetectRepoSettingsInput

@@ -160,9 +160,8 @@ class LiveblocksYjsHost implements YjsHost {
       // Lazy import breaks the cycle: rebuild → capture → yjs/server →
       // yjs-host (this module). The import resolves at call time, long after
       // module evaluation has settled.
-      const { rebuildRoomLayoutThumbnail } = await import(
-        "@/lib/thumbnail/rebuild-layout"
-      )
+      const { rebuildRoomLayoutThumbnail } =
+        await import("@/lib/thumbnail/rebuild-layout")
       try {
         await rebuildRoomLayoutThumbnail(event.data.roomId)
       } catch (err) {

@@ -57,9 +57,7 @@ export type SandboxSnapshotSource = {
 }
 
 export type SandboxSource =
-  | SandboxGitSource
-  | SandboxLocalGitSource
-  | SandboxSnapshotSource
+  SandboxGitSource | SandboxLocalGitSource | SandboxSnapshotSource
 
 /**
  * A firewall rule. Providers that support transforms rewrite outgoing requests

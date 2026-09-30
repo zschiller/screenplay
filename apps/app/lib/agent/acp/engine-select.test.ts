@@ -26,11 +26,15 @@ describe("engineChoiceFromEnv", () => {
   })
 
   it("selects external on the explicit value", () => {
-    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "external" })).toBe("external")
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "external" })).toBe(
+      "external"
+    )
   })
 
   it("treats an unrecognised value as the default — never a silent swap", () => {
-    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "External" })).toBe("in-process")
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "External" })).toBe(
+      "in-process"
+    )
     expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "" })).toBe("in-process")
     expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "in-process" })).toBe(
       "in-process"

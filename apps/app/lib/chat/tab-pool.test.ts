@@ -42,7 +42,11 @@ describe("buildTabPool", () => {
     const docChat = chat("d1", 2, { markdownLayerId: "layer-1" })
     const chats = [agentChat, docChat]
 
-    const agentPool = buildTabPool({ kind: "agent", branchId: "branch-1" }, chats, [])
+    const agentPool = buildTabPool(
+      { kind: "agent", branchId: "branch-1" },
+      chats,
+      []
+    )
     expect(agentPool.chats.map((c) => c.id)).toEqual(["a1"])
 
     const docPool = buildTabPool(
@@ -59,9 +63,16 @@ describe("buildTabPool", () => {
       chat("a2", 2, { branchId: "branch-1" }, { closedAt: 99 }),
       chat("a3", 3, { branchId: "branch-2" }),
     ]
-    const terminals = [terminal("t1", 1, "branch-1"), terminal("t2", 2, "branch-2")]
+    const terminals = [
+      terminal("t1", 1, "branch-1"),
+      terminal("t2", 2, "branch-2"),
+    ]
 
-    const pool = buildTabPool({ kind: "agent", branchId: "branch-1" }, chats, terminals)
+    const pool = buildTabPool(
+      { kind: "agent", branchId: "branch-1" },
+      chats,
+      terminals
+    )
     expect(pool.chats.map((c) => c.id)).toEqual(["a1"])
     expect(pool.terminals.map((t) => t.id)).toEqual(["t1"])
   })
@@ -118,7 +129,10 @@ describe("resolveTabClose", () => {
     }
     // Closing selected a1 → chat (a2) wins over the older terminal (t1).
     const outcome = resolveTabClose(
-      { ...pool, chats: [chat("a1", 1, { branchId: "branch-1" }), ...pool.chats] },
+      {
+        ...pool,
+        chats: [chat("a1", 1, { branchId: "branch-1" }), ...pool.chats],
+      },
       "a1",
       "a1"
     )
@@ -157,7 +171,10 @@ describe("resolveTabClose", () => {
       terminals: [],
     }
     const outcome = resolveTabClose(pool, "d1", "d1")
-    expect(outcome.respawn).toEqual({ target: "doc", markdownLayerId: "layer-1" })
+    expect(outcome.respawn).toEqual({
+      target: "doc",
+      markdownLayerId: "layer-1",
+    })
     // Selection follows the respawned tab at the call site.
     expect(outcome.nextSelectedId).toBeUndefined()
   })

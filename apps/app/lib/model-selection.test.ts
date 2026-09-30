@@ -6,7 +6,11 @@ import {
 } from "@/lib/model-selection"
 import type { ModelInfo } from "@/lib/models-store"
 
-function model(id: string, providerKey: string, providerLabel: string): ModelInfo {
+function model(
+  id: string,
+  providerKey: string,
+  providerLabel: string
+): ModelInfo {
   return {
     id,
     label: id,

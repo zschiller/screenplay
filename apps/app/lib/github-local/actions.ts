@@ -79,8 +79,7 @@ export async function getGitHubLocalStatus(): Promise<GitHubLocalStatus> {
 }
 
 export type BeginDeviceFlowResult =
-  | { ok: true; grant: DeviceAuthorization }
-  | { ok: false; error: string }
+  { ok: true; grant: DeviceAuthorization } | { ok: false; error: string }
 
 /**
  * Start a device-flow login: returns the user code + verification URL for the
@@ -146,8 +145,7 @@ export async function disconnectGitHub(): Promise<void> {
 }
 
 export type RepoSourceResult =
-  | { ok: true; source: NewRepoSource }
-  | { ok: false; error: string }
+  { ok: true; source: NewRepoSource } | { ok: false; error: string }
 
 async function git(args: string[], cwd: string): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd })

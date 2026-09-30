@@ -11,8 +11,7 @@ import type { SandboxCommandResult, SandboxInstance } from "@/lib/sandbox/types"
  * the caller. `success` is the discriminant.
  */
 export type SandboxActionResult<T = void> =
-  | { success: true; value: T }
-  | { success: false; error: string }
+  { success: true; value: T } | { success: false; error: string }
 
 // Cap how much stderr rides along in an error. Long enough to be diagnostic,
 // short enough not to flood the chat UI or a Liveblocks broadcast.

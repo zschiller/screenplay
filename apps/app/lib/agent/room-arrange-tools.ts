@@ -77,14 +77,13 @@ export function buildArrangeTools(
             const size = workspace_id
               ? workspaceFrameSize(c, workspace_id)
               : lastFrameSize(c, group_id)
-            const ids = frames.map(
-              (f) =>
-                freshOps(doc).ops.addFrameToGroup(group_id, {
-                  ...size,
-                  label: f.label,
-                  ...(workspace_id ? { branchId: workspace_id } : {}),
-                  ...(f.route ? { route: f.route } : {}),
-                })!
+            const ids = frames.map((f) =>
+              freshOps(doc).ops.addFrameToGroup(group_id, {
+                ...size,
+                label: f.label,
+                ...(workspace_id ? { branchId: workspace_id } : {}),
+                ...(f.route ? { route: f.route } : {}),
+              })!
             )
             return withIds(
               `Added ${frameNames(frames)}${forWorkspace(branch)} to Group "${group.name ?? group_id}".`,

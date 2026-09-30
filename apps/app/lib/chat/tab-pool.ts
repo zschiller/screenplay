@@ -22,8 +22,7 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
 
 /** The target a Tab Pool belongs to — an agent Branch or a markdown document. */
 export type TabPoolTarget =
-  | { kind: "agent"; branchId: string }
-  | { kind: "doc"; markdownLayerId: string }
+  { kind: "agent"; branchId: string } | { kind: "doc"; markdownLayerId: string }
 
 /**
  * A target's open tabs: its persisted Chat Sessions plus, for an agent target,
@@ -127,16 +126,16 @@ export function resolveTabClose(
     .sort((a, b) => a.createdAt - b.createdAt)
 
   const surviving: SurvivingTab[] = [
-    ...survivingChats.map(
-      (c): SurvivingTab => ({ id: c.id, kind: "chat", createdAt: c.createdAt })
-    ),
-    ...survivingTerminals.map(
-      (t): SurvivingTab => ({
-        id: t.id,
-        kind: "terminal",
-        createdAt: t.createdAt,
-      })
-    ),
+    ...survivingChats.map((c): SurvivingTab => ({
+      id: c.id,
+      kind: "chat",
+      createdAt: c.createdAt,
+    })),
+    ...survivingTerminals.map((t): SurvivingTab => ({
+      id: t.id,
+      kind: "terminal",
+      createdAt: t.createdAt,
+    })),
   ]
 
   // Never-empty invariant: the last tab on a live target respawns its default.

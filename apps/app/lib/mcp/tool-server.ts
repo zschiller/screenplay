@@ -81,8 +81,7 @@ export async function handleMcpMessage(
       const requested = params.protocolVersion
       const protocolVersion = MCP_PROTOCOL_VERSIONS.find((v) => v === requested)
       const clientInfo = params.clientInfo as
-        | { name?: string; version?: string }
-        | undefined
+        { name?: string; version?: string } | undefined
       server.onInitialize?.(clientInfo ?? {})
       return success(id, {
         protocolVersion: protocolVersion ?? MCP_PROTOCOL_VERSIONS[0],

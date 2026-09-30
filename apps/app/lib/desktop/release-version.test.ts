@@ -138,13 +138,17 @@ tauri = { version = "2", features = [] }
     expect(next).toContain(`"version": "0.1.0"`)
     // The identically-valued dependency string must be untouched.
     expect(next).toContain(`"some-dep": "0.0.1"`)
-    expect(next).toBe(packageJson.replace(`"version": "0.0.1"`, `"version": "0.1.0"`))
+    expect(next).toBe(
+      packageJson.replace(`"version": "0.0.1"`, `"version": "0.1.0"`)
+    )
   })
 
   it("rewrites tauri.conf.json version while preserving surrounding content", () => {
     const next = setTauriConfVersion(tauriConf, "0.1.0")
     expect(next).toContain(`"version": "0.1.0"`)
-    expect(next).toBe(tauriConf.replace(`"version": "0.0.1"`, `"version": "0.1.0"`))
+    expect(next).toBe(
+      tauriConf.replace(`"version": "0.0.1"`, `"version": "0.1.0"`)
+    )
   })
 
   it("rewrites the Cargo.toml package version, not a dependency's version", () => {
@@ -159,7 +163,9 @@ tauri = { version = "2", features = [] }
 
   it("throws when a file carries no version field to rewrite", () => {
     expect(() => setPackageJsonVersion(`{ "name": "x" }`, "1.0.0")).toThrow()
-    expect(() => setCargoTomlVersion(`[package]\nname = "x"\n`, "1.0.0")).toThrow()
+    expect(() =>
+      setCargoTomlVersion(`[package]\nname = "x"\n`, "1.0.0")
+    ).toThrow()
   })
 
   it("bumps all three files in lockstep to the same resolved version", () => {

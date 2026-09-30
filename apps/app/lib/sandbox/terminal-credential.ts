@@ -44,8 +44,7 @@ export async function issueTerminalCredential(
 }
 
 export type TerminalCredentialCheck =
-  | { ok: true; userId: string }
-  | { ok: false }
+  { ok: true; userId: string } | { ok: false }
 
 /**
  * Verify a presented terminal credential, binding it to the room and session

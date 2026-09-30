@@ -2,7 +2,10 @@ import { createServer, type Server } from "node:http"
 import { AddressInfo } from "node:net"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { getTauriWebviewCapturer, TAURI_CONTROL_URL_ENV_VAR } from "./tauri-webview"
+import {
+  getTauriWebviewCapturer,
+  TAURI_CONTROL_URL_ENV_VAR,
+} from "./tauri-webview"
 
 const original = process.env[TAURI_CONTROL_URL_ENV_VAR]
 
@@ -39,7 +42,9 @@ describe("TauriWebviewCapturer", () => {
           res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47])) // PNG magic bytes
         })
       })
-      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+      await new Promise<void>((resolve) =>
+        server.listen(0, "127.0.0.1", resolve)
+      )
       const { port } = server.address() as AddressInfo
       process.env[TAURI_CONTROL_URL_ENV_VAR] = `http://127.0.0.1:${port}`
     })
