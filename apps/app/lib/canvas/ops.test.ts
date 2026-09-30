@@ -4,6 +4,8 @@ import {
   groupBranchId,
   isWorkspaceException,
 } from "@/lib/canvas/group-workspace"
+import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
+import { getGroupMembers } from "@/lib/canvas/layout"
 import { CANVAS_OPS_ORIGIN } from "@/lib/canvas/ops"
 import {
   MIN_IFRAME_LAYER_HEIGHT,
@@ -1538,5 +1540,86 @@ describe("Unassigned Groups (#871)", () => {
     expect(collections.iframeLayerGroups.get("g")?.branchId).toBe("agent-1")
     expect(collections.iframeLayers.get("a")?.branchId).toBe("agent-1")
     expect(collections.iframeLayers.get("b")?.branchId).toBe("agent-1")
+  })
+})
+
+describe("positions from the Canvas's Done-hidden view", () => {
+  const f = (id: string) => ({ kind: "iframe-layer" as const, id })
+
+  /**
+   * Group [A, B, C] showing a live Workspace, where A is an exception frame
+   * showing a Done one, so the Canvas and sidebar show [B, C]. D sits in a
+   * Group of its own.
+   */
+  function withHiddenMember() {
+    const h = makeHarness()
+    const { collections } = h
+    collections.branches.set("live", baseBranch("live"))
+    collections.branches.set("done", baseBranch("done", { doneAt: 1 }))
+    collections.iframeLayers.set("a", baseLayer("a", { branchId: "done" }))
+    for (const id of ["b", "c", "d"])
+      collections.iframeLayers.set(id, baseLayer(id, { branchId: "live" }))
+    seedGroup(collections, "g", [f("a"), f("b"), f("c")])
+    collections.iframeLayerGroups.update("g", { branchId: "live" })
+    seedGroup(collections, "solo", [f("d")])
+    return h
+  }
+  const members = (h: ReturnType<typeof withHiddenMember>, id: string) =>
+    getGroupMembers(h.collections.iframeLayerGroups.get(id)!).map((m) => m.id)
+
+  it("drops a Member between two shown Members around a hidden one", () => {
+    const h = withHiddenMember()
+
+    // Between B and C in the view [B, C].
+    h.ops.moveLayerToGroup("d", "g", 1)
+
+    expect(members(h, "g")).toEqual(["a", "b", "d", "c"])
+  })
+
+  it("drops a Member at the start and end of the view", () => {
+    const start = withHiddenMember()
+    start.ops.moveLayerToGroup("d", "g", 0)
+    expect(members(start, "g")).toEqual(["a", "d", "b", "c"])
+
+    const end = withHiddenMember()
+    end.ops.moveLayerToGroup("d", "g", 2)
+    expect(members(end, "g")).toEqual(["a", "b", "c", "d"])
+  })
+
+  it("reorders within the Group from a gap in the view", () => {
+    // Drop B just after itself: nothing moves.
+    const stay = withHiddenMember()
+    stay.ops.moveLayerToGroup("b", "g", 1, { gapIncludesMover: true })
+    expect(members(stay, "g")).toEqual(["a", "b", "c"])
+
+    // Drop B after C.
+    const after = withHiddenMember()
+    after.ops.moveLayerToGroup("b", "g", 2, { gapIncludesMover: true })
+    expect(members(after, "g")).toEqual(["a", "c", "b"])
+  })
+
+  it("keeps hidden Members in place when reordering from the view", () => {
+    const h = withHiddenMember()
+
+    h.ops.reorderGroupMembers("g", [f("c"), f("b")])
+
+    expect(members(h, "g")).toEqual(["a", "c", "b"])
+  })
+
+  it("shows a reopened Workspace's frame in its old place", () => {
+    const h = withHiddenMember()
+    h.ops.moveLayerToGroup("d", "g", 0)
+    h.ops.reorderGroupMembers("g", [f("c"), f("d"), f("b")])
+
+    h.ops.patch("branches", "done", { doneAt: undefined })
+
+    const view = hideDoneWorkspaceFrames({
+      groups: h.collections.iframeLayerGroups.toArray(),
+      iframeLayers: h.collections.iframeLayers.toArray(),
+      branches: h.collections.branches.toArray(),
+    })
+    expect(
+      getGroupMembers(view.groups.find((g) => g.id === "g")!).map((m) => m.id)
+    ).toEqual(["a", "c", "d", "b"])
   })
 })

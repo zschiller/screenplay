@@ -52,6 +52,21 @@ export function markedDoneMessage(title: string, frames: number): string {
   return `${marked} Its ${frames} frames are hidden.`
 }
 
+/** The frames a Done Workspace hides: the Canvas leaves these out. */
+export function hiddenDoneFrames({
+  groups,
+  iframeLayers,
+  branches,
+}: {
+  groups: IframeLayerGroupData[]
+  iframeLayers: IframeLayerData[]
+  branches: Pick<BranchData, "id" | "doneAt">[]
+}): Set<string> {
+  const done = new Set(branches.filter((b) => b.doneAt).map((b) => b.id))
+  if (done.size === 0) return new Set()
+  return workspaceFrames(done, groups, iframeLayers)
+}
+
 /**
  * A Done Workspace's frames leave the Canvas (#976). Only its frames go:
  * documents and other Workspaces' frames in the same Group stay, and a Group
@@ -60,8 +75,9 @@ export function markedDoneMessage(title: string, frames: number): string {
  * places.
  *
  * This is the view the Canvas renders and lays out. Writes keep going through
- * the Room doc, where the hidden members still sit ({@link keepHiddenMembers}
- * puts them back into a reorder written from this view).
+ * the Room doc, where the hidden members still sit: the ops verbs that take a
+ * position from this view map it back around them ({@link keepHiddenMembers},
+ * {@link shownIndexToMemberIndex}).
  */
 export function hideDoneWorkspaceFrames({
   groups,
@@ -72,10 +88,9 @@ export function hideDoneWorkspaceFrames({
   iframeLayers: IframeLayerData[]
   branches: Pick<BranchData, "id" | "doneAt">[]
 }): { groups: IframeLayerGroupData[]; iframeLayers: IframeLayerData[] } {
-  const done = new Set(branches.filter((b) => b.doneAt).map((b) => b.id))
-  if (done.size === 0) return { groups, iframeLayers }
+  const hiddenFrames = hiddenDoneFrames({ groups, iframeLayers, branches })
+  if (hiddenFrames.size === 0) return { groups, iframeLayers }
 
-  const hiddenFrames = workspaceFrames(done, groups, iframeLayers)
   const hidden = (m: GroupMember) =>
     m.kind === "iframe-layer" && hiddenFrames.has(m.id)
   const visibleGroups: IframeLayerGroupData[] = []
@@ -116,4 +131,23 @@ export function keepHiddenMembers(
     } else out.push(m)
   }
   return [...out, ...next]
+}
+
+/**
+ * Where a position among a Group's shown members (the Canvas's view, which
+ * leaves out hidden members) falls among all its members: just before the
+ * shown member now at that position, or at the end past the last one.
+ */
+export function shownIndexToMemberIndex(
+  members: GroupMember[],
+  shownIndex: number,
+  isHidden: (m: GroupMember) => boolean
+): number {
+  let shown = 0
+  for (let i = 0; i < members.length; i++) {
+    if (isHidden(members[i])) continue
+    if (shown === shownIndex) return i
+    shown++
+  }
+  return members.length
 }
