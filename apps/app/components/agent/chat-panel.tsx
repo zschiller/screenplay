@@ -1040,7 +1040,9 @@ export function ChatPanel({
           <TabsList
             variant="line"
             // Tall enough for the 28px close buttons to sit inside the tabs.
-            className="px-2 group-data-horizontal/tabs:h-10"
+            // 11px puts the Logs icon (1px border + px-1.5 + half its 16px)
+            // 26px in, under the collapse icon (header px-3 + half its 28px).
+            className="px-[11px] group-data-horizontal/tabs:h-10"
           >
             {isAgentTarget && (
               <TabsTrigger
