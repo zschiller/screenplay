@@ -5,12 +5,13 @@ description: Screenplay runs coding agents inside live dev environments, laid ou
 
 import { Cards } from "nextra/components"
 
-# Screenplay
+# Introduction
 
-**Screenplay is a canvas for building software with coding agents.** Every
-branch you work on gets its own live environment. Its running app appears as
-real, clickable previews on an infinite canvas. You drive the agent from a chat
-panel beside it and watch the previews update as it works.
+**Screenplay is a canvas for building software with coding agents.** Ask the
+[Coordinator](/guides/agent#the-coordinator) for a change. It hands the work to
+a workspace's agent, and you watch the app change in a live frame. Every branch
+gets its own environment, and its running app appears as real, clickable
+previews on an infinite canvas.
 
 <Screenshot
   name="hero"
@@ -20,6 +21,9 @@ panel beside it and watch the previews update as it works.
 Instead of juggling terminals, browser tabs and branches, you lay the work out
 spatially:
 
+- **Ask in one place.** The Coordinator sees the whole canvas: every
+  workspace, frame and document. It sends each piece of work to the right
+  workspace and tells you when something needs you.
 - **Run several attempts side by side.** Each [workspace](/guides/workspaces)
   is its own git branch with its own dev server. Try three directions at once
   and compare them visually.
@@ -27,7 +31,9 @@ spatially:
   of any route at any device size: desktop, tablet, or phone. They stay
   arranged next to each other, and hot reload keeps them current.
 - **Point, don't describe.** Target an element in a preview, mention a
-  document, or load a skill straight from the [composer](/guides/agent).
+  document, or load a skill straight from the [composer](/guides/agent). On
+  the web app, [comments](/guides/collaboration) pinned to a preview can go
+  straight to the agent too.
 - **Keep the plan next to the product.** [Documents](/guides/documents) live
   on the same canvas as your previews, and the agent can read and write them.
 - **Hand it to someone.** Open any preview full screen in
@@ -51,6 +57,23 @@ spatially:
 
 Both run the same product from the same codebase. The guides point out the
 few places where they differ.
+
+## Privacy and data
+
+**On the desktop app, your work stays on your Mac.** Canvases, chats and
+thumbnails are stored in the app's data folder under
+`~/Library/Application Support`, and workspaces are git worktrees under
+`~/.screenplay/worktrees`. Chats run through the coding
+CLI you signed in to, so your code and prompts go only to that CLI's provider,
+under your own account. A GitHub token you connect is kept in the macOS
+Keychain. Screenplay itself sends no analytics.
+
+**On the web app, the data lives in the services you deploy it with.** The
+database holds users, canvases, comments, chat history and encrypted settings;
+the realtime host holds each canvas's live state; each workspace's code runs in
+a sandbox VM; and chats go to the model providers you configure. See
+[Self-hosting](/self-hosting#how-it-fits-together) for each service and its
+defaults.
 
 ## Where to go next
 

@@ -1,6 +1,6 @@
 ---
 title: Core concepts
-description: Canvases, repositories, workspaces, frames, documents and the agent, and how they fit together.
+description: Canvases, the Coordinator, repositories, workspaces, frames, groups, documents and their agents, and how they fit together.
 ---
 
 # Core concepts
@@ -25,6 +25,17 @@ them. On the hosted app you can [share](/guides/collaboration) a canvas, and
 everyone in it sees the same layout, previews, and agent activity in real
 time. Its setup lives in **Canvas settings**, under the **…** next to its
 name.
+
+## Coordinator
+
+The **Coordinator** is the canvas's own chat, and where the agent panel opens.
+Every canvas has exactly one, shared by everyone on it. It sees the whole
+canvas: each workspace's status, changes and pull request, and every frame and
+document. It arranges the canvas for you, and when you ask for a change it
+sends a message to the right workspace's agent, which does the work. The
+Coordinator never edits code itself. On the web app it can also start new
+workspaces once you approve its plan.
+→ [The Coordinator](/guides/agent#the-coordinator)
 
 ## Repository
 
@@ -60,9 +71,8 @@ them side by side.
 
 A **frame** is a live preview on the canvas. It shows one route of one
 workspace's dev server at a chosen device size. Frames are real browsers:
-switch into **Interact** mode and you can click through the app. Frames sit in
-**groups** laid out left to right, so the desktop and mobile versions of a
-page, or the steps of a flow, stay together. → [Frames](/guides/frames)
+switch into **Interact** mode and you can click through the app.
+→ [Frames](/guides/frames)
 
 ## Document
 
@@ -71,16 +81,24 @@ and plans. Documents are edited collaboratively, and you can chat with the
 agent about a document directly: it rewrites or appends to the page for you.
 → [Documents](/guides/documents)
 
-## Agent
+## Group
 
-The **agent** does the coding. Every workspace has a chat panel where you
-give it instructions, and it reads files, edits them, runs commands, and
-commits inside that workspace's sandbox. Where the agent comes from depends
-on how you run Screenplay:
+A **group** is a row of frames and documents laid out left to right, so the
+desktop and mobile versions of a page, or the steps of a flow, stay together.
+Every frame and document lives in one. A group shows one workspace, and its
+frames preview that workspace unless you switch one of them.
+→ [Groups](/guides/canvas#groups)
+
+## Workspace agent
+
+A **workspace agent** does the coding. Every workspace has its own chats, and
+when you (or the Coordinator) give it work, it reads files, edits them, runs
+commands, and commits inside that workspace's sandbox. Where the agent comes
+from depends on how you run Screenplay:
 
 - **Desktop**: the coding CLI installed on your machine (Claude Code or Codex),
   running on your own login.
-- **Hosted**: a built-in agent loop that uses the model providers the operator
+- **Web app**: a built-in agent loop that uses the model providers the operator
   configured (Anthropic, OpenAI, Google, the Vercel AI Gateway, or any
   OpenAI-compatible endpoint).
 
@@ -88,15 +106,26 @@ Alongside chat, **terminal tabs** give you an interactive shell in the same
 sandbox, with a coding CLI pre-launched. → [Agent chat](/guides/agent),
 [Terminal tabs](/guides/terminals)
 
+## Memory
+
+Each canvas keeps a shared **memory**: preferences, decisions and facts about
+its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
+it, so no chat has to ask the same thing twice. The Coordinator saves to it
+when you tell it something worth keeping, and you can edit it in Canvas
+settings. → [Canvas memory](/guides/agent#canvas-memory)
+
 ## Names you'll see in the code
 
 The UI labels are deliberately friendlier than the code's names. If you read
 the source or the self-hosting docs:
 
-| In the UI  | In the code    |
-| ---------- | -------------- |
-| Canvas     | Room           |
-| Repository | Repo           |
-| Workspace  | Branch         |
-| Frame      | Iframe Layer   |
-| Document   | Markdown Layer |
+| In the UI       | In the code        |
+| --------------- | ------------------ |
+| Canvas          | Room               |
+| Repository      | Repo               |
+| Coordinator     | Room Target        |
+| Workspace       | Branch             |
+| Frame           | Iframe Layer       |
+| Group           | Iframe Layer Group |
+| Document        | Markdown Layer     |
+| Workspace agent | Engine             |
