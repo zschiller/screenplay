@@ -385,7 +385,7 @@ describe("arrange_groups", () => {
     ])
   })
 
-  it("says which Groups it left overlapping, and undoes in one step", async () => {
+  it("starts below the rest of the canvas rather than overlap it, and undoes in one step", async () => {
     const r = room()
     pile(r)
     const before = canvasState(r.doc).iframeLayerGroups
@@ -394,10 +394,26 @@ describe("arrange_groups", () => {
       layout: "row",
     })
     expect(result).toBe(
-      'Laid out Groups "a", "b" in a row. They now overlap "c".'
+      'Laid out Groups "a", "b" in a row, below the rest of the canvas.'
     )
+    expect(corners(r)).toEqual([
+      [100, 550],
+      [700, 550],
+      [120, 50],
+    ])
     await r.turn()("undo_changes")
     expect(canvasState(r.doc).iframeLayerGroups).toEqual(before)
+  })
+
+  it("says when a move leaves Groups overlapping", async () => {
+    const r = room()
+    pile(r)
+    expect(await r.turn()("move_group", { group_id: "a", x: 2000, y: 0 })).toBe(
+      'Moved Group "a" to 2000, 0.'
+    )
+    expect(
+      await r.turn()("move_group", { group_id: "a", x: 300, y: 100 })
+    ).toBe('Moved Group "a" to 300, 100. It now overlaps "b", "c".')
   })
 
   it("refuses a Group it doesn't know", async () => {

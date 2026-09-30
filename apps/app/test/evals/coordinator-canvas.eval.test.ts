@@ -8,7 +8,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { describe, it } from "vitest"
+import { beforeAll, describe, it } from "vitest"
 import * as Y from "yjs"
 import { generateText, stepCountIs } from "ai"
 
@@ -130,13 +130,15 @@ export function layoutReport(doc: Y.Doc) {
 }
 
 describe.skipIf(!RUN)("Coordinator canvas eval", () => {
-  mkdirSync(OUT, { recursive: true })
-  const before = new Y.Doc()
-  seed(before)
-  writeFileSync(
-    join(OUT, "before.json"),
-    JSON.stringify(layoutReport(before), null, 2)
-  )
+  beforeAll(() => {
+    mkdirSync(OUT, { recursive: true })
+    const before = new Y.Doc()
+    seed(before)
+    writeFileSync(
+      join(OUT, "before.json"),
+      JSON.stringify(layoutReport(before), null, 2)
+    )
+  })
 
   for (const [key, ask] of Object.entries(ASKS)) {
     if (ONLY && !ONLY.includes(key)) continue

@@ -174,13 +174,13 @@ export function buildArrangeTools(
             x: Math.round(x),
             y: Math.round(y),
           })
-          return `Moved Group "${group.name ?? group_id}" to ${Math.round(x)}, ${Math.round(y)}.`
+          return `Moved Group "${group.name ?? group_id}" to ${Math.round(x)}, ${Math.round(y)}.${overlapNote(freshOps(doc).c, group_id)}`
         }),
     }),
 
     arrange_groups: tool({
       description:
-        "Lay Groups out in the given order so none overlap: `row` (left to right, tops aligned), `column` (top to bottom, left edges aligned) or `grid` (rows of `columns`, default about square). They start at the top-left corner of where the listed Groups are now. Use it to tidy the canvas or put Groups side by side instead of working out positions for `move_group`.",
+        "Lay Groups out in the given order so none overlap: `row` (left to right, tops aligned), `column` (top to bottom, left edges aligned) or `grid` (rows of `columns`, default about square). They start at the top-left corner of where the listed Groups are now, or below the rest of the canvas when that would land on Groups left out. Use it to tidy the canvas or put Groups side by side instead of working out positions for `move_group`.",
       inputSchema: jsonSchema<{
         group_ids: string[]
         layout: "row" | "column" | "grid"
@@ -205,29 +205,34 @@ export function buildArrangeTools(
           if (missing.length) return `Error: no Group ${missing.join(", ")}.`
           const ids = [...new Set(group_ids)]
           const rects = groupRects(c)
-          const placed = arrangeRects(
-            ids.map((id) => ({ id, ...rects.get(id)! })),
-            layout,
-            columns
-          )
+          const listed = ids.map((id) => ({ id, ...rects.get(id)! }))
+          const others = [...rects].filter(([id]) => !ids.includes(id))
+          // From the corner of where the listed Groups are now.
+          const corner = {
+            x: Math.min(...listed.map((r) => r.x)),
+            y: Math.min(...listed.map((r) => r.y)),
+          }
+          let placed = arrangeRects(listed, layout, corner, columns)
+          // Where that lands on Groups left out, start below all of them.
+          const below = clearsOthers(placed, rects, others)
+            ? null
+            : {
+                x: corner.x,
+                y:
+                  Math.max(...others.map(([, r]) => r.y + r.height)) +
+                  ARRANGE_GAP,
+              }
+          if (below) placed = arrangeRects(listed, layout, below, columns)
           for (const [id, { x, y }] of placed) {
             ops.patch("iframeLayerGroups", id, { x, y })
           }
-          const moved = new Map(
-            [...rects].map(([id, r]) => [id, { ...r, ...placed.get(id) }])
-          )
           const names = ids.map((id) => `"${groupName(c, id)}"`).join(", ")
           const where = {
             row: "in a row",
             column: "in a column",
             grid: "in a grid",
           }[layout]
-          const clashes = overlapping(moved, new Set(ids)).map(
-            (id) => `"${groupName(c, id)}"`
-          )
-          return clashes.length
-            ? `Laid out Groups ${names} ${where}. They now overlap ${clashes.join(", ")}.`
-            : `Laid out Groups ${names} ${where}.`
+          return `Laid out Groups ${names} ${where}${below ? ", below the rest of the canvas" : ""}.`
         }),
     }),
 
@@ -272,7 +277,7 @@ export function buildArrangeTools(
               index === undefined ? undefined : index + i
             )
           )
-          return `Moved ${names} into Group "${target.name ?? group_id}".`
+          return `Moved ${names} into Group "${target.name ?? group_id}".${overlapNote(freshOps(doc).c, group_id)}`
         }),
     }),
 
@@ -298,7 +303,7 @@ export function buildArrangeTools(
           if (!source) return `Error: no Group ${source_group_id}.`
           if (!target) return `Error: no Group ${target_group_id}.`
           ops.mergeGroups(source_group_id, target_group_id)
-          return `Merged Group "${source.name ?? source_group_id}" into "${target.name ?? target_group_id}".`
+          return `Merged Group "${source.name ?? source_group_id}" into "${target.name ?? target_group_id}".${overlapNote(freshOps(doc).c, target_group_id)}`
         }),
     }),
 
@@ -490,16 +495,17 @@ function groupRects(c: RoomCollections): Map<string, GroupRect> {
 }
 
 /**
- * New top-left corners for `rects`, by id, laid out in order from the corner
- * of their current bounds with {@link ARRANGE_GAP} between them.
+ * New top-left corners for `rects`, by id, laid out in order from `origin`
+ * with {@link ARRANGE_GAP} between them.
  */
-export function arrangeRects(
+function arrangeRects(
   rects: readonly (GroupRect & { id: string })[],
   layout: "row" | "column" | "grid",
+  origin: { x: number; y: number },
   columns?: number
 ): Map<string, { x: number; y: number }> {
-  const originX = Math.round(Math.min(...rects.map((r) => r.x)))
-  const originY = Math.round(Math.min(...rects.map((r) => r.y)))
+  const originX = Math.round(origin.x)
+  const originY = Math.round(origin.y)
   const perRow =
     layout === "row"
       ? rects.length
@@ -520,23 +526,38 @@ export function arrangeRects(
   return placed
 }
 
-/** Groups outside `arranged` whose rects intersect an arranged one. */
-function overlapping(
-  rects: Map<string, GroupRect>,
-  arranged: Set<string>
-): string[] {
-  const hit = (a: GroupRect, b: GroupRect) =>
+function intersects(a: GroupRect, b: GroupRect): boolean {
+  return (
     a.x < b.x + b.width &&
     b.x < a.x + a.width &&
     a.y < b.y + b.height &&
     b.y < a.y + a.height
-  return [...rects].flatMap(([id, r]) =>
-    !arranged.has(id) &&
-    r.width > 0 &&
-    [...arranged].some((a) => hit(rects.get(a)!, r))
-      ? [id]
-      : []
   )
+}
+
+/** Whether the `placed` Groups clear every one of `others`. */
+function clearsOthers(
+  placed: Map<string, { x: number; y: number }>,
+  rects: Map<string, GroupRect>,
+  others: [string, GroupRect][]
+): boolean {
+  return [...placed].every(([id, at]) =>
+    others.every(([, r]) => !intersects({ ...rects.get(id)!, ...at }, r))
+  )
+}
+
+/**
+ * ` It now overlaps "Cart".` when Group `id` sits on other Groups after a
+ * change, so the model can clear them; empty otherwise.
+ */
+function overlapNote(c: RoomCollections, id: string): string {
+  const rects = groupRects(c)
+  const rect = rects.get(id)
+  if (!rect) return ""
+  const hit = [...rects]
+    .filter(([other, r]) => other !== id && intersects(rect, r))
+    .map(([other]) => `"${groupName(c, other)}"`)
+  return hit.length ? ` It now overlaps ${hit.join(", ")}.` : ""
 }
 
 function groupName(c: RoomCollections, id: string): string {
