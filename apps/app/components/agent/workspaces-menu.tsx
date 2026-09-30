@@ -79,6 +79,7 @@ import {
 
 import {
   EditableText,
+  editableTextFieldClass,
   type EditableTextHandle,
 } from "@workspace/ui/components/editable-text"
 
@@ -676,6 +677,11 @@ export function WorkspacesMenuButton() {
         align="end"
         className="w-80 p-0"
         collisionPadding={8}
+        // Escape in a rename field cancels the rename and leaves the menu open.
+        onEscapeKeyDown={(e) => {
+          if ((e.target as HTMLElement | null)?.isContentEditable)
+            e.preventDefault()
+        }}
       >
         <WorkspacesMenuList menu={menu} />
       </PopoverContent>
@@ -1076,11 +1082,6 @@ function WorkspaceMenuRow({
           branch.ref ? (
             <span
               className="flex max-w-full min-w-0 has-[[data-editable-text=editing]]:overflow-visible"
-              // Typing in the rename field stays in it.
-              onKeyDown={(e) => {
-                if ((e.target as HTMLElement).isContentEditable)
-                  e.stopPropagation()
-              }}
               onClick={(e) => {
                 if (editableRef.current?.isEditing()) e.stopPropagation()
               }}
@@ -1101,7 +1102,10 @@ function WorkspaceMenuRow({
                 }}
                 className="min-w-0"
                 viewClassName="truncate"
-                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-background text-foreground shadow-sm ring-[0.5px] ring-border px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                editClassName={cn(
+                  editableTextFieldClass,
+                  "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
+                )}
               />
             </span>
           ) : (

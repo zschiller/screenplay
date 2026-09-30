@@ -26,7 +26,10 @@ import { toast } from "sonner"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
 import { GripSpinner } from "@/components/grip-spinner"
-import { EditableText } from "@workspace/ui/components/editable-text"
+import {
+  EditableText,
+  editableTextFieldClass,
+} from "@workspace/ui/components/editable-text"
 import {
   Tabs,
   TabsContent,
@@ -324,8 +327,7 @@ const TAB_LABEL_CLASS =
   "max-w-[180px] min-w-0 rounded-xs px-0.5 py-0.5 -mx-0.5 -my-0.5"
 // Edit-mode-only decoration. Uses theme tokens (not the sidebar rows' hardcoded
 // white) so it reads against the tab strip.
-const TAB_LABEL_EDIT_CLASS =
-  "relative z-10 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-background text-foreground shadow-sm ring-[0.5px] ring-border"
+const TAB_LABEL_EDIT_CLASS = editableTextFieldClass
 
 function ChatTabLabel({
   chat,

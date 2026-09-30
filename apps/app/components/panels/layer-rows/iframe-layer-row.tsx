@@ -18,7 +18,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { EditableText } from "@workspace/ui/components/editable-text"
+import {
+  EditableText,
+  editableTextFieldClass,
+} from "@workspace/ui/components/editable-text"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
@@ -90,7 +93,10 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
         placeholder="Untitled"
         className="min-w-0"
         viewClassName="truncate"
-        editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+        editClassName={cn(
+          editableTextFieldClass,
+          "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
+        )}
       />
     )
 

@@ -27,8 +27,10 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import {
   EditableText,
+  editableTextFieldClass,
   type EditableTextHandle,
 } from "@workspace/ui/components/editable-text"
+import { cn } from "@workspace/ui/lib/utils"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
@@ -156,7 +158,10 @@ export function CanvasTopBar({
                 placeholder="Untitled"
                 className="min-w-0 px-1.5 py-1 text-xs font-medium text-foreground"
                 viewClassName="truncate"
-                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 mx-1 my-0.5"
+                editClassName={cn(
+                  editableTextFieldClass,
+                  "mx-1 my-0.5 min-w-0 px-0.5 py-0.5"
+                )}
               />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

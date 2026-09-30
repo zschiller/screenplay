@@ -51,6 +51,7 @@ import {
 } from "@workspace/ui/components/sidebar"
 import {
   EditableText,
+  editableTextFieldClass,
   type EditableTextHandle,
 } from "@workspace/ui/components/editable-text"
 
@@ -221,10 +222,11 @@ function SortableRow({
   className?: string
   children: React.ReactNode
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
-    id,
-    data: { groupId, kind: parseSidebarRowId(id)?.kind },
-  })
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
+    useSortable({
+      id,
+      data: { groupId, kind: parseSidebarRowId(id)?.kind },
+    })
   // The parent computes ONE hint for the whole list (pointer-based, gap-
   // normalized) and we just render the part that targets this row. Exactly one
   // row ever matches, so the line can't flicker between adjacent rows.
@@ -237,7 +239,12 @@ function SortableRow({
       : null
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node)
+        // Only keys pressed on the row itself start a keyboard drag, not ones
+        // from a control inside it (a title, its … menu).
+        setActivatorNodeRef(node)
+      }}
       style={{ opacity: isDragging ? 0 : undefined }}
       className={cn(
         "relative",
@@ -757,7 +764,10 @@ export function RoomSidebar({
                                             placeholder="Group"
                                             className="min-w-0 font-medium text-sidebar-foreground/70"
                                             viewClassName="truncate"
-                                            editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                                            editClassName={cn(
+                                              editableTextFieldClass,
+                                              "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
+                                            )}
                                           />
                                           {(() => {
                                             const id = groupBranchById.get(

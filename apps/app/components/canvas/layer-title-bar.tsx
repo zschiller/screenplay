@@ -2,7 +2,10 @@
 
 import { useMemo } from "react"
 import { cn } from "@workspace/ui/lib/utils"
-import { EditableText } from "@workspace/ui/components/editable-text"
+import {
+  EditableText,
+  editableTextFieldClass,
+} from "@workspace/ui/components/editable-text"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { showsLayerDetail } from "@/lib/canvas/camera"
 import { GroupLabel, type GroupWorkspace } from "./group-label"
@@ -230,7 +233,10 @@ export function LayerTitleText({
         // let the caret/text grow naturally so the user can see what they're
         // typing past the truncate boundary.
         viewClassName="truncate cursor-grab active:cursor-grabbing"
-        editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+        editClassName={cn(
+          editableTextFieldClass,
+          "-mx-0.5 -my-0.5 min-w-0 flex-1 px-0.5 py-0.5"
+        )}
       />
     )
   }

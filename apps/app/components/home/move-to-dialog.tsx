@@ -18,6 +18,7 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import {
   EditableText,
+  editableTextFieldClass,
   type EditableTextHandle,
 } from "@workspace/ui/components/editable-text"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
@@ -47,8 +48,10 @@ export function canMoveRoom(folders: FolderSummary[]): boolean {
 
 // The rename-in-place box, as the chat tabs draw it: a popped field whose
 // padding is cancelled by negative margins, so the row doesn't shift.
-const RENAME_EDIT_CLASS =
-  "relative z-10 -mx-0.5 -my-0.5 overflow-x-auto rounded-xs bg-background px-0.5 py-0.5 text-foreground shadow-sm ring-[0.5px] ring-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+const RENAME_EDIT_CLASS = cn(
+  editableTextFieldClass,
+  "-mx-0.5 -my-0.5 px-0.5 py-0.5"
+)
 
 type MoveToDialogProps = {
   open: boolean
