@@ -153,13 +153,13 @@ export class ExternalEngine implements SteeringEngine {
     const inOrder = serially()
     let steering: PromptSteering | null = null
     // Set once the turn has reported how it ended. An agent that keeps
-    // streaming after that (a stopped turn it hadn't wound down yet) has
-    // nothing more to show.
+    // streaming after that, or after a stop (the chat already shows it
+    // stopped while the agent winds down), has nothing more to show.
     let ended = false
     const ports: AcpSessionPorts = {
       onUpdate: (update) =>
         inOrder(async () => {
-          if (ended) return
+          if (ended || signal.aborted) return
           await sink({ kind: "session_update", update })
           // A finished tool call is the step boundary a Steer can join at.
           if (steering && endsToolCall(update)) await steering.take()

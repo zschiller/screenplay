@@ -199,16 +199,20 @@ describe("ExternalEngine — steering", () => {
     expect(updates).toHaveLength(1)
   })
 
-  it("a stop ends an agent that keeps working past the cancel", async () => {
+  it("a stop ends an agent that keeps working past the cancel, showing none of it", async () => {
     const updates: EngineUpdate[] = []
     const controller = new AbortController()
     const run = new ExternalEngine({
-      // An agent that never answers the cancel, like one still working a
-      // Steer it had taken.
+      // An agent that never answers the cancel and keeps talking, like one
+      // still working a Steer it had taken.
       sessionFactory: acpSessionFactoryFromDriver(
-        () => ({
-          consumeStream: () => {
+        (config) => ({
+          consumeStream: async () => {
             controller.abort()
+            await config.onChunk?.({
+              chunk: { type: "text-delta", id: "t", text: "Noted." },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any)
             return new Promise<void>(() => {})
           },
         }),
