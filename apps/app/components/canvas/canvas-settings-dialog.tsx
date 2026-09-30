@@ -120,7 +120,7 @@ export function CanvasSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="overflow-hidden p-0 md:max-h-[500px] md:max-w-[700px]"
+        className="overflow-hidden p-0 md:max-h-[500px] md:max-w-[700px] [&>[data-slot=dialog-close]]:top-2.5"
         // Focus the dialog itself rather than its first control, so opening
         // doesn't paint a focus ring on the section list.
         onOpenAutoFocus={(event) => {
@@ -163,7 +163,9 @@ export function CanvasSettingsDialog({
                   <BreadcrumbItem className="hidden md:block">
                     Canvas settings
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator className="hidden md:block" />
+                  <BreadcrumbSeparator className="hidden text-muted-foreground/60 md:block">
+                    /
+                  </BreadcrumbSeparator>
                   <BreadcrumbItem>
                     <BreadcrumbPage>{active.title}</BreadcrumbPage>
                   </BreadcrumbItem>
