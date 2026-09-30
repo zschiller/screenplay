@@ -41,12 +41,16 @@ import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 import { ResultLocation } from "./result-location"
 
 // The Name-column content of a folder row — icon, name and a muted contents
-// count. Shared by the live row and its drag preview so they stay in sync.
+// count. Shared by the live row and its drag preview so they stay in sync. The
+// icon sits centred in a thumbnail-sized slot, so folder and canvas names start
+// on one column and every row is the same height.
 function FolderRowName({ folder }: { folder: FolderSummary }) {
   const { folderContents } = useHome()
   return (
     <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
-      <FolderIcon className="size-4 shrink-0 text-primary" />
+      <span className={cn(ROW_THUMBNAIL, "grid place-items-center")}>
+        <FolderIcon className="size-4 shrink-0 text-primary" />
+      </span>
       <span className="truncate">
         <span className="font-medium">{folder.name}</span>
         <span className="text-muted-foreground">
@@ -64,14 +68,19 @@ function FolderRowName({ folder }: { folder: FolderSummary }) {
 // card uses, so a captured canvas shows its real layout. An uncaptured one
 // gets the grid's dashed empty preview. The composite never draws text.
 const ROW_THUMBNAIL =
-  "relative aspect-[4/3] h-14 shrink-0 overflow-hidden rounded-xs @2xl/home:h-20"
+  "relative aspect-[4/3] h-10 shrink-0 overflow-hidden rounded-xs"
 
 function RoomRowThumbnail({ room }: { room: RoomSummary }) {
   if (!hasThumbnail(room.thumbnailManifest)) {
     return <EmptyThumbnail className={ROW_THUMBNAIL} />
   }
   return (
-    <div className={cn(ROW_THUMBNAIL, "bg-canvas-plane ring-1 ring-border ring-inset")}>
+    <div
+      className={cn(
+        ROW_THUMBNAIL,
+        "bg-canvas-plane ring-1 ring-border ring-inset"
+      )}
+    >
       <ThumbnailComposite
         manifest={room.thumbnailManifest}
         version={room.thumbnailUpdatedAt}
@@ -182,10 +191,8 @@ function FolderRow({
       {...attributes}
       {...listeners}
       style={{ opacity: isDragging ? 0 : undefined }}
-      // Folder rows carry only an icon + name, so trim their vertical padding to
-      // sit shorter than the thumbnail-bearing canvas rows.
       className={cn(
-        "group border-b-0 [&>td]:py-1.5",
+        "group border-b-0",
         ROW_HOVER_PILL,
         isOver && ROW_DROP_RING
       )}
