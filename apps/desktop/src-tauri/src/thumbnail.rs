@@ -609,8 +609,13 @@ mod macos {
 
         let handler = RcBlock::new(move |result: *mut AnyObject, error: *mut AnyObject| {
             if !error.is_null() {
-                let description: *mut AnyObject = msg_send![error, localizedDescription];
-                let message = ns_string(description)
+                // A throw's own message is in the userInfo; the description is
+                // only WebKit's generic "A JavaScript exception occurred".
+                let message = error_user_info(error, "WKJavaScriptExceptionMessage")
+                    .or_else(|| {
+                        let description: *mut AnyObject = msg_send![error, localizedDescription];
+                        ns_string(description)
+                    })
                     .unwrap_or_else(|| "the script failed in the page".into());
                 let _ = tx.send(Err(message));
                 return;
@@ -633,6 +638,18 @@ mod macos {
             inContentWorld: world,
             completionHandler: &*handler
         ];
+    }
+
+    /// The string an `NSError`'s userInfo holds under `key`, if any.
+    unsafe fn error_user_info(error: *mut AnyObject, key: &str) -> Option<String> {
+        let info: *mut AnyObject = msg_send![error, userInfo];
+        if info.is_null() {
+            return None;
+        }
+        let key = CString::new(key).ok()?;
+        let key: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: key.as_ptr()];
+        let value: *mut AnyObject = msg_send![info, objectForKey: key];
+        ns_string(value)
     }
 
     /// An `NSString`'s text, or `None` for nil or any other kind of object.
