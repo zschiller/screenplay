@@ -269,6 +269,36 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     ]
   )
 
+  // Resolve a Chat Session's pool (agent vs doc, kept apart in buildTabPool) and
+  // let the pure Tab Pool decision say what survives, where selection lands, and
+  // whether to respawn. Close and remove both route through here, so the
+  // never-empty invariant and the sibling-filtering live in one tested place.
+  // A chat that is already closed isn't in its pool (removing it from the
+  // history menu decides nothing), and a chat with no agent or doc target has
+  // no pool at all; both return false and leave selection alone.
+  const resolveChatClose = useCallback(
+    (chatId: string, nextSelectedId?: string): boolean => {
+      const chat = chatSessions.find((c) => c.id === chatId)
+      if (!chat || chat.closedAt) return false
+      const target: TabPoolTarget | null = chat.branchId
+        ? { kind: "agent", branchId: chat.branchId }
+        : chat.markdownLayerId
+          ? { kind: "doc", markdownLayerId: chat.markdownLayerId }
+          : null
+      if (!target) return false
+      const pool = buildTabPool(target, chatSessions, localTerminals)
+      const outcome = resolveTabClose(
+        pool,
+        chatId,
+        chatTarget.selectedChatId,
+        nextSelectedId
+      )
+      applyTabCloseOutcome(outcome)
+      return true
+    },
+    [chatTarget, chatSessions, localTerminals, applyTabCloseOutcome]
+  )
+
   const open = useCallback(
     (spec: OpenTabSpec) => {
       if (spec.kind === "chat") {
@@ -336,37 +366,10 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         closeTerminal(chatId, nextSelectedId)
         return
       }
-      const chat = chatSessions.find((c) => c.id === chatId)
-      // Resolve the target's pool (agent vs doc, kept apart in buildTabPool) and
-      // let the pure Tab Pool decision say what survives, where selection lands,
-      // and whether to respawn — the same module both close paths route through,
-      // so the never-empty invariant and the sibling-filtering live in one
-      // tested place.
-      const target: TabPoolTarget | null = chat?.branchId
-        ? { kind: "agent", branchId: chat.branchId }
-        : chat?.markdownLayerId
-          ? { kind: "doc", markdownLayerId: chat.markdownLayerId }
-          : null
       updateChatSession(chatId, { closedAt: Date.now() })
-      if (!target) return
-      const pool = buildTabPool(target, chatSessions, localTerminals)
-      const outcome = resolveTabClose(
-        pool,
-        chatId,
-        chatTarget.selectedChatId,
-        nextSelectedId
-      )
-      applyTabCloseOutcome(outcome)
+      resolveChatClose(chatId, nextSelectedId)
     },
-    [
-      chatTarget,
-      chatSessions,
-      localTerminals,
-      updateChatSession,
-      isLocalTerminal,
-      closeTerminal,
-      applyTabCloseOutcome,
-    ]
+    [updateChatSession, isLocalTerminal, closeTerminal, resolveChatClose]
   )
 
   const reopen = useCallback(
@@ -383,32 +386,19 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         closeTerminal(chatId)
         return
       }
-      if (chatTarget.selectedChatId === chatId) {
-        const chat = chatSessions.find((c) => c.id === chatId)
-        if (chat) {
-          const sameTarget = (c: ChatSessionData) =>
-            chat.branchId
-              ? c.branchId === chat.branchId
-              : chat.markdownLayerId
-                ? c.markdownLayerId === chat.markdownLayerId
-                : false
-          const siblings = chatSessions
-            .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
-            .sort((a, b) => a.createdAt - b.createdAt)
-          chatTarget.selectChatId(siblings[0]?.id ?? null)
-        } else {
-          chatTarget.selectChatId(null)
-        }
+      // A deleted chat can't stay selected, even when it had no pool to decide.
+      if (!resolveChatClose(chatId) && chatTarget.selectedChatId === chatId) {
+        chatTarget.selectChatId(null)
       }
       chatStore.cleanup(chatId)
       removeChatSession(chatId)
     },
     [
       chatTarget,
-      chatSessions,
       removeChatSession,
       isLocalTerminal,
       closeTerminal,
+      resolveChatClose,
     ]
   )
 
