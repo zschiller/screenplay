@@ -1,7 +1,12 @@
 import { tool, jsonSchema, type ToolSet } from "ai"
 import type * as Y from "yjs"
 import { createCanvasOps, type CanvasOps } from "@/lib/canvas/ops"
-import { getGroupMembers, placeNewIframeLayerGroup } from "@/lib/canvas/layout"
+import {
+  getGroupMembers,
+  groupContentHeight,
+  groupContentWidth,
+  placeNewIframeLayerGroup,
+} from "@/lib/canvas/layout"
 import {
   DEFAULT_IFRAME_LAYER_HEIGHT,
   DEFAULT_IFRAME_LAYER_WIDTH,
@@ -170,6 +175,59 @@ export function buildArrangeTools(
             y: Math.round(y),
           })
           return `Moved Group "${group.name ?? group_id}" to ${Math.round(x)}, ${Math.round(y)}.`
+        }),
+    }),
+
+    arrange_groups: tool({
+      description:
+        "Lay Groups out in the given order so none overlap: `row` (left to right, tops aligned), `column` (top to bottom, left edges aligned) or `grid` (rows of `columns`, default about square). They start at the top-left corner of where the listed Groups are now. Use it to tidy the canvas or put Groups side by side instead of working out positions for `move_group`.",
+      inputSchema: jsonSchema<{
+        group_ids: string[]
+        layout: "row" | "column" | "grid"
+        columns?: number
+      }>({
+        type: "object",
+        properties: {
+          group_ids: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+          },
+          layout: { type: "string", enum: ["row", "column", "grid"] },
+          columns: { type: "integer", minimum: 1 },
+        },
+        required: ["group_ids", "layout"],
+      }),
+      execute: async ({ group_ids, layout, columns }) =>
+        change((doc) => {
+          const { ops, c } = freshOps(doc)
+          const missing = group_ids.filter((id) => !c.iframeLayerGroups.get(id))
+          if (missing.length) return `Error: no Group ${missing.join(", ")}.`
+          const ids = [...new Set(group_ids)]
+          const rects = groupRects(c)
+          const placed = arrangeRects(
+            ids.map((id) => ({ id, ...rects.get(id)! })),
+            layout,
+            columns
+          )
+          for (const [id, { x, y }] of placed) {
+            ops.patch("iframeLayerGroups", id, { x, y })
+          }
+          const moved = new Map(
+            [...rects].map(([id, r]) => [id, { ...r, ...placed.get(id) }])
+          )
+          const names = ids.map((id) => `"${groupName(c, id)}"`).join(", ")
+          const where = {
+            row: "in a row",
+            column: "in a column",
+            grid: "in a grid",
+          }[layout]
+          const clashes = overlapping(moved, new Set(ids)).map(
+            (id) => `"${groupName(c, id)}"`
+          )
+          return clashes.length
+            ? `Laid out Groups ${names} ${where}. They now overlap ${clashes.join(", ")}.`
+            : `Laid out Groups ${names} ${where}.`
         }),
     }),
 
@@ -407,6 +465,82 @@ function newGroupAnchor(
     size.height,
     c.markdownLayers.toArray()
   )
+}
+
+/** Space between Groups laid out by `arrange_groups`, clear of their names. */
+const ARRANGE_GAP = 200
+
+type GroupRect = { x: number; y: number; width: number; height: number }
+
+/** Every Group's canvas rect: its top-left corner and its row's extent. */
+function groupRects(c: RoomCollections): Map<string, GroupRect> {
+  const frames = c.iframeLayers.toArray()
+  const documents = c.markdownLayers.toArray()
+  return new Map(
+    c.iframeLayerGroups.toArray().map((g) => [
+      g.id,
+      {
+        x: g.x,
+        y: g.y,
+        width: groupContentWidth(g, frames, documents),
+        height: groupContentHeight(g, frames, documents),
+      },
+    ])
+  )
+}
+
+/**
+ * New top-left corners for `rects`, by id, laid out in order from the corner
+ * of their current bounds with {@link ARRANGE_GAP} between them.
+ */
+export function arrangeRects(
+  rects: readonly (GroupRect & { id: string })[],
+  layout: "row" | "column" | "grid",
+  columns?: number
+): Map<string, { x: number; y: number }> {
+  const originX = Math.round(Math.min(...rects.map((r) => r.x)))
+  const originY = Math.round(Math.min(...rects.map((r) => r.y)))
+  const perRow =
+    layout === "row"
+      ? rects.length
+      : layout === "column"
+        ? 1
+        : (columns ?? Math.ceil(Math.sqrt(rects.length)))
+  const placed = new Map<string, { x: number; y: number }>()
+  let y = originY
+  for (let start = 0; start < rects.length; start += perRow) {
+    const row = rects.slice(start, start + perRow)
+    let x = originX
+    for (const r of row) {
+      placed.set(r.id, { x, y })
+      x += Math.round(r.width) + ARRANGE_GAP
+    }
+    y += Math.round(Math.max(...row.map((r) => r.height))) + ARRANGE_GAP
+  }
+  return placed
+}
+
+/** Groups outside `arranged` whose rects intersect an arranged one. */
+function overlapping(
+  rects: Map<string, GroupRect>,
+  arranged: Set<string>
+): string[] {
+  const hit = (a: GroupRect, b: GroupRect) =>
+    a.x < b.x + b.width &&
+    b.x < a.x + a.width &&
+    a.y < b.y + b.height &&
+    b.y < a.y + a.height
+  return [...rects].flatMap(([id, r]) =>
+    !arranged.has(id) &&
+    r.width > 0 &&
+    [...arranged].some((a) => hit(rects.get(a)!, r))
+      ? [id]
+      : []
+  )
+}
+
+function groupName(c: RoomCollections, id: string): string {
+  return c.iframeLayerGroups.get(id)?.name ?? id
 }
 
 /** The Group holding a frame or document, if any. */

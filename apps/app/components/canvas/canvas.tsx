@@ -192,6 +192,8 @@ import { CanvasToolbar } from "./canvas-toolbar"
 import { CanvasZoomMenu } from "./canvas-zoom-menu"
 
 import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
+import { viewRequests } from "@/lib/canvas/view-requests"
+import { roomChatId } from "@/lib/chat/room-chat"
 
 import { ShortcutSheet } from "./shortcut-sheet"
 
@@ -236,6 +238,9 @@ import {
 const COMMENTS_PANEL_INSET_PX = 320 + 8 + 8
 
 const ASK_FOR_KNOB_PROMPT = "Add a knob to this prototype that controls "
+
+/** How long a Coordinator view request waits for the doc to catch up. */
+const VIEW_REQUEST_SETTLE_MS = 250
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
@@ -660,6 +665,42 @@ export function Canvas({
     }),
     [cameraZoomIn, cameraZoomOut, cameraZoomTo, cameraZoomToFit]
   )
+
+  // The Coordinator's `show_on_canvas`, in a turn this member asked for: fit
+  // the frames, documents and Groups it names, or the whole canvas.
+  const { zoomToRect: cameraZoomToRect } = camera
+  const iframeLayerGroupsRef = useRef(iframeLayerGroups)
+  useEffect(() => {
+    iframeLayerGroupsRef.current = iframeLayerGroups
+  })
+  useEffect(() => {
+    let timer: number | undefined
+    const unsubscribe = viewRequests.subscribe(({ chatId, ids }) => {
+      if (chatId !== roomChatId(roomId)) return
+      // The call's broadcast can land before the doc update that moved what
+      // it names, so let the layout catch up first.
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        if (ids.length === 0) return zoomControls.zoomToFit()
+        const memberIds = ids.flatMap((id) => {
+          const group = iframeLayerGroupsRef.current.find((g) => g.id === id)
+          return group ? getGroupMembers(group).map((m) => m.id) : [id]
+        })
+        const layouts = iframeLayerLayoutsRef.current
+        const rect = unionRect(
+          memberIds.flatMap((id) => {
+            const layout = layouts.get(id)
+            return layout ? [layout] : []
+          })
+        )
+        if (rect) cameraZoomToRect(rect)
+      }, VIEW_REQUEST_SETTLE_MS)
+    })
+    return () => {
+      unsubscribe()
+      window.clearTimeout(timer)
+    }
+  }, [roomId, zoomControls, cameraZoomToRect])
 
   // The comments panel (#787); Escape closes it from anywhere on the canvas.
   const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)

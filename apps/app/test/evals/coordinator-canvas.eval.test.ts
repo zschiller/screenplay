@@ -20,15 +20,18 @@ import {
 } from "@/lib/agent/room-tools"
 import { DEFAULT_MODEL, resolveLanguageModel } from "@/lib/agent/providers"
 import { getSkillIndex } from "@/lib/skills"
-import { computeIframeLayerLayouts, groupContentHeight, groupContentWidth } from "@/lib/canvas/layout"
+import {
+  computeIframeLayerLayouts,
+  groupContentHeight,
+  groupContentWidth,
+} from "@/lib/canvas/layout"
 import { createRoomCollections, getRoomCollections } from "@/lib/yjs/schema"
 import type {
-  BranchData,
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
-  RepoData,
 } from "@/lib/types"
+import { messyCanvas } from "./coordinator-canvas-fixture"
 
 const RUN = process.env.COORD_EVAL === "1"
 const OUT = process.env.COORD_EVAL_OUT ?? ".coord-eval"
@@ -48,122 +51,6 @@ export const ASKS: Record<string, string> = {
   fit: "Zoom out so I can see everything.",
   focusVariantB: "Take me to the split screen variant.",
   removeAndShow: "Remove the blank frame and then show me the cart.",
-}
-
-const now = Date.UTC(2026, 8, 30, 12)
-const repoId = "repo-storefront"
-
-function branch(
-  id: string,
-  title: string,
-  ref: string,
-  extra: Partial<BranchData> = {}
-): BranchData {
-  return {
-    id,
-    repoId,
-    sandboxName: ref,
-    gitUrl: "https://github.com/acme/storefront.git",
-    ref,
-    title,
-    previewDomain: `${ref}.preview.test`,
-    port: 3000,
-    status: "running",
-    createdAt: now - 60_000,
-    lastActivityAt: now - 60_000,
-    colorIndex: 0,
-    sidebarOrder: 0,
-    ...extra,
-  } as BranchData
-}
-
-function frame(
-  id: string,
-  label: string,
-  branchId: string | undefined,
-  route: string | undefined,
-  size: "desktop" | "phone"
-): IframeLayerData {
-  return {
-    id,
-    label,
-    ...(branchId ? { branchId } : {}),
-    ...(route ? { route } : {}),
-    width: size === "desktop" ? 1280 : 402,
-    height: size === "desktop" ? 800 : 874,
-    iframeState: {},
-  } as IframeLayerData
-}
-
-function group(
-  id: string,
-  name: string,
-  x: number,
-  y: number,
-  members: Array<[kind: "iframe-layer" | "markdown-layer", id: string]>
-): IframeLayerGroupData {
-  return {
-    id,
-    name,
-    x,
-    y,
-    members: members.map(([kind, id]) => ({ kind, id })),
-  } as IframeLayerGroupData
-}
-
-/**
- * A canvas that grew by hand: the variants landed wherever, the brief is far
- * off, a blank frame was never used, and two Groups overlap.
- */
-export function messyCanvas() {
-  const repo = {
-    id: repoId,
-    name: "storefront",
-    repoFullName: "acme/storefront",
-    repoOwner: "acme",
-    repoName: "storefront",
-    defaultBranch: "main",
-    cloneUrl: "https://github.com/acme/storefront.git",
-    createdAt: now - 86_400_000,
-    sidebarOrder: 0,
-  } as RepoData
-  const branches = [
-    branch("ws-polish", "Checkout polish", "checkout-polish"),
-    branch("ws-cart", "Empty cart state", "empty-cart-state"),
-    branch("ws-a", "Checkout: single column", "checkout-single-column"),
-    branch("ws-b", "Checkout: split screen", "checkout-split-screen"),
-    branch("ws-c", "Checkout: accordion", "checkout-accordion"),
-  ]
-  const iframeLayers = [
-    frame("f-polish-desk", "Checkout · desktop", "ws-polish", "/checkout", "desktop"),
-    frame("f-polish-phone", "Checkout · iPhone 17 Pro", "ws-polish", "/checkout", "phone"),
-    frame("f-cart", "Empty cart", "ws-cart", "/cart", "desktop"),
-    frame("f-blank", "Frame", undefined, undefined, "desktop"),
-    frame("f-a-desk", "Checkout", "ws-a", "/checkout", "desktop"),
-    frame("f-a-phone", "Checkout · phone", "ws-a", "/checkout", "phone"),
-    frame("f-b-desk", "Checkout", "ws-b", "/checkout", "desktop"),
-    frame("f-c-desk", "Checkout", "ws-c", "/checkout", "desktop"),
-  ]
-  const markdownLayers = [
-    { id: "doc-brief", title: "Checkout brief", width: 720, height: 800 },
-  ] as MarkdownLayerData[]
-  const iframeLayerGroups = [
-    group("g-polish", "Checkout polish", 0, 0, [
-      ["iframe-layer", "f-polish-desk"],
-      ["iframe-layer", "f-polish-phone"],
-    ]),
-    // Overlaps Checkout polish's phone frame.
-    group("g-cart", "Empty cart state", 1500, 300, [["iframe-layer", "f-cart"]]),
-    group("g-blank", "Group 3", 400, 1150, [["iframe-layer", "f-blank"]]),
-    group("g-a", "Checkout: single column", 2300, 2200, [
-      ["iframe-layer", "f-a-desk"],
-      ["iframe-layer", "f-a-phone"],
-    ]),
-    group("g-b", "Checkout: split screen", -1900, 2600, [["iframe-layer", "f-b-desk"]]),
-    group("g-c", "Checkout: accordion", 3600, 700, [["iframe-layer", "f-c-desk"]]),
-    group("g-brief", "Group 7", 6200, -900, [["markdown-layer", "doc-brief"]]),
-  ]
-  return { repos: [repo], branches, iframeLayers, markdownLayers, iframeLayerGroups }
 }
 
 function seed(doc: Y.Doc) {
@@ -204,9 +91,15 @@ function ports(doc: Y.Doc): RoomToolPorts {
 /** Group rects, and every pair of Groups whose rects intersect. */
 export function layoutReport(doc: Y.Doc) {
   const c = createRoomCollections(doc)
-  const groups = Object.values(doc.getMap("iframeLayerGroups").toJSON()) as IframeLayerGroupData[]
-  const frames = Object.values(doc.getMap("iframeLayers").toJSON()) as IframeLayerData[]
-  const docs = Object.values(doc.getMap("markdownLayers").toJSON()) as MarkdownLayerData[]
+  const groups = Object.values(
+    doc.getMap("iframeLayerGroups").toJSON()
+  ) as IframeLayerGroupData[]
+  const frames = Object.values(
+    doc.getMap("iframeLayers").toJSON()
+  ) as IframeLayerData[]
+  const docs = Object.values(
+    doc.getMap("markdownLayers").toJSON()
+  ) as MarkdownLayerData[]
   void c
   const rects = groups.map((g) => ({
     id: g.id,
@@ -222,10 +115,17 @@ export function layoutReport(doc: Y.Doc) {
     for (let j = i + 1; j < rects.length; j++) {
       const a = rects[i]!
       const b = rects[j]!
-      if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)
+      if (
+        a.x < b.x + b.w &&
+        b.x < a.x + a.w &&
+        a.y < b.y + b.h &&
+        b.y < a.y + a.h
+      )
         overlaps.push(`${a.name} × ${b.name}`)
     }
-  const layouts = Object.fromEntries(computeIframeLayerLayouts(groups, frames, docs))
+  const layouts = Object.fromEntries(
+    computeIframeLayerLayouts(groups, frames, docs)
+  )
   return { rects, overlaps, layouts, groups, frames, docs }
 }
 
@@ -233,7 +133,10 @@ describe.skipIf(!RUN)("Coordinator canvas eval", () => {
   mkdirSync(OUT, { recursive: true })
   const before = new Y.Doc()
   seed(before)
-  writeFileSync(join(OUT, "before.json"), JSON.stringify(layoutReport(before), null, 2))
+  writeFileSync(
+    join(OUT, "before.json"),
+    JSON.stringify(layoutReport(before), null, 2)
+  )
 
   for (const [key, ask] of Object.entries(ASKS)) {
     if (ONLY && !ONLY.includes(key)) continue
@@ -256,10 +159,18 @@ describe.skipIf(!RUN)("Coordinator canvas eval", () => {
         s.toolCalls.map((call) => ({
           tool: call.toolName,
           input: call.input,
-          output: s.toolResults.find((r) => r.toolCallId === call.toolCallId)?.output,
+          output: s.toolResults.find((r) => r.toolCallId === call.toolCallId)
+            ?.output,
         }))
       )
-      const report = { key, ask, model: MODEL, text: result.text, calls, after: layoutReport(doc) }
+      const report = {
+        key,
+        ask,
+        model: MODEL,
+        text: result.text,
+        calls,
+        after: layoutReport(doc),
+      }
       writeFileSync(join(OUT, `${key}.json`), JSON.stringify(report, null, 2))
       if (key === "tidy") writeFileSync(join(OUT, "system-prompt.txt"), system)
     })

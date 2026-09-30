@@ -137,6 +137,7 @@ describe("room chat target", () => {
     const tools = roomChatTarget.buildTools(room, { userId: "user-1" })
 
     expect(Object.keys(tools).sort()).toEqual([
+      "arrange_groups",
       "create_document",
       "create_frames",
       "create_workspaces",
@@ -155,6 +156,7 @@ describe("room chat target", () => {
       "remove_workspace",
       "rename",
       "send_to_workspace",
+      "show_on_canvas",
       "stop_workspace",
       "undo_changes",
       "view_frame",

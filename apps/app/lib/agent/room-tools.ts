@@ -3,7 +3,12 @@ import "server-only"
 import { tool, jsonSchema, type ToolSet } from "ai"
 import { nanoid } from "nanoid"
 import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
-import { getGroupMembers } from "@/lib/canvas/layout"
+import { buildViewTools } from "@/lib/agent/room-view-tools"
+import {
+  getGroupMembers,
+  groupContentHeight,
+  groupContentWidth,
+} from "@/lib/canvas/layout"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
 import { isFreshWorkspace } from "@/lib/fresh-workspace"
 import { workspaceLabel } from "@/lib/workspace-label"
@@ -174,12 +179,15 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   create_frames: { destructiveHint: false, openWorldHint: false },
   create_document: { destructiveHint: false, openWorldHint: false },
   move_group: { destructiveHint: false, openWorldHint: false },
+  arrange_groups: { destructiveHint: false, openWorldHint: false },
   move_to_group: { destructiveHint: false, openWorldHint: false },
   merge_groups: { destructiveHint: false, openWorldHint: false },
   rename: { destructiveHint: false, openWorldHint: false },
   remove: { destructiveHint: false, openWorldHint: false },
   undo_changes: { destructiveHint: false, openWorldHint: false },
   list_changes: { readOnlyHint: true, openWorldHint: false },
+  // Moves only the asker's own view (`room-view-tools.ts`).
+  show_on_canvas: { readOnlyHint: true, openWorldHint: false },
 }
 
 /**
@@ -193,6 +201,7 @@ export function buildRoomTools(
 ): ToolSet {
   return {
     ...buildArrangeTools(ports.mutateDoc, turnId),
+    ...buildViewTools(ports.readDoc),
     read_canvas: tool({
       description:
         "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
@@ -1073,6 +1082,9 @@ export function summarizeCanvas(
       [
         `- [${g.id}] "${clip(g.name ?? "Group")}"`,
         `at ${Math.round(g.x)}, ${Math.round(g.y)}`,
+        // Its extent, so a move can clear its neighbours (items sit in one
+        // row, left to right, the Group's gap apart).
+        `${Math.round(groupContentWidth(g, frames, documents))}×${Math.round(groupContentHeight(g, frames, documents))}`,
         `${getGroupMembers(g).length} items`,
       ].join(" · ")
     ),

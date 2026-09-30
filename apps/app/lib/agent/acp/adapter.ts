@@ -216,12 +216,14 @@ export function toolKindFor(toolName: string): ToolKind {
     case "undo_changes":
       return "edit"
     case "move_group":
+    case "arrange_groups":
     case "move_to_group":
     case "merge_groups":
       return "move"
     case "remove":
       return "delete"
     case "list_changes":
+    case "show_on_canvas":
       return "read"
     case "run_command":
       return "execute"

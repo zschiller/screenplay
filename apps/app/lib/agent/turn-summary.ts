@@ -165,6 +165,7 @@ type Category =
   | "viewFrame"
   | "listChanges"
   | "memory"
+  | "view"
 
 const TITLE_CATEGORY: Record<string, Category> = {
   read_file: "read",
@@ -179,6 +180,7 @@ const TITLE_CATEGORY: Record<string, Category> = {
   create_frames: "canvas",
   create_document: "canvas",
   move_group: "canvas",
+  arrange_groups: "canvas",
   move_to_group: "canvas",
   merge_groups: "canvas",
   rename: "canvas",
@@ -190,6 +192,7 @@ const TITLE_CATEGORY: Record<string, Category> = {
   read_workspace_diff: "readWorkspace",
   view_frame: "viewFrame",
   list_changes: "listChanges",
+  show_on_canvas: "view",
   write_memory: "memory",
 }
 
@@ -267,6 +270,7 @@ function failureName(call: ToolCallMessage): string {
   if (category === "viewFrame") return "View frame"
   if (category === "listChanges") return "List changes"
   if (category === "memory") return "Save to memory"
+  if (category === "view") return "Show on canvas"
   return "A step"
 }
 
@@ -320,6 +324,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     viewFrame: new Set(),
     listChanges: new Set(),
     memory: new Set(),
+    view: new Set(),
   }
   let other = 0
   const failures = failed.map(failureName)
@@ -360,6 +365,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     n("listChanges") && "listed changes",
     n("canvas") && "changed the canvas",
     n("memory") && "saved to memory",
+    n("view") && "moved the view",
     runs.length > 0 && `ran ${runs.join(" and ")}`,
     n("search") && `searched ${plural(n("search"), "time", "times")}`,
   ].filter((p): p is string => typeof p === "string")
