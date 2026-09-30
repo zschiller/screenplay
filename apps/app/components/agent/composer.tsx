@@ -61,7 +61,9 @@ import {
   serializeSkill,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
+import Link from "next/link"
 import type { ModelInfo } from "@/lib/models-store"
+import { isLocalBuild } from "@/lib/local-mode"
 import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
@@ -335,6 +337,13 @@ export interface ComposerProps {
    * shows "Loading…" on an empty catalog, as before.
    */
   modelsLoaded?: boolean
+  /**
+   * The model catalog fetch failed. The composer says so with Retry, rather
+   * than reading the missing list as "no coding agent".
+   */
+  modelsFailed?: boolean
+  /** Fetch the model catalog again after it failed. */
+  onRetryModels?: () => void
   /** The currently-selected model id (already resolved by the caller). */
   model: string
   /**
@@ -467,6 +476,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       enableSkills = false,
       models,
       modelsLoaded = false,
+      modelsFailed = false,
+      onRetryModels,
       model,
       defaultModel,
       onModelChange,
@@ -926,10 +937,35 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           <EmptyAwarePlaceholder editor={editor} text={placeholder} />
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end" className="gap-0.5">
-            {noAgents ? (
+            {modelsFailed ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                Couldn&apos;t load models.
+                {onRetryModels && (
+                  <InputGroupButton
+                    size="xs"
+                    className="text-xs text-foreground"
+                    onClick={onRetryModels}
+                  >
+                    Retry
+                  </InputGroupButton>
+                )}
+              </span>
+            ) : noAgents ? (
               <span className="text-xs text-muted-foreground">
-                No coding agent detected — install a CLI (e.g. Claude Code or
-                Codex) and restart, or add one in Settings.
+                {isLocalBuild ? (
+                  <>
+                    No coding agent found. Install Claude Code or Codex in{" "}
+                    <Link
+                      href="/settings?section=coding-agents"
+                      className="text-foreground underline underline-offset-2"
+                    >
+                      Settings
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  "No models are set up on this server yet."
+                )}
               </span>
             ) : (
               <DropdownMenu>

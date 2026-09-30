@@ -1305,6 +1305,49 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
+    name: "canvas-chat-history-failed",
+    description:
+      "A chat whose history didn't load: the failure with Retry, not the empty chat.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: async (page) => {
+      await page.route("**/api/agent/history*", (route) =>
+        route.fulfill({ status: 502, body: "" })
+      )
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-chat-models-failed",
+    description:
+      "A chat whose model list didn't load: the composer says so, with Retry.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: async (page) => {
+      await page.route("**/api/agent/models", (route) =>
+        route.fulfill({ status: 500, body: "" })
+      )
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-chat-no-agent",
+    description:
+      "A chat on a device with no coding agent: the composer points to Settings.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: async (page) => {
+      await page.route("**/api/agent/models", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ models: [], defaultModelId: null }),
+        })
+      )
+    },
+    settleMs: 600,
+  },
+  {
     name: "canvas-chat-queued",
     description:
       "A message sent with Enter while an agent that can't be steered is still running: the Queued row.",

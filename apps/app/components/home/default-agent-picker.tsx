@@ -32,6 +32,9 @@ import { useDefaultModel, writeDefaultModel } from "@/lib/default-model-store"
 export function DefaultAgentPicker({ label }: { label: string }) {
   const [models, setModels] = useState<ModelInfo[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
+  // Bumped by Retry on a failed model list, to fetch it again.
+  const [attempt, setAttempt] = useState(0)
   const [serverDefault, setServerDefault] = useState<string | null>(null)
   const userDefault = useDefaultModel()
 
@@ -42,15 +45,18 @@ export function DefaultAgentPicker({ label }: { label: string }) {
         if (cancelled) return
         setModels(list)
         setServerDefault(def)
+        setFailed(false)
+        setLoaded(true)
       })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoaded(true)
+      .catch(() => {
+        // A list that failed isn't an empty one, so it doesn't read as "No
+        // coding agent installed yet".
+        if (!cancelled) setFailed(true)
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [attempt])
 
   const current = resolveDefaultModel({
     stored: userDefault,
@@ -63,7 +69,22 @@ export function DefaultAgentPicker({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
       <span className="w-28 shrink-0 text-sm">{label}</span>
-      {loaded && models.length === 0 ? (
+      {failed ? (
+        <span className="flex items-center gap-2 text-sm text-muted-foreground">
+          Couldn&apos;t load models.
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFailed(false)
+              setAttempt((n) => n + 1)
+            }}
+          >
+            Retry
+          </Button>
+        </span>
+      ) : loaded && models.length === 0 ? (
         <span className="text-sm text-muted-foreground">
           No coding agent installed yet.
         </span>

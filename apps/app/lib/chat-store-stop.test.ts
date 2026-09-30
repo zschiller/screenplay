@@ -87,8 +87,13 @@ describe("chat-store — stopping a run (#729)", () => {
     const state = chatStore.getSnapshot(chatId)
     expect(state.isStreaming).toBe(false)
     expect(state.messages).toEqual([
-      { role: "error", content: "Couldn't stop the agent: Run not found" },
+      {
+        role: "error",
+        content: "Couldn't stop the agent.",
+        detail: "Run not found",
+      },
     ])
+    expect(chatStore.canRetryError(state.messages[0])).toBe(true)
     chatStore.cleanup(chatId)
   })
 })

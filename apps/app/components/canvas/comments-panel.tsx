@@ -374,7 +374,22 @@ export function CommentsPanel({
               </FilterButton>
             ))}
           </div>
-          {ordered.length === 0 ? (
+          {commentThreads.threadsFailed ? (
+            // A list that didn't load isn't an empty one.
+            <div
+              role="alert"
+              className="flex flex-col items-center gap-3 px-3 py-6 text-center text-balance text-muted-foreground"
+            >
+              Couldn&apos;t load comments.
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={commentThreads.retryThreads}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : ordered.length === 0 ? (
             <p className="px-3 py-6 text-center text-balance text-muted-foreground">
               {emptyText(filter, threads.length > 0)}
             </p>

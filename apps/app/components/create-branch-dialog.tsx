@@ -148,6 +148,10 @@ export function CreateBranchDialog({
   const [skills, setSkills] = useState<SkillMenuItem[]>([])
   const [skillsLoading, setSkillsLoading] = useState(true)
 
+  const [modelsFailed, setModelsFailed] = useState(false)
+  // Bumped by Retry on a failed model list, to fetch it again.
+  const [modelsAttempt, setModelsAttempt] = useState(0)
+
   // Load the model catalog + server default while the dialog is open.
   useEffect(() => {
     if (!open) return
@@ -157,12 +161,15 @@ export function CreateBranchDialog({
         if (cancelled) return
         setModels(list)
         setServerDefaultModel(def)
+        setModelsFailed(false)
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setModelsFailed(true)
+      })
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, modelsAttempt])
 
   // Load the `/`-Skill menu while the dialog is open. There's no Sandbox yet,
   // so this is App Skills only (resolveSkillMenuSource with no Sandbox, #320);
@@ -294,6 +301,8 @@ export function CreateBranchDialog({
                   focused={idx === focusedIndex}
                   canRemove={rows.length > 1}
                   models={models}
+                  modelsFailed={modelsFailed}
+                  onRetryModels={() => setModelsAttempt((n) => n + 1)}
                   defaultModel={initialModel}
                   skills={skills}
                   skillsLoading={skillsLoading}
@@ -358,6 +367,9 @@ interface WorkspaceRowProps {
   /** Whether a remove control is offered (hidden when a single row remains). */
   canRemove: boolean
   models: ModelInfo[]
+  /** The model list failed to load; the Composer says so with Retry. */
+  modelsFailed: boolean
+  onRetryModels: () => void
   /** The model new Workspaces start from, so a row on another one says so. */
   defaultModel: string
   skills: SkillMenuItem[]
@@ -387,6 +399,8 @@ function WorkspaceRow({
   focused,
   canRemove,
   models,
+  modelsFailed,
+  onRetryModels,
   defaultModel,
   skills,
   skillsLoading,
@@ -506,6 +520,8 @@ function WorkspaceRow({
           skillsLoading={skillsLoading}
           enableSkills
           models={models}
+          modelsFailed={modelsFailed}
+          onRetryModels={onRetryModels}
           model={row.model}
           defaultModel={defaultModel}
           onModelChange={onModelChange}

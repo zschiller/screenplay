@@ -16,6 +16,7 @@ import {
   CheckCircleIcon,
   ClipboardTextIcon,
   ClockCounterClockwiseIcon,
+  CopyIcon,
   CrosshairIcon,
   EyeIcon,
   FilePlusIcon,
@@ -45,6 +46,7 @@ import {
 } from "@workspace/ui/components/collapsible"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
+import { toast } from "sonner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -1279,10 +1281,13 @@ export function AgentMessageItem({
   message,
   roomId,
   chatId,
+  onRetry,
 }: {
   message: AgentMessage
   roomId?: string
   chatId?: string
+  /** Retry for an error the chat can redo (a failed turn, approval or stop). */
+  onRetry?: () => Promise<unknown>
 }) {
   switch (message.role) {
     case "user":
@@ -1311,19 +1316,7 @@ export function AgentMessageItem({
       )
 
     case "error":
-      return (
-        // Wraps anywhere: a transcript error is often one long URL or stack
-        // line with no spaces to break on.
-        <div
-          data-testid="chat-error"
-          className="flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs text-destructive"
-        >
-          <WarningCircleIcon aria-hidden className="mt-px size-3 shrink-0" />
-          <p className="min-w-0 flex-1 [overflow-wrap:anywhere] whitespace-pre-wrap">
-            {message.content}
-          </p>
-        </div>
-      )
+      return <ErrorMessage message={message} onRetry={onRetry} />
 
     case "stopped":
       // A rule across the transcript rather than a bubble: it marks where the
@@ -1343,4 +1336,67 @@ export function AgentMessageItem({
         </div>
       )
   }
+}
+
+/**
+ * An error in the transcript: one plain sentence, with Retry where the chat can
+ * redo what failed and the raw error behind Copy error, as the Workspace setup
+ * failure card has it.
+ */
+function ErrorMessage({
+  message,
+  onRetry,
+}: {
+  message: AgentMessage & { role: "error" }
+  onRetry?: () => Promise<unknown>
+}) {
+  const [retrying, setRetrying] = useState(false)
+  const { detail } = message
+  const copyError = () => {
+    if (!detail) return
+    void navigator.clipboard
+      ?.writeText(detail)
+      .then(() => toast.success("Error copied"))
+      .catch(() => toast.error("Couldn't copy the error"))
+  }
+  return (
+    <div
+      data-testid="chat-error"
+      className="flex items-start gap-1.5 rounded-md border py-1 pr-1 pl-2 text-xs"
+    >
+      <WarningCircleIcon
+        aria-hidden
+        className="mt-1.5 size-3 shrink-0 text-destructive"
+      />
+      {/* Wraps anywhere: an older error may still be one long URL or stack
+          line with no spaces to break on. */}
+      <p className="min-w-0 flex-1 py-1 [overflow-wrap:anywhere] whitespace-pre-wrap">
+        {message.content}
+      </p>
+      {detail && (
+        <Button variant="ghost" size="xs" onClick={copyError}>
+          <CopyIcon />
+          Copy error
+        </Button>
+      )}
+      {onRetry && (
+        <Button
+          variant="outline"
+          size="xs"
+          disabled={retrying}
+          onClick={async () => {
+            setRetrying(true)
+            try {
+              await onRetry()
+            } finally {
+              setRetrying(false)
+            }
+          }}
+        >
+          {retrying && <Spinner />}
+          Retry
+        </Button>
+      )}
+    </div>
+  )
 }

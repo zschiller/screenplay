@@ -7,6 +7,7 @@ import {
   type SessionUpdate,
 } from "@/lib/agent/acp/schema"
 import { applyToolCallUpdate } from "@/lib/agent/acp/record"
+import { describeTurnError } from "@/lib/agent/chat-errors"
 import { confirmCardOf } from "@/lib/agent/confirm-card"
 import { withBasePath } from "@/lib/base-path"
 import { isFixtureWorld } from "@/lib/fixture-world"
@@ -15,6 +16,8 @@ export type ChatState = {
   messages: AgentMessage[]
   isStreaming: boolean
   isLoadingHistory: boolean
+  /** The history fetch failed, so an empty log isn't an empty chat. */
+  historyFailed: boolean
   error: string | null
   /**
    * The last send the server refused, held so the user can Retry it or pull it
@@ -181,6 +184,7 @@ const DEFAULT_STATE: ChatState = {
   messages: [],
   isStreaming: false,
   isLoadingHistory: false,
+  historyFailed: false,
   error: null,
   failedSend: null,
   queued: [],
@@ -194,7 +198,7 @@ async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
   const res = await fetch(
     withBasePath(`/api/agent/history?chatId=${encodeURIComponent(chatId)}`)
   )
-  if (!res.ok) return []
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
 
@@ -244,6 +248,19 @@ let steerSeq = 0
 class ChatStore {
   private states = new Map<string, ChatState>()
   private historyLoaded = new Set<string>()
+
+  /**
+   * What Retry on a transcript error does, by the error message it sits on.
+   * Kept out of the message itself, which is plain data that also comes from
+   * the server and from other clients.
+   */
+  private errorRetries = new WeakMap<AgentMessage, () => Promise<unknown>>()
+
+  /**
+   * The last message this client started a turn with, per chat, so Retry on
+   * that turn's failure can send it again.
+   */
+  private lastTurn = new Map<string, SendMessageOptions>()
   private listeners = new Map<string, Set<() => void>>()
   private unreadChats = new Set<string>()
   /**
@@ -378,8 +395,8 @@ class ChatStore {
 
   // --- History loading (initial load only) ---
 
-  loadHistory(chatId: string) {
-    if (this.historyLoaded.has(chatId)) return
+  loadHistory(chatId: string): Promise<void> {
+    if (this.historyLoaded.has(chatId)) return Promise.resolve()
     this.historyLoaded.add(chatId)
 
     // Snapshot the mutation epoch so we can detect if optimistic adds or live
@@ -389,8 +406,8 @@ class ChatStore {
     // in-flight assistant tokens aren't clobbered.
     const epochAtStart = this.messagesEpoch.get(chatId) ?? 0
 
-    this.update(chatId, { isLoadingHistory: true })
-    fetchHistory(chatId)
+    this.update(chatId, { isLoadingHistory: true, historyFailed: false })
+    return fetchHistory(chatId)
       .then((history) => {
         if (history.length === 0) {
           this.update(chatId, { isLoadingHistory: false })
@@ -417,7 +434,7 @@ class ChatStore {
         // explicit retry) can try again, rather than leaving the chat
         // permanently stuck with empty history and no spinner.
         this.historyLoaded.delete(chatId)
-        this.update(chatId, { isLoadingHistory: false })
+        this.update(chatId, { isLoadingHistory: false, historyFailed: true })
       })
   }
 
@@ -472,6 +489,8 @@ class ChatStore {
       } else if (answer.kind === "not-steerable") {
         this.update(chatId, { ...dropOptimistic(), steerable: false })
         this.enqueue(opts)
+      } else {
+        this.lastTurn.set(chatId, opts)
       }
       return true
     } catch (e) {
@@ -681,14 +700,10 @@ class ChatStore {
       // back to clearing local streaming state so the user isn't stuck, and say
       // so in the transcript: the run may still be going on the server.
       const msg = e instanceof Error ? e.message : String(e)
-      this.update(chatId, {
-        error: msg,
-        isStreaming: false,
-        messages: [
-          ...this.getOrCreate(chatId).messages,
-          { role: "error", content: `Couldn't stop the agent: ${msg}` },
-        ],
-      })
+      this.update(chatId, { isStreaming: false })
+      this.appendError(chatId, "Couldn't stop the agent.", msg, () =>
+        this.stopMessage(roomId, chatId)
+      )
     }
   }
 
@@ -804,13 +819,12 @@ class ChatStore {
         )
         break
       case "error":
-        this.update(chatId, {
-          error: control.message,
-          messages: [
-            ...this.getOrCreate(chatId).messages,
-            { role: "error" as const, content: control.message },
-          ],
-        })
+        this.appendError(
+          chatId,
+          describeTurnError(control.message),
+          control.message,
+          this.turnRetry(chatId)
+        )
         break
     }
   }
@@ -1000,13 +1014,14 @@ class ChatStore {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      this.update(chatId, {
-        error: msg,
-        messages: [
-          ...this.getOrCreate(chatId).messages,
-          { role: "error" as const, content: `Failed to approve plan: ${msg}` },
-        ],
-      })
+      this.appendError(
+        chatId,
+        this.isConfirmCard(chatId, planId)
+          ? "Couldn't send your answer."
+          : "Couldn't approve the plan.",
+        msg,
+        () => this.approvePlan(roomId, chatId, planId)
+      )
     }
   }
 
@@ -1034,14 +1049,77 @@ class ChatStore {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      this.update(chatId, {
-        error: msg,
-        messages: [
-          ...this.getOrCreate(chatId).messages,
-          { role: "error" as const, content: `Failed to reject plan: ${msg}` },
-        ],
-      })
+      this.appendError(
+        chatId,
+        this.isConfirmCard(chatId, planId)
+          ? "Couldn't send your answer."
+          : "Couldn't reject the plan.",
+        msg,
+        () => this.rejectPlan(roomId, chatId, planId, feedback)
+      )
     }
+  }
+
+  private isConfirmCard(chatId: string, planId: string): boolean {
+    return this.getOrCreate(chatId).messages.some(
+      (m) => m.role === "plan" && m.planId === planId && !!m.confirm
+    )
+  }
+
+  // --- Transcript errors ---
+
+  /**
+   * Add an error to the transcript: `content` is the plain sentence shown,
+   * `detail` the raw error kept for Copy error, and `retry` what Retry does.
+   */
+  private appendError(
+    chatId: string,
+    content: string,
+    detail: string,
+    retry?: () => Promise<unknown>
+  ) {
+    const message: AgentMessage = {
+      role: "error",
+      content,
+      ...(detail && detail !== content ? { detail } : {}),
+    }
+    if (retry) this.errorRetries.set(message, retry)
+    this.update(chatId, {
+      error: detail || content,
+      messages: [...this.getOrCreate(chatId).messages, message],
+    })
+  }
+
+  /**
+   * Retry for a failed turn: send its message again, when this client sent it
+   * and it's still the last thing asked. A turn someone else started (or a
+   * Workspace's wake) has nothing here to resend.
+   */
+  private turnRetry(chatId: string): (() => Promise<unknown>) | undefined {
+    const opts = this.lastTurn.get(chatId)
+    if (!opts) return undefined
+    const lastAsk = this.getOrCreate(chatId)
+      .messages.filter((m) => m.role === "user")
+      .at(-1)
+    if (lastAsk?.content !== opts.message) return undefined
+    return () => this.sendMessage({ ...opts })
+  }
+
+  /** Whether an error in the transcript offers Retry. */
+  canRetryError(message: AgentMessage): boolean {
+    return this.errorRetries.has(message)
+  }
+
+  /** Retry what an error reports, taking the error out of the transcript. */
+  async retryError(chatId: string, message: AgentMessage): Promise<void> {
+    const retry = this.errorRetries.get(message)
+    if (!retry) return
+    this.errorRetries.delete(message)
+    this.update(chatId, {
+      error: null,
+      messages: this.getOrCreate(chatId).messages.filter((m) => m !== message),
+    })
+    await retry()
   }
 
   // --- Unread tracking ---
@@ -1061,6 +1139,7 @@ class ChatStore {
   cleanup(chatId: string) {
     this.states.delete(chatId)
     this.historyLoaded.delete(chatId)
+    this.lastTurn.delete(chatId)
     this.unreadChats.delete(chatId)
     this.messagesEpoch.delete(chatId)
     this.appliedEventIds.delete(chatId)
