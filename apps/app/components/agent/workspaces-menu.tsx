@@ -111,7 +111,7 @@ import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 import { RecreateBranchDialog } from "@/components/recreate-branch-dialog"
 
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
-import { WorkspaceMention } from "@/components/workspace-mention"
+import { NeedsYouDot, WorkspaceMention } from "@/components/workspace-mention"
 
 import type { DiffStats } from "@/hooks/use-diff-stats"
 
@@ -661,13 +661,7 @@ export function WorkspacesMenuButton() {
           className="text-muted-foreground"
         >
           Workspaces
-          {menu.needsYou ? (
-            <span
-              aria-hidden
-              data-slot="needs-you-dot"
-              className="size-1.5 rounded-full bg-info-fill"
-            />
-          ) : null}
+          {menu.needsYou ? <NeedsYouDot className="size-1.5" /> : null}
           <CaretDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>

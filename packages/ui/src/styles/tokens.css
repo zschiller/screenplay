@@ -58,6 +58,7 @@
     --color-merged: var(--merged);
     --color-merged-fill: var(--merged-fill);
     --color-merged-foreground: var(--merged-foreground);
+    --color-attention-fill: var(--attention-fill);
     /* `text-x-text`: an outlined badge's label, the ink a shade calmer (toward
        the foreground) so its icon stays the brightest part in both themes and
        light green and amber clear 4.5:1 on white (#1185). */
@@ -123,7 +124,9 @@
          (`--x-foreground`): solid chips, dots, the done circle.
        Info is the magenta accent, but its fill is a lighter hot pink: black
        on the full magenta reads muddy. Merged is GitHub's merged purple moved
-       to hue 293 so it stays apart from the magenta. */
+       to hue 293 so it stays apart from the magenta. Attention is a fill
+       only: the neon orange dot a Workspace shows while it needs you (#1283),
+       the same in both themes. */
     --destructive: oklch(0.56 0.226 27);
     --destructive-fill: oklch(0.66 0.225 27);
     --destructive-foreground: oklch(0 0 0);
@@ -139,6 +142,7 @@
     --merged: oklch(0.54 0.282 293);
     --merged-fill: oklch(0.66 0.198 293);
     --merged-foreground: oklch(0 0 0);
+    --attention-fill: oklch(0.74 0.182 55);
     --border: oklch(0 0 0 / 12%);
     --input: oklch(0 0 0 / 12%);
     --ring: oklch(0.667 0.295 322.15);
@@ -189,6 +193,7 @@
     --merged: oklch(0.66 0.198 293);
     --merged-fill: oklch(0.66 0.198 293);
     --merged-foreground: oklch(0 0 0);
+    --attention-fill: oklch(0.74 0.182 55);
     --border: oklch(1 0 0 / 16%);
     --input: oklch(1 0 0 / 16%);
     --ring: oklch(0.667 0.295 322.15);
