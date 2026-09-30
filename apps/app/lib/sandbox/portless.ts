@@ -36,9 +36,7 @@ export const PORTLESS_PROXY_PORT = 1355
  * point at a fixture dir.
  */
 function portlessStateDir(): string {
-  return (
-    process.env.PORTLESS_STATE_DIR ?? path.join(os.homedir(), ".portless")
-  )
+  return process.env.PORTLESS_STATE_DIR ?? path.join(os.homedir(), ".portless")
 }
 
 /**

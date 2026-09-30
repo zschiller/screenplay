@@ -99,7 +99,10 @@ export function readTabOrder(targetKey: string): string[] {
 export function writeTabOrder(targetKey: string, ids: string[]) {
   if (typeof window === "undefined" || !targetKey) return
   try {
-    window.localStorage.setItem(tabOrderStorageKey(targetKey), JSON.stringify(ids))
+    window.localStorage.setItem(
+      tabOrderStorageKey(targetKey),
+      JSON.stringify(ids)
+    )
   } catch {}
 }
 

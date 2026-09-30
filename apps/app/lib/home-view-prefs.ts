@@ -92,7 +92,9 @@ function isOrder(v: unknown): v is SortOrder {
  * build) rather than trusting partial data. Returns the defaults for a missing
  * or unreadable cookie.
  */
-export function parseHomeViewPrefs(rawValue: string | undefined): HomeViewPrefs {
+export function parseHomeViewPrefs(
+  rawValue: string | undefined
+): HomeViewPrefs {
   if (!rawValue) return { view: DEFAULT_VIEW, scopes: {} }
   try {
     const parsed: unknown = JSON.parse(decodeURIComponent(rawValue))

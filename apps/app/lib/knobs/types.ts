@@ -62,12 +62,7 @@ export type KnobColor = {
 }
 
 export type KnobDef =
-  | KnobNumber
-  | KnobSlider
-  | KnobBoolean
-  | KnobString
-  | KnobSelect
-  | KnobColor
+  KnobNumber | KnobSlider | KnobBoolean | KnobString | KnobSelect | KnobColor
 
 export type KnobValue = string | number | boolean
 export type KnobValues = { [id: string]: KnobValue }

@@ -88,7 +88,11 @@ describe("resolveRepoData — confirm decision", () => {
     it("carries the advanced frame size and system prompt into the RepoData", () => {
       const data = resolveRepoData(
         pick,
-        { ...SETTINGS, defaultIframeLayerSizeId: "desktop", systemPrompt: "hi" },
+        {
+          ...SETTINGS,
+          defaultIframeLayerSizeId: "desktop",
+          systemPrompt: "hi",
+        },
         META
       )
       expect(data).toMatchObject({

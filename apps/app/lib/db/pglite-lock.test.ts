@@ -1,4 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -34,7 +40,9 @@ describe("lockDataDir", () => {
   it("refuses a dir held by another LIVE process — never opens concurrently", () => {
     // process.ppid is alive and not us: a faithful "foreign live owner".
     writeFileSync(lockPath(), String(process.ppid))
-    expect(() => lockDataDir(dir)).toThrow(/already open in another live process/)
+    expect(() => lockDataDir(dir)).toThrow(
+      /already open in another live process/
+    )
     // The foreign lock is left intact (not clobbered).
     expect(readFileSync(lockPath(), "utf8").trim()).toBe(String(process.ppid))
   })

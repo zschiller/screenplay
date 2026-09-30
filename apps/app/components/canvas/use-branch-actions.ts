@@ -280,8 +280,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       reopen: (agentId) => void reopenRecovery(agentId, recoveryDeps),
       recreate: async (agentId) => {
         const outcome = (await run("recreate", agentId)) as
-          | RecoveryOutcome
-          | undefined
+          RecoveryOutcome | undefined
         if (outcome && !outcome.ok) throw new Error(outcome.error)
       },
       sendComments: (agentId, message, threadIds) => {

@@ -598,13 +598,14 @@ function execHost(
     // no way to tell "command not found" from "command ran and failed". Fold the
     // error text into stderr so exit-code checkers surface it, and log it.
     child.on("error", (err: NodeJS.ErrnoException) => {
-      const detail = err.code === "ENOENT" ? `command not found: ${opts.cmd}` : err.message
+      const detail =
+        err.code === "ENOENT" ? `command not found: ${opts.cmd}` : err.message
       stderr += `${detail}\n`
       console.warn(
         `[local-exec] spawn failed: ${cmdLabel}\n` +
           `  cwd=${cwd}\n` +
           `  error=${err.code ?? ""} ${err.message}\n` +
-          `  PATH=${(opts.env?.PATH ?? process.env.PATH) ?? ""}`
+          `  PATH=${opts.env?.PATH ?? process.env.PATH ?? ""}`
       )
       resolve(result(1))
     })

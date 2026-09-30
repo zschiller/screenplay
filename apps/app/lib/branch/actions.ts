@@ -23,11 +23,7 @@ import type { BranchData, RepoData } from "@/lib/types"
 
 /** A Branch menu action in the ADR 0005 git / sandbox-lifecycle family. */
 export type BranchActionKind =
-  | "rebase"
-  | "create-pr"
-  | "restart-dev-server"
-  | "restart-sandbox"
-  | "recreate"
+  "rebase" | "create-pr" | "restart-dev-server" | "restart-sandbox" | "recreate"
 
 /** Which `lib/branch/recovery` runner a `recovery` route dispatches to. */
 export type RecoveryKind = "dev-server" | "sandbox" | "recreate"

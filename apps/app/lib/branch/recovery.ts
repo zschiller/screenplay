@@ -137,12 +137,12 @@ async function runSandboxRecovery(
 
   // A thrown call (the server action's request failed) is a failure like any
   // other, not a Branch stuck on `starting`.
-  const result = await spec.run(agent, repo).catch(
-    (err: unknown): SandboxRecoveryResult => ({
+  const result = await spec
+    .run(agent, repo)
+    .catch((err: unknown): SandboxRecoveryResult => ({
       success: false,
       error: err instanceof Error ? err.message : String(err),
-    })
-  )
+    }))
   if (result.success) {
     deps.patchAgent(id, {
       sandboxName: result.value.sandboxName,

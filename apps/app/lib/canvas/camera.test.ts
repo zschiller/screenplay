@@ -21,15 +21,15 @@ const viewport: ViewportSize = { width: 1000, height: 800 }
 describe("fitScale", () => {
   it("is width-constrained for a wide target", () => {
     // (1000 - 40) / 1920 ≈ 0.5 is smaller than the height-constrained scale.
-    expect(fitScale(1920, 200, viewport, { padding: 20, maxZoom: 5 })).toBeCloseTo(
-      (1000 - 40) / 1920
-    )
+    expect(
+      fitScale(1920, 200, viewport, { padding: 20, maxZoom: 5 })
+    ).toBeCloseTo((1000 - 40) / 1920)
   })
 
   it("is height-constrained for a tall target", () => {
-    expect(fitScale(200, 2000, viewport, { padding: 20, maxZoom: 5 })).toBeCloseTo(
-      (800 - 40) / 2000
-    )
+    expect(
+      fitScale(200, 2000, viewport, { padding: 20, maxZoom: 5 })
+    ).toBeCloseTo((800 - 40) / 2000)
   })
 
   it("clamps to maxZoom for a tiny target", () => {
@@ -38,12 +38,19 @@ describe("fitScale", () => {
 
   it("clamps to minZoom for a huge target when one is given", () => {
     expect(
-      fitScale(100000, 100000, viewport, { padding: 20, maxZoom: 5, minZoom: 0.1 })
+      fitScale(100000, 100000, viewport, {
+        padding: 20,
+        maxZoom: 5,
+        minZoom: 0.1,
+      })
     ).toBe(0.1)
   })
 
   it("does not clamp below the fit scale without a minZoom", () => {
-    const scale = fitScale(100000, 100000, viewport, { padding: 20, maxZoom: 5 })
+    const scale = fitScale(100000, 100000, viewport, {
+      padding: 20,
+      maxZoom: 5,
+    })
     expect(scale).toBeLessThan(0.1)
   })
 })

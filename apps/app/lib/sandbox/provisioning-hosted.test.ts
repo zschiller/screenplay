@@ -113,11 +113,9 @@ vi.mock("@/lib/auth-helpers", () => ({
   getGitIdentityForUser: vi.fn(async () => null),
 }))
 const createBranch = vi.hoisted(() =>
-  vi.fn(
-    async (): Promise<{ success: boolean; error?: string }> => ({
-      success: true,
-    })
-  )
+  vi.fn(async (): Promise<{ success: boolean; error?: string }> => ({
+    success: true,
+  }))
 )
 vi.mock("@/lib/github-actions", () => ({
   createBranch,

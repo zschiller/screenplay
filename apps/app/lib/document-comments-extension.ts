@@ -89,8 +89,7 @@ export const DocumentCommentsExtension =
             init: () => ({ ranges: [], deco: DecorationSet.empty }),
             apply(tr, old, _oldState, newState) {
               const meta = tr.getMeta(DOC_COMMENTS_KEY) as
-                | { ranges?: DocumentCommentRange[] }
-                | undefined
+                { ranges?: DocumentCommentRange[] } | undefined
               if (meta?.ranges) {
                 return {
                   ranges: meta.ranges,

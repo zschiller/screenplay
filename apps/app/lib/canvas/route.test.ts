@@ -42,7 +42,9 @@ const group = (over: Partial<RouteGroup> = {}): RouteGroup => ({
 })
 
 /** A baseline routing input — empty geometry, nothing suppressed, both phases. */
-const baseInput = (over: Partial<RoutePointerInput> = {}): RoutePointerInput => ({
+const baseInput = (
+  over: Partial<RoutePointerInput> = {}
+): RoutePointerInput => ({
   canvas: { x: 0, y: 0 },
   zoom: 1,
   shiftKey: false,
@@ -68,11 +70,16 @@ describe("screenToCanvas", () => {
 
   it("is identity at origin with scale 1", () => {
     expect(
-      screenToCanvas(42, 7, { left: 0, top: 0 }, {
-        positionX: 0,
-        positionY: 0,
-        scale: 1,
-      })
+      screenToCanvas(
+        42,
+        7,
+        { left: 0, top: 0 },
+        {
+          positionX: 0,
+          positionY: 0,
+          scale: 1,
+        }
+      )
     ).toEqual({ x: 42, y: 7 })
   })
 })

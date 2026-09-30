@@ -28,9 +28,7 @@ export type VersionBump = BumpKeyword | (string & {})
 
 /** Why a resolution was refused, for the caller to report. */
 export type ResolveVersionReason =
-  | "invalid-current"
-  | "invalid-bump"
-  | "tag-exists"
+  "invalid-current" | "invalid-bump" | "tag-exists"
 
 /** A resolved version plus the tag it would be cut against, or a rejection. */
 export type ResolveVersionResult =
@@ -115,7 +113,8 @@ export function resolveVersion(
 
   const version = formatSemver(next)
   const tag = desktopTagFor(version)
-  const tags = existingTags instanceof Set ? existingTags : new Set(existingTags)
+  const tags =
+    existingTags instanceof Set ? existingTags : new Set(existingTags)
   if (tags.has(tag)) {
     return {
       ok: false,
@@ -143,13 +142,19 @@ function rewriteVersionField(
     throw new Error(`No version field found to rewrite in ${fileLabel}`)
   }
   // Non-global pattern → String.replace touches only the first match.
-  return contents.replace(pattern, (_full, prefix: string, _old, suffix: string) => {
-    return `${prefix}${version}${suffix}`
-  })
+  return contents.replace(
+    pattern,
+    (_full, prefix: string, _old, suffix: string) => {
+      return `${prefix}${version}${suffix}`
+    }
+  )
 }
 
 /** Rewrite the top-level `"version"` in a `package.json`'s contents. */
-export function setPackageJsonVersion(contents: string, version: string): string {
+export function setPackageJsonVersion(
+  contents: string,
+  version: string
+): string {
   return rewriteVersionField(
     contents,
     version,

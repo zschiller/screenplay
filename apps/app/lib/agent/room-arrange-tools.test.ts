@@ -250,8 +250,8 @@ describe("arrange tools", () => {
     )
     const groupId = lastId(result)
     const group = r.collections.iframeLayerGroups.get(groupId)!
-    const frames = getGroupMembers(group).map(
-      (m) => r.collections.iframeLayers.get(m.id)!
+    const frames = getGroupMembers(group).map((m) =>
+      r.collections.iframeLayers.get(m.id)!
     )
     expect(frames.map((f) => [f.route, f.branchId])).toEqual([
       ["/", "ws-1"],

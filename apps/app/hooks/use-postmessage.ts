@@ -21,11 +21,7 @@ interface UsePostMessageOptions {
   knobValues?: JsonObject
   sharedState?: JsonObject
   onStateChanged: (iframeLayerId: string, state: JsonObject) => void
-  onNavigation?: (
-    iframeLayerId: string,
-    path: string,
-    replace: boolean
-  ) => void
+  onNavigation?: (iframeLayerId: string, path: string, replace: boolean) => void
   onScroll?: (iframeLayerId: string, scrollX: number, scrollY: number) => void
   onReady?: (iframeLayerId: string, version: string | undefined) => void
   onHmrStatus?: (iframeLayerId: string, status: HmrStatus) => void

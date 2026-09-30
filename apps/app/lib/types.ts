@@ -1,19 +1,10 @@
 export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
 export type JsonObject = { [key: string]: JsonValue }
 
 export type SandboxStatus =
-  | "creating"
-  | "starting"
-  | "running"
-  | "error"
-  | "stopped"
+  "creating" | "starting" | "running" | "error" | "stopped"
 
 export type RepoData = {
   id: string

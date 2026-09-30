@@ -1219,8 +1219,7 @@ const workspacesCollision: CollisionDetection = (args) => {
   const active = args.active.data.current as DragData | undefined
   const dataOf = (id: string | number) =>
     args.droppableContainers.find((c) => c.id === id)?.data.current as
-      | DragData
-      | undefined
+      DragData | undefined
   const within = pointerWithin(args).filter((c) =>
     sameRepo(active, dataOf(c.id))
   )

@@ -74,7 +74,9 @@ describe("DeleteRoomDialog framing", () => {
     renderDialog({ roomName: "Quarterly plan", isOwner: true })
 
     expect(
-      screen.getByText((_, el) => el?.textContent === "Delete “Quarterly plan”?")
+      screen.getByText(
+        (_, el) => el?.textContent === "Delete “Quarterly plan”?"
+      )
     ).toBeDefined()
   })
 
