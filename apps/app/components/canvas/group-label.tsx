@@ -278,7 +278,7 @@ function GroupName({
             style={colorStyle}
             className={cn("min-w-[0.75em] text-xs", colorClass)}
             viewClassName="truncate cursor-grab active:cursor-grabbing"
-            editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+            editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-background text-foreground ring-[0.5px] ring-foreground/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
           />
         </div>
       )

@@ -181,10 +181,13 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
     }, [isEditing, value])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+      // Keys typed into the field stay in it. Rows that host a field are often
+      // drag handles or list items (dnd-kit starts a drag on Space, cmdk and
+      // tab lists move focus on arrows), and canvas shortcuts listen on window.
+      e.stopPropagation()
       if (isComposingRef.current) return
       if (e.key === "Escape") {
         e.preventDefault()
-        e.stopPropagation()
         stopEditing(false)
         return
       }
@@ -192,7 +195,6 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         const commit = singleLine || e.metaKey || e.ctrlKey
         if (commit) {
           e.preventDefault()
-          e.stopPropagation()
           stopEditing(true)
         }
       }
@@ -247,6 +249,18 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
     }
 
     const handleBlur = () => stopEditing(true)
+
+    // A focused label starts editing on Enter or F2, the keyboard twin of the
+    // double-click. Only keys on the label itself, not ones bubbling from a
+    // child, and stopped so a parent row doesn't also act on Enter.
+    const handleIdleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+      if (disabled || e.target !== e.currentTarget) return
+      if (e.key !== "Enter" && e.key !== "F2") return
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      startEditing()
+    }
 
     const DOUBLE_CLICK_MS = 350
 
@@ -339,6 +353,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         tabIndex: disabled ? -1 : 0,
         onPointerDown:
           editTrigger === "manual" ? onPointerDown : handleIdlePointerDown,
+        onKeyDown: editTrigger === "manual" ? undefined : handleIdleKeyDown,
         // When trigger is doubleClick, swallow the browser's `dblclick` event
         // so a parent's `onDoubleClick` (e.g. sidebar zoom-to-frame) doesn't
         // fire alongside our rename. Single click still bubbles for selection.

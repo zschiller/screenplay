@@ -2145,6 +2145,44 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "sidebar-rename-frame",
+    description:
+      "Renaming a frame in the layer list, mid-typing: spaces reach the field and it takes the theme's colours.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/frame-row [data-editable-text=idle]")
+        .first()
+        .dblclick({ timeout: 15_000 })
+      await page
+        .locator("[data-editable-text=editing]")
+        .waitFor({ timeout: 5_000 })
+      await page.keyboard.press("ControlOrMeta+a")
+      await page.keyboard.type("Cart with coupon")
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-rename-group",
+    description:
+      "Renaming a Group from its label on the Canvas, mid-typing: the field takes the theme's colours.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        // The Canvas label is the one that doubles as a drag handle.
+        .locator("[data-editable-text=idle].cursor-grab")
+        .filter({ hasText: /^Checkout$/ })
+        .first()
+        .dblclick({ timeout: 15_000 })
+      await page
+        .locator("[data-editable-text=editing]")
+        .waitFor({ timeout: 5_000 })
+      await page.keyboard.press("ControlOrMeta+a")
+      await page.keyboard.type("Checkout with coupon")
+    },
+    settleMs: 300,
+  },
+  {
     name: "workspaces-menu-hover-frames",
     description:
       "Hovering a Workspace row: its frames are outlined on the Canvas and lit in the layer list (#793).",
