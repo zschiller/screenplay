@@ -8,9 +8,8 @@ import {
   type SetStateAction,
 } from "react"
 
-import { resolveEscapeAction, type EscapeAction } from "@/lib/canvas/escape"
+import type { EscapeState } from "@/lib/canvas/escape"
 import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
-import type { ToolMode } from "@/lib/canvas/tool-mode"
 import type { IframeLayerData } from "@/lib/types"
 import type { CanvasPresence } from "@/lib/yjs/react"
 
@@ -25,11 +24,11 @@ import type { CanvasPresence } from "@/lib/yjs/react"
  * The decisions stay in the React-free modules this controller wraps without
  * touching: `reconcileInteractionMode` (drop a mode when its frame is deleted or
  * deselected, pinned by `interaction-mode.test.ts`) drives the reconcile effect,
- * and `resolveEscapeAction` (the Escape precedence, pinned by `escape.test.ts`)
- * backs the `resolveEscape` verb the keyboard handler dispatches on. The
- * controller is the thin adapter — owns the state, mirrors the long-lived inputs
- * into refs so its verbs read the latest snapshot without re-binding, and feeds
- * both pure modules.
+ * and its `escapeState` is the part of the Escape precedence's input
+ * (`resolveEscapeAction`, pinned by `escape.test.ts`) that Canvas Keyboard
+ * reads from here. The controller is the thin adapter — owns the state, mirrors
+ * the long-lived inputs into refs so its verbs read the latest snapshot without
+ * re-binding, and feeds both pure modules.
  *
  * Cursor chat spans this state and awareness: the anchor is local interaction
  * state, but the live message rides in presence (`self.message`). The controller
@@ -83,17 +82,21 @@ export interface CanvasInteraction {
   /** Whether cursor chat is currently open (the awareness message is set). */
   isCursorChatOpen(): boolean
   /**
-   * Resolve the single Escape action for the current interaction state. The
-   * target-pick/tool/comment bits Escape also reads aren't owned here, so the caller passes
-   * them in; the rest is read from this controller's mirror refs.
+   * The part of the Escape state this controller owns, read from its mirror
+   * refs. Canvas Keyboard adds the target-pick, tool and comment bits and runs
+   * the pure `resolveEscapeAction` over the whole.
    */
-  resolveEscape(input: {
-    targetPickActive: boolean
-    toolMode: ToolMode
-    hasNewCommentPos: boolean
-    commentsPanelOpen: boolean
-  }): EscapeAction
+  escapeState(): InteractionEscapeState
 }
+
+/** The slice of {@link EscapeState} the Canvas Interaction controller owns. */
+export type InteractionEscapeState = Pick<
+  EscapeState,
+  | "cursorChatOpen"
+  | "editingDocumentLayerId"
+  | "focusedIframeLayerId"
+  | "createFlowIframeLayerId"
+>
 
 export function useCanvasInteraction(
   deps: CanvasInteractionDeps
@@ -130,7 +133,7 @@ export function useCanvasInteraction(
   )
 
   // Mirror the mode/edit state into refs so the long-lived keyboard handler (via
-  // `resolveEscape`) and the route writer read the latest value without
+  // `escapeState`) and the route writer read the latest value without
   // re-binding. Written after commit, not during render.
   const focusedIframeLayerIdRef = useRef(focusedIframeLayerId)
   const createFlowIframeLayerIdRef = useRef(createFlowIframeLayerId)
@@ -191,23 +194,13 @@ export function useCanvasInteraction(
     [selfMessageRef]
   )
 
-  const resolveEscape = useCallback(
-    (input: {
-      targetPickActive: boolean
-      toolMode: ToolMode
-      hasNewCommentPos: boolean
-      commentsPanelOpen: boolean
-    }): EscapeAction =>
-      resolveEscapeAction({
-        targetPickActive: input.targetPickActive,
-        cursorChatOpen: selfMessageRef.current !== null,
-        editingDocumentLayerId: editingDocumentLayerIdRef.current,
-        toolMode: input.toolMode,
-        hasNewCommentPos: input.hasNewCommentPos,
-        commentsPanelOpen: input.commentsPanelOpen,
-        focusedIframeLayerId: focusedIframeLayerIdRef.current,
-        createFlowIframeLayerId: createFlowIframeLayerIdRef.current,
-      }),
+  const escapeState = useCallback(
+    (): InteractionEscapeState => ({
+      cursorChatOpen: selfMessageRef.current !== null,
+      editingDocumentLayerId: editingDocumentLayerIdRef.current,
+      focusedIframeLayerId: focusedIframeLayerIdRef.current,
+      createFlowIframeLayerId: createFlowIframeLayerIdRef.current,
+    }),
     [selfMessageRef]
   )
 
@@ -227,6 +220,6 @@ export function useCanvasInteraction(
     openCursorChat,
     closeCursorChat,
     isCursorChatOpen,
-    resolveEscape,
+    escapeState,
   }
 }

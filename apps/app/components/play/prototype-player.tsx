@@ -34,12 +34,8 @@ import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useStartWorkspace } from "@/hooks/use-start-workspace"
-import {
-  hasModKey,
-  isInComposer,
-  isInOverlay,
-  isTextEntry,
-} from "@/lib/canvas/key-target"
+import { keyTargetOf } from "@/lib/canvas/key-target"
+import { matchCanvasKey } from "@/lib/canvas/shortcuts"
 import { isLocalBuild } from "@/lib/local-mode"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
@@ -438,15 +434,15 @@ export function PrototypePlayer({
   }, [])
 
   // ⌘I / Ctrl+I opens and hides the chat, as on the canvas and as the chat's
-  // Collapse button says. Not in text other than the composer, and not inside
-  // a menu or dialog.
+  // Collapse button says: the canvas's own matcher decides, so it works from
+  // the composer but not from other text or inside a menu or dialog.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat) return
-      if (e.key !== "i" && e.key !== "I") return
-      if (!hasModKey(e) || e.altKey || e.shiftKey) return
-      if (isInOverlay(e.target)) return
-      if (isTextEntry(e.target) && !isInComposer(e.target)) return
+      if (e.repeat) return
+      const action = matchCanvasKey(e, keyTargetOf(e.target), {
+        comments: false,
+      })
+      if (action !== "toggle-chat") return
       e.preventDefault()
       handleToggleChat()
     }

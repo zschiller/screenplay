@@ -1146,16 +1146,16 @@ the two unchanged pure modules without touching them — `reconcileInteractionMo
 (`lib/canvas/interaction-mode.ts`, pinned by `interaction-mode.test.ts`) drives
 the effect that drops Focus / Create-Flow mode the instant the frame backing it
 is deleted **or** deselected, and `resolveEscapeAction` (`lib/canvas/escape.ts`,
-pinned by `escape.test.ts`) backs the `resolveEscape` verb the keyboard
-dispatches on (the caller passes the Tool Mode / new-comment bits Escape also
-reads; the controller fills its own state from mirror refs). Focus, Create-Flow,
+pinned by `escape.test.ts`) reads this controller's `escapeState` (its own
+slice of the Escape input, from mirror refs), which **Canvas Keyboard** merges
+with the Tool Mode / target-pick / comment bits it reads elsewhere. Focus, Create-Flow,
 hover, document-editing, space-pan, and Escape now behave identically to before
 but are described in one place. Cursor chat **spans** this state and awareness:
 the controller owns the anchor and the open/close verbs but reads the awareness
 mirrors (`selfPointerRef` / `selfMessageRef`) and broadcasts the live message
 through the injected `setPresence` — the same seam the root used. The mode/edit
 state is mirrored into refs (`createFlowIframeLayerIdRef` for the route writer,
-the Focus / editing ids for `resolveEscape`) so its verbs read the latest
+the Focus / editing ids for `escapeState`) so its verbs read the latest
 snapshot without re-binding; the cursor-chat awareness refs are declared **ahead
 of** the controller so no ordering cycle is reintroduced.
 _Avoid_: putting this interaction state back as loose `useState`s on the
@@ -1167,23 +1167,24 @@ interaction, not the armed tool); re-deriving cursor-chat-open from the anchor
 instead of the awareness message.
 
 **Canvas Keyboard**:
-The global `keydown`/`keyup` shortcut dispatch for the canvas, lifted out of the
-composition root where it was the single largest effect (~190 lines) into one
-controller (`useCanvasKeyboard`, PRD #579). It owns the window listeners and the
-whole shortcut map — Escape exits, `v`/`c`/`d`/`f` draw tools, `/` cursor chat,
-⌘B / ⌘I / ⌘. panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, and the
-space-pan hold — and dispatches into the controllers the earlier cuts bundled
-(**Tool Mode**, **Canvas Selection**, **Element Reference**, **Element Targeting**, the
-Yjs history) and the **Canvas Interaction** controller (whose Focus / Create-Flow / editing /
-space-held / cursor-chat verbs it applies), plus the panel refs it is handed.
-Sequenced last so it consumes those bundled controllers rather than the loose
-setters they replaced. The Escape **precedence** stays in the React-free
-`resolveEscapeAction` (`lib/canvas/escape.ts`, pinned by `escape.test.ts`),
-wrapped by **Canvas Interaction**'s `resolveEscape`; the keyboard only
-**applies** the chosen exit. The `isEditing` guard
-(input/textarea/contenteditable) still suppresses shortcuts while typing.
+The global `keydown`/`keyup` listeners for the canvas (`useCanvasKeyboard`, PRD
+#579), a dispatch from action to verb. Which key means what lives in one table,
+**Canvas Shortcuts** (`CANVAS_KEYS` in `lib/canvas/shortcuts.ts`, #1264): each
+row is a key match, its action, its key caps, and where it is allowed (in text
+entry, in the Composer, in an open overlay, on a keyboard-focused control). The
+React-free `matchCanvasKey` walks the table over where the key landed
+(`keyTargetOf`); the `?` sheet and the zoom menu read their caps from the same
+rows, and the player reuses the matcher for ⌘I. The controller dispatches into
+**Tool Mode**, **Canvas Selection**, **Element Reference**, **Element
+Targeting**, the Yjs history, the **Canvas Interaction** verbs and the panel
+refs it is handed. Escape is one action in the table; its **precedence** stays
+in the React-free `resolveEscapeAction` (`lib/canvas/escape.ts`, pinned by
+`escape.test.ts`), whose inputs the keyboard gathers in one place
+(`readEscapeState`, with **Canvas Interaction**'s `escapeState`); the keyboard
+only **applies** the chosen exit.
 _Avoid_: putting the shortcut map or the window listeners back in `canvas.tsx`;
-duplicating the Escape precedence in the dispatch (it goes through
-`resolveEscapeAction`); reading selection / Tool Mode through a shadow copy
-instead of the controllers' `current()`; dropping the `isEditing` guard on a new
-shortcut.
+matching a key outside the table (a new Canvas key is a new row, so the sheet
+lists it); a private copy of a key's rule on another surface (use
+`matchCanvasKey`); duplicating the Escape precedence in the dispatch (it goes
+through `resolveEscapeAction`); reading selection / Tool Mode through a shadow
+copy instead of the controllers' `current()`.
