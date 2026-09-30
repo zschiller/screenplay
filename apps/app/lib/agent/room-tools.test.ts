@@ -47,6 +47,7 @@ function portsOver(
     readWorkspaceFile: unused,
     captureFrame: unused,
     readFrameCapture: unused,
+    readFramePage: unused,
     launchWorkspaceTurn: async () => {},
   }
 }

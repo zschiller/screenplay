@@ -4,6 +4,7 @@ import { tool, jsonSchema } from "ai"
 import type { RoomDoc } from "@/lib/room-access"
 import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
 import { CODE_READ_TOOL_ANNOTATIONS } from "@/lib/agent/code-read-tools"
+import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -105,7 +106,7 @@ export type DocumentTools = ReturnType<typeof buildMarkdownLayerTools>
 /**
  * MCP hints for a document chat's tools on a desktop harness: its own
  * document edits (undoable in the editor, never destructive), the shared
- * document reader, and its code reads.
+ * document reader, its code reads and its frame reads.
  */
 export const MARKDOWN_LAYER_TOOL_ANNOTATIONS: Readonly<
   Record<string, McpToolAnnotations>
@@ -115,4 +116,5 @@ export const MARKDOWN_LAYER_TOOL_ANNOTATIONS: Readonly<
   set_document_title: { destructiveHint: false, openWorldHint: false },
   read_document: { readOnlyHint: true, openWorldHint: false },
   ...CODE_READ_TOOL_ANNOTATIONS,
+  ...FRAME_READ_TOOL_ANNOTATIONS,
 }

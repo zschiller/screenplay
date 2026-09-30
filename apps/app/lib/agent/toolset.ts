@@ -6,6 +6,7 @@ import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 import { buildMarkdownLayerTools } from "@/lib/agent/markdown-layer-tools"
 import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
+import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
 import {
   buildCodeReadTools,
   type CodeReadPorts,
@@ -62,6 +63,7 @@ export function toolsetFor(target: ToolTarget): ToolSet {
               readDoc: (fn) => target.room.readDoc(fn),
               openSandbox: target.openSandbox,
             }),
+            ...chatFrameReadTools({ room: target.room }),
           }
   return withRedactedOutput({ ...own, ...read })
 }
