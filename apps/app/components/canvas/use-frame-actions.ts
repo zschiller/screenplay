@@ -18,6 +18,8 @@ export interface FrameActions {
   selectIframeLayer: (iframeLayerId: string) => void
   /** Zoom-to-fit a Markdown Layer (document) by id. */
   zoomToDocument: (markdownLayerId: string) => void
+  /** Zoom-to-fit a Mockup Layer. */
+  zoomToMockup: (mockupLayerId: string) => void
   /** Zoom-to-fit a whole Group's bounding box. */
   zoomToGroup: (groupId: string) => void
   /** Add a fresh Iframe Layer for a running agent, then zoom to it. */
@@ -73,6 +75,14 @@ export function useFrameActions({
   const zoomToDocument = useCallback(
     (markdownLayerId: string) => {
       const el = document.getElementById(`markdown-layer-${markdownLayerId}`)
+      if (el) camera.zoomToElement(el)
+    },
+    [camera]
+  )
+
+  const zoomToMockup = useCallback(
+    (mockupLayerId: string) => {
+      const el = document.getElementById(`mockup-layer-${mockupLayerId}`)
       if (el) camera.zoomToElement(el)
     },
     [camera]
@@ -178,6 +188,7 @@ export function useFrameActions({
   return {
     selectIframeLayer,
     zoomToDocument,
+    zoomToMockup,
     zoomToGroup,
     addIframeLayerForAgent,
     showRoutesForAgent,

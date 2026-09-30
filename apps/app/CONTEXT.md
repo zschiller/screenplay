@@ -365,13 +365,13 @@ groups may exist only in uncommitted, client-side drag state.
 _Avoid_: cluster, stack, frame group.
 
 **Member**:
-A reference (`{ kind, id }`) from a Group to the Iframe Layer or Markdown Layer
-it contains.
+A reference (`{ kind, id }`) from a Group to the Iframe Layer, Markdown Layer or
+Mockup Layer it contains.
 _Avoid_: child, item.
 
 **Layer**:
-The umbrella for the two kinds of content a Group's Member references — an **Iframe
-Layer** or a **Markdown Layer**. Both are positioned in world space, selectable,
+The umbrella for the kinds of content a Group's Member references — an **Iframe
+Layer**, a **Markdown Layer** or a **Mockup Layer**. All are positioned in world space, selectable,
 draggable (group-move + merge) and resizable on the canvas; they differ only in
 content. The shared frame around either is the **Layer Shell**, and the shared
 gesture machinery (`useLayerDrag`, `useLayerResize`) and the common
@@ -395,11 +395,25 @@ owner and no name. Every chat reads every Document.
 _Avoid_: note, text layer; "document chat" (Documents are not Chat Targets
 since #1314).
 
+**Mockup Layer** (Mockup):
+A static HTML page an agent wrote, shown on the canvas with no Sandbox
+(#1267). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
+(`MockupLayerData`: size, title, and the `branchId` of the Workspace it was
+made for, unset on a standalone mockup). It renders in an
+`<iframe srcdoc sandbox="allow-scripts">` with no `allow-same-origin`, so the
+page can never reach the app, its cookies or the canvas, and it is
+self-contained (no network assumed). It sits in a Group beside the frames it
+explores, or alone in its own Group. Not a Chat Target, and only agents
+create one. Canvas selection carries it in the Markdown Layer Set: selection
+only tells frames apart from the other kinds.
+_Avoid_: prototype (that's a running Workspace), wireframe, design layer;
+"artifact".
+
 **Layer Shell**:
-The canvas frame that wraps either Layer kind: it owns the world-space container,
+The canvas frame that wraps every Layer kind: it owns the world-space container,
 the selection wiring, the drag (group-move / merge routing plus the deferred
 click-to-select), the resize handles, and the LayerTitleBar. An Iframe Layer and a
-Markdown Layer plug in as **content adapters** — the shell renders the frame, the
+Markdown Layer and a Mockup Layer plug in as **content adapters** — the shell renders the frame, the
 adapter renders what's inside (the live preview, or the TipTap document) and its
 content-specific toolbar. Two adapters make the seam real (one adapter is a
 hypothetical seam, two is a real one). The Shell absorbs what was copy-pasted across

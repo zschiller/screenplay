@@ -134,6 +134,20 @@ describe("computeIframeLayerLayouts", () => {
 })
 
 describe("groupContentWidth", () => {
+  it("sizes Mockup Layers from the same list as Documents", () => {
+    const g = group("g", 0, 0, [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "mockup-layer", id: "m" },
+      { kind: "markdown-layer", id: "d" },
+    ])
+    const width = groupContentWidth(
+      g,
+      [layer("a", 100, 50)],
+      [{ id: "m", width: 300, height: 400 }, markdown("d", 200, 80)]
+    )
+    expect(width).toBe(600 + 2 * IFRAME_LAYER_GROUP_GAP)
+  })
+
   it("sums member widths plus inter-member gaps", () => {
     const g = group("g1", 0, 0, [
       { kind: "iframe-layer", id: "a" },
@@ -290,7 +304,7 @@ describe("deriveCanvasLayout", () => {
     const { gapHandles } = deriveCanvasLayout({
       groups,
       iframeLayers,
-      markdownLayers: [],
+      sizedLayers: [],
       selection: selection({ groupIds: new Set(["g1"]) }),
       activeReorderDrag: null,
       poppedMemberId: null,
@@ -322,7 +336,7 @@ describe("deriveCanvasLayout", () => {
     const { reorderHandles } = deriveCanvasLayout({
       groups,
       iframeLayers,
-      markdownLayers: [],
+      sizedLayers: [],
       selection: selection({ groupIds: new Set(["g1"]) }),
       activeReorderDrag: null,
       poppedMemberId: null,
@@ -344,7 +358,7 @@ describe("deriveCanvasLayout", () => {
     const { placeholderRects } = deriveCanvasLayout({
       groups,
       iframeLayers,
-      markdownLayers: [],
+      sizedLayers: [],
       // No selection — the placeholder is tool-gated now, not selection-gated.
       selection: selection(),
       activeReorderDrag: null,
@@ -368,7 +382,7 @@ describe("deriveCanvasLayout", () => {
     const { placeholderRects, reorderHandles } = deriveCanvasLayout({
       groups,
       iframeLayers,
-      markdownLayers: [],
+      sizedLayers: [],
       // A member is selected, but no tool is armed — placeholders stay hidden.
       selection: selection({ iframeLayerIds: new Set(["a"]) }),
       activeReorderDrag: null,
@@ -385,7 +399,7 @@ describe("deriveCanvasLayout", () => {
     const { layouts, placeholderRects, gapHandles } = deriveCanvasLayout({
       groups,
       iframeLayers,
-      markdownLayers: [],
+      sizedLayers: [],
       selection: selection({ groupIds: new Set(["g1"]) }),
       activeReorderDrag: {
         memberId: "b",

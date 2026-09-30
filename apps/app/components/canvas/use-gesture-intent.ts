@@ -111,7 +111,7 @@ export function useGestureIntent({
           const draggedDocumentIds = new Set<string>()
           for (const m of sourceMembers) {
             if (m.kind === "iframe-layer") draggedIframeIds.add(m.id)
-            else if (m.kind === "markdown-layer") draggedDocumentIds.add(m.id)
+            else draggedDocumentIds.add(m.id)
           }
           selection.setGroupIds(new Set())
           selection.setIframeLayerIds(draggedIframeIds)

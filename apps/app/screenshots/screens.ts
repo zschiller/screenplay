@@ -528,6 +528,24 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.tokens}`,
   },
   {
+    name: "canvas-mockups",
+    description:
+      "Mockup Layers: two options beside the live empty cart (one selected), and a standalone receipt.",
+    path: `/${ids.rooms.checkout}`,
+    // Wide enough to show both Groups beside the chat panel.
+    viewport: { width: 2100, height: 560 },
+    prepare: async (page) => {
+      // Frame the "Empty cart ideas" and "Receipt" Groups (world y 2200).
+      await page.waitForFunction("!!window.__canvasCamera", undefined, {
+        timeout: 15_000,
+      })
+      await page.evaluate("window.__canvasCamera.setTransform(30, -472, 0.26)")
+      // Select Option A by clicking its page, the way any layer selects.
+      await page.mouse.click(780, 250)
+    },
+    settleMs: 800,
+  },
+  {
     name: "canvas-agent-chat",
     description:
       "The agent chat panel: a finished turn's steps folded into one summary line, with a failure chip.",

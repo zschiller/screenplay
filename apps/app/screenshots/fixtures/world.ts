@@ -3,12 +3,18 @@ import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { LOCAL_USER_ID } from "@/lib/local-user"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "../lib/preview-url"
+import {
+  EMPTY_CART_ILLUSTRATED,
+  EMPTY_CART_SUGGESTIONS,
+  ORDER_RECEIPT,
+} from "./mockups"
 import type {
   BranchData,
   ChatSessionData,
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
   MemoryData,
   PlanData,
   RepoData,
@@ -93,6 +99,7 @@ export interface FixtureRoom {
     iframeLayers?: IframeLayerData[]
     iframeLayerGroups?: IframeLayerGroupData[]
     markdownLayers?: MarkdownLayerData[]
+    mockupLayers?: MockupLayerData[]
     chatSessions?: ChatSessionData[]
     plans?: PlanData[]
     /** Canvas memory entries (#902), shown in Canvas settings › Memory. */
@@ -100,6 +107,8 @@ export interface FixtureRoom {
     savedViewport?: ViewportData
     /** Markdown body per Markdown Layer id, written into its `markdown-layer-{id}` fragment. */
     markdownBodies?: Record<string, string>
+    /** HTML page per Mockup Layer id, written into its `mockup-layer-{id}` text. */
+    mockupHtml?: Record<string, string>
   }
   /**
    * Frames to fake a Thumbnail Manifest for, so the home grid composes a real
@@ -668,6 +677,16 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       route: "/cart",
     },
     {
+      // The live page the Empty cart mockups explore, in their Group.
+      id: "layer-cart-live",
+      branchId: b.emptyCart,
+      width: 1280,
+      height: 800,
+      label: "Empty cart · live",
+      iframeState: {},
+      route: "/cart",
+    },
+    {
       // No `branchId`: the empty-frame state, which renders the "pick a
       // Workspace" affordance rather than an iframe.
       id: "layer-unbound",
@@ -686,6 +705,31 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       title: "Checkout brief",
       // The Checkout polish chat wrote it (#1314).
       ownerChatId: FIXTURE_IDS.chats.checkoutPolish,
+    },
+  ]
+
+  // Mockup Layers (#1267): two options beside the live empty cart, made for
+  // its Workspace, and a standalone receipt that started from no frame.
+  const mockupLayers: MockupLayerData[] = [
+    {
+      id: "mockup-cart-illustrated",
+      branchId: b.emptyCart,
+      width: 1280,
+      height: 800,
+      title: "Option A · Illustrated",
+    },
+    {
+      id: "mockup-cart-suggestions",
+      branchId: b.emptyCart,
+      width: 1280,
+      height: 800,
+      title: "Option B · Suggestions",
+    },
+    {
+      id: "mockup-receipt",
+      width: 720,
+      height: 800,
+      title: "Order receipt email",
     },
   ]
 
@@ -712,6 +756,27 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
         { kind: "iframe-layer", id: "layer-unbound" },
       ],
       sidebarOrder: 1,
+    },
+    {
+      id: "grp-cart-ideas",
+      name: "Empty cart ideas",
+      x: 0,
+      y: 2200,
+      members: [
+        { kind: "iframe-layer", id: "layer-cart-live" },
+        { kind: "mockup-layer", id: "mockup-cart-illustrated" },
+        { kind: "mockup-layer", id: "mockup-cart-suggestions" },
+      ],
+      branchId: b.emptyCart,
+      sidebarOrder: 2,
+    },
+    {
+      id: "grp-receipt",
+      name: "Receipt",
+      x: 4140,
+      y: 2200,
+      members: [{ kind: "mockup-layer", id: "mockup-receipt" }],
+      sidebarOrder: 3,
     },
   ]
 
@@ -799,6 +864,12 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       iframeLayers,
       iframeLayerGroups,
       markdownLayers,
+      mockupLayers,
+      mockupHtml: {
+        "mockup-cart-illustrated": EMPTY_CART_ILLUSTRATED,
+        "mockup-cart-suggestions": EMPTY_CART_SUGGESTIONS,
+        "mockup-receipt": ORDER_RECEIPT,
+      },
       chatSessions,
       plans,
       memories: [

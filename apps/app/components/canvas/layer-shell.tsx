@@ -135,7 +135,7 @@ interface LayerShellProps {
 }
 
 /**
- * Layer Shell — the canvas frame wrapping either Layer kind (Iframe / Markdown;
+ * Layer Shell — the canvas frame wrapping every Layer kind (Iframe / Markdown / Mockup;
  * see `apps/app/CONTEXT.md`). It owns the world-space container, the selection
  * wiring, the drag (group-move / merge routing plus deferred click-to-select),
  * the resize handles, and the `LayerTitleBar`. A content adapter plugs in by

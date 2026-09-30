@@ -1,0 +1,43 @@
+---
+title: Mockups
+description: Static design options an agent draws on the canvas, next to the running app or on their own.
+---
+
+# Mockups
+
+A mockup is a single static page an agent draws on the canvas to show a
+design idea. It needs no workspace or dev server, so it appears the moment
+it's written. Mockups let you compare a few options side by side with the
+running app before anything is built.
+
+<Screenshot
+  name="canvas-mockups"
+  alt="An 'Option A · Toggle' pricing mockup beside the live mobile pricing page, with both options listed with their own icon in the layers list"
+/>
+
+## Where mockups sit
+
+- **Beside a frame.** When an exploration starts from a page that's already
+  running, its mockups join that frame's group, so the live page and the
+  options read left to right in one row. Each of these mockups remembers the
+  workspace it was made for.
+- **On their own.** When an exploration starts from nothing on the canvas
+  yet, its mockups get a group of their own.
+
+## Working with mockups
+
+Mockups are layers like frames and documents. You can select, move, resize,
+rename and delete them, group them with other layers, and find them in the
+layers list with their own icon. Delete them with <kbd>Delete</kbd>, and
+
+<kbd>⌘Z</kbd> brings a deleted mockup back.
+
+A mockup is a picture of an idea, so clicking it selects it rather than
+using the page. Mockups aren't chat targets, and there's no toolbar tool for
+them: agents create them.
+
+## Safety
+
+A mockup's page runs in a locked-down frame: it can run its own scripts, but
+it can't reach Screenplay, your session or the rest of the canvas, and it
+doesn't load anything from the network. Mockups are self-contained pages.

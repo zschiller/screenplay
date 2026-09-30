@@ -7,11 +7,13 @@ import type {
   ChatSessionData,
   IframeLayerData,
   IframeLayerGroupData,
+  MockupLayerData,
   RepoData,
 } from "@/lib/types"
 
 import type { FixtureChat, FixtureRoom, FixtureWorld } from "../fixtures/world"
 import { readSource, WORKSPACE_EDITS, type DemoPreview } from "./demo-site"
+import { PRICING_SIDE_BY_SIDE_MOCKUP, PRICING_TOGGLE_MOCKUP } from "./mockups"
 
 /**
  * The **docs world** — what the product docs' screenshots show (`apps/docs`).
@@ -225,6 +227,10 @@ export async function buildDocsWorld(
         frames: [
           ["Pricing", "/pricing", 1280, 800],
           ["Pricing · mobile", "/pricing", 402, 874],
+        ],
+        mockups: [
+          ["Option A · Toggle", PRICING_TOGGLE_MOCKUP, 1280, 800],
+          ["Option B · Side by side", PRICING_SIDE_BY_SIDE_MOCKUP, 1280, 800],
         ],
       }),
       simpleRoom({
@@ -501,6 +507,8 @@ function simpleRoom(spec: {
   origin: (sandboxName: string) => string
   group: string
   frames: Array<[label: string, route: string, width: number, height: number]>
+  /** Mockup Layers after the frames in the Group, made for its Workspace. */
+  mockups?: Array<[title: string, html: string, width: number, height: number]>
 }): FixtureRoom {
   // Added from the saved "web" preset, whose name the sidebar shows.
   const repo: RepoData = {
@@ -520,6 +528,15 @@ function simpleRoom(spec: {
       width,
       height,
       iframeState: {},
+    })
+  )
+  const mockups: MockupLayerData[] = (spec.mockups ?? []).map(
+    ([title, , width, height], i) => ({
+      id: `mockup-${spec.sandboxName}-${i}`,
+      branchId,
+      title,
+      width,
+      height,
     })
   )
   return {
@@ -547,6 +564,10 @@ function simpleRoom(spec: {
         },
       ],
       iframeLayers: layers,
+      mockupLayers: mockups,
+      mockupHtml: Object.fromEntries(
+        mockups.map((m, i) => [m.id, spec.mockups![i]![1]])
+      ),
       iframeLayerGroups: [
         {
           id: `grp-${spec.sandboxName}`,
@@ -554,10 +575,16 @@ function simpleRoom(spec: {
           x: 0,
           y: 0,
           gap: 48,
-          members: layers.map((layer) => ({
-            kind: "iframe-layer" as const,
-            id: layer.id,
-          })),
+          members: [
+            ...layers.map((layer) => ({
+              kind: "iframe-layer" as const,
+              id: layer.id,
+            })),
+            ...mockups.map((m) => ({
+              kind: "mockup-layer" as const,
+              id: m.id,
+            })),
+          ],
           sidebarOrder: 0,
         },
       ],
