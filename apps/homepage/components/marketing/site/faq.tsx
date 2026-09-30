@@ -5,28 +5,32 @@ import { SectionHeading } from "./section-heading"
 
 const faqs = [
   {
+    q: "What do I need?",
+    a: "A Mac with Apple Silicon, a Claude Code or Codex account, and a repository with a dev server. GitHub is only needed to open pull requests.",
+  },
+  {
     q: "What is Screenplay, exactly?",
     a: "A canvas for coding agents. Every Workspace is a git branch with its own sandbox and dev server, rendered as a live frame. Your agents write code in those Workspaces, and you compare the results side by side instead of one checkout at a time.",
   },
   {
     q: "Which agents does it work with?",
-    a: "Claude Code, Codex and opencode, using your existing CLIs and accounts, plus a built-in agent on the Vercel AI SDK that talks to Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint.",
+    a: "Claude Code and Codex, using the CLIs and accounts you already have. opencode runs in terminal tabs but not in chat. A self-hosted deployment also has a built-in agent that talks to Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint.",
   },
   {
     q: "Does my code leave my machine?",
-    a: "Not with the desktop app. It runs fully offline: sandboxes are git worktrees on your disk, data lives in a local database, and agents are the CLIs you've installed.",
+    a: "Only through your agent. The desktop app has no account and no Screenplay servers, and everything it stores stays on your Mac. Your agent sends code to its model provider just as it does in your terminal, including your README and configs when it works out how to run a new repository.",
   },
   {
     q: "How does the multiplayer part work?",
-    a: "Deploy the web app (Vercel, Postgres and GitHub OAuth) and each Workspace runs in a hosted sandbox VM. Share a canvas and everyone sees the same frames, cursors, comments and agent streams in real time.",
+    a: "Deploy the web app and each Workspace runs in a hosted sandbox VM. Share a canvas and everyone sees the same frames, cursors, comments and agent streams in real time. The reference deployment uses Vercel, Postgres, Liveblocks, Vercel Blob, Vercel Sandbox, a GitHub OAuth app and at least one model provider key.",
   },
   {
     q: "Do I need to change my app?",
-    a: "No. Anything with a dev server works. If you want knobs or synced state across frames, drop in the two small npm packages. They no-op in production builds.",
+    a: "No. Anything with a dev server works, as long as it listens on the port Screenplay gives it. For knobs or state shared between viewers, add the two small npm packages. They no-op in production builds.",
   },
   {
     q: "What does it cost?",
-    a: "Nothing. Screenplay is MIT licensed. You bring your own agent subscriptions or API keys.",
+    a: "The software is free and MIT licensed. You bring your own agent subscriptions or API keys, and a self-hosted deployment pays for its hosting and model usage.",
   },
 ]
 

@@ -19,7 +19,7 @@ export function Problem() {
     <section className={cn(measure, "pt-[clamp(72px,10vw,140px)]")}>
       <SectionHeading
         slug="The problem"
-        title="Agents write several versions. You see them one tab at a time."
+        title="Three versions means three setups and three tabs."
         body="Every worktree needs its own install, port and dev server, and each result lands in another browser tab."
       />
 

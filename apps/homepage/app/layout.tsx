@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
   title: "Screenplay — every branch, side by side",
   description:
-    "Screenplay runs each coding agent on its own branch, in its own sandbox, and shows every result as a live frame on one canvas. Compare them side by side and ship the one that works. Works with Claude Code, Codex and opencode.",
+    "Run your coding agents on separate branches and see every result live on one canvas. Free and open source, for Mac.",
 }
 
 export default function RootLayout({
