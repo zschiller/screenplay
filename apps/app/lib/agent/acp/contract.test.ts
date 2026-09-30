@@ -23,10 +23,12 @@ import {
   contractFor,
   steeringContractFor,
   steppedDriver,
+  stopGateContractFor,
 } from "./engine-contract"
 
 contractFor("in-process", (driver) => new InProcessEngine(driver))
 steeringContractFor("in-process", (driver) => new InProcessEngine(driver))
+stopGateContractFor("in-process", (driver) => new InProcessEngine(driver))
 
 // The ACP engine plugs into the *same* contract, driven by the *same* scenario:
 // a generic ACP agent scripted by the `StreamDriver` runs the turn over a real
@@ -36,6 +38,12 @@ steeringContractFor("in-process", (driver) => new InProcessEngine(driver))
 // production transport — the *same* engine over a real spawned subprocess — runs
 // this contract too, in `spawn-session-factory.test.ts`.
 contractFor(
+  "external",
+  (driver) =>
+    new ExternalEngine({ sessionFactory: acpSessionFactoryFromDriver(driver) })
+)
+
+stopGateContractFor(
   "external",
   (driver) =>
     new ExternalEngine({ sessionFactory: acpSessionFactoryFromDriver(driver) })
@@ -198,7 +206,9 @@ describe("ExternalEngine — steering", () => {
     expect(updates).toHaveLength(1)
   })
 
-  it("a stop ends an agent that keeps working past the cancel, showing none of it", async () => {
+  // What it says past the cancel the consumer drops, as for every Engine
+  // (`stopGateContractFor`).
+  it("a stop ends an agent that keeps working past the cancel, and reports the stop", async () => {
     const updates: EngineUpdate[] = []
     const controller = new AbortController()
     const run = new ExternalEngine({
@@ -226,7 +236,8 @@ describe("ExternalEngine — steering", () => {
       controller.signal
     )
     await run
-    expect(updates).toEqual([{ kind: "done", stopReason: "cancelled" }])
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "cancelled" })
+    expect(updates.filter((u) => u.kind === "done")).toHaveLength(1)
   })
 
   it("a turn that ends on its own leaves the agent be", async () => {

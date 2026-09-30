@@ -27,6 +27,7 @@ import {
 import { aiSdkChunkToAcpUpdate } from "./adapter"
 import type { StreamDriver } from "./in-process-engine"
 import type { AcpSessionFactory } from "./acp-engine"
+import { driveEngineTurn } from "./live-turn"
 import { AcpSession } from "./session"
 import { createRunState, type RunStateRepo, type RunStatus } from "../run-state"
 
@@ -1125,6 +1126,140 @@ export function steeringContractFor(
         kind: "done",
         stopReason: "cancelled",
       })
+    })
+  })
+}
+
+/**
+ * The stop gate (#1263), run against every Engine: once the run is no longer
+ * live, nothing the Engine still emits reaches the chat or the log. The
+ * scripted model keeps streaming after the Stop, as an agent winding down
+ * does, and the turn runs through the live boundary ({@link driveEngineTurn})
+ * so the abort watchdog, not the Engine, decides when the run stopped.
+ */
+export function stopGateContractFor(
+  name: string,
+  makeEngine: (driver: StreamDriver) => Engine
+) {
+  describe(`Engine stop gate: ${name}`, () => {
+    it("passes nothing on to the chat or the log once the run is stopped", async () => {
+      const broadcasts: SessionUpdate[] = []
+      const permissionRequests: RequestPermissionRequest[] = []
+      const errors: string[] = []
+      const records: AcpMessageRecord[] = []
+      const toolCalls: AcpToolCallRecord[] = []
+      const transitions: RunStatus[] = []
+      let ends = 0
+      const rows = new Map<string, RunStatus>([["run_1", "running"]])
+      const ports: AcpConsumerPorts = {
+        async broadcastUpdate(u) {
+          broadcasts.push(u)
+        },
+        async broadcastError(m) {
+          errors.push(m)
+        },
+        async broadcastEnd() {
+          ends++
+        },
+        async appendRecord(r) {
+          records.push(r)
+        },
+        async upsertToolCall(r) {
+          toolCalls.push(r)
+        },
+        async transition(to) {
+          transitions.push(to)
+        },
+        async broadcastPermissionRequest(r) {
+          permissionRequests.push(r)
+        },
+        async pauseForPlan() {},
+        async settleSteers() {},
+      }
+      const consumer = new AcpUpdateConsumer(ports)
+
+      // The watchdog saw the Stop once it read the run as no longer live.
+      let sawStop = () => {}
+      const stopSeen = new Promise<void>((resolve) => (sawStop = resolve))
+      const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
+      const stop = async () => {
+        // Stopped after the first chunk reached the chat.
+        while (broadcasts.length === 0) await tick()
+        rows.set("run_1", "aborted")
+        await stopSeen
+        await tick()
+      }
+      const read = toolCallChunks("call_1", "read_file")
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const plan = {
+        type: "tool-call",
+        toolCallId: "plan_1",
+        toolName: SUBMIT_PLAN_TOOL,
+        input: { plan: "never shown" },
+      } as any
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+      // An agent that ignores the cancel: it keeps narrating, runs a tool and
+      // raises a plan gate after the Stop, then finishes normally.
+      const driver: StreamDriver = (config) => ({
+        consumeStream: async () => {
+          const emit = (chunk: unknown) =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            config.onChunk?.({ chunk: chunk as any })
+          await emit(textChunk("Looking"))
+          await stop()
+          await emit(textChunk(" at it more"))
+          await emit(read.start)
+          await emit(read.call)
+          await emit(read.result)
+          await emit(textChunk("Done."))
+          await emit(plan)
+          await config.onFinish?.({
+            finishReason: "stop",
+            totalUsage: {},
+            response: { messages: [] },
+            steps: [{}],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any)
+        },
+      })
+
+      await driveEngineTurn(
+        makeEngine(driver),
+        {
+          chatId: "chat_1",
+          runId: "run_1",
+          roomId: "room_1",
+          systemPrompt: "sys",
+          model: "anthropic:test",
+          history: [{ role: "user", content: [textBlock("hi")] }],
+        },
+        consumer,
+        {
+          async isRunActive(id) {
+            const active = rows.get(id) === "running"
+            if (!active) sawStop()
+            return active
+          },
+          pollIntervalMs: 1,
+        }
+      )
+
+      // Only what streamed before the Stop showed; nothing after it showed
+      // or was kept, so a reload ends where the live chat did.
+      expect(broadcasts).toEqual([
+        {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: "Looking" },
+        },
+      ])
+      expect(permissionRequests).toEqual([])
+      expect(records).toEqual([])
+      expect(toolCalls).toEqual([])
+      // The Stop owns how the run ended: no completion, no error.
+      expect(transitions).toEqual([])
+      expect(errors).toEqual([])
+      expect(ends).toBe(1)
+      expect(rows.get("run_1")).toBe("aborted")
     })
   })
 }

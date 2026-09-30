@@ -187,9 +187,6 @@ export class InProcessEngine implements UsageReportingEngine {
       },
 
       onChunk: async ({ chunk }) => {
-        // Drop chunks the model buffered before the abort propagated, so a
-        // `/stop` doesn't keep streaming text after the user stopped.
-        if (signal.aborted) return
         // The plan gate streams its arguments first (`tool-input-start`,
         // then `tool-input-delta`s) before the final `tool-call`. Drop that
         // opening chunk: left alone it becomes a `pending` `tool_call` update
