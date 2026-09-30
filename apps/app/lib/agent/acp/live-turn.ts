@@ -39,6 +39,8 @@ export interface DriveTurnDeps {
  * rather than waiting a poll interval. The engine reports the resulting
  * cancellation through the sink as a stop, and the consumer surfaces it without
  * a `failed` transition (the run lifecycle already recorded the terminal stop).
+ * The same abort stops the consumer, so nothing an Engine emits after it
+ * reaches the chat or the log (#1263).
  *
  * This is the move ADR 0006 sequenced last: the live routes drive
  * `selectEngine → Engine.run → AcpUpdateConsumer` through here instead of the
@@ -52,6 +54,11 @@ export async function driveEngineTurn(
   deps: DriveTurnDeps
 ): Promise<void> {
   const controller = new AbortController()
+  // Once the run is no longer live, the consumer passes nothing more on to the
+  // chat or the log, whatever the Engine emits while it winds down.
+  controller.signal.addEventListener("abort", () => consumer.stop(), {
+    once: true,
+  })
 
   // Pre-check: a /stop (or supersession) may have already moved the run off
   // `running` before this background task started. Abort up front so the engine

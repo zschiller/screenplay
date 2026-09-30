@@ -70,6 +70,45 @@ describe("chat-store — stopping a run (#729)", () => {
     chatStore.cleanup(chatId)
   })
 
+  it("ignores the agent's output after the Stopped marker until the next run (#1263)", () => {
+    const chatId = `chat_stop_${++seq}`
+    const chunk = (text: string) => ({
+      type: "chat-acp-update" as const,
+      chatId,
+      id: nextId(),
+      update: {
+        sessionUpdate: "agent_message_chunk" as const,
+        content: { type: "text" as const, text },
+      },
+    })
+    play([
+      { type: "chat-stream-start", chatId, id: nextId() },
+      chunk("Half"),
+      {
+        type: "chat-control",
+        chatId,
+        id: nextId(),
+        control: { kind: "stopped" },
+      },
+      chunk(" and more"),
+      { type: "chat-stream-end", chatId, id: nextId() },
+      chunk(" and even more"),
+    ])
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      { role: "assistant", content: "Half" },
+      { role: "stopped" },
+    ])
+
+    // The next run streams as usual.
+    play([{ type: "chat-stream-start", chatId, id: nextId() }, chunk("Hi")])
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      { role: "assistant", content: "Half" },
+      { role: "stopped" },
+      { role: "assistant", content: "Hi" },
+    ])
+    chatStore.cleanup(chatId)
+  })
+
   it("reloads the same marker the live stop showed", () => {
     expect(renderHistory([{ kind: "stopped" }])).toEqual([{ role: "stopped" }])
   })

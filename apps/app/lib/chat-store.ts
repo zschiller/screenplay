@@ -308,6 +308,13 @@ class ChatStore {
   private askedHere = new Set<string>()
 
   /**
+   * Chats whose run was stopped: set by the `stopped` control, cleared by the
+   * next `chat-stream-start`. The agent's output in between is ignored, so
+   * nothing draws below the Stopped marker (#1263).
+   */
+  private stoppedChats = new Set<string>()
+
+  /**
    * Per-chat accumulator for the ACP text path (ADR 0006). ACP
    * `agent_message_chunk`s carry *deltas*, so we accumulate them here and keep
    * the trailing assistant message in sync. `active` tells us whether the
@@ -724,8 +731,9 @@ class ChatStore {
     // raced with chunks the model had already buffered before the abort
     // propagated — the UI would show "stopped" while messages kept growing.
     // /api/agent/stop broadcasts `chat-stream-end` immediately on its end,
-    // and the engine's onChunk now drops post-abort chunks, so the spinner
-    // clears as soon as the broadcast lands (typically tens of ms).
+    // the server drops whatever the agent emits once the run is stopped, and
+    // this store ignores agent output after the `stopped` control, so the
+    // spinner clears as soon as the broadcast lands (typically tens of ms).
     try {
       const res = await fetch(withBasePath("/api/agent/stop"), {
         method: "POST",
@@ -770,6 +778,7 @@ class ChatStore {
         // previous turn.
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
+        this.stoppedChats.delete(chatId)
         // The run begins at its user message: the sender already shows it,
         // and everyone else gets its echo right after this.
         const { messages } = this.getOrCreate(chatId)
@@ -797,10 +806,12 @@ class ChatStore {
       }
 
       case "chat-acp-update":
+        if (this.stoppedChats.has(chatId)) break
         this.applyAcpUpdate(chatId, event.update)
         break
 
       case "chat-acp-permission":
+        if (this.stoppedChats.has(chatId)) break
         this.applyAcpPermission(chatId, event.request)
         break
 
@@ -835,6 +846,7 @@ class ChatStore {
         break
       }
       case "stopped": {
+        this.stoppedChats.add(chatId)
         const prev = this.getOrCreate(chatId).messages
         // A duplicate /stop (or a second subscriber) mustn't stack markers.
         if (prev[prev.length - 1]?.role === "stopped") break
@@ -1184,6 +1196,7 @@ class ChatStore {
     this.acpAgentText.delete(chatId)
     this.acpThoughtText.delete(chatId)
     this.settledSteers.delete(chatId)
+    this.stoppedChats.delete(chatId)
     this.notify(chatId)
     this.listeners.delete(chatId)
   }

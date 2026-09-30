@@ -78,6 +78,12 @@ export interface AcpConsumerPorts {
    * `user_message_chunk`.
    */
   settleSteers(steers: TakenSteer[]): Promise<void>
+  /**
+   * Whether the run is still the live one (`running`). Asked before each
+   * durable write, so output that raced a Stop never lands in the log after
+   * the run's Stopped marker. Absent means live.
+   */
+  isLive?(): Promise<boolean>
 }
 
 /**
@@ -130,6 +136,12 @@ export class AcpUpdateConsumer {
   private toolCalls = new Map<string, AcpToolCallRecord>()
   /** Guards against a double-close (e.g. `done` after an `error`). */
   private closed = false
+  /**
+   * Set once the run is no longer live (a Stop or a supersession). From then
+   * on nothing reaches the chat or the log, whatever the Engine still emits
+   * while it winds down; its terminal update only ends the stream.
+   */
+  private stopped = false
 
   /**
    * `wake`: the turn answers a Coordinator wake (#897), so a reply that is
@@ -140,6 +152,15 @@ export class AcpUpdateConsumer {
     private readonly ports: AcpConsumerPorts,
     private readonly options: { wake?: boolean } = {}
   ) {}
+
+  /**
+   * The run is no longer live. Whatever the Engine emits from here on is
+   * dropped, on every Engine: the chat already shows the Stopped marker, and
+   * the reload places that marker where the log ends.
+   */
+  stop(): void {
+    this.stopped = true
+  }
 
   async handle(update: EngineUpdate): Promise<void> {
     switch (update.kind) {
@@ -165,12 +186,14 @@ export class AcpUpdateConsumer {
    * before the one it steers. Nothing settles once the turn has closed.
    */
   async acceptSteers(steers: TakenSteer[]): Promise<void> {
-    if (this.closed || steers.length === 0) return
+    if (this.closed || this.stopped || steers.length === 0) return
     await this.flushPending()
     await this.ports.settleSteers(steers)
   }
 
   private async onSessionUpdate(update: SessionUpdate): Promise<void> {
+    // The turn is over: once it closed or stopped, nothing more shows.
+    if (this.closed || this.stopped) return
     // The user turn is the server's own echo (Turn Launch broadcasts it and
     // persists it with its markers). An agent's user_message_chunk (a harness
     // replaying a prompt or a subagent's ask) is never persisted, so passing
@@ -201,6 +224,7 @@ export class AcpUpdateConsumer {
       // status transition is on disk before the next arrives. The broadcast
       // below carries the ACP update verbatim, so clients update in place too.
       await this.flushPending()
+      if (!(await this.stillLive())) return
       const id = update.toolCallId
       const merged = applyToolCallUpdate(this.toolCalls.get(id), update)
       this.toolCalls.set(id, merged)
@@ -241,6 +265,18 @@ export class AcpUpdateConsumer {
   }
 
   /**
+   * Whether the run is still live, asked before a durable write. A run found
+   * stopped stops the consumer, so a Stop the watchdog hasn't seen yet still
+   * keeps the write (and everything after it) out of the log.
+   */
+  private async stillLive(): Promise<boolean> {
+    if (this.stopped) return false
+    const live = await this.ports.isLive?.().catch(() => true)
+    if (live === false) this.stop()
+    return !this.stopped
+  }
+
+  /**
    * Persist the pending narration/reasoning block as one ACP-native record, in
    * arrival order, then clear it. An empty block (no text) writes nothing — no
    * spurious record. Cleared before the await so a re-entrant flush is a no-op.
@@ -249,6 +285,7 @@ export class AcpUpdateConsumer {
     const pending = this.pending
     if (!pending) return
     this.pending = null
+    if (!(await this.stillLive())) return
     if (pending.held) {
       // A wake turn's short reply: a no-reply line says nothing, so it
       // never shows; anything else goes out now, before its record.
@@ -274,12 +311,12 @@ export class AcpUpdateConsumer {
   private async onPermissionRequest(
     request: RequestPermissionRequest
   ): Promise<void> {
-    if (this.closed) return
-    this.closed = true
-
+    if (this.closed || this.stopped) return
     // Flush the trailing narration/reasoning block streamed before the plan;
     // earlier blocks were already flushed at their boundaries, in arrival order.
     await this.flushPending()
+    if (!(await this.stillLive())) return
+    this.closed = true
 
     await this.ports.broadcastPermissionRequest(request)
 
@@ -304,7 +341,7 @@ export class AcpUpdateConsumer {
     // stream so the UI unsticks, with no `completed` transition that would
     // mislabel it and no error. What a stopped or superseded run shows is
     // Turn Launch's decision (see `STOPPED_RUN_STATUS`), not the consumer's.
-    if (stopReason === "cancelled") {
+    if (stopReason === "cancelled" || this.stopped) {
       await this.ports.broadcastEnd()
       return
     }
@@ -314,13 +351,19 @@ export class AcpUpdateConsumer {
     // flushed at their boundaries, in arrival order. An empty block writes
     // nothing — nothing to keep.
     await this.flushPending()
-    await this.ports.transition("completed")
+    // Found stopped at that last write: the stop owns how the turn ends.
+    if (!this.stopped) await this.ports.transition("completed")
     await this.ports.broadcastEnd()
   }
 
   private async onError(message: string): Promise<void> {
     if (this.closed) return
     this.closed = true
+    // A stopped run's Engine failing as it winds down is still the stop.
+    if (this.stopped) {
+      await this.ports.broadcastEnd()
+      return
+    }
     await this.ports.broadcastError(message)
     // A genuine failure records `failed`. The transition no-ops on a run that
     // already reached a terminal state, so a late error can't relabel it.

@@ -662,3 +662,59 @@ describe("AcpUpdateConsumer — tool-call lifecycle", () => {
     expect(h.statusOf()).toBe("completed")
   })
 })
+
+describe("AcpUpdateConsumer — the stop gate (#1263)", () => {
+  it("keeps output that raced a Stop out of the log before the watchdog sees it", async () => {
+    let live = true
+    const broadcasts: SessionUpdate[] = []
+    const records: AcpMessageRecord[] = []
+    const toolCalls: AcpToolCallRecord[] = []
+    const transitions: RunStatus[] = []
+    let ends = 0
+    const consumer = new AcpUpdateConsumer({
+      async broadcastUpdate(u) {
+        broadcasts.push(u)
+      },
+      async broadcastError() {},
+      async broadcastEnd() {
+        ends++
+      },
+      async appendRecord(r) {
+        records.push(r)
+      },
+      async upsertToolCall(r) {
+        toolCalls.push(r)
+      },
+      async transition(to) {
+        transitions.push(to)
+      },
+      async broadcastPermissionRequest() {},
+      async pauseForPlan() {},
+      async settleSteers() {},
+      async isLive() {
+        return live
+      },
+    })
+
+    await consumer.handle({
+      kind: "session_update",
+      update: agentMessageChunk("Reading"),
+    })
+    // The user stops; the Engine's next boundary lands before the abort.
+    live = false
+    await feed(consumer, [
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "call_1", title: "Read a.ts" }),
+      },
+      { kind: "session_update", update: agentMessageChunk("Done.") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(broadcasts).toEqual([agentMessageChunk("Reading")])
+    expect(records).toEqual([])
+    expect(toolCalls).toEqual([])
+    expect(transitions).toEqual([])
+    expect(ends).toBe(1)
+  })
+})

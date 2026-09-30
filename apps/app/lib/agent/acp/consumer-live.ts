@@ -7,7 +7,12 @@ import {
   broadcastSignal,
 } from "../broadcast"
 import { appendAcpMessage, upsertAcpToolCall } from "../persistence"
-import { pauseForPlan, transition, type RunStatus } from "../run-state"
+import {
+  isRunActive,
+  pauseForPlan,
+  transition,
+  type RunStatus,
+} from "../run-state"
 import type { AcpConsumerPorts } from "./consumer"
 import { contentBlocksToWire } from "./markers"
 import { userMessageChunk } from "./schema"
@@ -38,6 +43,9 @@ export function liveAcpConsumerPorts(
     // The consumer derives the plan-gate tool-call; the run-state machine needs
     // the chat id, which this live port owns.
     pauseForPlan: (planCall) => pauseForPlan(runId, { ...planCall, chatId }),
+    // Asked before each durable write, so output racing a Stop stays out of
+    // the log even before the abort watchdog trips (#1263).
+    isLive: () => isRunActive(runId),
     // A taken Steer becomes an ordinary user message: in the log where the
     // agent took it, and on every client as the same echo a turn's first
     // message gets.
