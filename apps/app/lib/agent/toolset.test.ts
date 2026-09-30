@@ -115,6 +115,23 @@ describe("toolsetFor (sandbox)", () => {
     expect(tools.read_document).toBeDefined()
   })
 
+  it("gives every chat the ask_question tool (#1312)", async () => {
+    const tools = toolsetFor(sandboxTarget)
+    const ask = tools.ask_question.execute!
+    expect(
+      await ask(
+        {
+          question: "Which layout?",
+          options: [{ label: "A" }, { label: "B" }],
+        },
+        {} as never
+      )
+    ).toMatch(/^Asked\. End your turn/)
+    expect(
+      await ask({ question: "Which?", options: [{ label: "A" }] }, {} as never)
+    ).toMatch(/^Not asked/)
+  })
+
   it("assembles the new grep and glob tools", () => {
     const tools = toolsetFor(sandboxTarget)
     expect(tools.grep).toBeDefined()

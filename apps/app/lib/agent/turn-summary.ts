@@ -3,6 +3,7 @@ import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { isNoReply } from "@/lib/agent/coordinator-wake"
+import { isQuestionCall } from "@/lib/agent/question"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 
@@ -31,12 +32,14 @@ export interface TurnSummary {
 const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
 
 /**
- * Whether an entry stays on screen in a folded turn: a pinned kind, or a
+ * Whether an entry stays on screen in a folded turn: a pinned kind, a
  * Coordinator call that names a Workspace, whose task row is the point of the
- * turn (#896).
+ * turn (#896), or a question card (#1312), which shows what was asked and
+ * answered.
  */
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
+  if (isQuestionCall(message)) return true
   return message.role === "tool_call" && workspaceTasksOf(message).length > 0
 }
 

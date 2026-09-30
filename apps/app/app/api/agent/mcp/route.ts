@@ -23,6 +23,10 @@ import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
 import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
 import { withRedactedOutput } from "@/lib/agent/toolset"
 import {
+  buildQuestionTools,
+  QUESTION_TOOL_ANNOTATIONS,
+} from "@/lib/agent/question-tools"
+import {
   handleMcpMessage,
   parseErrorResponse,
   type McpToolServer,
@@ -64,7 +68,7 @@ export async function POST(req: Request) {
 
   // A Workspace chat's harness gets its own dev server's tools and the frame
   // reads, bound to the Sandbox its token was minted for, and its Document
-  // tools, bound to its chat.
+  // tools, bound to its chat, and Question Cards (#1312).
   if (binding.sandboxName) {
     const response = await handleMcpMessage(
       {
@@ -80,11 +84,13 @@ export async function POST(req: Request) {
           }),
           ...buildDocumentTools({ room, chatId: binding.chatId }),
           ...buildLayerReadTools({ room }),
+          ...buildQuestionTools(),
         }),
         annotations: {
           ...DEV_SERVER_TOOL_ANNOTATIONS,
           ...FRAME_READ_TOOL_ANNOTATIONS,
           ...DOCUMENT_TOOL_ANNOTATIONS,
+          ...QUESTION_TOOL_ANNOTATIONS,
         },
         onInitialize: (client) =>
           console.info(

@@ -6,6 +6,7 @@ import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
 import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
+import { buildQuestionTools } from "@/lib/agent/question-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
 
@@ -37,6 +38,7 @@ export type ToolTarget =
  */
 export function toolsetFor(target: ToolTarget): ToolSet {
   const read = buildLayerReadTools({ room: target.room })
+  const ask = buildQuestionTools()
   const own =
     target.kind === "sandbox"
       ? {
@@ -44,7 +46,7 @@ export function toolsetFor(target: ToolTarget): ToolSet {
           ...buildDocumentTools({ room: target.room, chatId: target.chatId }),
         }
       : buildRoomTools(target.room.roomId, target.ports, target.turnId)
-  return withRedactedOutput({ ...own, ...read })
+  return withRedactedOutput({ ...own, ...read, ...ask })
 }
 
 /**

@@ -1191,6 +1191,47 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-chat-question",
+    description:
+      "A chat asking a question as a card: one button per option, the recommended one marked (#1312).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, questionRun())
+      await page
+        .getByTestId("question-card")
+        .first()
+        .waitFor({ timeout: 10_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-question-answered",
+    description:
+      "The same question card once answered: the chosen option ticked, every button disabled (#1312).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, [
+        ...questionRun(),
+        {
+          type: "chat-acp-update",
+          update: {
+            sessionUpdate: "user_message_chunk",
+            content: text("Pin to the bottom"),
+          },
+        },
+      ])
+      await page
+        .getByTestId("question-card")
+        .first()
+        .waitFor({ timeout: 10_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-chat-stopped",
     description: "A run the user stopped part-way through.",
     path: `/${ids.rooms.checkout}`,
@@ -4679,6 +4720,68 @@ export function streamingRun(): RunEvent[] {
         ),
       },
     },
+  ]
+}
+
+/**
+ * A finished turn that ends on a question card (#1312): the prompt, a read,
+ * a line of narration and the `ask_question` call.
+ */
+export function questionRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Make the order summary sticky on mobile."),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-read",
+        title: "Read app/checkout/summary.tsx",
+        kind: "read",
+        status: "completed",
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "On mobile the summary lands under the form. There are two ways to keep it in view."
+        ),
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-question",
+        title: "ask_question",
+        kind: "other",
+        status: "completed",
+        rawInput: {
+          question: "Where should the order summary stay on mobile?",
+          options: [
+            {
+              label: "Pin to the bottom",
+              detail: "A collapsed total bar that expands on tap",
+            },
+            {
+              label: "Pin to the top",
+              detail: "Stays under the header while you scroll",
+            },
+            { label: "Leave it inline" },
+          ],
+          recommended: 0,
+        },
+      },
+    },
+    { type: "chat-stream-end" },
   ]
 }
 

@@ -1,10 +1,12 @@
 import {
+  hasToolCall,
   isStepCount,
   streamText,
   type ModelMessage,
   type StreamTextResult,
   type Tool,
 } from "ai"
+import { ASK_QUESTION_TOOL } from "@/lib/agent/question"
 import { resolveLanguageModel } from "../providers"
 import {
   acpHistoryToModelMessages,
@@ -176,7 +178,8 @@ export class InProcessEngine implements UsageReportingEngine {
       instructions: cachedSystem(turn.systemPrompt),
       messages,
       tools: turn.tools,
-      stopWhen: [isStepCount(maxSteps)],
+      // A question (#1312) ends the turn: the answer is the user's next message.
+      stopWhen: [isStepCount(maxSteps), hasToolCall(ASK_QUESTION_TOOL)],
       abortSignal: signal,
 
       prepareStep: async ({ initialMessages, responseMessages }) => {
