@@ -8,8 +8,10 @@
  * 1. **Prompt presence.** An empty prompt makes a bare scratch Branch — random
  *    name, no Chat Session, no model applied, nothing fired on `running`. A
  *    non-empty prompt derives the name from the prompt, seeds a Chat Session,
- *    pins the name against the server's first-chat rename (`autoNamedBranch`),
  *    fires the prompt once the Sandbox is `running`, and carries the model.
+ *    Either way the Branch stays auto-named (`autoNamedBranch`), so its first
+ *    turn names the Workspace and its branch (#1182): a bare Branch would
+ *    otherwise read "New Workspace" for good.
  * 2. **Base vs default.** `base === defaultBranch` is the `"new"` flow (fresh
  *    branch off the default); any other base is `"duplicate-branch"` (fork the
  *    chosen source). This mirrors the existing server behaviour, so the
@@ -58,7 +60,7 @@ export interface BranchPlan {
   flow: "new" | "duplicate-branch"
   /** Whether a Chat Session is seeded for this Branch. */
   seedChat: boolean
-  /** Whether the generated name is pinned against the server's first-chat rename. */
+  /** Whether the server's first-chat rename may name the Workspace and its branch. */
   autoNamedBranch: boolean
   /** Whether the seed prompt fires as the first message once the Sandbox is `running`. */
   firePromptOnRunning: boolean
@@ -88,7 +90,7 @@ function planBranchCreation(repo: RepoContext, spec: ComposerSpec): BranchPlan {
       nameSource: "random",
       flow,
       seedChat: false,
-      autoNamedBranch: false,
+      autoNamedBranch: true,
       firePromptOnRunning: false,
     }
   }

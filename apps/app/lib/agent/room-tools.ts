@@ -5,6 +5,7 @@ import { nanoid } from "nanoid"
 import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
+import { isFreshWorkspace } from "@/lib/fresh-workspace"
 import { workspaceLabel } from "@/lib/workspace-label"
 import {
   buildWorkspaceReadTools,
@@ -20,6 +21,7 @@ import {
 import { isBranchBusy } from "@/lib/branch-busy"
 import {
   createdWorkspacesResult,
+  queuedForWorkspaceResult,
   sentToWorkspaceResult,
   workspacePlanMarkdown,
   CREATE_WORKSPACES_TOOL,
@@ -228,7 +230,7 @@ export function buildRoomTools(
     }),
     send_to_workspace: tool({
       description:
-        "Send a message into a Workspace's chat, as a new turn for its agent. Use it to hand a Workspace work or a follow-up; the user sees it in that chat and can take over at any time. It returns as soon as the message is queued, never waiting for the turn: you hear back when the turn ends. It refuses a Workspace whose agent is working, whose sandbox isn't running, or whose plan waits on the user (only the user approves plans).",
+        "Send a message into a Workspace's chat, as a new turn for its agent. Use it to hand a Workspace work or a follow-up; the user sees it in that chat and can take over at any time. It returns as soon as the message is queued, never waiting for the turn: you hear back when the turn ends. It refuses a Workspace whose agent is working, whose sandbox isn't running, or whose plan waits on the user (only the user approves plans). A fresh Workspace whose sandbox is still starting takes the message and gets it as soon as it runs.",
       inputSchema: jsonSchema<{ workspace_id: string; message: string }>({
         type: "object",
         properties: {
@@ -901,7 +903,17 @@ async function sendToWorkspace(
       )
     }
     const title = workspaceLabel(branch)
-    if (branch.status !== "running") {
+    // A fresh Workspace still starting (the one adding a repository makes,
+    // #1182) takes the message as its seed, sent once its sandbox runs.
+    const starting =
+      branch.status === "creating" || branch.status === "starting"
+    if (starting && branch.pendingSeed) {
+      throw new Error(
+        `"${title}" is still starting and already has a message waiting. Wait until it runs, then send the next one.`
+      )
+    }
+    const queue = starting && isFreshWorkspace(branch)
+    if (branch.status !== "running" && !queue) {
       throw new Error(
         `"${title}" isn't running (its sandbox is ${branch.status}), so it can't take a message.`
       )
@@ -925,31 +937,48 @@ async function sendToWorkspace(
     const open = branchChats
       .filter((c) => !c.closedAt)
       .sort((a, b) => b.createdAt - a.createdAt)[0]
+    let target: {
+      chatId: string
+      model: string | undefined
+      isFirstChat: boolean
+    }
     if (open) {
-      return {
-        title,
-        branch,
+      target = {
         chatId: open.id,
         model: open.model,
         isFirstChat: branchChats.length === 1,
       }
+    } else {
+      const chat: ChatSessionData = {
+        id: nanoid(),
+        branchId,
+        label: "Untitled",
+        createdAt: Date.now(),
+      }
+      collections.chatSessions.set(chat.id, chat)
+      target = {
+        chatId: chat.id,
+        model: undefined,
+        isFirstChat: branchChats.length === 0,
+      }
     }
-    const chat: ChatSessionData = {
-      id: nanoid(),
-      branchId,
-      label: "Untitled",
-      createdAt: Date.now(),
+    if (queue) {
+      // Provisioning sends it the moment the sandbox runs (`sendPendingSeed`),
+      // as the first turn, which names the Workspace.
+      collections.branches.update(branchId, {
+        pendingSeed: {
+          chatId: target.chatId,
+          message,
+          coordinatorChatId: ports.coordinatorChatId,
+        },
+      })
     }
-    collections.chatSessions.set(chat.id, chat)
-    return {
-      title,
-      branch,
-      chatId: chat.id,
-      model: undefined,
-      isFirstChat: branchChats.length === 0,
-    }
+    return { title, branch, queued: queue, ...target }
   })
 
+  if (target.queued) {
+    return queuedForWorkspaceResult(target.title, target.chatId)
+  }
   await ports.launchWorkspaceTurn({
     branchId,
     sandboxName: target.branch.sandboxName,
@@ -1032,6 +1061,8 @@ export function summarizeCanvas(
           `branch ${clip(b.ref)}`,
           repoNames.get(b.repoId) && clip(repoNames.get(b.repoId)!),
           workspaceStatus(b, working.has(b.id)),
+          // Takes the next ask that fits its repository (#1182).
+          isFreshWorkspace(b) && "fresh (no turns yet)",
           lineCounts(b),
           b.prNumber && `PR #${b.prNumber} ${b.prState ?? "open"}`,
         ]

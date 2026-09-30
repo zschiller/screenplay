@@ -9,7 +9,13 @@ import { AgentChat } from "@/components/agent/agent-chat"
 import { WorkspaceTasksProvider } from "@/components/agent/workspace-task-row"
 import { WorkspacesMenuButton } from "@/components/agent/workspaces-menu"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
-import { useBranches, useChatSessions, usePlans } from "@/lib/yjs/react"
+import { coordinatorStart } from "@/lib/fresh-workspace"
+import {
+  useBranches,
+  useChatSessions,
+  usePlans,
+  useRepos,
+} from "@/lib/yjs/react"
 import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { ensureRoomChatAction } from "@/lib/room-chat-actions"
 import type { ChatSessionData } from "@/lib/types"
@@ -44,6 +50,12 @@ export function RoomChatPanel({
   const branches = useBranches()
   const chatSessions = useChatSessions()
   const plans = usePlans()
+  const repos = useRepos()
+  // A fresh canvas's empty chat asks what should change (#1182).
+  const roomStart = useMemo(
+    () => coordinatorStart({ repos, branches }),
+    [repos, branches]
+  )
   const workspaceTasks = useMemo(
     () => ({ branches, chatSessions, plans, onOpen: onOpenWorkspace }),
     [branches, chatSessions, plans, onOpenWorkspace]
@@ -85,6 +97,7 @@ export function RoomChatPanel({
             chatId={chatId}
             roomId={roomId}
             roomTarget
+            roomStart={roomStart}
             model={chatSession?.model}
             onModelChange={(model) => onModelChange(chatId, model)}
           />

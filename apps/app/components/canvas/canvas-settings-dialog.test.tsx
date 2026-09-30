@@ -112,6 +112,7 @@ const BRANCHES = [
     id: "b1",
     repoId: "r1",
     ref: "checkout-polish",
+    title: "Checkout polish",
     colorIndex: 0,
   } as BranchData,
 ]
@@ -229,7 +230,7 @@ describe("CanvasSettingsDialog", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Remove" }))
 
     const confirm = await screen.findByRole("alertdialog")
-    expect(within(confirm).getByText("checkout-polish")).not.toBeNull()
+    expect(within(confirm).getByText("Checkout polish")).not.toBeNull()
     fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }))
 
     await waitFor(() =>

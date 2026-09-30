@@ -5,78 +5,75 @@ import { gettingStartedProgress } from "./getting-started"
 const repo = { id: "repo-1" }
 const branch = (
   id: string,
-  status: "creating" | "starting" | "running" | "error" = "starting"
-) => ({ id, status, statusMessage: "Installing dependencies…" })
+  overrides: { lastActivityAt?: number; pendingSeed?: boolean } = {}
+) => ({
+  id,
+  status: "running" as const,
+  statusMessage: undefined,
+  lastActivityAt: overrides.lastActivityAt,
+  pendingSeed: overrides.pendingSeed
+    ? {
+        chatId: "c1",
+        message: "Make the header sticky",
+        coordinatorChatId: "r",
+      }
+    : undefined,
+})
 
 describe("gettingStartedProgress", () => {
-  it("starts on Add a project", () => {
+  it("starts on Add a repository", () => {
     const p = gettingStartedProgress({
       repos: [],
       branches: [],
-      iframeLayers: [],
+      workspaceOpened: false,
     })
-    expect(p).toMatchObject({
+    expect(p).toEqual({
       project: false,
-      workspace: false,
-      frame: false,
+      ask: false,
+      open: false,
       current: "project",
       branch: null,
-      frameLayerId: null,
     })
   })
 
-  it("moves to Start a Workspace once a Project is added with none", () => {
-    const p = gettingStartedProgress({
-      repos: [repo],
-      branches: [],
-      iframeLayers: [],
-    })
-    expect(p.current).toBe("workspace")
-  })
-
-  it("waits on the frame until its Workspace is running", () => {
+  it("moves to Ask the Coordinator once a repository is added", () => {
+    // Adding a repository starts a fresh Workspace; it isn't an ask yet.
     const p = gettingStartedProgress({
       repos: [repo],
       branches: [branch("b1")],
-      iframeLayers: [{ id: "f1", branchId: "b1" }],
+      workspaceOpened: false,
     })
-    expect(p).toMatchObject({
-      project: true,
-      workspace: true,
-      frame: false,
-      current: "frame",
-      frameLayerId: "f1",
+    expect(p.current).toBe("ask")
+    expect(p.branch).toBeNull()
+  })
+
+  it("counts an ask queued for a Workspace that is still starting", () => {
+    const p = gettingStartedProgress({
+      repos: [repo],
+      branches: [branch("b1", { pendingSeed: true })],
+      workspaceOpened: false,
     })
+    expect(p).toMatchObject({ ask: true, current: "open" })
     expect(p.branch?.id).toBe("b1")
   })
 
-  it("follows the Workspace that has a frame", () => {
+  it("follows the Workspace the first ask went to", () => {
     const p = gettingStartedProgress({
       repos: [repo],
-      branches: [branch("b1"), branch("b2")],
-      iframeLayers: [{ id: "f2", branchId: "b2" }],
+      branches: [branch("b1"), branch("b2", { lastActivityAt: 1 })],
+      workspaceOpened: false,
     })
     expect(p.branch?.id).toBe("b2")
-    expect(p.frameLayerId).toBe("f2")
+    expect(p.current).toBe("open")
   })
 
-  it("isn't done by a running Workspace with no frame", () => {
+  it("is done once a Workspace has been opened", () => {
     const p = gettingStartedProgress({
       repos: [repo],
-      branches: [branch("b1", "running")],
-      iframeLayers: [],
+      branches: [branch("b1", { lastActivityAt: 1 })],
+      workspaceOpened: true,
     })
-    expect(p.frame).toBe(false)
-    expect(p.frameLayerId).toBeNull()
-  })
-
-  it("is done once a frame shows a running Workspace", () => {
-    const p = gettingStartedProgress({
-      repos: [repo],
-      branches: [branch("b1", "running")],
-      iframeLayers: [{ id: "f1", branchId: "b1" }],
-    })
-    expect(p.frame).toBe(true)
+    expect(p.open).toBe(true)
     expect(p.current).toBeNull()
   })
 })

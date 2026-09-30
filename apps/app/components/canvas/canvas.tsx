@@ -199,9 +199,17 @@ import { CanvasEmptyState } from "./canvas-empty-state"
 import { GettingStartedChecklist } from "./getting-started-checklist"
 
 import {
+  AddRepositoryDialog,
+  AddRepositoryFlowProvider,
+  useAddRepositoryFlow,
+} from "@/components/add-repository-dialog"
+
+import {
   clearGettingStartedCanvas,
   gettingStartedProgress,
   isGettingStartedCanvas,
+  isGettingStartedWorkspaceOpened,
+  markGettingStartedWorkspaceOpened,
   subscribeGettingStarted,
 } from "@/lib/getting-started"
 
@@ -1494,14 +1502,19 @@ export function Canvas({
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Every Add repository outside Canvas settings (the empty canvas, the chat
-  // panel, the getting-started checklist) opens it on Repositories (#884).
-  const handleAddProject = useCallback(() => setCanvasSettingsOpen(true), [])
-  // Bumped to open New workspace for a Repository from the getting-started
-  // checklist (the Workspaces menu's create dialog, #1152).
-  const [newWorkspaceRequest, setNewWorkspaceRequest] = useState<{
-    repoId: string
-    seq: number
-  } | null>(null)
+  // panel, the getting-started checklist, the Workspaces menu) goes straight to
+  // the picker and closes when the repository is added (#1182).
+  const addRepository = useAddRepositoryFlow()
+  // A canvas with no Workspace yet opens on the chat panel (#1182), so the
+  // Coordinator, or where to add a repository, is the first thing you meet.
+  // The panel's size is shared by every canvas, so this runs once per mount.
+  const expandChatPanel = chatTarget.expandPanel
+  const opensOnPanelRef = useRef(agents.length === 0)
+  useEffect(() => {
+    if (!opensOnPanelRef.current) return
+    opensOnPanelRef.current = false
+    expandChatPanel()
+  }, [expandChatPanel])
   const isCanvasEmpty = iframeLayers.length === 0 && markdownLayers.length === 0
   // The first Canvas after setup shows the getting-started checklist (#780)
   // until it's dismissed. Read from this browser's storage after hydration.
@@ -1510,9 +1523,25 @@ export function Canvas({
     () => isGettingStartedCanvas(roomId),
     () => false
   )
+  const gettingStartedWorkspaceOpened = useSyncExternalStore(
+    subscribeGettingStarted,
+    () => isGettingStartedWorkspaceOpened(roomId),
+    () => false
+  )
+  // Step 3 ticks once the panel shows a Workspace here.
+  const panelOnWorkspace = chatTarget.target?.kind === "agent"
+  useEffect(() => {
+    if (showGettingStarted && panelOnWorkspace)
+      markGettingStartedWorkspaceOpened(roomId)
+  }, [showGettingStarted, panelOnWorkspace, roomId])
   const gettingStarted = useMemo(
-    () => gettingStartedProgress({ repos, branches: agents, iframeLayers }),
-    [repos, agents, iframeLayers]
+    () =>
+      gettingStartedProgress({
+        repos,
+        branches: agents,
+        workspaceOpened: gettingStartedWorkspaceOpened,
+      }),
+    [repos, agents, gettingStartedWorkspaceOpened]
   )
   // Desktop + non-fullscreen: the macOS traffic lights overlay the top-left,
   // so the collapsed-sidebar pills must shift right to clear them.
@@ -1561,132 +1590,128 @@ export function Canvas({
           onReady={() => chatTarget.handlePendingReady(agentId)}
         />
       ))}
-      <WorkspacesMenuProvider
-        userId={userId ?? "anonymous"}
-        roomId={roomId}
-        repos={repos}
-        branches={agents}
-        markdownLayers={markdownLayers}
-        iframeLayers={iframeLayers}
-        diffStats={diffStats}
-        branchPrs={branchPrs}
-        activeBranchIds={activeBranchIds}
-        current={
-          chatTarget.target?.kind === "agent"
-            ? { kind: "agent", id: chatTarget.target.agent.id }
-            : chatTarget.target?.kind === "layer"
-              ? {
-                  kind: "layer",
-                  layerKind: chatTarget.target.layerKind,
-                  id: chatTarget.target.layer.id,
-                }
-              : repos.length > 0
-                ? { kind: "room" }
-                : { kind: "none" }
-        }
-        onShowRoomChat={chatTarget.showRoomChat}
-        onSelectWorkspace={(id, options) =>
-          chatTarget.selectAgent(id, { ...options, clearDocument: true })
-        }
-        onSelectLayer={(layerKind, id) => {
-          if (layerKind === "markdown-layer") chatTarget.selectDocument(id)
-        }}
-        onOpenCanvasSettings={handleAddProject}
-        onCreateBranchFromGitBranch={createBranchFromGitBranch}
-        onCreateWorkspace={createBranch}
-        onRebaseOnDefault={branchActions.rebaseOnDefault}
-        onRestartDevServer={branchActions.restartDevServer}
-        onCreatePr={branchActions.createPullRequest}
-        onRefreshBranch={branchActions.restartSandbox}
-        onRecreateBranch={branchActions.recreate}
-        onRetryBranch={retryBranch}
-        onMarkBranchDone={branchActions.markDone}
-        onReopenBranch={branchActions.reopen}
-        onRemoveBranch={removeBranchIntake}
-        onPlayBranch={handlePlayAgent}
-        onShowRoutes={handleShowRoutesForAgent}
-        onUpdateBranch={updateAgentInStorage}
-        onRenameBranch={renameBranch}
-        onReorderBranches={ops.reorderBranches}
-        newWorkspaceRequest={newWorkspaceRequest}
-      >
-        <ResizablePanelGroup
-          orientation="horizontal"
-          className="fixed inset-0 bg-canvas-plane"
-          defaultLayout={initialLayout}
-          onLayoutChanged={onLayoutChanged}
+      <AddRepositoryFlowProvider value={addRepository}>
+        <WorkspacesMenuProvider
+          userId={userId ?? "anonymous"}
+          roomId={roomId}
+          repos={repos}
+          branches={agents}
+          markdownLayers={markdownLayers}
+          iframeLayers={iframeLayers}
+          diffStats={diffStats}
+          branchPrs={branchPrs}
+          activeBranchIds={activeBranchIds}
+          current={
+            chatTarget.target?.kind === "agent"
+              ? { kind: "agent", id: chatTarget.target.agent.id }
+              : chatTarget.target?.kind === "layer"
+                ? {
+                    kind: "layer",
+                    layerKind: chatTarget.target.layerKind,
+                    id: chatTarget.target.layer.id,
+                  }
+                : repos.length > 0
+                  ? { kind: "room" }
+                  : { kind: "none" }
+          }
+          onShowRoomChat={chatTarget.showRoomChat}
+          onSelectWorkspace={(id, options) =>
+            chatTarget.selectAgent(id, { ...options, clearDocument: true })
+          }
+          onSelectLayer={(layerKind, id) => {
+            if (layerKind === "markdown-layer") chatTarget.selectDocument(id)
+          }}
+          onCreateBranchFromGitBranch={createBranchFromGitBranch}
+          onCreateWorkspace={createBranch}
+          onRebaseOnDefault={branchActions.rebaseOnDefault}
+          onRestartDevServer={branchActions.restartDevServer}
+          onCreatePr={branchActions.createPullRequest}
+          onRefreshBranch={branchActions.restartSandbox}
+          onRecreateBranch={branchActions.recreate}
+          onRetryBranch={retryBranch}
+          onMarkBranchDone={branchActions.markDone}
+          onReopenBranch={branchActions.reopen}
+          onRemoveBranch={removeBranchIntake}
+          onPlayBranch={handlePlayAgent}
+          onShowRoutes={handleShowRoutesForAgent}
+          onUpdateBranch={updateAgentInStorage}
+          onRenameBranch={renameBranch}
+          onReorderBranches={ops.reorderBranches}
         >
-          {/* Sidebar */}
-          <ResizablePanel
-            id="sidebar"
-            defaultSize="240px"
-            minSize="180px"
-            maxSize="480px"
-            collapsible
-            collapsedSize="0px"
-            groupResizeBehavior="preserve-pixel-size"
-            panelRef={sidebarPanelRef}
-            onResize={(size, _id, prev) => {
-              setSidebarCollapsed(size.inPixels === 0)
-              if (prev) {
-                const delta = size.inPixels - prev.inPixels
-                if (delta !== 0) {
-                  const ref = transformRef.current
-                  if (ref) {
-                    const { positionX, positionY, scale } = ref.state
-                    ref.setTransform(positionX - delta, positionY, scale, 0)
+          <ResizablePanelGroup
+            orientation="horizontal"
+            className="fixed inset-0 bg-canvas-plane"
+            defaultLayout={initialLayout}
+            onLayoutChanged={onLayoutChanged}
+          >
+            {/* Sidebar */}
+            <ResizablePanel
+              id="sidebar"
+              defaultSize="240px"
+              minSize="180px"
+              maxSize="480px"
+              collapsible
+              collapsedSize="0px"
+              groupResizeBehavior="preserve-pixel-size"
+              panelRef={sidebarPanelRef}
+              onResize={(size, _id, prev) => {
+                setSidebarCollapsed(size.inPixels === 0)
+                if (prev) {
+                  const delta = size.inPixels - prev.inPixels
+                  if (delta !== 0) {
+                    const ref = transformRef.current
+                    if (ref) {
+                      const { positionX, positionY, scale } = ref.state
+                      ref.setTransform(positionX - delta, positionY, scale, 0)
+                    }
                   }
                 }
-              }
-            }}
-          >
-            <RoomSidebar
-              branches={agents}
-              iframeLayers={iframeLayers}
-              markdownLayers={markdownLayers}
-              iframeLayerGroups={sortedIframeLayerGroups}
-              selectedIframeLayerIds={selectedIframeLayerIds}
-              selectedGroupIds={selectedGroupIds}
-              selectedDocumentLayerIds={selectedDocumentLayerIds}
-              onSelectGroup={handleGroupSelect}
-              onZoomToGroup={handleZoomToGroup}
-              onSelectDocument={handleDocumentLayerSelect}
-              onZoomToDocument={handleZoomToDocument}
-              onRenameDocument={layerMutations.setTitle}
-              onRemoveDocument={(id) => removeDocumentLayers([id])}
-              onSelectIframeLayer={handleIframeLayerSelect}
-              onZoomToIframeLayer={handleSelectIframeLayer}
-              onRenameIframeLayer={layerMutations.rename}
-              onRemoveIframeLayer={removeIframeLayer}
-              onReorderIframeLayerGroups={reorderIframeLayerGroups}
-              onMoveMember={moveMember}
-              onRenameIframeLayerGroup={renameIframeLayerGroup}
-              onRemoveIframeLayerGroup={removeIframeLayerGroup}
-              onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
-              footer={
-                showGettingStarted ? (
-                  <GettingStartedChecklist
-                    progress={gettingStarted}
-                    onAddProject={handleAddProject}
-                    onNewWorkspace={() => {
-                      const repo = repos[0]
-                      if (!repo) return
-                      setNewWorkspaceRequest((prev) => ({
-                        repoId: repo.id,
-                        seq: (prev?.seq ?? 0) + 1,
-                      }))
-                    }}
-                    onShowFrame={handleSelectIframeLayer}
-                    onDismiss={clearGettingStartedCanvas}
-                  />
-                ) : null
-              }
-            />
-          </ResizablePanel>
-          <ResizableHandle className="focus-visible:ring-0" />
+              }}
+            >
+              <RoomSidebar
+                branches={agents}
+                iframeLayers={iframeLayers}
+                markdownLayers={markdownLayers}
+                iframeLayerGroups={sortedIframeLayerGroups}
+                selectedIframeLayerIds={selectedIframeLayerIds}
+                selectedGroupIds={selectedGroupIds}
+                selectedDocumentLayerIds={selectedDocumentLayerIds}
+                onSelectGroup={handleGroupSelect}
+                onZoomToGroup={handleZoomToGroup}
+                onSelectDocument={handleDocumentLayerSelect}
+                onZoomToDocument={handleZoomToDocument}
+                onRenameDocument={layerMutations.setTitle}
+                onRemoveDocument={(id) => removeDocumentLayers([id])}
+                onSelectIframeLayer={handleIframeLayerSelect}
+                onZoomToIframeLayer={handleSelectIframeLayer}
+                onRenameIframeLayer={layerMutations.rename}
+                onRemoveIframeLayer={removeIframeLayer}
+                onReorderIframeLayerGroups={reorderIframeLayerGroups}
+                onMoveMember={moveMember}
+                onRenameIframeLayerGroup={renameIframeLayerGroup}
+                onRemoveIframeLayerGroup={removeIframeLayerGroup}
+                onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
+                footer={
+                  showGettingStarted ? (
+                    <GettingStartedChecklist
+                      progress={gettingStarted}
+                      onShowCoordinator={() => {
+                        chatTarget.showRoomChat()
+                        chatTarget.expandPanel()
+                      }}
+                      onOpenWorkspace={(id) =>
+                        chatTarget.selectAgent(id, { clearDocument: true })
+                      }
+                      onDismiss={clearGettingStartedCanvas}
+                    />
+                  ) : null
+                }
+              />
+            </ResizablePanel>
+            <ResizableHandle className="focus-visible:ring-0" />
 
-          {/* Canvas */}
-          {/* react-resizable-panels wraps each panel's children in a div with
+            {/* Canvas */}
+            {/* react-resizable-panels wraps each panel's children in a div with
             `overflow: auto` + `max-width/height: 100%`. The canvas fills that
             wrapper exactly (`h-full w-full`), so sub-pixel width rounding mid
             drag-resize momentarily overflows it and flashes a scrollbar — which
@@ -1695,485 +1720,492 @@ export function Canvas({
             the transformed world is clipped — so pin it to `overflow: hidden`.
             Inline style (not a className) is required: the library sets
             `overflow: auto` inline, which wins over any class. */}
-          <ResizablePanel id="canvas" style={{ overflow: "hidden" }}>
-            <div
-              className="relative isolate h-full w-full"
-              data-canvas-wrapper
-              ref={canvasWrapperRef}
-              style={{
-                clipPath: "inset(0)",
-                cursor: isDragPanning
-                  ? "grabbing"
-                  : spaceHeld
-                    ? "grab"
-                    : documentMode ||
-                        frameMode ||
-                        commentMode ||
-                        targeting.pickActive
-                      ? "crosshair"
-                      : activeGapHandle
-                        ? "col-resize"
-                        : gesturePreview.reorder
-                          ? "grabbing"
-                          : hoveredReorderIframeLayerId
-                            ? "grab"
-                            : undefined,
-              }}
-              onPointerDownCapture={canvasGestureHandlers.onPointerDownCapture}
-              onPointerDown={canvasGestureHandlers.onPointerDown}
-              onPointerMove={(e) => {
-                handlePointerMove(e)
-                canvasGestureHandlers.onPointerMove(e)
-              }}
-              onPointerUp={canvasGestureHandlers.onPointerUp}
-              onPointerLeave={handlePointerLeave}
-              onClick={
-                commentMode
-                  ? handleCanvasClick
-                  : targeting.pickActive
-                    ? targeting.handleClick
-                    : undefined
-              }
-            >
-              {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
+            <ResizablePanel id="canvas" style={{ overflow: "hidden" }}>
+              <div
+                className="relative isolate h-full w-full"
+                data-canvas-wrapper
+                ref={canvasWrapperRef}
+                style={{
+                  clipPath: "inset(0)",
+                  cursor: isDragPanning
+                    ? "grabbing"
+                    : spaceHeld
+                      ? "grab"
+                      : documentMode ||
+                          frameMode ||
+                          commentMode ||
+                          targeting.pickActive
+                        ? "crosshair"
+                        : activeGapHandle
+                          ? "col-resize"
+                          : gesturePreview.reorder
+                            ? "grabbing"
+                            : hoveredReorderIframeLayerId
+                              ? "grab"
+                              : undefined,
+                }}
+                onPointerDownCapture={
+                  canvasGestureHandlers.onPointerDownCapture
+                }
+                onPointerDown={canvasGestureHandlers.onPointerDown}
+                onPointerMove={(e) => {
+                  handlePointerMove(e)
+                  canvasGestureHandlers.onPointerMove(e)
+                }}
+                onPointerUp={canvasGestureHandlers.onPointerUp}
+                onPointerLeave={handlePointerLeave}
+                onClick={
+                  commentMode
+                    ? handleCanvasClick
+                    : targeting.pickActive
+                      ? targeting.handleClick
+                      : undefined
+                }
+              >
+                {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
                 so the iframeLayer iframes paint on top — the parts of each ghost
                 that extend past the active iframeLayer remain visible. Same
                 screen-space canvas approach as SelectionOverlay so the 1px
                 outlines stay crisp at any zoom. */}
-              <ResizeSnapUnderlay
-                zoom={zoom}
-                viewportPos={viewportPos}
-                iframeLayerRect={(() => {
-                  const resizeSnap = gesturePreview.resizeSnap
-                  if (!resizeSnap) return null
-                  const layout = effectiveIframeLayerLayouts.get(
-                    resizeSnap.iframeLayerId
-                  )
-                  if (!layout) return null
-                  return {
-                    x: layout.x,
-                    y: layout.y,
-                    width: layout.width,
-                    height: layout.height,
+                <ResizeSnapUnderlay
+                  zoom={zoom}
+                  viewportPos={viewportPos}
+                  iframeLayerRect={(() => {
+                    const resizeSnap = gesturePreview.resizeSnap
+                    if (!resizeSnap) return null
+                    const layout = effectiveIframeLayerLayouts.get(
+                      resizeSnap.iframeLayerId
+                    )
+                    if (!layout) return null
+                    return {
+                      x: layout.x,
+                      y: layout.y,
+                      width: layout.width,
+                      height: layout.height,
+                    }
+                  })()}
+                  anchor={gesturePreview.resizeSnap?.anchor ?? "tl"}
+                  candidates={gesturePreview.resizeSnap?.candidates ?? []}
+                  snappedPresetId={
+                    gesturePreview.resizeSnap?.snappedPresetId ?? null
                   }
-                })()}
-                anchor={gesturePreview.resizeSnap?.anchor ?? "tl"}
-                candidates={gesturePreview.resizeSnap?.candidates ?? []}
-                snappedPresetId={
-                  gesturePreview.resizeSnap?.snappedPresetId ?? null
-                }
-              />
+                />
 
-              <GroupMergeUnderlay
-                zoom={zoom}
-                viewportPos={viewportPos}
-                rects={gesturePreview.mergeRects}
-              />
+                <GroupMergeUnderlay
+                  zoom={zoom}
+                  viewportPos={viewportPos}
+                  rects={gesturePreview.mergeRects}
+                />
 
-              {/* "+ frame" placeholder outlines. Underlay so the slot reads as
+                {/* "+ frame" placeholder outlines. Underlay so the slot reads as
                 a backdrop hint rather than overlay chrome — selection rings
                 and iframe content paint on top. */}
-              <PlaceholderRectsUnderlay
-                zoom={zoom}
-                viewportPos={viewportPos}
-                rects={placeholderRects}
-              />
+                <PlaceholderRectsUnderlay
+                  zoom={zoom}
+                  viewportPos={viewportPos}
+                  rects={placeholderRects}
+                />
 
-              <TransformWrapper
-                ref={transformRef}
-                {...camera.transformWrapperProps}
-              >
-                <TransformComponent
-                  wrapperStyle={{
-                    width: "100%",
-                    height: "100%",
-                  }}
-                  contentStyle={{
-                    width: CANVAS_SIZE,
-                    height: CANVAS_SIZE,
-                  }}
+                <TransformWrapper
+                  ref={transformRef}
+                  {...camera.transformWrapperProps}
                 >
-                  <div
-                    className="relative"
-                    style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
-                    // Hides frame labels mid-zoom (CSS in globals.css). They read
-                    // the deferred `zoom` for their counter-scale, so they'd
-                    // balloon/snap during a zoom — cheaper to hide than thread
-                    // `isZooming` down through every layer.
-                    data-zooming={isZooming || undefined}
-                    // For two frames after a zoom settles, drop each label's GPU
-                    // promotion so WebKit re-rasterizes it crisp at the resting
-                    // scale (see globals.css `.canvas-frame-label`).
-                    data-zoom-settling={zoomSettling || undefined}
+                  <TransformComponent
+                    wrapperStyle={{
+                      width: "100%",
+                      height: "100%",
+                    }}
+                    contentStyle={{
+                      width: CANVAS_SIZE,
+                      height: CANVAS_SIZE,
+                    }}
                   >
-                    <CanvasMemberLayer
-                      iframeLayerGroups={iframeLayerGroups}
-                      iframeLayers={iframeLayers}
-                      markdownLayers={markdownLayers}
-                      selection={selection}
-                      onIframeWheel={camera.handleIframeWheel}
-                      reference={reference}
-                      gesturePreview={gesturePreview}
-                      gestureLayerHandlers={gestureLayerHandlers}
-                      effectiveIframeLayerLayouts={effectiveIframeLayerLayouts}
-                      iframeLayerLayouts={iframeLayerLayouts}
-                      groupZIndex={groupZIndex}
-                      groupDisplayNames={groupDisplayNames}
-                      placeholderRects={placeholderRects}
-                      placeholderTool={
-                        frameMode ? "frame" : documentMode ? "document" : null
-                      }
-                      onPlaceholderAdd={addAtPlaceholder}
-                      remoteSelectionColors={remoteSelectionColors}
-                      remoteGroupSelectionColors={remoteGroupSelectionColors}
-                      agentDomains={agentDomains}
-                      agents={agents}
-                      onRestartWorkspace={branchActions.startWorkspace}
-                      onOpenLogs={openBranchLogs}
-                      repos={repos}
-                      zoom={zoom}
-                      spaceHeld={spaceHeld}
-                      commentMode={commentMode}
-                      pickActive={targeting.pickActive}
-                      dimmedIframeLayerIds={targeting.dimmedIds}
-                      selfName={self?.identity.name || "Anonymous"}
-                      selfColor={self?.color || "#888888"}
-                      editingDocumentLayerId={editingDocumentLayerId}
-                      setEditingDocumentLayerId={setEditingDocumentLayerId}
-                      focusedIframeLayerId={focusedIframeLayerId}
-                      setFocusedIframeLayerId={setFocusedIframeLayerId}
-                      createFlowIframeLayerId={createFlowIframeLayerId}
-                      setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
-                      removeIframeLayer={removeIframeLayer}
-                      handlePlayIframeLayer={handlePlayIframeLayer}
-                      onAskForKnob={handleAskForKnob}
-                      handleCaptureReadyChange={handleCaptureReadyChange}
-                      handleCaptureDirty={handleCaptureDirty}
-                      layerMutations={layerMutations}
-                      groupActions={groupActions}
-                    />
-                  </div>
-                </TransformComponent>
-              </TransformWrapper>
+                    <div
+                      className="relative"
+                      style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+                      // Hides frame labels mid-zoom (CSS in globals.css). They read
+                      // the deferred `zoom` for their counter-scale, so they'd
+                      // balloon/snap during a zoom — cheaper to hide than thread
+                      // `isZooming` down through every layer.
+                      data-zooming={isZooming || undefined}
+                      // For two frames after a zoom settles, drop each label's GPU
+                      // promotion so WebKit re-rasterizes it crisp at the resting
+                      // scale (see globals.css `.canvas-frame-label`).
+                      data-zoom-settling={zoomSettling || undefined}
+                    >
+                      <CanvasMemberLayer
+                        iframeLayerGroups={iframeLayerGroups}
+                        iframeLayers={iframeLayers}
+                        markdownLayers={markdownLayers}
+                        selection={selection}
+                        onIframeWheel={camera.handleIframeWheel}
+                        reference={reference}
+                        gesturePreview={gesturePreview}
+                        gestureLayerHandlers={gestureLayerHandlers}
+                        effectiveIframeLayerLayouts={
+                          effectiveIframeLayerLayouts
+                        }
+                        iframeLayerLayouts={iframeLayerLayouts}
+                        groupZIndex={groupZIndex}
+                        groupDisplayNames={groupDisplayNames}
+                        placeholderRects={placeholderRects}
+                        placeholderTool={
+                          frameMode ? "frame" : documentMode ? "document" : null
+                        }
+                        onPlaceholderAdd={addAtPlaceholder}
+                        remoteSelectionColors={remoteSelectionColors}
+                        remoteGroupSelectionColors={remoteGroupSelectionColors}
+                        agentDomains={agentDomains}
+                        agents={agents}
+                        onRestartWorkspace={branchActions.startWorkspace}
+                        onOpenLogs={openBranchLogs}
+                        repos={repos}
+                        zoom={zoom}
+                        spaceHeld={spaceHeld}
+                        commentMode={commentMode}
+                        pickActive={targeting.pickActive}
+                        dimmedIframeLayerIds={targeting.dimmedIds}
+                        selfName={self?.identity.name || "Anonymous"}
+                        selfColor={self?.color || "#888888"}
+                        editingDocumentLayerId={editingDocumentLayerId}
+                        setEditingDocumentLayerId={setEditingDocumentLayerId}
+                        focusedIframeLayerId={focusedIframeLayerId}
+                        setFocusedIframeLayerId={setFocusedIframeLayerId}
+                        createFlowIframeLayerId={createFlowIframeLayerId}
+                        setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
+                        removeIframeLayer={removeIframeLayer}
+                        handlePlayIframeLayer={handlePlayIframeLayer}
+                        onAskForKnob={handleAskForKnob}
+                        handleCaptureReadyChange={handleCaptureReadyChange}
+                        handleCaptureDirty={handleCaptureDirty}
+                        layerMutations={layerMutations}
+                        groupActions={groupActions}
+                      />
+                    </div>
+                  </TransformComponent>
+                </TransformWrapper>
 
-              {/* Comment pins live in their own screen-space layer above the
+                {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
                   The transform mirrors what TransformComponent applies, so the
                   children still position in world coordinates. In the local
                   build there are no persisted threads (so no pins); this still
                   renders the composer that anchors an element/selection and
                   sends it to the agent (#417). */}
-              <div
-                className="pointer-events-none absolute inset-0 z-(--z-canvas-annotations)"
-                style={{
-                  transformOrigin: "0 0",
-                  transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
-                  // Hidden mid-zoom AND mid-pan: this transform reads the deferred
-                  // zoom/viewportPos, so it would lag the canvas and snap on settle.
-                  visibility: isCameraMoving ? "hidden" : undefined,
-                }}
-              >
-                <Comments
-                  roomId={roomId}
-                  zoom={zoom}
-                  newCommentPos={reference.newCommentPos}
-                  onNewCommentPlaced={() => {
-                    reference.clearComposer()
-                    toolMode.set("select")
+                <div
+                  className="pointer-events-none absolute inset-0 z-(--z-canvas-annotations)"
+                  style={{
+                    transformOrigin: "0 0",
+                    transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+                    // Hidden mid-zoom AND mid-pan: this transform reads the deferred
+                    // zoom/viewportPos, so it would lag the canvas and snap on settle.
+                    visibility: isCameraMoving ? "hidden" : undefined,
                   }}
-                  onCancelComment={reference.clearComposer}
-                  iframeLayers={Array.from(iframeLayerLayouts.values())}
-                  frameInfo={commentFrameInfo}
-                  placements={commentPlacements.placements}
-                  getDocumentEditor={reference.getDocumentEditor}
-                  documentEditorsVersion={reference.documentEditorsVersion}
-                  commentThreads={commentThreads}
-                  onSendToChat={reference.sendReference}
-                  activeThreadId={reference.activeThreadId}
-                  onActivateThread={reference.setActiveThread}
-                  describeLayer={describeCommentLayer}
-                  hidePins={commentPinsHidden}
-                  requests={commentRequests}
-                />
-              </div>
+                >
+                  <Comments
+                    roomId={roomId}
+                    zoom={zoom}
+                    newCommentPos={reference.newCommentPos}
+                    onNewCommentPlaced={() => {
+                      reference.clearComposer()
+                      toolMode.set("select")
+                    }}
+                    onCancelComment={reference.clearComposer}
+                    iframeLayers={Array.from(iframeLayerLayouts.values())}
+                    frameInfo={commentFrameInfo}
+                    placements={commentPlacements.placements}
+                    getDocumentEditor={reference.getDocumentEditor}
+                    documentEditorsVersion={reference.documentEditorsVersion}
+                    commentThreads={commentThreads}
+                    onSendToChat={reference.sendReference}
+                    activeThreadId={reference.activeThreadId}
+                    onActivateThread={reference.setActiveThread}
+                    describeLayer={describeCommentLayer}
+                    hidePins={commentPinsHidden}
+                    requests={commentRequests}
+                  />
+                </div>
 
-              {/* Portal target for floating frame toolbars. Lives above the
+                {/* Portal target for floating frame toolbars. Lives above the
                   SelectionOverlay so the toolbar isn't painted over by hover
                   rings or resize handles. Children (rendered via createPortal
                   from iframe-layer) position themselves in canvas-wrapper
                   coords via a rAF loop. */}
-              <div
-                id="frame-toolbar-portal"
-                className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
-              />
+                <div
+                  id="frame-toolbar-portal"
+                  className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
+                />
 
-              {/* Portal target for the inline "Comment" bubble that appears
+                {/* Portal target for the inline "Comment" bubble that appears
                   above text selections inside a document layer. Same reason
                   as the toolbar portal: the bubble lives inside the world
                   transform's stacking context, so an internal z-index can't
                   lift it above the SelectionOverlay sibling. Portaled out
                   and positioned via rAF from markdown-layer. */}
-              <div
-                id="inline-comment-bubble-portal"
-                className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
-              />
+                <div
+                  id="inline-comment-bubble-portal"
+                  className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
+                />
 
-              {/* `hidden` mid-zoom and mid-pan — it reads the deferred zoom/
+                {/* `hidden` mid-zoom and mid-pan — it reads the deferred zoom/
                 viewportPos, so it would lag the canvas and snap on settle.
                 Passed as a prop (not a wrapper) because the canvas sizes itself
                 from its parent. */}
-              <SelectionOverlay
-                hidden={isCameraMoving}
-                zoom={zoom}
-                viewportPos={viewportPos}
-                selectedIframeLayerIds={overlaySelectedIds}
-                groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
-                focusedIframeLayerId={focusedIframeLayerId}
-                hoveredIframeLayerId={hoveredIframeLayerId}
-                workspaceHighlightIds={workspaceHighlightIds}
-                iframeLayerLayouts={effectiveIframeLayerLayouts}
-                hideResizeHandles={
-                  editingDocumentLayerId !== null ||
-                  selectedGroupIds.size > 0 ||
-                  !showsLayerDetail(zoom) ||
-                  // An interacting frame is for using the preview, not
-                  // resizing it: its edges belong to the page.
-                  focusedIframeLayerId !== null
-                }
-                gapHandles={gapHandles}
-                reorderHandles={reorderHandles}
-                hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
-                reorderDragShift={(() => {
-                  // While popped, `effectiveIframeLayerLayouts` already
-                  // places the dragged frame at `cursor - grab`, so no extra
-                  // shift is needed for the selection overlay (which reads
-                  // from that same map). Only the in-flow reorder case
-                  // needs a translation delta layered on top of the raw
-                  // flex slot.
-                  const reorderPreview = gesturePreview.reorder
-                  if (!reorderPreview || reorderPreview.popped) return null
-                  const layout = iframeLayerLayouts.get(reorderPreview.memberId)
-                  if (!layout) return null
-                  const grab = reorderPreview.grabOffset ?? {
-                    x: layout.width / 2,
-                    y: layout.height / 2,
+                <SelectionOverlay
+                  hidden={isCameraMoving}
+                  zoom={zoom}
+                  viewportPos={viewportPos}
+                  selectedIframeLayerIds={overlaySelectedIds}
+                  groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
+                  focusedIframeLayerId={focusedIframeLayerId}
+                  hoveredIframeLayerId={hoveredIframeLayerId}
+                  workspaceHighlightIds={workspaceHighlightIds}
+                  iframeLayerLayouts={effectiveIframeLayerLayouts}
+                  hideResizeHandles={
+                    editingDocumentLayerId !== null ||
+                    selectedGroupIds.size > 0 ||
+                    !showsLayerDetail(zoom) ||
+                    // An interacting frame is for using the preview, not
+                    // resizing it: its edges belong to the page.
+                    focusedIframeLayerId !== null
                   }
-                  return {
-                    iframeLayerId: reorderPreview.memberId,
-                    dx: reorderPreview.cursor.x - grab.x - layout.x,
-                    dy: 0,
+                  gapHandles={gapHandles}
+                  reorderHandles={reorderHandles}
+                  hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
+                  reorderDragShift={(() => {
+                    // While popped, `effectiveIframeLayerLayouts` already
+                    // places the dragged frame at `cursor - grab`, so no extra
+                    // shift is needed for the selection overlay (which reads
+                    // from that same map). Only the in-flow reorder case
+                    // needs a translation delta layered on top of the raw
+                    // flex slot.
+                    const reorderPreview = gesturePreview.reorder
+                    if (!reorderPreview || reorderPreview.popped) return null
+                    const layout = iframeLayerLayouts.get(
+                      reorderPreview.memberId
+                    )
+                    if (!layout) return null
+                    const grab = reorderPreview.grabOffset ?? {
+                      x: layout.width / 2,
+                      y: layout.height / 2,
+                    }
+                    return {
+                      iframeLayerId: reorderPreview.memberId,
+                      dx: reorderPreview.cursor.x - grab.x - layout.x,
+                      dy: 0,
+                    }
+                  })()}
+                  marquee={gesturePreview.marqueeRect}
+                  frameDraft={frameDraft}
+                  documentDraft={documentDraft}
+                  othersSelections={othersSelections}
+                  snapGuides={gesturePreview.snapGuides}
+                  isResizeSnapped={
+                    gesturePreview.resizeSnap?.snappedPresetId != null
                   }
-                })()}
-                marquee={gesturePreview.marqueeRect}
-                frameDraft={frameDraft}
-                documentDraft={documentDraft}
-                othersSelections={othersSelections}
-                snapGuides={gesturePreview.snapGuides}
-                isResizeSnapped={
-                  gesturePreview.resizeSnap?.snappedPresetId != null
-                }
-                inspectRect={(() => {
-                  // Show the live hover overlay while in commentMode or during an
-                  // armed element pick, so the user can see what element they're
-                  // about to anchor a comment to / target.
-                  const source =
-                    commentMode || targeting.pickActive
-                      ? reference.inspectHover
-                      : null
-                  if (!source) return null
-                  const layout = iframeLayerLayouts.get(source.iframeLayerId)
-                  if (!layout) return null
-                  return {
-                    x: layout.x + source.rect.x,
-                    y: layout.y + source.rect.y,
-                    width: source.rect.width,
-                    height: source.rect.height,
-                  }
-                })()}
-                highlightRect={targeting.highlightRect}
-              />
-              <Cursors viewport={{ ...viewportPos, zoom }} />
-              {chatAnchor && self?.message != null ? (
-                <CursorChat
-                  screenX={chatAnchor.x * zoom + viewportPos.x}
-                  screenY={chatAnchor.y * zoom + viewportPos.y}
-                  color={self.color}
-                  value={self.message}
-                  onChange={(next) => setPresence({ message: next })}
-                  onClose={closeCursorChat}
+                  inspectRect={(() => {
+                    // Show the live hover overlay while in commentMode or during an
+                    // armed element pick, so the user can see what element they're
+                    // about to anchor a comment to / target.
+                    const source =
+                      commentMode || targeting.pickActive
+                        ? reference.inspectHover
+                        : null
+                    if (!source) return null
+                    const layout = iframeLayerLayouts.get(source.iframeLayerId)
+                    if (!layout) return null
+                    return {
+                      x: layout.x + source.rect.x,
+                      y: layout.y + source.rect.y,
+                      width: source.rect.width,
+                      height: source.rect.height,
+                    }
+                  })()}
+                  highlightRect={targeting.highlightRect}
                 />
-              ) : null}
-              {isCanvasEmpty && (
-                <CanvasEmptyState
-                  toolMode={toolMode}
-                  onAddProject={handleAddProject}
-                />
-              )}
-              {/* Window-drag strip: spans the full toolbar height across the top
+                <Cursors viewport={{ ...viewportPos, zoom }} />
+                {chatAnchor && self?.message != null ? (
+                  <CursorChat
+                    screenX={chatAnchor.x * zoom + viewportPos.x}
+                    screenY={chatAnchor.y * zoom + viewportPos.y}
+                    color={self.color}
+                    value={self.message}
+                    onChange={(next) => setPresence({ message: next })}
+                    onClose={closeCursorChat}
+                  />
+                ) : null}
+                {isCanvasEmpty && <CanvasEmptyState toolMode={toolMode} />}
+                {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
                 (same layer, earlier in DOM order) so the pills stay clickable
                 while the empty toolbar area drags the native window. */}
-              <div
-                data-tauri-drag-region
-                className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"
-              />
-              <CanvasTopBar
-                roomId={roomId}
-                isOwner={isOwner}
-                sharedWithCount={sharedWithCount}
-                parentFolder={parentFolder}
-                currentRoomName={currentRoomName}
-                onRoomRename={handleRoomRename}
-                sidebarCollapsed={sidebarCollapsed}
-                trafficLightsPresent={trafficLightsPresent}
-                sidebarPanelRef={sidebarPanelRef}
-                roomNameEditableRef={roomNameEditableRef}
-                pendingRoomRenameRef={pendingRoomRenameRef}
-                onRoomMenuCloseAutoFocus={onRoomMenuCloseAutoFocus}
-                deleteDialogOpen={deleteDialogOpen}
-                onDeleteDialogOpenChange={setDeleteDialogOpen}
-                onOpenSettings={() => setCanvasSettingsOpen(true)}
-                stopRoomDevServers={stopRoomDevServers}
-                flushLayout={flushLayout}
-              />
-              <CanvasSettingsDialog
-                open={canvasSettingsOpen}
-                onOpenChange={setCanvasSettingsOpen}
-                repos={repos}
-                branches={agents}
-                onCreateRepo={createRepo}
-                onUpdateRepo={updateRepoInStorage}
-                onRemoveRepo={removeRepoIntake}
-                memories={memories}
-                onAddMemory={(text) =>
-                  addMemory(collections, { text, source: "member" })
-                }
-                onEditMemory={(id, text) =>
-                  editMemory(collections, id, { text })
-                }
-                onRemoveMemory={(id) => removeMemory(collections, id)}
-              />
-              <CanvasToolbar
-                toolMode={toolMode}
-                onClearMode={reference.clearMode}
-              />
-              <ShortcutSheet
-                open={shortcutSheetOpen}
-                onOpenChange={setShortcutSheetOpen}
-              />
-              {/* The top-right pill, mirroring the breadcrumb pill (32px, 24px
+                <div
+                  data-tauri-drag-region
+                  className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"
+                />
+                <CanvasTopBar
+                  roomId={roomId}
+                  isOwner={isOwner}
+                  sharedWithCount={sharedWithCount}
+                  parentFolder={parentFolder}
+                  currentRoomName={currentRoomName}
+                  onRoomRename={handleRoomRename}
+                  sidebarCollapsed={sidebarCollapsed}
+                  trafficLightsPresent={trafficLightsPresent}
+                  sidebarPanelRef={sidebarPanelRef}
+                  roomNameEditableRef={roomNameEditableRef}
+                  pendingRoomRenameRef={pendingRoomRenameRef}
+                  onRoomMenuCloseAutoFocus={onRoomMenuCloseAutoFocus}
+                  deleteDialogOpen={deleteDialogOpen}
+                  onDeleteDialogOpenChange={setDeleteDialogOpen}
+                  onOpenSettings={() => setCanvasSettingsOpen(true)}
+                  stopRoomDevServers={stopRoomDevServers}
+                  flushLayout={flushLayout}
+                />
+                <AddRepositoryDialog
+                  flow={addRepository}
+                  onCreateRepo={createRepo}
+                />
+                <CanvasSettingsDialog
+                  open={canvasSettingsOpen}
+                  onOpenChange={setCanvasSettingsOpen}
+                  repos={repos}
+                  branches={agents}
+                  onCreateRepo={createRepo}
+                  onUpdateRepo={updateRepoInStorage}
+                  onRemoveRepo={removeRepoIntake}
+                  memories={memories}
+                  onAddMemory={(text) =>
+                    addMemory(collections, { text, source: "member" })
+                  }
+                  onEditMemory={(id, text) =>
+                    editMemory(collections, id, { text })
+                  }
+                  onRemoveMemory={(id) => removeMemory(collections, id)}
+                />
+                <CanvasToolbar
+                  toolMode={toolMode}
+                  onClearMode={reference.clearMode}
+                />
+                <ShortcutSheet
+                  open={shortcutSheetOpen}
+                  onOpenChange={setShortcutSheetOpen}
+                />
+                {/* The top-right pill, mirroring the breadcrumb pill (32px, 24px
                 controls): the zoom menu (always), then the people controls
                 (comments, facepile; web only), then Share as the one filled
                 action, then the expand-chat button at the edge (when the right
                 sidebar is collapsed). */}
-              <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
-                <div
-                  className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <CanvasZoomMenu
-                    liveZoomPercent={camera.liveZoomPercent}
-                    onZoomIn={zoomControls.zoomIn}
-                    onZoomOut={zoomControls.zoomOut}
-                    onZoomTo={cameraZoomTo}
-                    onZoomToFit={zoomControls.zoomToFit}
-                    onOpenShortcuts={openShortcutSheet}
-                  />
-                  {/* Following other users' viewports and sharing are part of
+                <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
+                  <div
+                    className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <CanvasZoomMenu
+                      liveZoomPercent={camera.liveZoomPercent}
+                      onZoomIn={zoomControls.zoomIn}
+                      onZoomOut={zoomControls.zoomOut}
+                      onZoomTo={cameraZoomTo}
+                      onZoomToFit={zoomControls.zoomToFit}
+                      onOpenShortcuts={openShortcutSheet}
+                    />
+                    {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
-                  {!isLocalBuild && (
-                    <>
-                      <CommentsButton
-                        threads={commentThreads.threads}
-                        open={commentsPanelOpen}
-                        pinsHidden={commentPinsHidden}
-                        onToggle={() => setCommentsPanelOpen((open) => !open)}
-                      />
-                      <FollowingToolbar
-                        followingId={followingConnectionId}
-                        onFollow={camera.follow}
-                      />
-                      <Button
-                        size="xs"
-                        className="ml-1"
-                        onClick={() => setShareDialogOpen(true)}
+                    {!isLocalBuild && (
+                      <>
+                        <CommentsButton
+                          threads={commentThreads.threads}
+                          open={commentsPanelOpen}
+                          pinsHidden={commentPinsHidden}
+                          onToggle={() => setCommentsPanelOpen((open) => !open)}
+                        />
+                        <FollowingToolbar
+                          followingId={followingConnectionId}
+                          onFollow={camera.follow}
+                        />
+                        <Button
+                          size="xs"
+                          className="ml-1"
+                          onClick={() => setShareDialogOpen(true)}
+                        >
+                          Share
+                        </Button>
+                        <ShareRoomDialog
+                          open={shareDialogOpen}
+                          onOpenChange={setShareDialogOpen}
+                          roomId={roomId}
+                          roomName={currentRoomName}
+                        />
+                      </>
+                    )}
+                    {chatCollapsed && (
+                      <IconButton
+                        label="Expand chat"
+                        shortcut="⌘I"
+                        tooltipSide="bottom"
+                        onClick={() => chatPanelRef.current?.expand()}
                       >
-                        Share
-                      </Button>
-                      <ShareRoomDialog
-                        open={shareDialogOpen}
-                        onOpenChange={setShareDialogOpen}
-                        roomId={roomId}
-                        roomName={currentRoomName}
-                      />
-                    </>
-                  )}
-                  {chatCollapsed && (
-                    <IconButton
-                      label="Expand chat"
-                      shortcut="⌘I"
-                      tooltipSide="bottom"
-                      onClick={() => chatPanelRef.current?.expand()}
-                    >
-                      <SidebarSimpleIcon mirrored />
-                    </IconButton>
-                  )}
+                        <SidebarSimpleIcon mirrored />
+                      </IconButton>
+                    )}
+                  </div>
                 </div>
+                {!isLocalBuild && commentsPanelOpen && (
+                  <CommentsPanel
+                    roomId={roomId}
+                    commentThreads={commentThreads}
+                    placements={commentPlacements.placements}
+                    activeThreadId={reference.activeThreadId}
+                    onSelectThread={selectCommentThread}
+                    pinsHidden={commentPinsHidden}
+                    onPinsHiddenChange={setCommentPinsHidden}
+                    onClose={() => setCommentsPanelOpen(false)}
+                    describeLayer={describeCommentLayer}
+                    getDocumentEditor={reference.getDocumentEditor}
+                    requests={commentRequests}
+                  />
+                )}
               </div>
-              {!isLocalBuild && commentsPanelOpen && (
-                <CommentsPanel
-                  roomId={roomId}
-                  commentThreads={commentThreads}
-                  placements={commentPlacements.placements}
-                  activeThreadId={reference.activeThreadId}
-                  onSelectThread={selectCommentThread}
-                  pinsHidden={commentPinsHidden}
-                  onPinsHiddenChange={setCommentPinsHidden}
-                  onClose={() => setCommentsPanelOpen(false)}
-                  describeLayer={describeCommentLayer}
-                  getDocumentEditor={reference.getDocumentEditor}
-                  requests={commentRequests}
-                />
-              )}
-            </div>
-          </ResizablePanel>
-          <ResizableHandle
-            className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}
-            disabled={chatCollapsed}
-          />
-
-          {/* Chat — right panel */}
-          <ResizablePanel
-            id="chat"
-            defaultSize="0px"
-            minSize="420px"
-            maxSize="900px"
-            collapsible
-            collapsedSize="0px"
-            groupResizeBehavior="preserve-pixel-size"
-            panelRef={chatPanelRef}
-            onResize={(size) => setChatCollapsed(size.inPixels === 0)}
-          >
-            <ChatPanelHost
-              chatTarget={chatTarget}
-              tabPool={tabPool}
-              chatSessions={chatSessions}
-              localTerminals={terminalTabs.localTerminals}
-              repos={repos}
-              roomId={roomId}
-              diffStats={diffStats}
-              branchPrs={branchPrs}
-              chatPanelRef={chatPanelRef}
-              onUpdateChatSession={updateChatSession}
-              onSetBranchPr={setBranchPr}
-              onLogsReady={handleLogsReady}
-              logsRequest={logsRequest}
-              onAddProject={handleAddProject}
+            </ResizablePanel>
+            <ResizableHandle
+              className={
+                chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"
+              }
+              disabled={chatCollapsed}
             />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </WorkspacesMenuProvider>
+
+            {/* Chat — right panel */}
+            <ResizablePanel
+              id="chat"
+              defaultSize="0px"
+              minSize="420px"
+              maxSize="900px"
+              collapsible
+              collapsedSize="0px"
+              groupResizeBehavior="preserve-pixel-size"
+              panelRef={chatPanelRef}
+              onResize={(size) => setChatCollapsed(size.inPixels === 0)}
+            >
+              <ChatPanelHost
+                chatTarget={chatTarget}
+                tabPool={tabPool}
+                chatSessions={chatSessions}
+                localTerminals={terminalTabs.localTerminals}
+                repos={repos}
+                roomId={roomId}
+                diffStats={diffStats}
+                branchPrs={branchPrs}
+                chatPanelRef={chatPanelRef}
+                onUpdateChatSession={updateChatSession}
+                onSetBranchPr={setBranchPr}
+                onLogsReady={handleLogsReady}
+                logsRequest={logsRequest}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </WorkspacesMenuProvider>
+      </AddRepositoryFlowProvider>
     </>
   )
 }

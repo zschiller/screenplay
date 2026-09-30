@@ -1360,7 +1360,6 @@ export function ChatPanel({
               sandboxId={agent?.id}
               sandboxName={agent?.sandboxName}
               sandboxStatus={agent?.status}
-              branch={agent?.ref}
               markdownLayerId={
                 layerTarget?.layerKind === "markdown-layer"
                   ? layerTarget.layer.id

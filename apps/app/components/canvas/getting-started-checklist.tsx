@@ -7,6 +7,7 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { StepMarker } from "@/components/local-setup/setup-step"
 import { workspaceStatusLine } from "@/lib/branch/status-line"
 import type {
@@ -16,13 +17,14 @@ import type {
 
 const STEPS: { key: GettingStartedStep; title: string }[] = [
   { key: "project", title: "Add a repository" },
-  { key: "workspace", title: "Start a Workspace" },
-  { key: "frame", title: "Open its frame" },
+  { key: "ask", title: "Ask the Coordinator for a change" },
+  { key: "open", title: "Open the Workspace" },
 ]
 
 /**
- * The first Canvas's getting-started checklist (#780): add a Project, start a
- * Workspace, open its frame. The steps use the setup stepper's markers, so the
+ * The first Canvas's getting-started checklist (#780): add a repository, ask
+ * the Coordinator for a change, open the Workspace it ran in (#1182), so it
+ * teaches the Coordinator. The steps use the setup stepper's markers, so the
  * page right after setup reads as its next step, with the done tick in blue:
  * the current step's number in a dark ring, the rest muted.
  *
@@ -32,15 +34,15 @@ const STEPS: { key: GettingStartedStep; title: string }[] = [
  */
 export function GettingStartedChecklist({
   progress,
-  onAddProject,
-  onNewWorkspace,
-  onShowFrame,
+  onShowCoordinator,
+  onOpenWorkspace,
   onDismiss,
 }: {
   progress: GettingStartedProgress
-  onAddProject: () => void
-  onNewWorkspace: () => void
-  onShowFrame: (layerId: string) => void
+  /** Open the panel on the Coordinator. */
+  onShowCoordinator: () => void
+  /** Open the panel on a Workspace. */
+  onOpenWorkspace: (branchId: string) => void
   onDismiss: () => void
 }) {
   const currentIndex = STEPS.findIndex((s) => s.key === progress.current)
@@ -98,9 +100,8 @@ export function GettingStartedChecklist({
                   <StepBody
                     step={step.key}
                     progress={progress}
-                    onAddProject={onAddProject}
-                    onNewWorkspace={onNewWorkspace}
-                    onShowFrame={onShowFrame}
+                    onShowCoordinator={onShowCoordinator}
+                    onOpenWorkspace={onOpenWorkspace}
                   />
                 )}
               </div>
@@ -115,43 +116,43 @@ export function GettingStartedChecklist({
 function StepBody({
   step,
   progress,
-  onAddProject,
-  onNewWorkspace,
-  onShowFrame,
+  onShowCoordinator,
+  onOpenWorkspace,
 }: {
   step: GettingStartedStep
   progress: GettingStartedProgress
-  onAddProject: () => void
-  onNewWorkspace: () => void
-  onShowFrame: (layerId: string) => void
+  onShowCoordinator: () => void
+  onOpenWorkspace: (branchId: string) => void
 }) {
   if (step === "project") {
     return (
       <>
         <Hint>Open a folder or a GitHub repository.</Hint>
         <div>
-          <Button type="button" size="sm" onClick={onAddProject}>
-            Add repository
-          </Button>
+          <AddRepositoryTrigger>
+            <Button type="button" size="sm">
+              Add repository
+            </Button>
+          </AddRepositoryTrigger>
         </div>
       </>
     )
   }
 
-  if (step === "workspace") {
+  if (step === "ask") {
     return (
       <>
-        <Hint>A Workspace is a git branch with its own preview and agent.</Hint>
+        <Hint>Your first ask runs in the Workspace on the canvas.</Hint>
         <div>
-          <Button type="button" size="sm" onClick={onNewWorkspace}>
-            New Workspace
+          <Button type="button" size="sm" onClick={onShowCoordinator}>
+            Ask the Coordinator
           </Button>
         </div>
       </>
     )
   }
 
-  const { branch, frameLayerId } = progress
+  const { branch } = progress
   const line = branch
     ? workspaceStatusLine(branch, { agentWorking: false })
     : null
@@ -165,19 +166,19 @@ function StepBody({
           </span>
         </Hint>
       ) : line?.kind === "error" ? (
-        <Hint>{line.title}. Retry it from the sidebar.</Hint>
+        <Hint>{line.title}. Retry it from the Workspaces menu.</Hint>
       ) : (
-        <Hint>The frame shows the Workspace&apos;s app once it starts.</Hint>
+        <Hint>See its chat and what changed while the frame updates.</Hint>
       )}
-      {frameLayerId && (
+      {branch && (
         <div>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => onShowFrame(frameLayerId)}
+            onClick={() => onOpenWorkspace(branch.id)}
           >
-            Show frame
+            Open Workspace
           </Button>
         </div>
       )}
