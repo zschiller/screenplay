@@ -35,7 +35,7 @@ export const floating =
   "flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10"
 
 /** A 28px icon button holding a 16px icon, as everywhere in the app. */
-function Tool({
+export function Tool({
   children,
   active,
 }: {

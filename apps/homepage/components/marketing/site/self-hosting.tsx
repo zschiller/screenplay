@@ -1,7 +1,8 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-import { docsUrl, githubUrl } from "@/lib/app-url"
-import { focusRing, measure } from "./editorial"
+import { docsUrl } from "@/lib/app-url"
+import { TeamExcerpt } from "../excerpts/team"
+import { buttonClass, measure } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const perks = [
@@ -29,48 +30,33 @@ export function SelfHosting() {
         slug="Self-hosting"
         title="Host it and review together."
       />
-      <div className="mt-12 grid gap-12 md:grid-cols-2">
-        <div className="flex flex-col items-start gap-5 md:pt-3.5">
+      <div className="mt-12 grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div className="flex flex-col items-start gap-8">
           <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
             Deploy the web app for your team and share a canvas. It&rsquo;s free
             and MIT licensed.
           </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <a
-              href={`${docsUrl}/self-hosting`}
-              className={cn(
-                focusRing,
-                "font-mono text-sm underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
-              )}
-            >
-              Self-hosting guide
-            </a>
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(
-                focusRing,
-                "font-mono text-sm underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
-              )}
-            >
-              github.com/zschiller/screenplay
-            </a>
+          <a
+            href={`${docsUrl}/self-hosting`}
+            className={buttonClass("outline", "lg")}
+          >
+            Self-hosting guide
+          </a>
+          <div className="w-full">
+            {perks.map((p) => (
+              <div
+                key={p.title}
+                className="flex flex-col gap-1.5 border-t border-border py-4.5 last:border-b"
+              >
+                <h3 className="font-heading text-[17px] leading-[1.25] font-normal tracking-[-0.03em]">
+                  {p.title}
+                </h3>
+                <p className="text-pretty text-muted-foreground">{p.body}</p>
+              </div>
+            ))}
           </div>
         </div>
-        <div>
-          {perks.map((p) => (
-            <div
-              key={p.title}
-              className="flex flex-col gap-1.5 border-t border-border py-4.5 last:border-b"
-            >
-              <h3 className="font-heading text-[17px] leading-[1.25] font-normal tracking-[-0.03em]">
-                {p.title}
-              </h3>
-              <p className="text-pretty text-muted-foreground">{p.body}</p>
-            </div>
-          ))}
-        </div>
+        <TeamExcerpt />
       </div>
     </section>
   )
