@@ -20,7 +20,7 @@ export function Problem() {
       <SectionHeading
         slug="The problem"
         title="Agents write several versions. You see them one tab at a time."
-        body="Worktrees let every branch run at once, but each one needs its own install, port and dev server, and the results end up spread across terminals and browser tabs. Comparing them means flipping between tabs and remembering what the last one looked like."
+        body="Every worktree needs its own install, port and dev server, and each result lands in another browser tab."
       />
 
       <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -41,14 +41,14 @@ export function Problem() {
             </div>
           </div>
           <p className={cn(monoLabel, "mt-8 text-neutral-500")}>
-            Without Screenplay · a port and a tab per branch
+            Without Screenplay
           </p>
         </div>
 
         <div className="flex min-w-0 flex-col gap-2.5">
           <FrameExcerpt />
           <p className={cn(monoLabel, "text-muted-foreground")}>
-            With Screenplay · every branch side by side
+            With Screenplay
           </p>
         </div>
       </div>

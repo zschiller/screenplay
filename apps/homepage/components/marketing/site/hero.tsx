@@ -16,12 +16,9 @@ export function Hero() {
             "pt-[clamp(56px,9vw,120px)] pb-[clamp(40px,6vw,80px)]"
           )}
         >
-          <p data-veil className={cn(monoLabel, "text-muted-foreground")}>
-            Open source · Works with Claude Code, Codex &amp; opencode
-          </p>
           <h1
             data-veil
-            className="font-wordmark mt-7 text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance"
+            className="font-wordmark text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance"
           >
             Every branch, <em>side by side</em>.
           </h1>
@@ -30,9 +27,8 @@ export function Hero() {
               data-veil
               className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]"
             >
-              Screenplay runs each coding agent on its own branch, in its own
-              sandbox, and shows every result as a live frame on one canvas.
-              Compare them and ship the one that works.
+              Run your coding agents on separate branches and see every result
+              live on one canvas.
             </p>
             <div data-veil className="flex flex-wrap gap-3">
               <a
@@ -54,17 +50,6 @@ export function Hero() {
               </a>
             </div>
           </div>
-          <p
-            data-veil
-            className={cn(
-              monoLabel,
-              "mt-7 flex flex-wrap gap-x-4.5 gap-y-1.5 text-muted-foreground"
-            )}
-          >
-            <span>Apple Silicon</span>
-            <span>Runs fully local</span>
-            <span>Free &amp; MIT licensed</span>
-          </p>
         </div>
       </HeroStage>
 

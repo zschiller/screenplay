@@ -1,17 +1,21 @@
 import {
   ArrowClockwiseIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
   ArrowUpIcon,
   CaretDownIcon,
-  CaretLeftIcon,
   CaretRightIcon,
   CaretUpDownIcon,
   CircleIcon,
+  ClipboardTextIcon,
+  CrosshairIcon,
   CursorIcon,
   DotsThreeIcon,
   FileTextIcon,
   FolderOpenIcon,
   FrameCornersIcon,
   GitPullRequestIcon,
+  ListDashesIcon,
   PlusIcon,
   SidebarSimpleIcon,
   SlidersHorizontalIcon,
@@ -26,15 +30,11 @@ import { Northwind } from "./northwind"
  * sharp at any width and follow the page's theme. They show; they don't work.
  */
 
-/** The small uppercase heading of a sidebar section. */
-const sectionLabel =
-  "font-mono text-[11px] leading-none font-medium tracking-[0.08em] text-muted-foreground uppercase"
-
 /** The shared floating toolbar surface (FloatingToolbar in @workspace/ui). */
 export const floating =
   "flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10"
 
-/** A 24px toolbar button holding a 12px icon. */
+/** A 28px icon button holding a 16px icon, as everywhere in the app. */
 function Tool({
   children,
   active,
@@ -45,7 +45,7 @@ function Tool({
   return (
     <span
       className={cn(
-        "flex size-6 items-center justify-center rounded-md [&_svg]:size-3",
+        "flex size-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-4",
         active && "bg-foreground text-background"
       )}
     >
@@ -93,7 +93,7 @@ export function WorkspaceGlyph({
 /** Lines added and removed, in the app's green and red. */
 export function Diff({ add, del }: { add: number; del: number }) {
   return (
-    <span className="font-mono text-[11px] tabular-nums">
+    <span className="shrink-0 font-mono text-[11px] whitespace-nowrap tabular-nums">
       <span className="text-success">+{add}</span>{" "}
       <span className="text-destructive">-{del}</span>
     </span>
@@ -193,8 +193,9 @@ function GroupLabel({
 }
 
 /**
- * The Safari-style bar under the selected frame (#795): pick, back and
- * forward, the Workspace and route, reload, record, knobs and the menu.
+ * The Safari-style bar under the selected frame, as wide as the frame: back
+ * and forward, the address (Workspace and route, record and reload), then
+ * Interact, knobs and the menu.
  */
 export function FrameBar({
   workspace,
@@ -207,32 +208,31 @@ export function FrameBar({
 }) {
   return (
     <div
-      className={cn(floating, "absolute text-xs whitespace-nowrap", className)}
+      className={cn(floating, "absolute text-sm whitespace-nowrap", className)}
       style={style}
     >
       <Tool>
+        <ArrowLeftIcon />
+      </Tool>
+      <Tool>
+        <ArrowRightIcon />
+      </Tool>
+      <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-muted pr-0.5 pl-2">
+        <WorkspaceGlyph />
+        <span className="truncate">{workspace}</span>
+        <CaretUpDownIcon className="size-3 shrink-0 text-muted-foreground" />
+        <span className="flex-1 text-muted-foreground">/</span>
+        <Tool>
+          <span className="size-2 rounded-full bg-muted-foreground" />
+        </Tool>
+        <Tool>
+          <ArrowClockwiseIcon />
+        </Tool>
+      </span>
+      <span className="mx-0.5 h-4 w-px shrink-0 bg-foreground/10" />
+      <Tool>
         <CursorIcon />
       </Tool>
-      <span className="mx-0.5 h-4 w-px bg-foreground/10" />
-      <Tool>
-        <CaretLeftIcon />
-      </Tool>
-      <Tool>
-        <CaretRightIcon />
-      </Tool>
-      <span className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2">
-        <WorkspaceGlyph />
-        <span>{workspace}</span>
-        <CaretUpDownIcon className="size-3 text-muted-foreground" />
-        <span className="text-muted-foreground">/</span>
-      </span>
-      <Tool>
-        <ArrowClockwiseIcon />
-      </Tool>
-      <Tool>
-        <span className="size-2 rounded-full bg-[oklch(0.637_0.237_25.331)]" />
-      </Tool>
-      <span className="mx-0.5 h-4 w-px bg-foreground/10" />
       <Tool>
         <SlidersHorizontalIcon />
       </Tool>
@@ -284,21 +284,18 @@ export function WorkspaceRow({
 function TreeRow({
   icon,
   name,
-  indent,
   selected,
   aside,
 }: {
   icon: React.ReactNode
   name: string
-  indent?: boolean
   selected?: boolean
   aside?: string
 }) {
   return (
     <div
       className={cn(
-        "flex h-8 items-center gap-2 rounded-md px-2 text-sm [&>svg]:size-3.5 [&>svg]:shrink-0",
-        indent && "ml-4",
+        "flex h-8 items-center gap-2 rounded-md px-2 text-sm [&>svg]:size-4 [&>svg]:shrink-0",
         selected && "bg-sidebar-accent"
       )}
     >
@@ -314,53 +311,84 @@ function TreeRow({
   )
 }
 
-/** The canvas sidebar: the Workspaces list and the canvas's layers. */
+/** A Group's frames, indented under it with a guide line. */
+function TreeChildren({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="ml-3.5 flex flex-col gap-px border-l border-border pl-1.5">
+      {children}
+    </div>
+  )
+}
+
+/** The canvas sidebar: the canvas's layers. */
 function Sidebar() {
   return (
-    <div className="flex w-[216px] shrink-0 flex-col gap-1 border-r border-border bg-sidebar px-2 py-3 max-md:hidden">
-      <div className="flex justify-end px-1.5 pb-1 text-muted-foreground">
-        <SidebarSimpleIcon className="size-3.5" />
-      </div>
-      <div className="flex items-center justify-between px-2 pt-1 pb-2">
-        <span className={sectionLabel}>Workspaces</span>
-        <span className="flex gap-2 text-muted-foreground">
-          <DotsThreeIcon className="size-3.5" />
-          <PlusIcon className="size-3.5" />
-        </span>
-      </div>
-      <WorkspaceRow name="Customer stories" state="working" />
-      <WorkspaceRow name="Hero gradient & trust line" selected />
-      <WorkspaceRow name="Pricing FAQ" diff={[11, 0]} />
-      <div className="px-2 pt-5 pb-2">
-        <span className={sectionLabel}>Canvas</span>
+    <div className="flex w-[216px] shrink-0 flex-col gap-px border-r border-border bg-sidebar px-2 py-2 max-md:hidden">
+      <div className="flex justify-end pb-3 text-muted-foreground">
+        <Tool>
+          <SidebarSimpleIcon />
+        </Tool>
       </div>
       <TreeRow
         icon={<FolderOpenIcon />}
         name="Homepage"
         aside="Hero gradient"
       />
-      <TreeRow icon={<FrameCornersIcon />} name="Home" indent selected />
-      <TreeRow icon={<FrameCornersIcon />} name="Home · mobile" indent />
+      <TreeChildren>
+        <TreeRow icon={<FrameCornersIcon />} name="Home" selected />
+        <TreeRow icon={<FrameCornersIcon />} name="Home · mobile" />
+      </TreeChildren>
       <TreeRow icon={<FolderOpenIcon />} name="Pricing" aside="Pricing FAQ" />
-      <TreeRow icon={<FrameCornersIcon />} name="Pricing" indent />
+      <TreeChildren>
+        <TreeRow icon={<FrameCornersIcon />} name="Pricing" />
+        <TreeRow icon={<FrameCornersIcon />} name="Pricing · mobile" />
+      </TreeChildren>
+      <TreeRow
+        icon={<FrameCornersIcon />}
+        name="Customers"
+        aside="Customer stories"
+      />
       <TreeRow icon={<FileTextIcon />} name="Pricing launch checklist" />
     </div>
   )
 }
 
-/** The agent's chat for the selected Workspace. */
+/**
+ * The chat panel with a Workspace's chat open: the Coordinator breadcrumb and
+ * the Workspace's pull request above, its chat tabs, the thread and composer.
+ */
 function Chat() {
   return (
-    <div className="flex w-[296px] shrink-0 flex-col border-l border-border bg-background max-lg:hidden">
-      <div className="flex h-11 items-center gap-2 border-b border-border px-3 text-sm">
+    <div className="flex w-[320px] shrink-0 flex-col border-l border-border bg-background max-lg:hidden">
+      <div className="flex h-11 items-center gap-1 border-b border-border pr-2 pl-1.5 text-[13px] whitespace-nowrap">
+        <Tool>
+          <SidebarSimpleIcon />
+        </Tool>
+        <span className="shrink-0 text-muted-foreground">Coordinator</span>
+        <span className="shrink-0 text-muted-foreground">/</span>
         <WorkspaceGlyph />
-        <span className="min-w-0 flex-1 truncate font-medium">
+        <span className="min-w-0 flex-1 truncate">
           Hero gradient &amp; trust line
         </span>
         <Diff add={3} del={0} />
-        <span className="flex h-6 items-center gap-1 rounded-md border border-border px-2 text-xs">
-          <GitPullRequestIcon className="size-3" />
+        <span className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs">
+          <GitPullRequestIcon className="size-3.5" />
           Create PR
+        </span>
+      </div>
+      <div className="flex h-10 items-stretch gap-1 border-b border-border px-1.5 text-sm">
+        <span className="flex items-center text-muted-foreground">
+          <Tool>
+            <ListDashesIcon />
+          </Tool>
+        </span>
+        <span className="flex items-center border-b-2 border-foreground px-2 font-medium">
+          Hero gradient &amp; trust line
+        </span>
+        <span className="flex items-center text-muted-foreground">
+          <Tool>
+            <PlusIcon />
+          </Tool>
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 overflow-hidden px-3 py-4 text-[13px] leading-normal">
@@ -386,12 +414,21 @@ function Chat() {
         </ul>
       </div>
       <div className="m-3 mt-0 flex flex-col gap-3 rounded-lg border border-border p-3 text-[13px]">
-        <span className="text-muted-foreground">Ask the agent…</span>
-        <div className="flex items-center gap-1 text-xs">
-          <span>Claude Code · Opus</span>
-          <CaretDownIcon className="size-3 text-muted-foreground" />
-          <span className="ml-auto flex size-6 items-center justify-center rounded-md bg-foreground text-background">
-            <ArrowUpIcon className="size-3" />
+        <span className="truncate text-muted-foreground">
+          Ask the agent… (@ document, / skill)
+        </span>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1">
+            Opus 5.5
+            <CaretDownIcon className="size-3 text-muted-foreground" />
+          </span>
+          <span className="flex items-center gap-1">
+            <ClipboardTextIcon className="size-3.5" />
+            Plan
+          </span>
+          <CrosshairIcon className="size-3.5 text-muted-foreground" />
+          <span className="ml-auto flex size-7 items-center justify-center rounded-md bg-muted-foreground text-background">
+            <ArrowUpIcon className="size-4" />
           </span>
         </div>
       </div>
@@ -404,16 +441,19 @@ function CanvasChrome({ zoom }: { zoom: string }) {
   return (
     <>
       <div
-        className={cn(floating, "absolute top-3 left-3 z-10 px-2.5 text-xs")}
+        className={cn(floating, "absolute top-2 left-2 z-10 pl-2.5 text-sm")}
       >
-        <span className="flex h-6 items-center gap-1.5">
+        <span className="flex h-7 items-center gap-1.5">
           <span className="text-muted-foreground">All files</span>
           <span className="text-muted-foreground">/</span>
-          <span className="font-medium">Northwind marketing site</span>
+          <span>Northwind marketing site</span>
         </span>
+        <Tool>
+          <DotsThreeIcon />
+        </Tool>
       </div>
-      <div className={cn(floating, "absolute top-3 right-3 z-10 px-2 text-xs")}>
-        <span className="flex h-6 items-center gap-1 tabular-nums">
+      <div className={cn(floating, "absolute top-2 right-2 z-10 px-2 text-sm")}>
+        <span className="flex h-7 items-center gap-1 tabular-nums">
           {zoom}
           <CaretDownIcon className="size-3 text-muted-foreground" />
         </span>
@@ -447,7 +487,7 @@ export function CanvasExcerpt() {
   return (
     <div
       role="img"
-      aria-label="The Screenplay canvas: Workspaces and layers in the sidebar, the Northwind site's frames running side by side with one selected, and the agent's chat on the right."
+      aria-label="The Screenplay canvas: the canvas's layers in the sidebar, the Northwind site's frames running side by side with one selected, and the agent's chat on the right."
       className="flex aspect-square w-full overflow-hidden border border-border bg-background text-foreground sm:aspect-[16/10] lg:aspect-[16/9.4]"
     >
       <Sidebar />
@@ -469,9 +509,9 @@ export function CanvasExcerpt() {
           workspace="Hero gradient & trust line"
           className="z-[5] max-sm:hidden"
           style={{
-            left: "39%",
+            left: "6%",
+            width: "max(66%, min(440px, 88%))",
             top: "calc(var(--top) + 41.25cqw + 10px)",
-            translate: "-50% 0",
           }}
         />
         <Frame
@@ -522,9 +562,9 @@ export function FrameExcerpt() {
         workspace="Hero gradient & trust line"
         className="z-[5] max-sm:hidden"
         style={{
-          left: "36%",
+          left: "5%",
+          width: "62%",
           top: "calc(var(--top) + 38.75cqw + 10px)",
-          translate: "-50% 0",
         }}
       />
       <Frame
