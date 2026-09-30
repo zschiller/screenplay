@@ -23,10 +23,14 @@
  * applies removals through the Canvas Operations seam.
  */
 
-/** The two layer kinds a Group's Member can reference. */
-export type SelectionKind = "iframe-layer" | "markdown-layer"
+/** The layer kinds a Group's Member can reference. */
+export type SelectionKind = "iframe-layer" | "markdown-layer" | "mockup-layer"
 
-/** A plain snapshot of the three selection Sets. */
+/**
+ * A plain snapshot of the three selection Sets. Mockup Layers (#1267) ride in
+ * `markdownLayerIds`: selection only tells frames apart from the other kinds,
+ * which all select, drag, resize and delete alike. Deleting splits by kind.
+ */
 export interface SelectionSnapshot {
   iframeLayerIds: ReadonlySet<string>
   groupIds: ReadonlySet<string>
@@ -56,7 +60,7 @@ export function expandSelectedGroups(
       if (!selection.groupIds.has(g.id)) continue
       for (const m of g.members) {
         if (m.kind === "iframe-layer") iframeLayerIds.add(m.id)
-        else if (m.kind === "markdown-layer") markdownLayerIds.add(m.id)
+        else markdownLayerIds.add(m.id)
       }
     }
   }
@@ -88,7 +92,7 @@ export function nextIframeLayerAfterDelete(
 export interface SelectionDeleteResult {
   /** Iframe Layer ids to remove (selected frames + cascaded Group members). */
   removeIframeLayerIds: string[]
-  /** Markdown Layer ids to remove (selected docs + cascaded Group members). */
+  /** Markdown and Mockup Layer ids to remove (selected + cascaded members). */
   removeMarkdownLayerIds: string[]
   /** The selection to apply after the removal lands. */
   nextSelection: SelectionSnapshot

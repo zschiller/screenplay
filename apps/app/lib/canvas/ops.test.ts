@@ -10,6 +10,7 @@ import {
 } from "@/lib/constants"
 import { routeToLabel } from "@/lib/route-utils"
 import { documentFragment, getFragmentTitle } from "@/lib/yjs/fragment-text"
+import { mockupHtml } from "@/lib/yjs/mockup-html"
 import { COLLECTION_KEYS } from "@/lib/yjs/schema"
 import {
   baseBranch,
@@ -184,7 +185,165 @@ describe("removeDocuments", () => {
   })
 })
 
+describe("createMockup", () => {
+  it("starts a fresh Group at the anchor for a standalone mockup, with its page", () => {
+    const { doc, ops, collections } = makeHarness()
+
+    const result = ops.createMockup({
+      html: "<h1>Receipt</h1>",
+      title: "Receipt",
+      width: 720,
+      height: 800,
+      anchor: { x: 40, y: 60 },
+    })
+
+    expect(result).toBeDefined()
+    const { mockupId, groupId } = result!
+    expect(collections.mockupLayers.get(mockupId)).toEqual({
+      id: mockupId,
+      width: 720,
+      height: 800,
+      title: "Receipt",
+    })
+    expect(collections.iframeLayerGroups.get(groupId)).toMatchObject({
+      x: 40,
+      y: 60,
+      members: [{ kind: "mockup-layer", id: mockupId }],
+    })
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<h1>Receipt</h1>")
+  })
+
+  it("joins the end of a Group beside its frame, remembering its chat", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { branchId: "agent-1" })
+    )
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+
+    const result = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-1",
+      groupId: "group-1",
+    })
+
+    expect(result?.groupId).toBe("group-1")
+    expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "mockup-layer", id: result!.mockupId },
+    ])
+    expect(collections.mockupLayers.get(result!.mockupId)?.ownerChatId).toBe(
+      "chat-1"
+    )
+  })
+
+  it("writes nothing when the named Group is missing", () => {
+    const { ops, collections } = makeHarness()
+
+    const result = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+      groupId: "missing",
+    })
+
+    expect(result).toBeUndefined()
+    expect(collections.mockupLayers.toArray()).toEqual([])
+  })
+})
+
+describe("updateMockup", () => {
+  it("replaces the page and the title together", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { mockupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-1",
+    })!
+
+    expect(
+      ops.updateMockup(mockupId, { html: "<p>B</p>", title: "Option B" })
+    ).toBe(true)
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
+    expect(collections.mockupLayers.get(mockupId)).toMatchObject({
+      title: "Option B",
+      ownerChatId: "chat-1",
+    })
+  })
+
+  it("keeps the title when only the page changes", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { mockupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+    })!
+
+    ops.updateMockup(mockupId, { html: "" })
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("")
+    expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A")
+  })
+
+  it("reports a missing mockup and writes nothing", () => {
+    const { doc, ops } = makeHarness()
+
+    expect(ops.updateMockup("gone", { html: "<p>B</p>" })).toBe(false)
+    expect(mockupHtml(doc, "gone").toString()).toBe("")
+  })
+})
+
+describe("removeMockups", () => {
+  it("drops the mockup and prunes the Group it emptied", () => {
+    const { ops, collections } = makeHarness()
+    const { mockupId, groupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+    })!
+
+    ops.removeMockups([mockupId])
+
+    expect(collections.mockupLayers.has(mockupId)).toBe(false)
+    expect(collections.iframeLayerGroups.has(groupId)).toBe(false)
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+})
+
 describe("removeBranch", () => {
+  it("keeps a mockup its removed chat made on the canvas", () => {
+    const { ops, collections } = makeHarness()
+    collections.branches.set("agent-1", baseBranch("agent-1"))
+    collections.chatSessions.set("chat-1", {
+      id: "chat-1",
+      branchId: "agent-1",
+      label: "Empty cart",
+      createdAt: 0,
+    })
+    const { mockupId, groupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-1",
+    })!
+
+    ops.removeBranch("agent-1")
+
+    expect(collections.chatSessions.has("chat-1")).toBe(false)
+    expect(collections.mockupLayers.has(mockupId)).toBe(true)
+    expect(collections.iframeLayerGroups.has(groupId)).toBe(true)
+  })
+
   it("cascades: deletes the agent, its Iframe Layers and Chat Sessions, leaving no orphans or empty Groups", () => {
     const { ops, collections } = makeHarness()
     collections.branches.set("agent-1", baseBranch("agent-1"))

@@ -36,8 +36,9 @@ export function groupBranchId(
  * ids, which a pick from the label moves; a Group of a chat's Documents alone
  * has none.
  *
- * `documentWorkspaces` maps an owned Document to its chat's Workspace
- * (`documentWorkspaceIds` in `./document-owner`).
+ * `documentWorkspaces` maps an owned Document or Mockup (#1309) to its chat's
+ * Workspace (`documentWorkspaceIds` in `./document-owner`): a chat's Mockups
+ * count like its Documents.
  */
 export function groupWorkspace(
   group: Pick<IframeLayerGroupData, "members" | "iframeLayerIds">,
@@ -47,7 +48,7 @@ export function groupWorkspace(
   const frames: string[] = []
   const branchIds = new Set<string | undefined>()
   for (const m of getGroupMembers(group as IframeLayerGroupData)) {
-    if (m.kind === "markdown-layer") {
+    if (m.kind === "markdown-layer" || m.kind === "mockup-layer") {
       const branchId = documentWorkspaces?.get(m.id)
       if (branchId) branchIds.add(branchId)
       continue

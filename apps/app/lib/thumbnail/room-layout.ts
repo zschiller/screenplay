@@ -43,12 +43,12 @@ export async function readRoomCaptureLayout(
     const branches = c.branches.toMap()
     const iframeLayers = c.iframeLayers.toArray()
     const markdownLayers = c.markdownLayers.toArray()
+    const mockupLayers = c.mockupLayers.toArray()
     const groups = c.iframeLayerGroups.toArray()
-    const layouts = computeIframeLayerLayouts(
-      groups,
-      iframeLayers,
-      markdownLayers
-    )
+    const layouts = computeIframeLayerLayouts(groups, iframeLayers, [
+      ...markdownLayers,
+      ...mockupLayers,
+    ])
     const iframeFrames: CaptureFrame[] = iframeLayers.map((a) => {
       const branch = a.branchId ? branches.get(a.branchId) : undefined
       const previewDomain = branch?.previewDomain
@@ -58,14 +58,17 @@ export async function readRoomCaptureLayout(
         previewUrl: previewDomain ? previewDomain + (a.route ?? "") : null,
       }
     })
-    // Markdown (document) layers have nothing to screenshot, so they ride the
-    // path as captureless placeholders labeled by their title —
+    // Document and mockup layers have no preview URL to screenshot, so they
+    // ride the path as captureless placeholders labeled by their title —
     // they hold their place in the composed thumbnail alongside iframe layers.
-    const markdownFrames: CaptureFrame[] = markdownLayers.map((m) => ({
+    const titledFrames: CaptureFrame[] = [
+      ...markdownLayers,
+      ...mockupLayers,
+    ].map((m) => ({
       id: m.id,
       label: m.title,
       previewUrl: null,
     }))
-    return { layouts, frames: [...iframeFrames, ...markdownFrames] }
+    return { layouts, frames: [...iframeFrames, ...titledFrames] }
   })
 }

@@ -3,6 +3,8 @@ import {
   IFRAME_LAYER_GROUP_GAP,
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
+  MOCKUP_MIN_HEIGHT,
+  MOCKUP_MIN_WIDTH,
 } from "@/lib/constants"
 import {
   getGroupMembers,
@@ -14,8 +16,10 @@ import {
   keepHiddenMembers,
   shownIndexToMemberIndex,
 } from "@/lib/canvas/done-workspaces"
+import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
+import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
 import {
   documentFragment,
   seedDocumentFragment,
@@ -28,6 +32,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
   PlanData,
   ViewportData,
   RepoData,
@@ -65,6 +70,7 @@ type RecordByKey = {
   iframeLayers: IframeLayerData
   iframeLayerGroups: IframeLayerGroupData
   markdownLayers: MarkdownLayerData
+  mockupLayers: MockupLayerData
   chatSessions: ChatSessionData
   plans: PlanData
   commentPositions: CommentPosition
@@ -295,6 +301,34 @@ export type CanvasOps = {
    * always empty, as for {@link removeLayers}.
    */
   removeDocuments(ids: string[]): { removedChatIds: string[] }
+  /**
+   * Create a Mockup Layer (#1309) showing `spec.html`. With `groupId` it joins
+   * the end of that Group's row, beside the layers it sits with; otherwise it
+   * starts a fresh Group at `anchor` (canvas-space top-left), or beside the
+   * existing Groups when no anchor is given. `chatId` names the chat that made
+   * it. The record and its HTML text commit together. Returns `undefined` when
+   * `groupId` names a missing Group.
+   */
+  createMockup(spec: {
+    html: string
+    title: string
+    width: number
+    height: number
+    ownerChatId?: string
+    groupId?: string
+    anchor?: { x: number; y: number }
+  }): { mockupId: string; groupId: string } | undefined
+  /**
+   * Replace a Mockup Layer's page and/or title. The record and its HTML text
+   * commit together. Returns false when the mockup is gone.
+   */
+  updateMockup(id: string, patch: { html?: string; title?: string }): boolean
+  /**
+   * Remove the given Mockup Layers, dropping them from any Group (pruning a
+   * Group emptied by the removal). Their HTML texts stay in the doc, like a
+   * document's body, so Undo brings a mockup back whole.
+   */
+  removeMockups(ids: string[]): { removedChatIds: string[] }
   /**
    * Remove a Branch and everything keyed to it — its Iframe Layers, its Chat
    * Sessions, and its Members in any Group (pruning Groups emptied by the
@@ -579,7 +613,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height
+        height,
+        sizedLayersOf(collections)
       )
       collections.iframeLayers.set(layerId, {
         id: layerId,
@@ -617,7 +652,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height
+        height,
+        sizedLayersOf(collections)
       )
       routes.forEach((r, i) => {
         collections.iframeLayers.set(layerIds[i]!, {
@@ -660,7 +696,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height
+        height,
+        sizedLayersOf(collections)
       )
       frames.forEach((frame, i) => {
         const size = defaultSizeForAgent(frame.agentId)
@@ -922,6 +959,88 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return { removedChatIds: [] }
   }
 
+  function createMockup(spec: {
+    html: string
+    title: string
+    width: number
+    height: number
+    ownerChatId?: string
+    groupId?: string
+    anchor?: { x: number; y: number }
+  }): { mockupId: string; groupId: string } | undefined {
+    const mockupId = nanoid()
+    let groupId = spec.groupId
+    batch(() => {
+      const group = groupId
+        ? collections.iframeLayerGroups.get(groupId)
+        : undefined
+      if (groupId && !group) {
+        groupId = undefined
+        return
+      }
+      collections.mockupLayers.set(mockupId, {
+        id: mockupId,
+        width: Math.max(MOCKUP_MIN_WIDTH, spec.width),
+        height: Math.max(MOCKUP_MIN_HEIGHT, spec.height),
+        title: spec.title,
+        ...(spec.ownerChatId ? { ownerChatId: spec.ownerChatId } : {}),
+      })
+      writeMockupHtml(mockupHtml(doc, mockupId), spec.html)
+      const member = { kind: "mockup-layer" as const, id: mockupId }
+      if (group) {
+        collections.iframeLayerGroups.update(group.id, {
+          members: [...getGroupMembers(group), member],
+        })
+        return
+      }
+      groupId = nanoid()
+      const anchor =
+        spec.anchor ??
+        placeNewIframeLayerGroup(
+          collections.iframeLayerGroups.toArray(),
+          collections.iframeLayers.toArray(),
+          { x: 0, y: 0 },
+          spec.width,
+          spec.height,
+          sizedLayersOf(collections)
+        )
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        x: anchor.x,
+        y: anchor.y,
+        members: [member],
+      })
+    })
+    return groupId ? { mockupId, groupId } : undefined
+  }
+
+  function updateMockup(
+    id: string,
+    patch: { html?: string; title?: string }
+  ): boolean {
+    if (!collections.mockupLayers.get(id)) return false
+    batch(() => {
+      if (patch.title !== undefined) {
+        collections.mockupLayers.update(id, { title: patch.title })
+      }
+      if (patch.html !== undefined) {
+        writeMockupHtml(mockupHtml(doc, id), patch.html)
+      }
+    })
+    return true
+  }
+
+  function removeMockups(ids: string[]): { removedChatIds: string[] } {
+    if (ids.length === 0) return { removedChatIds: [] }
+    const idSet = new Set(ids)
+    batch(() => {
+      for (const id of ids) collections.mockupLayers.delete(id)
+      removeMembersMatching((m) => m.kind === "mockup-layer" && idSet.has(m.id))
+    })
+    return { removedChatIds: [] }
+  }
+
   function removeBranch(branchId: string): { removedChatIds: string[] } {
     const removedChatIds: string[] = []
     batch(() => {
@@ -1171,6 +1290,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     renameDocument,
     removeLayers,
     removeDocuments,
+    createMockup,
+    updateMockup,
+    removeMockups,
     removeBranch,
     removeRepo,
     reorderRepos,

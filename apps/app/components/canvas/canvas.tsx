@@ -24,6 +24,7 @@ import {
   useIframeLayers,
   useChatSessions,
   useMarkdownLayers,
+  useMockupLayers,
   useOtherPresences,
   useRoomCollections,
   useSavedViewport,
@@ -160,6 +161,7 @@ import {
   groupContentWidth,
   groupGap,
 } from "@/lib/canvas/layout"
+import { memberBox, sizedLayersOf } from "@/lib/canvas/sized-layers"
 
 import type {
   MoveAssemblyGroup,
@@ -401,6 +403,12 @@ export function Canvas({
     [allIframeLayerGroups, allIframeLayers, agents]
   )
   const markdownLayers = useMarkdownLayers()
+  const mockupLayers = useMockupLayers()
+  // Every non-frame layer, as the one list the layout helpers size.
+  const sizedLayers = useMemo(
+    () => [...markdownLayers, ...mockupLayers],
+    [markdownLayers, mockupLayers]
+  )
   const savedViewport = useSavedViewport()
 
   // Canvas Operation wrappers the controllers apply removals / persistence
@@ -411,12 +419,21 @@ export function Canvas({
     },
     [ops]
   )
+  // Documents and Mockups share one selection Set, so this removes both,
+  // routing each id to its kind's verb.
   const removeDocumentLayers = useCallback(
     (ids: string[]) => {
-      const { removedChatIds } = ops.removeDocuments(ids)
-      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
+      const mockupIds = ids.filter((id) => collections.mockupLayers.has(id))
+      const docIds = ids.filter((id) => !collections.mockupLayers.has(id))
+      ops.batch(() => {
+        if (mockupIds.length > 0) ops.removeMockups(mockupIds)
+        if (docIds.length > 0) {
+          const { removedChatIds } = ops.removeDocuments(docIds)
+          for (const chatId of removedChatIds) chatStore.cleanup(chatId)
+        }
+      })
     },
-    [ops]
+    [ops, collections]
   )
   const saveViewport = useCallback(
     (vp: ViewportData) => {
@@ -607,12 +624,8 @@ export function Canvas({
 
   const iframeLayerLayouts = useMemo(
     () =>
-      computeIframeLayerLayouts(
-        iframeLayerGroups,
-        iframeLayers,
-        markdownLayers
-      ),
-    [iframeLayerGroups, iframeLayers, markdownLayers]
+      computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, sizedLayers),
+    [iframeLayerGroups, iframeLayers, sizedLayers]
   )
   // Ref mirror so callbacks that only need the current snapshot (e.g.
   // `requestReorderDrag` computing the cursor's grab offset) can read it
@@ -768,7 +781,7 @@ export function Canvas({
       deriveCanvasLayout({
         groups: iframeLayerGroups,
         iframeLayers,
-        markdownLayers,
+        sizedLayers,
         selection: {
           iframeLayerIds: selectedIframeLayerIds,
           documentLayerIds: selectedDocumentLayerIds,
@@ -799,7 +812,7 @@ export function Canvas({
     [
       iframeLayerGroups,
       iframeLayers,
-      markdownLayers,
+      sizedLayers,
       selectedIframeLayerIds,
       selectedDocumentLayerIds,
       selectedGroupIds,
@@ -893,10 +906,11 @@ export function Canvas({
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
-  // Each chat-made Document's Workspace (#1314), for its label and the Group's.
+  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
+  // label and the Group's.
   const documentWorkspaces = useMemo(
-    () => documentWorkspaceIds(markdownLayers, chatSessions),
-    [markdownLayers, chatSessions]
+    () => documentWorkspaceIds(sizedLayers, chatSessions),
+    [sizedLayers, chatSessions]
   )
   // Where Reply in chat and Send to agent on a chat-made Document go.
   const documentOwnerChat = useCallback(
@@ -996,10 +1010,7 @@ export function Canvas({
   const reorderOrderSnapshot = useCallback(
     (group: IframeLayerGroupData): ReorderMemberSnapshot[] =>
       getGroupMembers(group).map((m) => {
-        const size =
-          m.kind === "iframe-layer"
-            ? collections.iframeLayers.get(m.id)
-            : collections.markdownLayers.get(m.id)
+        const size = memberBox(collections, m)
         return { id: m.id, kind: m.kind, width: size?.width ?? null }
       }),
     [collections]
@@ -1019,11 +1030,12 @@ export function Canvas({
     [iframeLayerGroups, reorderOrderSnapshot]
   )
 
-  // Markdown-layer ids, so the marquee hit-test can classify a covered layer as
-  // a document (it lives in the shared layout map alongside frames).
+  // Non-frame layer ids (documents and mockups, which share a selection Set),
+  // so the marquee hit-test can classify a covered layer (it lives in the
+  // shared layout map alongside frames).
   const markdownLayerIdSet = useMemo(
-    () => new Set(markdownLayers.map((d) => d.id)),
-    [markdownLayers]
+    () => new Set(sizedLayers.map((d) => d.id)),
+    [sizedLayers]
   )
 
   // Project the live collections into the plain snapshots the Layer-initiated
@@ -1035,15 +1047,12 @@ export function Canvas({
   const buildMoveAssembly = useCallback(() => {
     const allGroups = collections.iframeLayerGroups.toArray()
     const abArr = collections.iframeLayers.toArray()
-    const docArr = collections.markdownLayers.toArray()
+    const docArr = sizedLayersOf(collections)
     const groups: MoveAssemblyGroup[] = allGroups.map((g) => {
       const members = getGroupMembers(g)
       const memberSizes: Array<{ width: number; height: number }> = []
       for (const m of members) {
-        const size =
-          m.kind === "iframe-layer"
-            ? collections.iframeLayers.get(m.id)
-            : collections.markdownLayers.get(m.id)
+        const size = memberBox(collections, m)
         if (size) memberSizes.push({ width: size.width, height: size.height })
       }
       return {
@@ -1202,6 +1211,7 @@ export function Canvas({
   })
   const handleSelectIframeLayer = frameActions.selectIframeLayer
   const handleZoomToDocument = frameActions.zoomToDocument
+  const handleZoomToMockup = frameActions.zoomToMockup
   const handleZoomToGroup = frameActions.zoomToGroup
   const handleShowRoutesForAgent = frameActions.showRoutesForAgent
   const handlePlayAgent = frameActions.playAgent
@@ -1578,7 +1588,7 @@ export function Canvas({
     opensOnPanelRef.current = false
     expandChatPanel()
   }, [expandChatPanel])
-  const isCanvasEmpty = iframeLayers.length === 0 && markdownLayers.length === 0
+  const isCanvasEmpty = iframeLayers.length === 0 && sizedLayers.length === 0
   // The first Canvas after setup shows the getting-started checklist (#780)
   // until it's dismissed. Read from this browser's storage after hydration.
   const showGettingStarted = useSyncExternalStore(
@@ -1723,6 +1733,7 @@ export function Canvas({
                 branches={agents}
                 iframeLayers={iframeLayers}
                 markdownLayers={markdownLayers}
+                mockupLayers={mockupLayers}
                 iframeLayerGroups={sortedIframeLayerGroups}
                 selectedIframeLayerIds={selectedIframeLayerIds}
                 selectedGroupIds={selectedGroupIds}
@@ -1733,6 +1744,9 @@ export function Canvas({
                 onZoomToDocument={handleZoomToDocument}
                 onRenameDocument={layerMutations.setTitle}
                 onRemoveDocument={(id) => removeDocumentLayers([id])}
+                onZoomToMockup={handleZoomToMockup}
+                onRenameMockup={layerMutations.renameMockup}
+                onRemoveMockup={(id) => removeDocumentLayers([id])}
                 onSelectIframeLayer={handleIframeLayerSelect}
                 onZoomToIframeLayer={handleSelectIframeLayer}
                 onRenameIframeLayer={layerMutations.rename}
@@ -1887,6 +1901,7 @@ export function Canvas({
                         iframeLayers={iframeLayers}
                         markdownLayers={markdownLayers}
                         documentWorkspaces={documentWorkspaces}
+                        mockupLayers={mockupLayers}
                         selection={selection}
                         onIframeWheel={camera.handleIframeWheel}
                         reference={reference}

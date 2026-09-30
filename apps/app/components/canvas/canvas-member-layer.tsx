@@ -19,12 +19,14 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
   RepoData,
 } from "@/lib/types"
 import { openPreviewInBrowser } from "@/lib/open-preview"
 
 import { IframeLayer } from "./iframe-layer"
 import { MarkdownLayer } from "./markdown-layer"
+import { MockupLayer } from "./mockup-layer"
 import { useCanvasGesture } from "./use-canvas-gesture"
 import type { CanvasCamera } from "./use-canvas-camera"
 import type { CanvasSelection } from "./use-canvas-selection"
@@ -48,7 +50,7 @@ type AgentDomains = Record<
 >
 
 /**
- * The flat member layer (PRD #571) — every Iframe Layer and Markdown Layer
+ * The flat member layer (PRD #571) — every Iframe, Markdown and Mockup Layer
  * across all Groups rendered as a stable, id-sorted, absolutely-positioned
  * sibling, plus the trailing add-member placeholder hit targets.
  *
@@ -71,6 +73,7 @@ function CanvasMemberLayerImpl({
   iframeLayers,
   markdownLayers,
   documentWorkspaces,
+  mockupLayers,
   selection,
   onIframeWheel,
   reference,
@@ -114,8 +117,9 @@ function CanvasMemberLayerImpl({
   iframeLayerGroups: IframeLayerGroupData[]
   iframeLayers: IframeLayerData[]
   markdownLayers: MarkdownLayerData[]
-  /** The Workspace of each Document's owning chat (#1314), by Document id. */
+  /** The Workspace of each Document's and Mockup's owning chat (#1314, #1309), by layer id. */
   documentWorkspaces: ReadonlyMap<string, string>
+  mockupLayers: MockupLayerData[]
   selection: CanvasSelection
   /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom).
    *  Just `camera.handleIframeWheel` — passed as the bare callback rather than
@@ -220,6 +224,7 @@ function CanvasMemberLayerImpl({
 
         // Each Group's Workspace (#868), as its label and its frames name it.
         const framesById = new Map(iframeLayers.map((l) => [l.id, l]))
+        const mockupsById = new Map(mockupLayers.map((l) => [l.id, l]))
         const workspaceOf = (branchId: string | undefined) =>
           frameWorkspaceOf(
             branchId ? agents.find((a) => a.id === branchId) : undefined
@@ -387,6 +392,67 @@ function CanvasMemberLayerImpl({
                 onStartInlineComment={reference.startInlineComment}
                 onSelectInlineThread={reference.setActiveThread}
                 onReplyInChat={reference.replyInChat}
+              />
+            )
+          }
+
+          if (member.kind === "mockup-layer") {
+            const mockup = mockupsById.get(member.id)
+            if (!mockup) return null
+            return (
+              <MockupLayer
+                key={mockup.id}
+                layer={mockup}
+                // The chat that made it, unless the group label names it
+                // (#1309), as a chat-made Document does.
+                ownerWorkspace={
+                  groupNamesWorkspace
+                    ? undefined
+                    : workspaceOf(documentWorkspaces.get(mockup.id))
+                }
+                zoom={zoom}
+                // Mockups share the Document selection Set.
+                selected={selectedDocumentLayerIds.has(mockup.id)}
+                multiSelected={
+                  selectedIframeLayerIds.size + selectedDocumentLayerIds.size >
+                  1
+                }
+                spaceHeld={spaceHeld}
+                worldX={layout.x}
+                worldY={layout.y}
+                zIndex={zIndex}
+                dragTranslateX={dragTranslateX}
+                dragTranslateY={dragTranslateY}
+                dragPopped={dragPopped}
+                remoteSelectedColor={remoteSelectedColor}
+                remoteGroupSelectedColor={remoteGroupSelectedColor}
+                groupLabel={index === 0 ? groupLabel : undefined}
+                groupWorkspace={groupLabelWorkspace}
+                groupSelected={groupSelected}
+                onSelectGroup={
+                  index === 0 && showGroupLabel
+                    ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                    : undefined
+                }
+                onRenameGroup={
+                  index === 0 && showGroupLabel
+                    ? (name) => renameIframeLayerGroup(group.id, name)
+                    : undefined
+                }
+                onSelect={handleDocumentLayerSelect}
+                onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+                }
+                onMoveSelected={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+                }
+                onGroupDragStart={() =>
+                  gestureLayerHandlers.onGroupDragStart(mockup.id)
+                }
+                onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
+                onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
+                onResize={layerMutations.resizeMockup}
+                onRename={layerMutations.renameMockup}
               />
             )
           }

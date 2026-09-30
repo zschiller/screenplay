@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { addMemory, removeMemory } from "@/lib/canvas/memory"
 import { createCanvasUndo } from "@/lib/canvas/undo"
-import { COLLECTION_KEYS } from "@/lib/yjs/schema"
+import { createCanvasOps } from "@/lib/canvas/ops"
+import { mockupHtml } from "@/lib/yjs/mockup-html"
+import { COLLECTION_KEYS, createRoomCollections } from "@/lib/yjs/schema"
 import {
   baseBranch,
   baseChat,
@@ -116,6 +118,55 @@ describe("⌘Z", () => {
 
     undo.undo()
     expect(collections.iframeLayers.has("frame-1")).toBe(false)
+  })
+})
+
+describe("⌘Z on a Mockup (#1309)", () => {
+  /** A Mockup a chat drew: it arrives from the server, like any chat write. */
+  function withChatMockup() {
+    const h = canvas()
+    const server = new Y.Doc()
+    Y.applyUpdate(server, Y.encodeStateAsUpdate(h.doc))
+    const sv = Y.encodeStateVector(server)
+    const serverOps = createCanvasOps(createRoomCollections(server))
+    const { mockupId } = serverOps.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-2",
+    })!
+    Y.applyUpdate(h.doc, Y.encodeStateAsUpdate(server, sv), "provider")
+    return { ...h, mockupId, server, serverOps }
+  }
+
+  it("never undoes the chat's create or update", () => {
+    const { doc, collections, undo, mockupId, server, serverOps } =
+      withChatMockup()
+    const sv = Y.encodeStateVector(server)
+    serverOps.updateMockup(mockupId, { html: "<p>B</p>" })
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(server, sv), "provider")
+
+    undo.undo()
+    expect(collections.mockupLayers.has(mockupId)).toBe(true)
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
+  })
+
+  it("brings a deleted Mockup back with its page and its chat", () => {
+    const { doc, ops, collections, undo, mockupId } = withChatMockup()
+    ops.removeMockups([mockupId])
+
+    undo.undo()
+    expect(collections.mockupLayers.get(mockupId)?.ownerChatId).toBe("chat-2")
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A</p>")
+  })
+
+  it("undoes a rename", () => {
+    const { ops, collections, undo, mockupId } = withChatMockup()
+    ops.patch("mockupLayers", mockupId, { title: "Renamed" })
+
+    undo.undo()
+    expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A")
   })
 })
 

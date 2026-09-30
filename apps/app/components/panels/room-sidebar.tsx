@@ -79,6 +79,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
   GroupMember,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/canvas/layout"
@@ -103,9 +104,9 @@ import {
 } from "@/components/panels/layer-rows/iframe-layer-row"
 
 import {
-  DocumentRow,
-  DocumentRowMenu,
-} from "@/components/panels/layer-rows/markdown-layer-row"
+  documentRow,
+  mockupRow,
+} from "@/components/panels/layer-rows/titled-layer-row"
 
 import {
   useIsFrameHighlighted,
@@ -316,10 +317,12 @@ interface RoomSidebarProps {
     Pick<IframeLayerData, "id" | "branchId" | "label" | "route">
   >
   markdownLayers: MarkdownLayerData[]
+  mockupLayers: MockupLayerData[]
   /** Already sorted by sidebarOrder. */
   iframeLayerGroups: IframeLayerGroupData[]
   selectedIframeLayerIds: Set<string>
   selectedGroupIds: Set<string>
+  /** Selected Markdown and Mockup Layers (they share one selection Set). */
   selectedDocumentLayerIds: Set<string>
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
   onZoomToGroup: (groupId: string) => void
@@ -331,6 +334,9 @@ interface RoomSidebarProps {
   onZoomToDocument: (id: string) => void
   onRenameDocument: (id: string, title: string) => void
   onRemoveDocument: (id: string) => void
+  onZoomToMockup: (id: string) => void
+  onRenameMockup: (id: string, title: string) => void
+  onRemoveMockup: (id: string) => void
   onReorderIframeLayerGroups: (orderedIds: string[]) => void
   /**
    * Move a single member across (or within) groups. `target` either points
@@ -354,6 +360,7 @@ export function RoomSidebar({
   branches,
   iframeLayers,
   markdownLayers,
+  mockupLayers,
   iframeLayerGroups,
   selectedIframeLayerIds,
   selectedGroupIds,
@@ -368,6 +375,9 @@ export function RoomSidebar({
   onZoomToDocument,
   onRenameDocument,
   onRemoveDocument,
+  onZoomToMockup,
+  onRenameMockup,
+  onRemoveMockup,
   onReorderIframeLayerGroups,
   onMoveMember,
   onRenameIframeLayerGroup,
@@ -385,6 +395,10 @@ export function RoomSidebar({
     for (const d of markdownLayers) m.set(d.id, d)
     return m
   }, [markdownLayers])
+  const mockupsById = useMemo(
+    () => new Map(mockupLayers.map((d) => [d.id, d])),
+    [mockupLayers]
+  )
   const branchesById = useMemo(() => {
     const m = new Map<string, BranchData>()
     for (const a of branches) m.set(a.id, a)
@@ -443,15 +457,39 @@ export function RoomSidebar({
       onRemove: onRemoveIframeLayer,
     },
     "markdown-layer": {
-      Row: DocumentRow as AnyRowDispatcher["Row"],
-      Menu: DocumentRowMenu as AnyRowDispatcher["Menu"],
+      Row: documentRow.Row as AnyRowDispatcher["Row"],
+      Menu: documentRow.Menu as AnyRowDispatcher["Menu"],
       isSelected: (id) => selectedDocumentLayerIds.has(id),
       onSelect: onSelectDocument,
       onActivate: onZoomToDocument,
       onRename: onRenameDocument,
       onRemove: onRemoveDocument,
     },
+    "mockup-layer": {
+      Row: mockupRow.Row as AnyRowDispatcher["Row"],
+      Menu: mockupRow.Menu as AnyRowDispatcher["Menu"],
+      isSelected: (id) => selectedDocumentLayerIds.has(id),
+      // Mockups share the Document selection Set (see `lib/canvas/selection`).
+      onSelect: onSelectDocument,
+      onActivate: onZoomToMockup,
+      onRename: onRenameMockup,
+      onRemove: onRemoveMockup,
+    },
   }
+
+  /** A Member with its record, or `undefined` when the record is missing. */
+  const resolveMember = useCallback(
+    (m: GroupMember): ResolvedMember | undefined => {
+      const data =
+        m.kind === "iframe-layer"
+          ? iframeLayersById.get(m.id)
+          : m.kind === "markdown-layer"
+            ? documentsById.get(m.id)
+            : mockupsById.get(m.id)
+      return data ? { kind: m.kind, id: m.id, data } : undefined
+    },
+    [iframeLayersById, documentsById, mockupsById]
+  )
 
   /**
    * Flatten the groups list into one row per visible sidebar line. The
@@ -461,18 +499,9 @@ export function RoomSidebar({
   const flattenedRows = useMemo<SidebarDragRow[]>(() => {
     const rows: SidebarDragRow[] = []
     for (const group of iframeLayerGroups) {
-      const members: ResolvedMember[] = []
-      for (const m of getGroupMembers(group)) {
-        if (m.kind === "iframe-layer") {
-          const ab = iframeLayersById.get(m.id)
-          if (ab) members.push({ kind: m.kind, id: m.id, data: ab })
-          continue
-        }
-        if (m.kind === "markdown-layer") {
-          const d = documentsById.get(m.id)
-          if (d) members.push({ kind: m.kind, id: m.id, data: d })
-        }
-      }
+      const members = getGroupMembers(group)
+        .map(resolveMember)
+        .filter((m) => m !== undefined)
       if (members.length === 1) {
         rows.push({ kind: "flat", groupId: group.id, member: members[0]! })
       } else if (members.length > 1) {
@@ -483,7 +512,7 @@ export function RoomSidebar({
       }
     }
     return rows
-  }, [iframeLayerGroups, iframeLayersById, documentsById])
+  }, [iframeLayerGroups, resolveMember])
 
   const sortableIds = useMemo(
     () => flattenedRows.map(sidebarRowId),
@@ -627,28 +656,9 @@ export function RoomSidebar({
                         // truth for sortable IDs and overlay lookups; this
                         // local resolution drives the JSX shape (flat vs
                         // header + children).
-                        const groupMembers: ResolvedMember[] = []
-                        for (const m of getGroupMembers(group)) {
-                          if (m.kind === "iframe-layer") {
-                            const ab = iframeLayersById.get(m.id)
-                            if (ab)
-                              groupMembers.push({
-                                kind: m.kind,
-                                id: m.id,
-                                data: ab,
-                              })
-                            continue
-                          }
-                          if (m.kind === "markdown-layer") {
-                            const d = documentsById.get(m.id)
-                            if (d)
-                              groupMembers.push({
-                                kind: m.kind,
-                                id: m.id,
-                                data: d,
-                              })
-                          }
-                        }
+                        const groupMembers = getGroupMembers(group)
+                          .map(resolveMember)
+                          .filter((m) => m !== undefined)
 
                         /** Render `<Row />` + `<Menu />` for a single member by
                          *  looking up the kind in `rowDispatchByKind`. New layer

@@ -196,7 +196,7 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
   const selectMember = useCallback(
     (memberId: string, kind: SelectionKind, additive: boolean) => {
       setGroupIds(new Set())
-      if (kind === "markdown-layer") {
+      if (kind !== "iframe-layer") {
         if (additive) {
           setDocumentLayerIds((prev) => toggleSelection(prev, memberId))
         } else {
