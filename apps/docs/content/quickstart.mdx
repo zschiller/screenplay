@@ -13,8 +13,8 @@ change running in it.
 
 <Callout type="info">
   Running a shared, multi-user deployment instead? Start with
-  [Self-hosting](/self-hosting). Once you're signed in, everything from
-  step 3 on works the same way.
+  [Self-hosting](/self-hosting). Once you're signed in, everything from step 3
+  on works the same way.
 </Callout>
 
 ## What you need
@@ -35,9 +35,9 @@ steps:
 
 1. **Install a coding agent.** This one is required. Claude Code is
    preselected and marked **Recommended**; click **Change** to pick another
-   CLI. Click **Install *CLI* and sign in** (or **Sign in to *CLI*** if it's
+   CLI. Click **Install _CLI_ and sign in** (or **Sign in to _CLI_** if it's
    already installed). An inline terminal installs it and runs its own
-   sign-in. Once it's signed in, click **Use *CLI***.
+   sign-in. Once it's signed in, click **Use _CLI_**.
 2. **Connect GitHub.** This one is optional. It lets you browse your
    repositories and open pull requests from Screenplay. **Sign in to GitHub**
    uses the `gh` CLI (**Install GitHub CLI and connect** if you don't have
@@ -49,26 +49,33 @@ A finished step collapses to one row with **Change**. **Finish** enables
 itself as soon as both steps are settled. The page re-checks every couple of
 seconds, so there's no need to reload.
 
-<Screenshot name="setup-gate" alt="The Set up Screenplay screen with Claude Code connected and GitHub not yet installed" />
+<Screenshot
+  name="setup-gate"
+  alt="The Set up Screenplay screen with Claude Code connected and GitHub not yet installed"
+/>
 
 ### Create a canvas
 
 **Finish** creates your first canvas and opens it, with a **Get started**
 checklist. Later, **New canvas** on the home screen (or
-<kbd>N</kbd>) creates and opens another one; rename it from its title. A
-canvas holds one piece of work: one or more repositories, their workspaces, and
+
+<kbd>N</kbd>) creates and opens another one; rename it from its title. A canvas
+holds one piece of work: one or more repositories, their workspaces, and
 everything you lay out around them.
 
 ### Add a repository
 
-Click **Add repository** in the **Get started** checklist (or under
-**Workspaces** in the sidebar). It opens **Canvas settings** on
+Click **Add repository** in the **Get started** checklist (or in
+the agent panel's **Workspaces** menu). It opens **Canvas settings** on
 **Repositories**; click **Add repository** there:
 
 - **Open folder** adds a folder on disk, such as your existing clone.
 - **Open GitHub repository** lets you pick a repository, or paste a clone URL.
 
-<Screenshot name="add-project-menu" alt="The Add repository menu with Open folder and Open GitHub repository" />
+<Screenshot
+  name="add-project-menu"
+  alt="The Add repository menu with Open folder and Open GitHub repository"
+/>
 
 Screenplay detects your setup and run scripts and shows them for review in
 **Configure repository**. Check **Save as a preset** to reuse them on other
@@ -89,7 +96,10 @@ The agent reads the code, edits it, and commits. Every tool call appears in the
 chat as it runs, and the preview hot-reloads the moment a file changes. The
 first message also gives the branch and chat a descriptive name.
 
-<Screenshot name="hero" alt="The agent's finished change: the chat lists file reads, edits and git commands, and the previews show the new gradient headline" />
+<Screenshot
+  name="hero"
+  alt="The agent's finished change: the chat lists file reads, edits and git commands, and the previews show the new gradient headline"
+/>
 
 ### Keep going
 

@@ -11,14 +11,9 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 
 import { ChatPanel } from "@/components/agent/chat-panel"
 import { RoomChatPanel } from "@/components/agent/room-chat-panel"
+import { WorkspacesMenuButton } from "@/components/agent/workspaces-menu"
 import { roomChatId } from "@/lib/chat/room-chat"
-import type {
-  BranchData,
-  ChatSessionData,
-  MarkdownLayerData,
-  RepoData,
-  TerminalTabData,
-} from "@/lib/types"
+import type { ChatSessionData, RepoData, TerminalTabData } from "@/lib/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 
@@ -41,8 +36,6 @@ import type { TabPool } from "./use-tab-pool"
 export function ChatPanelHost({
   chatTarget,
   tabPool,
-  agents,
-  markdownLayers,
   chatSessions,
   localTerminals,
   repos,
@@ -58,8 +51,6 @@ export function ChatPanelHost({
 }: {
   chatTarget: ChatTarget
   tabPool: TabPool
-  agents: BranchData[]
-  markdownLayers: MarkdownLayerData[]
   chatSessions: ChatSessionData[]
   /** This client's local terminal tabs, kept apart from `chatSessions`. */
   localTerminals: TerminalTabData[]
@@ -127,17 +118,6 @@ export function ChatPanelHost({
       return (
         <ChatPanel
           target={target}
-          agents={agents}
-          markdownLayers={markdownLayers}
-          onSelectAgent={(id) =>
-            chatTarget.selectAgent(id, { clearDocument: true })
-          }
-          onSelectLayer={(layerKind, id) => {
-            if (layerKind === "markdown-layer") {
-              chatTarget.selectDocument(id)
-              return
-            }
-          }}
           chatSessions={filteredSessions}
           terminalTabs={terminalTabs}
           selectedChatId={chatTarget.selectedChatId}
@@ -200,6 +180,9 @@ export function ChatPanelHost({
             <SidebarSimpleIcon mirrored />
           </IconButton>
           <span className="text-xs text-muted-foreground">No repositories</span>
+          <div className="ml-auto flex items-center">
+            <WorkspacesMenuButton />
+          </div>
         </div>
         <div className="border-b border-border" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">

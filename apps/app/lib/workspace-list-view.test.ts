@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import type { BranchData } from "@/lib/types"
 import {
   DEFAULT_WORKSPACE_LIST_VIEW,
+  anyWorkspaceNeedsYou,
   canDragWorkspaces,
   groupWorkspaces,
   parseWorkspaceListView,
@@ -54,6 +55,30 @@ describe("workspaceSection", () => {
   it("puts ready or stopped with no open PR in Idle", () => {
     expect(workspaceSection(ws("a"), idle)).toBe("idle")
     expect(workspaceSection(ws("a", { status: "stopped" }), idle)).toBe("idle")
+  })
+})
+
+describe("anyWorkspaceNeedsYou", () => {
+  const openPr = new Set(["pr"])
+  const context = (b: BranchData) => ({
+    agentWorking: b.id === "busy",
+    openPr: openPr.has(b.id),
+  })
+
+  it("is true when a Workspace falls in Needs you", () => {
+    expect(anyWorkspaceNeedsYou([ws("a"), ws("pr")], context)).toBe(true)
+    expect(
+      anyWorkspaceNeedsYou([ws("a"), ws("b", { status: "error" })], context)
+    ).toBe(true)
+  })
+
+  it("leaves Done Workspaces out", () => {
+    expect(anyWorkspaceNeedsYou([ws("pr", { doneAt: 1 })], context)).toBe(false)
+  })
+
+  it("is false when every Workspace is working or idle, or there are none", () => {
+    expect(anyWorkspaceNeedsYou([ws("a"), ws("busy")], context)).toBe(false)
+    expect(anyWorkspaceNeedsYou([], context)).toBe(false)
   })
 })
 

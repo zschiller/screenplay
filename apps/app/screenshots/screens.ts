@@ -782,21 +782,56 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "chat-header-workspace-picker",
+    name: "chat-header-workspace",
     description:
-      "A Workspace's chat header with its Workspace picker open: each row a state icon, the plain name and the PR badge or line count (#974).",
+      "A Workspace's chat header (#1152): the Coordinator crumb, the Workspace's state icon and name, and its PR button. No Workspaces button: that lives on the Coordinator header.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "Checkout polish")
+      await page.mouse.move(900, 900)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-header-workspace-hover-card",
+    description:
+      "Hovering the Workspace's name in its chat header: the Workspace hover card (#882, #1152).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await selectWorkspace(page, "Checkout polish")
       await page
         .locator("[data-slot=tabs]")
-        .locator("button:has(svg.ph-caret-up-down)")
+        .locator("[data-slot=workspace-mention]")
         .first()
-        .click({ timeout: 15_000 })
-      await page
-        .getByPlaceholder("Search workspaces and layers…")
-        .waitFor({ state: "visible", timeout: 15_000 })
+        .hover({ timeout: 15_000 })
+      await waitForWorkspaceHoverCard(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "workspaces-menu",
+    description:
+      "The Workspaces menu open from the Coordinator (#1152): search, the Coordinator checked, the Workspaces with + and …, Done, and Documents.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openWorkspacesMenu(page)
+      await page.mouse.move(900, 900)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "workspaces-menu-search",
+    description:
+      "Searching the Workspaces menu by branch name (#1152): Done Workspaces are searched too.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      const menu = await openWorkspacesMenu(page)
+      await menu.getByPlaceholder("Search workspaces…").fill("cart")
+      await page.mouse.move(900, 900)
     },
     settleMs: 400,
   },
@@ -1293,6 +1328,7 @@ export const SCREENS: Screen[] = [
     description:
       "A Workspace's setup error opened from the sidebar, as a keyboard user reaches it.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openSetupError(page)
     },
@@ -1303,8 +1339,10 @@ export const SCREENS: Screen[] = [
     description:
       "Hovering a Workspace row that's still setting up: its hover card names the step (#882).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await page
+      const menu = await openWorkspacesMenu(page)
+      await menu
         .getByRole("img", { name: "Running setup script" })
         .hover({ timeout: 15_000 })
       await waitForWorkspaceHoverCard(page)
@@ -1314,13 +1352,14 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspace-hover-card",
     description:
-      "Hovering a Workspace row: title, status, repository, git branch, base and changes (#882).",
+      "Hovering a Workspace's name in its chat header: title, status, repository, git branch, base and changes (#882).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
+      await selectWorkspace(page, "Checkout polish")
       await page
-        .locator("[data-sidebar=menu-button]", {
-          hasText: "Checkout polish",
-        })
+        .locator("[data-slot=tabs]")
+        .locator("[data-slot=workspace-mention]")
         .first()
         .hover({ timeout: 15_000 })
       await waitForWorkspaceHoverCard(page)
@@ -1363,20 +1402,38 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspaces-two-repos",
     description:
-      "The sidebar's Workspaces list on a canvas with two repositories: each row ends with its repository (#884).",
+      "The Workspaces menu on a canvas with two repositories: each row ends with its repository (#884, #1152).",
     path: `/${ids.rooms.pricing}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openWorkspacesMenu(page)
+      await page.mouse.move(900, 900)
+    },
+    settleMs: 400,
   },
   {
     name: "canvas-pr-merged",
     description:
       "A Canvas whose Workspace has a merged PR and an agent turn in flight: the activity spinner up front, the merged PR at the row's end (#963).",
     path: `/${ids.rooms.pricing}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openWorkspacesMenu(page)
+      await page.mouse.move(900, 900)
+    },
+    settleMs: 400,
   },
   {
     name: "canvas-pr-closed",
     description:
       "A Canvas with a stopped Workspace (a dashed circle, its closed PR not shown) and one still being created.",
     path: `/${ids.rooms.onboarding}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openWorkspacesMenu(page)
+      await page.mouse.move(900, 900)
+    },
+    settleMs: 400,
   },
   {
     name: "canvas-frame-toolbar",
@@ -1665,10 +1722,11 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "sidebar-project-row-hover",
+    name: "workspaces-menu-new-hover",
     description:
-      "Hovering the sidebar's New workspace (+) button, with its tooltip.",
+      "Hovering the Workspaces menu's New workspace (+) button, with its tooltip.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await newWorkspaceButton(page).then((b) => b.hover())
       await showTooltip(page)
@@ -1676,46 +1734,47 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-menu-hover",
+    name: "workspaces-menu-row-options-hover",
     description: "Hovering a Workspace row's overflow (…) button.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      const row = page
-        .locator(".group\\/branch-row")
-        .filter({ hasText: "Checkout polish" })
-        .first()
-      await row.hover()
-      await row
-        .locator('[aria-haspopup="menu"]')
-        .first()
-        .hover({ timeout: 15_000 })
+      const trigger = await branchRowMenu(page, "Checkout polish")
+      await trigger.hover({ timeout: 15_000 })
       await showTooltip(page)
     },
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-menu-open-pr",
+    name: "workspaces-menu-row-menu-open-pr",
     description:
       "The Workspace row's … menu open on a Workspace with an open PR.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openBranchRowMenu(page, "Checkout polish")
     },
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-rename-title",
+    name: "workspaces-menu-rename-title",
     description:
-      "Renaming a Workspace's title by double-clicking its sidebar row (#881). The branch is untouched.",
+      "Renaming a Workspace's title in place from its row's … menu (#881). The branch is untouched.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       // Light and dark share the Canvas, and the first run's rename commits
       // on close, so find the row by either name.
+      const menu = await openWorkspacesMenu(page)
+      const name = (await menu
+        .getByText("Empty cart illustration", { exact: true })
+        .count())
+        ? "Empty cart illustration"
+        : "Empty cart state"
+      await chooseFromMenu(page, await branchRowMenu(page, name), "Rename")
       await page
-        .locator(".group\\/branch-row")
-        .getByText(/^(Empty cart state|Empty cart illustration)$/)
-        .first()
-        .dblclick({ timeout: 15_000 })
+        .locator("[data-editable-text=editing]")
+        .waitFor({ timeout: 5_000 })
       await page.keyboard.press("ControlOrMeta+a")
       await page.keyboard.type("Empty cart illustration")
     },
@@ -1726,6 +1785,7 @@ export const SCREENS: Screen[] = [
     description:
       "Rename branch… from the Workspace menu's Git group (#881): renames the git branch, not the title.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openBranchRowMenu(page, "Empty cart state")
       await page
@@ -1736,30 +1796,33 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-menu-changes",
+    name: "workspaces-menu-row-menu-changes",
     description:
       "The Workspace row's … menu open on a Workspace with changes and no PR.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openBranchRowMenu(page, "Empty cart state")
     },
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-menu-starting",
+    name: "workspaces-menu-row-menu-starting",
     description:
       "The Workspace row's … menu open on a Workspace still running setup.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openBranchRowMenu(page, "Apple Pay button")
     },
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-menu-failed",
+    name: "workspaces-menu-row-menu-failed",
     description:
       "The Workspace row's … menu open on a Workspace whose setup failed.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openBranchRowMenu(page, "gift-cards")
     },
@@ -1768,46 +1831,47 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspace-done",
     description:
-      "The reference Canvas after Mark as done on Empty cart state (#976): its Cart group is hidden and its row sits in the collapsed Done section.",
+      "The reference Canvas after Mark as done on Empty cart state (#976): its Cart group is hidden and its row sits in the Workspaces menu's collapsed Done section.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: (page) => markWorkspaceDone(page, "Empty cart state"),
     settleMs: 600,
   },
   {
-    name: "sidebar-workspaces-done-open",
+    name: "workspaces-menu-done-open",
     description:
       "The Workspaces list's Done section opened, with the Done Workspace's check-circle row (#976).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await markWorkspaceDone(page, "Empty cart state")
-      await page
-        .getByRole("button", { name: /^Done \(\d+\)$/ })
-        .click({ timeout: 10_000 })
+      await openDoneSection(page)
       await page.mouse.move(900, 900)
     },
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-menu-done",
+    name: "workspaces-menu-row-menu-done",
     description:
       "A Done Workspace's … menu: Reopen leads, and only what works without its sandbox follows (#976).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await markWorkspaceDone(page, "Empty cart state")
-      await page
-        .getByRole("button", { name: /^Done \(\d+\)$/ })
-        .click({ timeout: 10_000 })
+      await openDoneSection(page)
       await openBranchRowMenu(page, "Empty cart state")
     },
     settleMs: 400,
   },
   {
-    name: "sidebar-workspaces-view-menu",
+    name: "workspaces-menu-view-menu",
     description:
       "The Workspaces … menu (#885): the Sort by submenu open, Group by state and Open existing git branch.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await page
+      const menu = await openWorkspacesMenu(page)
+      await menu
         .getByRole("button", { name: "More workspace actions" })
         .click({ timeout: 15_000 })
       await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
@@ -1818,27 +1882,30 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "sidebar-workspaces-sort-recent",
+    name: "workspaces-menu-sort-recent",
     description:
       "The Workspaces list sorted by Recent activity (#885): the last chat turn first.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: (page) =>
       setWorkspaceListView(page, ids.rooms.checkout, { sort: "recent" }),
     settleMs: 400,
   },
   {
-    name: "sidebar-workspaces-sort-name",
+    name: "workspaces-menu-sort-name",
     description: "The Workspaces list sorted by Name (#885).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: (page) =>
       setWorkspaceListView(page, ids.rooms.checkout, { sort: "name" }),
     settleMs: 400,
   },
   {
-    name: "sidebar-workspaces-grouped",
+    name: "workspaces-menu-grouped",
     description:
       "The Workspaces list grouped by state (#885): Working, Needs you and Idle sections, with Done still its own section once.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await setWorkspaceListView(page, ids.rooms.checkout, {
         groupByState: true,
@@ -1863,10 +1930,11 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "sidebar-workspace-hover-frames",
+    name: "workspaces-menu-hover-frames",
     description:
       "Hovering a Workspace row: its frames are outlined on the Canvas and lit in the layer list (#793).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await hoverWorkspaceRow(page, "Checkout polish")
     },
@@ -1875,9 +1943,11 @@ export const SCREENS: Screen[] = [
   {
     name: "sidebar-frame-row-hover-workspace",
     description:
-      "Hovering a frame row in the layer list: its Workspace row lights up (#793).",
+      "Hovering a frame row in the layer list: its Workspace row lights up in the open Workspaces menu (#793).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
+      await openWorkspacesMenu(page)
       await page
         .locator(".group\\/frame-row")
         .filter({ hasText: "Empty cart" })
@@ -1889,9 +1959,11 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-frame-hover-workspace",
     description:
-      "Hovering a frame on the Canvas: its Workspace row lights up in the sidebar (#793).",
+      "Hovering a frame on the Canvas: its Workspace row lights up in the open Workspaces menu (#793).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
+      await openWorkspacesMenu(page)
       const frame = checkoutDesktopFrame(page)
       await frame.waitFor({ state: "visible", timeout: 15_000 })
       await frame.hover({ timeout: 15_000 })
@@ -1899,20 +1971,22 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
-    name: "sidebar-workspace-hover-groups",
+    name: "workspaces-menu-hover-groups",
     description:
       "Hovering a Workspace row lights up the Groups on it and their following frames; frames of those Groups on other Workspaces stay unlit (#872).",
     path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await hoverWorkspaceRow(page, "search-filters")
     },
     settleMs: 300,
   },
   {
-    name: "sidebar-workspace-hover-exception",
+    name: "workspaces-menu-hover-exception",
     description:
       "Hovering the Workspace of an exception frame: that frame lights up, its Group (on another Workspace) doesn't (#872).",
     path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await hoverWorkspaceRow(page, "saved-searches")
     },
@@ -1921,9 +1995,11 @@ export const SCREENS: Screen[] = [
   {
     name: "sidebar-group-row-hover-workspace",
     description:
-      "Hovering a Group row in the layer list: its Workspace row lights up (#872).",
+      "Hovering a Group row in the layer list: its Workspace row lights up in the open Workspaces menu (#872).",
     path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
+      await openWorkspacesMenu(page)
       await page
         .locator(".group\\/frame-group-row")
         .filter({ hasText: "Progress" })
@@ -2136,15 +2212,17 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "canvas-sidebar-no-projects",
+    name: "workspaces-menu-no-projects",
     description:
-      "The sidebar's Workspaces section on a Canvas with no repository: why, and Add repository (#884).",
+      "The Workspaces menu on a Canvas with no repository: why, and Add repository (#884, #1152).",
     path: `/${ids.rooms.tokens}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await page
+      const menu = await openWorkspacesMenu(page)
+      await menu
         .getByRole("button", { name: "Add repository", exact: true })
-        .first()
         .waitFor({ timeout: 15_000 })
+      await page.mouse.move(900, 900)
     },
     settleMs: 300,
   },
@@ -2155,23 +2233,6 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.tokens}`,
     cookies: canvasPanels({ chatPct: 30 }),
     settleMs: 400,
-  },
-  {
-    name: "chat-target-picker",
-    description: "The chat panel's target picker: Workspaces and Documents.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await selectWorkspace(page, CHAT_WORKSPACE)
-      // The chat header's trigger is labelled with the current Workspace's
-      // ref; the frame labels on the canvas share that shape and come first.
-      await page
-        .locator("button:has(svg.ph-caret-up-down)")
-        .filter({ hasText: "Checkout polish" })
-        .last()
-        .click({ timeout: 15_000 })
-    },
-    settleMs: 300,
   },
   {
     name: "frame-workspace-picker",
@@ -2191,8 +2252,9 @@ export const SCREENS: Screen[] = [
   {
     name: "dialog-new-workspace",
     description:
-      "The prompt-first Create workspaces dialog, from the sidebar's New workspace (+).",
+      "The prompt-first Create workspaces dialog, from the Workspaces menu's New workspace (+).",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await newWorkspaceButton(page).then((b) => b.click())
     },
@@ -2203,6 +2265,7 @@ export const SCREENS: Screen[] = [
     description:
       "Create workspaces on a canvas with two repositories: a repository chip beside each row's base branch (#884).",
     path: `/${ids.rooms.pricing}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await newWorkspaceButton(page).then((b) => b.click())
       await page.getByRole("dialog").waitFor({ timeout: 15_000 })
@@ -2482,6 +2545,7 @@ export const SCREENS: Screen[] = [
     description:
       "Deleting a clean Workspace that was never pushed: no warning.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openDeleteWorkspace(page, "Apple Pay button")
     },
@@ -2620,6 +2684,7 @@ export const SCREENS: Screen[] = [
     name: "confirm-recreate-workspace",
     description: "Canvas sidebar → a Workspace's … → Restart → Recreate.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await chooseFromMenu(
         page,
@@ -2633,6 +2698,7 @@ export const SCREENS: Screen[] = [
     name: "confirm-recreate-workspace-pending",
     description: "The Recreate confirm after confirming, while it runs.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await freezeYjs(page)
       await holdServerActions(page, "hang")
@@ -2649,6 +2715,7 @@ export const SCREENS: Screen[] = [
     name: "confirm-recreate-workspace-error",
     description: "The Recreate confirm after the recreation failed.",
     path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await freezeYjs(page)
       await holdServerActions(page, "fail")
@@ -3445,12 +3512,9 @@ export async function openBranchRowMenu(
 }
 
 export async function branchRowMenu(page: Page, ref: string): Promise<Locator> {
-  const row = page
-    .locator(".group\\/branch-row")
-    .filter({ hasText: ref })
-    .first()
+  const row = await workspaceMenuRow(page, ref)
   await row.hover({ timeout: 15_000 })
-  return row.locator('[aria-haspopup="menu"]').first()
+  return row.getByRole("button", { name: "Workspace options" })
 }
 
 /**
@@ -3466,7 +3530,9 @@ export async function markWorkspaceDone(
   await holdServerActions(page, "hang")
   await chooseFromMenu(page, await branchRowMenu(page, title), "Mark as done")
   await page
-    .getByRole("button", { name: /^Done \(\d+\)$/ })
+    .locator(WORKSPACES_MENU)
+    .locator("[cmdk-item]")
+    .filter({ hasText: /^Done \(\d+\)$/ })
     .waitFor({ timeout: 10_000 })
   // Park the pointer on empty canvas so no row or frame shows its hover state.
   await page.mouse.move(900, 900)
@@ -3555,9 +3621,7 @@ export async function setWorkspaceListView(
     ]
   )
   await page.reload()
-  await page
-    .getByRole("button", { name: "More workspace actions" })
-    .waitFor({ timeout: 15_000 })
+  await openWorkspacesMenu(page)
 }
 
 /**
@@ -3876,10 +3940,6 @@ export async function unfreeze(page: Page): Promise<void> {
 }
 
 /**
- * Select a Workspace in the in-room sidebar, which points the chat panel at it
- * and restores that Workspace's remembered chat.
- */
-/**
  * Wait for the pending plan card's actions. The chat's history loads after the
  * Workspace is selected, so without this the shot catches "Loading chat…".
  */
@@ -3895,15 +3955,70 @@ async function waitForPlanCard(page: Page): Promise<void> {
  */
 const CHAT_WORKSPACE = "Checkout polish"
 
+/**
+ * Select a Workspace from the Workspaces menu, which points the chat panel at
+ * it and restores that Workspace's remembered chat.
+ */
 export async function selectWorkspace(page: Page, ref: string): Promise<void> {
-  // The sidebar's Workspace rows are labelled with the Workspace's title
-  // (#881), or its git ref when it has none: what a person reads off the
-  // screen.
-  await page.getByText(ref, { exact: true }).first().click({ timeout: 15_000 })
+  // Rows are labelled with the Workspace's title (#881), or its git ref when
+  // it has none: what a person reads off the screen.
+  const row = await workspaceMenuRow(page, ref)
+  await row.click({ timeout: 15_000 })
+  await page
+    .locator(WORKSPACES_MENU)
+    .waitFor({ state: "hidden", timeout: 10_000 })
+}
+
+/** The chat panel's Workspaces menu (#1152) while it's open. */
+export const WORKSPACES_MENU = "[data-workspaces-menu]"
+
+/**
+ * Open the chat panel's Workspaces menu (#1152), the one list of the canvas's
+ * chats. It sits in the panel's header, so a screen that left the panel
+ * collapsed gets it opened (⌘I) first.
+ */
+export async function openWorkspacesMenu(page: Page): Promise<Locator> {
+  const menu = page.locator(WORKSPACES_MENU)
+  if (await menu.isVisible()) return menu
+  const button = page.getByRole("button", { name: "Workspaces", exact: true })
+  await button.waitFor({ timeout: 15_000 }).catch(() => {})
+  if (!(await button.isVisible())) {
+    // The button lives on the Coordinator header only (#1152): from a
+    // Workspace chat, go back up through the Coordinator crumb.
+    const crumb = page.getByRole("button", { name: "Coordinator", exact: true })
+    if (await crumb.isVisible()) await crumb.click()
+    else await page.keyboard.press("Meta+i")
+  }
+  await button.click({ timeout: 15_000 })
+  await menu.waitFor({ timeout: 10_000 })
+  return menu
+}
+
+/** A Workspace's row in the Workspaces menu, opening the menu first. */
+export async function workspaceMenuRow(
+  page: Page,
+  name: string
+): Promise<Locator> {
+  const menu = await openWorkspacesMenu(page)
+  const row = menu
+    .locator("[cmdk-item]")
+    .filter({ has: page.getByText(name, { exact: true }) })
+    .first()
+  await row.waitFor({ timeout: 15_000 })
+  return row
+}
+
+/** Open the Workspaces menu's Done section (#976). */
+async function openDoneSection(page: Page): Promise<void> {
+  const menu = await openWorkspacesMenu(page)
+  await menu
+    .locator("[cmdk-item]")
+    .filter({ hasText: /^Done \(\d+\)$/ })
+    .click({ timeout: 10_000 })
 }
 
 /**
- * Open the failed Workspace's setup error from the sidebar. Where the indicator
+ * Open the failed Workspace's setup error from the Workspaces menu. Where the indicator
  * is a button, it is reached the way a keyboard user would — focus, then Enter —
  * so the shot proves the error is readable without a mouse. On builds where it
  * is still a bare icon (a hover card), fall back to hovering it, which is the
@@ -3912,7 +4027,8 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
 export async function openSetupError(page: Page): Promise<void> {
   // The failed Workspace's status icon is labelled by what failed; it opens
   // the error card.
-  const button = page.getByRole("button", { name: /failed$/ })
+  const menu = await openWorkspacesMenu(page)
+  const button = menu.getByRole("button", { name: /failed$/ })
   await button.first().focus({ timeout: 15_000 })
   await page.keyboard.press("Enter")
   await page
@@ -4082,31 +4198,19 @@ export async function addPeer(
 }
 
 /**
- * Pick a Chat Target from the chat panel's header picker — how a Document chat
- * is reached from a Workspace's chat. The panel opens on the Coordinator
- * (#893), whose header has no picker, so a Workspace is opened first.
+ * Pick a Chat Target from the chat panel's Workspaces menu (#1152): how a
+ * Document chat is reached.
  */
 export async function selectChatTarget(
   page: Page,
   label: string
 ): Promise<void> {
-  await selectWorkspace(page, CHAT_WORKSPACE)
-  const trigger = page
-    .getByRole("button")
-    .filter({ has: page.locator("svg.ph-caret-up-down") })
-    .last()
-  await trigger.click({ timeout: 15_000 })
-  await page
+  const menu = await openWorkspacesMenu(page)
+  await menu
     .getByRole("option", { name: new RegExp(label, "i") })
     .first()
     .click({ timeout: 15_000 })
-  // The picker can stay open after the pick; toggle it shut so the chat shows.
-  const picker = page.getByPlaceholder("Search branches and layers...")
-  const closed = await picker
-    .waitFor({ state: "hidden", timeout: 2_000 })
-    .then(() => true)
-    .catch(() => false)
-  if (!closed) await trigger.click({ timeout: 5_000 })
+  await menu.waitFor({ state: "hidden", timeout: 10_000 })
 }
 
 /**
@@ -5045,16 +5149,11 @@ async function openCanvasOptions(page: Page): Promise<void> {
   await settings.waitFor()
 }
 
-/**
- * The sidebar's New workspace (+) button. Before #884 it sat on the hovered
- * repository row, so hover that first when it's there; a before/after pair
- * then shoots the same state.
- */
+/** The Workspaces menu's New workspace (+) button (#1152), menu opened. */
 async function newWorkspaceButton(page: Page): Promise<Locator> {
-  const button = page.locator('[aria-label="New workspace"]').first()
-  await button.waitFor({ state: "attached", timeout: 15_000 })
-  const repoRow = page.locator("[class*='group/workspace-row']").first()
-  if (await repoRow.count()) await repoRow.hover()
+  const menu = await openWorkspacesMenu(page)
+  const button = menu.getByRole("button", { name: "New workspace" })
+  await button.waitFor({ timeout: 15_000 })
   return button
 }
 
@@ -5072,12 +5171,8 @@ async function openRemoveProject(page: Page): Promise<void> {
 
 /** Open a Workspace row menu's Delete confirm. */
 async function openDeleteWorkspace(page: Page, ref: string): Promise<void> {
-  const row = page
-    .locator(".group\\/branch-row")
-    .filter({ hasText: ref })
-    .first()
-  await row.hover()
-  await row.locator('[aria-haspopup="menu"]').first().click({ timeout: 15_000 })
+  const trigger = await branchRowMenu(page, ref)
+  await trigger.click({ timeout: 15_000 })
   await page.waitForTimeout(300)
   await page.getByRole("menuitem", { name: "Delete" }).click()
   await settleDeleteConfirm(page)
@@ -5183,11 +5278,8 @@ export async function addFixtureFolder(page: Page): Promise<void> {
     .waitFor({ state: "detached", timeout: 15_000 })
 }
 
-/** Hover a Workspace row in the sidebar by its branch (or title). */
+/** Hover a Workspace row in the Workspaces menu by its branch (or title). */
 async function hoverWorkspaceRow(page: Page, name: string): Promise<void> {
-  await page
-    .locator(".group\\/branch-row")
-    .filter({ hasText: name })
-    .first()
-    .hover({ timeout: 15_000 })
+  const row = await workspaceMenuRow(page, name)
+  await row.hover({ timeout: 15_000 })
 }

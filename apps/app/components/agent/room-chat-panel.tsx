@@ -7,6 +7,7 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 
 import { AgentChat } from "@/components/agent/agent-chat"
 import { WorkspaceTasksProvider } from "@/components/agent/workspace-task-row"
+import { WorkspacesMenuButton } from "@/components/agent/workspaces-menu"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
 import { useBranches, useChatSessions, usePlans } from "@/lib/yjs/react"
 import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
@@ -16,7 +17,8 @@ import type { ChatSessionData } from "@/lib/types"
 /**
  * The chat panel's home (#893): the Room's one Coordinator chat, shown when no
  * Workspace or document is selected. One chat per canvas, so there is no tab
- * strip; the header is the collapse button and the chat's name.
+ * strip; the header is the collapse button, the chat's name and the Workspaces
+ * button (#1152).
  *
  * The chat's record is created on the server the first time any member's panel
  * shows it (its id is derived from the Room, so concurrent creates agree).
@@ -73,6 +75,9 @@ export function RoomChatPanel({
           <SidebarSimpleIcon mirrored />
         </IconButton>
         <h2 className="text-sm font-medium">{ROOM_CHAT_LABEL}</h2>
+        <div className="ml-auto flex items-center">
+          <WorkspacesMenuButton />
+        </div>
       </div>
       <div className="min-h-0 flex-1">
         <WorkspaceTasksProvider value={workspaceTasks}>
