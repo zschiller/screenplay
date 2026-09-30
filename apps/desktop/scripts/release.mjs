@@ -184,6 +184,9 @@ if (releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID) {
 // 20-minute build.
 log("compiling Liquid Glass icon…")
 run(process.execPath, [join(here, "build-icon.mjs")], { cwd: desktopDir })
+// The dmg's volume icon (gitignored: it's composed from macOS's own drive icon).
+log("composing the dmg volume icon…")
+run(process.execPath, [join(here, "build-volume-icon.mjs")], { cwd: desktopDir })
 
 // buildEnv carries APPLE_SIGNING_IDENTITY so build-sidecar signs the nested
 // native binaries (node-pty, sharp, keyring, leveldown …) before packing them
