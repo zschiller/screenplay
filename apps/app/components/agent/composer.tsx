@@ -428,6 +428,11 @@ export interface ComposerProps {
    * messages here so they share the composer's padding.
    */
   aboveInput?: ReactNode
+  /**
+   * Rendered inside the input box, above the text: chat puts a Reply in chat
+   * quote here (#1243) so it reads as part of the message being written.
+   */
+  inputHeader?: ReactNode
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
   /** Outer container className. Defaults to the chat input frame. */
@@ -489,6 +494,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       steersWhileStreaming = false,
       draftKey,
       aboveInput,
+      inputHeader,
       hideSend = false,
       placeholder = "Ask the agent…",
       className = "relative border-t border-border p-3",
@@ -957,6 +963,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       <div ref={editorContainerRef} className={className}>
         {aboveInput}
         <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
+          {inputHeader && (
+            <InputGroupAddon align="block-start">{inputHeader}</InputGroupAddon>
+          )}
           <EmptyAwarePlaceholder editor={editor} text={placeholder} />
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end" className="gap-0.5">
