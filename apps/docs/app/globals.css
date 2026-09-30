@@ -597,10 +597,9 @@ article :not(pre) > code.nextra-code {
   box-decoration-break: clone;
 }
 
-/* Code in a heading: text-sized mono without the heading's tight tracking,
-   so it doesn't grow the heading box. */
+/* Code in a heading: at the heading's size, without its tight tracking, and
+   without the chip padding that made the heading box taller. */
 article :is(h2, h3) > code.nextra-code:not([class*="twoslash-"]) {
-  font-size: 0.8em;
   letter-spacing: normal;
   padding-block: 0;
 }
