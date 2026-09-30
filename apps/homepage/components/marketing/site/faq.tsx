@@ -40,7 +40,7 @@ export function Faq() {
             key={f.q}
             className="faq-item group border-b border-border py-5 [&_summary::-webkit-details-marker]:hidden"
           >
-            <summary className="flex cursor-pointer list-none items-baseline justify-between gap-4 font-heading text-[20px] leading-[1.25] tracking-[-0.03em]">
+            <summary className="focus-visible:outline-selection flex cursor-pointer list-none items-baseline justify-between gap-4 rounded-sm font-heading text-[20px] leading-[1.25] tracking-[-0.03em] outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid">
               {f.q}
               <span
                 aria-hidden

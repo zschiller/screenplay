@@ -15,9 +15,9 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background">
       <div
-        className={`${measure} flex h-15 items-center justify-between gap-4`}
+        className={`${measure} grid h-15 grid-cols-[1fr_auto] items-center gap-4 md:grid-cols-[1fr_auto_1fr]`}
       >
-        <Link href="/" aria-label="Screenplay home">
+        <Link href="/" aria-label="Screenplay home" className="justify-self-start">
           <Wordmark />
         </Link>
         <nav className="hidden items-center gap-7 text-[14.5px] md:flex">
@@ -31,7 +31,7 @@ export function Header() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-5 text-[14.5px]">
+        <div className="flex items-center justify-end gap-5 text-[14.5px]">
           <a
             href={githubUrl}
             target="_blank"

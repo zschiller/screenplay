@@ -68,7 +68,7 @@ export function Footer() {
                 {...(l.external ? { target: "_blank", rel: "noreferrer" } : {})}
                 className={cn(
                   "text-muted-foreground transition-colors hover:text-foreground",
-                  "mono" in l && l.mono && "font-mono text-xs"
+                  "mono" in l && l.mono && "font-mono text-xs/5"
                 )}
               >
                 {l.label}

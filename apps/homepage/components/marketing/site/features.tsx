@@ -48,7 +48,7 @@ export function Features() {
         slug="Features"
         title="Built for comparing what your agents build."
       />
-      <div className="mt-14 grid border-t border-border md:grid-cols-3 md:gap-x-13">
+      <div className="mt-12 grid border-t border-border md:grid-cols-3 md:gap-x-13">
         {features.map((f, i) => (
           <div
             key={f.title}

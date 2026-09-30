@@ -24,8 +24,9 @@ export function Problem() {
       />
 
       <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div className="flex flex-col gap-2.5">
         {/* A terminal is black in both themes. */}
-        <div className="flex min-h-80 flex-col justify-between border border-border bg-black p-5.5 font-mono text-xs leading-[1.9] text-neutral-200 sm:text-[13.5px]">
+        <div className="min-h-64 flex-1 border border-border bg-black p-5.5 font-mono text-xs leading-[1.9] text-neutral-200 sm:text-[13.5px]">
           <div>
             {dance.map(([p, cmd], i) => (
               <div key={i} className="flex gap-2.5">
@@ -40,7 +41,8 @@ export function Problem() {
               <span className="caret-blink h-4 w-2 translate-y-1 bg-neutral-400" />
             </div>
           </div>
-          <p className={cn(monoLabel, "mt-8 text-neutral-500")}>
+        </div>
+          <p className={cn(monoLabel, "text-muted-foreground")}>
             Without Screenplay
           </p>
         </div>

@@ -13,7 +13,7 @@ export function buttonClass(
   size: "default" | "lg" = "default"
 ) {
   return cn(
-    "focus-visible:outline-selection inline-flex items-center gap-2 rounded-sm border border-foreground font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+    "focus-visible:outline-selection inline-flex items-center justify-center gap-2 rounded-sm border border-foreground font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
     size === "lg" ? "h-12 px-5.5 text-[15px]" : "h-9 px-4 text-sm",
     variant === "solid"
       ? "bg-foreground text-background hover:bg-foreground/85"

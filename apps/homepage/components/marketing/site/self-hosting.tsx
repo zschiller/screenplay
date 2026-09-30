@@ -30,7 +30,7 @@ export function SelfHosting() {
         title="Host it and review together."
       />
       <div className="mt-12 grid gap-12 md:grid-cols-2">
-        <div className="flex flex-col items-start gap-5">
+        <div className="flex flex-col items-start gap-5 md:pt-3.5">
           <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
             Deploy the web app for your team and share a canvas. It&rsquo;s free
             and MIT licensed.
