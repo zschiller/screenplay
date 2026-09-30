@@ -938,10 +938,9 @@ function WorkspacesLabel({
         <DropdownMenuTrigger asChild>
           <IconButton
             label="More workspace actions"
-            size="icon-xxs"
             className="text-muted-foreground"
           >
-            <DotsThreeIcon className="size-4" />
+            <DotsThreeIcon />
           </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" align="end" {...isolate}>
@@ -1005,11 +1004,10 @@ function WorkspacesLabel({
       </DropdownMenu>
       <IconButton
         label="New workspace"
-        size="icon-xxs"
         className="mr-1 text-muted-foreground"
         onClick={() => menu.openNewWorkspace(menu.lastUsedRepoId)}
       >
-        <PlusIcon className="size-3.5" />
+        <PlusIcon />
       </IconButton>
     </div>
   )
@@ -1138,14 +1136,13 @@ function WorkspaceMenuRow({
           <DropdownMenuTrigger asChild>
             <IconButton
               label="Workspace options"
-              size="icon-xxs"
               className={cn(
                 "text-muted-foreground opacity-0 group-data-selected/ws-row:opacity-100 focus-visible:opacity-100",
                 menuOpen && "opacity-100",
                 renaming && "invisible"
               )}
             >
-              <DotsThreeIcon className="size-4" />
+              <DotsThreeIcon />
             </IconButton>
           </DropdownMenuTrigger>
           <BranchOverflowMenuContent
