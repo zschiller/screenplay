@@ -17,6 +17,7 @@ import {
   type MoveAssemblyGroup,
   type MoveAssemblyLayout,
 } from "@/lib/canvas/gesture"
+import { hasModKey } from "@/lib/canvas/key-target"
 import type { GapHandle, ReorderHandle } from "@/lib/canvas/layout"
 import {
   assembleReorderStart,
@@ -202,7 +203,7 @@ export function useCanvasGesture(
   useEffect(() => {
     if (!reorderActive) return
     const onKey = (ev: KeyboardEvent) =>
-      dispatch({ type: "metaChange", meta: ev.metaKey })
+      dispatch({ type: "metaChange", meta: hasModKey(ev) })
     window.addEventListener("keydown", onKey)
     window.addEventListener("keyup", onKey)
     return () => {
@@ -217,7 +218,7 @@ export function useCanvasGesture(
   useEffect(() => {
     if (!moveGestureActive) return
     const onKey = (ev: KeyboardEvent) =>
-      dispatch({ type: "metaChange", meta: ev.metaKey })
+      dispatch({ type: "metaChange", meta: hasModKey(ev) })
     window.addEventListener("keydown", onKey)
     window.addEventListener("keyup", onKey)
     return () => {
@@ -231,7 +232,7 @@ export function useCanvasGesture(
   // accurate between pointer moves (e.g. cmd pressed while idle on a preset).
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      resizeMetaHeldRef.current = ev.metaKey
+      resizeMetaHeldRef.current = hasModKey(ev)
     }
     window.addEventListener("keydown", onKey)
     window.addEventListener("keyup", onKey)
@@ -264,7 +265,7 @@ export function useCanvasGesture(
         canvas,
         zoom: i.zoom,
         shiftKey: e.shiftKey,
-        metaKey: e.metaKey,
+        metaKey: hasModKey(e),
         suppressed: isSuppressed(i),
         phase: { reorderGap: true, marquee: false },
         reorderHandles: i.reorderHandles,
@@ -334,7 +335,7 @@ export function useCanvasGesture(
         canvas,
         zoom: i.zoom,
         shiftKey: e.shiftKey,
-        metaKey: e.metaKey,
+        metaKey: hasModKey(e),
         suppressed: isSuppressed(i),
         phase: { reorderGap: false, marquee: true },
         reorderHandles: i.reorderHandles,
@@ -414,7 +415,7 @@ export function useCanvasGesture(
       if (state.kind === "reorder") {
         const canvas = toCanvas(i, e)
         if (!canvas) return
-        dispatch({ type: "move", cursor: canvas, meta: e.metaKey })
+        dispatch({ type: "move", cursor: canvas, meta: hasModKey(e) })
         return
       }
 
@@ -465,7 +466,7 @@ export function useCanvasGesture(
       if (state.kind === "reorder") {
         const canvas = toCanvas(i, e)
         if (!canvas) return
-        dispatch({ type: "release", cursor: canvas, meta: e.metaKey })
+        dispatch({ type: "release", cursor: canvas, meta: hasModKey(e) })
         const hit = hitTestReorderHandle(
           i.reorderHandles,
           canvas.x,
@@ -585,7 +586,7 @@ export function useCanvasGesture(
         groups: i.groups,
         memberLayouts: i.memberLayouts,
         shiftKey: e.shiftKey,
-        metaKey: e.metaKey,
+        metaKey: hasModKey(e),
         selectOnNoMove: true,
       })
       if (!start) return false

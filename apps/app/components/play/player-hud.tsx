@@ -393,6 +393,7 @@ export function PlayerHud({
           {onToggleChat ? (
             <IconButton
               label={chatOpen ? "Hide agent" : "Open agent"}
+              shortcut="⌘I"
               tooltipSide={tooltipSide}
               variant={chatOpen ? "default" : "ghost"}
               aria-expanded={!!chatOpen}

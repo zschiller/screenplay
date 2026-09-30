@@ -579,9 +579,6 @@ export function FrameRouteField({
         onMouseDown={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        // The field handles Esc itself, so the key stops there instead of
-        // also reaching the canvas (which would deselect the frame).
-        onEscapeKeyDown={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
           // A press in the field moves its caret; it isn't outside.
           if (inputRef.current?.contains(e.target as Node)) e.preventDefault()

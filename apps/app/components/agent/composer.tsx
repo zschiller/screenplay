@@ -69,6 +69,7 @@ import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { readDraft, writeDraft } from "@/lib/composer-drafts"
+import { COMPOSER_ATTRIBUTE } from "@/lib/canvas/key-target"
 import { ElementTokenNodeView } from "./element-token-node"
 
 /** Leading glyph on an element token — a crosshair, standing in for the `@`/`/`
@@ -584,6 +585,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           // Disable the marks/blocks we don't want to expose in the chat draft
           // — chat is plaintext on the wire, mentions are the only inline
           // structure we keep.
+          // No bold or italic either, so ⌘B and ⌘I stay the panel toggles.
+          bold: false,
+          italic: false,
           heading: false,
           blockquote: false,
           bulletList: false,
@@ -669,14 +673,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           class:
             "tiptap min-h-[40px] max-h-48 overflow-y-auto px-2.5 py-2.5 text-sm focus:outline-none",
           "data-placeholder": placeholder,
+          [COMPOSER_ATTRIBUTE]: "",
         },
-        handleKeyDown(_view, event) {
+        handleKeyDown(view, event) {
           // ProseMirror checks direct editorProps before plugin props, so the
           // mention suggestion plugin hasn't had a chance to consume the key
           // yet — bail so it can pick the highlighted doc / delete a trigger
           // instead of us acting on it.
           if (mentionOpenRef.current || skillMentionOpenRef.current)
             return false
+          // Esc leaves the draft: the composer lets go of focus and the key
+          // stops here, so it doesn't also deselect or exit on the canvas.
+          if (event.key === "Escape") {
+            event.preventDefault()
+            view.dom.blur()
+            return true
+          }
           // ⌘/Ctrl+E starts a one-shot element pick — the keyboard equivalent of
           // the target icon. Only claims the key where targeting is enabled, so
           // it stays inert in composers without a canvas.

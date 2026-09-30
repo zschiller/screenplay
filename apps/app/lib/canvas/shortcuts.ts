@@ -75,8 +75,9 @@ export function canvasShortcutGroups({
     ...(comments
       ? [
           {
-            title: "Comments panel",
+            title: "Comments",
             shortcuts: [
+              { label: "Post a comment or reply", keys: ["⌘", "↵"] },
               { label: "Next comment", keys: ["J"] },
               { label: "Previous comment", keys: ["K"] },
               { label: "Resolve or reopen", keys: ["E"] },
@@ -94,6 +95,13 @@ export function canvasShortcutGroups({
         { label: "Undo", keys: ["⌘", "Z"] },
         { label: "Redo", keys: ["⌘", "⇧", "Z"] },
         { label: "Deselect or exit", keys: ["Esc"] },
+      ],
+    },
+    {
+      title: "Composer",
+      shortcuts: [
+        { label: "Target an element", keys: ["⌘", "E"] },
+        { label: "Leave the composer", keys: ["Esc"] },
       ],
     },
   ]

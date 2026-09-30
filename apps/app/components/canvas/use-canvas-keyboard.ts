@@ -1,6 +1,13 @@
 import { type RefObject, useEffect } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
+import {
+  hasModKey,
+  isInComposer,
+  isInOverlay,
+  isKeyboardFocusedControl,
+  isTextEntry,
+} from "@/lib/canvas/key-target"
 import { matchCanvasShortcut } from "@/lib/canvas/shortcuts"
 import { isLocalBuild } from "@/lib/local-mode"
 
@@ -29,7 +36,9 @@ import type { ToolModeController } from "@/components/canvas/use-tool-mode"
  * shortcut (Escape exits, `v`/`c`/`d`/`f` tools, `/` cursor chat, ⌘B / ⌘I / ⌘.
  * panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, space-pan) behaves
  * exactly as before, including the `isEditing` guard that suppresses shortcuts
- * inside inputs / textareas / contenteditable.
+ * inside inputs / textareas / contenteditable. Keys another handler already
+ * took (`defaultPrevented`) and keys pressed inside an open menu, dialog or
+ * popover never reach the canvas (`lib/canvas/key-target`).
  *
  * The zoom keys (⌘= / ⌘- / ⌘0 / ⇧1) and `?` for the shortcut sheet (#734) are
  * matched by the React-free `matchCanvasShortcut` in `lib/canvas/shortcuts`,
@@ -65,6 +74,8 @@ export interface CanvasKeyboardInputs {
   }
   /** Opens the `?` keyboard shortcut sheet. */
   openShortcutSheet: () => void
+  /** The Comments panel, which Escape closes from anywhere on the canvas. */
+  commentsPanel: { isOpen: () => boolean; close: () => void }
 }
 
 export function useCanvasKeyboard({
@@ -78,18 +89,19 @@ export function useCanvasKeyboard({
   chatPanelRef,
   zoom,
   openShortcutSheet,
+  commentsPanel,
 }: CanvasKeyboardInputs): void {
   useEffect(() => {
-    const isEditing = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      return (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        (e.target as HTMLElement)?.isContentEditable
-      )
-    }
+    const isEditing = (e: KeyboardEvent) => isTextEntry(e.target)
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // A key something else already handled (a menu closing on Escape, a
+      // field that consumed it) isn't the canvas's.
+      if (e.defaultPrevented) return
+      // With a menu, dialog or popover open, focus sits inside it and every key
+      // is its own: Backspace there must not delete the frame behind it.
+      // Escape still falls through for overlays that don't claim it.
+      if (e.key !== "Escape" && isInOverlay(e.target)) return
       if (e.key === "Escape") {
         // Precedence (innermost/most-transient first) lives in the React-free
         // `resolveEscapeAction`, wrapped by the Interaction controller's
@@ -102,6 +114,7 @@ export function useCanvasKeyboard({
             targetPickActive: targeting.isPickActive(),
             toolMode: toolMode.current(),
             hasNewCommentPos: reference.newCommentPos !== null,
+            commentsPanelOpen: commentsPanel.isOpen(),
           })
         ) {
           case "cancel-target-pick":
@@ -123,6 +136,9 @@ export function useCanvasKeyboard({
           case "exit-comment-mode":
             toolMode.set("select")
             reference.clearMode()
+            break
+          case "close-comments-panel":
+            commentsPanel.close()
             break
           case "exit-focus-mode":
             interaction.setFocusedIframeLayerId(null)
@@ -188,7 +204,16 @@ export function useCanvasKeyboard({
         e.preventDefault()
         interaction.openCursorChat()
       }
-      if (e.key === "b" && e.metaKey && !e.altKey) {
+      // ⌘B / ⌘I / ⌘. accept Ctrl too, and leave text alone: in a document ⌘B
+      // is Bold and ⌘I Italic. The composer has neither (chat is plain text),
+      // so ⌘I still closes the chat from it.
+      if (
+        (e.key === "b" || e.key === "B") &&
+        hasModKey(e) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        !isEditing(e)
+      ) {
         e.preventDefault()
         const panel = sidebarPanelRef.current
         if (panel) {
@@ -198,10 +223,10 @@ export function useCanvasKeyboard({
       }
       if (
         (e.key === "i" || e.key === "I") &&
-        e.metaKey &&
+        hasModKey(e) &&
         !e.altKey &&
-        !e.ctrlKey &&
-        !isEditing(e)
+        !e.shiftKey &&
+        (!isEditing(e) || isInComposer(e.target))
       ) {
         e.preventDefault()
         const panel = chatPanelRef.current
@@ -213,10 +238,10 @@ export function useCanvasKeyboard({
       // Toggle both side panels: Cmd+.
       if (
         e.key === "." &&
-        e.metaKey &&
+        hasModKey(e) &&
         !e.altKey &&
-        !e.ctrlKey &&
-        !e.shiftKey
+        !e.shiftKey &&
+        !isEditing(e)
       ) {
         e.preventDefault()
         const sidebarPanel = sidebarPanelRef.current
@@ -233,8 +258,10 @@ export function useCanvasKeyboard({
           if (chatPanel) chatPanel.expand()
         }
       }
+      // Space pans, unless it lands in text or presses a control focused from
+      // the keyboard.
       if (e.key === " " && !e.repeat) {
-        if (!isEditing(e)) {
+        if (!isEditing(e) && !isKeyboardFocusedControl(e.target)) {
           e.preventDefault()
           interaction.setSpaceHeld(true)
         }
@@ -247,19 +274,14 @@ export function useCanvasKeyboard({
         if (selection.deleteSelected()) e.preventDefault()
       }
       // Undo: Cmd/Ctrl+Z
-      if (
-        e.key === "z" &&
-        (e.metaKey || e.ctrlKey) &&
-        !e.shiftKey &&
-        !isEditing(e)
-      ) {
+      if (e.key === "z" && hasModKey(e) && !e.shiftKey && !isEditing(e)) {
         e.preventDefault()
         history.undo()
       }
       // Redo: Cmd/Ctrl+Shift+Z
       if (
-        e.key === "z" &&
-        (e.metaKey || e.ctrlKey) &&
+        (e.key === "z" || e.key === "Z") &&
+        hasModKey(e) &&
         e.shiftKey &&
         !isEditing(e)
       ) {
@@ -289,5 +311,6 @@ export function useCanvasKeyboard({
     chatPanelRef,
     zoom,
     openShortcutSheet,
+    commentsPanel,
   ])
 }

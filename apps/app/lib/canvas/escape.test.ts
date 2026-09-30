@@ -17,6 +17,7 @@ function idleState(overrides: Partial<EscapeState> = {}): EscapeState {
     editingDocumentLayerId: null,
     toolMode: "select",
     hasNewCommentPos: false,
+    commentsPanelOpen: false,
     focusedIframeLayerId: null,
     createFlowIframeLayerId: null,
     ...overrides,
@@ -117,6 +118,25 @@ describe("resolveEscapeAction — precedence", () => {
   it("exits comment mode (staged new-comment position) before focus mode", () => {
     const action = resolveEscapeAction(
       idleState({ hasNewCommentPos: true, focusedIframeLayerId: "frame-1" })
+    )
+
+    expect(action).toBe("exit-comment-mode")
+  })
+
+  it("closes the Comments panel before leaving focus mode or clearing the selection", () => {
+    expect(
+      resolveEscapeAction(
+        idleState({ commentsPanelOpen: true, focusedIframeLayerId: "frame-1" })
+      )
+    ).toBe("close-comments-panel")
+    expect(resolveEscapeAction(idleState({ commentsPanelOpen: true }))).toBe(
+      "close-comments-panel"
+    )
+  })
+
+  it("leaves the Comment tool before closing the Comments panel", () => {
+    const action = resolveEscapeAction(
+      idleState({ toolMode: "comment", commentsPanelOpen: true })
     )
 
     expect(action).toBe("exit-comment-mode")

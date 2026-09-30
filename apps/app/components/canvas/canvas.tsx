@@ -659,6 +659,20 @@ export function Canvas({
     [cameraZoomIn, cameraZoomOut, cameraZoomTo, cameraZoomToFit]
   )
 
+  // The comments panel (#787); Escape closes it from anywhere on the canvas.
+  const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
+  const commentsPanelOpenRef = useRef(commentsPanelOpen)
+  useEffect(() => {
+    commentsPanelOpenRef.current = commentsPanelOpen
+  }, [commentsPanelOpen])
+  const commentsPanelKeys = useMemo(
+    () => ({
+      isOpen: () => commentsPanelOpenRef.current,
+      close: () => setCommentsPanelOpen(false),
+    }),
+    []
+  )
+
   useCanvasKeyboard({
     toolMode,
     selection,
@@ -670,6 +684,7 @@ export function Canvas({
     chatPanelRef,
     zoom: zoomControls,
     openShortcutSheet,
+    commentsPanel: commentsPanelKeys,
   })
 
   // Canvas Gesture FSM (gap-resize + reorder + group-move/merge + marquee +
@@ -1039,7 +1054,6 @@ export function Canvas({
   const pendingCenterThreadRef = useRef<string | null>(null)
   // The comments panel (#787) floats over the canvas's right edge, so a pin
   // it brings into view centres in the space beside it.
-  const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
   const [commentPinsHidden, setCommentPinsHidden] = useState(false)
   const centerOnCommentPin = useCallback(
     (pin: HTMLElement) =>

@@ -19,6 +19,7 @@ export type EscapeAction =
   | "exit-document-mode"
   | "exit-frame-mode"
   | "exit-comment-mode"
+  | "close-comments-panel"
   | "exit-focus-mode"
   | "exit-create-flow-mode"
   | "clear-selection"
@@ -46,6 +47,11 @@ export interface EscapeState {
   toolMode: ToolMode
   /** A new comment position is staged. */
   hasNewCommentPos: boolean
+  /**
+   * The Comments panel is open. Escape closes it from anywhere on the canvas,
+   * as the player's panels close, before it touches a mode or the selection.
+   */
+  commentsPanelOpen: boolean
   /** The focused ("interactive") Iframe Layer, or null when not focused. */
   focusedIframeLayerId: string | null
   /** The Iframe Layer in Create Flow ("flow") mode, or null. */
@@ -68,6 +74,7 @@ export function resolveEscapeAction(state: EscapeState): EscapeAction {
   if (state.toolMode === "frame") return "exit-frame-mode"
   if (state.toolMode === "comment" || state.hasNewCommentPos)
     return "exit-comment-mode"
+  if (state.commentsPanelOpen) return "close-comments-panel"
   if (state.focusedIframeLayerId) return "exit-focus-mode"
   if (state.createFlowIframeLayerId) return "exit-create-flow-mode"
   return "clear-selection"
