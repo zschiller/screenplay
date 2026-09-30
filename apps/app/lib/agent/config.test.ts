@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   buildAgentSystemPrompt,
   buildMarkdownLayerSystemPrompt,
+  buildRoomSystemPrompt,
 } from "@/lib/agent/config"
+import { harnessToolNaming } from "@/lib/agent/tool-name"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 
 const EMPTY_DIRECTORY = { documents: [] }
@@ -133,5 +135,71 @@ describe("buildMarkdownLayerSystemPrompt — formatting rules", () => {
   it("never mentions a sandbox, shell, or commands", () => {
     expect(prompt()).toMatch(/no sandbox, no shell, no git/)
     expect(prompt()).not.toMatch(/run_command/)
+  })
+})
+
+describe("tool names per engine (#1223)", () => {
+  const ROOM_TOOLS = [
+    "read_canvas",
+    "read_document",
+    "read_workspace_chat",
+    "read_workspace_diff",
+    "read_workspace_file",
+    "view_frame",
+    "undo_changes",
+    "list_changes",
+    "send_to_workspace",
+    "create_workspaces",
+    "stop_workspace",
+    "open_pull_request",
+    "remove_workspace",
+    "read_skill",
+    "write_memory",
+  ]
+  const room = (toolNaming?: ReturnType<typeof harnessToolNaming>) =>
+    buildRoomSystemPrompt({
+      canvasSummary: "",
+      skills: [
+        { name: "screenplay-try-variants", description: "Try variants." },
+      ],
+      toolNaming,
+    })
+
+  it("names the Coordinator's tools bare on the in-process engine", () => {
+    const prompt = room()
+    for (const tool of ROOM_TOOLS) expect(prompt).toContain(`\`${tool}\``)
+    expect(prompt).not.toContain("mcp__")
+  })
+
+  it("names every Coordinator tool as Claude Code exposes it", () => {
+    const prompt = room(harnessToolNaming("claude-code", "screenplay"))
+    for (const tool of ROOM_TOOLS) {
+      expect(prompt).toContain(`\`mcp__screenplay__${tool}\``)
+      expect(prompt).not.toContain(`\`${tool}\``)
+    }
+  })
+
+  it("tells Codex where the Coordinator's tools come from", () => {
+    const prompt = room(harnessToolNaming("codex", "screenplay"))
+    expect(prompt).toContain("`read_skill`")
+    expect(prompt).toContain("MCP server `screenplay`")
+  })
+
+  it("names a Workspace's dev server tools as Claude Code exposes them", () => {
+    const opts = { layerDirectory: EMPTY_DIRECTORY, skills: APP_SKILLS }
+    const bare = buildAgentSystemPrompt(opts)
+    expect(bare).toContain("call read_dev_server_logs")
+    expect(bare).toContain("restart_dev_server")
+    expect(bare).not.toContain("mcp__")
+
+    const claude = buildAgentSystemPrompt({
+      ...opts,
+      toolNaming: harnessToolNaming("claude-code", "screenplay"),
+    })
+    expect(claude).toContain("call mcp__screenplay__read_dev_server_logs")
+    expect(claude).toContain("and mcp__screenplay__restart_dev_server to")
+    expect(claude).toContain("call mcp__screenplay__restart_dev_server when")
+    // The rest are the in-process engine's own tools, not served over MCP.
+    expect(claude).toContain("call `read_skill`")
   })
 })

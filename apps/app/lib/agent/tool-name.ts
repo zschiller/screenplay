@@ -16,6 +16,47 @@ export function bareToolName(title: string): string {
 }
 
 /**
+ * How a system prompt names Screenplay's own tools for the engine a turn runs
+ * on (#1223). The in-process engine calls them by their bare names. A desktop
+ * harness reaches them over our MCP server under its own namespace, and a
+ * prompt that names the bare `read_skill` sends Claude Code looking for a tool
+ * it doesn't have, so its first call fails.
+ */
+export interface ToolNaming {
+  /** The name the model calls a Screenplay tool by. */
+  name(tool: string): string
+  /**
+   * A line for the prompt when the harness's names can't be rendered exactly:
+   * it says which MCP server the named tools come from.
+   */
+  note?: string
+}
+
+/** The in-process engine's naming: every tool by its bare name. */
+export const BARE_TOOL_NAMING: ToolNaming = { name: (tool) => tool }
+
+/**
+ * The naming for a harness that reaches our tools as the MCP server `server`.
+ * Claude Code's names are fixed (`mcp__<server>__<tool>`, the form
+ * {@link bareToolName} strips), so its prompt names them exactly. Other
+ * harnesses namespace MCP tools in ways that vary by version (Codex's
+ * `screenplay/<tool>` titles aren't what its model calls), so their prompt
+ * keeps the bare names and says where they come from.
+ */
+export function harnessToolNaming(
+  harnessKey: string,
+  server: string
+): ToolNaming {
+  if (harnessKey === "claude-code") {
+    return { name: (tool) => `mcp__${server}__${tool}` }
+  }
+  return {
+    name: (tool) => tool,
+    note: `Screenplay's own tools named in these instructions come from the MCP server \`${server}\`, so they may be listed under that server's namespace rather than by the bare names below.`,
+  }
+}
+
+/**
  * Claude Code's own step for loading deferred tools (our MCP tools among
  * them) before it calls them. It says nothing about the work, so the
  * Coordinator's chat leaves it out unless it failed.
