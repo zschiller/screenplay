@@ -16,8 +16,8 @@
  *
  *  - `claude-code` → `npx -y @agentclientprotocol/claude-agent-acp@<pinned>` —
  *    rides the existing Claude Code login (no model key).
- *  - `codex`       → `npx -y @zed-industries/codex-acp` — rides `codex login` /
- *    `CODEX_API_KEY`.
+ *  - `codex`       → `npx -y @agentclientprotocol/codex-acp@<pinned>` — rides
+ *    `codex login` / `CODEX_API_KEY` (#1271).
  *  - A terminal-only harness (no `acpAdapter`, e.g. the opencode slots) and
  *    `gemini` (its native ACP support retired with no adapter successor, spike
  *    #405) both fall through like any unknown key.
@@ -77,28 +77,22 @@ export function acpChildEnv(
  * `process.env`. The returned `env` is the host env with the Claude-Code
  * session vars stripped (see {@link acpChildEnv}).
  *
- * `modelId` is the chat's chosen model within the Harness. For an adapter that
- * applies the model at spawn ({@link AcpAdapter.modelArgs} — codex's `-c model=`,
- * spike #523) its args are appended here; for an ACP-native adapter (no
- * `modelArgs` — claude-code) it is ignored, since that path applies the model
- * in-session via `session/set_config_option`. With no `modelId` the argv is unchanged, so
- * a Harness with no stored model spawns exactly as before.
+ * The chat's chosen model is not part of the launch: every adapter takes it
+ * in-session via `session/set_config_option` (see
+ * {@link import("../acp/session").AcpSession}).
  */
 export function resolveAcpLaunch(
   harnessKey: string | null | undefined,
   opts: {
     cwd: string
     env?: Record<string, string | undefined>
-    modelId?: string
   }
 ): AcpLaunch | null {
   const adapter = harnessAcpAdapter(harnessKey)
   if (!adapter) return null
-  const modelArgs =
-    opts.modelId && adapter.modelArgs ? adapter.modelArgs(opts.modelId) : []
   return {
     command: adapter.command,
-    args: [...adapter.args, ...modelArgs],
+    args: adapter.args,
     cwd: opts.cwd,
     env: acpChildEnv(opts.env ?? process.env),
   }

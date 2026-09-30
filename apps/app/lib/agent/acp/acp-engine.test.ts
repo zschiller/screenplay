@@ -110,6 +110,7 @@ describe("ExternalEngine — permission-request routing", () => {
           id: "sess",
           prompt: (_blocks: unknown, signal: AbortSignal) =>
             body(ports, signal),
+          close: () => {},
         }) as unknown as AcpSession,
     }
   }
@@ -252,6 +253,7 @@ describe("ExternalEngine — native session resume", () => {
             prompted = blocks
             return Promise.resolve("end_turn")
           },
+          close: () => {},
         } as unknown as AcpSession
       },
     }

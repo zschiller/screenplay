@@ -69,6 +69,11 @@ type FakeAgentOpts = {
   mcpCapabilities?: { http?: boolean; sse?: boolean }
   modes?: FakeModes
   models?: FakeModels
+  /**
+   * Reject a `model` value the selector doesn't list with invalid params, the
+   * way codex's adapter validates on `set_config_option` itself (#1271).
+   */
+  rejectUnlistedModels?: boolean
 }
 
 /**
@@ -76,7 +81,7 @@ type FakeAgentOpts = {
  * selector out of the test's convenience {@link FakeModels} shape: one
  * single-value `select` in the reserved `"model"` category (mirroring the Claude
  * adapter's `buildConfigOptions`). Undefined when the test wired no models, so
- * the agent advertises no model option at all (codex — spike #523).
+ * the agent advertises no model option at all.
  */
 function modelConfigOptions(
   models: FakeModels | undefined
@@ -169,6 +174,12 @@ class FakeAcpAgent implements Agent {
   ): Promise<{ configOptions: SessionConfigOption[] }> {
     if (params.configId === "model" && typeof params.value === "string") {
       this.setSessionModelCalls.push(params.value)
+      const listed = this.opts.models?.availableModels.some(
+        (m) => m.modelId === params.value
+      )
+      if (this.opts.rejectUnlistedModels && !listed) {
+        throw RequestError.invalidParams()
+      }
     }
     return { configOptions: modelConfigOptions(this.opts.models) ?? [] }
   }
@@ -576,7 +587,7 @@ describe("AcpSession — model selection (session/set_config_option)", () => {
     ])
   })
 
-  it("reports no models when the agent advertises none (e.g. codex)", async () => {
+  it("reports no models when the agent advertises none", async () => {
     const { transport } = connectFakeAgent(async () => "end_turn")
     const { ports } = collectingPorts()
 
@@ -696,9 +707,9 @@ describe("AcpSession — model selection (session/set_config_option)", () => {
     expect(reconciled).toEqual(["default"])
   })
 
-  it("makes no model call when the agent advertises no models (e.g. codex)", async () => {
-    // codex advertises no model config option (spike #523): the ACP path is a
-    // no-op (its model rode the spawn argv), and there is nothing to reconcile.
+  it("makes no model call when the agent advertises no models", async () => {
+    // An agent with no model config option: the ACP path is a no-op, and there
+    // is nothing to reconcile.
     const { transport, agent } = connectFakeAgent(async () => "end_turn")
     const reconciled: string[] = []
     const { ports } = collectingPorts()
@@ -769,6 +780,74 @@ describe("AcpSession — model selection (session/set_config_option)", () => {
     ).rejects.toMatchObject({ code: -32603 })
     // Applied the model once; never fell back, since this wasn't a model error.
     expect(agent.setSessionModelCalls).toEqual(["sonnet"])
+  })
+})
+
+describe("AcpSession — codex model selection (#1271)", () => {
+  // Mirrors @agentclientprotocol/codex-acp: a `model` select in the reserved
+  // `"model"` category, validated on `set_config_option` itself. The chat's
+  // Codex model is applied in-session, never on the spawn argv.
+  const codexModels: FakeModels = {
+    availableModels: [
+      { modelId: "gpt-6-astra", name: "6 Astra" },
+      { modelId: "gpt-6-luna", name: "6 Luna" },
+      { modelId: "gpt-5.5", name: "5.5" },
+    ],
+    currentModelId: "gpt-5.5",
+  }
+  const codex = { models: codexModels, rejectUnlistedModels: true }
+
+  it("applies the chat's Codex model in-session when the session opens", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", codex)
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      modelId: "gpt-6-astra",
+    })
+
+    expect(agent.setSessionModelCalls).toEqual(["gpt-6-astra"])
+  })
+
+  it("applies a model picked mid-chat when the next turn resumes the session", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", codex)
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      loadSessionId: "sess_prior",
+      modelId: "gpt-6-luna",
+    })
+
+    expect(agent.loadedSessionId).toBe("sess_prior")
+    expect(agent.setSessionModelCalls).toEqual(["gpt-6-luna"])
+  })
+
+  it("stays on the Codex default and reconciles when the adapter doesn't offer the model", async () => {
+    // A ChatGPT plan without the model: the adapter answers invalid params on
+    // the set call, so the turn runs on its default instead of failing.
+    const prompts: string[] = []
+    const { transport, agent } = connectFakeAgent(async ({ params }) => {
+      prompts.push(blockText(params.prompt[0]!))
+      return "end_turn"
+    }, codex)
+    const reconciled: string[] = []
+    const { ports } = collectingPorts()
+
+    const session = await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      modelId: "gpt-6.1-sol",
+      reconcileModel: (id) => void reconciled.push(id),
+    })
+    const stopReason = await session.prompt(
+      [textBlock("hi")],
+      new AbortController().signal
+    )
+
+    expect(agent.setSessionModelCalls).toEqual(["gpt-6.1-sol"])
+    expect(reconciled).toEqual(["gpt-5.5"])
+    expect(stopReason).toBe("end_turn")
+    expect(prompts).toEqual(["hi"])
   })
 })
 

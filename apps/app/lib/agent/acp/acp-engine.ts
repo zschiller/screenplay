@@ -51,9 +51,7 @@ export interface ExternalEngineConfig {
    * The chat's chosen model *within* the Harness (the `modelId` half of its
    * stored `harness:<key>:<modelId>` id — ADR 0006: it refines which model the
    * already-build-selected external engine runs, never the engine itself). At
-   * session open the ACP-native adapter applies it via `set_config_option`; an
-   * adapter that takes its model at spawn (codex) already has it on the argv, so
-   * this is inert there. Absent ⇒ the Harness runs its own default.
+   * session open the adapter applies it via `set_config_option`. Absent ⇒ the Harness runs its own default.
    */
   modelId?: string
   /**
@@ -266,6 +264,11 @@ export class ExternalEngine implements Engine {
     } finally {
       clearTimeout(stopTimer)
       signal.removeEventListener("abort", onStop)
+      // End the agent with every turn, not only a stopped one: the next turn
+      // resumes it with `session/load` in a fresh child. Codex's adapter holds
+      // a writer lock on its thread while its process lives, so a load from
+      // the next turn's child fails until this one is gone (#1271).
+      session?.close()
     }
   }
 
@@ -294,9 +297,8 @@ export class ExternalEngine implements Engine {
     // #408). Non-plan turns and mode-less agents pass through.
     const planMode = turn.planMode
 
-    // The chat's per-chat model choice, applied at open via ACP-native model
-    // selection (claude-code) — inert for a spawn-applied adapter (codex) and
-    // for a chat with no stored model. Reconciliation rewrites a stale stored id
+    // The chat's per-chat model choice, applied at open via the adapter's
+    // model config option — inert for a chat with no stored model. Reconciliation rewrites a stale stored id
     // to the resolved one (#526).
     const { modelId, reconcileModel, mcpServers, sessionMeta } = this.config
     const options: OpenSessionOptions = {
