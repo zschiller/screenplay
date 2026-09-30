@@ -102,7 +102,10 @@ const RIGHT_EDGE_SLACK_PX = 2
 
 // Width of the fade at a strip edge that has tabs scrolled past it, and the
 // inset a revealed tab keeps from the edge (the same, so it clears the fade).
+// The left fade is wider so a tab cut there fades out over a whole glyph or
+// two instead of showing a sliver of one beside the pinned logs tab.
 const EDGE_FADE_PX = 16
+const LEFT_EDGE_FADE_PX = 28
 
 // Scroll `viewport` the minimum amount so `el` is fully visible, with a little
 // padding so a revealed tab isn't flush against the edge. A tab already in view
@@ -111,15 +114,17 @@ const EDGE_FADE_PX = 16
 function ensureTabVisible(viewport: HTMLElement, el: HTMLElement) {
   const vpRect = viewport.getBoundingClientRect()
   const elRect = el.getBoundingClientRect()
-  const pad = EDGE_FADE_PX
-  if (elRect.left < vpRect.left + pad) {
+  if (elRect.left < vpRect.left + LEFT_EDGE_FADE_PX) {
     // Back at the start when the tab fits there, so the strip rests where it
-    // began (with the logs tab in view) rather than just short of it.
+    // began rather than just short of it.
     const rightAtStart = elRect.right - vpRect.left + viewport.scrollLeft
-    if (rightAtStart + pad <= viewport.clientWidth) viewport.scrollLeft = 0
-    else viewport.scrollLeft -= vpRect.left - elRect.left + pad
-  } else if (elRect.right > vpRect.right - pad) {
-    viewport.scrollLeft += elRect.right - vpRect.right + pad
+    if (rightAtStart + EDGE_FADE_PX <= viewport.clientWidth) {
+      viewport.scrollLeft = 0
+    } else {
+      viewport.scrollLeft -= vpRect.left - elRect.left + LEFT_EDGE_FADE_PX
+    }
+  } else if (elRect.right > vpRect.right - EDGE_FADE_PX) {
+    viewport.scrollLeft += elRect.right - vpRect.right + EDGE_FADE_PX
   }
 }
 
@@ -132,7 +137,7 @@ function updateEdgeFade(viewport: HTMLElement) {
   const right = overflow - viewport.scrollLeft > RIGHT_EDGE_SLACK_PX
   viewport.style.maskImage =
     left || right
-      ? `linear-gradient(to right, transparent, #000 ${left ? EDGE_FADE_PX : 0}px, #000 calc(100% - ${right ? EDGE_FADE_PX : 0}px), transparent)`
+      ? `linear-gradient(to right, transparent, #000 ${left ? LEFT_EDGE_FADE_PX : 0}px, #000 calc(100% - ${right ? EDGE_FADE_PX : 0}px), transparent)`
       : ""
 }
 
@@ -799,8 +804,8 @@ export function ChatPanel({
     []
   )
 
-  // Bring the active tab (a chat/terminal tab or the logs trigger) fully into
-  // view. When the operator is parked at the right edge, or the active tab is
+  // Bring the active chat/terminal tab fully into view (the logs tab is
+  // pinned outside the scroller, so it's always in view). When the operator is parked at the right edge, or the active tab is
   // the last one, go to the right edge unless that would leave the active tab
   // cut off.
   const revealActiveTab = useCallback(() => {
@@ -1027,76 +1032,90 @@ export function ChatPanel({
         ref={tabBarRef}
         className="flex border-b border-border bg-background"
       >
-        <ScrollArea
-          orientation="horizontal"
-          // Scrollbar styling, scoped to the bar via its data-slot:
-          // - z-10 keeps it above a tab being dragged (motion gives the dragged
-          //   Reorder.Item `z-index: 1`, which would otherwise cover the bar).
-          // - hidden until a mouse is detected, so trackpad users never see it.
-          className={`min-w-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:z-10 ${
-            usingMouse ? "" : "[&_[data-slot=scroll-area-scrollbar]]:hidden"
-          }`}
+        {/* One tab list across the whole strip, so arrow keys move from the
+            logs tab into the chat tabs. Only the chat tabs and "+" scroll:
+            the logs tab stays pinned at the left, as the closed-chats button
+            is on the right. */}
+        <TabsList
+          variant="line"
+          // Tall enough for the 28px close buttons to sit inside the tabs.
+          // 11px puts the Logs icon (1px border + px-1.5 + half its 16px)
+          // 26px in, under the collapse icon (header px-3 + half its 28px).
+          className="min-w-0 flex-1 items-stretch gap-0 py-0 pr-0 pl-[11px] group-data-horizontal/tabs:h-10"
         >
-          <TabsList
-            variant="line"
-            // Tall enough for the 28px close buttons to sit inside the tabs.
-            // 11px puts the Logs icon (1px border + px-1.5 + half its 16px)
-            // 26px in, under the collapse icon (header px-3 + half its 28px).
-            className="px-[11px] group-data-horizontal/tabs:h-10"
-          >
-            {isAgentTarget && (
+          {isAgentTarget && (
+            // Same 3px inset as the scrolled tabs below. `overflow-y-clip`
+            // cuts the active underline at the strip's edge, as the scroller
+            // does for the other tabs.
+            <div className="flex shrink-0 items-center overflow-y-clip py-[3px]">
               <TabsTrigger
                 value={LOGS_TAB_VALUE}
-                className="shrink-0 px-1.5"
+                className="px-1.5"
                 aria-label="Sandbox logs"
                 title="Sandbox logs"
               >
                 <ListDashesIcon />
               </TabsTrigger>
-            )}
-            {/* Drag-reorderable chat/terminal tabs. The logs trigger and the
-                "+" button stay fixed (outside the group); only these tabs
-                reorder. `values`/`onReorder` are controlled by `tabOrder`. */}
-            <Reorder.Group
-              // Keyed by the target so switching branches/layers REMOUNTS the
-              // whole group instead of diffing this target's tab ids against the
-              // previous one's. Without it, every tab from the old target exits
-              // and every tab from the new one enters on each switch — the tabs
-              // animate/jitter. A fresh mount (with AnimatePresence
-              // `initial={false}`) paints the new target's tabs with no anim.
-              key={targetKey}
-              as="div"
-              axis="x"
-              values={orderedTabs.map((t) => t.id)}
-              onReorder={handleReorder}
-              // Mark a drag (or click) as in-flight so a tab settling mid-gesture
-              // defers its AnimatePresence re-register until pointer release.
-              onPointerDownCapture={() => {
-                draggingRef.current = true
-              }}
-              className="flex h-full items-stretch gap-1 overflow-visible"
+            </div>
+          )}
+          <ScrollArea
+            orientation="horizontal"
+            // Scrollbar styling, scoped to the bar via its data-slot:
+            // - z-10 keeps it above a tab being dragged (motion gives the dragged
+            //   Reorder.Item `z-index: 1`, which would otherwise cover the bar).
+            // - hidden until a mouse is detected, so trackpad users never see it.
+            className={`min-w-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:z-10 ${
+              usingMouse ? "" : "[&_[data-slot=scroll-area-scrollbar]]:hidden"
+            }`}
+          >
+            <div
+              className={`flex h-10 w-max items-center gap-1 py-[3px] pr-[11px] ${
+                isAgentTarget ? "pl-1" : ""
+              }`}
             >
-              {/* `key={reRegisterKey}` remounts this AnimatePresence whenever a
+              {/* Drag-reorderable chat/terminal tabs. The "+" button stays fixed
+                (outside the group); only these tabs reorder.
+                `values`/`onReorder` are controlled by `tabOrder`. */}
+              <Reorder.Group
+                // Keyed by the target so switching branches/layers REMOUNTS the
+                // whole group instead of diffing this target's tab ids against the
+                // previous one's. Without it, every tab from the old target exits
+                // and every tab from the new one enters on each switch — the tabs
+                // animate/jitter. A fresh mount (with AnimatePresence
+                // `initial={false}`) paints the new target's tabs with no anim.
+                key={targetKey}
+                as="div"
+                axis="x"
+                values={orderedTabs.map((t) => t.id)}
+                onReorder={handleReorder}
+                // Mark a drag (or click) as in-flight so a tab settling mid-gesture
+                // defers its AnimatePresence re-register until pointer release.
+                onPointerDownCapture={() => {
+                  draggingRef.current = true
+                }}
+                className="flex h-full items-stretch gap-1 overflow-visible"
+              >
+                {/* `key={reRegisterKey}` remounts this AnimatePresence whenever a
                   newly-created tab finishes entering, re-registering all tabs as
                   initial-present so motion stops replaying the new tab's enter on
                   its reorder-remounts (the rightward-drag flash). */}
-              <AnimatePresence key={reRegisterKey} initial={false}>
-                {orderedTabs.map((tab) => (
-                  <Reorder.Item
-                    key={tab.id}
-                    value={tab.id}
-                    as="div"
-                    // Animate only position, not size, during a reorder. The
-                    // enter/exit on the inner wrapper drives `width` (0↔auto);
-                    // a full `layout` animation here would also project the
-                    // size change and fight that width tween, jittering the
-                    // tab. `layout="position"` reorders by sliding neighbours
-                    // aside while leaving width to the wrapper alone.
-                    layout="position"
-                    data-tab-id={tab.id}
-                    className="flex shrink-0 items-stretch"
-                  >
-                    {/* Enter/exit lives on this inner wrapper, NOT the
+                <AnimatePresence key={reRegisterKey} initial={false}>
+                  {orderedTabs.map((tab) => (
+                    <Reorder.Item
+                      key={tab.id}
+                      value={tab.id}
+                      as="div"
+                      // Animate only position, not size, during a reorder. The
+                      // enter/exit on the inner wrapper drives `width` (0↔auto);
+                      // a full `layout` animation here would also project the
+                      // size change and fight that width tween, jittering the
+                      // tab. `layout="position"` reorders by sliding neighbours
+                      // aside while leaving width to the wrapper alone.
+                      layout="position"
+                      data-tab-id={tab.id}
+                      className="flex shrink-0 items-stretch"
+                    >
+                      {/* Enter/exit lives on this inner wrapper, NOT the
                         Reorder.Item: the item runs a layout animation while
                         dragging (that's how neighbours slide aside), and driving
                         `width` on the same element fights that projection and
@@ -1108,139 +1127,140 @@ export function ChatPanel({
                         visible. `initial={false}` on AnimatePresence skips this on
                         first paint, so only tabs added/removed after mount
                         animate. */}
-                    <motion.div
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                      onAnimationComplete={() => markTabEntered(tab.id)}
-                      className="group/tab relative flex items-stretch overflow-x-clip bg-background"
-                    >
-                      <TabsTrigger
-                        value={tab.id}
-                        className="relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-sm active:cursor-grabbing"
+                      <motion.div
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: "auto", opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                        onAnimationComplete={() => markTabEntered(tab.id)}
+                        className="group/tab relative flex items-stretch overflow-x-clip bg-background"
                       >
-                        {tab.kind === "terminal" ? (
-                          <TerminalTabLabel
-                            terminal={tab.terminal}
-                            onRename={(label) => onRenameChat(tab.id, label)}
-                          />
-                        ) : (
-                          <ChatTabLabel
-                            chat={tab.chat}
-                            onRename={(label) => onRenameChat(tab.id, label)}
-                          />
-                        )}
-                      </TabsTrigger>
-                      {/* The close button sits beside the trigger, not inside it:
+                        <TabsTrigger
+                          value={tab.id}
+                          className="relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-sm active:cursor-grabbing"
+                        >
+                          {tab.kind === "terminal" ? (
+                            <TerminalTabLabel
+                              terminal={tab.terminal}
+                              onRename={(label) => onRenameChat(tab.id, label)}
+                            />
+                          ) : (
+                            <ChatTabLabel
+                              chat={tab.chat}
+                              onRename={(label) => onRenameChat(tab.id, label)}
+                            />
+                          )}
+                        </TabsTrigger>
+                        {/* The close button sits beside the trigger, not inside it:
                           a button can't nest in the trigger's button. It shows on
                           hover and whenever it holds keyboard focus. Only the
                           selected tab's close is a Tab stop, so tabbing along
                           the strip reaches one close, not one per tab. */}
-                      <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100 focus-within:opacity-100">
-                        <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
-                        <IconButton
-                          label={
-                            tab.kind === "terminal"
-                              ? "Close terminal"
-                              : "Close chat"
-                          }
-                          className="relative text-muted-foreground"
-                          tabIndex={tab.id === tabsValue ? 0 : -1}
-                          // Keep the press from starting a tab drag.
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() =>
-                            onCloseChat(tab.id, neighbourTabId(tab.id))
+                        <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100 focus-within:opacity-100">
+                          <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
+                          <IconButton
+                            label={
+                              tab.kind === "terminal"
+                                ? "Close terminal"
+                                : "Close chat"
+                            }
+                            className="relative text-muted-foreground"
+                            tabIndex={tab.id === tabsValue ? 0 : -1}
+                            // Keep the press from starting a tab drag.
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() =>
+                              onCloseChat(tab.id, neighbourTabId(tab.id))
+                            }
+                          >
+                            <XIcon />
+                          </IconButton>
+                        </div>
+                      </motion.div>
+                    </Reorder.Item>
+                  ))}
+                </AnimatePresence>
+              </Reorder.Group>
+              {onCreateTerminal ? (
+                <ButtonGroup
+                  className={`${isAgentBusy ? "" : "group/newtab"} ml-1 shrink-0`}
+                >
+                  <IconButton
+                    label={
+                      stickyTabKind === "terminal" ? "New terminal" : "New chat"
+                    }
+                    hint={isAgentBusy ? "Sandbox still starting…" : undefined}
+                    className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                    onClick={createStickyTab}
+                    disabled={isAgentBusy}
+                  >
+                    <PlusIcon />
+                  </IconButton>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <IconButton
+                        label="New chat or terminal"
+                        className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                        disabled={isAgentBusy}
+                      >
+                        <CaretDownIcon />
+                      </IconButton>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={() => createChatTab()}>
+                        <ChatCircleIcon className="size-3 shrink-0 text-muted-foreground" />
+                        New chat
+                      </DropdownMenuItem>
+                      {installedHarnesses.length > 1 ? (
+                        // Multiple harnesses — a labelled section listing each by
+                        // name, since "New terminal" alone wouldn't say which.
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>New terminal</DropdownMenuLabel>
+                          {installedHarnesses.map((h) => (
+                            <DropdownMenuItem
+                              key={h.key}
+                              onSelect={() => createTerminalTab(h.key)}
+                            >
+                              <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{h.label}</span>
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      ) : (
+                        // One harness (or the list isn't loaded / none installed) —
+                        // there's nothing to choose between, so collapse to a single
+                        // "New terminal" with no section header. Opens the lone
+                        // harness, else the default, so the menu never strands the
+                        // operator.
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            createTerminalTab(
+                              installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY
+                            )
                           }
                         >
-                          <XIcon />
-                        </IconButton>
-                      </div>
-                    </motion.div>
-                  </Reorder.Item>
-                ))}
-              </AnimatePresence>
-            </Reorder.Group>
-            {onCreateTerminal ? (
-              <ButtonGroup
-                className={`${isAgentBusy ? "" : "group/newtab"} ml-1 shrink-0`}
-              >
-                <IconButton
-                  label={
-                    stickyTabKind === "terminal" ? "New terminal" : "New chat"
-                  }
-                  hint={isAgentBusy ? "Sandbox still starting…" : undefined}
-                  className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                  onClick={createStickyTab}
-                  disabled={isAgentBusy}
-                >
-                  <PlusIcon />
-                </IconButton>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <IconButton
-                      label="New chat or terminal"
-                      className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                      disabled={isAgentBusy}
-                    >
-                      <CaretDownIcon />
-                    </IconButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => createChatTab()}>
-                      <ChatCircleIcon className="size-3 shrink-0 text-muted-foreground" />
-                      New chat
-                    </DropdownMenuItem>
-                    {installedHarnesses.length > 1 ? (
-                      // Multiple harnesses — a labelled section listing each by
-                      // name, since "New terminal" alone wouldn't say which.
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>New terminal</DropdownMenuLabel>
-                        {installedHarnesses.map((h) => (
-                          <DropdownMenuItem
-                            key={h.key}
-                            onSelect={() => createTerminalTab(h.key)}
-                          >
-                            <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
-                            <span className="truncate">{h.label}</span>
-                          </DropdownMenuItem>
-                        ))}
-                      </>
-                    ) : (
-                      // One harness (or the list isn't loaded / none installed) —
-                      // there's nothing to choose between, so collapse to a single
-                      // "New terminal" with no section header. Opens the lone
-                      // harness, else the default, so the menu never strands the
-                      // operator.
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          createTerminalTab(
-                            installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY
-                          )
-                        }
-                      >
-                        <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
-                        New terminal
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </ButtonGroup>
-            ) : (
-              <span className="ml-1 inline-flex shrink-0">
-                <IconButton
-                  label="New chat"
-                  hint={isAgentBusy ? "Sandbox still starting…" : undefined}
-                  onClick={onCreateChat}
-                  disabled={isAgentBusy}
-                >
-                  <PlusIcon />
-                </IconButton>
-              </span>
-            )}
-          </TabsList>
-        </ScrollArea>
+                          <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
+                          New terminal
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </ButtonGroup>
+              ) : (
+                <span className="ml-1 inline-flex shrink-0">
+                  <IconButton
+                    label="New chat"
+                    hint={isAgentBusy ? "Sandbox still starting…" : undefined}
+                    onClick={onCreateChat}
+                    disabled={isAgentBusy}
+                  >
+                    <PlusIcon />
+                  </IconButton>
+                </span>
+              )}
+            </div>
+          </ScrollArea>
+        </TabsList>
         {closedChats.length > 0 && (
           <div className="flex shrink-0 items-center px-1.5">
             <ChatHistoryMenu
