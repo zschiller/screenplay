@@ -1,11 +1,10 @@
 import { Header } from "@/components/marketing/header"
 import { Footer } from "@/components/marketing/footer"
 import { Hero } from "@/components/marketing/site/hero"
-import { AgentsStrip } from "@/components/marketing/site/agents-strip"
 import { Problem } from "@/components/marketing/site/problem"
 import { Scenes } from "@/components/marketing/site/scenes"
 import { Features } from "@/components/marketing/site/features"
-import { OpenSource } from "@/components/marketing/site/open-source"
+import { SelfHosting } from "@/components/marketing/site/self-hosting"
 import { Faq } from "@/components/marketing/site/faq"
 import { CTA } from "@/components/marketing/site/cta"
 
@@ -15,11 +14,10 @@ export default function HomePage() {
       <Header />
       <main className="flex-1">
         <Hero />
-        <AgentsStrip />
         <Problem />
         <Scenes />
         <Features />
-        <OpenSource />
+        <SelfHosting />
         <Faq />
         <CTA />
       </main>

@@ -118,7 +118,7 @@ function PromptBox({ prompt }: { prompt: string }) {
         <span className="line-clamp-1">{prompt}</span>
         <span className="flex items-center gap-3 text-[11px] whitespace-nowrap">
           <span className="flex items-center gap-1">
-            Claude Code · Opus
+            Opus 5.5
             <CaretDownIcon className="size-2.5 text-muted-foreground" />
           </span>
           <span className="flex items-center gap-1">
@@ -211,7 +211,7 @@ const menu: (
 export function PullRequestExcerpt() {
   return (
     <Card
-      label="A Workspace's menu in the sidebar, with Create pull request at the top."
+      label="A Workspace's menu in the Workspaces list, with Create pull request at the top."
       className="bg-sidebar"
     >
       <div className="absolute top-5 left-3 flex w-[232px] flex-col gap-0.5">

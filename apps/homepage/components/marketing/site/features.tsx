@@ -9,8 +9,8 @@ const features: { title: string; body: React.ReactNode }[] = [
     body: "Every frame is a running dev server on its own branch. Click, scroll, fill in forms and switch to mobile sizes.",
   },
   {
-    title: "Multiplayer",
-    body: "Deploy the web app and share a link. Everyone sees the same canvas, cursors, comments and running branches. Follow a teammate with one click.",
+    title: "The Coordinator",
+    body: "One chat for the whole canvas. Ask what changed in each Workspace, or have it start new ones.",
   },
   {
     title: "Pick elements",

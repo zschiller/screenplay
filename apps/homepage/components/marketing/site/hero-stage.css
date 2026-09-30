@@ -201,14 +201,6 @@
 .hc-hero {
   padding: 3.2em 3em 0;
 }
-.hc-eye {
-  font:
-    500 0.85em/1.4 var(--font-mono),
-    monospace;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--pg-mut);
-}
 .hc-h1 {
   margin-top: 0.35em;
   max-width: 9.5em;
