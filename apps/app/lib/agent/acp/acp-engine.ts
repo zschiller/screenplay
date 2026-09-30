@@ -147,9 +147,14 @@ export class ExternalEngine implements SteeringEngine {
     // turn ends only after the last of them.
     const inOrder = serially()
     let steering: PromptSteering | null = null
+    // Set once the turn has reported how it ended. An agent that keeps
+    // streaming after that (a stopped turn it hadn't wound down yet) has
+    // nothing more to show.
+    let ended = false
     const ports: AcpSessionPorts = {
       onUpdate: (update) =>
         inOrder(async () => {
+          if (ended) return
           await sink({ kind: "session_update", update })
           // A finished tool call is the step boundary a Steer can join at.
           if (steering && endsToolCall(update)) await steering.take()
@@ -183,8 +188,11 @@ export class ExternalEngine implements SteeringEngine {
       },
     }
 
+    let session: AcpSession | null = null
     try {
-      const { session, resumed } = await this.openSession(ports, turn)
+      const opened = await this.openSession(ports, turn)
+      session = opened.session
+      const { resumed } = opened
       // A resumed session already holds the prior conversation, so send only the
       // new user message. A fresh session has none — replay the whole history so
       // its context is seeded (the first turn reduces to just the new message),
@@ -204,6 +212,7 @@ export class ExternalEngine implements SteeringEngine {
         stopReason = await session.prompt(blocks, turnSignal)
       }
       await inOrder(async () => {})
+      ended = true
 
       // The plan gate already closed the turn through the consumer; emitting a
       // terminal update now would be a no-op (the consumer guards a double
@@ -214,13 +223,16 @@ export class ExternalEngine implements SteeringEngine {
       // consumer closes a cancelled `done` with no `completed` transition; the
       // watchdog already recorded the terminal stop.
       if (signal.aborted) {
+        stopAgent(session)
         await sink({ kind: "done", stopReason: "cancelled" })
         return
       }
       await sink({ kind: "done", stopReason })
     } catch (e) {
       await inOrder(async () => {}).catch(() => {})
+      ended = true
       if (signal.aborted) {
+        if (session) stopAgent(session)
         // The run is no longer live (user `/stop` or supersession) and the abort
         // surfaced as a thrown transport/stream error rather than a clean
         // cancellation. Report it as the cancellation it is, not a failure.
@@ -400,6 +412,17 @@ function lastUserContent(history: AcpMessageRecord[]): ContentBlock[] | null {
   // The index is a `user` record by construction; narrow to its `ContentBlock[]`.
   const record = history[index]!
   return record.role === "user" ? record.content : null
+}
+
+/**
+ * End a stopped turn's agent. Cancelling resolves every prompt `cancelled`,
+ * but a message the Claude adapter had already pushed into the running turn
+ * (a Steer) can keep the agent working after the cancel; it only ends when
+ * the process does. The next turn resumes the session from the agent's own
+ * record with `session/load`.
+ */
+function stopAgent(session: AcpSession): void {
+  session.close()
 }
 
 /**
