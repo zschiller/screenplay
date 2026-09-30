@@ -1,7 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react"
-import { ClockIcon, XIcon } from "@workspace/ui/components/icons"
+import {
+  ArrowUUpLeftIcon,
+  ClockIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -40,6 +44,12 @@ import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
 import { targetingStore } from "@/lib/targeting-store"
 import { useModelCatalog } from "@/lib/use-model-catalog"
+import {
+  chatQuoteStore,
+  quoteRangeLabel,
+  withChatQuote,
+  type ChatQuote,
+} from "@/lib/chat-quote-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
@@ -221,9 +231,32 @@ export function AgentChat({
   const handleSubmit = useCallback(
     ({ text, turn, model: submitted, draft }: ComposerSubmitPayload) => {
       if (!model && submitted) onModelChange?.(submitted)
-      void sendMessage(text, { model: submitted, turn, draft })
+      // A passage quoted by Reply in chat (#1243) leads both the wire body and
+      // the body the chat draws, the way a reload projects it from the wire.
+      const quote = chatQuoteStore.take(chatId)
+      void sendMessage(quote ? withChatQuote(quote, text) : text, {
+        model: submitted,
+        turn: quote ? { ...turn, body: withChatQuote(quote, turn.body) } : turn,
+        draft,
+      })
     },
-    [sendMessage, model, onModelChange]
+    [sendMessage, model, onModelChange, chatId]
+  )
+
+  // Reply in chat (#1243) quotes into the chat on screen: this one while it's
+  // the visible tab. A new quote focuses the composer (its `focusKey`) so the
+  // question can be typed straight away.
+  useEffect(() => {
+    if (!isActive) return
+    return chatQuoteStore.claimForeground(chatId)
+  }, [chatId, isActive])
+  const quote = useSyncExternalStore(
+    useCallback(
+      (onChange: () => void) => chatQuoteStore.subscribe(chatId, onChange),
+      [chatId]
+    ),
+    () => chatQuoteStore.get(chatId),
+    () => undefined
   )
 
   // Put a held message (refused or queued) back in the composer to edit. The
@@ -460,21 +493,32 @@ export function AgentChat({
         draftKey={chatId}
         placeholder={capabilities.placeholder}
         aboveInput={
-          queued.length > 0 ? (
-            <ul aria-label="Queued messages" className="mb-2 space-y-1">
-              {queued.map((q) => (
-                <QueuedRow
-                  key={q.id}
-                  message={q.message}
-                  onEdit={() => restoreToComposer(takeQueued(q.id))}
-                  onRemove={() => takeQueued(q.id)}
+          queued.length > 0 || quote ? (
+            <>
+              {queued.length > 0 && (
+                <ul aria-label="Queued messages" className="mb-2 space-y-1">
+                  {queued.map((q) => (
+                    <QueuedRow
+                      key={q.id}
+                      message={q.message}
+                      onEdit={() => restoreToComposer(takeQueued(q.id))}
+                      onRemove={() => takeQueued(q.id)}
+                    />
+                  ))}
+                </ul>
+              )}
+              {quote && (
+                <QuoteRow
+                  quote={quote}
+                  onRemove={() => chatQuoteStore.remove(chatId)}
                 />
-              ))}
-            </ul>
+              )}
+            </>
           ) : undefined
         }
         onPickElement={pickBranchId ? handlePickElement : undefined}
         targetEligible={targetEligible}
+        focusKey={quote?.key}
       />
     </div>
   )
@@ -659,6 +703,40 @@ function QueuedRow({
 }
 
 /**
+ * The Document passage Reply in chat quoted (#1243), above the input until the
+ * next send takes it: the Document and line range, then up to three lines of
+ * the text. The X drops it.
+ */
+function QuoteRow({
+  quote,
+  onRemove,
+}: {
+  quote: ChatQuote
+  onRemove: () => void
+}) {
+  const range = quoteRangeLabel(quote)
+  return (
+    <div
+      aria-label="Quoted passage"
+      className="mb-2 flex gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
+    >
+      <ArrowUUpLeftIcon className="mt-1.5 size-3.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1 py-1">
+        <div className="truncate font-medium">
+          {quote.documentTitle ? `${quote.documentTitle} · ${range}` : range}
+        </div>
+        <div className="mt-0.5 line-clamp-3 break-words whitespace-pre-wrap text-muted-foreground">
+          {quote.quotedText}
+        </div>
+      </div>
+      <IconButton label="Remove quote" onClick={onRemove}>
+        <XIcon />
+      </IconButton>
+    </div>
+  )
+}
+
+/**
  * The Workspace a running Coordinator turn is catching up on, when the turn
  * answers a wake (#897): the last user message's wake.
  */
@@ -681,8 +759,7 @@ function stackTaskRows(
 ): (TranscriptItem | { kind: "task-rows"; entries: GroupedMessage[] })[] {
   if (!drawsTaskRows) return items
   const out: (
-    | TranscriptItem
-    | { kind: "task-rows"; entries: GroupedMessage[] }
+    TranscriptItem | { kind: "task-rows"; entries: GroupedMessage[] }
   )[] = []
   for (const item of items) {
     const message = item.kind === "message" ? item.entry.message : null

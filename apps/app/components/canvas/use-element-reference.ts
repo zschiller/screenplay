@@ -1,61 +1,39 @@
 import { type RefObject, useCallback, useMemo, useRef, useState } from "react"
-import { nanoid } from "nanoid"
 import type { Editor } from "@tiptap/core"
 
-import { dispatchPrompt } from "@/lib/chat/agent-prompt"
-import {
-  type ReferenceContext,
-  resolveReference,
-} from "@/lib/canvas/chat-reference"
+import { chatQuoteStore, type ChatQuote } from "@/lib/chat-quote-store"
 import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
 import type { ElementAnchor } from "@/lib/comment-anchor"
 import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
-import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { InlineCommentDraft } from "./markdown-layer"
 
 /**
- * Element Reference controller (PRD #570) — the apply-side of the single-user
- * "anchor an element / text span and Send to agent" reference path that the
- * local build keeps (the comment UI minus the persisted thread; see
- * `apps/app/CONTEXT.md`, "Element Reference"). Lifted out of
- * `components/canvas/canvas.tsx`, it owns the comment-mode placement state
+ * Element Reference controller (PRD #570) — how the Canvas points at an element
+ * or a Document passage (`apps/app/CONTEXT.md`, "Element Reference"). Lifted out
+ * of `components/canvas/canvas.tsx`, it owns the comment-mode placement state
  * (`newCommentPos`, `activeThreadId`, `inspectHover`) and the two ref-backed
  * registries the flow reads — the per-Iframe-Layer DOM accessors and the
  * per-Markdown-Layer TipTap editors — each with a version counter so membership
- * changes re-render the consumers.
- *
- * The message-formatting and target-routing decision is pure
- * (`lib/canvas/chat-reference`); this controller applies it: create the fresh
- * Chat Session, select the resolved target **through the Chat-Target
- * controller** (#569) rather than poking raw setters, and call
- * `chatStore.sendMessage`. The 168-line handler it replaces collapses to one
- * verb, `sendReference`.
+ * changes re-render the consumers — plus `replyInChat`, which quotes a
+ * Document passage into the chat the panel is showing (#1243, "Chat Quote").
  *
  * Like the Canvas Gesture seam, the controller's live inputs arrive through a
  * ref the component repopulates every render. That breaks the ordering cycle:
  * the placement state is read by the keyboard handler defined high in the
- * component, while `sendReference` needs the Chat-Target controller and the
- * canvas operations defined far below it.
+ * component, while `replyInChat` needs the Chat-Target controller defined far
+ * below it.
  */
 export interface ElementReferenceInputs {
-  roomId: string
-  markdownLayers: MarkdownLayerData[]
-  chatSessions: ChatSessionData[]
   /**
    * The hit-test set — frames *and* document layers — comment-mode placement
    * tests a click against (the same map the rest of the canvas resolves layer
    * geometry through).
    */
   iframeLayerLayouts: IframeLayerLayoutMap
-  /** Create a Chat Session through the canvas ops seam (ADR 0001). */
-  addChatSession: (id: string, data: ChatSessionData) => void
-  /** Selection goes through the Chat-Target controller, not raw setters. */
-  chatTarget: Pick<
-    ChatTarget,
-    "selectDocChat" | "selectAgentChat" | "expandPanel"
-  >
+  /** Opens the panel through the Chat-Target controller, not raw setters. */
+  chatTarget: Pick<ChatTarget, "expandPanel">
 }
 
 /** Comment-mode placement position — layer-local for frame/doc-anchored pins. */
@@ -105,12 +83,11 @@ export interface ElementReference {
   /** Reset comment-mode sub-state on a tool-mode switch (composer + hover). */
   clearMode: () => void
   /**
-   * Hand the composer's note off to the document chat: resolve the pure
-   * decision, create a fresh Chat Session, select the document via the
-   * Chat-Target controller, and send. A doc selection routes to that document;
-   * a context that names no document is a no-op.
+   * Reply in chat (#1243): quote a Document passage into the composer of the
+   * chat the panel is showing, opening the panel when it's collapsed. Nothing
+   * is sent; the quote rides the next message typed there.
    */
-  sendReference: (note: string, ctx: ReferenceContext) => void
+  replyInChat: (quote: ChatQuote) => void
 
   /** Iframe Layer DOM-accessor registry (register on mount / unmount). */
   onIframeLayerDomReady: (id: string, dom: ScreenplayDom | null) => void
@@ -275,39 +252,10 @@ export function useElementReference(
     setInspectHoverState(null)
   }, [])
 
-  const sendReference = useCallback(
-    (note: string, ctx: ReferenceContext) => {
-      const inputs = inputsRef.current
-      if (!inputs) return
-      const decision = resolveReference({
-        note,
-        ctx,
-        roomId: inputs.roomId,
-        chatId: nanoid(),
-        createdAt: Date.now(),
-        markdownLayers: inputs.markdownLayers,
-        chatSessions: inputs.chatSessions,
-      })
-      if (decision.kind === "none") return
-
-      // The apply half is the shared Agent-prompt dispatch: create the fresh
-      // Chat Session, select the resolved document target through the
-      // Chat-Target controller, and send. The reference's routing rule (doc
-      // selection → document, always a fresh chat) stays in `resolveReference`.
-      const { session, select, send } = decision
-      dispatchPrompt(
-        {
-          session,
-          target: { kind: "document", documentId: select.documentId },
-          select: {},
-          expandPanel: true,
-          send,
-        },
-        {
-          addChatSession: inputs.addChatSession,
-          chatTarget: inputs.chatTarget,
-        }
-      )
+  const replyInChat = useCallback(
+    (quote: ChatQuote) => {
+      inputsRef.current?.chatTarget.expandPanel()
+      chatQuoteStore.reply(quote)
     },
     [inputsRef]
   )
@@ -329,7 +277,7 @@ export function useElementReference(
       setInspectHover,
       clearComposer,
       clearMode,
-      sendReference,
+      replyInChat,
       onIframeLayerDomReady,
       getIframeLayerDom,
       onDocumentEditorReady,
@@ -346,7 +294,7 @@ export function useElementReference(
       setInspectHover,
       clearComposer,
       clearMode,
-      sendReference,
+      replyInChat,
       onIframeLayerDomReady,
       getIframeLayerDom,
       onDocumentEditorReady,

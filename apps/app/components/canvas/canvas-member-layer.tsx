@@ -372,6 +372,7 @@ function CanvasMemberLayerImpl({
                 commentMode={commentMode}
                 onStartInlineComment={reference.startInlineComment}
                 onSelectInlineThread={reference.setActiveThread}
+                onReplyInChat={reference.replyInChat}
               />
             )
           }

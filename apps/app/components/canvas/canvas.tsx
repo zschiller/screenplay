@@ -341,17 +341,16 @@ export function Canvas({
   // Terminal Tabs (`localTerminals`) and their seed / re-fetch-merge /
   // orphan-prune lifecycle are owned by the `useTerminalTabs` controller (#582),
   // created once `agents` is in scope below; the Tab Pool composes it.
-  // Element Reference controller (PRD #570): the single-user "anchor an element
-  // / text span and Send to agent" reference path the local build keeps. It
-  // owns the comment-mode placement state (`newCommentPos`, `activeThreadId`,
-  // `inspectHover`) and the two registries the flow reads — the per-Iframe-Layer
-  // DOM accessors and the per-Markdown-Layer TipTap editors — and exposes the
-  // placement verbs plus the single `sendReference` verb (over the pure
-  // `lib/canvas/chat-reference` decision). Its live inputs arrive through a ref
-  // the component repopulates every render (the effect below), breaking the
-  // ordering cycle: the placement state is read by the keyboard handler defined
-  // just below, while `sendReference` needs the Chat-Target controller and the
-  // canvas ops defined far down the component.
+  // Element Reference controller (PRD #570): how the Canvas points at an
+  // element or a Document passage. It owns the comment-mode placement state
+  // (`newCommentPos`, `activeThreadId`, `inspectHover`) and the two registries
+  // the flow reads — the per-Iframe-Layer DOM accessors and the
+  // per-Markdown-Layer TipTap editors — and exposes the placement verbs plus
+  // `replyInChat` (#1243). Its live inputs arrive through a ref the component
+  // repopulates every render (the effect below), breaking the ordering cycle:
+  // the placement state is read by the keyboard handler defined just below,
+  // while `replyInChat` needs the Chat-Target controller defined far down the
+  // component.
   const referenceInputsRef = useRef<ElementReferenceInputs | null>(null)
   const reference = useElementReference(referenceInputsRef)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -377,8 +376,8 @@ export function Canvas({
   // Chat Session Writes controller (PRD #588): the single small owner of the
   // thin add / update / remove Chat Session Canvas Operation wrappers (ADR
   // 0001), which used to be root-level pass-throughs. Tab Pool, Branch Intake,
-  // Branch Actions, the Chat Sync owner, and Element Reference all read these
-  // verbs from here rather than from a facade the root redefines.
+  // Branch Actions, and the Chat Sync owner all read these verbs from here
+  // rather than from a facade the root redefines.
   const { addChatSession, updateChatSession, removeChatSession } =
     useChatSessionWrites(ops)
 
@@ -1227,17 +1226,12 @@ export function Canvas({
   )
 
   // Repopulate the Element Reference controller's live inputs every render so
-  // its placement verbs and `sendReference` read the current snapshots, the
-  // Chat-Target controller, and the canvas ops seam — without re-binding the
-  // controller on each change (mirrors `iframeLayerLayoutsRef` /
-  // `gestureInputsRef`).
+  // its placement verbs and `replyInChat` read the current layouts and the
+  // Chat-Target controller — without re-binding the controller on each change
+  // (mirrors `iframeLayerLayoutsRef` / `gestureInputsRef`).
   useEffect(() => {
     referenceInputsRef.current = {
-      roomId,
-      markdownLayers,
-      chatSessions,
       iframeLayerLayouts,
-      addChatSession,
       chatTarget,
     }
   })
@@ -1953,7 +1947,6 @@ export function Canvas({
                     getDocumentEditor={reference.getDocumentEditor}
                     documentEditorsVersion={reference.documentEditorsVersion}
                     commentThreads={commentThreads}
-                    onSendToChat={reference.sendReference}
                     activeThreadId={reference.activeThreadId}
                     onActivateThread={reference.setActiveThread}
                     describeLayer={describeCommentLayer}

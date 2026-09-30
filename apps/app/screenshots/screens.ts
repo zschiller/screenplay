@@ -1866,6 +1866,15 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-document-reply-in-chat",
+    description:
+      "Reply in chat (#1243): a Document line quoted into the Checkout polish chat's composer, a question typed under it.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: replyInChatFromBrief,
+    settleMs: 400,
+  },
+  {
     name: "canvas-room-menu-hover",
     description:
       "Hovering the top bar's Canvas options (…) button beside the Canvas name.",
@@ -3503,14 +3512,12 @@ export const SCREENS: Screen[] = [
       ["failed", "framesFailed", "Failed"],
       ["stopped", "framesStopped", "Stopped"],
     ] as const
-  ).map(
-    ([stage, branch, label]): Screen => ({
-      name: `play-${stage}`,
-      description: `The prototype player on a Workspace that is ${label.toLowerCase()}.`,
-      path: playPath(ids.branches[branch], `layer-frames-${stage}`),
-      settleMs: 2500,
-    })
-  ),
+  ).map(([stage, branch, label]): Screen => ({
+    name: `play-${stage}`,
+    description: `The prototype player on a Workspace that is ${label.toLowerCase()}.`,
+    path: playPath(ids.branches[branch], `layer-frames-${stage}`),
+    settleMs: 2500,
+  })),
   {
     name: "canvas-frame-open-logs",
     description:
@@ -3630,6 +3637,16 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   // --- Hosted build only (`--hosted`): comments (#789) ---
+  {
+    name: "canvas-document-reply-in-chat-web",
+    description:
+      "Reply in chat (#1243) in the web build: a Document line quoted into the Checkout polish chat's composer.",
+    hosted: true,
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: replyInChatFromBrief,
+    settleMs: 400,
+  },
   {
     name: "canvas-share-dialog",
     description:
@@ -5765,4 +5782,43 @@ export async function addFixtureFolder(page: Page): Promise<void> {
 async function hoverWorkspaceRow(page: Page, name: string): Promise<void> {
   const row = await workspaceMenuRow(page, name)
   await row.hover({ timeout: 15_000 })
+}
+
+/** Reply in chat (#1243) from the Checkout brief into the Checkout polish chat. */
+async function replyInChatFromBrief(page: Page): Promise<void> {
+  await openChatTab(page, "Checkout polish")
+  // The Checkout brief, clear of the chat panel. The hosted build has no
+  // camera handle, so it zooms to fit instead.
+  if (await page.evaluate("!!window.__canvasCamera")) {
+    await page.evaluate("window.__canvasCamera.setTransform(-1190, 40, 0.7)")
+  } else {
+    // Zoom to fit, which clears the panel.
+    await page.keyboard.press("Shift+Digit1")
+    await page.waitForTimeout(500)
+  }
+  const line = page
+    .locator("[data-markdown-layer]")
+    .getByText("Does Apple Pay sit above", { exact: false })
+  await line.first().waitFor({ state: "visible", timeout: 15_000 })
+  const box = await line.first().boundingBox()
+  if (!box) throw new Error("line has no box")
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2)
+  await page
+    .locator('[data-markdown-layer] [contenteditable="true"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 15_000 })
+  await page.keyboard.press("End")
+  await page.keyboard.press("Shift+Home")
+  await page
+    .locator("#inline-comment-bubble-portal")
+    .getByRole("button", { name: "Reply in chat" })
+    .click({ timeout: 15_000 })
+  // The composer takes focus on the next frame, or once it mounts when the
+  // hosted Workspace is still starting its sandbox.
+  await page
+    .locator("[data-composer]:focus")
+    .waitFor({ timeout: 60_000 })
+    .catch(() => {})
+  await page.keyboard.type("Above, like the mobile mock?")
+  await page.mouse.move(0, 0)
 }

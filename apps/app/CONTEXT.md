@@ -416,8 +416,7 @@ The single small owner of the three thin **Canvas Operation** wrappers for Chat
 Session identity — `addChatSession`, `updateChatSession`, `removeChatSession`
 (`useChatSessionWrites`, PRD #588). They used to be root-level `useCallback`
 pass-throughs the composition root only defined to thread straight back into Tab
-Pool, Branch Intake, Branch Actions, the Chat Sync owner, and Element Reference;
-now those consumers read the verbs from this one owner. Like the rest of the
+Pool, Branch Intake, Branch Actions, and the Chat Sync owner; now those consumers read the verbs from this one owner. Like the rest of the
 canvas decomposition it is the **React binding, not a new write path**: every
 write routes through the Canvas Operation seam (`ops`, ADR 0001), never the Y.Doc
 directly (the field write is `ops.patch`; add / remove are the meaning-bearing
@@ -552,29 +551,36 @@ Pool); reaching around the controller to set `selectedAgentId` / `selectedChatId
 directly; folding the pure decisions into the controller.
 
 **Element Reference**:
-The single-user "anchor a doc text span and **Send to agent**" reference path —
-the kept half of the comment surface on the local build (see **Multi-user
-surface**: the comment UI minus the persisted thread). Owned by the **Element
-Reference controller** (`useElementReference`, PRD #570): the comment-mode
-placement state (`newCommentPos`, the open inline thread, the inspect-hover
-overlay) and the two ref-backed registries the flow reads — the per-Iframe-Layer
-DOM accessors and the per-Markdown-Layer TipTap editors, each with a version
-counter so membership changes re-render their consumers. The message-formatting +
-target-routing decision is a **pure function** (`lib/canvas/chat-reference`,
-sibling of `lib/chat/chat-target`): a **document** selection routes to that
-document and prepends the quoted span + line range (via `formatQuoteForChat`),
-always in a **fresh** chat; a context naming no document yields no send. The
-controller applies the decision — create the Chat Session through the canvas ops
-seam (ADR 0001), select the document **through the Chat-Target controller**
-(#569), and call `chatStore.sendMessage` — exposing the placement verbs plus a
-single `sendReference` verb. The old **frame element → owning-agent** route
-(#570) was retired (#621) once the composer token flow (#618) gave element→agent
-targeting a single obvious home, taking the desktop Crosshair tool + frame
-comment popover with it.
-_Avoid_: reusing a remembered chat instead of a fresh one; folding the formatting
-/ routing decision into the controller; calling this "comments" (the persisted
-thread is the excluded half); resurrecting the frame→agent send path here instead
-of the composer token flow.
+How the Canvas points at an element or a Document passage. Owned by the
+**Element Reference controller** (`useElementReference`, PRD #570): the
+comment-mode placement state (`newCommentPos`, the open inline thread, the
+inspect-hover overlay) and the two ref-backed registries the flow reads — the
+per-Iframe-Layer DOM accessors and the per-Markdown-Layer TipTap editors, each
+with a version counter so membership changes re-render their consumers — plus
+the `replyInChat` verb, which hands a Document passage to **Chat Quote**. The
+old "anchor a doc text span and **Send to agent**" path (a fresh Document chat
+sent from the comment composer, `lib/canvas/chat-reference`) was retired by
+Reply in chat (#1243), after the frame element → owning-agent route (#570) went
+the same way for the composer token flow (#621).
+_Avoid_: sending from the comment composer; resurrecting the frame→agent send
+path here instead of the composer token flow; calling this "comments" (the
+persisted thread is its own surface).
+
+**Chat Quote**:
+A Document passage quoted into a chat's composer by **Reply in chat** (#1243),
+the last button of a Document's selection toolbar on the web and desktop. It
+lands in the composer of the chat the panel is **showing** — the Coordinator, or
+the active chat tab of a Workspace or Document — the way an element token lands
+in the composer that picked it, and opens the panel if it's collapsed. The
+quote sits above the input (the Document's title and line range, up to three
+lines of the text, an X) and nothing is sent until the person sends; that send
+carries it ahead of the typed text as `formatQuoteForChat` writes it. A chat
+holds one quote, and a second Reply in chat replaces it. The bridge is the
+`chatQuoteStore` singleton (`lib/chat-quote-store`): a chat on screen claims the
+**foreground** (the newest claim wins), and a quote asked for while no chat is
+on screen (a terminal tab, the logs) waits for the next chat to claim it.
+_Avoid_: opening a fresh chat for the quote; sending it without the person's
+own words; routing it by the Document instead of the panel.
 
 **Element Targeting**:
 A Composer's one-shot crosshair **pick** of an element in one of its own

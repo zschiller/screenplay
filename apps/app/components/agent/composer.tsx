@@ -448,6 +448,12 @@ export interface ComposerProps {
    * opened first, and ⌘/Ctrl+E is a no-op. Defaults to `true`.
    */
   targetEligible?: boolean
+  /**
+   * Focus the editor whenever this changes, and on mount when it's set: Reply
+   * in chat (#1243) passes its quote's key, so the composer takes focus even
+   * when it mounts after the quote arrived (a Workspace still starting).
+   */
+  focusKey?: number
 }
 
 /**
@@ -488,6 +494,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       className = "relative border-t border-border p-3",
       onPickElement,
       targetEligible = true,
+      focusKey,
     },
     ref
   ) {
@@ -882,6 +889,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     useEffect(() => {
       canPickRef.current = !!onPickElement
     })
+
+    useEffect(() => {
+      if (focusKey === undefined || !editor) return
+      editor.chain().focus("end").run()
+    }, [focusKey, editor])
 
     useImperativeHandle(
       ref,
