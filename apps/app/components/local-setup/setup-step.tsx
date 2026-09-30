@@ -127,9 +127,8 @@ export function StepMarker({
     <span
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full font-semibold tabular-nums",
-        state === "current"
-          ? "size-5 border-[1.5px] border-foreground text-xs"
-          : "size-4 text-xs",
+        "size-5 text-xs",
+        state === "current" && "border-[1.5px] border-foreground",
         state === "upcoming" && "border border-border text-muted-foreground",
         state === "done" && "bg-success-fill text-success-foreground",
         state === "skipped" && "bg-muted text-muted-foreground",
@@ -137,9 +136,9 @@ export function StepMarker({
       )}
     >
       {state === "done" ? (
-        <CheckIcon className="size-2.5" weight="bold" aria-hidden />
+        <CheckIcon className="size-3" weight="bold" aria-hidden />
       ) : state === "skipped" ? (
-        <MinusIcon className="size-2.5" weight="bold" aria-hidden />
+        <MinusIcon className="size-3" weight="bold" aria-hidden />
       ) : (
         <span aria-hidden>{step}</span>
       )}
