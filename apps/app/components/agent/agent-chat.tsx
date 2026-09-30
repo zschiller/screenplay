@@ -4,10 +4,8 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
   useSyncExternalStore,
 } from "react"
-import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import { ClockIcon, XIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
@@ -41,13 +39,7 @@ import {
 import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
 import { targetingStore } from "@/lib/targeting-store"
-import {
-  getDefaultModelId,
-  getModels,
-  type ModelInfo,
-} from "@/lib/models-store"
-import { resolveDefaultModel } from "@/lib/model-selection"
-import { useDefaultModel } from "@/lib/default-model-store"
+import { useModelCatalog } from "@/lib/use-model-catalog"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
@@ -128,17 +120,9 @@ export function AgentChat({
   })
   const workspaceTasks = useWorkspaceTasks()
 
-  const [models, setModels] = useState<ModelInfo[]>([])
-  const [modelsLoaded, setModelsLoaded] = useState(false)
-  const [modelsFailed, setModelsFailed] = useState(false)
-  // Bumped by Retry on a failed model list, to fetch it again.
-  const [modelsAttempt, setModelsAttempt] = useState(0)
-  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
-    null
-  )
-  // The user's default from Settings, live so a change there reaches an open
-  // chat that hasn't picked its own model yet.
-  const userDefaultModel = useDefaultModel()
+  // The model a send uses: this chat's own pick → the user's default from
+  // Settings → the server default → first available (see `lib/model-catalog`).
+  const { model: effectiveModel } = useModelCatalog(model)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ComposerHandle>(null)
@@ -167,28 +151,6 @@ export function AgentChat({
     : chatKind === "room"
       ? "Ask the Coordinator… (@ to mention a document)"
       : "Ask the agent… (@ to mention a document)"
-
-  // Merged App ∪ Repo Skill index for the `/` menu, fetched once on chat open
-  // (see effect below) and handed to the Composer. `skillsLoading` drives the
-  // menu's loading state until the per-Branch index lands.
-  const [skills, setSkills] = useState<SkillMenuItem[]>([])
-  const [skillsLoading, setSkillsLoading] = useState(true)
-
-  // Flip the loading flag on as soon as a new skill fetch is about to start,
-  // using the render-phase previous-value pattern (react.dev "You Might Not
-  // Need an Effect") so we avoid a synchronous setState inside the effect
-  // below; that effect performs the fetch and clears the flag from its async
-  // callback. Keyed by sandbox so a re-fetch (e.g. reopening after editing a
-  // Repo Skill) shows the spinner again. Document chats don't fetch, so their
-  // key is null and the flag never flips on.
-  const skillsFetchKey = isAgentChat ? `${sandboxName ?? ""}` : null
-  const [prevSkillsFetchKey, setPrevSkillsFetchKey] = useState<string | null>(
-    null
-  )
-  if (skillsFetchKey !== prevSkillsFetchKey) {
-    setPrevSkillsFetchKey(skillsFetchKey)
-    if (skillsFetchKey !== null) setSkillsLoading(true)
-  }
 
   // Keep the message list pinned to the bottom as content resolves —
   // react-markdown / code blocks / streaming tokens all change the height
@@ -273,60 +235,6 @@ export function AgentChat({
       container.removeEventListener("scroll", onScroll)
     }
   }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([getModels(), getDefaultModelId()])
-      .then(([list, def]) => {
-        if (cancelled) return
-        setModels(list)
-        setServerDefaultModel(def)
-        setModelsFailed(false)
-        // Only a fetch that answered can say the catalog is empty — the
-        // desktop "no agent detected" state. A failed one says so instead.
-        setModelsLoaded(true)
-      })
-      .catch(() => {
-        if (!cancelled) setModelsFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [modelsAttempt])
-
-  // Load the merged App ∪ Repo Skill index once on chat open (Agent chats
-  // only). Keyed by sandbox so reopening after editing a Repo Skill refetches
-  // the Branch's current list.
-  useEffect(() => {
-    if (!isAgentChat) return undefined
-    let cancelled = false
-    getSkillMenuItems(sandboxName)
-      .then((items) => {
-        if (!cancelled) setSkills(items)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setSkillsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [isAgentChat, sandboxName])
-
-  // Precedence: per-chat override (set by `onModelChange`) → the user's
-  // default from Settings → server-side default for the configured provider
-  // set → first available. See `resolveDefaultModel`.
-  const defaultModel = resolveDefaultModel({
-    stored: userDefaultModel,
-    serverDefault: serverDefaultModel,
-    models,
-  })
-  const effectiveModel = resolveDefaultModel({
-    perSession: model,
-    stored: userDefaultModel,
-    serverDefault: serverDefaultModel,
-    models,
-  })
 
   // Picking a model here changes only this chat, from its next turn on (the
   // server re-reads the model every turn); the default lives in Settings.
@@ -563,15 +471,11 @@ export function AgentChat({
       <Composer
         ref={composerRef}
         markdownLayers={markdownLayers}
-        skills={skills}
-        skillsLoading={skillsLoading}
-        enableSkills={isAgentChat}
-        models={models}
-        modelsLoaded={modelsLoaded}
-        modelsFailed={modelsFailed}
-        onRetryModels={() => setModelsAttempt((n) => n + 1)}
-        model={effectiveModel}
-        defaultModel={defaultModel}
+        // The `/` menu lists this Branch's merged App ∪ Repo Skills, fetched
+        // when the chat opens (so reopening after editing a Repo Skill
+        // refreshes it); Document and Coordinator chats have no Skills.
+        skillSource={isAgentChat ? { sandboxName } : undefined}
+        model={model}
         onModelChange={handleModelChange}
         planMode={planMode}
         onPlanModeChange={isAgentChat ? onPlanModeChange : undefined}

@@ -34,14 +34,7 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { Composer, type ComposerHandle } from "@/components/agent/composer"
 import { BranchPicker } from "@/components/branch-picker"
-import {
-  getDefaultModelId,
-  getModels,
-  type ModelInfo,
-} from "@/lib/models-store"
-import { resolveDefaultModel } from "@/lib/model-selection"
-import { useDefaultModel } from "@/lib/default-model-store"
-import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
+import { useModelCatalog } from "@/lib/use-model-catalog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import {
   appendClonedRow,
@@ -141,63 +134,10 @@ export function CreateBranchDialog({
   // The base each row seeds on: the explicit `baseBranch` (the "New branch from
   // here…" source, #353) when given, else the Repo default.
   const seedBase = baseBranch ?? seedRepo?.defaultBranch ?? ""
-  const [models, setModels] = useState<ModelInfo[]>([])
-  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
-    null
-  )
-  const [skills, setSkills] = useState<SkillMenuItem[]>([])
-  const [skillsLoading, setSkillsLoading] = useState(true)
-
-  const [modelsFailed, setModelsFailed] = useState(false)
-  // Bumped by Retry on a failed model list, to fetch it again.
-  const [modelsAttempt, setModelsAttempt] = useState(0)
-
-  // Load the model catalog + server default while the dialog is open.
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    Promise.all([getModels(), getDefaultModelId()])
-      .then(([list, def]) => {
-        if (cancelled) return
-        setModels(list)
-        setServerDefaultModel(def)
-        setModelsFailed(false)
-      })
-      .catch(() => {
-        if (!cancelled) setModelsFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open, modelsAttempt])
-
-  // Load the `/`-Skill menu while the dialog is open. There's no Sandbox yet,
-  // so this is App Skills only (resolveSkillMenuSource with no Sandbox, #320);
-  // `getSkillMenuItems()` with no sandbox returns exactly that App-only set.
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    getSkillMenuItems()
-      .then((list) => {
-        if (!cancelled) setSkills(list)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setSkillsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open])
-
-  // The user's default from Settings wins over the server default; see
-  // `resolveDefaultModel` for the full precedence and stale-id guarding.
-  const userDefaultModel = useDefaultModel()
-  const initialModel = resolveDefaultModel({
-    stored: userDefaultModel,
-    serverDefault: serverDefaultModel,
-    models,
-  })
+  // New Workspaces start from the user's default model (Settings), else the
+  // server's; see `lib/model-catalog`. With no coding agent at all there's
+  // nothing to run a Workspace's chat, so Create waits for one.
+  const { defaultModel: initialModel, noAgents } = useModelCatalog()
 
   // Seed the rows from the chosen base + resolved default, re-seeding (back to
   // a single fresh row) whenever the dialog reopens or the resolved seed values
@@ -300,12 +240,6 @@ export function CreateBranchDialog({
                   row={row}
                   focused={idx === focusedIndex}
                   canRemove={rows.length > 1}
-                  models={models}
-                  modelsFailed={modelsFailed}
-                  onRetryModels={() => setModelsAttempt((n) => n + 1)}
-                  defaultModel={initialModel}
-                  skills={skills}
-                  skillsLoading={skillsLoading}
                   markdownLayers={markdownLayers}
                   repos={repos}
                   onRemove={() => removeRowAt(idx)}
@@ -348,7 +282,7 @@ export function CreateBranchDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submitAll}>
+          <Button onClick={submitAll} disabled={noAgents}>
             {rows.length === 1
               ? "Create workspace"
               : `Create ${rows.length} workspaces`}
@@ -366,14 +300,6 @@ interface WorkspaceRowProps {
   focused: boolean
   /** Whether a remove control is offered (hidden when a single row remains). */
   canRemove: boolean
-  models: ModelInfo[]
-  /** The model list failed to load; the Composer says so with Retry. */
-  modelsFailed: boolean
-  onRetryModels: () => void
-  /** The model new Workspaces start from, so a row on another one says so. */
-  defaultModel: string
-  skills: SkillMenuItem[]
-  skillsLoading: boolean
   markdownLayers: MarkdownLayerData[]
   /** The canvas's Repos; the row offers a repository chip when there are several. */
   repos: RepoData[]
@@ -398,12 +324,6 @@ function WorkspaceRow({
   row,
   focused,
   canRemove,
-  models,
-  modelsFailed,
-  onRetryModels,
-  defaultModel,
-  skills,
-  skillsLoading,
   markdownLayers,
   repos,
   onRemove,
@@ -516,14 +436,9 @@ function WorkspaceRow({
           // `/`-Skills are enabled and serialize through the Message-Markers
           // codec into the submitted text, exactly as in a live chat.
           markdownLayers={markdownLayers}
-          skills={skills}
-          skillsLoading={skillsLoading}
-          enableSkills
-          models={models}
-          modelsFailed={modelsFailed}
-          onRetryModels={onRetryModels}
+          // No Sandbox yet, so the `/` menu lists App Skills only (#320).
+          skillSource={{}}
           model={row.model}
-          defaultModel={defaultModel}
           onModelChange={onModelChange}
           planMode={row.planMode}
           onPlanModeChange={onPlanModeChange}
