@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { db } from "@/lib/db"
 import {
@@ -206,11 +206,17 @@ export async function loadAcpHistoryForModel(
  * themselves go through the run-state machine (`run-state.ts`); this is a
  * read-only lookup.
  */
-export async function findActiveRun(
-  chatId: string
-): Promise<{ id: string; status: "running" | "paused_for_plan" } | null> {
+export async function findActiveRun(chatId: string): Promise<{
+  id: string
+  status: "running" | "paused_for_plan"
+  steers: boolean | null
+} | null> {
   const [row] = await db
-    .select({ id: agentRun.id, status: agentRun.status })
+    .select({
+      id: agentRun.id,
+      status: agentRun.status,
+      steers: agentRun.steers,
+    })
     .from(agentRun)
     .where(
       and(
@@ -221,7 +227,25 @@ export async function findActiveRun(
     .orderBy(desc(agentRun.startedAt))
     .limit(1)
   if (!row) return null
-  return { id: row.id, status: row.status as "running" | "paused_for_plan" }
+  return {
+    id: row.id,
+    status: row.status as "running" | "paused_for_plan",
+    steers: row.steers,
+  }
+}
+
+/**
+ * Record whether a run takes Steers, as its Engine reported once its session
+ * opened (#1250). Written once: a later report never changes the answer.
+ */
+export async function recordRunSteering(
+  runId: string,
+  steers: boolean
+): Promise<void> {
+  await db
+    .update(agentRun)
+    .set({ steers })
+    .where(and(eq(agentRun.id, runId), isNull(agentRun.steers)))
 }
 
 /**

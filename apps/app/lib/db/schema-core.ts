@@ -245,6 +245,9 @@ export const agentRun = pgTable(
       .default("running"),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     endedAt: timestamp("ended_at"),
+    // Whether the run takes Steers (#1250), as its Engine reported once its
+    // session opened. Null until then: a message sent meanwhile is queued.
+    steers: boolean("steers"),
   },
   (t) => [index("agent_run_chat_idx").on(t.chatId, t.startedAt)]
 )

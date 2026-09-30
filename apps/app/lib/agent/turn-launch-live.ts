@@ -25,6 +25,7 @@ import {
   getChatModel,
   latestRunStatus,
   loadAcpHistory,
+  recordRunSteering,
   upsertAcpToolCall,
   upsertChat,
 } from "./persistence"
@@ -147,6 +148,7 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
     }),
   runAfterResponse: (task) => after(task),
   findActiveRun,
+  recordSteering: recordRunSteering,
   isRunActive,
   latestRunStatus,
   steers: steerInbox,

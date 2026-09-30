@@ -1,5 +1,5 @@
 import type { Tool } from "ai"
-import { supportsSteering, type Engine } from "./acp/engine-seam"
+import type { Engine } from "./acp/engine-seam"
 import type { SessionUpdate } from "./acp/schema"
 import { userMessageChunk } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
@@ -104,6 +104,12 @@ export interface EngineTurnLaunch {
    * writes is dropped rather than shown (#1224).
    */
   wake?: boolean
+  /**
+   * Where the Engine reports, once its session is open, whether this run takes
+   * Steers (#1250). Turn Launch records the first answer on the run and tells
+   * clients; later reports change nothing.
+   */
+  reportSteering(steers: boolean): Promise<void>
 }
 
 /**
@@ -165,10 +171,17 @@ export interface TurnLaunchDeps {
   wakeCoordinator(end: WorkspaceTurnEnd): Promise<void>
   /** Schedule work to run after the HTTP response (`after()` in production). */
   runAfterResponse(task: () => Promise<void>): void
-  /** The chat's run that hasn't finished, if any. */
-  findActiveRun(
-    chatId: string
-  ): Promise<{ id: string; status: "running" | "paused_for_plan" } | null>
+  /**
+   * The chat's run that hasn't finished, if any, with whether it takes Steers
+   * (null until its Engine has said).
+   */
+  findActiveRun(chatId: string): Promise<{
+    id: string
+    status: "running" | "paused_for_plan"
+    steers: boolean | null
+  } | null>
+  /** Record on the run whether it takes Steers; the first answer stands. */
+  recordSteering(runId: string, steers: boolean): Promise<void>
   /** Whether a run is still `running`. */
   isRunActive(runId: string): Promise<boolean>
   /** The status of the chat's most recent run, if it has one. */
@@ -181,7 +194,10 @@ export type TurnLaunchResult =
   | { kind: "started"; runId: string }
   /** The chat's run was working; the message joined it as a pending Steer. */
   | { kind: "steered"; steerId: string }
-  /** The chat's run was working on an Engine that can't take a Steer. */
+  /**
+   * The chat's run was working and doesn't take Steers, or hasn't said yet
+   * whether it does. The sender queues the message.
+   */
   | { kind: "not-steerable" }
   | { kind: "target-not-found" }
   /** The plan decision arrived after the plan was already resolved. */
@@ -194,10 +210,11 @@ export type TurnLaunchResult =
  * 1. Resolve the Engine before any side effect, so a misconfigured deployment
  *    fails loud at the boundary instead of after writes (ADR 0006).
  * 2. Never supersede a running run by sending (#1190). While the chat's run
- *    is `running`, the message becomes a pending Steer on it when the Engine
- *    can steer, and is refused as "not steerable" when it can't, so the
- *    client queues it. Nothing else happens for a Steer: the Engine settles
- *    it into the transcript when it takes it.
+ *    is `running`, the message becomes a pending Steer on it when the run
+ *    takes Steers, and is refused as "not steerable" when it doesn't or its
+ *    Engine hasn't said yet (#1250), so the sender queues it. Nothing else
+ *    happens for a Steer: the Engine settles it into the transcript when it
+ *    takes it.
  * 3. Let the target prepare (its own writes).
  * 4. Resolve the chat's plan, the one way a plan is ever resolved: the human's
  *    explicit decision when resuming, otherwise an implicit rejection of any
@@ -205,12 +222,14 @@ export type TurnLaunchResult =
  *    on a plan that is no longer pending stops here.
  * 5. Persist the user message before starting the run. A retry of a failed
  *    turn persists and echoes nothing: its ask is already the chat's last.
- * 6. Broadcast `chat-stream-start` before whether the turn is steerable, the
- *    plan card flip and the user echo. Clients replay back to the latest start marker and the event log
+ * 6. Broadcast `chat-stream-start` before the plan card flip and the user
+ *    echo. Clients replay back to the latest start marker and the event log
  *    is trimmed on each start, so anything emitted earlier is lost to a
  *    client joining mid-stream.
  * 7. After the response, rename the claimed git branch, then drive the Engine
  *    turn, with the comment request started before it and settled after it.
+ *    Whether the run takes Steers is known only once the Engine's session is
+ *    open: its first report is recorded on the run, then broadcast.
  * 8. Steers the run never took don't wait: when it completed, failed or
  *    paused for a plan, they start the next turn at once, joined oldest first
  *    into one message; when it was stopped, they go back to their sender.
@@ -243,7 +262,7 @@ export async function launchTurn(
     request.retry === true && (await deps.latestRunStatus(chatId)) === "failed"
 
   if (!request.planDecision && !retry) {
-    const steered = await steerRunningTurn(deps, request, engine)
+    const steered = await steerRunningTurn(deps, request)
     if (steered) return steered
   }
 
@@ -259,10 +278,6 @@ export async function launchTurn(
   const runId = await deps.startRun(chatId)
 
   await deps.broadcastStreamStart(roomId, chatId)
-  await deps.broadcastControl(roomId, chatId, {
-    kind: "steerable",
-    steerable: supportsSteering(engine),
-  })
   if (resolvedPlan) {
     await deps.broadcastControl(roomId, chatId, {
       kind: "plan_resolved",
@@ -297,6 +312,7 @@ export async function launchTurn(
       tools: prepared.tools,
       planMode: prepared.planMode,
       wake: Boolean(parseUserMessage(prepared.userText).wakeFrom),
+      reportSteering: reportSteeringOnce(deps, { roomId, chatId, runId }),
     })
     if (commentRequest) {
       await deps.settleCommentRequest({
@@ -332,13 +348,12 @@ export async function launchTurn(
  */
 async function steerRunningTurn(
   deps: TurnLaunchDeps,
-  request: TurnRequest,
-  engine: Engine
+  request: TurnRequest
 ): Promise<TurnLaunchResult | null> {
   const { roomId, chatId, message } = request
   const active = await deps.findActiveRun(chatId)
   if (active?.status !== "running") return null
-  if (!supportsSteering(engine)) return { kind: "not-steerable" }
+  if (active.steers !== true) return { kind: "not-steerable" }
 
   const steer = await deps.steers.add({
     runId: active.id,
@@ -361,6 +376,27 @@ async function steerRunningTurn(
     return null
   }
   return { kind: "steered", steerId: steer.id }
+}
+
+/**
+ * The run's steering report port (#1250): the first answer is recorded on the
+ * run before clients hear it, so no send is taken as a Steer on a run that
+ * hasn't said yes.
+ */
+function reportSteeringOnce(
+  deps: TurnLaunchDeps,
+  run: { roomId: string; chatId: string; runId: string }
+): (steers: boolean) => Promise<void> {
+  let reported = false
+  return async (steers) => {
+    if (reported) return
+    reported = true
+    await deps.recordSteering(run.runId, steers)
+    await deps.broadcastControl(run.roomId, run.chatId, {
+      kind: "steerable",
+      steerable: steers,
+    })
+  }
 }
 
 /** Run outcomes whose leftover Steers start the next turn right away. */

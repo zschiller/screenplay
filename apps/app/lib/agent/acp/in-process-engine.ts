@@ -92,6 +92,8 @@ export class InProcessEngine implements UsageReportingEngine, SteeringEngine {
     signal: AbortSignal
   ): Promise<void> {
     this.usage = null
+    // No session to open: every run of this engine takes Steers (#1250).
+    if (turn.takeSteers) await turn.reportSteering?.(true)
     // Deterministic, cache-stable rebuild of the model's input from ACP-native
     // history (the carried prompt-cache risk — see the adapter).
     let messages = withConversationCacheBreakpoint(

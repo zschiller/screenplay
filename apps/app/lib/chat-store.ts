@@ -41,8 +41,8 @@ export type ChatState = {
    */
   pendingSteers: PendingSteer[]
   /**
-   * Whether the running turn can take Steers, as the server said when it
-   * started. Null until it says; a send then tries to steer.
+   * Whether the running turn takes Steers, as the server said once its
+   * Engine's session opened (#1250). Null until it says; a send then queues.
    */
   steerable: boolean | null
   /**
@@ -148,8 +148,9 @@ export type ChatControlEvent =
   // `chat-stream-end`, so every client drops the same "Stopped" marker into the
   // transcript that a reload rebuilds from the run's `aborted` status.
   | { kind: "stopped" }
-  // Whether the turn that just started can be steered (#1190). Sent after
-  // `chat-stream-start`, so a client joining mid-run learns it on replay.
+  // Whether the running turn takes Steers (#1190), sent once its Engine's
+  // session is open (#1250). After `chat-stream-start`, so a client joining
+  // mid-run learns it on replay.
   | { kind: "steerable"; steerable: boolean }
   // A message sent mid-run joined the run as a pending Steer (#1190).
   | { kind: "steer_pending"; steer: { id: string; message: string } }
@@ -469,7 +470,8 @@ class ChatStore {
   /**
    * Send a turn. While a run is going, the message steers it (#1190): it shows
    * as a pending Steer at once, and the server joins it to the run. Where the
-   * run can't be steered it waits in the queue instead, until the run ends.
+   * run doesn't take Steers, or hasn't said yet whether it does (#1250), it
+   * waits in the queue instead, until the run ends.
    * Resolves `true` once the server has accepted it (or it's queued), `false`
    * when it was refused — the text is then held in `failedSend` for Retry or
    * Edit, never dropped.
@@ -484,7 +486,7 @@ class ChatStore {
     if (!opts.message.trim()) return false
     this.askedHere.add(chatId)
     if (state.isStreaming) {
-      if (state.steerable === false) {
+      if (state.steerable !== true) {
         this.enqueue(opts)
         return true
       }
@@ -776,6 +778,8 @@ class ChatStore {
         this.update(chatId, {
           isStreaming: true,
           runStart: Math.max(0, messages.length - (echoed ? 1 : 0)),
+          // Not steerable until the run says it is.
+          steerable: null,
         })
         break
 

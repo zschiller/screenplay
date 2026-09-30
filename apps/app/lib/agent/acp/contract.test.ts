@@ -75,20 +75,20 @@ describe("ExternalEngine — steering", () => {
     },
   })
 
-  it("declines Steers on a Harness that doesn't queue prompts, and takes none", async () => {
+  it("reports no Steers once the session is open on a Harness that doesn't queue prompts, and takes none", async () => {
     const takeSteers = vi.fn(async () => [])
-    const declineSteers = vi.fn(async () => {})
+    const reportSteering = vi.fn(async (_steers: boolean) => {})
     const updates: EngineUpdate[] = []
     await new ExternalEngine({
       sessionFactory: acpSessionFactoryFromDriver(reply()),
     }).run(
-      { ...turn, takeSteers, declineSteers },
+      { ...turn, takeSteers, reportSteering },
       (u) => {
         updates.push(u)
       },
       new AbortController().signal
     )
-    expect(declineSteers).toHaveBeenCalledTimes(1)
+    expect(reportSteering.mock.calls).toEqual([[false]])
     expect(takeSteers).not.toHaveBeenCalled()
     expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
   })
@@ -245,19 +245,19 @@ describe("ExternalEngine — steering", () => {
     expect(close).not.toHaveBeenCalled()
   })
 
-  it("keeps Steers on a Harness that queues prompts, checking once before it finishes", async () => {
+  it("reports Steers on a Harness that queues prompts, checking once before it finishes", async () => {
     const takeSteers = vi.fn(async () => [])
-    const declineSteers = vi.fn(async () => {})
+    const reportSteering = vi.fn(async (_steers: boolean) => {})
     await new ExternalEngine({
       sessionFactory: acpSessionFactoryFromDriver(reply(), {
         promptQueueing: true,
       }),
     }).run(
-      { ...turn, takeSteers, declineSteers },
+      { ...turn, takeSteers, reportSteering },
       () => {},
       new AbortController().signal
     )
-    expect(declineSteers).not.toHaveBeenCalled()
+    expect(reportSteering.mock.calls).toEqual([[true]])
     expect(takeSteers).toHaveBeenCalledTimes(1)
   })
 })

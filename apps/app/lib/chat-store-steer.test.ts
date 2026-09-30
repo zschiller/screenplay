@@ -90,6 +90,7 @@ describe("chat-store — steering a running turn (#1190)", () => {
   it("names its own pending Steer when the broadcast beats the answer", async () => {
     const chatId = newChat()
     startRun(chatId)
+    control(chatId, { kind: "steerable", steerable: true })
     let resolve!: (v: unknown) => void
     vi.stubGlobal(
       "fetch",
@@ -131,9 +132,10 @@ describe("chat-store — steering a running turn (#1190)", () => {
     chatStore.cleanup(chatId)
   })
 
-  it("falls back to the Queued row when the run can't be steered", async () => {
+  it("falls back to the Queued row when the server says the run can't be steered", async () => {
     const chatId = newChat()
     startRun(chatId)
+    control(chatId, { kind: "steerable", steerable: true })
     answer({ error: "not_steerable" }, 409)
 
     expect(await send(chatId, "then the cart", { type: "doc" })).toBe(true)
@@ -150,6 +152,7 @@ describe("chat-store — steering a running turn (#1190)", () => {
   it("a run that ended meanwhile starts a turn with the message, which its echo shows", async () => {
     const chatId = newChat()
     startRun(chatId)
+    control(chatId, { kind: "steerable", steerable: true })
     answer({ chatId, runId: "run_2" })
 
     await send(chatId, "one more thing")
@@ -178,6 +181,7 @@ describe("chat-store — steering a running turn (#1190)", () => {
   it("puts Steers a stop handed back into the sender's composer, and nobody else's", async () => {
     const chatId = newChat()
     startRun(chatId)
+    control(chatId, { kind: "steerable", steerable: true })
     answer({ steered: true, steerId: "s1" })
     const draft = { type: "doc", content: [] }
     await send(chatId, "actually, wait", draft)
@@ -201,5 +205,45 @@ describe("chat-store — steering a running turn (#1190)", () => {
     ])
     expect(chatStore.getSnapshot(chatId).returnedSteers).toEqual([])
     chatStore.cleanup(chatId)
+  })
+
+  describe("until the run says it steers (#1250)", () => {
+    it("queues a send before the run has said, with no pending Steer", async () => {
+      const chatId = newChat()
+      startRun(chatId)
+      const fetchMock = answer({ steered: true, steerId: "s1" })
+
+      expect(await send(chatId, "and the footer")).toBe(true)
+
+      const state = chatStore.getSnapshot(chatId)
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(state.pendingSteers).toEqual([])
+      expect(state.queued).toMatchObject([{ message: "and the footer" }])
+      chatStore.cleanup(chatId)
+    })
+
+    it("queues a send on a run that said it doesn't steer (Codex), with no pending Steer", async () => {
+      const chatId = newChat()
+      startRun(chatId)
+      control(chatId, { kind: "steerable", steerable: false })
+      const fetchMock = answer({ steered: true, steerId: "s1" })
+
+      expect(await send(chatId, "and the footer")).toBe(true)
+
+      const state = chatStore.getSnapshot(chatId)
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(state.pendingSteers).toEqual([])
+      expect(state.queued).toMatchObject([{ message: "and the footer" }])
+      chatStore.cleanup(chatId)
+    })
+
+    it("forgets the last run's answer when a new run starts", () => {
+      const chatId = newChat()
+      startRun(chatId)
+      control(chatId, { kind: "steerable", steerable: true })
+      startRun(chatId)
+      expect(chatStore.getSnapshot(chatId).steerable).toBeNull()
+      chatStore.cleanup(chatId)
+    })
   })
 })
