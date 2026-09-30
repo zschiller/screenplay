@@ -1,17 +1,17 @@
 ---
 name: design-exploration
-description: Design exploration answers one design question with lettered options on one page, then tickets the owner's pick. Use when asked to explore, mock up, compare or rethink how a screen, flow, component or visual system should look or work.
+description: Design exploration answers one design question with lettered options on one page, and ends at recording the owner's pick. Use when asked to explore, mock up, compare or rethink how a screen, flow, component or visual system should look or work.
 ---
 
 # Design exploration
 
-An **exploration** answers one design question with **options**: distinct, lettered answers (A, B, C) shown side by side on one published Artifact, next to **Today** (what main does now). A **round** is one pass of options; the owner's reaction starts the next. A **pick** is the owner's answer. Nothing is built or ticketed until the pick.
+An **exploration** answers one design question with **options**: distinct, lettered answers (A, B, C) shown side by side on one published Artifact, next to **Today** (what main does now). A **round** is one pass of options; the owner's reaction starts the next. A **pick** is the owner's answer. An exploration ends when its picks are recorded; building starts only when the owner asks for it.
 
 An exploration is the sibling of [`design-audit`](../design-audit/SKILL.md): an audit finds many problems across a surface and asks its calls on a decisions page; an exploration takes one question (the owner's, or one audit call that needs mockups to answer) and settles it. For a question that needs working code to feel out, such as an interaction or a state model, build a prototype instead (the `prototype` skill when the repo has one).
 
 ## 1. Frame the question
 
-1. Quote the owner's words at the top of the page, then state the question in one line. The options answer that question and no other: every option traces to the owner's words or to a fact in the code. An example you invent to explain an option stays an example, not an option or a ticket.
+1. Quote the owner's words at the top of the page, then state the question in one line. The options answer that question and no other: every option traces to the owner's words or to a fact in the code. An example you invent to explain an option stays an example, not an option.
 2. Take an **inventory** of Today on main: every place the thing appears, with real captures, and the numbers that matter (sizes, colours, counts, which component). Measure them from the DOM rather than eyeballing a screenshot. List the facts that constrain the answer, citing `file:line`.
 3. Gather the owner's design rules as [`RULES.md`](RULES.md) describes, and read the exploration's own topic file if this is a later round. Drop any option that a rule or an earlier rejection already settles.
 
@@ -50,12 +50,15 @@ When the owner reacts:
 - A rejection ends that direction. Record it in the topic file's never-re-offer list, and build the next round from what the owner said they wanted, not a variant of what they rejected.
 - Details the owner wants to decide themselves stay open: ask them, rather than defaulting to your pick.
 
-## 6. Record and ticket
+## 6. Record the picks
 
 Once every question has a pick:
 
 1. Write or update the exploration's topic file in memory (`<subject>-exploration`): the owner's quote, the Artifact link, the options, each round's feedback, the picks, the never-re-offer list, and how the captures were made.
-2. File one ticket per decision in the repo's tracker, using its ticketing skill when it has one (such as `to-tickets`, or `to-spec` for one larger change). Each ticket links the Artifact, names the option picked, and carries the repo's ready-to-build label. Record dependencies between tickets the way the tracker's docs say.
-3. Resolve the exploration thread. Building happens in one thread per ticket, one PR each, with the screenshots RULES.md's PR evidence rule asks for.
+2. Reply with the picks in one line each, linking the Artifact, and stop there. Tickets, triage labels and build threads come later, from the owner: the exploration hands them its record and leaves creating them to the owner's own ask.
 
-Done when memory holds the picks, every decision has a ticket linking the Artifact, and the tickets' blocking edges are set.
+Done when memory holds every pick, the owner has the summary, and the tracker is unchanged.
+
+## When the owner asks to build
+
+Only on the owner's explicit ask to build a pick: draft tickets from the topic file with the repo's ticketing skill (such as `to-tickets`, or `to-spec` for one larger change), each linking the Artifact and naming the option picked, and show them to the owner. Labels and dependencies follow the tracker's docs and the owner's answer. Each ticket is built in its own thread and PR, with the screenshots RULES.md's PR evidence rule asks for.
