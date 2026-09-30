@@ -240,7 +240,10 @@ describe("ExternalEngine — steering", () => {
     expect(updates.filter((u) => u.kind === "done")).toHaveLength(1)
   })
 
-  it("a turn that ends on its own leaves the agent be", async () => {
+  // Every turn ends its agent, so the next turn's `session/load` doesn't meet a
+  // live one: Codex's adapter refuses a load while another process holds the
+  // thread (#1271).
+  it("a turn that ends on its own ends its agent too", async () => {
     const close = vi.fn()
     const inner = acpSessionFactoryFromDriver(reply(), { promptQueueing: true })
     await new ExternalEngine({
@@ -252,7 +255,7 @@ describe("ExternalEngine — steering", () => {
         },
       },
     }).run(turn, () => {}, new AbortController().signal)
-    expect(close).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledTimes(1)
   })
 
   it("reports Steers on a Harness that queues prompts, checking once before it finishes", async () => {
