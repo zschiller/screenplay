@@ -1,7 +1,6 @@
 {
   "extends": "@workspace/typescript-config/nextjs.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "noUncheckedIndexedAccess": false,
     "declaration": false,
     "declarationMap": false,
