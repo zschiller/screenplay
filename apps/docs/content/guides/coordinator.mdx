@@ -27,8 +27,14 @@ does it look?"
 The Coordinator can also arrange the canvas. Ask it to add frames for a
 workspace's routes, add a document, move or rename frames, groups and
 documents, gather frames into a group, merge groups, or remove frames and
-documents. It does these right away, without asking first. Removing a frame
-never removes its workspace.
+documents. It can tidy the canvas too, or line groups up side by side, in a
+column or in a grid, spaced so nothing overlaps. It does these right away,
+without asking first. Removing a frame never removes its workspace.
+
+It can move your view as well. Ask it to "zoom to the cart", "take me to the
+split screen variant" or "show me everything", and your canvas moves to fit
+it. After it arranges something you asked for, it shows you the result. Only
+the view of the person who asked moves; everyone else's stays where it is.
 
 To take a change back, ask it: "undo that". It keeps what each of its replies
 changed, so a frame or document it removed comes back exactly as it was, and
@@ -168,12 +174,13 @@ Its tool calls show as compact rows, like a workspace agent's. Once a change
 to the canvas finishes, its row says what changed, such as **Renamed Group
 "Hero" to "Sign-in"**.
 
-| Kind       | Rows                                                                                                                         |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Read       | **Read canvas**, **Read document**, **Read Workspace chat**, **Read Workspace diff**, **Read Workspace file**, **View frame**, **Read skill** |
-| Arrange    | **Create frames**, **Create document**, **Move group**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes** |
-| Workspaces | **Create Workspaces**, **Stop Workspace**, **Open pull request**, **Remove Workspace**                                       |
-| Memory     | **Save to memory**                                                                                                           |
+| Kind       | Rows                                                                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read       | **Read canvas**, **Read document**, **Read Workspace chat**, **Read Workspace diff**, **Read Workspace file**, **View frame**, **Read skill**                               |
+| Arrange    | **Create frames**, **Create document**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes** |
+| View       | **Show on canvas**                                                                                                                                                          |
+| Workspaces | **Create Workspaces**, **Stop Workspace**, **Open pull request**, **Remove Workspace**                                                                                      |
+| Memory     | **Save to memory**                                                                                                                                                          |
 
 A message to a workspace shows as its [card](#messages-to-workspaces) rather
 than a row. When the Coordinator runs on Claude Code or Codex on
