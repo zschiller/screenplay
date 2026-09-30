@@ -512,10 +512,11 @@ A user message sent into a Chat Session while its run is `running`. It joins
 that run instead of starting a new one: it is **pending** until the Engine takes
 it at a step boundary, and **taken** from then on, when it becomes an ordinary
 user message where the Engine took it. A Steer the run never took starts the
-next turn, or, when the user stopped the run, goes back to its sender. Only an
-Engine with the steering capability takes Steers: the in-process engine, and
-the external engine on a Harness that queues prompts (Claude Code); elsewhere a
-mid-run message waits in the client's queue.
+next turn, or, when the user stopped the run, goes back to its sender. Whether a
+run takes Steers is a fact about the run, recorded once its Engine's session
+opens: yes on the in-process engine and on a Harness that queues prompts
+(Claude Code), no elsewhere. Until the run says yes, a mid-run message waits in
+the client's queue.
 _Shown to users as_: a dimmed user message, "Waiting for the agent", at the end
 of the chat.
 _Avoid_: queued message (the fallback where a chat can't steer), interrupt;

@@ -258,25 +258,25 @@ the legacy machinery is **deleted**, not parallel.
 ### Steering capability (#1190)
 
 A message sent while a run is `running` joins it as a **Steer** instead of
-superseding it. Steering is a capability sub-interface, `SteeringEngine`, behind
-the `supportsSteering` guard, not an optional method on the core. The Engine
-turn carries a pull port, `takeSteers`, which takes the run's pending Steers
+superseding it. The Engine turn carries a pull port, `takeSteers`, which takes the run's pending Steers
 from a database inbox (`agent_steer`: the send and the Engine run in different
 server invocations), settles them through the consumer as ordinary ACP `user`
 records and `user_message_chunk` broadcasts, and returns them oldest first.
 The in-process engine calls it in `prepareStep` and, before a turn would
 finish, once more, continuing with a further `streamText` pass when some are
-waiting. Turn Launch answers "steered" or "not steerable" by the guard, and
-starts the next turn with any Steers a completed, failed or plan-paused run
+waiting. Turn Launch answers "steered" or "not steerable" by what the run
+recorded (below), and starts the next turn with any Steers a completed, failed or plan-paused run
 left behind (a stopped run hands them back).
 
-The external engine has the capability too (#1191), but only a Harness whose
-adapter advertises prompt queueing at initialize (the Claude adapter's
-`_meta.claudeCode.promptQueueing`) can use it, and the engine only learns that
-once the session is open. So the turn carries a second port, `declineSteers`:
-on any other Harness the engine calls it and the route broadcasts
-`steerable: false`, so clients queue; a Steer that joined before then starts
-the next turn. On a queueing Harness the engine takes Steers when a tool call
+The external engine steers too (#1191), but only on a Harness whose adapter
+advertises prompt queueing at initialize (the Claude adapter's
+`_meta.claudeCode.promptQueueing`), and the engine only learns that once the
+session is open. So steerability is a fact about the run, not a static
+capability of the Engine (#1250, #1251): the turn carries a second port,
+`reportSteering`, which every Engine calls once its session is open. Turn
+Launch records the first answer on `agent_run.steers` and broadcasts
+`steerable`; until the run says yes, a mid-run send is refused as not steerable
+and clients queue it. On a queueing Harness the engine takes Steers when a tool call
 finishes and when its newest prompt resolves, and sends each as a further
 `session/prompt` on the live session. The adapter resolves the earlier prompt
 `end_turn` when it hands over to the next, so that is not the end of the turn:

@@ -1,10 +1,5 @@
 import type { AcpUpdateConsumer } from "./consumer"
-import {
-  supportsSteering,
-  type Engine,
-  type EngineTurn,
-  type TakenSteer,
-} from "./engine-seam"
+import type { Engine, EngineTurn, TakenSteer } from "./engine-seam"
 
 /** How often the abort watchdog polls the run's liveness. */
 const ABORT_POLL_INTERVAL_MS = 250
@@ -21,14 +16,13 @@ export interface DriveTurnDeps {
   pollIntervalMs?: number
   /**
    * Take the run's pending Steers (#1190), oldest first. Present where the
-   * route keeps a Steer inbox; a steering Engine calls it at each step
-   * boundary.
+   * route keeps a Steer inbox; the Engine calls it at each step boundary of a
+   * run that steers.
    */
   takeSteers?(runId: string): Promise<TakenSteer[]>
   /**
-   * Where the run's answer to "does it take Steers?" goes (#1250). A steering
-   * Engine reports once its session is open; for any other the answer is no,
-   * given before the Engine runs.
+   * Where the run's answer to "does it take Steers?" goes (#1250). The Engine
+   * reports once its session is open.
    */
   reportSteering?(steers: boolean): Promise<void>
 }
@@ -77,27 +71,24 @@ export async function driveEngineTurn(
     )
   }, deps.pollIntervalMs ?? ABORT_POLL_INTERVAL_MS)
 
-  // A steering Engine pulls the run's pending Steers at each step boundary;
-  // they are settled into the transcript before the Engine hands them to the
+  // A run that steers pulls its pending Steers at each step boundary; they
+  // are settled into the transcript before the Engine hands them to the
   // model, so the log and every client put them where the agent took them.
   const { takeSteers, reportSteering } = deps
-  const canSteer = Boolean(takeSteers) && supportsSteering(engine)
-  if (!canSteer) await reportSteering?.(false)
-  const steerable =
-    takeSteers && canSteer
-      ? {
-          ...turn,
-          takeSteers: async () => {
-            if (controller.signal.aborted) return []
-            const steers = await takeSteers(turn.runId)
-            await consumer.acceptSteers(steers)
-            return steers
-          },
-          reportSteering: async (steers: boolean) => {
-            await reportSteering?.(steers)
-          },
-        }
-      : turn
+  const steerable = takeSteers
+    ? {
+        ...turn,
+        takeSteers: async () => {
+          if (controller.signal.aborted) return []
+          const steers = await takeSteers(turn.runId)
+          await consumer.acceptSteers(steers)
+          return steers
+        },
+        reportSteering: async (steers: boolean) => {
+          await reportSteering?.(steers)
+        },
+      }
+    : turn
 
   try {
     await engine.run(
