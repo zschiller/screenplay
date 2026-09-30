@@ -416,6 +416,23 @@ describe("arrange_groups", () => {
     ).toBe('Moved Group "a" to 300, 100. It now overlaps "b", "c".')
   })
 
+  it("lines a grid's columns up with the widest Group in each", async () => {
+    const r = room()
+    pile(r)
+    r.collections.iframeLayers.update("f-a", { width: 1000 })
+    await r.turn()("arrange_groups", {
+      group_ids: ["b", "a", "c"],
+      layout: "grid",
+      columns: 2,
+    })
+    // "c" starts row two under "b", and "a" sits right of the wide column.
+    expect(corners(r)).toEqual([
+      [700, 50],
+      [100, 50],
+      [100, 550],
+    ])
+  })
+
   it("refuses a Group it doesn't know", async () => {
     const r = room()
     pile(r)

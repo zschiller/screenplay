@@ -496,7 +496,8 @@ function groupRects(c: RoomCollections): Map<string, GroupRect> {
 
 /**
  * New top-left corners for `rects`, by id, laid out in order from `origin`
- * with {@link ARRANGE_GAP} between them.
+ * with {@link ARRANGE_GAP} between them. A grid's columns line up: each is as
+ * wide as its widest Group, each row as tall as its tallest.
  */
 function arrangeRects(
   rects: readonly (GroupRect & { id: string })[],
@@ -504,23 +505,25 @@ function arrangeRects(
   origin: { x: number; y: number },
   columns?: number
 ): Map<string, { x: number; y: number }> {
-  const originX = Math.round(origin.x)
-  const originY = Math.round(origin.y)
   const perRow =
     layout === "row"
       ? rects.length
       : layout === "column"
         ? 1
         : (columns ?? Math.ceil(Math.sqrt(rects.length)))
+  const colWidth = (col: number) =>
+    Math.max(...rects.filter((_, i) => i % perRow === col).map((r) => r.width))
   const placed = new Map<string, { x: number; y: number }>()
-  let y = originY
+  let y = Math.round(origin.y)
   for (let start = 0; start < rects.length; start += perRow) {
     const row = rects.slice(start, start + perRow)
-    let x = originX
-    for (const r of row) {
+    let x = Math.round(origin.x)
+    row.forEach((r, col) => {
       placed.set(r.id, { x, y })
-      x += Math.round(r.width) + ARRANGE_GAP
-    }
+      // A row lays its Groups end to end; a grid keeps its columns aligned.
+      const width = layout === "grid" ? colWidth(col) : r.width
+      x += Math.round(width) + ARRANGE_GAP
+    })
     y += Math.round(Math.max(...row.map((r) => r.height))) + ARRANGE_GAP
   }
   return placed
