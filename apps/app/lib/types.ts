@@ -249,7 +249,7 @@ export type IframeLayerData = {
  * each new kind just adds its case here and registers a sizer in
  * `lib/canvas/layout.ts`.
  */
-export type GroupMemberKind = "iframe-layer" | "markdown-layer"
+export type GroupMemberKind = "iframe-layer" | "markdown-layer" | "mockup-layer"
 export type GroupMember = {
   kind: GroupMemberKind
   id: string
@@ -310,6 +310,25 @@ export type MarkdownLayerData = {
    * The chat that made this Document (#1314), which alone edits it with its
    * tools and gets its Send to agent and Reply in chat. Unset for a Document
    * a person made by hand, or one the Coordinator made.
+   */
+  ownerChatId?: string
+}
+
+/**
+ * A static HTML page a chat wrote, shown on the canvas without a Sandbox
+ * (issue #1309). Lives in a Group like the other layers. The page itself is a
+ * `Y.Text` keyed `mockup-layer-${id}` (resolved through `mockupHtml`), so it
+ * syncs like a document body; the record carries size, title and owner.
+ */
+export type MockupLayerData = {
+  id: string
+  width: number
+  height: number
+  title: string
+  /**
+   * The chat that made the mockup (#1309), which alone updates it with its
+   * tools, and whose Workspace its label names, as a Document's owner does.
+   * Once that chat is gone the mockup stays and names none.
    */
   ownerChatId?: string
 }

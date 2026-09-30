@@ -2,10 +2,16 @@ import { IFRAME_LAYER_GROUP_GAP } from "@/lib/constants"
 import type {
   IframeLayerData,
   IframeLayerGroupData,
-  MarkdownLayerData,
   GroupMember,
   GroupMemberKind,
 } from "@/lib/types"
+
+/**
+ * The slice of a non-frame Layer (a Markdown or Mockup Layer) that layout
+ * reads: its id and box. Every layout helper takes these as one list beside
+ * the frames, so a new sized kind needs no new parameter.
+ */
+export type SizedLayer = { id: string; width: number; height: number }
 
 /** Effective horizontal gap for a group — its own override, or the default. */
 export function groupGap(group: IframeLayerGroupData): number {
@@ -42,24 +48,21 @@ export function getGroupMemberIds(
 }
 
 /**
- * Box dimensions for a group member, looked up against the right collection
- * by kind. Returns `null` if the referenced item is missing — callers should
- * skip those rather than render zero-sized placeholders.
+ * Box dimensions for a group member: frames from `iframeLayers`, every other
+ * kind (documents, mockups) from `sizedLayers`. Returns `null` if the
+ * referenced item is missing — callers should skip those rather than render
+ * zero-sized placeholders.
  */
 export function getMemberSize(
   member: GroupMember,
   iframeLayers: ReadonlyMap<string, IframeLayerData>,
-  markdownLayers: ReadonlyMap<string, MarkdownLayerData>
+  sizedLayers: ReadonlyMap<string, SizedLayer>
 ): { width: number; height: number } | null {
-  if (member.kind === "iframe-layer") {
-    const ab = iframeLayers.get(member.id)
-    return ab ? { width: ab.width, height: ab.height } : null
-  }
-  if (member.kind === "markdown-layer") {
-    const d = markdownLayers.get(member.id)
-    return d ? { width: d.width, height: d.height } : null
-  }
-  return null
+  const d =
+    member.kind === "iframe-layer"
+      ? iframeLayers.get(member.id)
+      : sizedLayers.get(member.id)
+  return d ? { width: d.width, height: d.height } : null
 }
 
 export type GroupMemberLayout = {
@@ -95,12 +98,12 @@ export type IframeLayerLayoutMap = ReadonlyMap<string, GroupMemberLayout>
 export function computeIframeLayerLayouts(
   groups: readonly IframeLayerGroupData[],
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[] = []
+  sizedLayers: readonly SizedLayer[] = []
 ): IframeLayerLayoutMap {
   const abById = new Map<string, IframeLayerData>()
   for (const ab of iframeLayers) abById.set(ab.id, ab)
-  const docById = new Map<string, MarkdownLayerData>()
-  for (const d of markdownLayers) docById.set(d.id, d)
+  const docById = new Map<string, SizedLayer>()
+  for (const d of sizedLayers) docById.set(d.id, d)
 
   const map = new Map<string, GroupMemberLayout>()
   for (const group of groups) {
@@ -133,10 +136,10 @@ export function computeIframeLayerLayouts(
 export function groupContentWidth(
   group: IframeLayerGroupData,
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[] = []
+  sizedLayers: readonly SizedLayer[] = []
 ): number {
   const abById = new Map(iframeLayers.map((a) => [a.id, a]))
-  const docById = new Map(markdownLayers.map((d) => [d.id, d]))
+  const docById = new Map(sizedLayers.map((d) => [d.id, d]))
   let width = 0
   let count = 0
   for (const m of getGroupMembers(group)) {
@@ -153,10 +156,10 @@ export function groupContentWidth(
 export function groupContentHeight(
   group: IframeLayerGroupData,
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[] = []
+  sizedLayers: readonly SizedLayer[] = []
 ): number {
   const abById = new Map(iframeLayers.map((a) => [a.id, a]))
-  const docById = new Map(markdownLayers.map((d) => [d.id, d]))
+  const docById = new Map(sizedLayers.map((d) => [d.id, d]))
   let height = 0
   for (const m of getGroupMembers(group)) {
     const size = getMemberSize(m, abById, docById)
@@ -179,7 +182,7 @@ export function placeNewIframeLayerGroup(
   viewportCenter: { x: number; y: number },
   width: number,
   height: number,
-  markdownLayers: readonly MarkdownLayerData[] = []
+  sizedLayers: readonly SizedLayer[] = []
 ): { x: number; y: number } {
   if (groups.length === 0) {
     return {
@@ -191,7 +194,7 @@ export function placeNewIframeLayerGroup(
   let maxRight = -Infinity
   for (const g of groups) {
     minY = Math.min(minY, g.y)
-    const w = groupContentWidth(g, iframeLayers, markdownLayers)
+    const w = groupContentWidth(g, iframeLayers, sizedLayers)
     if (g.x + w > maxRight) maxRight = g.x + w
   }
   return { x: maxRight + IFRAME_LAYER_GROUP_GAP, y: minY }
@@ -206,7 +209,7 @@ export function placeNewIframeLayerGroup(
 export function placeNewGroupBeside(
   groups: readonly IframeLayerGroupData[],
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[],
+  sizedLayers: readonly SizedLayer[],
   beside: ReadonlySet<string>,
   width: number,
   height: number
@@ -214,8 +217,8 @@ export function placeNewGroupBeside(
   const rectOf = (g: IframeLayerGroupData) => ({
     x: g.x,
     y: g.y,
-    width: groupContentWidth(g, iframeLayers, markdownLayers),
-    height: groupContentHeight(g, iframeLayers, markdownLayers),
+    width: groupContentWidth(g, iframeLayers, sizedLayers),
+    height: groupContentHeight(g, iframeLayers, sizedLayers),
   })
   let anchor: { x: number; y: number } | null = null
   let right = -Infinity
@@ -246,7 +249,7 @@ export function placeNewGroupBeside(
     { x: 0, y: 0 },
     width,
     height,
-    markdownLayers
+    sizedLayers
   )
 }
 
@@ -326,7 +329,7 @@ export function computeEffectiveLayouts(
   base: IframeLayerLayoutMap,
   groups: readonly IframeLayerGroupData[],
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[],
+  sizedLayers: readonly SizedLayer[],
   drag: ActiveReorderDrag | null
 ): IframeLayerLayoutMap {
   if (!drag) return base
@@ -336,7 +339,7 @@ export function computeEffectiveLayouts(
   if (!sourceGroup) return base
 
   const abById = new Map(iframeLayers.map((a) => [a.id, a]))
-  const docById = new Map(markdownLayers.map((d) => [d.id, d]))
+  const docById = new Map(sizedLayers.map((d) => [d.id, d]))
   const result = new Map(base)
 
   // Override the popped member so it sits at `cursor - grab`, matching the
@@ -496,7 +499,7 @@ export type CanvasLayout = {
 export type DeriveCanvasLayoutInput = {
   groups: readonly IframeLayerGroupData[]
   iframeLayers: readonly IframeLayerData[]
-  markdownLayers: readonly MarkdownLayerData[]
+  sizedLayers: readonly SizedLayer[]
   selection: CanvasSelection
   /** Active reorder drag, if a member is currently floating at the cursor. */
   activeReorderDrag: ActiveReorderDrag | null
@@ -534,7 +537,7 @@ export function deriveCanvasLayout(
   const {
     groups: rawGroups,
     iframeLayers,
-    markdownLayers,
+    sizedLayers,
     selection,
     activeReorderDrag,
     poppedMemberId,
@@ -549,12 +552,12 @@ export function deriveCanvasLayout(
         g.id === gapOverride.groupId ? { ...g, gap: gapOverride.gap } : g
       )
     : rawGroups
-  const base = computeIframeLayerLayouts(groups, iframeLayers, markdownLayers)
+  const base = computeIframeLayerLayouts(groups, iframeLayers, sizedLayers)
   const layouts = computeEffectiveLayouts(
     base,
     groups,
     iframeLayers,
-    markdownLayers,
+    sizedLayers,
     activeReorderDrag
   )
   return {

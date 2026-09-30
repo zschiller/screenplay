@@ -204,6 +204,44 @@ describe("documentWorkspaceIds", () => {
   })
 })
 
+describe("the label rule with Mockups (#1309)", () => {
+  // Each chat-made Mockup's Workspace, as for a Document.
+  const owned = new Map([
+    ["m1", "ws-1"],
+    ["m1b", "ws-1"],
+    ["m2", "ws-2"],
+  ])
+  const group = (...members: [string, string][]) => ({
+    members: members.map(([kind, id]) => ({
+      kind: kind as "iframe-layer" | "mockup-layer",
+      id,
+    })),
+  })
+
+  it("names the Workspace when the Mockups' chat is on it", () => {
+    const g = group(["iframe-layer", "a"], ["mockup-layer", "m1"])
+    expect(groupWorkspace(g, frames, owned)?.branchId).toBe("ws-1")
+  })
+
+  it("names none when a Mockup's chat is on another Workspace", () => {
+    const g = group(["iframe-layer", "a"], ["mockup-layer", "m2"])
+    expect(groupWorkspace(g, frames, owned)).toBeNull()
+  })
+
+  it("names the Workspace on a Group of one chat's Mockups", () => {
+    const g = group(["mockup-layer", "m1"], ["mockup-layer", "m1b"])
+    expect(groupWorkspace(g, frames, owned)).toEqual({
+      branchId: "ws-1",
+      frames: [],
+    })
+  })
+
+  it("ignores a Mockup whose chat is gone", () => {
+    const g = group(["iframe-layer", "a"], ["mockup-layer", "orphan"])
+    expect(groupWorkspace(g, frames, owned)?.branchId).toBe("ws-1")
+  })
+})
+
 describe("groupSwitchSummary", () => {
   it("counts the frames that move", () => {
     expect(groupSwitchSummary(2)).toBe(

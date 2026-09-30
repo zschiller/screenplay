@@ -46,6 +46,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
   PlanData,
   RepoData,
 } from "@/lib/types"
@@ -200,7 +201,7 @@ export function buildRoomTools(
     ...buildViewTools(ports.readDoc),
     read_canvas: tool({
       description:
-        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
+        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents, mockups and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
       inputSchema: jsonSchema<Record<string, never>>({
         type: "object",
         properties: {},
@@ -844,6 +845,7 @@ export const CANVAS_SUMMARY_LIMITS = {
   groups: 100,
   frames: 150,
   documents: 100,
+  mockups: 100,
   terminalTabs: 50,
   /** Longest title, label or route kept, in characters. */
   text: 80,
@@ -871,10 +873,15 @@ export function summarizeCanvas(
     collections,
     COLLECTION_KEYS.markdownLayers
   )
+  const mockups = records<MockupLayerData>(
+    collections,
+    COLLECTION_KEYS.mockupLayers
+  )
   const chats = records<ChatSessionData>(
     collections,
     COLLECTION_KEYS.chatSessions
   )
+  const sized = [...documents, ...mockups]
 
   const groupOf = new Map(
     groups.flatMap((g) => getGroupMembers(g).map((m) => [m.id, g.id] as const))
@@ -918,7 +925,7 @@ export function summarizeCanvas(
         `at ${Math.round(g.x)}, ${Math.round(g.y)}`,
         // Its extent, so a move can clear its neighbours (items sit in one
         // row, left to right, the Group's gap apart).
-        `${Math.round(groupContentWidth(g, frames, documents))}×${Math.round(groupContentHeight(g, frames, documents))}`,
+        `${Math.round(groupContentWidth(g, frames, sized))}×${Math.round(groupContentHeight(g, frames, sized))}`,
         `${getGroupMembers(g).length} items`,
       ].join(" · ")
     ),
@@ -937,6 +944,17 @@ export function summarizeCanvas(
       [
         `- [${d.id}] "${clip(d.title || "Untitled")}"`,
         groupOf.get(d.id) && `Group ${groupOf.get(d.id)}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    ),
+    section("Mockups", mockups, CANVAS_SUMMARY_LIMITS.mockups, (m) =>
+      [
+        `- [${m.id}] "${clip(m.title || "Untitled")}"`,
+        `${Math.round(m.width)}×${Math.round(m.height)}`,
+        m.ownerChatId &&
+          `by chat "${clip(chats.find((c) => c.id === m.ownerChatId)?.label || m.ownerChatId)}"`,
+        groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]
         .filter(Boolean)
         .join(" · ")

@@ -5,6 +5,7 @@ import type { CanvasOps } from "@/lib/canvas/ops"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import { getGroupMembers } from "@/lib/canvas/layout"
+import { MOCKUP_MIN_HEIGHT, MOCKUP_MIN_WIDTH } from "@/lib/constants"
 import {
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
@@ -91,6 +92,18 @@ export interface LayerMutations {
   setTitle: (id: string, title: string) => void
   /** Mirror the editor's first-heading text onto the cached title (cache-only). */
   setTitleCache: (id: string, title: string) => void
+
+  // --- Mockup Layer writers ---
+  /** Resize a mockup by edge deltas, shifting its group anchor as needed. */
+  resizeMockup: (
+    id: string,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number
+  ) => void
+  /** Rename a mockup (its title lives on the record alone). */
+  renameMockup: (id: string, title: string) => void
 }
 
 export function useLayerMutations({
@@ -206,15 +219,24 @@ export function useLayerMutations({
     [ops, collections, captureTracker]
   )
 
-  const resizeDocument = useCallback(
-    (id: string, dx: number, dy: number, dw: number, dh: number) => {
+  // Resize a box Layer (a Document or a Mockup) by edge deltas, clamped to its
+  // kind's floor; a left/top edge shifts the Group anchor so the far edge
+  // stays put.
+  const resizeBoxLayer = useCallback(
+    (
+      key: "markdownLayers" | "mockupLayers",
+      min: { width: number; height: number },
+      id: string,
+      dx: number,
+      dy: number,
+      dw: number,
+      dh: number
+    ) => {
       ops.batch(() => {
-        const d = collections.markdownLayers.get(id)
+        const d = collections[key].get(id)
         if (!d) return
-        const minW = 200
-        const minH = 120
-        const newWidth = Math.max(minW, d.width + dw)
-        const newHeight = Math.max(minH, d.height + dh)
+        const newWidth = Math.max(min.width, d.width + dw)
+        const newHeight = Math.max(min.height, d.height + dh)
         const actualDw = newWidth - d.width
         const actualDh = newHeight - d.height
         const shiftX = dx === 0 ? 0 : -actualDw
@@ -231,7 +253,7 @@ export function useLayerMutations({
           }
         }
         if (actualDw !== 0 || actualDh !== 0) {
-          ops.patch("markdownLayers", id, {
+          ops.patch(key, id, {
             width: newWidth,
             height: newHeight,
           })
@@ -239,6 +261,41 @@ export function useLayerMutations({
       })
     },
     [collections, ops]
+  )
+
+  const resizeDocument = useCallback(
+    (id: string, dx: number, dy: number, dw: number, dh: number) =>
+      resizeBoxLayer(
+        "markdownLayers",
+        { width: 200, height: 120 },
+        id,
+        dx,
+        dy,
+        dw,
+        dh
+      ),
+    [resizeBoxLayer]
+  )
+
+  const resizeMockup = useCallback(
+    (id: string, dx: number, dy: number, dw: number, dh: number) =>
+      resizeBoxLayer(
+        "mockupLayers",
+        { width: MOCKUP_MIN_WIDTH, height: MOCKUP_MIN_HEIGHT },
+        id,
+        dx,
+        dy,
+        dw,
+        dh
+      ),
+    [resizeBoxLayer]
+  )
+
+  const renameMockup = useCallback(
+    (id: string, title: string) => {
+      ops.patch("mockupLayers", id, { title })
+    },
+    [ops]
   )
 
   const setTitle = useCallback(
@@ -274,6 +331,8 @@ export function useLayerMutations({
       resizeDocument,
       setTitle,
       setTitleCache,
+      resizeMockup,
+      renameMockup,
     }),
     [
       rename,
@@ -289,6 +348,8 @@ export function useLayerMutations({
       resizeDocument,
       setTitle,
       setTitleCache,
+      resizeMockup,
+      renameMockup,
     ]
   )
 }

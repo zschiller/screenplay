@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm"
 import * as Y from "yjs"
 
 import { computeIframeLayerLayouts } from "@/lib/canvas/layout"
+import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
 import { createPgliteDb } from "@/lib/db/pglite"
 import * as schema from "@/lib/db/schema"
 import type { DB } from "@/lib/db/types"
@@ -528,6 +529,8 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
       c.iframeLayers.set(layer.id, layer)
     for (const layer of fixture.markdownLayers ?? [])
       c.markdownLayers.set(layer.id, layer)
+    for (const layer of fixture.mockupLayers ?? [])
+      c.mockupLayers.set(layer.id, layer)
     // Groups last: the legacy-group migration in `getRoomCollections` wraps any
     // layer no group references, and writing the groups after the layers means
     // there is nothing left for it to wrap.
@@ -549,6 +552,9 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
   )) {
     writeMarkdownToFragment(documentFragment(doc, layerId), markdown)
   }
+  for (const [layerId, html] of Object.entries(fixture.mockupHtml ?? {})) {
+    writeMockupHtml(mockupHtml(doc, layerId), html)
+  }
 }
 
 /** Render a Room's Frame Captures and persist the manifest they belong to. */
@@ -566,12 +572,10 @@ async function seedRoomThumbnail(
 
   const groups = room.doc.iframeLayerGroups ?? []
   const iframeLayers = room.doc.iframeLayers ?? []
-  const markdownLayers = room.doc.markdownLayers ?? []
-  const layouts = computeIframeLayerLayouts(
-    groups,
-    iframeLayers,
-    markdownLayers
-  )
+  const layouts = computeIframeLayerLayouts(groups, iframeLayers, [
+    ...(room.doc.markdownLayers ?? []),
+    ...(room.doc.mockupLayers ?? []),
+  ])
   const branchesById = new Map(
     (room.doc.branches ?? []).map((branch) => [branch.id, branch])
   )

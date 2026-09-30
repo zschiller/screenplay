@@ -138,6 +138,12 @@ describe("toolsetFor (sandbox)", () => {
     expect(tools.glob).toBeDefined()
   })
 
+  it("gives a Workspace chat the Mockup tools (#1309)", () => {
+    const tools = toolsetFor(sandboxTarget)
+    expect(tools.create_mockup).toBeDefined()
+    expect(tools.update_mockup).toBeDefined()
+  })
+
   it("preserves submit_plan as a human-in-the-loop tool with no execute", () => {
     const tools = toolsetFor(sandboxTarget)
     expect(tools.submit_plan).toBeDefined()

@@ -5,6 +5,7 @@ import type { RoomDoc } from "@/lib/room-access"
 import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { getGroupMembers, placeNewGroupBeside } from "@/lib/canvas/layout"
+import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import {
   documentFragment,
@@ -71,7 +72,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
           const anchor = placeNewGroupBeside(
             c.iframeLayerGroups.toArray(),
             c.iframeLayers.toArray(),
-            c.markdownLayers.toArray(),
+            sizedLayersOf(c),
             chatGroups(c, ctx.chatId),
             DOCUMENT_SIZE.width,
             DOCUMENT_SIZE.height
@@ -175,7 +176,9 @@ function chatGroups(c: RoomCollections, chatId: string): Set<string> {
     const mine = getGroupMembers(g).some((m) =>
       m.kind === "markdown-layer"
         ? c.markdownLayers.get(m.id)?.ownerChatId === chatId
-        : !!branchId && c.iframeLayers.get(m.id)?.branchId === branchId
+        : m.kind === "mockup-layer"
+          ? c.mockupLayers.get(m.id)?.ownerChatId === chatId
+          : !!branchId && c.iframeLayers.get(m.id)?.branchId === branchId
     )
     if (mine) ids.add(g.id)
   }

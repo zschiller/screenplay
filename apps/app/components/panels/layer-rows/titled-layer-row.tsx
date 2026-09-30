@@ -25,10 +25,38 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
-import type { MarkdownLayerData } from "@/lib/types"
-import type { LayerRowMenuProps, LayerRowProps } from "./types"
+import { mockupLayerKind } from "@/lib/layer-kinds/mockup-layer"
+import type { LayerKindDescriptor } from "@/lib/layer-kinds/types"
+import type {
+  LayerRowComponents,
+  LayerRowMenuProps,
+  LayerRowProps,
+} from "./types"
 
-export function DocumentRow({
+/** The record shape a titled row reads: an id and a title. */
+type TitledLayer = { id: string; title: string }
+
+/**
+ * The sidebar row and menu for a Layer named by a `title` (Documents and
+ * Mockups): its icon, an inline-rename name, and a Rename / Delete menu.
+ */
+function makeTitledLayerRow<T extends TitledLayer>(
+  descriptor: LayerKindDescriptor<T>
+): LayerRowComponents<T> {
+  function Row(props: LayerRowProps<T>) {
+    return <TitledLayerRow descriptor={descriptor} {...props} />
+  }
+  function Menu(props: LayerRowMenuProps<T>) {
+    return <TitledLayerRowMenu descriptor={descriptor} {...props} />
+  }
+  return { kind: descriptor.kind, Row, Menu }
+}
+
+export const documentRow = makeTitledLayerRow(markdownLayerKind)
+export const mockupRow = makeTitledLayerRow(mockupLayerKind)
+
+function TitledLayerRow<T extends TitledLayer>({
+  descriptor,
   item,
   variant,
   selected,
@@ -36,9 +64,9 @@ export function DocumentRow({
   onActivate,
   onRename,
   editableRef,
-}: LayerRowProps<MarkdownLayerData>) {
-  const Icon = markdownLayerKind.Icon
-  const label = markdownLayerKind.getLabel(item)
+}: LayerRowProps<T> & { descriptor: LayerKindDescriptor<T> }) {
+  const Icon = descriptor.Icon
+  const label = descriptor.getLabel(item)
 
   const nameEditable = (
     <EditableText
@@ -96,12 +124,15 @@ export function DocumentRow({
   )
 }
 
-export function DocumentRowMenu({
+function TitledLayerRowMenu<T extends TitledLayer>({
+  descriptor,
   item,
   isSub,
   onRemove,
   editableRef,
-}: LayerRowMenuProps<MarkdownLayerData>) {
+}: LayerRowMenuProps<T> & { descriptor: LayerKindDescriptor<T> }) {
+  const noun = descriptor.singularLabel
+  const optionsLabel = `${noun.charAt(0).toUpperCase()}${noun.slice(1)} options`
   // See IframeLayerRowMenu — start editing from `onCloseAutoFocus` so
   // the menu's focus trap is fully torn down before we focus the inline
   // input, otherwise the trap steals focus back.
@@ -118,7 +149,7 @@ export function DocumentRowMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <IconButton label="Document options" tooltipSide="right" asChild>
+        <IconButton label={optionsLabel} tooltipSide="right" asChild>
           <SidebarMenuAction
             className={
               isSub
