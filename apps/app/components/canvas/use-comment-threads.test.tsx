@@ -277,3 +277,26 @@ describe("setResolved", () => {
     expect(toast.error).toHaveBeenCalledWith("Couldn't resolve the thread")
   })
 })
+
+describe("a failed load", () => {
+  it("says so when nothing loaded, and Retry fetches again", async () => {
+    actions.listThreadsAction.mockRejectedValueOnce(new Error("HTTP 500"))
+    const { result } = renderHook(() => useCommentThreads("r1", undefined))
+    await waitFor(() => expect(result.current.threadsFailed).toBe(true))
+    expect(result.current.threadsLoaded).toBe(false)
+
+    actions.listThreadsAction.mockResolvedValueOnce(initial)
+    act(() => result.current.retryThreads())
+    await waitFor(() => expect(result.current.threadsLoaded).toBe(true))
+    expect(result.current.threadsFailed).toBe(false)
+    expect(result.current.threads).toEqual(initial)
+  })
+
+  it("keeps the threads it has when a refetch fails", async () => {
+    actions.listThreadsAction.mockRejectedValueOnce(new Error("HTTP 500"))
+    const { result } = renderHook(() => useCommentThreads("r1", initial))
+    await waitFor(() => expect(actions.listThreadsAction).toHaveBeenCalled())
+    expect(result.current.threadsFailed).toBe(false)
+    expect(result.current.threads).toEqual(initial)
+  })
+})

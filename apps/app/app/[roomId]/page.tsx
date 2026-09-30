@@ -71,7 +71,9 @@ export default async function RoomPage({
   // home rather than always "Home".
   const [initialThreads, initialTerminalTabs, memberCounts, parentFolder] =
     await Promise.all([
-      listThreads(roomId).catch(() => []),
+      // Undefined, not [], on failure: the client fetches again and says so if
+      // that fails too, rather than showing "No comments yet".
+      listThreads(roomId).catch(() => undefined),
       listTerminalTabs({ userId, roomId }).catch(() => []),
       isLocalBuild
         ? Promise.resolve(new Map<string, number>())

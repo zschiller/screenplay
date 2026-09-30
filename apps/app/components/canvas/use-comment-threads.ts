@@ -47,6 +47,11 @@ export interface CommentThreads {
   /** False until the first fetch lands (or server-prefetched threads arrive),
    *  so "haven't fetched yet" isn't mistaken for "fetched and got zero". */
   threadsLoaded: boolean
+  /** The threads never loaded: the fetch failed with nothing on screen, so
+   *  the list shows Retry rather than "No comments yet". */
+  threadsFailed: boolean
+  /** Fetch the threads again after a failure. */
+  retryThreads: () => void
   /** Start a thread. Resolves to it once saved, or null when it wasn't (the
    *  store has said so), so the composer can keep what was typed. */
   createThread: (thread: NewThread) => Promise<ThreadWithComments | null>
@@ -89,6 +94,13 @@ export function useCommentThreads(
   const [threadsLoaded, setThreadsLoaded] = useState(
     () => initialThreads !== undefined
   )
+  const [threadsFailed, setThreadsFailed] = useState(false)
+  // Bumped by Retry after a failed fetch, to fetch again.
+  const [attempt, setAttempt] = useState(0)
+  const retryThreads = useCallback(() => {
+    setThreadsFailed(false)
+    setAttempt((n) => n + 1)
+  }, [])
   // Local overrides that hold until a fetch agrees with them: writes shown
   // optimistically, and comments/threads waiting out their undo window.
   const [resolvedOverride, setResolvedOverride] = useOverrides<boolean>()
@@ -113,6 +125,7 @@ export function useCommentThreads(
         if (cancelled) return
         setThreads(rows)
         setThreadsLoaded(true)
+        setThreadsFailed(false)
         // Drop every override the fetched rows now carry.
         const byId = new Map(rows.map((t) => [t.id, t]))
         const comments = new Map(
@@ -129,12 +142,18 @@ export function useCommentThreads(
         )
         setReply.settle((_, reply) => comments.has(reply.id))
       })
-      .catch((e) => console.error("listThreads failed:", e))
+      .catch((e) => {
+        console.error("listThreads failed:", e)
+        // A refetch that fails keeps the threads already on screen; only a
+        // list that never loaded says it failed.
+        if (!cancelled) setThreadsFailed(true)
+      })
     return () => {
       cancelled = true
     }
   }, [
     roomId,
+    attempt,
     revision,
     readRevision,
     setResolvedOverride,
@@ -352,6 +371,8 @@ export function useCommentThreads(
   return {
     threads,
     threadsLoaded,
+    threadsFailed: threadsFailed && !threadsLoaded,
+    retryThreads,
     createThread,
     reply,
     editComment,

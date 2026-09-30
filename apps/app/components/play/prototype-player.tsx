@@ -52,7 +52,7 @@ interface PrototypePlayerProps {
    *  through that iframeLayer's Yjs entry so canvas + player + other player tabs
    *  all converge on the same snapshot. */
   iframeLayerId?: string
-  initialThreads: ThreadWithComments[]
+  initialThreads: ThreadWithComments[] | undefined
   /** Repo's default iframeLayer size id — seeds mobile/tablet preview if it's a non-desktop preset. */
   initialDeviceSizeId?: string
 }

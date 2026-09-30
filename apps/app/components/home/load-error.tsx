@@ -22,7 +22,7 @@ import { SettingsRow, SettingsRowList } from "@/components/home/settings-row"
  * retry that fails again leaves the error on screen and re-enables the button;
  * the caller's `onRetry` rejecting is that signal, so it is swallowed here.
  */
-function RetryButton({ onRetry }: { onRetry: () => Promise<unknown> }) {
+export function RetryButton({ onRetry }: { onRetry: () => Promise<unknown> }) {
   const [retrying, setRetrying] = useState(false)
   return (
     <Button

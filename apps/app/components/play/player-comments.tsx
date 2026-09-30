@@ -84,7 +84,7 @@ export function usePlayerComments({
   agentId: string
   /** The canvas frame the player was opened from, if any. */
   iframeLayerId?: string
-  initialThreads: ThreadWithComments[]
+  initialThreads: ThreadWithComments[] | undefined
   iframeRef: RefObject<HTMLIFrameElement | null>
   /** The page's viewport, in its own pixels. */
   viewport: { width: number; height: number } | null

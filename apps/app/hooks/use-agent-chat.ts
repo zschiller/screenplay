@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useSyncExternalStore } from "react"
+import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore, type ChatState } from "@/lib/chat-store"
 
 interface UseAgentChatOptions {
@@ -106,12 +107,21 @@ export function useAgentChat({
     () => chatStore.takeReturnedSteers(chatId),
     [chatId]
   )
+  const retryHistory = useCallback(
+    () => chatStore.loadHistory(chatId),
+    [chatId]
+  )
+  const retryError = useCallback(
+    (message: AgentMessage) => chatStore.retryError(chatId, message),
+    [chatId]
+  )
 
   return {
     messages: state.messages,
     isStreaming: state.isStreaming,
     runStart: state.runStart,
     isLoadingHistory: state.isLoadingHistory,
+    historyFailed: state.historyFailed,
     error: state.error,
     failedSend: state.failedSend,
     queued: state.queued,
@@ -125,5 +135,7 @@ export function useAgentChat({
     takeFailedSend,
     takeQueued,
     takeReturnedSteers,
+    retryHistory,
+    retryError,
   }
 }

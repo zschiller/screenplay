@@ -14,6 +14,9 @@ import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
+import { chatStore } from "@/lib/chat-store"
+import { describeSendError } from "@/lib/agent/chat-errors"
+import { RetryButton } from "@/components/home/load-error"
 import { AgentMessageItem, TaskGroup, TurnSummaryRow } from "./agent-message"
 import {
   groupToolCalls,
@@ -99,6 +102,7 @@ export function AgentChat({
     isStreaming,
     runStart,
     isLoadingHistory,
+    historyFailed,
     failedSend,
     queued,
     pendingSteers,
@@ -110,6 +114,8 @@ export function AgentChat({
     takeFailedSend,
     takeQueued,
     takeReturnedSteers,
+    retryHistory,
+    retryError,
   } = useAgentChat({
     chatId,
     roomId,
@@ -124,6 +130,9 @@ export function AgentChat({
 
   const [models, setModels] = useState<ModelInfo[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
+  const [modelsFailed, setModelsFailed] = useState(false)
+  // Bumped by Retry on a failed model list, to fetch it again.
+  const [modelsAttempt, setModelsAttempt] = useState(0)
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
     null
   )
@@ -272,18 +281,18 @@ export function AgentChat({
         if (cancelled) return
         setModels(list)
         setServerDefaultModel(def)
+        setModelsFailed(false)
+        // Only a fetch that answered can say the catalog is empty — the
+        // desktop "no agent detected" state. A failed one says so instead.
+        setModelsLoaded(true)
       })
-      .catch(() => {})
-      .finally(() => {
-        // Mark the fetch settled (success or failure) so the composer can tell a
-        // genuinely-empty catalog — the desktop "no agent detected" empty state —
-        // apart from one that's still loading.
-        if (!cancelled) setModelsLoaded(true)
+      .catch(() => {
+        if (!cancelled) setModelsFailed(true)
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [modelsAttempt])
 
   // Load the merged App ∪ Repo Skill index once on chat open (Agent chats
   // only). Keyed by sandbox so reopening after editing a Repo Skill refetches
@@ -432,7 +441,21 @@ export function AgentChat({
         childCalls={children.map((c) => c.message)}
       />
     ) : (
-      <AgentMessageItem key={i} message={msg} roomId={roomId} chatId={chatId} />
+      <AgentMessageItem
+        key={i}
+        message={msg}
+        roomId={roomId}
+        chatId={chatId}
+        // Retry only while the error is the last thing in the chat: once the
+        // conversation has moved on, redoing it would act out of turn.
+        onRetry={
+          msg === messages[messages.length - 1] &&
+          !isStreaming &&
+          chatStore.canRetryError(msg)
+            ? () => retryError(msg)
+            : undefined
+        }
+      />
     )
 
   return (
@@ -445,6 +468,8 @@ export function AgentChat({
               <Spinner className="size-3" />
               Loading chat…
             </div>
+          ) : historyFailed && messages.length === 0 && !failedSend ? (
+            <ChatLoadError onRetry={retryHistory} />
           ) : messages.length === 0 && !failedSend ? (
             <ChatEmptyState
               kind={chatKind}
@@ -543,6 +568,8 @@ export function AgentChat({
         enableSkills={isAgentChat}
         models={models}
         modelsLoaded={modelsLoaded}
+        modelsFailed={modelsFailed}
+        onRetryModels={() => setModelsAttempt((n) => n + 1)}
         model={effectiveModel}
         defaultModel={defaultModel}
         onModelChange={handleModelChange}
@@ -666,6 +693,29 @@ function ChatEmptyState({
 }
 
 /**
+ * A chat whose history didn't load: said in the empty chat's own size and
+ * place, so a failed load never reads as a chat with nothing in it.
+ */
+function ChatLoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
+  return (
+    <div
+      role="alert"
+      className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance"
+    >
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">
+          Couldn&apos;t load this chat
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Its messages are still saved. Try loading them again.
+        </p>
+      </div>
+      <RetryButton onRetry={onRetry} />
+    </div>
+  )
+}
+
+/**
  * A message the server refused, kept where it was sent with Retry and Edit so
  * no typed text is lost (#802).
  */
@@ -695,7 +745,7 @@ function FailedSendNotice({
       </div>
       <div className="-mr-2 flex max-w-full items-center text-xs">
         <span className="mr-2 min-w-0 truncate text-destructive" title={error}>
-          Not sent: {error}
+          Not sent: {describeSendError(error)}
         </span>
         <Button variant="ghost" size="xs" onClick={onRetry}>
           Retry

@@ -516,6 +516,35 @@ describe("AgentMessageItem — transcript error", () => {
     render(<AgentMessageItem message={{ role: "error", content: long }} />)
     expect(screen.getByTestId("chat-error").textContent).toContain(long)
   })
+
+  it("shows the plain sentence, with Retry and Copy error when it has them", () => {
+    let retried = 0
+    render(
+      <AgentMessageItem
+        message={{
+          role: "error",
+          content: "Couldn't approve the plan.",
+          detail: "HTTP 500",
+        }}
+        onRetry={async () => {
+          retried++
+        }}
+      />
+    )
+    const row = screen.getByTestId("chat-error")
+    expect(row.textContent).toContain("Couldn't approve the plan.")
+    expect(row.textContent).not.toContain("HTTP 500")
+    screen.getByRole("button", { name: "Copy error" })
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+    expect(retried).toBe(1)
+  })
+
+  it("offers neither without a detail or a retry", () => {
+    render(
+      <AgentMessageItem message={{ role: "error", content: "Went wrong." }} />
+    )
+    expect(screen.queryByRole("button")).toBeNull()
+  })
 })
 
 describe("TaskGroup — subagent grouping render (issue #640)", () => {

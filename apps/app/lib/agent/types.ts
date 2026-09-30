@@ -26,7 +26,9 @@ export type AgentMessage =
   // block distinct from the assistant message body so streamed thinking isn't
   // silently dropped.
   | { role: "reasoning"; content: string }
-  | { role: "error"; content: string }
+  // `content` is the plain sentence the chat shows; `detail`, when there is
+  // one, is the raw error behind Copy error.
+  | { role: "error"; content: string; detail?: string }
   // The user stopped the run here (its `agent_run` ended `aborted`). A marker,
   // not a message: it carries no content, only the fact that the turn above it
   // was cut short rather than finished, so a stopped run doesn't read as a

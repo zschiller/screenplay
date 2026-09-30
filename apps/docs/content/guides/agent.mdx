@@ -353,6 +353,16 @@ is added. Later chats get their own names but leave the workspace's title and
 branch alone. See [Titles](/guides/workspaces#titles).
 
 <Callout type="info">
-  **"No coding agent detected"** on desktop means no supported CLI is installed.
-  Install one from **Settings → Coding agents**; it shows up without a restart.
+  **"No coding agent found"** on desktop means no supported CLI is installed.
+  Install one from **Settings → Coding agents** (the composer links there); it
+  shows up without a restart.
 </Callout>
+
+## When something fails
+
+A failed step in a chat says what failed in one line. Where the chat can try
+again (approving a plan, stopping a run, or a turn you started that stopped
+responding) the line has **Retry**, and **Copy error** copies the original
+error for a bug report. A chat whose history or model list didn't load says so
+with **Retry**, rather than looking empty or telling you to install an agent
+you already have.

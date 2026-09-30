@@ -273,18 +273,23 @@ export function LogsPanel({
 
   const notice =
     status === "reconnecting" ? (
-      <span className="flex items-center gap-1.5 text-muted-foreground">
+      <span className="flex items-center gap-1.5 font-sans text-xs text-muted-foreground">
         <Spinner className="size-3" /> Reconnecting…
       </span>
     ) : status === "error" ? (
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate text-destructive">
-          Couldn&apos;t stream logs{error ? ` (${error})` : ""}.
+      // The UI's own words in its own font: mono is for the log lines. The
+      // transport error ("HTTP 502") stays on hover.
+      <span className="flex min-w-0 items-center gap-2 font-sans text-xs">
+        <span
+          className="min-w-0 truncate text-destructive"
+          title={error ?? undefined}
+        >
+          Couldn&apos;t load the logs.
         </span>
         <Button
           variant="outline"
           size="xs"
-          className="shrink-0 font-sans"
+          className="shrink-0"
           onClick={retry}
         >
           <ArrowCounterClockwiseIcon /> Retry
@@ -312,7 +317,7 @@ export function LogsPanel({
         ) : status === "error" || status === "reconnecting" ? (
           notice
         ) : (
-          <span className="text-muted-foreground">
+          <span className="font-sans text-xs text-muted-foreground">
             {status === "live" ? "No output yet." : "Connecting…"}
           </span>
         )}
@@ -322,7 +327,7 @@ export function LogsPanel({
         // dropped stream never hides the output that was already there.
         <div
           role="status"
-          className="flex shrink-0 items-center border-t px-3 py-1.5 font-mono text-xs"
+          className="flex shrink-0 items-center border-t px-3 py-1.5"
         >
           {notice}
         </div>
