@@ -53,7 +53,8 @@ didn't intend.
 
 `AGENT_DEFAULT_MODEL` sets the default for new chats. It defaults to
 `anthropic:claude-sonnet-5-5`. If you don't run Anthropic, point it at a
-provider you do. Each user's last-picked model is remembered in their browser.
+provider you do. If its provider isn't configured, new chats use the first
+enabled model instead. Each user's last-picked model is remembered in their browser.
 
 A chat whose model belongs to a provider that's no longer configured fails
 with that provider's error. It's never rerouted to a different provider.

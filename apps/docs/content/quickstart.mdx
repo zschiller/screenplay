@@ -19,12 +19,15 @@ change running in it.
 
 ## What you need
 
-- **macOS**. Download the latest `Screenplay.dmg` from
-  [GitHub Releases](https://github.com/zschiller/screenplay/releases).
+- **A Mac with Apple silicon** (M1 or later). Download the latest
+  `Screenplay_<version>_aarch64.dmg` from
+  [GitHub Releases](https://github.com/zschiller/screenplay/releases). There's
+  no build for Intel Macs.
 - **A coding CLI** such as [Claude Code](https://code.claude.com) or Codex.
   Screenplay can install it for you during setup.
-- **A repository** with a dev server: a local folder or any git repository. If
-  the folder has a `package.json` with a `dev` script, you're set.
+- **A git repository** with a dev server: a local clone, or one on GitHub. A
+  plain folder that isn't a git checkout won't work. If the repository has a
+  `package.json` with a `dev` script, you're set.
 
 <Steps>
 
@@ -62,6 +65,9 @@ and a **Get started** checklist in the corner. Later, **New canvas** on the home
 <kbd>N</kbd>) creates and opens another one; rename it from its title. A canvas
 holds one piece of work: one or more repositories, their workspaces, and
 everything you lay out around them.
+
+The checklist's three steps, **Add a repository**, **Ask the Coordinator for a
+change** and **Open the Workspace**, are the next three steps on this page.
 
 ### Add a repository
 
@@ -110,7 +116,9 @@ changes. Your first ask also gives the workspace its title.
   alt="The agent's finished change: the chat lists file reads, edits and git commands, and the previews show the new gradient headline"
 />
 
-### Keep going
+</Steps>
+
+## Next steps
 
 - Add more [frames](/guides/frames) (<kbd>F</kbd>) for other routes and
   device sizes.
@@ -120,4 +128,6 @@ changes. Your first ask also gives the workspace its title.
   writes code.
 - Use **Create PR** in the chat header when you're happy with a workspace.
 
-</Steps>
+Screenplay doesn't update itself yet. To get a newer version, download the
+latest `.dmg` from
+[GitHub Releases](https://github.com/zschiller/screenplay/releases).

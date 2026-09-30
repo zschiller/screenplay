@@ -7,8 +7,8 @@ description: Declare live controls from your app's code with @screenplay.space/k
 
 Knobs are live controls your app declares from its own code. Screenplay
 renders them in the frame's **Knobs** popover and the
-[player's](/guides/play-mode) knobs panel. Changing a value updates the
-running app instantly, for everyone viewing the canvas, with no rebuild.
+[player's](/guides/play-mode) knobs panel. Changing a value on the canvas
+updates the running app instantly, for everyone viewing it, with no rebuild.
 
 <Screenshot name="knobs-popover" alt="The Knobs popover on the Northwind homepage frame: Accent color, Corner radius, Headline, Show customer logos, Hero layout" />
 
@@ -82,7 +82,7 @@ value so you can clamp or sanitize it.
 - Values are stored **per frame**, so two frames of the same page can show
   different variants side by side.
 - Values sync to **everyone** on the canvas, and carry over when you open the
-  frame in play mode.
+  frame in play mode. Changes made in the player stay in the player.
 - **Reset** in the popover's header clears them.
 
 ## Without React
