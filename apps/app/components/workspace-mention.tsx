@@ -13,7 +13,7 @@ import { Badge } from "@workspace/ui/components/badge"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
-import { prStateColor } from "@/components/pr-state-color"
+import { prStateColor, prStateTextColor } from "@/components/pr-state-color"
 import { isBranchBusy } from "@/lib/branch-busy"
 import {
   workspaceStatusLine,
@@ -123,7 +123,8 @@ export function WorkspacePrBadge({
       variant="outline"
       data-slot="workspace-pr"
       className={cn(
-        "h-4 shrink-0 gap-0.5 rounded-sm px-1 py-0 text-xs font-medium text-muted-foreground tabular-nums",
+        "shrink-0 gap-0.5 px-1.5 tabular-nums",
+        prStateTextColor(state),
         className
       )}
     >
