@@ -38,10 +38,11 @@ Open the **Workspaces** menu and click **+** (**New workspace**) next to
 - **Add another** (<kbd>⌘</kbd> <kbd>↵</kbd>) adds a row. <kbd>↵</kbd> creates
   them all.
 
-A new workspace goes through **creating** and **starting** while it checks
-out the branch, runs the setup script, and boots the dev server. The agent
-panel shows the live **sandbox logs** meanwhile. When the server is up, a
-frame appears on the canvas and the panel switches to chat.
+A new workspace's frame appears on the canvas straight away, and the canvas
+zooms to it. The workspace goes through **creating** and **starting** while
+it checks out the branch, runs the setup script, and boots the dev server,
+and the agent panel shows the live **sandbox logs** meanwhile. When the server
+is up, the frame shows the app and the panel switches to chat.
 
 To work on a branch that already exists, click the **…** next to **+** and
 choose **Open existing git branch** (on a canvas with several repositories,
@@ -54,9 +55,22 @@ A canvas with no repository yet says that workspaces need one, with an
 ## Titles
 
 A workspace is named by its title everywhere: the Workspaces menu, the agent
-panel's header, the canvas list and each frame's workspace badge and address bar. The
-agent writes it from the first message in the workspace's first chat, the
-same way it names the chat. Later chats never change it.
+panel's header, the canvas list and each frame's workspace badge and address
+bar. Titles are in sentence case, like "Add pricing FAQ". Where a title comes
+from depends on how the workspace started:
+
+- **From the Workspaces menu or a new repository**, the first message in the
+  workspace's first chat titles it and renames its branch to match (for
+  example `add-pricing-faq`). If that branch name is already taken on the
+  remote, a numeric suffix is added.
+- **From a Coordinator plan**, the workspace takes the title from the plan,
+  and its branch is named from that title when it's created. Its first
+  message renames neither.
+- **From Open existing git branch**, its first message changes neither the
+  branch nor the title. It reads **New Workspace** until you rename it.
+
+Later chats get their own names but never change the workspace's title or
+branch.
 
 Renaming a workspace (**… → Rename**, then type over its title) changes only
 the title, so it never touches the branch, its pull request or anyone's
@@ -70,11 +84,11 @@ checkout. To rename the branch itself, use **… → Rename branch…**.
 />
 
 The **Workspaces** button sits at the far right of the
-[Coordinator](/guides/agent#the-coordinator)'s header, the agent panel's top
-level. In a workspace, click **Coordinator** in the header to get back to it. A pink dot on it
-means a workspace needs you: its setup failed, its plan waits for your
-approval, or its pull request can't merge. An open pull request waiting on
-review doesn't count.
+[Coordinator](/guides/coordinator)'s header, the agent panel's top
+level. In a workspace, click **Coordinator** in the header to get back to it.
+A pink dot on the **Workspaces** button means a workspace needs you: its setup
+failed, its plan waits for your approval, or its pull request can't merge. An
+open pull request waiting on review doesn't count.
 Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 
 - a **search** field that finds a workspace by its title or branch, including
@@ -163,12 +177,12 @@ details:
 This is where you find a workspace's branch name, since rows and labels show
 its title.
 
-## The workspace menu
+## Workspace actions
 
 In the Workspaces menu, hover a workspace and click **…**. The menu starts with the one action the
 workspace's state calls for (**Retry setup** after a failed setup, the pull
-request, **Reopen** on a done workspace, or **Open prototype player**), then groups the rest under **View**,
-**Git** and **Manage**:
+request, **Reopen** on a done workspace, or **Open prototype player**), then
+the rest, with dividers between viewing, git and managing actions:
 
 <Screenshot name="ws-menu" alt="The workspace menu" />
 
