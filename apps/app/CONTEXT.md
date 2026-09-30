@@ -507,8 +507,10 @@ The one mapping from a user turn's wire text (persisted, or echoed live) to the
 message the chat draws: the human's text without server markers or footers,
 plus typed fields saying whether it is a Coordinator wake or a Delegated
 Message and which preview elements it targets (`lib/agent/user-turn.ts`). The
-UI reads those fields, never the markers, so a chat looks the same live and
-after a reload.
+server runs it, on reload and in every live echo (Turn Launch and taken
+Steers), and the Composer hands the same shape for the sender's own message.
+The UI reads those fields, never the markers, so a chat looks the same live
+and after a reload.
 _Avoid_: parsing markers in the UI.
 
 **Steer**:

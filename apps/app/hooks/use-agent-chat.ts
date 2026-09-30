@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react"
 import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore, type ChatState } from "@/lib/chat-store"
+import type { UserTurn } from "@/lib/agent/user-turn"
 import type { ChatTarget } from "@/lib/chat/chat-target"
 
 interface UseAgentChatOptions {
@@ -18,6 +19,8 @@ interface UseAgentChatOptions {
 
 interface SendOptions {
   model?: string
+  /** What the message shows, when the Composer built it (its footers). */
+  turn?: UserTurn
   /** The composer document, kept so a failed or queued send can be edited. */
   draft?: unknown
 }
@@ -72,6 +75,7 @@ export function useAgentChat({
         isFirstChat,
         planMode,
         model: options?.model,
+        turn: options?.turn,
         draft: options?.draft,
       })
     },

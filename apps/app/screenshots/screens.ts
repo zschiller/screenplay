@@ -29,6 +29,7 @@ import {
 import { roomChatId } from "@/lib/chat/room-chat"
 import type { BranchData } from "@/lib/types"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
+import { userTurnEcho } from "@/lib/agent/user-turn"
 import {
   createdWorkspacesResult,
   queuedForWorkspaceResult,
@@ -5139,17 +5140,14 @@ export function coordinatorWakeRun(): RunEvent[] {
   ): RunEvent[] => [
     {
       type: "chat-acp-update",
-      update: {
-        sessionUpdate: "user_message_chunk",
-        content: text(
-          wakeMessage({
-            workspaceId: branchId,
-            title,
-            status,
-            lastTurn: "Last ask: …",
-          })
-        ),
-      },
+      update: userTurnEcho(
+        wakeMessage({
+          workspaceId: branchId,
+          title,
+          status,
+          lastTurn: "Last ask: …",
+        })
+      ),
     },
     { type: "chat-stream-start" },
     // It reads the Workspace's chat before deciding whether to say anything.
@@ -5201,17 +5199,14 @@ export function coordinatorWakeRunningRun(): RunEvent[] {
   return [
     {
       type: "chat-acp-update",
-      update: {
-        sessionUpdate: "user_message_chunk",
-        content: text(
-          wakeMessage({
-            workspaceId: ids.branches.checkoutPolish,
-            title: "Checkout polish",
-            status: "completed",
-            lastTurn: "Last ask: …",
-          })
-        ),
-      },
+      update: userTurnEcho(
+        wakeMessage({
+          workspaceId: ids.branches.checkoutPolish,
+          title: "Checkout polish",
+          status: "completed",
+          lastTurn: "Last ask: …",
+        })
+      ),
     },
     { type: "chat-stream-start" },
     {
@@ -5242,14 +5237,11 @@ export function delegatedWorkspaceRun(): RunEvent[] {
   return [
     {
       type: "chat-acp-update",
-      update: {
-        sessionUpdate: "user_message_chunk",
-        content: text(
-          prependTurnMarkers(DELEGATED_STICKY, {
-            delegatedFrom: roomChatId(ids.rooms.checkout),
-          })
-        ),
-      },
+      update: userTurnEcho(
+        prependTurnMarkers(DELEGATED_STICKY, {
+          delegatedFrom: roomChatId(ids.rooms.checkout),
+        })
+      ),
     },
     { type: "chat-stream-start" },
     {

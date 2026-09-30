@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { chatStore, type ChatControlEvent } from "./chat-store"
-import { userMessageChunk } from "./agent/acp/schema"
+import { userTurnEcho } from "./agent/user-turn"
 
 let seq = 0
 const nextId = () => `evt_steer_${++seq}`
@@ -49,7 +49,7 @@ const echo = (chatId: string, text: string) =>
     type: "chat-acp-update",
     chatId,
     id: nextId(),
-    update: userMessageChunk(text),
+    update: userTurnEcho(text),
   })
 
 afterEach(() => {
@@ -71,7 +71,11 @@ describe("chat-store — steering a running turn (#1190)", () => {
     // The server's own pending broadcast doesn't draw it twice.
     control(chatId, {
       kind: "steer_pending",
-      steer: { id: "s1", message: "also run the tests" },
+      steer: {
+        id: "s1",
+        message: "also run the tests",
+        turn: { body: "also run the tests" },
+      },
     })
     expect(chatStore.getSnapshot(chatId).pendingSteers).toHaveLength(1)
     expect(chatStore.getSnapshot(chatId).queued).toEqual([])
@@ -104,7 +108,7 @@ describe("chat-store — steering a running turn (#1190)", () => {
     const sent = send(chatId, "use v2")
     control(chatId, {
       kind: "steer_pending",
-      steer: { id: "s1", message: "use v2" },
+      steer: { id: "s1", message: "use v2", turn: { body: "use v2" } },
     })
     // Taken before the send's answer came back.
     control(chatId, { kind: "steers_taken", ids: ["s1"] })
@@ -124,7 +128,11 @@ describe("chat-store — steering a running turn (#1190)", () => {
     startRun(chatId)
     control(chatId, {
       kind: "steer_pending",
-      steer: { id: "s9", message: "check mobile" },
+      steer: {
+        id: "s9",
+        message: "check mobile",
+        turn: { body: "check mobile" },
+      },
     })
     expect(chatStore.getSnapshot(chatId).pendingSteers).toMatchObject([
       { id: "s9", message: "check mobile" },
@@ -188,7 +196,11 @@ describe("chat-store — steering a running turn (#1190)", () => {
     await send(chatId, "actually, wait", draft)
     control(chatId, {
       kind: "steer_pending",
-      steer: { id: "s2", message: "someone else's" },
+      steer: {
+        id: "s2",
+        message: "someone else's",
+        turn: { body: "someone else's" },
+      },
     })
 
     control(chatId, {

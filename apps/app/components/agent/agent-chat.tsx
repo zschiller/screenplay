@@ -7,7 +7,7 @@ import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
-import { chatStore } from "@/lib/chat-store"
+import { chatStore, sentTurn } from "@/lib/chat-store"
 import { describeSendError } from "@/lib/agent/chat-errors"
 import { RetryButton } from "@/components/home/load-error"
 import { AgentMessageItem, TaskGroup, TurnSummaryRow } from "./agent-message"
@@ -20,7 +20,7 @@ import {
   type TranscriptItem,
 } from "@/lib/agent/turn-summary"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
-import { userTurnMessage } from "@/lib/agent/user-turn"
+import { userTurnToMessage, type UserTurn } from "@/lib/agent/user-turn"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { CoordinatorStart } from "@/lib/fresh-workspace"
 import type { ChatTarget } from "@/lib/chat/chat-target"
@@ -219,9 +219,9 @@ export function AgentChat({
   // A chat still following the default is pinned to the model it first sends
   // with, so changing the default later never relabels a running session.
   const handleSubmit = useCallback(
-    ({ text, model: submitted, draft }: ComposerSubmitPayload) => {
+    ({ text, turn, model: submitted, draft }: ComposerSubmitPayload) => {
       if (!model && submitted) onModelChange?.(submitted)
-      void sendMessage(text, { model: submitted, draft })
+      void sendMessage(text, { model: submitted, turn, draft })
     },
     [sendMessage, model, onModelChange]
   )
@@ -416,14 +416,14 @@ export function AgentChat({
               {pendingSteers.map((steer) => (
                 <PendingSteerNotice
                   key={steer.key}
-                  message={steer.message}
+                  turn={steer.turn}
                   roomId={roomId}
                   chatId={chatId}
                 />
               ))}
               {failedSend && (
                 <FailedSendNotice
-                  message={failedSend.message}
+                  turn={sentTurn(failedSend.options)}
                   error={failedSend.error}
                   roomId={roomId}
                   chatId={chatId}
@@ -562,14 +562,14 @@ function ChatLoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
  * no typed text is lost (#802).
  */
 function FailedSendNotice({
-  message,
+  turn,
   error,
   roomId,
   chatId,
   onRetry,
   onEdit,
 }: {
-  message: string
+  turn: UserTurn
   error: string
   roomId: string
   chatId: string
@@ -580,7 +580,7 @@ function FailedSendNotice({
     <div className="flex flex-col items-end gap-1" data-testid="failed-send">
       <div className="w-full">
         <AgentMessageItem
-          message={userTurnMessage(message)}
+          message={userTurnToMessage(turn)}
           roomId={roomId}
           chatId={chatId}
         />
@@ -606,11 +606,11 @@ function FailedSendNotice({
  * the log; once taken it moves to where the agent took it.
  */
 function PendingSteerNotice({
-  message,
+  turn,
   roomId,
   chatId,
 }: {
-  message: string
+  turn: UserTurn
   roomId: string
   chatId: string
 }) {
@@ -618,7 +618,7 @@ function PendingSteerNotice({
     <div className="flex flex-col items-end gap-1" data-testid="pending-steer">
       <div className="w-full opacity-60">
         <AgentMessageItem
-          message={userTurnMessage(message)}
+          message={userTurnToMessage(turn)}
           roomId={roomId}
           chatId={chatId}
         />

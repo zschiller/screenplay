@@ -12,7 +12,11 @@ import { withBasePath } from "@/lib/base-path"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
 import { isFixtureWorld } from "@/lib/fixture-world"
-import { userTurnMessage } from "@/lib/agent/user-turn"
+import {
+  echoedUserTurn,
+  userTurnToMessage,
+  type UserTurn,
+} from "@/lib/agent/user-turn"
 import type { ChatTarget } from "@/lib/chat/chat-target"
 
 export type ChatState = {
@@ -64,6 +68,8 @@ export interface PendingSteer {
   /** The server's id, once known; a local send has none until it answers. */
   id?: string
   message: string
+  /** What it shows: the user-turn projection of `message`. */
+  turn: UserTurn
   /** Set on a Steer this client sent: the composer document, for a stop to restore. */
   local?: { draft?: unknown }
 }
@@ -102,6 +108,11 @@ function wireTarget(target: ChatTarget): {
   }
 }
 
+/** What a message this client sends shows, before the server echoes it. */
+export function sentTurn(opts: SendMessageOptions): UserTurn {
+  return opts.turn ?? { body: opts.message }
+}
+
 /** A message waiting for the current run to finish (#802). */
 export interface QueuedMessage {
   id: string
@@ -116,6 +127,12 @@ export interface SendMessageOptions {
   /** What the chat talks to; mapped to the wire target by {@link wireTarget}. */
   target: ChatTarget
   message: string
+  /**
+   * What the message shows, when it carries more than plain text (the
+   * Composer's footers): the body and fields the server's echo will project
+   * from `message`, so the sender draws it without parsing marker strings.
+   */
+  turn?: UserTurn
   isFirstChat?: boolean
   planMode?: boolean
   model?: string
@@ -152,7 +169,10 @@ export type ChatControlEvent =
   // mid-run learns it on replay.
   | { kind: "steerable"; steerable: boolean }
   // A message sent mid-run joined the run as a pending Steer (#1190).
-  | { kind: "steer_pending"; steer: { id: string; message: string } }
+  | {
+      kind: "steer_pending"
+      steer: { id: string; message: string; turn: UserTurn }
+    }
   // These Steers are no longer pending: the Engine took them (their echoes
   // follow) or they started the next turn (its echo follows).
   | { kind: "steers_taken"; ids: string[] }
@@ -503,7 +523,7 @@ class ChatStore {
     // removes exactly this entry, even if the log moved on meanwhile.
     const optimistic: AgentMessage | null = retry
       ? null
-      : userTurnMessage(opts.message)
+      : userTurnToMessage(sentTurn(opts))
     this.update(chatId, {
       error: null,
       failedSend: null,
@@ -525,6 +545,7 @@ class ChatStore {
           key: answer.steerId,
           id: answer.steerId,
           message: opts.message,
+          turn: sentTurn(opts),
           local: { draft: opts.draft },
         })
       } else if (answer.kind === "not-steerable") {
@@ -571,7 +592,12 @@ class ChatStore {
       failedSend: null,
       pendingSteers: [
         ...this.getOrCreate(chatId).pendingSteers,
-        { key, message: opts.message, local: { draft: opts.draft } },
+        {
+          key,
+          message: opts.message,
+          turn: sentTurn(opts),
+          local: { draft: opts.draft },
+        },
       ],
     })
     const without = () =>
@@ -924,7 +950,7 @@ class ChatStore {
    */
   private applyAcpUpdate(chatId: string, update: SessionUpdate) {
     if (isUpdate(update, "user_message_chunk")) {
-      this.appendUserEcho(chatId, blockText(update.content))
+      this.appendUserEcho(chatId, update)
       return
     }
     if (isUpdate(update, "agent_message_chunk")) {
@@ -958,17 +984,19 @@ class ChatStore {
    * `user_message_chunk` the route broadcasts so the client transitions into
    * streaming. Dedups against the optimistic add the sending client already
    * made (its trailing message is the identical user turn); other browsers and
-   * late joiners append it fresh. The echo goes through the user-turn
-   * projection, as a reload does, so both show the same message. It closes
+   * late joiners append it fresh. The server already ran the echo through the
+   * user-turn projection, as a reload does, so both show the same message and
+   * the browser parses no marker strings. It closes
    * any in-flight agent/thought block so the next agent delta starts a new
    * message.
    */
-  private appendUserEcho(chatId: string, text: string) {
+  private appendUserEcho(chatId: string, update: SessionUpdate) {
     this.acpAgentText.delete(chatId)
     this.acpThoughtText.delete(chatId)
     const prev = this.getOrCreate(chatId).messages
     const last = prev[prev.length - 1]
-    const message = userTurnMessage(text)
+    const message = echoedUserTurn(update)
+    if (!message) return
     if (last?.role === "user" && last.content === message.content) return
     this.update(chatId, { messages: [...prev, message] })
   }
@@ -1149,7 +1177,7 @@ class ChatStore {
     const lastAsk = this.getOrCreate(chatId)
       .messages.filter((m) => m.role === "user")
       .at(-1)
-    if (lastAsk?.content !== userTurnMessage(opts.message).content) {
+    if (lastAsk?.content !== sentTurn(opts).body) {
       return undefined
     }
     return () => this.sendMessage({ ...opts }, true)

@@ -1,13 +1,12 @@
 import type { Tool } from "ai"
 import type { Engine } from "./acp/engine-seam"
 import type { SessionUpdate } from "./acp/schema"
-import { userMessageChunk } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
 import type { PlanResolution, RunStatus } from "./run-state"
 import { isWakeStatus, type WorkspaceTurnEnd } from "./coordinator-wake"
 import type { BranchRenameClaim } from "./auto-naming"
 import type { SteerInbox } from "./steer-inbox"
-import { parseUserMessage } from "./message-markers"
+import { projectUserTurn, userTurnEcho } from "./user-turn"
 
 /**
  * What a Chat Target hands {@link launchTurn} once its kind-specific setup is
@@ -63,7 +62,7 @@ export interface TurnTarget {
 export interface TurnRequest {
   roomId: string
   chatId: string
-  /** The user's message as typed, for the live echo. */
+  /** The user's message as typed; the target decorates it into the turn. */
   message: string
   sandboxName?: string
   /** The document a document chat's turn targets. */
@@ -246,7 +245,7 @@ export async function launchTurn(
   request: TurnRequest,
   target: TurnTarget
 ): Promise<TurnLaunchResult> {
-  const { roomId, chatId, message } = request
+  const { roomId, chatId } = request
 
   const engine = await deps.resolveEngine({
     sandboxName: request.sandboxName,
@@ -285,7 +284,7 @@ export async function launchTurn(
     })
   }
   if (!retry) {
-    await deps.broadcastUpdate(roomId, chatId, userMessageChunk(message))
+    await deps.broadcastUpdate(roomId, chatId, userTurnEcho(prepared.userText))
   }
   const { branchRename, commentRequest } = prepared
 
@@ -311,7 +310,7 @@ export async function launchTurn(
       model: prepared.model,
       tools: prepared.tools,
       planMode: prepared.planMode,
-      wake: Boolean(parseUserMessage(prepared.userText).wakeFrom),
+      wake: Boolean(projectUserTurn(prepared.userText).wakeFrom),
       reportSteering: reportSteeringOnce(deps, { roomId, chatId, runId }),
     })
     if (commentRequest) {
@@ -363,7 +362,7 @@ async function steerRunningTurn(
   })
   await deps.broadcastControl(roomId, chatId, {
     kind: "steer_pending",
-    steer: { id: steer.id, message },
+    steer: { id: steer.id, message, turn: projectUserTurn(message) },
   })
   if (
     !(await deps.isRunActive(active.id)) &&

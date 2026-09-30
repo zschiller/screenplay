@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { chatStore } from "./chat-store"
 import {
   agentMessageChunk,
@@ -7,11 +7,11 @@ import {
   toolCallUpdate,
   type SessionUpdate,
   type ToolCallContent,
-  userMessageChunk,
 } from "./agent/acp/schema"
 import { applyToolCallUpdate } from "./agent/acp/record"
 import { renderHistory } from "./agent/history-render"
-import { wireToContentBlocks } from "./agent/acp/markers"
+import { contentBlocksToWire, wireToContentBlocks } from "./agent/acp/markers"
+import { projectUserTurn, userTurnEcho } from "./agent/user-turn"
 import {
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
@@ -338,7 +338,7 @@ describe("chat-store — ACP tool-call lifecycle (in place, keyed by id)", () =>
   })
 })
 
-describe("chat-store — user turns, reload == live (#1252)", () => {
+describe("chat-store — user turns, reload == live (#1252, #1253)", () => {
   const element: TargetedElement = {
     ref: "el1",
     route: "/login",
@@ -347,7 +347,7 @@ describe("chat-store — user turns, reload == live (#1252)", () => {
     iframeLayerId: "layer-1",
   }
 
-  it.each([
+  const turns = [
     { kind: "plain", wire: "Fix the redirect" },
     {
       kind: "wake",
@@ -378,26 +378,114 @@ describe("chat-store — user turns, reload == live (#1252)", () => {
         `Make ${serializeElement("button#submit", "el1")} blue` +
         buildTargetedElementsFooter([element]),
     },
-  ])("echoes a $kind turn the way a reload renders it", ({ wire }) => {
+  ]
+
+  /** What a reload draws for a user turn persisted as `wire`. */
+  const reload = (wire: string) =>
+    renderHistory([
+      {
+        kind: "record",
+        record: { role: "user", content: wireToContentBlocks(wire) },
+      },
+    ])
+
+  it.each(turns)(
+    "echoes a $kind turn the way a reload renders it",
+    ({ wire }) => {
+      const chatId = `chat_${++seq}`
+      play(chatId, [
+        { type: "chat-stream-start", chatId, id: nextId() },
+        {
+          type: "chat-acp-update",
+          chatId,
+          id: nextId(),
+          // Turn Launch's echo of the persisted turn.
+          update: userTurnEcho(wire),
+        },
+      ])
+
+      expect(reload(wire)).toEqual(chatStore.getSnapshot(chatId).messages)
+      chatStore.cleanup(chatId)
+    }
+  )
+
+  it.each(turns)(
+    "shows a $kind Steer pending, then taken, the way a reload renders it",
+    ({ wire }) => {
+      const chatId = `chat_${++seq}`
+      // The Steer is stored as content blocks; the Steer path echoes those.
+      const content = wireToContentBlocks(wire)
+      play(chatId, [
+        { type: "chat-stream-start", chatId, id: nextId() },
+        {
+          type: "chat-control",
+          chatId,
+          id: nextId(),
+          control: {
+            kind: "steer_pending",
+            steer: { id: "s1", message: wire, turn: projectUserTurn(wire) },
+          },
+        },
+      ])
+      const [pending] = chatStore.getSnapshot(chatId).pendingSteers
+      const [reloaded] = reload(wire)
+      expect(reloaded).toMatchObject({ content: pending.turn.body })
+
+      play(chatId, [
+        {
+          type: "chat-control",
+          chatId,
+          id: nextId(),
+          control: { kind: "steers_taken", ids: ["s1"] },
+        },
+        {
+          type: "chat-acp-update",
+          chatId,
+          id: nextId(),
+          update: userTurnEcho(contentBlocksToWire(content)),
+        },
+      ])
+      expect(chatStore.getSnapshot(chatId).pendingSteers).toEqual([])
+      expect(chatStore.getSnapshot(chatId).messages).toEqual([reloaded])
+      chatStore.cleanup(chatId)
+    }
+  )
+
+  it("sends a Composer turn that already reads as its echo and its reload", async () => {
     const chatId = `chat_${++seq}`
+    const body = `Make ${serializeElement("button#submit", "el1")} blue`
+    const wire = body + buildTargetedElementsFooter([element])
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ runId: "run-1" }),
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+    try {
+      await chatStore.sendMessage({
+        roomId: "room-1",
+        chatId,
+        target: { kind: "room" },
+        message: wire,
+        turn: { body, targetedElements: [element] },
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const sent = chatStore.getSnapshot(chatId).messages
+    expect(sent).toEqual(reload(wire))
+
     play(chatId, [
       { type: "chat-stream-start", chatId, id: nextId() },
       {
         type: "chat-acp-update",
         chatId,
         id: nextId(),
-        update: userMessageChunk(wire),
+        update: userTurnEcho(wire),
       },
     ])
-
-    const live = chatStore.getSnapshot(chatId).messages
-    const reloaded = renderHistory([
-      {
-        kind: "record",
-        record: { role: "user", content: wireToContentBlocks(wire) },
-      },
-    ])
-    expect(reloaded).toEqual(live)
+    // The echo dedups against the optimistic message rather than doubling it.
+    expect(chatStore.getSnapshot(chatId).messages).toEqual(sent)
     chatStore.cleanup(chatId)
   })
 })
