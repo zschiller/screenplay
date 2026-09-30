@@ -18,30 +18,6 @@ const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
   ...(isDesktopBuild ? { output: "standalone" } : {}),
-  // Under a mount path the deployment's own root is empty, so Vercel's
-  // dashboard (and anything else that probes `/` or `/favicon.ico`) finds no
-  // favicon. Point both at the product. Redirects, because Next only rewrites
-  // outside `basePath` to external URLs.
-  ...(basePath
-    ? {
-        async redirects() {
-          return [
-            {
-              source: "/",
-              destination: basePath,
-              basePath: false,
-              permanent: false,
-            },
-            {
-              source: "/favicon.ico",
-              destination: `${basePath}/icon`,
-              basePath: false,
-              permanent: false,
-            },
-          ]
-        },
-      }
-    : {}),
   experimental: {
     // Next loads every route's server bundle before it answers its first
     // request. The desktop shell holds its loading screen until `/api/health`
