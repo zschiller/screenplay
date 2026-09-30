@@ -5,12 +5,9 @@ import { memo } from "react"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import {
   groupAssignSummary,
-  groupBranchId,
-  groupSwitchFrames,
   groupSwitchSummary,
-  isWorkspaceException,
+  groupWorkspace,
 } from "@/lib/canvas/group-workspace"
-import { workspaceLabel } from "@/lib/workspace-label"
 import type {
   IframeLayerLayoutMap,
   PlaceholderRect,
@@ -226,45 +223,25 @@ function CanvasMemberLayerImpl({
           )
 
         // The group label's pill, as a switcher for the whole Group (#869).
-        const groupSwitcherOf = (
-          group: IframeLayerGroupData,
-          groupBranch: string | undefined
-        ) => {
-          const { following, exceptions } = groupSwitchFrames(group, framesById)
-          const workspace = workspaceOf(groupBranch)
-          if (!workspace) {
-            // Frames with no Workspace yet pick one here, once, instead of
-            // on each frame's label (#871). Documents alone need none.
-            if (groupBranch || following.length === 0) return undefined
-            return {
-              switcher: {
-                branches: agents,
-                summary: [groupAssignSummary(following.length)],
-                onPick: (branchId: string) =>
-                  layerMutations.assignGroupAgent(group.id, branchId),
-              },
-            }
+        // Only a Group whose frames all show one Workspace names it (#1276).
+        const groupSwitcherOf = (group: IframeLayerGroupData) => {
+          const shared = groupWorkspace(group, framesById)
+          if (!shared) return undefined
+          const switcher = {
+            branches: agents,
+            summary: [
+              shared.branchId
+                ? groupSwitchSummary(shared.frames.length)
+                : // Frames with no Workspace yet pick one here, once,
+                  // instead of on each frame's label (#871).
+                  groupAssignSummary(shared.frames.length),
+            ],
+            onPick: (branchId: string) =>
+              layerMutations.assignGroupAgent(group.id, branchId),
           }
-          const summary = groupSwitchSummary(
-            following.length,
-            exceptions.map((id) => {
-              const frame = framesById.get(id)
-              const branch = agents.find((a) => a.id === frame?.branchId)
-              return {
-                name: frame?.label || "Untitled",
-                workspace: branch?.ref ? workspaceLabel(branch) : undefined,
-              }
-            })
-          )
-          return {
-            ...workspace,
-            switcher: {
-              branches: agents,
-              summary,
-              onPick: (branchId: string) =>
-                layerMutations.assignGroupAgent(group.id, branchId),
-            },
-          }
+          if (!shared.branchId) return { switcher }
+          const workspace = workspaceOf(shared.branchId)
+          return workspace ? { ...workspace, switcher } : undefined
         }
 
         return entries.map(({ member, group }) => {
@@ -275,11 +252,12 @@ function CanvasMemberLayerImpl({
           const groupLabel = showGroupLabel
             ? groupDisplayNames.get(group.id)
             : undefined
-          const groupBranch = groupBranchId(group, framesById)
-          const groupWorkspace =
-            index === 0 && showGroupLabel
-              ? groupSwitcherOf(group, groupBranch)
-              : undefined
+          // Every frame names its own Workspace unless the group label names
+          // the one they all show (#1276).
+          const groupNamesWorkspace =
+            showGroupLabel && !!groupWorkspace(group, framesById)
+          const groupLabelWorkspace =
+            index === 0 && showGroupLabel ? groupSwitcherOf(group) : undefined
           // Tint this member's name (and, on the leftmost member,
           // the group label) to match a remote user's selection
           // rect. Skipped when we've selected it locally — our own
@@ -345,7 +323,7 @@ function CanvasMemberLayerImpl({
                 remoteSelectedColor={remoteSelectedColor}
                 remoteGroupSelectedColor={remoteGroupSelectedColor}
                 groupLabel={index === 0 ? groupLabel : undefined}
-                groupWorkspace={groupWorkspace}
+                groupWorkspace={groupLabelWorkspace}
                 groupSelected={groupSelected}
                 onSelectGroup={
                   index === 0 && showGroupLabel
@@ -383,10 +361,6 @@ function CanvasMemberLayerImpl({
 
           const iframeLayer = framesById.get(member.id)
           if (!iframeLayer) return null
-          // A frame names its Workspace only when it differs from its
-          // Group's, or when there's no group label to name it (#868).
-          const exception = isWorkspaceException(iframeLayer, groupBranch)
-          const groupFollowed = exception ? workspaceOf(groupBranch) : undefined
           const agentInfo = iframeLayer.branchId
             ? agentDomains[iframeLayer.branchId]
             : undefined
@@ -491,22 +465,8 @@ function CanvasMemberLayerImpl({
               remoteSelectedColor={remoteSelectedColor}
               remoteGroupSelectedColor={remoteGroupSelectedColor}
               groupLabel={index === 0 ? groupLabel : undefined}
-              groupWorkspace={groupWorkspace}
-              showWorkspace={
-                !showGroupLabel ||
-                exception ||
-                // An unassigned frame in an unassigned Group leaves the
-                // choice to the group label (#871).
-                (!iframeLayer.branchId && !!groupBranch)
-              }
-              followGroup={
-                groupFollowed
-                  ? {
-                      name: groupDisplayNames.get(group.id) ?? "Group",
-                      workspace: groupFollowed,
-                    }
-                  : undefined
-              }
+              groupWorkspace={groupLabelWorkspace}
+              showWorkspace={!groupNamesWorkspace}
               groupSelected={groupSelected}
               onSelectGroup={
                 index === 0 && showGroupLabel
