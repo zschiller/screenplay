@@ -303,6 +303,17 @@ body {
   background-color: rgba(250, 204, 21, 0.55);
 }
 
+/* Comment tool over a Document (#1244): the body reads as selectable text.
+   The title can't be commented, so it can't be selected either. */
+.doc-comment-selectable .tiptap {
+  cursor: text;
+  user-select: text;
+}
+.doc-comment-selectable .tiptap > :first-child {
+  cursor: default;
+  user-select: none;
+}
+
 /* Tiptap Placeholder — `is-empty` is added to nodes whose content is empty;
    we render `data-placeholder` in front via a ::before pseudo so the cursor
    sits at column 0 and the hint disappears the instant the user types. */

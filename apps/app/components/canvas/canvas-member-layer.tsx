@@ -375,6 +375,7 @@ function CanvasMemberLayerImpl({
                 onStartEdit={setEditingDocumentLayerId}
                 onStopEdit={() => setEditingDocumentLayerId(null)}
                 onEditorReady={reference.onDocumentEditorReady}
+                commentMode={commentMode}
                 onStartInlineComment={reference.startInlineComment}
                 onSelectInlineThread={reference.setActiveThread}
               />
