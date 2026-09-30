@@ -7,7 +7,7 @@ import { buttonClass, measure } from "./editorial"
 export function CTA() {
   return (
     <section className={cn(measure, "py-[clamp(88px,12vw,160px)]")}>
-      <h2 className="max-w-[14ch] font-heading text-[clamp(30px,4.5vw,56px)] leading-[1.05] font-normal tracking-[-0.03em] text-balance">
+      <h2 className="max-w-[14ch] font-heading text-[clamp(40px,6.2vw,88px)] leading-none font-normal tracking-[-0.035em] text-balance">
         Try it on your own repository.
       </h2>
       <p className="mt-5.5 max-w-[48ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">

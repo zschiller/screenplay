@@ -1,6 +1,6 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-import { measure } from "./editorial"
+import { measure, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const features: { title: string; body: React.ReactNode }[] = [
@@ -40,15 +40,13 @@ const features: { title: string; body: React.ReactNode }[] = [
 
 export function Features() {
   return (
-    <section
-      id="features"
-      className={cn(measure, "scroll-mt-20 pt-[clamp(72px,10vw,140px)]")}
-    >
+    <section id="features" className={cn(measure, sectionTop)}>
       <SectionHeading
         slug="Features"
+        tier="reference"
         title="Built for comparing what your agents build."
       />
-      <div className="mt-12 grid border-t border-border md:grid-cols-3 md:gap-x-13">
+      <div className="mt-12 grid border-t border-foreground md:grid-cols-3 md:gap-x-13">
         {features.map((f, i) => (
           <div
             key={f.title}
