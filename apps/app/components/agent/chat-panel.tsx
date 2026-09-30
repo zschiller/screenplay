@@ -64,12 +64,7 @@ import { useTerminalCloseGuard } from "./use-terminal-close-guard"
 import { ChatHistoryMenu } from "./chat-history-menu"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
-import type {
-  BranchData,
-  ChatSessionData,
-  TabKind,
-  TerminalTabData,
-} from "@/lib/types"
+import type { ChatSessionData, TabKind, TerminalTabData } from "@/lib/types"
 import { getLayerKind } from "@/lib/layer-kinds"
 import {
   DEFAULT_HARNESS_KEY,
@@ -89,6 +84,7 @@ import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
 import { prStateColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
 import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
+import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
 
@@ -410,26 +406,6 @@ type OpenTab =
       terminal: TerminalTabData
     }
 
-/**
- * The chat panel can target one of two top-level kinds:
- *  - an *agent* (sandbox-backed flow): file editing, git, PR creation, logs.
- *  - a *layer* of any kind whose `LayerKindDescriptor.canBeChatTarget` is
- *    true (currently just markdownLayers). The `layerKind` discriminator
- *    determines which descriptor's icon/label drives the chrome and which
- *    server-side toolset runs.
- *
- * New layer kinds become valid chat targets by setting
- * `canBeChatTarget: true` on their descriptor and registering a server-side
- * `chat-target-kinds` entry — no changes here needed.
- */
-export type ChatPanelTarget =
-  | { kind: "agent"; agent: BranchData }
-  | {
-      kind: "layer"
-      layerKind: string
-      layer: { id: string } & Record<string, unknown>
-    }
-
 interface ChatPanelProps {
   target: ChatPanelTarget
   chatSessions: ChatSessionData[]
@@ -513,6 +489,7 @@ export function ChatPanel({
   // picker entry) reads icon/label from there so future kinds light up
   // without changes to this file.
   const layerTarget = target.kind === "layer" ? target : null
+  const chatTarget = chatTargetOf(target)
 
   // The tab strip interleaves two distinct tab types — durable chats and
   // ephemeral terminals — in one createdAt-ordered row. We model each as a
@@ -1370,14 +1347,8 @@ export function ChatPanel({
             <AgentChat
               chatId={chat.id}
               roomId={roomId}
-              sandboxId={agent?.id}
-              sandboxName={agent?.sandboxName}
+              target={chatTarget}
               sandboxStatus={agent?.status}
-              markdownLayerId={
-                layerTarget?.layerKind === "markdown-layer"
-                  ? layerTarget.layer.id
-                  : undefined
-              }
               isFirstChat={isFirst}
               planMode={chat.planMode}
               onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}

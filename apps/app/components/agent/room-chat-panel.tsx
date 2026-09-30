@@ -96,7 +96,7 @@ export function RoomChatPanel({
           <AgentChat
             chatId={chatId}
             roomId={roomId}
-            roomTarget
+            target={{ kind: "room" }}
             roomStart={roomStart}
             model={chatSession?.model}
             onModelChange={(model) => onModelChange(chatId, model)}

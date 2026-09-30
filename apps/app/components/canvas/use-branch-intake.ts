@@ -664,7 +664,11 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           send: {
             roomId,
             chatId: queued.chatId,
-            sandboxName: agent.sandboxName,
+            target: {
+              kind: "agent",
+              branchId: agent.id,
+              sandboxName: agent.sandboxName,
+            },
             message: queued.prompt,
             isFirstChat: true,
             model: queued.model,

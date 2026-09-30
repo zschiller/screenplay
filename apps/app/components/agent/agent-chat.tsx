@@ -28,6 +28,7 @@ import { workspaceTasksOf } from "@/lib/agent/workspace-task"
 import { userTurnMessage } from "@/lib/agent/user-turn"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { CoordinatorStart } from "@/lib/fresh-workspace"
+import type { ChatTarget } from "@/lib/chat/chat-target"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceTasks } from "./workspace-task-row"
 import { isHarnessPlumbing } from "@/lib/agent/tool-name"
@@ -50,17 +51,12 @@ const subscribeTargetEligibility = (onChange: () => void) =>
 interface AgentChatProps {
   chatId: string
   roomId: string
-  /** Sandbox-backed target. Either this or `markdownLayerId` is set. */
-  sandboxId?: string
-  sandboxName?: string
+  /** What this chat talks to: a Branch's sandbox, a document or the Room. */
+  target: ChatTarget
   /** The branch's sandbox lifecycle status. While it's creating/starting the
    *  chat can't reach the agent yet, so we show the same provisioning spinner
    *  the terminal does rather than a live input that would error on send. */
   sandboxStatus?: SandboxStatus
-  /** Document-layer target. */
-  markdownLayerId?: string
-  /** The Room's Coordinator chat: the whole canvas, no sandbox or document. */
-  roomTarget?: boolean
   /** How the Coordinator's empty chat reads (#1182): a fresh canvas or not. */
   roomStart?: CoordinatorStart
   isFirstChat?: boolean
@@ -76,11 +72,8 @@ interface AgentChatProps {
 export function AgentChat({
   chatId,
   roomId,
-  sandboxId,
-  sandboxName,
+  target,
   sandboxStatus,
-  markdownLayerId,
-  roomTarget,
   roomStart,
   isFirstChat,
   planMode,
@@ -111,9 +104,7 @@ export function AgentChat({
   } = useAgentChat({
     chatId,
     roomId,
-    sandboxName,
-    markdownLayerId,
-    roomTarget,
+    target,
     isFirstChat,
     planMode,
     isActive,
@@ -139,13 +130,10 @@ export function AgentChat({
   //     plan-mode turn would change nothing (#743);
   //   - element picking — there's no preview to pick from.
   //
-  // The empty-state copy below splits on the same flag.
-  const chatKind: ChatKind = roomTarget
-    ? "room"
-    : markdownLayerId
-      ? "document"
-      : "agent"
+  // The empty-state copy below splits on the same kind.
+  const chatKind = target.kind
   const isAgentChat = chatKind === "agent"
+  const sandboxName = target.kind === "agent" ? target.sandboxName : undefined
   const composerPlaceholder = isAgentChat
     ? "Ask the agent… (@ document, / skill)"
     : chatKind === "room"
@@ -280,11 +268,9 @@ export function AgentChat({
   // over the eligible frames and resolves with the picked element — or null when
   // cancelled or when no Canvas is mounted (doc chats, the seed composer).
   //
-  // The pick key is a **Branch id**: this chat's `sandboxId` prop is the
-  // sandbox-backed agent's id, which *is* its Branch's id (`agent.id`), and
-  // Element Targeting's eligibility rule matches it against each frame's
-  // `branchId`. Named here so the two ids aren't mistaken for different keys.
-  const pickBranchId = sandboxId
+  // The pick key is a **Branch id**: Element Targeting's eligibility rule
+  // matches it against each frame's `branchId`.
+  const pickBranchId = target.kind === "agent" ? target.branchId : undefined
   const handlePickElement = useCallback(() => {
     if (!pickBranchId) return Promise.resolve(null)
     return targetingStore.requestPick(pickBranchId)
@@ -500,7 +486,7 @@ export function AgentChat({
             </ul>
           ) : undefined
         }
-        onPickElement={isAgentChat && sandboxId ? handlePickElement : undefined}
+        onPickElement={pickBranchId ? handlePickElement : undefined}
         targetEligible={targetEligible}
       />
     </div>
@@ -524,9 +510,6 @@ const ROOM_STARTERS = [
   "What changed in each Workspace?",
 ]
 
-/** Which Chat Target a chat talks to, in the UI's terms. */
-type ChatKind = "agent" | "document" | "room"
-
 /**
  * The empty chat, worded for its Chat Target in the UI's own nouns: a frame
  * chat changes the Workspace's code (and so what its frames show), a Document
@@ -540,7 +523,7 @@ function ChatEmptyState({
   roomStart,
   onPickStarter,
 }: {
-  kind: ChatKind
+  kind: ChatTarget["kind"]
   roomStart?: CoordinatorStart
   onPickStarter: (text: string) => void
 }) {

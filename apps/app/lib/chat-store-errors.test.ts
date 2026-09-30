@@ -52,7 +52,12 @@ describe("chat-store — errors in plain words, with Retry", () => {
   it("rewords a turn failure and keeps the raw error as its detail", async () => {
     const chatId = newChat()
     respond({ status: 200 }, { status: 200 })
-    await chatStore.sendMessage({ roomId: "room", chatId, message: "Go" })
+    await chatStore.sendMessage({
+      roomId: "room",
+      chatId,
+      target: { kind: "room" },
+      message: "Go",
+    })
 
     const raw =
       "request to https://api.example.com/v1/prompt timed out after 120000ms"
@@ -84,7 +89,12 @@ describe("chat-store — errors in plain words, with Retry", () => {
   it("Retry keeps one copy of the ask, however often the turn fails (#1228)", async () => {
     const chatId = newChat()
     respond({ status: 200 })
-    await chatStore.sendMessage({ roomId: "room", chatId, message: "Go" })
+    await chatStore.sendMessage({
+      roomId: "room",
+      chatId,
+      target: { kind: "room" },
+      message: "Go",
+    })
     const fail = () =>
       chatStore.handleBroadcastEvent({
         type: "chat-control",
@@ -114,7 +124,12 @@ describe("chat-store — errors in plain words, with Retry", () => {
   it("a refused Retry puts the error back with Retry, not a second copy", async () => {
     const chatId = newChat()
     respond({ status: 200 })
-    await chatStore.sendMessage({ roomId: "room", chatId, message: "Go" })
+    await chatStore.sendMessage({
+      roomId: "room",
+      chatId,
+      target: { kind: "room" },
+      message: "Go",
+    })
     chatStore.handleBroadcastEvent({
       type: "chat-control",
       chatId,

@@ -24,6 +24,8 @@ function finishRun(chatId: string) {
   })
 }
 
+const ROOM = { kind: "room" } as const
+
 describe("useAgentChat unread", () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -39,7 +41,12 @@ describe("useAgentChat unread", () => {
 
   it("keeps a background chat's finished run unread", () => {
     renderHook(() =>
-      useAgentChat({ chatId: "bg", roomId: "room", isActive: false })
+      useAgentChat({
+        chatId: "bg",
+        roomId: "room",
+        target: ROOM,
+        isActive: false,
+      })
     )
     finishRun("bg")
     expect(chatStore.hasUnread("bg")).toBe(true)
@@ -48,7 +55,12 @@ describe("useAgentChat unread", () => {
 
   it("marks the chat on screen read", () => {
     renderHook(() =>
-      useAgentChat({ chatId: "fg", roomId: "room", isActive: true })
+      useAgentChat({
+        chatId: "fg",
+        roomId: "room",
+        target: ROOM,
+        isActive: true,
+      })
     )
     finishRun("fg")
     expect(chatStore.hasUnread("fg")).toBe(false)
@@ -58,7 +70,12 @@ describe("useAgentChat unread", () => {
   it("clears unread when a background chat comes on screen", () => {
     const { rerender } = renderHook(
       ({ isActive }) =>
-        useAgentChat({ chatId: "later", roomId: "room", isActive }),
+        useAgentChat({
+          chatId: "later",
+          roomId: "room",
+          target: ROOM,
+          isActive,
+        }),
       { initialProps: { isActive: false } }
     )
     finishRun("later")
@@ -66,5 +83,15 @@ describe("useAgentChat unread", () => {
     rerender({ isActive: true })
     expect(chatStore.hasUnread("later")).toBe(false)
     chatStore.cleanup("later")
+  })
+
+  it("keeps its send when the caller rebuilds the same target", () => {
+    const { result, rerender } = renderHook(() =>
+      useAgentChat({ chatId: "same", roomId: "room", target: { kind: "room" } })
+    )
+    const first = result.current.sendMessage
+    rerender()
+    expect(result.current.sendMessage).toBe(first)
+    chatStore.cleanup("same")
   })
 })

@@ -51,7 +51,7 @@ describe("chat-store — the Coordinator's show_on_canvas", () => {
       roomId: "room",
       chatId,
       message: "Zoom to the cart",
-      roomTarget: true,
+      target: { kind: "room" },
     })
     chatStore.handleBroadcastEvent({
       type: "chat-stream-start",

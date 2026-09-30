@@ -144,7 +144,7 @@ export function resolveReference(
     send: {
       roomId,
       chatId,
-      markdownLayerId: docLayer.id,
+      target: { kind: "document", layerId: docLayer.id },
       message,
       isFirstChat,
     },

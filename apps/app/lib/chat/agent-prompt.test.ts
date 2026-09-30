@@ -63,7 +63,7 @@ describe("resolveTargetChat", () => {
       send: {
         roomId: "room-1",
         chatId: "c2",
-        sandboxName: "sb-a1",
+        target: { kind: "agent", branchId: "a1", sandboxName: "sb-a1" },
         message: "do the thing",
         isFirstChat: false,
         planMode: undefined,
@@ -119,7 +119,7 @@ describe("resolveTargetChat", () => {
       send: {
         roomId: "room-1",
         chatId: "chat-new",
-        sandboxName: "sb-a1",
+        target: { kind: "agent", branchId: "a1", sandboxName: "sb-a1" },
         message: "do the thing",
         isFirstChat: true,
         planMode: undefined,

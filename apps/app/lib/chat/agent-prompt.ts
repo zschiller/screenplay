@@ -221,7 +221,11 @@ export function resolveTargetChat(
     send: {
       roomId,
       chatId,
-      sandboxName: agent.sandboxName,
+      target: {
+        kind: "agent",
+        branchId: agent.id,
+        sandboxName: agent.sandboxName,
+      },
       message,
       isFirstChat,
       planMode,
