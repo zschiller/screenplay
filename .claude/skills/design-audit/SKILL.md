@@ -31,7 +31,7 @@ Done when every finding from the three audits is accounted for exactly once: in 
 
 Read [`DECISIONS.md`](DECISIONS.md) and build the decisions page from `decisions-template.html`. A call that needs mockups before the owner can answer it runs as a [`design-exploration`](../design-exploration/SKILL.md) instead, and its pick comes back as the answer.
 
-Done when every call in every plan is a question on the page and every PR is in its runs list.
+Done when every call in every plan is a question on the page or has its own exploration, and every PR is in its runs list.
 
 ## 4. Fan out: when the owner pastes their decisions back
 
