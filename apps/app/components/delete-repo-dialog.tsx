@@ -12,7 +12,7 @@ import {
 } from "@/components/workspace-mention"
 import { ConfirmDialog, ConfirmOption } from "@/components/confirm-dialog"
 import { LostWorkAlert } from "@/components/delete-facts"
-import type { StatusLineContext } from "@/lib/branch/status-line"
+import type { WorkspaceState } from "@/lib/branch/workspace-state"
 import {
   lostWork,
   projectLostWorkWarning,
@@ -23,8 +23,8 @@ import {
 /** One of the Project's Workspaces, as the confirm lists it. */
 export type DeleteRepoWorkspace = WorkspaceMentionBranch & {
   id: string
-  /** Its live facts (a turn in flight, a plan waiting) for its state icon. */
-  live?: StatusLineContext
+  /** Its state, for its state icon. */
+  state: WorkspaceState
   /** Its PR, when open: the row says so, and it closes with the branch. */
   openPrNumber?: number
   /** The checkout's git state: `undefined` while read, `null` when unreadable. */
@@ -106,7 +106,7 @@ export function DeleteRepoDialog({
                   key={w.id}
                   className="flex min-w-0 items-center gap-2 px-3 py-2"
                 >
-                  <WorkspaceMention branch={w} status={w.live} pr="after" />
+                  <WorkspaceMention branch={w} state={w.state} pr="after" />
                   <StateChip workspace={w} localBranchKept={localBranchKept} />
                 </li>
               ))}

@@ -9,7 +9,8 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { StepMarker } from "@/components/local-setup/setup-step"
-import { workspaceStatusLine } from "@/lib/branch/status-line"
+import { WorkspaceStateGlyph } from "@/components/workspace-mention"
+import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import type {
   GettingStartedProgress,
   GettingStartedStep,
@@ -124,6 +125,7 @@ function StepBody({
   onShowCoordinator: () => void
   onOpenWorkspace: (branchId: string) => void
 }) {
+  const stateOf = useWorkspaceStates()
   if (step === "project") {
     return (
       <>
@@ -153,12 +155,18 @@ function StepBody({
   }
 
   const { branch } = progress
-  const line = branch
-    ? workspaceStatusLine(branch, { agentWorking: false })
-    : null
+  const line = branch ? stateOf(branch).line : null
   return (
     <>
-      {line?.kind === "progress" ? (
+      {line?.kind === "idle" &&
+      (line.state === "working" || line.state === "needs-you") ? (
+        <Hint>
+          <span className="flex items-center gap-1.5">
+            <WorkspaceStateGlyph line={line} />
+            {line.text}
+          </span>
+        </Hint>
+      ) : line?.kind === "progress" ? (
         <Hint>
           <span className="flex items-center gap-1.5">
             <Spinner className="size-3.5" />
