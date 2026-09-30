@@ -7,7 +7,6 @@ import {
   CircleIcon,
   GitMergeIcon,
   GitPullRequestIcon,
-  WarningCircleIcon,
   WarningIcon,
 } from "@workspace/ui/components/icons"
 import { Badge } from "@workspace/ui/components/badge"
@@ -44,9 +43,9 @@ export type WorkspaceMentionBranch = Pick<
 
 /**
  * The Workspace's state as one glyph (#963): the regular spinner while setting
- * up, the 9-dot while its agent works, the warning circle in the warning
- * colour when it needs you (a plan to approve or a blocked PR, as the
- * Coordinator's task rows draw it), a small dot when ready, a dashed circle
+ * up, the 9-dot while its agent works, a filled orange dot when it needs you
+ * (a plan to approve or a blocked PR, as the Coordinator's task rows and the
+ * Workspaces button draw it; #1283), a small circle when ready, a dashed circle
  * when stopped, a muted check circle when Done (#976), the warning triangle
  * when setup failed. Never the PR's own state. It
  * takes its colour from the text around it, so it reads the same in the
@@ -61,7 +60,7 @@ export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
     ) : line.state === "working" ? (
       <GripSpinner className="size-3.5 opacity-70" />
     ) : line.state === "needs-you" ? (
-      <WarningCircleIcon className="size-3.5 text-warning" />
+      <NeedsYouDot />
     ) : line.state === "done" ? (
       <CheckCircleIcon weight="bold" className="size-3! opacity-50" />
     ) : line.state === "stopped" ? (
@@ -75,6 +74,24 @@ export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
     <span className="flex size-4 shrink-0 items-center justify-center">
       {glyph}
     </span>
+  )
+}
+
+/**
+ * A Workspace needs you: a filled orange dot, calmer than a warning (#1283).
+ * The state glyph, the Coordinator's task rows and the Workspaces button's
+ * dot all draw it.
+ */
+export function NeedsYouDot({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      data-slot="needs-you-dot"
+      className={cn(
+        "size-2 shrink-0 rounded-full bg-attention-fill",
+        className
+      )}
+    />
   )
 }
 

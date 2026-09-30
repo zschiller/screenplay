@@ -17,6 +17,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { GripSpinner } from "@/components/grip-spinner"
+import { NeedsYouDot } from "@/components/workspace-mention"
 import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore } from "@/lib/chat-store"
 import {
@@ -72,7 +73,9 @@ function StateIcon({ state }: { state: WorkspaceTaskState }) {
       return <GripSpinner className={cls} />
     case "needs-you":
       return (
-        <WarningCircleIcon aria-hidden className={cn(cls, "text-warning")} />
+        <span className={cn(cls, "flex items-center justify-center")}>
+          <NeedsYouDot />
+        </span>
       )
     case "failed":
       return (

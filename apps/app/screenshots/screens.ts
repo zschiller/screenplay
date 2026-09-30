@@ -1522,7 +1522,7 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-workspace-hover-card-plan",
     description:
-      "Hovering the chat header of a Workspace whose plan waits: the warning circle and Plan waiting for approval.",
+      "Hovering the chat header of a Workspace whose plan waits: the orange needs-you dot and Plan waiting for approval.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
