@@ -1,6 +1,12 @@
 import type { AgentMessage } from "@/lib/agent/types"
-import type { BranchData, ChatSessionData, PlanData } from "@/lib/types"
-import { isBranchBusy } from "@/lib/branch-busy"
+import type { BranchData, PlanData } from "@/lib/types"
+import type { BranchBusyChat } from "@/lib/branch-busy"
+import {
+  roomWorkspaceFacts,
+  workspaceState,
+  type WorkspaceStateBranch,
+  type WorkspaceStatusLine,
+} from "@/lib/branch/workspace-state"
 
 /**
  * Workspace task rows (#896): how a Coordinator tool call that names a
@@ -62,6 +68,10 @@ export function createdWorkspacesResult(
 export interface WorkspaceTaskRef {
   branchId: string
   chatId?: string
+  /** The title a created Workspace was asked for, until its Branch has one. */
+  title?: string
+  /** The seed message a created Workspace started on, for its card. */
+  message?: string
 }
 
 /**
@@ -123,12 +133,12 @@ export function workspaceTaskMessage(call: ToolCallMessage): string | null {
   if (!isTool(call.title, SEND_TO_WORKSPACE_TOOL)) return null
   const input = call.rawInput
   if (!input || typeof input !== "object" || Array.isArray(input)) return null
-  const message = (input as Record<string, unknown>).message
-  if (typeof message !== "string") return null
-  return message.replace(/\s+/g, " ").trim() || null
+  return oneLine((input as Record<string, unknown>).message)
 }
 
-const CREATED_WORKSPACE_RE = /\[workspace ([^\]\s]+)\]/g
+const CREATED_WORKSPACE_RE = /\[workspace ([^\]\s]+)\]/
+/** A result line's `"title" (owner/name)`, to find the Workspace's seed. */
+const CREATED_NAME_RE = /^- "(.*)" \(([^()\s]+)\)/
 
 /**
  * The Workspaces a tool call names as task rows: one for a
@@ -140,12 +150,46 @@ export function workspaceTasksOf(call: ToolCallMessage): WorkspaceTaskRef[] {
   if (isTool(call.title, CREATE_WORKSPACES_TOOL)) {
     if (call.status !== "completed") return []
     const text = resultText(call)
-    return [...text.matchAll(CREATED_WORKSPACE_RE)].map((m) => ({
-      branchId: m[1]!,
-    }))
+    const asked = createdInputs(call)
+    return text.split("\n").flatMap((line) => {
+      const branchId = line.match(CREATED_WORKSPACE_RE)?.[1]
+      if (!branchId) return []
+      const name = line.match(CREATED_NAME_RE)
+      const message = name
+        ? oneLine(
+            asked.find((w) => w.title === name[1] && w.repository === name[2])
+              ?.prompt
+          )
+        : null
+      return [
+        {
+          branchId,
+          ...(name ? { title: name[1] } : {}),
+          ...(message ? { message } : {}),
+        },
+      ]
+    })
   }
   const task = workspaceTaskOf(call)
   return task ? [task] : []
+}
+
+/** The Workspaces a `create_workspaces` call asked for, as far as they parse. */
+function createdInputs(
+  call: ToolCallMessage
+): { title?: unknown; repository?: unknown; prompt?: unknown }[] {
+  const input = call.rawInput
+  if (!input || typeof input !== "object" || Array.isArray(input)) return []
+  const list = (input as Record<string, unknown>).workspaces
+  if (!Array.isArray(list)) return []
+  return list.filter(
+    (w): w is Record<string, unknown> => !!w && typeof w === "object"
+  )
+}
+
+function oneLine(text: unknown): string | null {
+  if (typeof text !== "string") return null
+  return text.replace(/\s+/g, " ").trim() || null
 }
 
 function isTool(name: string, tool: string): boolean {
@@ -160,59 +204,67 @@ function resultText(call: ToolCallMessage): string {
     .join("\n")
 }
 
-/** What a task row shows, in the words the row uses. */
+/**
+ * What a chat card shows (#1318), in the words the card uses. Past the tool
+ * call itself, it is the Workspace's own state (Workspace State, #1247), so a
+ * card reads the same as the Workspace's row in the Workspaces menu.
+ */
 export type WorkspaceTaskState =
   | "sending"
   | "starting"
   | "working"
   | "needs-you"
-  | "finished"
+  | "ready"
+  | "stopped"
+  | "done"
   | "failed"
   | "removed"
 
+/** A chat card's state, and the Workspace's status line behind its icon. */
+export interface WorkspaceTaskStatus {
+  state: WorkspaceTaskState
+  /** The Workspace's status line; null while sending or once removed. */
+  line: WorkspaceStatusLine | null
+}
+
 /**
- * A task row's state, read live from the Room: its sandbox still starting or
- * failed, its agent working (any open chat streaming), waiting on the user (a
- * plan pending approval), or finished: the turn ended. Finished, not Done,
- * since Done is the member's word for a Workspace they marked done (#976).
- * `sending` covers the tool call itself still running.
+ * A chat card's state, read live from the Room: the tool call still running
+ * (`sending`), the Workspace gone (`removed`), else the Workspace's own state
+ * from {@link workspaceState}: Done when a member marked it done, setup
+ * running or failed, its agent working, needing you (a plan to approve or a
+ * blocked merge), stopped, or Ready once the turn ended. A created Workspace
+ * counts as starting until its seed message is sent.
  */
 export function workspaceTaskState(input: {
   callRunning: boolean
-  branch: Pick<BranchData, "id" | "status" | "pendingSeed"> | undefined
-  chats: readonly Pick<
-    ChatSessionData,
-    "branchId" | "closedAt" | "isStreaming"
-  >[]
+  branch: (WorkspaceStateBranch & Pick<BranchData, "pendingSeed">) | undefined
+  chats: readonly BranchBusyChat[]
   plans: readonly Pick<PlanData, "branchId" | "status">[]
-}): WorkspaceTaskState {
+}): WorkspaceTaskStatus {
   const { branch, callRunning } = input
-  if (callRunning) return "sending"
-  if (!branch) return "removed"
-  if (branch.status === "error") return "failed"
-  // A created Workspace counts as starting until its seed message is sent.
-  if (
-    branch.status === "creating" ||
-    branch.status === "starting" ||
-    branch.pendingSeed
-  ) {
-    return "starting"
-  }
-  if (isBranchBusy(branch.id, input.chats)) return "working"
-  if (
-    input.plans.some((p) => p.branchId === branch.id && p.status === "pending")
+  if (callRunning) return { state: "sending", line: null }
+  if (!branch) return { state: "removed", line: null }
+  const { line } = workspaceState(
+    branch,
+    roomWorkspaceFacts(input.chats, input.plans)
   )
-    return "needs-you"
-  return "finished"
+  if (line.kind === "error") return { state: "failed", line }
+  if (line.kind === "progress") return { state: "starting", line }
+  if (line.state !== "done" && branch.pendingSeed) {
+    return { state: "starting", line: { kind: "progress", step: "Starting" } }
+  }
+  return { state: line.state, line }
 }
 
-/** A task row's state as the row's trailing word. */
+/** A chat card's state as the card's trailing word. */
 export const WORKSPACE_TASK_STATE_LABEL: Record<WorkspaceTaskState, string> = {
   sending: "Sending",
   starting: "Starting",
   working: "Working",
   "needs-you": "Needs you",
-  finished: "Finished",
+  ready: "Ready",
+  stopped: "Stopped",
+  done: "Done",
   failed: "Failed",
   removed: "Removed",
 }
