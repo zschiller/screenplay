@@ -13,7 +13,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import {
   WorkspaceMention,
-  useWorkspaceAgentWorking,
+  useWorkspaceStatus,
 } from "@/components/workspace-mention"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
@@ -64,11 +64,11 @@ export function CompactWorkspaceMention({
   workspace: FrameWorkspace
   layout?: "label" | "row"
 }) {
-  const agentWorking = useWorkspaceAgentWorking()
+  const workspaceStatus = useWorkspaceStatus()
   return (
     <WorkspaceMention
       branch={workspace}
-      agentWorking={agentWorking(workspace.branchId)}
+      status={workspaceStatus(workspace.branchId)}
       pr={layout === "row" ? "end" : "after"}
       className={cn("gap-1", layout === "label" && "flex-initial")}
     />
@@ -107,7 +107,7 @@ export function WorkspaceCommandList({
   /** Muted lines under the list, read before picking (#869). */
   footer?: string[]
 }) {
-  const agentWorking = useWorkspaceAgentWorking()
+  const workspaceStatus = useWorkspaceStatus()
   return (
     <Command>
       <CommandInput placeholder={placeholder} />
@@ -145,7 +145,7 @@ export function WorkspaceCommandList({
               >
                 <WorkspaceMention
                   branch={a}
-                  agentWorking={agentWorking(a.id)}
+                  status={workspaceStatus(a.id)}
                   fallback={
                     hasDiff ? (
                       <span className="flex items-center gap-1 font-mono text-xs">

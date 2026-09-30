@@ -60,7 +60,7 @@ import { TerminalTab } from "./terminal-tab"
 import { ChatHistoryMenu } from "./chat-history-menu"
 import {
   WorkspaceMention,
-  useWorkspaceAgentWorking,
+  useWorkspaceStatus,
 } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type {
@@ -1387,7 +1387,7 @@ export function ChatPanel({
  * touch this file.
  */
 function TargetPill({ target }: { target: ChatPanelTarget }) {
-  const agentWorking = useWorkspaceAgentWorking()
+  const workspaceStatus = useWorkspaceStatus()
   if (target.kind === "agent") {
     // State icon and plain name (#974); no PR badge, since the header keeps
     // its own PR button on the right (#799).
@@ -1400,7 +1400,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
         <span className="flex min-w-0">
           <WorkspaceMention
             branch={target.agent}
-            agentWorking={agentWorking(target.agent.id)}
+            status={workspaceStatus(target.agent.id)}
             pr={false}
             className="flex-initial text-sm"
           />

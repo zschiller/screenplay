@@ -25,7 +25,7 @@ function ws(id: string, patch: Partial<BranchData> = {}): BranchData {
   } as BranchData
 }
 
-const idle = { agentWorking: false, openPr: false }
+const idle = { agentWorking: false }
 
 describe("workspaceSection", () => {
   it("puts an agent turn or a running setup in Working", () => {
@@ -37,43 +37,49 @@ describe("workspaceSection", () => {
     )
   })
 
-  it("puts a failed setup or an open PR in Needs you", () => {
+  it("puts a failed setup, a waiting plan or a blocked PR in Needs you", () => {
     expect(workspaceSection(ws("a", { status: "error" }), idle)).toBe(
       "needs-you"
     )
-    expect(workspaceSection(ws("a"), { ...idle, openPr: true })).toBe(
+    expect(workspaceSection(ws("a"), { ...idle, planPending: true })).toBe(
       "needs-you"
     )
+    expect(
+      workspaceSection(ws("a", { prState: "open", prBlocked: true }), idle)
+    ).toBe("needs-you")
   })
 
-  it("a working agent wins over an open PR", () => {
+  it("a working agent wins over a waiting plan", () => {
     expect(
-      workspaceSection(ws("a"), { agentWorking: true, openPr: true })
+      workspaceSection(ws("a"), { agentWorking: true, planPending: true })
     ).toBe("working")
   })
 
-  it("puts ready or stopped with no open PR in Idle", () => {
+  it("puts ready, stopped or an open PR waiting on review in Idle", () => {
     expect(workspaceSection(ws("a"), idle)).toBe("idle")
     expect(workspaceSection(ws("a", { status: "stopped" }), idle)).toBe("idle")
+    expect(workspaceSection(ws("a", { prState: "open" }), idle)).toBe("idle")
   })
 })
 
 describe("anyWorkspaceNeedsYou", () => {
-  const openPr = new Set(["pr"])
+  const planPending = new Set(["plan"])
   const context = (b: BranchData) => ({
     agentWorking: b.id === "busy",
-    openPr: openPr.has(b.id),
+    planPending: planPending.has(b.id),
   })
 
   it("is true when a Workspace falls in Needs you", () => {
-    expect(anyWorkspaceNeedsYou([ws("a"), ws("pr")], context)).toBe(true)
+    expect(anyWorkspaceNeedsYou([ws("a"), ws("plan")], context)).toBe(true)
     expect(
       anyWorkspaceNeedsYou([ws("a"), ws("b", { status: "error" })], context)
     ).toBe(true)
   })
 
   it("leaves Done Workspaces out", () => {
-    expect(anyWorkspaceNeedsYou([ws("pr", { doneAt: 1 })], context)).toBe(false)
+    expect(anyWorkspaceNeedsYou([ws("plan", { doneAt: 1 })], context)).toBe(
+      false
+    )
   })
 
   it("is false when every Workspace is working or idle, or there are none", () => {
@@ -136,7 +142,6 @@ describe("groupWorkspaces", () => {
     ]
     const groups = groupWorkspaces(list, "name", (b) => ({
       agentWorking: b.id === "w",
-      openPr: false,
     }))
     expect(groups.map((g) => [g.section, g.branches.map((b) => b.id)])).toEqual(
       [

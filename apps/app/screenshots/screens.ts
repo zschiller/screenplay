@@ -638,7 +638,7 @@ export const SCREENS: Screen[] = [
   {
     name: "chat-coordinator-tasks-done",
     description:
-      "The same task rows once Checkout polish's turn ended: Done, with its changed lines (#896).",
+      "The same task rows once Checkout polish's turn ended: Finished, with its changed lines (#896).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -1467,6 +1467,23 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "canvas-workspace-hover-card-plan",
+    description:
+      "Hovering the chat header of a Workspace whose plan waits: the warning circle and Plan waiting for approval.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "Empty cart state")
+      await page
+        .locator("[data-slot=tabs]")
+        .locator("[data-slot=workspace-mention]")
+        .first()
+        .hover({ timeout: 15_000 })
+      await waitForWorkspaceHoverCard(page)
+    },
+    settleMs: 300,
+  },
+  {
     name: "canvas-workspace-hover-card-group",
     description:
       "Hovering a group label's Workspace pill: the same hover card as the row (#882).",
@@ -2011,6 +2028,20 @@ export const SCREENS: Screen[] = [
         groupByState: true,
       })
       await markWorkspaceDone(page, "Empty cart state")
+    },
+    settleMs: 600,
+  },
+  {
+    name: "workspaces-menu-needs-you",
+    description:
+      "The Workspaces list grouped by state with nothing Done: Empty cart state's plan and Gift cards' failed setup need you; Checkout polish's open PR waits on review, so it's Idle.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await setWorkspaceListView(page, ids.rooms.checkout, {
+        groupByState: true,
+      })
+      await page.mouse.move(900, 900)
     },
     settleMs: 600,
   },

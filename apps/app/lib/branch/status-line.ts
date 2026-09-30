@@ -1,26 +1,33 @@
-import type { BranchData } from "@/lib/types"
+import type { BranchData, PlanData } from "@/lib/types"
 
 /**
  * Workspace status line — the words behind each Workspace row's status icon
  * in the in-room sidebar (#791), shown in its tooltip. It says what the
  * Workspace is doing right now: the setup step it's on, that its agent is
- * working, that it's ready, stopped or Done (#976), or that setup failed. Its PR is not a
- * state: the row shows it at its end (#963).
+ * working, that it needs you, that it's ready, stopped or Done (#976), or that
+ * setup failed. Its PR is not a state: the row shows it at its end (#963),
+ * except that a PR which can't merge needs you.
  *
- * Pure: it reads the slice of a Branch below plus one fact the sidebar
- * already holds (whether a turn is in flight), and returns plain values, so
- * `status-line.test.ts` asserts it with no React.
+ * Needs you means the person has to act: a plan waiting for approval, a PR
+ * whose merge is blocked, or (as the error line) a failed setup. An open,
+ * healthy PR waits on its reviewers, so it's Ready.
+ *
+ * Pure: it reads the slice of a Branch below plus two facts from the room doc
+ * (whether a turn is in flight, whether a plan waits), and returns plain
+ * values, so `status-line.test.ts` asserts it with no React.
  */
 
 /** The slice of a Branch the status line reads. {@link BranchData} satisfies it. */
 export type StatusLineBranch = Pick<
   BranchData,
-  "status" | "statusMessage" | "error" | "doneAt"
+  "status" | "statusMessage" | "error" | "doneAt" | "prState" | "prBlocked"
 >
 
 export interface StatusLineContext {
   /** A chat turn is in flight on this Workspace. */
   agentWorking: boolean
+  /** One of this Workspace's plans waits for approval. */
+  planPending?: boolean
 }
 
 export type WorkspaceStatusLine =
@@ -32,7 +39,7 @@ export type WorkspaceStatusLine =
   | { kind: "error"; title: string; detail: string }
   | {
       kind: "idle"
-      state: "working" | "ready" | "stopped" | "done"
+      state: "working" | "needs-you" | "ready" | "stopped" | "done"
       text: string
     }
 
@@ -75,11 +82,27 @@ export function workspaceStatusLine(
         (branch.status === "creating" ? "Creating workspace" : "Starting"),
     }
   }
+  const needsYou: WorkspaceStatusLine | null = ctx.planPending
+    ? { kind: "idle", state: "needs-you", text: "Plan waiting for approval" }
+    : branch.prState === "open" && branch.prBlocked
+      ? { kind: "idle", state: "needs-you", text: "Merge blocked" }
+      : null
+  // A stopped sandbox still waits on the person for its plan or its PR.
   if (branch.status === "stopped")
-    return { kind: "idle", state: "stopped", text: "Stopped" }
+    return needsYou ?? { kind: "idle", state: "stopped", text: "Stopped" }
   if (ctx.agentWorking)
     return { kind: "idle", state: "working", text: "Agent working" }
+  if (needsYou) return needsYou
   return { kind: "idle", state: "ready", text: "Ready" }
+}
+
+/** The Workspaces with a plan waiting for approval, from the room's plans. */
+export function planPendingBranchIds(
+  plans: readonly Pick<PlanData, "branchId" | "status">[]
+): Set<string> {
+  return new Set(
+    plans.filter((p) => p.status === "pending").map((p) => p.branchId)
+  )
 }
 
 /** Elapsed time for a progress step: "8s", "40s", "2m 05s". */

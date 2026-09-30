@@ -212,14 +212,16 @@ export type WorkspaceTaskState =
   | "starting"
   | "working"
   | "needs-you"
-  | "done"
+  | "finished"
   | "failed"
   | "removed"
 
 /**
  * A task row's state, read live from the Room: its sandbox still starting or
  * failed, its agent working (any open chat streaming), waiting on the user (a
- * plan pending approval), or done. `sending` covers the tool call itself still running.
+ * plan pending approval), or finished: the turn ended. Finished, not Done,
+ * since Done is the member's word for a Workspace they marked done (#976).
+ * `sending` covers the tool call itself still running.
  */
 export function workspaceTaskState(input: {
   callRunning: boolean
@@ -247,7 +249,7 @@ export function workspaceTaskState(input: {
     input.plans.some((p) => p.branchId === branch.id && p.status === "pending")
   )
     return "needs-you"
-  return "done"
+  return "finished"
 }
 
 /** A task row's state as the row's trailing word. */
@@ -256,7 +258,7 @@ export const WORKSPACE_TASK_STATE_LABEL: Record<WorkspaceTaskState, string> = {
   starting: "Starting",
   working: "Working",
   "needs-you": "Needs you",
-  done: "Done",
+  finished: "Finished",
   failed: "Failed",
   removed: "Removed",
 }

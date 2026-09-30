@@ -91,7 +91,7 @@ describe("workspaceTaskState", () => {
         plans: [{ branchId: "ws-1", status: "pending" }],
       })
     ).toBe("needs-you")
-    expect(workspaceTaskState(base)).toBe("done")
+    expect(workspaceTaskState(base)).toBe("finished")
   })
 
   it("ignores other Workspaces and closed chats", () => {
@@ -104,7 +104,7 @@ describe("workspaceTaskState", () => {
         ],
         plans: [{ branchId: "ws-1", status: "approved" }],
       })
-    ).toBe("done")
+    ).toBe("finished")
   })
 })
 

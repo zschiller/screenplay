@@ -8,7 +8,11 @@
  * Pure apart from the storage helpers at the bottom, so the ordering and
  * section rules are tested with no React (`workspace-list-view.test.ts`).
  */
-import { workspaceStatusLine } from "@/lib/branch/status-line"
+import {
+  workspaceStatusLine,
+  type StatusLineBranch,
+  type StatusLineContext,
+} from "@/lib/branch/status-line"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 
@@ -51,32 +55,25 @@ export function canDragWorkspaces(view: WorkspaceListView): boolean {
   return view.sort === "manual" && !view.groupByState
 }
 
-export type SectionBranch = Pick<
-  BranchData,
-  "status" | "statusMessage" | "error" | "doneAt"
->
+export type SectionBranch = StatusLineBranch
 
-export interface SectionContext {
-  /** A chat turn is in flight on this Workspace. */
-  agentWorking: boolean
-  /** The Workspace has an open PR, waiting on a review or a merge. */
-  openPr: boolean
-}
+export type SectionContext = StatusLineContext
 
 /**
  * Which live section a (not Done) Workspace sits in, from the same state its
  * row icon shows: an agent working or setup running is Working; a failed
- * setup or an open PR is Needs you; ready or stopped with no open PR is Idle.
+ * setup, a plan waiting for approval or a blocked PR is Needs you; anything
+ * else, an open PR waiting on review included, is Idle.
  */
 export function workspaceSection(
   branch: SectionBranch,
   ctx: SectionContext
 ): WorkspaceSection {
-  const line = workspaceStatusLine(branch, { agentWorking: ctx.agentWorking })
+  const line = workspaceStatusLine(branch, ctx)
   if (line.kind === "progress") return "working"
   if (line.kind === "error") return "needs-you"
   if (line.state === "working") return "working"
-  return ctx.openPr ? "needs-you" : "idle"
+  return line.state === "needs-you" ? "needs-you" : "idle"
 }
 
 /**

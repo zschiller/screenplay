@@ -72,7 +72,9 @@ checkout. To rename the branch itself, use **… → Rename branch…**.
 The **Workspaces** button sits at the far right of the
 [Coordinator](/guides/agent#the-coordinator)'s header, the agent panel's top
 level. In a workspace, click **Coordinator** in the header to get back to it. A pink dot on it
-means a workspace needs you: its setup failed or its pull request is open.
+means a workspace needs you: its setup failed, its plan waits for your
+approval, or its pull request can't merge. An open pull request waiting on
+review doesn't count.
 Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 
 - a **search** field that finds a workspace by its title or branch, including
@@ -89,9 +91,10 @@ first.
 Each workspace row shows:
 
 - a **status icon** for what the workspace is doing: a spinner while it
-  starts, an activity spinner while the agent works, a small circle when it's
-  ready, a dashed circle when it's stopped, a check circle when it's
-  [done](#marking-a-workspace-done), or a warning when setup failed.
+  starts, an activity spinner while the agent works, a warning circle when it
+  needs you (a plan to approve, or a pull request that can't merge), a small
+  circle when it's ready, a dashed circle when it's stopped, a check circle
+  when it's [done](#marking-a-workspace-done), or a warning when setup failed.
   Click the warning for the error, with **Retry**, **Recreate** and
   **Copy error**;
 - the workspace's **title**. A workspace without one (created before titles
@@ -130,8 +133,9 @@ The **…** beside **Workspaces** sets how the list is shown:
   first; one that never ran a turn counts from when it was created) or
   **Name**. Rows drag only in **Manual** order with grouping off.
 - **Group by state** splits the list into **Working** (the agent is working
-  or setup is running), **Needs you** (setup failed, or its pull request is
-  open) and **Idle** (ready or stopped). Each section gets its own heading in
+  or setup is running), **Needs you** (setup failed, a plan waits for your
+  approval, or its pull request can't merge) and **Idle** (ready or stopped,
+  including a pull request waiting on review). Each section gets its own heading in
   place of **Workspaces**, and rows inside it follow the sort you picked.
   Empty sections are hidden.
 
