@@ -73,7 +73,7 @@ export function acpHarnessFromEnv(
  * `{ harnessKey, modelId? }` (#526, AC#1). A `harness:<key>` id picks which
  * adapter the (already build-selected) external engine spawns; the optional
  * `:<modelId>` half refines *which model* that adapter runs, threaded to both
- * the spawn (codex's `--model`) and the session (claude-code's
+ * the spawn (codex's `-c model=`) and the session (claude-code's
  * `set_config_option`). Any other id — a `provider:` model, or none — falls back
  * to {@link acpHarnessFromEnv} with no model. The id only ever selects the
  * adapter and refines its model, never the engine (ADR 0006): it can't flip a

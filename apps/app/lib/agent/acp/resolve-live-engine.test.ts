@@ -195,7 +195,7 @@ describe("resolveLiveEngine", () => {
 
   // Per-chat *model* selection (#526, AC#1): the stored id's `:<modelId>` half
   // is parsed alongside the key and threaded to the spawn factory, so a
-  // spawn-applied adapter (codex's `--model`) gets it on the argv.
+  // spawn-applied adapter (codex's `-c model=`) gets it on the argv.
   it("threads the chat's `harness:<key>:<modelId>` model to the spawn factory", async () => {
     process.env[ENGINE_ENV_VAR] = "external"
     await resolveLiveEngine({

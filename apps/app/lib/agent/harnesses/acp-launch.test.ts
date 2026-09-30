@@ -29,9 +29,10 @@ describe("resolveAcpLaunch", () => {
   })
 
   // Codex advertises no model config option (spike #523), so a per-chat model
-  // choice rides the spawn argv as `--model <id>` rather than ACP's in-session
-  // `session/set_config_option`.
-  it("appends codex's `--model <id>` when a model is chosen", () => {
+  // choice rides the spawn argv as a `-c model="<id>"` config override rather
+  // than ACP's in-session `session/set_config_option`. codex-acp has no
+  // `--model` flag and exits on one (#1192).
+  it('appends codex\'s `-c model="<id>"` when a model is chosen', () => {
     const launch = resolveAcpLaunch("codex", {
       cwd: "/work/tree",
       env: {},
@@ -40,8 +41,8 @@ describe("resolveAcpLaunch", () => {
     expect(launch?.args).toEqual([
       "-y",
       "@zed-industries/codex-acp",
-      "--model",
-      "gpt-5.5",
+      "-c",
+      'model="gpt-5.5"',
     ])
   })
 

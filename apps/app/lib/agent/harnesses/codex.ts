@@ -235,16 +235,18 @@ export const codexHarness: Harness = {
   // Backs agent chat via the Zed codex ACP adapter — rides `codex login` /
   // `CODEX_API_KEY`, per spike #405. The adapter advertises no `availableModels`
   // (spike #523), so a per-chat model choice can't ride ACP's in-session
-  // `set_config_option`; it's applied at spawn as `--model <id>` instead. Omitted
-  // when no model is stored (bare `harness:codex`), so codex spawns unchanged.
+  // `set_config_option`; it's applied at spawn as a config override,
+  // `-c model="<id>"` (the adapter has no `--model` flag and exits on one, #1192).
+  // Omitted when no model is stored (bare `harness:codex`), so codex spawns
+  // unchanged.
   acpAdapter: {
     command: "npx",
     args: ["-y", "@zed-industries/codex-acp"],
-    modelArgs: (modelId) => ["--model", modelId],
+    modelArgs: (modelId) => ["-c", `model=${JSON.stringify(modelId)}`],
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.
-  // The ids are Codex's model slugs (the same names its `--model` flag /
+  // The ids are Codex's model slugs (the same names its `-c model=` override /
   // `config.toml` take, https://developers.openai.com/codex/models). `gpt-6-astra`
   // is the most capable and the pre-selected per-Harness default; `gpt-6-luna`
   // is the efficient tier. `gpt-5.5` stays until Codex retires it (2026-10-14).
