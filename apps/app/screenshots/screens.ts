@@ -998,6 +998,24 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-tabs-overflow",
+    description:
+      "A narrow chat panel whose tabs overflow, scrolled to the last tab: the logs tab stays pinned at the left and the cut tab fades out (#1160).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 20 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, CHAT_WORKSPACE)
+      // Selecting the last tab scrolls the strip to its right end.
+      await page
+        .locator('[data-slot="tabs-list"] [data-tab-id]')
+        .last()
+        .getByRole("tab")
+        .click({ timeout: 15_000 })
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 600,
+  },
+  {
     name: "chat-history",
     description:
       "The chat history: closed chats with dates, first lines, one still running.",
