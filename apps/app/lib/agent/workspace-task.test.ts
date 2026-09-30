@@ -57,54 +57,73 @@ describe("workspaceTaskOf", () => {
 })
 
 describe("workspaceTaskState", () => {
-  const branch = { id: "ws-1", status: "running" as const }
-  const base = { callRunning: false, branch, chats: [], plans: [] }
+  type Input = Parameters<typeof workspaceTaskState>[0]
+  const branch: NonNullable<Input["branch"]> = {
+    id: "ws-1",
+    title: "Fix",
+    status: "running",
+  }
+  const base: Input = { callRunning: false, branch, chats: [], plans: [] }
+  const stateOf = (input: Partial<Input>) =>
+    workspaceTaskState({ ...base, ...input }).state
 
   it("reads the Workspace live", () => {
-    expect(workspaceTaskState({ ...base, callRunning: true })).toBe("sending")
-    expect(workspaceTaskState({ ...base, branch: undefined })).toBe("removed")
-    expect(
-      workspaceTaskState({ ...base, branch: { ...branch, status: "error" } })
-    ).toBe("failed")
-    expect(
-      workspaceTaskState({ ...base, branch: { ...branch, status: "creating" } })
-    ).toBe("starting")
+    expect(stateOf({ callRunning: true })).toBe("sending")
+    expect(stateOf({ branch: undefined })).toBe("removed")
+    expect(stateOf({ branch: { ...branch, status: "error" } })).toBe("failed")
+    expect(stateOf({ branch: { ...branch, status: "creating" } })).toBe(
+      "starting"
+    )
     // Running, but its seed message hasn't gone yet.
     expect(
-      workspaceTaskState({
-        ...base,
+      stateOf({
         branch: {
           ...branch,
           pendingSeed: { chatId: "c", message: "m", coordinatorChatId: "r" },
         },
       })
     ).toBe("starting")
+    expect(stateOf({ chats: [{ branchId: "ws-1", isStreaming: true }] })).toBe(
+      "working"
+    )
+    expect(stateOf({ plans: [{ branchId: "ws-1", status: "pending" }] })).toBe(
+      "needs-you"
+    )
+    expect(stateOf({ branch: { ...branch, status: "stopped" } })).toBe(
+      "stopped"
+    )
+    expect(stateOf({})).toBe("ready")
+  })
+
+  it("reads the same as the Workspace's own state (#1318)", () => {
+    // A member marked it done: Done, whatever the sandbox says.
+    expect(stateOf({ branch: { ...branch, doneAt: 1 } })).toBe("done")
     expect(
-      workspaceTaskState({
-        ...base,
-        chats: [{ branchId: "ws-1", isStreaming: true }],
-      })
-    ).toBe("working")
+      stateOf({ branch: { ...branch, status: "stopped", doneAt: 1 } })
+    ).toBe("done")
+    // A blocked merge needs you, as it does in the Workspaces menu.
     expect(
-      workspaceTaskState({
-        ...base,
-        plans: [{ branchId: "ws-1", status: "pending" }],
-      })
+      stateOf({ branch: { ...branch, prState: "open", prBlocked: true } })
     ).toBe("needs-you")
-    expect(workspaceTaskState(base)).toBe("finished")
+    // The icon draws from the Workspace's status line.
+    expect(workspaceTaskState(base).line).toEqual({
+      kind: "idle",
+      state: "ready",
+      text: "Ready",
+    })
+    expect(workspaceTaskState({ ...base, callRunning: true }).line).toBeNull()
   })
 
   it("ignores other Workspaces and closed chats", () => {
     expect(
-      workspaceTaskState({
-        ...base,
+      stateOf({
         chats: [
           { branchId: "ws-2", isStreaming: true },
           { branchId: "ws-1", isStreaming: true, closedAt: 1 },
         ],
         plans: [{ branchId: "ws-1", status: "approved" }],
       })
-    ).toBe("finished")
+    ).toBe("ready")
   })
 })
 
@@ -164,8 +183,23 @@ describe("workspaceTasksOf", () => {
 
   it("shows a row for each Workspace an approved plan created, failed ones too", () => {
     expect(workspaceTasksOf(created())).toEqual([
-      { branchId: "ws-1" },
-      { branchId: "ws-2" },
+      { branchId: "ws-1", title: "Fix" },
+      { branchId: "ws-2", title: "Dark" },
+    ])
+  })
+
+  it("carries each created Workspace's seed message, on one line (#1318)", () => {
+    const withSeeds = created({
+      rawInput: {
+        workspaces: [
+          { title: "Dark", repository: "acme/web", prompt: "Dark mode" },
+          { title: "Fix", repository: "acme/web", prompt: " Fix it.\n\nNow. " },
+        ],
+      },
+    })
+    expect(workspaceTasksOf(withSeeds)).toEqual([
+      { branchId: "ws-1", title: "Fix", message: "Fix it. Now." },
+      { branchId: "ws-2", title: "Dark", message: "Dark mode" },
     ])
   })
 

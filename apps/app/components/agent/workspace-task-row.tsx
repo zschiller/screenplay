@@ -8,16 +8,12 @@ import {
 } from "react"
 import {
   CaretRightIcon,
-  CheckIcon,
   CircleDashedIcon,
-  WarningCircleIcon,
 } from "@workspace/ui/components/icons"
 
 import { Spinner } from "@workspace/ui/components/spinner"
-import { cn } from "@workspace/ui/lib/utils"
 
-import { GripSpinner } from "@/components/grip-spinner"
-import { NeedsYouDot } from "@/components/workspace-mention"
+import { WorkspaceStateGlyph } from "@/components/workspace-mention"
 import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore } from "@/lib/chat-store"
 import {
@@ -27,6 +23,7 @@ import {
   type WorkspaceTaskRef,
   type WorkspaceTaskState,
 } from "@/lib/agent/workspace-task"
+import type { WorkspaceStatusLine } from "@/lib/branch/workspace-state"
 import type { BranchData, ChatSessionData, PlanData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 
@@ -62,42 +59,41 @@ export function useWorkspaceTasks(): WorkspaceTasks | null {
   return useContext(WorkspaceTasksContext)
 }
 
-function StateIcon({ state }: { state: WorkspaceTaskState }) {
-  const cls = "size-3.5 shrink-0"
-  switch (state) {
-    case "sending":
-    case "starting":
-      return <Spinner aria-hidden className={cls} />
-    case "working":
-      // The Workspace's agent at work: LLM activity, so the grid.
-      return <GripSpinner className={cls} />
-    case "needs-you":
-      return (
-        <span className={cn(cls, "flex items-center justify-center")}>
-          <NeedsYouDot />
-        </span>
-      )
-    case "failed":
-      return (
-        <WarningCircleIcon
+/**
+ * The card's leading icon: the Workspace's own state glyph, as its row in the
+ * Workspaces menu draws it, or a spinner while the call runs and a dashed
+ * circle once the Workspace is gone.
+ */
+function StateIcon({
+  state,
+  line,
+}: {
+  state: WorkspaceTaskState
+  line: WorkspaceStatusLine | null
+}) {
+  if (line) return <WorkspaceStateGlyph line={line} />
+  return (
+    <span className="flex size-4 shrink-0 items-center justify-center">
+      {state === "sending" ? (
+        <Spinner aria-hidden className="size-3.5 opacity-70" />
+      ) : (
+        <CircleDashedIcon
+          weight="bold"
           aria-hidden
-          className={cn(cls, "text-destructive")}
+          className="size-3 opacity-50"
         />
-      )
-    case "removed":
-      return <CircleDashedIcon aria-hidden className={cls} />
-    case "finished":
-      return <CheckIcon aria-hidden className={cn(cls, "text-success")} />
-  }
+      )}
+    </span>
+  )
 }
 
 /**
- * A Workspace the Coordinator messaged, as a quiet card in its transcript
- * (#896, #1150): status icon, Workspace title, changed lines, the state in a
- * word and a caret, then the message it was sent on a second line. It reads
- * the Workspace's live Branch and chat state, so it updates in place as the
- * Workspace works. Clicking it opens the Workspace on the chat the message
- * went to.
+ * A chat the Coordinator started or messaged, as a quiet card in its
+ * transcript (#896, #1150, #1318): the Workspace's state icon, its title,
+ * changed lines, the state in a word and a caret, then the message it was
+ * sent (or started on) on a second line. It reads the Workspace's live Branch
+ * and chat state, so it updates in place as the chat works. Clicking it
+ * switches the panel to that chat; the header's Coordinator crumb comes back.
  */
 export function WorkspaceTaskRow({
   call,
@@ -117,7 +113,7 @@ export function WorkspaceTaskRow({
       task.chatId ? chatStore.getSnapshot(task.chatId).isStreaming : false,
     () => false
   )
-  const state = workspaceTaskState({
+  const { state, line } = workspaceTaskState({
     callRunning: call.status === "pending" || call.status === "in_progress",
     branch,
     chats: chatStreaming
@@ -130,7 +126,7 @@ export function WorkspaceTaskRow({
   const hasDiff = branch?.status === "running" && (added > 0 || removed > 0)
   const label = WORKSPACE_TASK_STATE_LABEL[state]
 
-  const message = workspaceTaskMessage(call)
+  const message = task.message ?? workspaceTaskMessage(call)
 
   return (
     <button
@@ -142,9 +138,13 @@ export function WorkspaceTaskRow({
       className="flex w-full min-w-0 flex-col gap-0.5 rounded-lg bg-muted px-2.5 py-2 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 disabled:hover:bg-muted dark:bg-input/70 dark:hover:bg-input dark:disabled:hover:bg-input/70"
     >
       <span className="flex w-full min-w-0 items-center gap-2">
-        <StateIcon state={state} />
+        <StateIcon state={state} line={line} />
         <span className="min-w-0 flex-1 truncate text-sm">
-          {branch ? workspaceLabel(branch) : "Removed Workspace"}
+          {!branch
+            ? "Removed Workspace"
+            : !branch.title && task.title
+              ? task.title
+              : workspaceLabel(branch)}
         </span>
         {hasDiff && (
           <span className="flex shrink-0 items-center gap-1 font-mono text-xs">
@@ -161,7 +161,7 @@ export function WorkspaceTaskRow({
         )}
       </span>
       {message && (
-        <span className="block w-full truncate pl-5.5 text-xs text-muted-foreground">
+        <span className="block w-full truncate pl-6 text-xs text-muted-foreground">
           {message}
         </span>
       )}

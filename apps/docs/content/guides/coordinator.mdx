@@ -54,23 +54,27 @@ should change in the repository.
 
 ## Messages to workspaces
 
-Each workspace the Coordinator messaged shows up in its reply as a card with the
-workspace's title, its changed lines and its state, and under them the message
-it was sent. The state reads:
+Each workspace chat the Coordinator starts or messages shows up as a card
+under the Coordinator message that started it, with the workspace's title, its
+changed lines and its state, and under them the message it was sent. The state
+reads the same as the workspace's row in the Workspaces menu:
 
 - **Sending** while the message goes out;
 - **Starting** while the workspace's sandbox comes up;
 - **Working** while its agent runs;
-- **Needs you** when its plan waits for your approval;
-- **Finished** once its turn ends, including a turn that ended in an error or
-  that someone stopped. It only means the agent is done for now; the
-  workspace is **Done** when you
+- **Needs you** when its plan waits for your approval or its pull request
+  can't merge;
+- **Ready** once its turn ends, including a turn that ended in an error or
+  that someone stopped;
+- **Stopped** when its sandbox is stopped;
+- **Done** once you
   [mark it done](/guides/workspaces#marking-a-workspace-done);
 - **Failed** when its sandbox failed to start;
 - **Removed** once the workspace has been deleted.
 
-The card updates as the workspace works. Click it to open that workspace on
-the chat the message went to.
+The card updates as the chat works. Click it to switch the panel to that
+workspace's chat; **Coordinator** at the start of the panel header brings you
+back.
 
 In the workspace's chat, the message shows as one line, **Received a message
 from the Coordinator**. Click it to read what was asked. The chat is still
@@ -88,9 +92,10 @@ it started one you didn't want, ask it to remove it.
 
 Each workspace starts its sandbox, and its agent begins on the Coordinator's
 first message as soon as the sandbox is running. The new workspaces show up as
-rows in the Coordinator's reply, **Starting** at first.
+cards in the Coordinator's reply, **Starting** at first, each with the first
+message it was given.
 They belong to whoever asked for them. If one fails to start, the others carry
-on: its row shows **Failed**, the Coordinator tells you, and **Retry** on the
+on: its card shows **Failed**, the Coordinator tells you, and **Retry** on the
 workspace brings it up and sends that first message then.
 
 The Coordinator can also stop a workspace's running turn, which happens right

@@ -670,7 +670,7 @@ export const SCREENS: Screen[] = [
   {
     name: "chat-coordinator-tasks-done",
     description:
-      "The same task rows once Checkout polish's turn ended: Finished, with its changed lines (#896).",
+      "The same chat cards once Checkout polish's turn ended: Ready, with its changed lines (#896, #1318).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -5088,8 +5088,8 @@ export function delegationRun(): RunEvent[] {
 
 /**
  * A Coordinator turn that splits an ask into two new Workspaces and starts
- * them straight away (#898, #1217): a task row per Workspace, one starting and
- * one that failed to start. The two stand in for the checkout canvas's Apple
+ * them straight away (#898, #1217): a chat card per Workspace with the message
+ * it started on (#1318), one starting and one that failed to start. The two stand in for the checkout canvas's Apple
  * Pay and Gift cards Workspaces.
  */
 export function workspacesCreatedRun(): RunEvent[] {
@@ -5120,7 +5120,21 @@ export function workspacesCreatedRun(): RunEvent[] {
         toolCallId: "fixture-create-workspaces",
         title: "create_workspaces",
         status: "completed",
-        rawInput: { workspaces: [] },
+        rawInput: {
+          workspaces: [
+            {
+              title: "Apple Pay button",
+              repository: "acme/storefront",
+              prompt:
+                "Add an Apple Pay button above the card form at checkout.",
+            },
+            {
+              title: "Gift cards",
+              repository: "acme/storefront",
+              prompt: "Let people pay with a gift card code at checkout.",
+            },
+          ],
+        },
         content: [
           {
             type: "content",

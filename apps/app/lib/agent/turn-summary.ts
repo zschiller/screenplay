@@ -40,7 +40,22 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
   if (isQuestionCall(message)) return true
+  return isCard(message)
+}
+
+function isCard(message: AgentMessage): boolean {
   return message.role === "tool_call" && workspaceTasksOf(message).length > 0
+}
+
+/**
+ * Whether the entry at `i` is the Coordinator message that started the chats
+ * whose cards follow it (#1318): an assistant message whose next entry is a
+ * chat card. It stays on screen in a folded turn, so each card sits under the
+ * message that started it rather than under a summary line.
+ */
+function startsCards(turn: GroupedMessage[], i: number): boolean {
+  const next = turn[i + 1]
+  return turn[i]?.message.role === "assistant" && !!next && isCard(next.message)
 }
 
 /**
@@ -52,7 +67,8 @@ function isPinned(message: AgentMessage): boolean {
  * `turn-summary` item. The answer (the turn's last assistant message) stays
  * visible, as do plans, errors and the stopped marker: the summary sits where
  * the turn begins, then those follow in their original order. Workspace task
- * rows stay visible too, and a turn whose only calls are task rows stays flat.
+ * rows (chat cards) stay visible too, with the message just before them that
+ * started them, and a turn whose only calls are task rows stays flat.
  *
  * A turn still streaming renders flat, so a run in progress shows its live
  * steps. With `liveFrom`, the index where the running turn began, that is
@@ -94,7 +110,11 @@ export function foldFinishedTurns(
     if (wakeTurns.has(t)) {
       const reply = wakeReplyIndex(turn, live)
       turn.forEach((entry, i) => {
-        if (i === reply || isPinned(entry.message)) {
+        if (
+          i === reply ||
+          isPinned(entry.message) ||
+          (!live && startsCards(turn, i))
+        ) {
           items.push({ kind: "message", entry })
         }
       })
@@ -117,7 +137,8 @@ export function foldFinishedTurns(
     const steps: GroupedMessage[] = []
     const shown: GroupedMessage[] = []
     turn.forEach((e, i) => {
-      if (i === answer || isPinned(e.message)) shown.push(e)
+      if (i === answer || isPinned(e.message) || startsCards(turn, i))
+        shown.push(e)
       else steps.push(e)
     })
     items.push({
