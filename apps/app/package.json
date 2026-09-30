@@ -96,7 +96,7 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.11",
-    "esbuild": "0.27.7",
+    "esbuild": "0.28.2",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.3.8",
     "jsdom": "^29.1.1",
