@@ -816,6 +816,22 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-coordinator-refused-pr",
+    description:
+      "The Coordinator declining to open a pull request a Workspace already has: the refusal reads as the row's outcome, not a failed step (#1231).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.checkout), refusedPrRun())
+      await expandTurnSummaries(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-delegated-message",
     description:
       'A Workspace chat the Coordinator messaged: the collapsed "Received a message from the Coordinator" row, then the agent\'s reply (#896).',
@@ -5239,6 +5255,49 @@ export function openPrConfirmedRun(): RunEvent[] {
         sessionUpdate: "agent_message_chunk",
         content: text(
           "Opened [PR #483](https://github.com/acme/storefront/pull/483) for Empty cart state."
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
+/**
+ * A Coordinator turn whose open_pull_request its gate refused, since the
+ * Workspace already has a PR: the call completes with the reason (#1231).
+ */
+export function refusedPrRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Open a PR for Empty cart state."),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_refused_pr",
+        title: "open_pull_request",
+        status: "completed",
+        rawInput: { workspace_id: ids.branches.emptyCart },
+        content: [
+          {
+            type: "content",
+            content: text('"Empty cart state" already has PR #483 open.'),
+          },
+        ],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "Empty cart state already has [PR #483](https://github.com/acme/storefront/pull/483) open, so there's nothing new to open."
         ),
       },
     },
