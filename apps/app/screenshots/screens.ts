@@ -2345,8 +2345,36 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-earlier-chat",
+    description:
+      "One of a Workspace's earlier chats from before #1315: readable, with a note and Open chat where the composer was.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-workspace-chat-hover",
+    description:
+      "Hovering the Workspace's own chat tab: it has no close button, since a Workspace keeps its one chat (#1315).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await page
+        .getByRole("tab", { name: /New chat/i })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-new-chat-hover",
-    description: "Hovering the chat tab strip's New chat (+) button.",
+    description:
+      "Hovering the chat tab strip's + button, which opens a terminal: a Workspace has one chat (#1315).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -2384,7 +2412,9 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await openChatTab(page, "Checkout polish")
+      // The Workspace's own chat: its earlier chats have no composer (#1315).
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, delegatedWorkspaceRun())
       await page
         .getByRole("button", { name: /^Opus 5\.5/ })
         .last()
@@ -4547,7 +4577,8 @@ export async function pasteImageInComposer(page: Page): Promise<void> {
 }
 
 /**
- * Open a fresh terminal tab from the tab strip's "New chat or terminal" menu.
+ * Open a fresh terminal tab with the tab strip's "+" (New terminal): a
+ * Workspace has one chat (#1315), so "+" only ever opens terminals.
  *
  * Opened rather than restored: the fixture world does seed two terminal tabs,
  * but a cold room load currently prunes them as orphans before its Workspaces
@@ -4556,23 +4587,10 @@ export async function pasteImageInComposer(page: Page): Promise<void> {
 export async function openTerminalTab(page: Page): Promise<void> {
   await selectWorkspace(page, CHAT_WORKSPACE)
   await page
-    .getByRole("button", { name: "New chat or terminal" })
+    .getByRole("button", { name: "New terminal", exact: true })
     .first()
     .click({ timeout: 15_000 })
-  // One harness reads "New terminal"; several list each harness by name under
-  // a "New terminal" label — either way the first item after "New chat".
-  await page
-    .getByRole("menuitem")
-    .filter({ hasNotText: "New chat" })
-    .first()
-    .click({ timeout: 15_000 })
-  // Let the menu's exit animation finish before the shot: the settle step
-  // pins animations where they stand, which would freeze it half-closed.
   await page.mouse.move(0, 0)
-  await page
-    .getByRole("menu")
-    .waitFor({ state: "detached", timeout: 5_000 })
-    .catch(() => {})
 }
 
 /**

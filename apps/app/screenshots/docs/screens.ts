@@ -980,7 +980,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "new-tab-menu",
-    description: "The chat panel's New chat or terminal menu.",
+    description:
+      "The tab strip's + button, which opens a terminal: a Workspace has one chat (#1315).",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [820, 0, 460, 260],
@@ -988,10 +989,10 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")
       await page
-        .getByRole("button", { name: "New chat or terminal" })
+        .getByRole("button", { name: "New terminal", exact: true })
         .first()
-        .click()
-      await sleep(page, 900)
+        .hover()
+      await showTooltip(page)
     },
   }),
   screen({

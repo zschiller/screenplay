@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 
-import { chatStore } from "@/lib/chat-store"
 import { dispatchPrompt, resolveTargetChat } from "@/lib/chat/agent-prompt"
 import {
   routeBranchAction,
@@ -109,9 +108,7 @@ export interface BranchActions {
   sendComments: (
     agentId: string,
     message: string,
-    threadIds: string[],
-    /** The chat to send in (a Document's owner, #1314), when open and idle. */
-    chatId?: string
+    threadIds: string[]
   ) => boolean
 }
 
@@ -146,13 +143,13 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
     [agents, repos, updateAgentInStorage]
   )
 
-  // engine route → Module B's dispatch: reuse-or-bump the target chat, then send
-  // the rebase prompt with the rename callbacks wired.
+  // engine route → Module B's dispatch: send the prompt in the Workspace's one
+  // chat (#1315) with the rename callbacks wired.
   const applyEngine = useCallback(
     (
       prompt: string,
       agent: BranchData,
-      options: { commentThreadIds?: string[]; chatId?: string } = {}
+      options: { commentThreadIds?: string[] } = {}
     ): boolean => {
       const decision = resolveTargetChat({
         roomId,
@@ -161,11 +158,6 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         message: prompt,
         agent,
         chatSessions,
-        rememberedChatId:
-          options.chatId ?? chatTarget.rememberedAgentChatId(agent.id),
-        isBusy: (chatId) =>
-          chatStore.getSnapshot(chatId).isStreaming ||
-          chatSessions.find((c) => c.id === chatId)?.isStreaming === true,
       })
       if (decision.kind === "none") return false
 
@@ -286,13 +278,10 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
           RecoveryOutcome | undefined
         if (outcome && !outcome.ok) throw new Error(outcome.error)
       },
-      sendComments: (agentId, message, threadIds, chatId) => {
+      sendComments: (agentId, message, threadIds) => {
         const agent = agents.find((a) => a.id === agentId)
         if (!agent) return false
-        return applyEngine(message, agent, {
-          commentThreadIds: threadIds,
-          chatId,
-        })
+        return applyEngine(message, agent, { commentThreadIds: threadIds })
       },
     }),
     [run, recoveryDeps, agents, applyEngine, iframeLayers, iframeLayerGroups]

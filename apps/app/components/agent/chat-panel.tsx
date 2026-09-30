@@ -66,11 +66,11 @@ import { CoordinatorChat } from "./coordinator-chat"
 import { WorkspacesMenuButton } from "./workspaces-menu"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
-import type { ChatSessionData, TabKind, TerminalTabData } from "@/lib/types"
+import type { ChatSessionData, TerminalTabData } from "@/lib/types"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import {
   DEFAULT_HARNESS_KEY,
   readLastHarnessKey,
-  readLastTabKind,
   readTabOrder,
   writeLastHarnessKey,
   writeLastTabKind,
@@ -526,6 +526,9 @@ function TabbedChatPanel({
   const isAgentTarget = target.kind === "agent"
   const agent = target.kind === "agent" ? target.agent : null
   const chatTarget = chatTargetOf(target)
+  // The Workspace's one chat (#1315): always open, never closed. Any other
+  // chat here is an earlier chat from before #1315, kept readable.
+  const ownChatId = agent ? workspaceChatId(chatSessions, agent.id) : undefined
 
   // The tab strip interleaves two distinct tab types — durable chats and
   // ephemeral terminals — in one createdAt-ordered row. We model each as a
@@ -534,7 +537,7 @@ function TabbedChatPanel({
   const openTabs = useMemo<OpenTab[]>(() => {
     const items: OpenTab[] = [
       ...chatSessions
-        .filter((c) => !c.closedAt)
+        .filter((c) => !c.closedAt || c.id === ownChatId)
         .map((c) => ({
           kind: "chat" as const,
           id: c.id,
@@ -551,14 +554,14 @@ function TabbedChatPanel({
       })),
     ]
     return items.sort((a, b) => a.createdAt - b.createdAt)
-  }, [chatSessions, terminalTabs])
+  }, [chatSessions, terminalTabs, ownChatId])
 
   const closedChats = useMemo(
     () =>
       [...chatSessions]
-        .filter((c) => c.closedAt)
+        .filter((c) => c.closedAt && c.id !== ownChatId)
         .sort((a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0)),
-    [chatSessions]
+    [chatSessions, ownChatId]
   )
 
   // Auto-select the first open tab (chat or terminal) if none selected
@@ -615,16 +618,6 @@ function TabbedChatPanel({
   const [creatingPr, setCreatingPr] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
-  // Sticky new-tab action. Read the last-used kind from localStorage during
-  // render (SSR-safe — `readLastTabKind` returns "chat" when `window` is
-  // undefined) rather than syncing it in via an effect, which would trigger a
-  // cascading render on mount. `onCreateTerminal` is absent for layer targets,
-  // so the sticky kind can only ever be "terminal" when terminals are actually
-  // creatable here.
-  const [lastTabKind, setLastTabKind] = useState<TabKind>(readLastTabKind)
-  const stickyTabKind: TabKind =
-    onCreateTerminal && lastTabKind === "terminal" ? "terminal" : "chat"
-
   // The harnesses installed in this deployment's sandboxes — the menu the caret
   // draws (#290). Only fetched when terminals are creatable here (agent target).
   const { data: session } = useAppSession()
@@ -637,7 +630,7 @@ function TabbedChatPanel({
   // Read per-User from localStorage during render — a hint only, never
   // authoritative (a tab's harness lives on its `terminal_tab.harnessKey` row),
   // so a stale value can't change an existing tab. A harness pick flips
-  // `lastTabKind` (a state update), which re-renders and re-reads this fresh.
+  // the per-User pref, which is re-read on the next render.
   const storedHarnessKey = userId ? readLastHarnessKey(userId) : null
   const defaultHarnessKey =
     storedHarnessKey &&
@@ -645,30 +638,23 @@ function TabbedChatPanel({
       ? storedHarnessKey
       : (installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY)
 
+  // A Workspace has one chat (#1315), so "New chat" is only there for a
+  // Workspace that has none yet (one made terminal-first before #1315).
   const createChatTab = useCallback(() => {
-    setLastTabKind("chat")
     writeLastTabKind("chat")
     onCreateChat()
   }, [onCreateChat])
 
-  // Launch a terminal with `harnessKey` and make it the sticky default: the "+"
+  // Launch a terminal with `harnessKey` and make it the default: the "+"
   // button now repeats *this* harness, and (keyed per User) it survives reload.
   const createTerminalTab = useCallback(
     (harnessKey: string) => {
-      setLastTabKind("terminal")
       writeLastTabKind("terminal")
       if (userId) writeLastHarnessKey(userId, harnessKey)
       onCreateTerminal?.(harnessKey)
     },
     [onCreateTerminal, userId]
   )
-
-  // The sticky "+" action: repeat the last-used kind, and for terminals the
-  // last-used (or default) harness.
-  const createStickyTab = useCallback(() => {
-    if (stickyTabKind === "terminal") createTerminalTab(defaultHarnessKey)
-    else createChatTab()
-  }, [stickyTabKind, defaultHarnessKey, createTerminalTab, createChatTab])
 
   // Reset the logs-visible flag whenever the chat target changes so a
   // freshly-selected target (whose LogsPanel is still fetching, if any)
@@ -1165,31 +1151,34 @@ function TabbedChatPanel({
                           a button can't nest in the trigger's button. It shows on
                           hover and whenever it holds keyboard focus. Only the
                           selected tab's close is a Tab stop, so tabbing along
-                          the strip reaches one close, not one per tab. */}
-                        <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100 focus-within:opacity-100">
-                          <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
-                          <IconButton
-                            label={
-                              tab.kind === "terminal"
-                                ? "Close terminal"
-                                : "Close chat"
-                            }
-                            className="relative text-muted-foreground"
-                            tabIndex={tab.id === tabsValue ? 0 : -1}
-                            // Keep the press from starting a tab drag.
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={() =>
-                              tab.kind === "terminal"
-                                ? void terminalClose.requestClose(
-                                    tab.terminal,
-                                    neighbourTabId(tab.id)
-                                  )
-                                : onCloseChat(tab.id, neighbourTabId(tab.id))
-                            }
-                          >
-                            <XIcon />
-                          </IconButton>
-                        </div>
+                          the strip reaches one close, not one per tab. The
+                          Workspace's own chat has none: it never closes. */}
+                        {tab.id === ownChatId ? null : (
+                          <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100 focus-within:opacity-100">
+                            <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
+                            <IconButton
+                              label={
+                                tab.kind === "terminal"
+                                  ? "Close terminal"
+                                  : "Close chat"
+                              }
+                              className="relative text-muted-foreground"
+                              tabIndex={tab.id === tabsValue ? 0 : -1}
+                              // Keep the press from starting a tab drag.
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={() =>
+                                tab.kind === "terminal"
+                                  ? void terminalClose.requestClose(
+                                      tab.terminal,
+                                      neighbourTabId(tab.id)
+                                    )
+                                  : onCloseChat(tab.id, neighbourTabId(tab.id))
+                              }
+                            >
+                              <XIcon />
+                            </IconButton>
+                          </div>
+                        )}
                       </motion.div>
                     </Reorder.Item>
                   ))}
@@ -1200,68 +1189,72 @@ function TabbedChatPanel({
                   className={`${isAgentBusy ? "" : "group/newtab"} ml-1 shrink-0`}
                 >
                   <IconButton
-                    label={
-                      stickyTabKind === "terminal" ? "New terminal" : "New chat"
-                    }
+                    label="New terminal"
                     hint={isAgentBusy ? "Sandbox still starting…" : undefined}
                     className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                    onClick={createStickyTab}
+                    onClick={() => createTerminalTab(defaultHarnessKey)}
                     disabled={isAgentBusy}
                   >
                     <PlusIcon />
                   </IconButton>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <IconButton
-                        label="New chat or terminal"
-                        className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                        disabled={isAgentBusy}
-                      >
-                        <CaretDownIcon />
-                      </IconButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => createChatTab()}>
-                        <ChatCircleIcon className="size-3 shrink-0 text-muted-foreground" />
-                        New chat
-                      </DropdownMenuItem>
-                      {installedHarnesses.length > 1 ? (
-                        // Multiple harnesses — a labelled section listing each by
-                        // name, since "New terminal" alone wouldn't say which.
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel>New terminal</DropdownMenuLabel>
-                          {installedHarnesses.map((h) => (
-                            <DropdownMenuItem
-                              key={h.key}
-                              onSelect={() => createTerminalTab(h.key)}
-                            >
-                              <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
-                              <span className="truncate">{h.label}</span>
-                            </DropdownMenuItem>
-                          ))}
-                        </>
-                      ) : (
-                        // One harness (or the list isn't loaded / none installed) —
-                        // there's nothing to choose between, so collapse to a single
-                        // "New terminal" with no section header. Opens the lone
-                        // harness, else the default, so the menu never strands the
-                        // operator.
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            createTerminalTab(
-                              installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY
-                            )
+                  {/* The caret offers what "+" alone can't: a pick between
+                    harnesses, and the chat of a Workspace that has none yet. A
+                    Workspace never gets a second chat (#1315). */}
+                  {!ownChatId || installedHarnesses.length > 1 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <IconButton
+                          label={
+                            ownChatId
+                              ? "New terminal with…"
+                              : "New chat or terminal"
                           }
+                          className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                          disabled={isAgentBusy}
                         >
-                          <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
-                          New terminal
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                          <CaretDownIcon />
+                        </IconButton>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {ownChatId ? null : (
+                          <DropdownMenuItem onSelect={() => createChatTab()}>
+                            <ChatCircleIcon className="size-3 shrink-0 text-muted-foreground" />
+                            New chat
+                          </DropdownMenuItem>
+                        )}
+                        {installedHarnesses.length > 1 ? (
+                          // Multiple harnesses — a labelled section listing each
+                          // by name, since "New terminal" alone wouldn't say which.
+                          <>
+                            {ownChatId ? null : <DropdownMenuSeparator />}
+                            <DropdownMenuLabel>New terminal</DropdownMenuLabel>
+                            {installedHarnesses.map((h) => (
+                              <DropdownMenuItem
+                                key={h.key}
+                                onSelect={() => createTerminalTab(h.key)}
+                              >
+                                <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
+                                <span className="truncate">{h.label}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        ) : (
+                          // One harness (or the list isn't loaded / none
+                          // installed): a single "New terminal" with no header.
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              createTerminalTab(defaultHarnessKey)
+                            }
+                          >
+                            <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
+                            New terminal
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </ButtonGroup>
-              ) : (
+              ) : ownChatId ? null : (
                 <span className="ml-1 inline-flex shrink-0">
                   <IconButton
                     label="New chat"
@@ -1311,7 +1304,7 @@ function TabbedChatPanel({
             <EmptyTitle>No open chats</EmptyTitle>
             <EmptyDescription>
               {isAgentTarget
-                ? "Start a chat or a terminal in this Workspace."
+                ? "Start this Workspace's chat or a terminal."
                 : "Start a chat about this Document."}
             </EmptyDescription>
           </EmptyHeader>
@@ -1376,6 +1369,11 @@ function TabbedChatPanel({
               model={chat.model}
               onModelChange={(m) => onModelChange(chat.id, m)}
               isActive={!showLogs && chat.id === activeTab}
+              onOpenWorkspaceChat={
+                ownChatId && chat.id !== ownChatId
+                  ? () => onSelectChat(ownChatId)
+                  : undefined
+              }
             />
           </TabsContent>
         )

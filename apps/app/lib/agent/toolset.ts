@@ -6,6 +6,7 @@ import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
 import { buildMockupTools } from "@/lib/agent/mockup-tools"
+import { otherWorkspacesCodeReadTools } from "@/lib/agent/code-read-tools"
 import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import { buildQuestionTools } from "@/lib/agent/question-tools"
 import type { RoomDoc } from "@/lib/room-access"
@@ -46,6 +47,10 @@ export function toolsetFor(target: ToolTarget): ToolSet {
           ...buildSandboxTools(target.sandbox),
           ...buildDocumentTools({ room: target.room, chatId: target.chatId }),
           ...buildMockupTools({ room: target.room, chatId: target.chatId }),
+          ...otherWorkspacesCodeReadTools({
+            room: target.room,
+            sandboxName: target.sandbox.sandboxName,
+          }),
         }
       : buildRoomTools(target.room.roomId, target.ports, target.turnId)
   return withRedactedOutput({ ...own, ...read, ...ask })

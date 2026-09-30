@@ -197,3 +197,24 @@ describe("buildAgentSystemPrompt — Documents (#1314)", () => {
     expect(prompt).toMatch(/- doc-2: Notes$/m)
   })
 })
+
+describe("buildAgentSystemPrompt — one chat per Workspace (#1315)", () => {
+  it("says only this chat changes its Workspace and others are read-only", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+    })
+    expect(prompt).toContain("the only one that changes its code")
+    expect(prompt).toContain("read their code with read_code_file")
+  })
+
+  it("names the code reads as a harness reaches them", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+      toolNaming: harnessToolNaming("claude-code", "screenplay"),
+    })
+    expect(prompt).toContain("mcp__screenplay__read_code_file")
+    expect(prompt).toContain("mcp__screenplay__find_code_files")
+  })
+})

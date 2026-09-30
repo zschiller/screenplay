@@ -329,7 +329,7 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists its dev server's tools, its frame reads, its Document and Mockup tools and Question Cards", async () => {
+  it("lists its dev server's tools, its frame reads, its Document and Mockup tools, other Workspaces' code reads (#1315) and Question Cards", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -342,12 +342,19 @@ describe("a Workspace chat's MCP route", () => {
       "set_document_title",
       "create_mockup",
       "update_mockup",
+      "read_code_file",
+      "search_code",
+      "find_code_files",
       "read_document",
       "ask_question",
     ])
     expect(result.tools[0].annotations).toMatchObject({ readOnlyHint: true })
     expect(result.tools[3].annotations).toMatchObject({ readOnlyHint: true })
-    expect(result.tools[10].annotations).toMatchObject({ readOnlyHint: true })
+    // read_document and the other Workspaces' code are read-only: a harness
+    // never asks first.
+    for (const i of [10, 11, 12, 13]) {
+      expect(result.tools[i].annotations).toMatchObject({ readOnlyHint: true })
+    }
   })
 
   it("makes Documents owned by the chat its token is bound to", async () => {

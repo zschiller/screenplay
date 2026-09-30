@@ -114,7 +114,8 @@ do (a non-fast-forward push is rejected and the agent pulls and resolves). On
 the desktop **local** backend the limit is structural: each Branch is a git
 worktree of one shared clone, and git keeps one checkout per branch — so a ref
 already open (or checked out in the user's own clone) **fails loud with a named
-error**, never silently shares or steals a checkout. Rendered in the sidebar by
+error**, never silently shares or steals a checkout. A Branch has exactly one
+chat, its **Workspace Chat** (#1315). Rendered in the sidebar by
 its branch's name. Lives in the room's Y.Doc as the `branches` collection
 (`BranchData`).
 _Shown to users as_: "Workspace".
@@ -432,6 +433,27 @@ The _identity_ of a chat tab (id, label, target). The conversation itself —
 messages and streaming state — lives in the client chat-store, not the Y.Doc.
 _Avoid_: chat, conversation; "thread" means a comment thread.
 
+**Workspace Chat** (#1315, spec #1308):
+A Branch's one Chat Session, and the only chat that changes its code. Every
+Branch gets it when it starts, whatever the default tab kind, and a Branch never
+gets a second: more parallel work means more Branches. It is always open (no
+close, not in Chat history) and is where every prompt to the Branch lands, busy
+or not (a message mid-turn steers or queues): the Coordinator's
+`send_to_workspace`, comment requests, Reply in chat on its Documents, Ask for a
+knob. Other chats read its code (`read_code_file`, `search_code`,
+`find_code_files`) and never write it. The rule is one pure function,
+`workspaceChatId` in `lib/chat/workspace-chat` — the newest Chat Session on the
+Branch, closed or not — so the panel, the prompt dispatch, the Coordinator's
+delegation and the stream route agree. When the first message titles the
+Workspace, the chat takes the same title: a Workspace and its chat share a name,
+which is why frames and Documents show the Workspace's title. A Branch from
+before #1315 can hold several chats; the others are its **earlier chats**:
+readable, closable and reopenable from Chat history, but they never send (the
+panel shows Open chat in place of the composer and the stream route refuses them
+with `earlier_chat`).
+_Avoid_: "new chat" on a Branch that has one; bumping a busy Branch to a fresh
+chat; a second rule for "which chat" at a call site.
+
 **Chat Session Writes**:
 The single small owner of the three thin **Canvas Operation** wrappers for Chat
 Session identity — `addChatSession`, `updateChatSession`, `removeChatSession`
@@ -684,9 +706,12 @@ Vercel, node-pty on the desktop build).
 **Tab Pool**:
 The per-Chat-Target set of open tabs in the agent panel — a target's open Chat
 Sessions plus, for an agent (Branch) target, its Terminal Tabs — treated as one
-pool. **Invariant: while the target lives, its pool is never empty.** Closing the
-last tab respawns the user's **preferred default tab kind** (chat or terminal),
-so the panel is never left blank. A pool is filtered by `branchId`. The close decision is a
+pool. **Invariant: while the target lives, its pool is never empty.** The
+**Workspace Chat** is always in its Branch's pool (closed or not) and never
+closes, so in practice the pool only empties on a Branch with no chat (one made
+terminal-first before #1315); closing its last tab respawns the user's
+**preferred default tab kind**, and seeding a Branch always makes its chat, with
+a terminal beside it when that is the default. "+" opens terminals only. A pool is filtered by `branchId`. The close decision is a
 **pure function** (`resolveTabClose`: pool + closing tab → what survives, the next
 selection, and whether to respawn); the **Tab Pool controller** (`useTabPool`,
 PRD #563) applies the effects (server actions, killing the tmux/PTY session, the

@@ -83,19 +83,16 @@ describe("useTabPool remove", () => {
     expect(addChatSession).not.toHaveBeenCalled()
   })
 
-  it("respawns a fresh chat when the last open tab is removed", () => {
-    const { tabPool, chatTarget, removeChatSession, addChatSession } = setup(
+  it("keeps the Workspace's own chat when asked to remove it (#1315)", () => {
+    const { tabPool, removeChatSession, addChatSession } = setup(
       [chat("only", 1), chat("old", 0, { closedAt: 5 })],
       "only"
     )
 
     tabPool.remove("only")
 
-    expect(removeChatSession).toHaveBeenCalledWith("only")
-    expect(addChatSession).toHaveBeenCalledTimes(1)
-    const [newId, data] = addChatSession.mock.calls[0]
-    expect(data).toMatchObject({ branchId: "ws-1", label: "Untitled" })
-    expect(chatTarget.selectChatId).toHaveBeenCalledWith(newId)
+    expect(removeChatSession).not.toHaveBeenCalled()
+    expect(addChatSession).not.toHaveBeenCalled()
   })
 
   it("decides nothing when a closed chat is deleted from history", () => {

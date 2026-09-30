@@ -1,3 +1,4 @@
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import type { ChatSessionData, TerminalTabData } from "@/lib/types"
 
 /**
@@ -71,8 +72,9 @@ export type TabCloseOutcome = {
 
 /**
  * Scope the room-wide chat and terminal lists down to one target's pool: the
- * chats and terminals whose `branchId` matches. Closed chats are dropped; the
- * tab being closed is left in (still open at decision time) and removed by
+ * chats and terminals whose `branchId` matches. Closed chats are dropped,
+ * except the Workspace's own chat (#1315), which is always open; the tab being
+ * closed is left in (still open at decision time) and removed by
  * {@link resolveTabClose}.
  */
 export function buildTabPool(
@@ -80,9 +82,12 @@ export function buildTabPool(
   chats: readonly ChatSessionData[],
   terminals: readonly TerminalTabData[]
 ): TabPool {
+  const own = workspaceChatId(chats, target.branchId)
   return {
     target,
-    chats: chats.filter((c) => c.branchId === target.branchId && !c.closedAt),
+    chats: chats.filter(
+      (c) => c.branchId === target.branchId && (!c.closedAt || c.id === own)
+    ),
     terminals: terminals.filter((t) => t.branchId === target.branchId),
   }
 }

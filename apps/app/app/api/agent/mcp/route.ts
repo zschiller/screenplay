@@ -7,6 +7,10 @@ import {
 } from "@/lib/agent/document-tools"
 import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import {
+  CODE_READ_TOOL_ANNOTATIONS,
+  otherWorkspacesCodeReadTools,
+} from "@/lib/agent/code-read-tools"
+import {
   COORDINATOR_MCP_SERVER_NAME,
   isAllowedMcpOrigin,
   resolveCoordinatorToken,
@@ -71,8 +75,9 @@ export async function POST(req: Request) {
   if (room instanceof Response) return room
 
   // A Workspace chat's harness gets its own dev server's tools and the frame
-  // reads, bound to the Sandbox its token was minted for, and its Document
-  // and Mockup (#1309) tools, bound to its chat, and Question Cards (#1312).
+  // reads, bound to the Sandbox its token was minted for, its Document and
+  // Mockup (#1309) tools, bound to its chat, Question Cards (#1312), and
+  // read-only access to the other Workspaces' code (#1315).
   if (binding.sandboxName) {
     const response = await handleMcpMessage(
       {
@@ -88,6 +93,10 @@ export async function POST(req: Request) {
           }),
           ...buildDocumentTools({ room, chatId: binding.chatId }),
           ...buildMockupTools({ room, chatId: binding.chatId }),
+          ...otherWorkspacesCodeReadTools({
+            room,
+            sandboxName: binding.sandboxName,
+          }),
           ...buildLayerReadTools({ room }),
           ...buildQuestionTools(),
         }),
@@ -97,6 +106,7 @@ export async function POST(req: Request) {
           ...DOCUMENT_TOOL_ANNOTATIONS,
           ...MOCKUP_TOOL_ANNOTATIONS,
           ...QUESTION_TOOL_ANNOTATIONS,
+          ...CODE_READ_TOOL_ANNOTATIONS,
         },
         onInitialize: (client) =>
           console.info(

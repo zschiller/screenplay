@@ -40,70 +40,75 @@ const base = {
   freshChatId: "chat-new",
   createdAt: 42,
   message: "do the thing",
-  isBusy: () => false,
 } satisfies Pick<
   ResolveTargetChatInput,
-  "roomId" | "freshChatId" | "createdAt" | "message" | "isBusy"
+  "roomId" | "freshChatId" | "createdAt" | "message"
 >
 
 describe("resolveTargetChat", () => {
-  it("reuses the remembered chat when it is still open", () => {
+  it("sends in the Workspace's one chat", () => {
     const decision = resolveTargetChat({
       ...base,
       agent: agent(),
-      chatSessions: [chat("c1", 1), chat("c2", 2)],
-      rememberedChatId: "c2",
+      chatSessions: [chat("c1", 1)],
     })
 
     expect(decision).toEqual({
       kind: "send",
       session: null,
-      isFirstChat: false,
-      select: { kind: "agent", agentId: "a1", chatId: "c2" },
+      isFirstChat: true,
+      select: { kind: "agent", agentId: "a1", chatId: "c1" },
       send: {
         roomId: "room-1",
-        chatId: "c2",
+        chatId: "c1",
         target: { kind: "agent", branchId: "a1", sandboxName: "sb-a1" },
         message: "do the thing",
-        isFirstChat: false,
+        isFirstChat: true,
         planMode: undefined,
         model: undefined,
       },
     })
   })
 
-  it("carries the reused chat's plan-mode and model forward", () => {
+  it("carries the chat's plan-mode and model forward", () => {
     const decision = resolveTargetChat({
       ...base,
       agent: agent(),
       chatSessions: [chat("c1", 1, { planMode: true, model: "opus" })],
-      rememberedChatId: "c1",
     })
     expect(decision.kind === "send" && decision.send.planMode).toBe(true)
     expect(decision.kind === "send" && decision.send.model).toBe("opus")
   })
 
-  it("falls back to the first open chat when the remembered one is closed", () => {
+  it("sends in a busy chat rather than opening another (#1315)", () => {
     const decision = resolveTargetChat({
       ...base,
       agent: agent(),
-      chatSessions: [
-        chat("c1", 1),
-        chat("c2", 2, { closedAt: 99 }),
-        chat("c3", 3),
-      ],
-      rememberedChatId: "c2",
+      chatSessions: [chat("c1", 1, { isStreaming: true })],
     })
     expect(decision.kind === "send" && decision.select.chatId).toBe("c1")
     expect(decision.kind === "send" && decision.session).toBeNull()
   })
 
-  it("opens a fresh chat when the agent has no open chat", () => {
+  it("picks the newest of an old canvas's chats, closed or not", () => {
+    const decision = resolveTargetChat({
+      ...base,
+      agent: agent(),
+      chatSessions: [
+        chat("c1", 1),
+        chat("c2", 2),
+        chat("c3", 3, { closedAt: 99 }),
+      ],
+    })
+    expect(decision.kind === "send" && decision.select.chatId).toBe("c3")
+    expect(decision.kind === "send" && decision.session).toBeNull()
+  })
+
+  it("opens a fresh chat when the Workspace has none", () => {
     const decision = resolveTargetChat({
       ...base,
       agent: agent(),
       chatSessions: [],
-      rememberedChatId: undefined,
     })
 
     expect(decision).toEqual({
@@ -128,37 +133,11 @@ describe("resolveTargetChat", () => {
     })
   })
 
-  it("bumps a busy (streaming) target to a fresh chat", () => {
-    const decision = resolveTargetChat({
-      ...base,
-      isBusy: (id) => id === "c1",
-      agent: agent(),
-      chatSessions: [chat("c1", 1)],
-      rememberedChatId: "c1",
-    })
-    expect(decision.kind === "send" && decision.select.chatId).toBe("chat-new")
-    expect(decision.kind === "send" && decision.session?.id).toBe("chat-new")
-    // A fresh chat is still not the agent's first — c1 already exists.
-    expect(decision.kind === "send" && decision.send.isFirstChat).toBe(false)
-  })
-
-  it("treats a fresh chat as the first chat when no other chat exists", () => {
-    const decision = resolveTargetChat({
-      ...base,
-      isBusy: () => true,
-      agent: agent(),
-      chatSessions: [chat("c1", 1)].filter(() => false),
-      rememberedChatId: undefined,
-    })
-    expect(decision.kind === "send" && decision.send.isFirstChat).toBe(true)
-  })
-
-  it("ignores other agents' chats and only reuses this agent's", () => {
+  it("ignores other agents' chats", () => {
     const decision = resolveTargetChat({
       ...base,
       agent: agent(),
       chatSessions: [chat("other", 1, { branchId: "a2" })],
-      rememberedChatId: undefined,
     })
     expect(decision.kind === "send" && decision.select.chatId).toBe("chat-new")
   })
@@ -168,7 +147,6 @@ describe("resolveTargetChat", () => {
       ...base,
       agent: agent({ sandboxName: "" }),
       chatSessions: [],
-      rememberedChatId: undefined,
     })
     expect(decision).toEqual({ kind: "none" })
   })
@@ -178,7 +156,6 @@ describe("resolveTargetChat", () => {
       ...base,
       agent: agent({ ref: "" }),
       chatSessions: [],
-      rememberedChatId: undefined,
     })
     expect(decision).toEqual({ kind: "none" })
   })

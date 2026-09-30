@@ -69,33 +69,35 @@ describe("restoreAgentChatSelection", () => {
     expect(restoreAgentChatSelection(chats, "a1", "c2")).toBe("c2")
   })
 
-  it("falls back to the first open chat when the remembered one is closed", () => {
+  it("falls back to the Workspace's chat when the remembered one is closed", () => {
     const chats = [
       chat("c2", 2, { branchId: "a1" }),
-      chat("c1", 1, { branchId: "a1" }),
-      chat("c3", 3, { branchId: "a1" }, { closedAt: 99 }),
+      chat("c1", 1, { branchId: "a1" }, { closedAt: 99 }),
+      chat("c3", 3, { branchId: "a1" }),
     ]
-    // c3 (remembered) is closed → earliest open chat (c1 by createdAt).
-    expect(restoreAgentChatSelection(chats, "a1", "c3")).toBe("c1")
+    // c1 (remembered) is an earlier chat, closed → the Workspace's chat (c3).
+    expect(restoreAgentChatSelection(chats, "a1", "c1")).toBe("c3")
   })
 
-  it("falls back to the first open chat when nothing is remembered", () => {
+  it("falls back to the Workspace's chat when nothing is remembered", () => {
     const chats = [
       chat("c2", 2, { branchId: "a1" }),
       chat("c1", 1, { branchId: "a1" }),
     ]
+    expect(restoreAgentChatSelection(chats, "a1", undefined)).toBe("c2")
+  })
+
+  it("restores the Workspace's chat even when it was closed (#1315)", () => {
+    const chats = [chat("c1", 1, { branchId: "a1" }, { closedAt: 5 })]
     expect(restoreAgentChatSelection(chats, "a1", undefined)).toBe("c1")
   })
 
-  it("never restores another agent's chat or a closed chat", () => {
-    const chats = [
-      chat("other", 1, { branchId: "a2" }),
-      chat("closed", 2, { branchId: "a1" }, { closedAt: 5 }),
-    ]
+  it("never restores another agent's chat", () => {
+    const chats = [chat("other", 1, { branchId: "a2" })]
     expect(restoreAgentChatSelection(chats, "a1", "other")).toBeNull()
   })
 
-  it("returns null when the agent has no open chats", () => {
+  it("returns null when the agent has no chat", () => {
     expect(restoreAgentChatSelection([], "a1", "c1")).toBeNull()
   })
 })

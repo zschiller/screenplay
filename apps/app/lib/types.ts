@@ -143,9 +143,11 @@ export type TabKind = "chat" | "terminal"
 /**
  * A chat tab: the durable Engine conversation. Targets exactly one of a
  * *Branch* (`branchId` set) or the whole *Room* (`target: "room"`), and its
- * scrollback is persisted + shared. Multiple chats can target the same Branch,
- * so a user can keep parallel conversations going; a Room has exactly one Room
- * Target chat (see `lib/chat/room-chat.ts`). Documents are no longer a chat's
+ * scrollback is persisted + shared. A Branch has exactly one chat, the only one
+ * that changes its code (#1315, `lib/chat/workspace-chat.ts`); more parallel
+ * work means more Branches. A Branch from before then may hold several: the
+ * newest is its chat, the rest are read-only **earlier chats**. A Room has
+ * exactly one Room Target chat (see `lib/chat/room-chat.ts`). Documents are no longer a chat's
  * target (#1314): a chat writes the Documents it owns
  * ({@link MarkdownLayerData.ownerChatId}). Chats saved against a Document
  * before then have neither field and are listed nowhere.

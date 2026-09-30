@@ -49,10 +49,10 @@ describe("buildTabPool", () => {
     expect(agentPool.chats.map((c) => c.id)).toEqual(["a1"])
   })
 
-  it("excludes closed chats and includes the agent's terminals", () => {
+  it("excludes closed earlier chats and includes the agent's terminals", () => {
     const chats = [
-      chat("a1", 1, { branchId: "branch-1" }),
-      chat("a2", 2, { branchId: "branch-1" }, { closedAt: 99 }),
+      chat("a1", 1, { branchId: "branch-1" }, { closedAt: 99 }),
+      chat("a2", 2, { branchId: "branch-1" }),
       chat("a3", 3, { branchId: "branch-2" }),
     ]
     const terminals = [
@@ -65,8 +65,21 @@ describe("buildTabPool", () => {
       chats,
       terminals
     )
-    expect(pool.chats.map((c) => c.id)).toEqual(["a1"])
+    expect(pool.chats.map((c) => c.id)).toEqual(["a2"])
     expect(pool.terminals.map((t) => t.id)).toEqual(["t1"])
+  })
+
+  it("keeps the Workspace's own chat even when it was closed (#1315)", () => {
+    const chats = [
+      chat("a1", 1, { branchId: "branch-1" }, { closedAt: 50 }),
+      chat("a2", 2, { branchId: "branch-1" }, { closedAt: 99 }),
+    ]
+    const pool = buildTabPool(
+      { kind: "agent", branchId: "branch-1" },
+      chats,
+      []
+    )
+    expect(pool.chats.map((c) => c.id)).toEqual(["a2"])
   })
 })
 

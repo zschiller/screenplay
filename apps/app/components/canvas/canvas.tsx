@@ -49,7 +49,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 import { inputStore } from "@/lib/input-store"
 
-import { restoreAgentChatSelection } from "@/lib/chat/chat-target"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 
@@ -1218,15 +1218,11 @@ export function Canvas({
   const handlePlayIframeLayer = frameActions.playIframeLayer
 
   // The empty Knobs popover's "Ask the agent to add a knob": open the frame's
-  // Workspace chat (the one the panel would restore, or a fresh one) and start
-  // the request in its composer for the user to finish. Nothing is sent.
+  // Workspace chat (its one chat, #1315, or a fresh one when it has none) and
+  // start the request in its composer for the user to finish. Nothing is sent.
   const handleAskForKnob = useCallback(
     (branchId: string) => {
-      let chatId = restoreAgentChatSelection(
-        chatSessions,
-        branchId,
-        chatTarget.rememberedAgentChatId(branchId)
-      )
+      let chatId = workspaceChatId(chatSessions, branchId)
       if (!chatId) {
         chatId = nanoid()
         addChatSession(chatId, {

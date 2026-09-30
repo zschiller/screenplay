@@ -79,6 +79,12 @@ interface AgentChatProps {
   /** Whether this chat is the tab on screen. Only the visible chat marks its
    *  finished runs read; a background tab keeps its unread dot. */
   isActive?: boolean
+  /**
+   * Set on an earlier chat (#1315): one of the Workspace's chats from before a
+   * Workspace had one chat. It stays readable, and in place of the composer it
+   * points to the Workspace's chat, which this opens.
+   */
+  onOpenWorkspaceChat?: () => void
 }
 
 export function AgentChat({
@@ -93,6 +99,7 @@ export function AgentChat({
   model,
   onModelChange,
   isActive = true,
+  onOpenWorkspaceChat,
 }: AgentChatProps) {
   const {
     messages,
@@ -478,55 +485,74 @@ export function AgentChat({
         </div>
       </div>
 
-      {/* Input */}
-      <Composer
-        ref={composerRef}
-        markdownLayers={markdownLayers}
-        // The `/` menu lists this Branch's merged App ∪ Repo Skills, fetched
-        // when the chat opens (so reopening after editing a Repo Skill
-        // refreshes it); Document and Coordinator chats have no Skills.
-        skillSource={
-          capabilities.skills
-            ? { sandboxName: capabilities.skillSandboxName }
-            : undefined
-        }
-        model={model}
-        onModelChange={handleModelChange}
-        planMode={planMode}
-        onPlanModeChange={capabilities.planMode ? onPlanModeChange : undefined}
-        onSubmit={handleSubmit}
-        isStreaming={isStreaming}
-        onStop={stopMessage}
-        queueWhileStreaming
-        steersWhileStreaming={steerable}
-        draftKey={chatId}
-        placeholder={capabilities.placeholder}
-        aboveInput={
-          queued.length > 0 ? (
-            <ul aria-label="Queued messages" className="mb-2 space-y-1">
-              {queued.map((q) => (
-                <QueuedRow
-                  key={q.id}
-                  message={q.message}
-                  onEdit={() => restoreToComposer(takeQueued(q.id))}
-                  onRemove={() => takeQueued(q.id)}
-                />
-              ))}
-            </ul>
-          ) : undefined
-        }
-        inputHeader={
-          quote ? (
-            <QuoteRow
-              quote={quote}
-              onRemove={() => chatQuoteStore.remove(chatId)}
-            />
-          ) : undefined
-        }
-        onPickElement={pickBranchId ? handlePickElement : undefined}
-        targetEligible={targetEligible}
-        focusKey={quote?.key}
-      />
+      {/* Input. An earlier chat is read-only (#1315): only the Workspace's
+          own chat sends. */}
+      {onOpenWorkspaceChat ? (
+        <div className="flex items-center gap-3 border-t border-border p-3 text-sm text-muted-foreground">
+          <p className="min-w-0 flex-1 text-balance">
+            An earlier chat, kept to read. This Workspace continues in its chat.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onOpenWorkspaceChat}
+          >
+            Open chat
+          </Button>
+        </div>
+      ) : (
+        <Composer
+          ref={composerRef}
+          markdownLayers={markdownLayers}
+          // The `/` menu lists this Branch's merged App ∪ Repo Skills, fetched
+          // when the chat opens (so reopening after editing a Repo Skill
+          // refreshes it); Document and Coordinator chats have no Skills.
+          skillSource={
+            capabilities.skills
+              ? { sandboxName: capabilities.skillSandboxName }
+              : undefined
+          }
+          model={model}
+          onModelChange={handleModelChange}
+          planMode={planMode}
+          onPlanModeChange={
+            capabilities.planMode ? onPlanModeChange : undefined
+          }
+          onSubmit={handleSubmit}
+          isStreaming={isStreaming}
+          onStop={stopMessage}
+          queueWhileStreaming
+          steersWhileStreaming={steerable}
+          draftKey={chatId}
+          placeholder={capabilities.placeholder}
+          aboveInput={
+            queued.length > 0 ? (
+              <ul aria-label="Queued messages" className="mb-2 space-y-1">
+                {queued.map((q) => (
+                  <QueuedRow
+                    key={q.id}
+                    message={q.message}
+                    onEdit={() => restoreToComposer(takeQueued(q.id))}
+                    onRemove={() => takeQueued(q.id)}
+                  />
+                ))}
+              </ul>
+            ) : undefined
+          }
+          inputHeader={
+            quote ? (
+              <QuoteRow
+                quote={quote}
+                onRemove={() => chatQuoteStore.remove(chatId)}
+              />
+            ) : undefined
+          }
+          onPickElement={pickBranchId ? handlePickElement : undefined}
+          targetEligible={targetEligible}
+          focusKey={quote?.key}
+        />
+      )}
     </div>
   )
 }
