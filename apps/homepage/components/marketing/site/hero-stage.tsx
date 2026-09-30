@@ -46,7 +46,7 @@ const PAGE = `
     <div class="hc-nav"><span class="hc-logo"><i></i>Screenplay</span><span class="hc-links"><span>How it works</span><span>Features</span><span>Docs</span></span><span class="hc-dl">Download</span></div>
     <div class="hc-hero">
       <div class="hc-h1">${HEAD}</div>
-      <div class="hc-row"><p class="hc-lede">Run your coding agents on separate branches and see every result live on one canvas.</p><div class="hc-btns"><span class="hc-b solid">Download for Mac</span><span class="hc-b">Star on GitHub</span></div></div>
+      <div class="hc-row"><p class="hc-lede">Run your coding agents on separate branches and see every result live on one canvas.</p><div class="hc-btns"><span class="hc-b solid">Download for Mac</span><span class="hc-b">Host it for your team</span></div></div>
       <div class="hc-fig"><span></span><span></span><span></span></div>
     </div>
   </div>`
