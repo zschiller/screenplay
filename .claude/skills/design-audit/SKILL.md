@@ -15,7 +15,7 @@ The three depths:
 
 - **Product**: whether every claim is true and what a real user is missing. Cite the code (`file:line`) behind each claim you check.
 - **Hierarchy** (wayfinding for docs, interaction for the app): what a person sees first, what they can reach, and where flows dead-end.
-- **Visual nits**: spacing, type, colour and component drift against the design rules in project memory. Build the fixes as a patch in `/mnt/project-files/<surface>-visual-nits/`, with before and after captures in light and dark.
+- **Visual nits**: spacing, type, colour and component drift against the standing design rules in [`../design-exploration/RULES.md`](../design-exploration/RULES.md) (project memory wins where newer). Build the fixes as a patch in `/mnt/project-files/<surface>-visual-nits/`, with before and after captures in light and dark.
 
 Tag each finding with its depth letter and a number (P3, H7, N12). Label captures Now, Mockup or After. Check memory's "don't re-raise" list first, and keep only findings it doesn't already settle.
 
@@ -29,9 +29,9 @@ Done when every finding from the three audits is accounted for exactly once: in 
 
 ## 3. Decide: one page for all surfaces
 
-Read [`DECISIONS.md`](DECISIONS.md) and build the decisions page from `decisions-template.html`.
+Read [`DECISIONS.md`](DECISIONS.md) and build the decisions page from `decisions-template.html`. A call that needs mockups before the owner can answer it runs as a [`design-exploration`](../design-exploration/SKILL.md) instead, and its pick comes back as the answer.
 
-Done when every call in every plan is a question on the page and every PR is in its runs list.
+Done when every call in every plan is a question on the page or has its own exploration, and every PR is in its runs list.
 
 ## 4. Fan out: when the owner pastes their decisions back
 
