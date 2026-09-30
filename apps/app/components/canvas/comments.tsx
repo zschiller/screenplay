@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowUpIcon } from "@workspace/ui/components/icons"
 import type { Editor } from "@tiptap/core"
 import {
   Popover,
@@ -9,7 +8,6 @@ import {
   PopoverContent,
 } from "@workspace/ui/components/popover"
 import { Button } from "@workspace/ui/components/button"
-import { IconButton } from "@workspace/ui/components/icon-button"
 import { useAppSession } from "@/lib/auth-client"
 import type { ThreadWithComments } from "@/lib/comments"
 import { selectorLabel } from "@/lib/comment-element-label"
@@ -85,15 +83,6 @@ export interface FrameInfo {
   storedLayerId?: string | null
 }
 
-export interface SendToChatContext {
-  iframeLayerId?: string | null
-  selector?: string | null
-  documentId?: string | null
-  quotedText?: string | null
-  lineFrom?: number | null
-  lineTo?: number | null
-}
-
 export interface CommentsProps {
   roomId: string
   zoom: number
@@ -118,12 +107,6 @@ export interface CommentsProps {
   /** The Canvas's threads (see `useCommentThreads`), shared with the top
    *  bar's comment count and thread list. */
   commentThreads: CommentThreads
-  /**
-   * If provided, the new-thread composer shows a "Send to agent" secondary
-   * CTA that hands the typed text + the picked element context off to the
-   * agent chat instead of creating a comment thread.
-   */
-  onSendToChat?: (text: string, ctx: SendToChatContext) => void
   /** Open an existing thread by id — drives highlight clicks inside docs. */
   activeThreadId?: string | null
   onActivateThread?: (threadId: string | null) => void
@@ -151,7 +134,6 @@ export function Comments({
   getDocumentEditor,
   documentEditorsVersion,
   commentThreads,
-  onSendToChat,
   activeThreadId: controlledActiveThreadId,
   onActivateThread,
   describeLayer,
@@ -438,28 +420,6 @@ export function Comments({
                   lineTo={newCommentPos.lineTo ?? null}
                   onSubmitted={onNewCommentPlaced}
                   onCancel={onCancelComment}
-                  onSendToChat={
-                    // Send-to-agent survives only for document targets — a text
-                    // selection (`documentId`) or a whole doc placed via
-                    // comment mode (`iframeLayerId` naming a registered doc
-                    // editor). The frame-element → owning-agent path is retired
-                    // in favour of the composer token flow (#618), so a frame
-                    // pin gets no send-to-agent action.
-                    onSendToChat &&
-                    (newCommentPos.documentId ||
-                      (newCommentPos.iframeLayerId &&
-                        getDocumentEditor?.(newCommentPos.iframeLayerId)))
-                      ? (text) =>
-                          onSendToChat(text, {
-                            iframeLayerId: newCommentPos.iframeLayerId ?? null,
-                            selector: newCommentPos.selector ?? null,
-                            documentId: newCommentPos.documentId ?? null,
-                            quotedText: newCommentPos.quotedText ?? null,
-                            lineFrom: newCommentPos.lineFrom ?? null,
-                            lineTo: newCommentPos.lineTo ?? null,
-                          })
-                      : undefined
-                  }
                 />
               </PopoverContent>
             </Popover>
@@ -734,7 +694,6 @@ function NewThreadComposer({
   lineTo,
   onSubmitted,
   onCancel,
-  onSendToChat,
 }: {
   createThread: CommentThreads["createThread"]
   place: string | null
@@ -754,7 +713,6 @@ function NewThreadComposer({
   lineTo?: number | null
   onSubmitted: () => void
   onCancel: () => void
-  onSendToChat?: (text: string) => void
 }) {
   const [body, setBody] = useState("")
   const [pending, setPending] = useState(false)
@@ -780,39 +738,16 @@ function NewThreadComposer({
         value={body}
         onChange={setBody}
         members={members}
-        // Desktop has no comment threads: plain Enter sends the selection to
-        // the agent, Shift+Enter adds a line. Web: Cmd/Ctrl+Enter comments.
-        submitOnEnter={isLocalBuild}
-        onSubmit={isLocalBuild ? sendToChat : submit}
+        onSubmit={submit}
         onEscape={onCancel}
       />
       <ComposerFooter>
-        {/* Web: send-to-agent is a quiet icon beside the primary Comment. */}
-        {onSendToChat && !isLocalBuild && (
-          <IconButton
-            label="Send as a message to the agent"
-            onClick={sendToChat}
-            disabled={pending || empty}
-          >
-            <ArrowUpIcon />
-          </IconButton>
-        )}
         <Button size="xs" variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        {/* Persisted comment threads are excluded from the local build
-            (#417), so on desktop send-to-agent is the primary action. */}
-        {isLocalBuild ? (
-          onSendToChat && (
-            <Button size="xs" onClick={sendToChat} disabled={pending || empty}>
-              Send to agent
-            </Button>
-          )
-        ) : (
-          <Button size="xs" onClick={submit} disabled={pending || empty}>
-            Comment
-          </Button>
-        )}
+        <Button size="xs" onClick={submit} disabled={pending || empty}>
+          Comment
+        </Button>
       </ComposerFooter>
     </div>
   )
@@ -838,13 +773,6 @@ function NewThreadComposer({
     })
     setPending(false)
     if (saved) onSubmitted()
-  }
-
-  function sendToChat() {
-    const text = body.trim()
-    if (!text || !onSendToChat) return
-    onSendToChat(text)
-    onSubmitted()
   }
 }
 

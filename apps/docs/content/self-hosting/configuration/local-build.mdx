@@ -26,11 +26,9 @@ a solo tool running on your own machine, so the desktop build leaves it out:
   user — every canvas belongs to it — and the Share affordances are hidden.
 - **No persisted comments or co-view.** The `thread`/`comment`/`thread_read`
   tables and the collaborative thread UI (canvas pins, replies, read-state, the
-  player comment feed) are excluded. The element/selection **reference-to-agent**
-  path that rides on the same comment composer — anchor an element or doc text
-  span, then hit **"Send to agent"** — is single-user and **kept**: it injects
-  the reference into the chat and persists nothing. Only the composer's
-  "Comment" (persist) button is dropped.
+  player comment feed) are excluded. **Reply in chat** on selected document
+  text is single-user and **kept**: it quotes the passage into the chat
+  composer and persists nothing.
 - **No remote presence.** With a single local Yjs peer there are no other
   cursors to show; the follow toolbar is hidden. (The awareness plumbing the
   collaborative editor needs stays — there is simply nobody else on it.)

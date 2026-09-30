@@ -1121,6 +1121,25 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "doc-reply-in-chat",
+    description: "A document passage quoted into the Coordinator's composer.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    prepare: async (page) => {
+      await camera(page, VIEW.documentEdit)
+      const line = await centerOf(page, "li p, li", "Annual toggle QA")
+      const at = { x: line.x - 120, y: line.y }
+      await page.mouse.click(at.x, at.y, { clickCount: 2 })
+      await sleep(page, 1200)
+      await page.mouse.click(at.x, at.y, { clickCount: 3 })
+      await sleep(page, 1000)
+      await page.getByRole("button", { name: "Reply in chat" }).click()
+      await page.keyboard.type("Is this still blocking the launch?")
+      await page.mouse.move(0, 0)
+      await sleep(page, 800)
+    },
+  }),
+  screen({
     name: "terminal",
     description: "A terminal tab in a Workspace.",
     path: ROOM,

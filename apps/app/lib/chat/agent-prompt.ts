@@ -6,15 +6,13 @@ import type { BranchData, ChatSessionData } from "@/lib/types"
  * Agent-prompt dispatch — the single seam every "send a turn to an agent's
  * chat" path runs through (`apps/app/CONTEXT.md`, "Chat Session",
  * "Chat Target"). It is the sibling of `lib/chat/chat-target` and
- * `lib/chat/tab-pool`, and mirrors `lib/canvas/chat-reference` exactly: a
- * React-free / Yjs-free **pure decision** ({@link resolveTargetChat}) plus a
+ * `lib/chat/tab-pool`: a React-free / Yjs-free **pure decision** ({@link resolveTargetChat}) plus a
  * thin **apply verb** ({@link dispatchPrompt}) the controllers call.
  *
  * Before this module the choreography — resolve which chat to use, create or
  * reuse the Chat Session, select the target, call `chatStore.sendMessage` with
- * the rename callbacks wired — was open-coded in three places
- * (`handleRebaseOnDefault`, `useElementReference.sendReference`, and
- * `useBranchIntake`'s seed send), so the remembered-chat / first-open /
+ * the rename callbacks wired — was open-coded in several places
+ * (`handleRebaseOnDefault` and `useBranchIntake`'s seed send among them), so the remembered-chat / first-open /
  * busy-bumps-to-a-fresh-chat rule had no home and each copy could drift.
  *
  * Two pieces:
@@ -23,9 +21,8 @@ import type { BranchData, ChatSessionData } from "@/lib/types"
  *    this prompt land in" for an agent target: reuse the remembered chat if it
  *    is still open, else the agent's first open chat; a busy (already streaming)
  *    target bumps to a fresh chat, as does an agent with no open chat; a missing
- *    branch / sandbox yields "none". Returns the {@link ReferenceDecision}-shaped
- *    result the codebase already uses for `chat-reference`, with `session: null`
- *    marking a reused chat (nothing to create).
+ *    branch / sandbox yields "none", and `session: null` marks a reused chat
+ *    (nothing to create).
  * 2. {@link dispatchPrompt} — the apply verb. Create the Chat Session through the
  *    canvas ops seam (ADR 0001) *only* when the decision calls for a fresh chat;
  *    select the resolved target through the Chat-Target controller; call
@@ -33,13 +30,11 @@ import type { BranchData, ChatSessionData } from "@/lib/types"
  */
 
 /** Which Chat Target a prompt lands on — drives selection. */
-export type PromptTarget =
-  | { kind: "agent"; agentId: string }
-  | { kind: "document"; documentId: string }
+export type PromptTarget = { kind: "agent"; agentId: string }
 
 /**
- * A resolved prompt ready to apply. {@link dispatchPrompt} consumes it; the
- * `chat-reference` decision and {@link resolveTargetChat} both produce one.
+ * A resolved prompt ready to apply. {@link dispatchPrompt} consumes it;
+ * {@link resolveTargetChat} produces one.
  */
 export interface PromptDispatch {
   /**
@@ -73,11 +68,6 @@ export interface PromptChatTarget {
       remember?: boolean
     }
   ) => void
-  selectDocChat: (
-    markdownLayerId: string,
-    chatId: string,
-    options?: { expandPanel?: boolean }
-  ) => void
   expandPanel: () => void
 }
 
@@ -92,8 +82,8 @@ export interface DispatchPromptDeps {
 /**
  * Apply a resolved {@link PromptDispatch}: create the fresh Chat Session when
  * one is called for, select the target through the Chat-Target controller, and
- * send the message. The single apply path the Element Reference, Branch Intake,
- * and Branch Actions controllers share.
+ * send the message. The single apply path the Branch Intake and Branch Actions
+ * controllers share.
  */
 export function dispatchPrompt(
   dispatch: PromptDispatch,
@@ -104,14 +94,10 @@ export function dispatchPrompt(
   if (session) deps.addChatSession(session.id, session)
 
   if (select !== false) {
-    if (target.kind === "agent") {
-      deps.chatTarget.selectAgentChat(target.agentId, send.chatId, {
-        clearDocument: select.clearDocument,
-        remember: select.remember,
-      })
-    } else {
-      deps.chatTarget.selectDocChat(target.documentId, send.chatId)
-    }
+    deps.chatTarget.selectAgentChat(target.agentId, send.chatId, {
+      clearDocument: select.clearDocument,
+      remember: select.remember,
+    })
   }
 
   chatStore.sendMessage(send)
@@ -119,8 +105,8 @@ export function dispatchPrompt(
   if (expandPanel) deps.chatTarget.expandPanel()
 }
 
-/** The resolved-target decision — {@link ReferenceDecision}'s agent shape, with
- *  `session: null` distinguishing a reused chat from a fresh one. */
+/** The resolved-target decision, with `session: null` distinguishing a reused
+ *  chat from a fresh one. */
 export type TargetChatDecision =
   | { kind: "none" }
   | {

@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom"
 import {
   type Icon,
+  ArrowUUpLeftIcon,
   CaretDownIcon,
   ChatIcon,
   CheckIcon,
@@ -72,6 +73,7 @@ import {
   getLineNumbers,
   getQuotedText,
 } from "@/lib/document-comments"
+import type { ChatQuote } from "@/lib/chat-quote-store"
 import type { MarkdownLayerData } from "@/lib/types"
 import { isLocalBuild } from "@/lib/local-mode"
 import { cn } from "@workspace/ui/lib/utils"
@@ -183,7 +185,8 @@ function FormatButton({
   children,
 }: {
   label: string
-  active: boolean
+  /** Whether the format is on. Omit for an action, which has no on-state. */
+  active?: boolean
   onRun: () => void
   children: ReactNode
 }) {
@@ -348,6 +351,8 @@ interface MarkdownLayerProps {
   onStartInlineComment?: (draft: InlineCommentDraft) => void
   /** User clicked an existing inline-comment highlight inside the doc. */
   onSelectInlineThread?: (threadId: string) => void
+  /** User clicked Reply in chat on a non-empty selection (#1243). */
+  onReplyInChat?: (quote: ChatQuote) => void
   /**
    * Absolute world-space position of this layer's top-left. Layers render as
    * flat, absolutely-positioned siblings (not nested in a per-group flex row),
@@ -469,6 +474,7 @@ export function MarkdownLayer({
   onEditorReady,
   onStartInlineComment,
   onSelectInlineThread,
+  onReplyInChat,
 }: MarkdownLayerProps) {
   const { awareness } = useYjs()
   const provider = useMemo(() => ({ awareness }), [awareness])
@@ -1101,22 +1107,39 @@ export function MarkdownLayer({
                   >
                     <ListNumbersIcon />
                   </FormatButton>
+                  {((!isLocalBuild && onStartInlineComment) ||
+                    onReplyInChat) && <FloatingToolbarSeparator />}
                   {!isLocalBuild && onStartInlineComment && (
-                    <>
-                      <FloatingToolbarSeparator />
-                      <FloatingToolbarButton
-                        label="Comment"
-                        variant="ghost"
-                        tabIndex={-1}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          startInlineComment()
-                        }}
-                      >
-                        <ChatIcon />
-                      </FloatingToolbarButton>
-                    </>
+                    <FloatingToolbarButton
+                      label="Comment"
+                      variant="ghost"
+                      tabIndex={-1}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        startInlineComment()
+                      }}
+                    >
+                      <ChatIcon />
+                    </FloatingToolbarButton>
+                  )}
+                  {onReplyInChat && (
+                    <FormatButton
+                      label="Reply in chat"
+                      onRun={() => {
+                        const { from, to, empty } = editor.state.selection
+                        if (empty) return
+                        const doc = editor.state.doc
+                        onReplyInChat({
+                          documentId: layer.id,
+                          documentTitle: layer.title || null,
+                          quotedText: getQuotedText(doc, from, to),
+                          ...getLineNumbers(doc, from, to),
+                        })
+                      }}
+                    >
+                      <ArrowUUpLeftIcon />
+                    </FormatButton>
                   )}
                 </FloatingToolbar>
               </div>,
