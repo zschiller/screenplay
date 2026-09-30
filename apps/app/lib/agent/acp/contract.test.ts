@@ -14,7 +14,7 @@ vi.mock("@/lib/db", () => ({ db: {} }))
 
 import { jsonSchema, tool } from "ai"
 import type { EngineUpdate } from "./engine-seam"
-import { planFromPermissionRequest } from "./schema"
+import { planFromPermissionRequest, textBlock } from "./schema"
 import { withPlanGate } from "../plan-gate"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import { ExternalEngine } from "./acp-engine"
@@ -22,8 +22,8 @@ import {
   acpSessionFactoryFromDriver,
   contractFor,
   steeringContractFor,
+  steppedDriver,
 } from "./engine-contract"
-import { supportsSteering } from "./engine-seam"
 
 contractFor("in-process", (driver) => new InProcessEngine(driver))
 steeringContractFor("in-process", (driver) => new InProcessEngine(driver))
@@ -41,16 +41,136 @@ contractFor(
     new ExternalEngine({ sessionFactory: acpSessionFactoryFromDriver(driver) })
 )
 
-// The external Engine can't steer until the Harness's prompt queueing is wired
-// (#1191), so Turn Launch answers "not steerable" and the client queues.
-describe("ExternalEngine — steering", () => {
-  it("is not a steering Engine yet", () => {
-    const engine = new ExternalEngine({
-      sessionFactory: acpSessionFactoryFromDriver(() => ({
-        consumeStream: async () => {},
-      })),
+// The Claude adapter queues a prompt sent while one runs into the live turn
+// (#1191); the fake agent learns the same, and the external Engine steers
+// through it to the same observable outcome as the in-process one.
+steeringContractFor(
+  "external",
+  (driver) =>
+    new ExternalEngine({
+      sessionFactory: acpSessionFactoryFromDriver(driver, {
+        promptQueueing: true,
+      }),
     })
-    expect(supportsSteering(engine)).toBe(false)
+)
+
+describe("ExternalEngine — steering", () => {
+  const turn = {
+    chatId: "c",
+    runId: "r",
+    roomId: "rm",
+    systemPrompt: "",
+    model: "harness:claude-code",
+    history: [{ role: "user" as const, content: [textBlock("hi")] }],
+  }
+  const reply = (): StreamDriver => (config) => ({
+    consumeStream: async () => {
+      await config.onChunk?.({
+        chunk: { type: "text-delta", id: "t", text: "ok" },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await config.onFinish?.({ finishReason: "stop" } as any)
+    },
+  })
+
+  it("declines Steers on a Harness that doesn't queue prompts, and takes none", async () => {
+    const takeSteers = vi.fn(async () => [])
+    const declineSteers = vi.fn(async () => {})
+    const updates: EngineUpdate[] = []
+    await new ExternalEngine({
+      sessionFactory: acpSessionFactoryFromDriver(reply()),
+    }).run(
+      { ...turn, takeSteers, declineSteers },
+      (u) => {
+        updates.push(u)
+      },
+      new AbortController().signal
+    )
+    expect(declineSteers).toHaveBeenCalledTimes(1)
+    expect(takeSteers).not.toHaveBeenCalled()
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
+  it("treats the handoff's end_turn as part of the turn, ending once with the steered reply", async () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const call = (type: string, extra: object) =>
+      ({ type, toolCallId: "call_1", toolName: "read_file", ...extra }) as any
+    let steer = () => {}
+    const driver = steppedDriver(
+      [
+        [
+          {
+            chunks: [
+              {
+                type: "tool-input-start",
+                id: "call_1",
+                toolName: "read_file",
+              } as any,
+              call("tool-call", { input: {} }),
+              () => steer(),
+              call("tool-result", { output: "x" }),
+            ],
+            response: [],
+          },
+          {
+            // The steered step outlasts the handoff that started it.
+            chunks: [
+              () => new Promise((resolve) => setTimeout(resolve, 20)),
+              { type: "text-delta", id: "t", text: "Steered." } as any,
+            ],
+            response: [],
+          },
+        ],
+      ],
+      []
+    )
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    const inbox: string[] = []
+    steer = () => {
+      inbox.push("run the tests too")
+    }
+    const updates: EngineUpdate[] = []
+    await new ExternalEngine({
+      sessionFactory: acpSessionFactoryFromDriver(driver, {
+        promptQueueing: true,
+      }),
+    }).run(
+      {
+        ...turn,
+        takeSteers: async () =>
+          inbox.splice(0).map((text, i) => ({
+            id: `s${i}`,
+            content: [textBlock(text)],
+          })),
+      },
+      (u) => {
+        updates.push(u)
+      },
+      new AbortController().signal
+    )
+    expect(updates.filter((u) => u.kind === "done")).toHaveLength(1)
+    expect(updates.at(-2)).toMatchObject({
+      kind: "session_update",
+      update: { sessionUpdate: "agent_message_chunk" },
+    })
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
+  it("keeps Steers on a Harness that queues prompts, checking once before it finishes", async () => {
+    const takeSteers = vi.fn(async () => [])
+    const declineSteers = vi.fn(async () => {})
+    await new ExternalEngine({
+      sessionFactory: acpSessionFactoryFromDriver(reply(), {
+        promptQueueing: true,
+      }),
+    }).run(
+      { ...turn, takeSteers, declineSteers },
+      () => {},
+      new AbortController().signal
+    )
+    expect(declineSteers).not.toHaveBeenCalled()
+    expect(takeSteers).toHaveBeenCalledTimes(1)
   })
 })
 

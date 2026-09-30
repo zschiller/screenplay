@@ -25,6 +25,11 @@ export interface DriveTurnDeps {
    * boundary.
    */
   takeSteers?(runId: string): Promise<TakenSteer[]>
+  /**
+   * The Engine can't take Steers on this turn after all (#1191); clients
+   * should queue mid-run messages instead.
+   */
+  declineSteers?(runId: string): Promise<void>
 }
 
 /**
@@ -84,6 +89,9 @@ export async function driveEngineTurn(
             const steers = await takeSteers(turn.runId)
             await consumer.acceptSteers(steers)
             return steers
+          },
+          declineSteers: async () => {
+            await deps.declineSteers?.(turn.runId)
           },
         }
       : turn

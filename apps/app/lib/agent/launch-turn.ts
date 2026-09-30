@@ -58,6 +58,11 @@ export async function launchEngineTurn(params: {
             id: steer.id,
             content: wireToContentBlocks(steer.message),
           })),
+        declineSteers: () =>
+          broadcastControl(roomId, chatId, {
+            kind: "steerable",
+            steerable: false,
+          }),
       }
     )
   } catch (e) {
