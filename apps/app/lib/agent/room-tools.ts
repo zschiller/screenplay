@@ -314,7 +314,7 @@ export function buildRoomTools(
     }),
     [REMOVE_WORKSPACE_TOOL]: tool({
       description:
-        "Remove a Workspace from the canvas, as Delete in the Workspaces menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. It acts right away.",
+        "Remove a Workspace from the canvas, as Delete in the Chats menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. It acts right away.",
       inputSchema: jsonSchema<{ workspace_id: string }>({
         type: "object",
         properties: {
@@ -621,7 +621,7 @@ export function workspaceOwnerId(
 }
 
 /**
- * Remove the Workspace the way Delete in the Workspaces menu does (#901): the
+ * Remove the Workspace the way Delete in the Chats menu does (#901): the
  * Branch, its frames and chats leave the doc in one change, then its sandbox
  * is torn down. The git branch and any PR stay where they are.
  */

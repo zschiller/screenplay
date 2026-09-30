@@ -8,7 +8,7 @@ import { Button } from "@workspace/ui/components/button"
 import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { ChatPanel } from "@/components/agent/chat-panel"
 import { ChatPanelHeader } from "@/components/agent/chat-panel-header"
-import { WorkspacesMenuButton } from "@/components/agent/workspaces-menu"
+import { ChatsMenuButton } from "@/components/agent/chats-menu"
 import type { ChatPanelTarget } from "@/lib/chat/chat-target"
 import { roomChatId } from "@/lib/chat/room-chat"
 import type { ChatSessionData, RepoData, TerminalTabData } from "@/lib/types"
@@ -151,7 +151,7 @@ export function ChatPanelHost({
         <ChatPanelHeader onCollapse={() => chatPanelRef.current?.collapse()}>
           <span className="text-xs text-muted-foreground">No repositories</span>
           <div className="ml-auto flex items-center">
-            <WorkspacesMenuButton />
+            <ChatsMenuButton />
           </div>
         </ChatPanelHeader>
         <div className="border-b border-border" />

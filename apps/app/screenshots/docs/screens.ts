@@ -316,25 +316,25 @@ async function openCardMenu(page: Page, name: string, label: string) {
   await clickAt(page, at.button, 900)
 }
 
-/** A Workspace row in the chat panel's Workspaces menu (#1152). */
-const BRANCH_ROW = "[data-workspaces-menu] [cmdk-item]"
+/** A Workspace row in the chat panel's Chats menu (#1152). */
+const BRANCH_ROW = "[data-chats-menu] [cmdk-item]"
 
-/** Open the chat panel's Workspaces menu, unless it's open already. */
-async function openWorkspacesMenu(page: Page) {
-  if (await page.locator("[data-workspaces-menu]").isVisible()) return
+/** Open the chat panel's Chats menu, unless it's open already. */
+async function openChatsMenu(page: Page) {
+  if (await page.locator("[data-chats-menu]").isVisible()) return
   // The button lives on the Coordinator header only (#1152).
   const crumb = page.getByRole("button", { name: "Coordinator", exact: true })
   if (await crumb.isVisible()) await crumb.click()
   await page
-    .getByRole("button", { name: "Workspaces", exact: true })
+    .getByRole("button", { name: "Chats", exact: true })
     .click({ timeout: 15_000 })
-  await page.locator("[data-workspaces-menu]").waitFor({ timeout: 10_000 })
+  await page.locator("[data-chats-menu]").waitFor({ timeout: 10_000 })
   await sleep(page, 400)
 }
 
-/** Hover a row (a Workspace in the Workspaces menu by default) by its text. */
+/** Hover a row (a Workspace in the Chats menu by default) by its text. */
 async function hoverRow(page: Page, text: string, rowSelector = BRANCH_ROW) {
-  if (rowSelector === BRANCH_ROW) await openWorkspacesMenu(page)
+  if (rowSelector === BRANCH_ROW) await openChatsMenu(page)
   const at = (await page.evaluate(
     `(() => {
       const row = [...document.querySelectorAll(${JSON.stringify(rowSelector)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
@@ -364,9 +364,9 @@ async function openRowMenu(page: Page, text: string, rowSelector = BRANCH_ROW) {
   await clickAt(page, at, 900)
 }
 
-/** Point the chat panel at a Workspace from the Workspaces menu. */
+/** Point the chat panel at a Workspace from the Chats menu. */
 async function selectWorkspace(page: Page, text: string) {
-  await openWorkspacesMenu(page)
+  await openChatsMenu(page)
   const at = (await page.evaluate(
     `(() => {
       const row = [...document.querySelectorAll(${JSON.stringify(BRANCH_ROW)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
@@ -762,9 +762,9 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: MENU,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page
-        .getByRole("button", { name: "More workspace actions" })
+        .getByRole("button", { name: "More chat actions" })
         .click({ timeout: 15_000 })
       await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
       await page
@@ -820,8 +820,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: DIALOG,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openWorkspacesMenu(page)
-      await page.locator("button[aria-label='New workspace']").first().click()
+      await openChatsMenu(page)
+      await page.locator("button[aria-label='New chat']").first().click()
       await sleep(page, 1500)
       await page.locator("[role=dialog] [contenteditable=true]").first().click()
       await page.keyboard.type(
@@ -968,14 +968,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "workspaces-menu",
     description:
-      "The chat panel's Workspaces menu (#1152): the Coordinator and the Workspaces.",
+      "The chat panel's Chats menu (#1152, #1317): the Coordinator, then every chat.",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [700, 0, 580, 460],
     focus: POPOVER,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
     },
   }),
   screen({

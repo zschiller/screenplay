@@ -12,8 +12,8 @@ vi.mock("./coordinator-chat", () => ({
   CoordinatorChat: (props: { chatSession?: ChatSessionData }) =>
     coordinatorChat(props),
 }))
-vi.mock("./workspaces-menu", () => ({
-  WorkspacesMenuButton: () => <button type="button">Workspaces</button>,
+vi.mock("./chats-menu", () => ({
+  ChatsMenuButton: () => <button type="button">Chats</button>,
 }))
 
 import { ChatPanel } from "./chat-panel"
@@ -62,7 +62,7 @@ describe("ChatPanel with the Room target", () => {
   it("shows the Coordinator chat under the shared header", () => {
     const { roomChat } = renderRoomPanel()
     expect(screen.getByRole("heading", { name: "Coordinator" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Workspaces" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Chats" })).toBeTruthy()
     expect(screen.getByTestId("coordinator-chat")).toBeTruthy()
     expect(coordinatorChat.mock.calls.at(-1)?.[0].chatSession).toBe(roomChat)
     // One chat per canvas: no tab strip.

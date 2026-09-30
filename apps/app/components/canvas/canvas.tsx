@@ -228,7 +228,7 @@ import { addMemory, editMemory, removeMemory } from "@/lib/canvas/memory"
 
 import { ChatPanelHost } from "./chat-panel-host"
 
-import { WorkspacesMenuProvider } from "@/components/agent/workspaces-menu"
+import { ChatsMenuProvider } from "@/components/agent/chats-menu"
 
 import {
   useHoveredWorkspaceId,
@@ -1570,7 +1570,7 @@ export function Canvas({
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Every Add repository outside Canvas settings (the empty canvas, the chat
-  // panel, the getting-started checklist, the Workspaces menu) goes straight to
+  // panel, the getting-started checklist, the Chats menu) goes straight to
   // the picker and closes when the repository is added (#1182).
   const addRepository = useAddRepositoryFlow()
   // A new canvas opens on the chat panel (#1182): while no Workspace has had a
@@ -1660,7 +1660,7 @@ export function Canvas({
         />
       ))}
       <AddRepositoryFlowProvider value={addRepository}>
-        <WorkspacesMenuProvider
+        <ChatsMenuProvider
           userId={userId ?? "anonymous"}
           roomId={roomId}
           repos={repos}
@@ -2270,7 +2270,7 @@ export function Canvas({
               />
             </ResizablePanel>
           </ResizablePanelGroup>
-        </WorkspacesMenuProvider>
+        </ChatsMenuProvider>
       </AddRepositoryFlowProvider>
     </>
   )
