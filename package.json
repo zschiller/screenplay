@@ -13,9 +13,9 @@
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "prettier": "^3.8.1",
+    "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.7.2",
-    "turbo": "^2.8.17",
+    "turbo": "^2.11.5",
     "typescript": "5.9.3"
   },
   "packageManager": "pnpm@9.15.9",
@@ -28,7 +28,7 @@
       "nextra-theme-docs>zod": "4.3.6"
     },
     "patchedDependencies": {
-      "yjs@13.6.30": "patches/yjs@13.6.30.patch",
+      "yjs@13.6.33": "patches/yjs@13.6.33.patch",
       "@agentclientprotocol/sdk@1.1.0": "patches/@agentclientprotocol__sdk@1.1.0.patch"
     }
   }
