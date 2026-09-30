@@ -73,8 +73,25 @@ export interface AcpSessionPorts {
   requestPlanApproval(request: RequestPermissionRequest): Promise<PlanDecision>
 }
 
+/**
+ * What the session needs to know about the adapter behind it, stated on its
+ * Harness descriptor (`AcpAdapter` in `harnesses/types`) rather than detected
+ * from what the adapter advertises. Absent fields take the generic default.
+ */
+export interface AdapterFacts {
+  /**
+   * The id of the config option the adapter takes the model through. Absent ⇒
+   * the option ACP marks with the `"model"` category.
+   */
+  modelOption?: string
+  /** Whether the adapter queues a prompt sent while one runs (#1191). */
+  promptQueueing?: boolean
+}
+
 /** How {@link AcpSession.open} establishes the session after the handshake. */
 export interface OpenSessionOptions {
+  /** The adapter's Harness facts (see {@link AdapterFacts}). */
+  adapter?: AdapterFacts
   /** Working directory advertised to the agent (absolute path). */
   cwd: string
   /**
@@ -204,18 +221,22 @@ interface ConfigOptionLike {
 
 /**
  * Pull the model selector out of an agent's advertised `configOptions`, or
- * `null` when it advertises none (a mode/effort-only agent). Recognised by ACP's reserved `"model"` category, falling
- * back to the conventional `"model"` option id — both are spec-blessed hints, so
- * this never hard-codes an adapter's private id. Only a single-value `select`
- * with a string `currentValue` qualifies; its value groups are flattened so a
- * grouped selector reads the same as a flat one.
+ * `null` when it advertises none (a mode/effort-only agent). The option the
+ * Harness descriptor names (`optionId`) wins; otherwise it is recognised by
+ * ACP's reserved `"model"` category, falling back to the conventional `"model"`
+ * option id. Only a single-value `select` with a string `currentValue`
+ * qualifies; its value groups are flattened so a grouped selector reads the
+ * same as a flat one.
  */
 function readModelConfig(
-  configOptions: ConfigOptionLike[] | null | undefined
+  configOptions: ConfigOptionLike[] | null | undefined,
+  optionId: string | undefined
 ): ModelConfig | null {
-  const option = configOptions?.find(
-    (o) => o.category === MODEL_CATEGORY || o.id === MODEL_OPTION_ID
-  )
+  const option =
+    (optionId ? configOptions?.find((o) => o.id === optionId) : undefined) ??
+    configOptions?.find(
+      (o) => o.category === MODEL_CATEGORY || o.id === MODEL_OPTION_ID
+    )
   if (!option || typeof option.currentValue !== "string") return null
   if (!Array.isArray(option.options)) return null
   const available = flattenModelOptions(option.options)
@@ -290,7 +311,7 @@ export class AcpSession {
   private modelChoices: AvailableModel[] = []
   /** Ends the agent behind the transport (see {@link close}). */
   private closer: (() => void) | null = null
-  /** Whether the agent advertised prompt queueing (see {@link promptQueueing}). */
+  /** Whether the adapter queues prompts (see {@link promptQueueing}). */
   private queuesPrompts = false
   /** Whether the agent advertised a steering request (see {@link steering}). */
   private takesSteering = false
@@ -325,11 +346,11 @@ export class AcpSession {
 
   /**
    * Whether the agent takes a further `session/prompt` while one is running
-   * (#1191): the Claude adapter advertises `_meta.claudeCode.promptQueueing` at
-   * initialize and pushes the new prompt into the live turn, the way a message
+   * (#1191), as its Harness descriptor states ({@link AdapterFacts}): the
+   * Claude adapter pushes the new prompt into the live turn, the way a message
    * typed while Claude Code works joins it in its own terminal. The earlier
    * prompt then resolves `end_turn` at the handoff, and the newest one resolves
-   * when the agent is done. False for any agent that doesn't advertise it.
+   * when the agent is done. False for any adapter whose descriptor doesn't say so.
    */
   get promptQueueing(): boolean {
     return this.queuesPrompts
@@ -379,7 +400,7 @@ export class AcpSession {
       protocolVersion: PROTOCOL_VERSION,
       clientCapabilities: {},
     })
-    session.queuesPrompts = advertisesPromptQueueing(init.agentCapabilities)
+    session.queuesPrompts = options.adapter?.promptQueueing === true
     session.takesSteering =
       advertisesSteering(init._meta) ||
       advertisesSteering(init.agentCapabilities?._meta)
@@ -399,7 +420,7 @@ export class AcpSession {
       await session.maybeEnterPlanMode(options.planMode, loaded?.modes)
       await session.maybeSetModel(
         options.modelId,
-        readModelConfig(loaded?.configOptions)
+        readModelConfig(loaded?.configOptions, options.adapter?.modelOption)
       )
     } else {
       const created = await session.conn.newSession({
@@ -411,7 +432,7 @@ export class AcpSession {
       await session.maybeEnterPlanMode(options.planMode, created.modes)
       await session.maybeSetModel(
         options.modelId,
-        readModelConfig(created.configOptions)
+        readModelConfig(created.configOptions, options.adapter?.modelOption)
       )
     }
     return session
@@ -646,8 +667,8 @@ export type SteerOutcome = "injected" | "startedNewTurn" | "failed"
 /**
  * Whether initialize advertised the steering request: `_meta.steering.supported`
  * (`@agentclientprotocol/codex-acp` 2.x puts it on the response, beside the
- * capabilities; either place counts). Like prompt queueing
- * it is the adapter's own `_meta`, not a standard ACP capability.
+ * capabilities; either place counts). It is the adapter's own `_meta`, not a
+ * standard ACP capability.
  */
 function advertisesSteering(
   meta: { [key: string]: unknown } | null | undefined
@@ -657,22 +678,6 @@ function advertisesSteering(
     typeof steering === "object" &&
     steering !== null &&
     (steering as { supported?: unknown }).supported === true
-  )
-}
-
-/**
- * Whether initialize advertised prompt queueing: the Claude adapter's
- * `_meta.claudeCode.promptQueueing` (claude-agent-acp 0.54.1). ACP has no
- * standard capability for it yet, so it is read from the adapter's own `_meta`.
- */
-function advertisesPromptQueueing(
-  capabilities: { _meta?: { [key: string]: unknown } | null } | null | undefined
-): boolean {
-  const claudeCode = capabilities?._meta?.claudeCode
-  return (
-    typeof claudeCode === "object" &&
-    claudeCode !== null &&
-    (claudeCode as { promptQueueing?: unknown }).promptQueueing === true
   )
 }
 

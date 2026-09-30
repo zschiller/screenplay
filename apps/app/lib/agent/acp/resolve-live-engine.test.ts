@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 // The in-process engine binds to the model providers at import time; stub the
-// resolution that would otherwise demand real API keys (mirrors engine-select.test).
+// resolution that would otherwise demand real API keys.
 vi.mock("@/lib/agent/providers", () => ({
   resolveLanguageModel: () => ({}),
 }))
@@ -58,13 +58,14 @@ vi.mock("@/lib/agent/coordinator-mcp", async (importOriginal) => ({
   ensureCoordinatorFolder: (roomId: string) => ensureCoordinatorFolder(roomId),
 }))
 
-import { ENGINE_ENV_VAR } from "./engine-select"
 import { resolveCoordinatorToken } from "@/lib/agent/coordinator-mcp"
 import { ExternalEngine } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
 import {
   ACP_HARNESS_ENV_VAR,
+  ENGINE_ENV_VAR,
   acpHarnessFromEnv,
+  engineChoiceFromEnv,
   resolveLiveEngine,
   toolNamingForTurn,
 } from "./resolve-live-engine"
@@ -73,6 +74,29 @@ import {
 function engineModelId(engine: unknown): string | undefined {
   return (engine as { config: { modelId?: string } }).config.modelId
 }
+
+/**
+ * Engine selection is minimal and explicit (ADR 0006): one per-deployment env
+ * var, default `in-process`, no per-Chat-Session column.
+ */
+describe("engineChoiceFromEnv", () => {
+  it("defaults to in-process when AGENT_ENGINE is unset", () => {
+    expect(engineChoiceFromEnv({})).toBe("in-process")
+  })
+
+  it("selects external on the explicit value", () => {
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "external" })).toBe(
+      "external"
+    )
+  })
+
+  it("treats an unrecognised value as the default, never a silent swap", () => {
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "External" })).toBe(
+      "in-process"
+    )
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "" })).toBe("in-process")
+  })
+})
 
 describe("acpHarnessFromEnv", () => {
   it("defaults to claude-code when unset, empty, or whitespace", () => {

@@ -475,8 +475,8 @@ function inMemoryStreams(): {
  * drives both engines to the same observable outcome.
  *
  * With `promptQueueing` the agent also does what the Claude adapter does
- * (#1191): it advertises `_meta.claudeCode.promptQueueing`, and a prompt sent
- * while one runs joins the running turn at its next step, where the model reads
+ * (#1191), and the factory says so the way the Claude descriptor does: a prompt
+ * sent while one runs joins the running turn at its next step, where the model reads
  * it as the newest user message. The earlier prompt resolves `end_turn` at that
  * handoff; a prompt the turn finished before reading starts another pass.
  *
@@ -507,7 +507,10 @@ export function acpSessionFactoryFromDriver(
       )
       // `agentConn` keeps the agent's receive loop alive for the session.
       void agentConn
-      const session = await AcpSession.open(client, ports, openOptions)
+      const session = await AcpSession.open(client, ports, {
+        ...openOptions,
+        adapter: { promptQueueing: options.promptQueueing ?? false },
+      })
       session.onClose(exit)
       return session
     },
@@ -544,12 +547,7 @@ class DriverAgent implements Agent {
   async initialize(): Promise<InitializeResponse> {
     return {
       protocolVersion: PROTOCOL_VERSION,
-      agentCapabilities: {
-        loadSession: true,
-        ...(this.promptQueueing
-          ? { _meta: { claudeCode: { promptQueueing: true } } }
-          : {}),
-      },
+      agentCapabilities: { loadSession: true },
       ...(this.steering ? { _meta: { steering: { supported: true } } } : {}),
     }
   }

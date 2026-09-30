@@ -109,26 +109,27 @@ The two real adapters land on opposite sides of the capability, and the one
 descriptor + codec absorbs both with no per-Harness branch above the adapter:
 
 - **claude-code → ACP-native.** `session/new` advertises a `"model"` config
-  option; `session/set_config_option` is honored in-session. Its `acpAdapter`
-  carries **no** `modelArgs`, so the model is applied via `set_config_option`
-  after the session opens. The curated floor (`default`/`fable`/`opus`/`sonnet`/`haiku`) is richer
-  than what the adapter advertises — by design, per finding (a). `default` is the
-  pre-selected per-Harness default and is backward-compatible with the bare
-  `harness:claude-code` rows. (No `[1m]` variants or `opusplan`: the ACP adapter
+  option; `session/set_config_option` is honored in-session and validated lazily
+  (a model the login can't run fails the first prompt). The curated floor
+  (`fable`/`opus`/`sonnet`/`haiku`) is richer than what the adapter advertises,
+  by design, per finding (a). (No `[1m]` variants or `opusplan`: the ACP adapter
   exposes context window as a derived property and has no plan/execute hybrid; the
   1M-capable pick is `fable`.)
 
-- **codex → curated + spawn-env.** `session/new` advertises **no** model state, so
-  the in-session path is a no-op for it. The choice rides the spawn instead: its
-  `acpAdapter.modelArgs` appends `--model <id>` to the adapter argv
-  (`resolveAcpLaunch`), against the brokered provider its seeded `~/.codex/config.toml`
-  already names. The two application paths never double-apply — an adapter is
-  either ACP-native (in-session, no `modelArgs`) or spawn-env (`modelArgs`, no
-  advertised models).
+- **codex → ACP-native too (#1271).** It first shipped as curated + spawn-env
+  (`acpAdapter.modelArgs` appended `-c model=<id>` to the adapter argv), because
+  the adapter of the time advertised no model state. The maintained
+  `@agentclientprotocol/codex-acp` advertises a `"model"` config option, so the
+  spawn path is gone and Codex takes the model in-session like claude-code. It
+  validates eagerly: `set_config_option` rejects a model the plan doesn't offer
+  with invalid params, and the session stays on the default and reconciles.
 
-The threading is one parse: `resolveLiveEngine` decodes the stored id once into
-`{ harnessKey, modelId? }`, hands `modelId` to both the spawn factory and the
-session, and the adapter's own shape decides which one actually applies it.
+How each Harness takes the model is stated on its descriptor (#1266):
+`acpAdapter.modelOption` names the config option the session applies the model
+through. The threading is one parse: `resolveLiveEngine` decodes the stored id
+once into `{ harnessKey, modelId? }`, the spawn factory reads the Harness's
+`acpAdapter` for the argv and that option, and the session applies `modelId`
+through it after the session opens.
 
 ## Relationship to prior ADRs
 

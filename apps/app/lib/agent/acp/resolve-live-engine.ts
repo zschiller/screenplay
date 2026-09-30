@@ -24,10 +24,33 @@ import {
   coordinatorSessionMeta,
   ensureCoordinatorFolder,
 } from "@/lib/agent/coordinator-mcp"
-import { engineChoiceFromEnv, selectEngine } from "./engine-select"
-import type { ExternalEngineConfig } from "./acp-engine"
+import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
 import type { Engine } from "./engine-seam"
+import { inProcessEngine } from "./in-process-engine"
 import { SpawnAcpSessionFactory } from "./spawn-session-factory"
+
+/**
+ * Which Engine implementation drives a Chat Session (ADR 0006, PRD #375). The
+ * choice is **minimal and explicit**: a per-deployment env var, *not* a
+ * per-Chat-Session schema column, so a deployment runs entirely on one engine
+ * and the decision never has to migrate data or branch per row.
+ */
+export type EngineChoice = "in-process" | "external"
+
+/** The env var name a deployment sets to pick the engine. */
+export const ENGINE_ENV_VAR = "AGENT_ENGINE"
+
+/**
+ * Read the engine choice from the environment, defaulting to `in-process` (the
+ * established, self-contained default). Only the explicit value `external` opts
+ * into the external engine; anything else (unset, empty, or unrecognised) stays
+ * on the default, so a typo never silently swaps engines.
+ */
+export function engineChoiceFromEnv(
+  env: Record<string, string | undefined> = process.env
+): EngineChoice {
+  return env[ENGINE_ENV_VAR] === "external" ? "external" : "in-process"
+}
 
 /**
  * The **default** harness whose ACP adapter backs the external engine for a chat
@@ -70,21 +93,16 @@ export function toolNamingForTurn(
 }
 
 /**
- * Resolve the {@link Engine} for a live agent turn, wiring the external engine's
- * production transport when `AGENT_ENGINE=external` (the desktop build).
- *
- * This is the assembly point ADR 0006 / `engine-select` deferred: `selectEngine`
- * alone throws under `AGENT_ENGINE=external` because it has no session factory:
- * the factory is request-scoped, since the external engine spawns the harness's
- * ACP adapter **in the Branch's worktree**, so its `cwd` is only known once the
- * turn's `sandboxName` is. This builds the {@link SpawnAcpSessionFactory} for the
- * configured harness and resolves that worktree path, then hands both to
- * `selectEngine`.
- *
- * On the in-process default it returns that engine directly — the `external`
- * config is never constructed, so no sandbox lookup happens on the hosted path.
- * Like `selectEngine`, a misconfigured `external` deployment throws here at the
- * route boundary rather than silently degrading.
+ * Resolve the {@link Engine} for a live agent turn: the one place Engine
+ * selection and assembly happen (ADR 0006). On the in-process default it
+ * returns that engine directly, so no sandbox lookup happens on the hosted
+ * path. Under `AGENT_ENGINE=external` (the desktop build) it assembles the
+ * external engine per request, since the engine spawns the Harness's ACP
+ * adapter **in the Branch's worktree**, whose path is only known once the
+ * turn's `sandboxName` is. Everything that differs between Harnesses (the
+ * adapter's spawn argv, how it takes the model, whether it queues prompts) is
+ * read off the Harness descriptor's `acpAdapter` by the
+ * {@link SpawnAcpSessionFactory}, not decided here.
  *
  * When `chatId` is given on the external path it wires native session resume:
  * the chat's stored ACP session id (if any) seeds `session/load`, and a callback
@@ -114,7 +132,7 @@ export async function resolveLiveEngine(
 ): Promise<Engine> {
   if (engineChoiceFromEnv() !== "external") {
     // In-process default: self-contained, no transport to wire.
-    return selectEngine()
+    return inProcessEngine
   }
 
   // The agent runs in the Branch's worktree — the same absolute path the
@@ -158,17 +176,15 @@ export async function resolveLiveEngine(
         setChatModel(opts.chatId!, encodeHarnessModelId(harnessKey, resolved))
     : undefined
 
-  return selectEngine({
-    external: {
-      sessionFactory,
-      cwd,
-      loadSessionId,
-      onSessionId,
-      modelId,
-      reconcileModel,
-      mcpServers: mcp?.mcpServers,
-      sessionMeta: mcp?.sessionMeta,
-    },
+  return new ExternalEngine({
+    sessionFactory,
+    cwd,
+    loadSessionId,
+    onSessionId,
+    modelId,
+    reconcileModel,
+    mcpServers: mcp?.mcpServers,
+    sessionMeta: mcp?.sessionMeta,
   })
 }
 
