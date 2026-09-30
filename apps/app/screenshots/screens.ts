@@ -2171,14 +2171,14 @@ export const SCREENS: Screen[] = [
       await page
         // The Canvas label is the one that doubles as a drag handle.
         .locator("[data-editable-text=idle].cursor-grab")
-        .filter({ hasText: /^Checkout$/ })
+        .filter({ hasText: /^Cart$/ })
         .first()
         .dblclick({ timeout: 15_000 })
       await page
         .locator("[data-editable-text=editing]")
         .waitFor({ timeout: 5_000 })
       await page.keyboard.press("ControlOrMeta+a")
-      await page.keyboard.type("Checkout with coupon")
+      await page.keyboard.type("Cart and checkout")
     },
     settleMs: 300,
   },
