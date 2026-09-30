@@ -78,7 +78,7 @@ export function acpChildEnv(
  * session vars stripped (see {@link acpChildEnv}).
  *
  * `modelId` is the chat's chosen model within the Harness. For an adapter that
- * applies the model at spawn ({@link AcpAdapter.modelArgs} — codex's `--model`,
+ * applies the model at spawn ({@link AcpAdapter.modelArgs} — codex's `-c model=`,
  * spike #523) its args are appended here; for an ACP-native adapter (no
  * `modelArgs` — claude-code) it is ignored, since that path applies the model
  * in-session via `session/set_config_option`. With no `modelId` the argv is unchanged, so

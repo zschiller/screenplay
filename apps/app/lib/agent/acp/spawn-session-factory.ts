@@ -36,7 +36,7 @@ export interface SpawnAcpSessionFactoryConfig {
   /**
    * The chat's chosen model within the Harness, for an adapter that takes its
    * model at spawn ({@link import("../harnesses/types").AcpAdapter.modelArgs} —
-   * codex's `--model`, spike #523). Folded into the launch argv by
+   * codex's `-c model=`, spike #523). Folded into the launch argv by
    * {@link resolveAcpLaunch}; ignored by ACP-native adapters (claude-code),
    * which apply the model in-session. Absent ⇒ the Harness default, argv
    * unchanged.
