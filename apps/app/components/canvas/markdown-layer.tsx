@@ -67,13 +67,14 @@ import {
   LAYER_SURFACE_CLASS,
 } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
-import type { MarkdownLayerData } from "@/lib/types"
-import { isLocalBuild } from "@/lib/local-mode"
 import {
   encodeAnchor,
   getLineNumbers,
   getQuotedText,
 } from "@/lib/document-comments"
+import type { MarkdownLayerData } from "@/lib/types"
+import { isLocalBuild } from "@/lib/local-mode"
+import { cn } from "@workspace/ui/lib/utils"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
 
 export interface InlineCommentDraft {
@@ -87,6 +88,42 @@ export interface InlineCommentDraft {
    *  of the doc tile, vertically aligned with the start of the selection. */
   canvasX: number
   canvasY: number
+}
+
+/**
+ * The inline-comment draft for the body text between `from` and `to`, or null
+ * when nothing commentable is left. Title text is never commented (the toolbar
+ * hides over it too), so a range reaching into the title is clamped to the
+ * body. `root` is the doc tile, which the composer's pin is placed against.
+ */
+function inlineCommentDraft(
+  editor: Editor,
+  documentId: string,
+  layerWidth: number,
+  zoom: number,
+  root: HTMLElement,
+  range: { from: number; to: number }
+): InlineCommentDraft | null {
+  const doc = editor.state.doc
+  const titleEnd = doc.firstChild ? doc.firstChild.nodeSize : 0
+  const from = Math.max(range.from, titleEnd)
+  const to = Math.min(range.to, doc.content.size)
+  if (from >= to || !doc.textBetween(from, to).trim()) return null
+  const anchorStart = encodeAnchor(editor, from)
+  const anchorEnd = encodeAnchor(editor, to)
+  if (!anchorStart || !anchorEnd) return null
+  const { lineFrom, lineTo } = getLineNumbers(doc, from, to)
+  const top = editor.view.coordsAtPos(from).top
+  return {
+    documentId,
+    anchorStart,
+    anchorEnd,
+    quotedText: getQuotedText(doc, from, to),
+    lineFrom,
+    lineTo,
+    canvasX: layerWidth,
+    canvasY: (top - root.getBoundingClientRect().top) / zoom,
+  }
 }
 
 /** Forces every doc to start with a heading — that heading is the title.
@@ -297,13 +334,17 @@ interface MarkdownLayerProps {
   selected: boolean
   multiSelected: boolean
   editing: boolean
+  /** The Comment tool is on: body text selects without editing, and a
+   *  released selection opens the inline-comment composer (#1244). */
+  commentMode?: boolean
   spaceHeld: boolean
   userName: string
   userColor: string
   /** Notify the canvas when this doc's editor instance is created/destroyed
    *  so threads anchored inside the doc can find their highlight target. */
   onEditorReady?: (id: string, editor: Editor | null) => void
-  /** User clicked Comment in the selection toolbar on a non-empty selection. */
+  /** User asked to comment on a non-empty text selection: Comment in the
+   *  selection toolbar, or a drag under the Comment tool. */
   onStartInlineComment?: (draft: InlineCommentDraft) => void
   /** User clicked an existing inline-comment highlight inside the doc. */
   onSelectInlineThread?: (threadId: string) => void
@@ -397,6 +438,7 @@ export function MarkdownLayer({
   selected,
   multiSelected,
   editing,
+  commentMode = false,
   spaceHeld,
   userName,
   userColor,
@@ -747,25 +789,17 @@ export function MarkdownLayer({
   // level with the top of the selection (where the thread's pin will sit).
   // The canvas holds the passage highlighted while the composer is open.
   const startInlineComment = () => {
-    if (!editor) return
-    const { from, to, empty } = editor.state.selection
-    if (empty) return
-    const anchorStart = encodeAnchor(editor, from)
-    const anchorEnd = encodeAnchor(editor, to)
-    if (!anchorStart || !anchorEnd) return
-    const rect = rootRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const { lineFrom, lineTo } = getLineNumbers(editor.state.doc, from, to)
-    onStartInlineComment?.({
-      documentId: layer.id,
-      anchorStart,
-      anchorEnd,
-      quotedText: getQuotedText(editor.state.doc, from, to),
-      lineFrom,
-      lineTo,
-      canvasX: layer.width,
-      canvasY: (editor.view.coordsAtPos(from).top - rect.top) / zoom,
-    })
+    if (!editor || !rootRef.current) return
+    const draft = inlineCommentDraft(
+      editor,
+      layer.id,
+      layer.width,
+      zoom,
+      rootRef.current,
+      editor.state.selection
+    )
+    if (!draft) return
+    onStartInlineComment?.(draft)
     setBubbleAnchor(null)
   }
 
@@ -802,6 +836,47 @@ export function MarkdownLayer({
     window.addEventListener("pointerdown", onDown, true)
     return () => window.removeEventListener("pointerdown", onDown, true)
   }, [editing, onStopEdit])
+
+  // Comment tool over a read-only doc (#1244): the body text takes the pointer
+  // so a drag selects it natively, and the release opens the composer for that
+  // span. A release without a selection is a plain click, which bubbles to the
+  // canvas and drops today's point pin; the click that follows a selecting drag
+  // is swallowed so it doesn't drop one as well. The release is heard on the
+  // window, since a drag can end outside the doc.
+  const textSelectable = commentMode && !editing && !spaceHeld
+  const handleCommentPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    const onUp = () => {
+      if (!editor || !rootRef.current || !onStartInlineComment) return
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed || !sel.anchorNode || !sel.focusNode) return
+      const dom = editor.view.dom
+      if (!dom.contains(sel.anchorNode) || !dom.contains(sel.focusNode)) return
+      let a: number
+      let b: number
+      try {
+        a = editor.view.posAtDOM(sel.anchorNode, sel.anchorOffset)
+        b = editor.view.posAtDOM(sel.focusNode, sel.focusOffset)
+      } catch {
+        return
+      }
+      const draft = inlineCommentDraft(
+        editor,
+        layer.id,
+        layer.width,
+        zoom,
+        rootRef.current,
+        { from: Math.min(a, b), to: Math.max(a, b) }
+      )
+      // The pending highlight takes over from the native selection.
+      sel.removeAllRanges()
+      const swallow = (ev: MouseEvent) => ev.stopPropagation()
+      window.addEventListener("click", swallow, { capture: true, once: true })
+      setTimeout(() => window.removeEventListener("click", swallow, true))
+      if (draft) onStartInlineComment(draft)
+    }
+    window.addEventListener("pointerup", onUp, { capture: true, once: true })
+  }
 
   // Wheel inside a doc should scroll the doc, not pan the canvas — but only
   // while the doc is selected (or being edited). The canvas attaches a
@@ -923,8 +998,18 @@ export function MarkdownLayer({
               // the doc isn't being edited. Empty editor space stays
               // `pointer-events: none`, falling through to the overlay so
               // clicking blank prose still selects/drags the doc tile.
-              className="relative z-10 px-6 py-5"
-              style={{ pointerEvents: editing ? "auto" : "none" }}
+              // Under the Comment tool the text takes the pointer too, so it
+              // can be selected without editing (#1244).
+              className={cn(
+                "relative z-10 px-6 py-5",
+                textSelectable && "doc-comment-selectable"
+              )}
+              style={{
+                pointerEvents: editing || textSelectable ? "auto" : "none",
+              }}
+              onPointerDown={
+                textSelectable ? handleCommentPointerDown : undefined
+              }
             >
               <EditorContent editor={editor} />
             </div>
