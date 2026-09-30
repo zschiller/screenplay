@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { bareToolName, isHarnessPlumbing } from "./tool-name"
+import {
+  BARE_TOOL_NAMING,
+  bareToolName,
+  harnessToolNaming,
+  isHarnessPlumbing,
+} from "./tool-name"
 
 describe("bareToolName", () => {
   it("strips a harness's MCP namespace", () => {
@@ -31,5 +36,25 @@ describe("isHarnessPlumbing", () => {
     expect(
       isHarnessPlumbing(call("mcp__screenplay__read_canvas", "completed"))
     ).toBe(false)
+  })
+})
+
+describe("harnessToolNaming", () => {
+  it("names Claude Code's MCP tools exactly, as bareToolName reads them back", () => {
+    const naming = harnessToolNaming("claude-code", "screenplay")
+    expect(naming.name("read_skill")).toBe("mcp__screenplay__read_skill")
+    expect(bareToolName(naming.name("read_skill"))).toBe("read_skill")
+    expect(naming.note).toBeUndefined()
+  })
+
+  it("keeps bare names on other harnesses and says where the tools come from", () => {
+    const naming = harnessToolNaming("codex", "screenplay")
+    expect(naming.name("read_skill")).toBe("read_skill")
+    expect(naming.note).toContain("MCP server `screenplay`")
+  })
+
+  it("names every tool bare on the in-process engine", () => {
+    expect(BARE_TOOL_NAMING.name("read_skill")).toBe("read_skill")
+    expect(BARE_TOOL_NAMING.note).toBeUndefined()
   })
 })

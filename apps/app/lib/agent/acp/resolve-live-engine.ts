@@ -14,6 +14,12 @@ import {
 import { roomIdOfRoomChat } from "@/lib/chat/room-chat"
 import { isLocalBuild } from "@/lib/local-mode"
 import {
+  BARE_TOOL_NAMING,
+  harnessToolNaming,
+  type ToolNaming,
+} from "@/lib/agent/tool-name"
+import {
+  COORDINATOR_MCP_SERVER_NAME,
   coordinatorMcpServer,
   coordinatorSessionMeta,
   ensureCoordinatorFolder,
@@ -44,6 +50,23 @@ export function acpHarnessFromEnv(
   env: Record<string, string | undefined> = process.env
 ): string {
   return env[ACP_HARNESS_ENV_VAR]?.trim() || DEFAULT_ACP_HARNESS
+}
+
+/**
+ * How a turn's system prompt names Screenplay's tools (#1223): by the names
+ * the harness gives them when {@link resolveLiveEngine} serves them to it over
+ * MCP (the desktop build), else by their bare names. `model` is the chat's
+ * model id for the turn, which picks the harness as it does there.
+ */
+export function toolNamingForTurn(
+  model: string | undefined,
+  env: Record<string, string | undefined> = process.env
+): ToolNaming {
+  if (engineChoiceFromEnv(env) !== "external" || !isLocalBuild) {
+    return BARE_TOOL_NAMING
+  }
+  const harnessKey = decodeHarnessModelId(model)?.key ?? acpHarnessFromEnv(env)
+  return harnessToolNaming(harnessKey, COORDINATOR_MCP_SERVER_NAME)
 }
 
 /**

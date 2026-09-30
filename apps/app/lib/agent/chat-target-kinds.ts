@@ -8,6 +8,7 @@ import {
   type LayerDirectory,
 } from "./config"
 import { toolsetFor } from "./toolset"
+import type { ToolNaming } from "./tool-name"
 import { prependTurnMarkers } from "./message-markers"
 import type { ToolContext } from "./tools"
 import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
@@ -47,7 +48,10 @@ import {
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
   loadContext(room: RoomDoc, target: TTarget): Promise<TContext | null>
-  buildSystemPrompt(ctx: TContext, opts: { repoSystemPrompt?: string }): string
+  buildSystemPrompt(
+    ctx: TContext,
+    opts: { repoSystemPrompt?: string; toolNaming?: ToolNaming }
+  ): string
   buildTools(
     room: RoomDoc,
     target: TTarget,
@@ -131,12 +135,13 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
       ])
     return { repoSystemPrompt, layerDirectory, skills, memory }
   },
-  buildSystemPrompt(ctx) {
+  buildSystemPrompt(ctx, { toolNaming }) {
     return buildAgentSystemPrompt({
       repoSystemPrompt: ctx.repoSystemPrompt ?? undefined,
       layerDirectory: ctx.layerDirectory,
       skills: ctx.skills,
       memory: ctx.memory,
+      toolNaming,
     })
   },
   buildTools(room, _target, sandbox) {
@@ -320,11 +325,12 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
     ])
     return { canvasSummary, memory }
   },
-  buildSystemPrompt(ctx) {
+  buildSystemPrompt(ctx, { toolNaming }) {
     return buildRoomSystemPrompt({
       canvasSummary: ctx.canvasSummary,
       memory: ctx.memory,
       skills: getSkillIndex("coordinator"),
+      toolNaming,
     })
   },
   buildTools(room, target) {
@@ -362,19 +368,21 @@ export type PreparedChatTarget = {
 /**
  * One-shot helper: pick the spec, load its context, build prompt + tools.
  * Returns `null` when the target can't be resolved (e.g. document was
- * deleted) so the caller can return a 404 cleanly.
+ * deleted) so the caller can return a 404 cleanly. `toolNaming` names the
+ * target's tools the way the turn's engine exposes them (#1223).
  */
 export async function prepareChatTarget<TTarget, TContext>(
   room: RoomDoc,
   spec: ChatTargetSpec<TTarget, TContext>,
   target: TTarget,
-  toolCtx?: ToolContext
+  toolCtx?: ToolContext,
+  opts: { toolNaming?: ToolNaming } = {}
 ): Promise<PreparedChatTarget | null> {
   const ctx = await spec.loadContext(room, target)
   if (!ctx) return null
   return {
     kind: spec.kind,
-    systemPrompt: spec.buildSystemPrompt(ctx, {}),
+    systemPrompt: spec.buildSystemPrompt(ctx, { toolNaming: opts.toolNaming }),
     tools: spec.buildTools(room, target, toolCtx),
     decorateUserMessage: (message, opts) =>
       spec.decorateUserMessage?.(message, opts) ?? message,

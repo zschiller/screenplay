@@ -49,7 +49,7 @@ import {
   type BranchRenameClaim,
 } from "./auto-naming"
 import { stampWorkspaceActivity } from "./workspace-activity"
-import { resolveLiveEngine } from "./acp/resolve-live-engine"
+import { resolveLiveEngine, toolNamingForTurn } from "./acp/resolve-live-engine"
 import { wireToContentBlocks } from "./acp/markers"
 import { launchEngineTurn } from "./launch-turn"
 import { deduplicateBranchName, generateChatNames } from "./naming"
@@ -312,7 +312,9 @@ export function roomTurn(input: {
         roomChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
         coordinatorTarget(room, chatId, {
           requesterId: input.requesterId,
-        }) as unknown as never
+        }) as unknown as never,
+        undefined,
+        { toolNaming: toolNamingForTurn(input.model) }
       )
       if (!prepared) return null
 
@@ -598,6 +600,7 @@ export function sandboxTurn(input: {
         layerDirectory,
         skills,
         memory,
+        toolNaming: toolNamingForTurn(input.model),
       })
 
       await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })

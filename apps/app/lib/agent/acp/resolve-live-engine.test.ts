@@ -67,6 +67,7 @@ import {
   ACP_HARNESS_ENV_VAR,
   acpHarnessFromEnv,
   resolveLiveEngine,
+  toolNamingForTurn,
 } from "./resolve-live-engine"
 
 describe("acpHarnessFromEnv", () => {
@@ -375,5 +376,39 @@ describe("resolveLiveEngine", () => {
       expect(config.mcpServers).toBeUndefined()
       expect(config.sessionMeta).toBeUndefined()
     })
+  })
+})
+
+describe("toolNamingForTurn", () => {
+  afterEach(() => {
+    localMode.isLocalBuild = false
+  })
+  const external = { [ENGINE_ENV_VAR]: "external" }
+
+  it("names tools bare on the in-process engine", () => {
+    localMode.isLocalBuild = true
+    expect(
+      toolNamingForTurn("harness:claude-code", {}).name("read_skill")
+    ).toBe("read_skill")
+  })
+
+  it("names tools bare where no MCP server is served", () => {
+    expect(
+      toolNamingForTurn("harness:claude-code", external).name("read_skill")
+    ).toBe("read_skill")
+  })
+
+  it("names tools the way the turn's harness exposes them", () => {
+    localMode.isLocalBuild = true
+    expect(
+      toolNamingForTurn("harness:claude-code", external).name("read_skill")
+    ).toBe("mcp__screenplay__read_skill")
+    // No stored harness: the env default, Claude Code.
+    expect(toolNamingForTurn(undefined, external).name("read_skill")).toBe(
+      "mcp__screenplay__read_skill"
+    )
+    const codex = toolNamingForTurn("harness:codex", external)
+    expect(codex.name("read_skill")).toBe("read_skill")
+    expect(codex.note).toContain("`screenplay`")
   })
 })
