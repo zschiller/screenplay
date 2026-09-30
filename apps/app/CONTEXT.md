@@ -471,7 +471,11 @@ What a Chat Session talks to — a Branch's **sandbox**, a Markdown Layer (a
 document), or the whole **Room** (see **Room Target**). The target decides the
 system prompt and which Tools the model is given. On the client it is one
 value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `document`,
-`room`), which the chat store maps to the wire target in one place.
+`room`), which the chat store maps to the wire target in one place. What the
+Composer offers for each kind (skills, plan mode, element picking, placeholder,
+empty state and starters) is one row of the capability table in
+`lib/chat/chat-capabilities`; only the `agent` kind has a sandbox, so only it
+turns on skills, plan mode and element picking.
 _Avoid_: subject, destination.
 
 **Room Target** (planned, wayfinder #856):
