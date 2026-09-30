@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { prewarmRoom } from "@/lib/yjs-host/client"
+import { isInOverlay, isTextEntry } from "@/lib/canvas/key-target"
 import { useHome } from "./home-provider"
 
 /**
@@ -79,10 +80,5 @@ export function useNewCanvasShortcut(onCreate: () => void) {
 export const NEW_CANVAS_SHORTCUT = "N"
 
 function isTypingOrInOverlay(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable) return true
-  if (target.closest("input, textarea, select")) return true
-  return !!target.closest(
-    '[role="dialog"], [role="alertdialog"], [role="menu"]'
-  )
+  return isTextEntry(target) || isInOverlay(target)
 }

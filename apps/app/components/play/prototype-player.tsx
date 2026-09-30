@@ -34,6 +34,12 @@ import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useStartWorkspace } from "@/hooks/use-start-workspace"
+import {
+  hasModKey,
+  isInComposer,
+  isInOverlay,
+  isTextEntry,
+} from "@/lib/canvas/key-target"
 import { isLocalBuild } from "@/lib/local-mode"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
@@ -430,6 +436,23 @@ export function PrototypePlayer({
     if (panel.isCollapsed()) panel.expand()
     else panel.collapse()
   }, [])
+
+  // ⌘I / Ctrl+I opens and hides the chat, as on the canvas and as the chat's
+  // Collapse button says. Not in text other than the composer, and not inside
+  // a menu or dialog.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat) return
+      if (e.key !== "i" && e.key !== "I") return
+      if (!hasModKey(e) || e.altKey || e.shiftKey) return
+      if (isInOverlay(e.target)) return
+      if (isTextEntry(e.target) && !isInComposer(e.target)) return
+      e.preventDefault()
+      handleToggleChat()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [handleToggleChat])
 
   // Stable so the memoized PlayerChatHost isn't re-rendered by the per-frame
   // `stageSize` updates during a panel resize (see PlayerChatHost's memo note).

@@ -228,6 +228,7 @@ function PlayerChatPlaceholder({
       <div className="flex h-12 shrink-0 items-center px-3">
         <IconButton
           label="Collapse chat"
+          shortcut="⌘I"
           tooltipSide="left"
           // Same button as ChatPanel's collapse, so it sits in the same spot
           // when the chat mounts.

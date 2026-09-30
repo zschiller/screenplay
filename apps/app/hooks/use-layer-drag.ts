@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useRef } from "react"
+import { hasModKey } from "@/lib/canvas/key-target"
 
 interface UseDragOptions {
   zoom: number
@@ -81,7 +82,7 @@ export function useLayerDrag({
       lastPos.current = { x: e.clientX, y: e.clientY }
       totalDelta.current.x += dx
       totalDelta.current.y += dy
-      onDrag(dx, dy, totalDelta.current.x, totalDelta.current.y, e.metaKey)
+      onDrag(dx, dy, totalDelta.current.x, totalDelta.current.y, hasModKey(e))
     },
     [zoom, onDrag, onDragStart]
   )
@@ -94,7 +95,7 @@ export function useLayerDrag({
       if (!didMove.current) {
         onClick?.(e)
       } else {
-        onDragEnd?.(e.metaKey)
+        onDragEnd?.(hasModKey(e))
       }
     },
     [onDragEnd, onClick]

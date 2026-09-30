@@ -91,6 +91,7 @@ export interface CanvasInteraction {
     targetPickActive: boolean
     toolMode: ToolMode
     hasNewCommentPos: boolean
+    commentsPanelOpen: boolean
   }): EscapeAction
 }
 
@@ -195,6 +196,7 @@ export function useCanvasInteraction(
       targetPickActive: boolean
       toolMode: ToolMode
       hasNewCommentPos: boolean
+      commentsPanelOpen: boolean
     }): EscapeAction =>
       resolveEscapeAction({
         targetPickActive: input.targetPickActive,
@@ -202,6 +204,7 @@ export function useCanvasInteraction(
         editingDocumentLayerId: editingDocumentLayerIdRef.current,
         toolMode: input.toolMode,
         hasNewCommentPos: input.hasNewCommentPos,
+        commentsPanelOpen: input.commentsPanelOpen,
         focusedIframeLayerId: focusedIframeLayerIdRef.current,
         createFlowIframeLayerId: createFlowIframeLayerIdRef.current,
       }),
