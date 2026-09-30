@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 import type { IframeLayerData, IframeLayerGroupData } from "@/lib/types"
-import { hideDoneWorkspaceFrames, keepHiddenMembers } from "./done-workspaces"
+import {
+  countWorkspaceFrames,
+  hideDoneWorkspaceFrames,
+  keepHiddenMembers,
+  markedDoneMessage,
+} from "./done-workspaces"
 
 const frame = (id: string, branchId?: string): IframeLayerData => ({
   id,
@@ -48,14 +53,35 @@ describe("hideDoneWorkspaceFrames", () => {
     expect(view.iframeLayers).toBe(iframeLayers)
   })
 
-  it("hides a Done Workspace's Group whole, documents included", () => {
+  it("hides a Done Workspace's frames and keeps its Group's documents", () => {
     const view = hideDoneWorkspaceFrames({
       groups,
       iframeLayers,
       branches: [{ id: "a", doneAt: 1 }, { id: "b" }],
     })
-    expect(view.groups.map((g) => g.id)).toEqual(["promo"])
+    expect(view.groups.map((g) => g.id)).toEqual(["checkout", "promo"])
+    expect(view.groups[0]!.members.map((m) => m.id)).toEqual(["doc-brief"])
     expect(view.iframeLayers.map((l) => l.id)).toEqual(["promo", "summary"])
+  })
+
+  it("keeps another Workspace's frame in a Done Workspace's Group", () => {
+    const view = hideDoneWorkspaceFrames({
+      groups: [group("checkout", ["cart", "promo", "payment"], "a")],
+      iframeLayers,
+      branches: [{ id: "a", doneAt: 1 }, { id: "b" }],
+    })
+    expect(view.groups[0]!.members.map((m) => m.id)).toEqual(["promo"])
+    expect(view.iframeLayers.map((l) => l.id)).toEqual(["promo", "summary"])
+  })
+
+  it("hides a frame that follows a Done Workspace's Group", () => {
+    const view = hideDoneWorkspaceFrames({
+      groups: [group("checkout", ["cart", "blank"], "a")],
+      iframeLayers: [...iframeLayers, frame("blank")],
+      branches: [{ id: "a", doneAt: 1 }],
+    })
+    expect(view.groups).toEqual([])
+    expect(view.iframeLayers.map((l) => l.id)).not.toContain("blank")
   })
 
   it("hides an exception frame on its own and keeps the rest of its Group", () => {
@@ -82,7 +108,33 @@ describe("hideDoneWorkspaceFrames", () => {
       iframeLayers,
       branches: [{ id: "b", doneAt: 1 }],
     })
-    expect(view.groups).toEqual([])
+    expect(view.groups[0]!.members.map((m) => m.id)).toEqual(["doc-brief"])
+  })
+})
+
+describe("countWorkspaceFrames", () => {
+  it("counts the Workspace's own frames and the ones following its Group", () => {
+    expect(
+      countWorkspaceFrames(
+        "a",
+        [group("checkout", ["cart", "promo", "blank", "doc-brief"], "a")],
+        [...iframeLayers, frame("blank")]
+      )
+    ).toBe(3)
+  })
+})
+
+describe("markedDoneMessage", () => {
+  it("says how many frames are hidden", () => {
+    expect(markedDoneMessage("Checkout polish", 2)).toBe(
+      "Marked “Checkout polish” done. Its 2 frames are hidden."
+    )
+    expect(markedDoneMessage("Checkout polish", 1)).toBe(
+      "Marked “Checkout polish” done. Its frame is hidden."
+    )
+    expect(markedDoneMessage("Checkout polish", 0)).toBe(
+      "Marked “Checkout polish” done."
+    )
   })
 })
 
