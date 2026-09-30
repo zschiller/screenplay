@@ -15,8 +15,8 @@ Work out from the ask which stage you are in, then do that stage only.
    - In a monorepo, start from the workspace config (`pnpm-workspace.yaml`, `package.json` workspaces, `turbo.json`, `nx.json`, `Cargo.toml` workspace, `go.work`) and list the deployable apps. Shared packages are not surfaces.
    - In a single-app repo, the app is one surface. Also count a docs folder or site, and a marketing page when it has its own route tree.
    - Give each surface a one-letter id, and make the ids unique across the audit.
-2. **Rules**: collect the design rules the audits check against, from the owner's memory, `AGENTS.md` or `CLAUDE.md`, design-system docs, tokens or theme files, and [`../design-exploration/RULES.md`](../design-exploration/RULES.md) when it exists. Where two sources disagree, the newest one wins. Also collect whatever settled lists memory keeps: findings already filed, and decisions already rejected.
-3. **Run**: find how each surface starts locally and how to capture it in light and dark. Use the repo's screenshot harness if it has one; otherwise use Playwright against the dev server.
+2. **Rules**: gather the design rules the audits check against, as [`../design-exploration/RULES.md`](../design-exploration/RULES.md) describes. Also collect the settled lists that memory keeps: findings already filed and decisions already rejected.
+3. **Run**: find how each surface starts locally and how to capture it in every theme it ships, following [`../design-exploration/CAPTURE.md`](../design-exploration/CAPTURE.md). Use the repo's screenshot harness if it has one; otherwise use Playwright against the dev server.
 
 Done when every surface has an id, a start command and a capture method, and the rules list names its sources.
 
@@ -26,7 +26,7 @@ The three depths:
 
 - **Product**: whether every claim is true, and what a real user is missing. Cite the code (`file:line`) for each claim you check.
 - **Hierarchy**: what a person sees first, what they can reach, and where flows dead-end. For a docs surface this is wayfinding; for an app it's interaction.
-- **Visual nits**: spacing, type, colour and component drift against the rules from stage 0. Build the fixes as a patch or branch, with before and after captures in light and dark.
+- **Visual nits**: spacing, type, colour and component drift against the rules from stage 0. Build the fixes as a patch or branch, with before and after captures in every theme.
 
 Tag each finding with its depth letter and a number (P3, H7, N12). Label each capture Now, Mockup or After. Leave out anything the settled lists from stage 0 already cover.
 
