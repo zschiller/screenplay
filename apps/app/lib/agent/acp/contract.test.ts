@@ -12,12 +12,18 @@ vi.mock("@/lib/agent/providers", () => ({
 // consumer.test.ts).
 vi.mock("@/lib/db", () => ({ db: {} }))
 
-import { jsonSchema, tool } from "ai"
-import type { EngineUpdate } from "./engine-seam"
-import { textBlock } from "./schema"
+import { jsonSchema, tool, type ModelMessage } from "ai"
+import type { DeliverSteer, EngineUpdate, TakenSteer } from "./engine-seam"
+import {
+  blockText,
+  textBlock,
+  type ContentBlock,
+  type SessionUpdate,
+  type StopReason,
+} from "./schema"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
-import { ExternalEngine } from "./acp-engine"
-import type { AcpSessionPorts } from "./session"
+import { ExternalEngine, type AcpSessionFactory } from "./acp-engine"
+import type { AcpSession, AcpSessionPorts, SteerOutcome } from "./session"
 import {
   acpSessionFactoryFromDriver,
   contractFor,
@@ -59,6 +65,16 @@ steeringContractFor(
       sessionFactory: acpSessionFactoryFromDriver(driver, {
         promptQueueing: true,
       }),
+    })
+)
+
+// Codex's adapter takes a mid-turn message through its steering request
+// instead (#1192); the same contract holds through it.
+steeringContractFor(
+  "external (steering request)",
+  (driver) =>
+    new ExternalEngine({
+      sessionFactory: acpSessionFactoryFromDriver(driver, { steering: {} }),
     })
 )
 
@@ -272,6 +288,279 @@ describe("ExternalEngine — steering", () => {
     )
     expect(reportSteering.mock.calls).toEqual([[true]])
     expect(takeSteers).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("ExternalEngine — Codex steering request (#1192)", () => {
+  const turn = {
+    chatId: "c",
+    runId: "r",
+    roomId: "rm",
+    systemPrompt: "",
+    model: "harness:codex",
+    history: [{ role: "user" as const, content: [textBlock("hi")] }],
+  }
+  const text = (steer: TakenSteer) =>
+    steer.content.map((b) => ("text" in b ? b.text : "")).join("")
+
+  /** A Steer inbox with the live route's `deliver` handling (see live-turn). */
+  function inboxOf(texts: string[]) {
+    const pending = texts.map((t, i) => ({
+      id: `s${i + 1}`,
+      content: [textBlock(t)],
+    }))
+    const settled: string[] = []
+    const takeSteers = async (deliver?: DeliverSteer) => {
+      const steers = pending.splice(0)
+      const out: TakenSteer[] = []
+      for (const [index, steer] of steers.entries()) {
+        if (deliver && !(await deliver(steer))) {
+          pending.unshift(...steers.slice(index))
+          break
+        }
+        settled.push(text(steer))
+        out.push(steer)
+      }
+      return out
+    }
+    return { pending, settled, takeSteers }
+  }
+
+  /**
+   * An AcpSession stand-in for Codex's adapter: `prompt` plays `onPrompt`,
+   * `steer` answers from `outcomes` and runs `onSteer` after answering.
+   */
+  function codexSession(script: {
+    onPrompt(
+      ports: AcpSessionPorts,
+      blocks: ContentBlock[]
+    ): Promise<StopReason>
+    outcomes?: SteerOutcome[]
+    onSteer?(ports: AcpSessionPorts): Promise<void>
+  }) {
+    const prompts: ContentBlock[][] = []
+    const steered: ContentBlock[][] = []
+    const cancel = vi.fn()
+    const factory: AcpSessionFactory = {
+      async open(ports) {
+        return {
+          id: "codex_1",
+          promptQueueing: false,
+          steering: true,
+          onClose() {},
+          close() {},
+          cancel,
+          async prompt(blocks: ContentBlock[]) {
+            prompts.push(blocks)
+            return script.onPrompt(ports, blocks)
+          },
+          async steer(blocks: ContentBlock[]) {
+            steered.push(blocks)
+            const outcome = script.outcomes?.shift() ?? "injected"
+            if (script.onSteer) setTimeout(() => void script.onSteer!(ports), 0)
+            return outcome
+          },
+        } as unknown as AcpSession
+      },
+    }
+    return { factory, prompts, steered, cancel }
+  }
+  const toolDone = (id: string): SessionUpdate => ({
+    sessionUpdate: "tool_call",
+    toolCallId: id,
+    title: "Read a.ts",
+    status: "completed",
+  })
+  const status = (type: string): SessionUpdate => ({
+    sessionUpdate: "session_info_update",
+    _meta: { codex: { threadStatus: { type } } },
+  })
+  const say = (t: string): SessionUpdate => ({
+    sessionUpdate: "agent_message_chunk",
+    content: textBlock(t),
+  })
+
+  it("sends a Steer through the steering request and settles it once the agent took it", async () => {
+    const inbox = inboxOf(["skip the tests"])
+    const codex = codexSession({
+      async onPrompt(ports) {
+        await ports.onUpdate(toolDone("call_1"))
+        return "end_turn"
+      },
+    })
+    const updates: EngineUpdate[] = []
+    await new ExternalEngine({ sessionFactory: codex.factory }).run(
+      { ...turn, takeSteers: inbox.takeSteers },
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+    expect(codex.steered).toEqual([[textBlock("skip the tests")]])
+    expect(codex.prompts).toHaveLength(1)
+    expect(inbox.settled).toEqual(["skip the tests"])
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
+  it("hands a failed Steer back to the inbox, and the next step boundary takes it", async () => {
+    const inbox = inboxOf(["use v2", "and keep v1"])
+    const codex = codexSession({
+      outcomes: ["failed", "injected", "injected"],
+      async onPrompt(ports) {
+        await ports.onUpdate(toolDone("call_1"))
+        expect(inbox.pending.map(text)).toEqual(["use v2", "and keep v1"])
+        expect(inbox.settled).toEqual([])
+        await ports.onUpdate(toolDone("call_2"))
+        return "end_turn"
+      },
+    })
+    await new ExternalEngine({ sessionFactory: codex.factory }).run(
+      { ...turn, takeSteers: inbox.takeSteers },
+      () => {},
+      new AbortController().signal
+    )
+    expect(codex.steered.map((b) => b.map(blockText).join(""))).toEqual([
+      "use v2",
+      "use v2",
+      "and keep v1",
+    ])
+    expect(inbox.settled).toEqual(["use v2", "and keep v1"])
+    expect(inbox.pending).toEqual([])
+  })
+
+  it("waits for a turn a Steer started after the running one ended", async () => {
+    const inbox = inboxOf(["one more thing"])
+    const codex = codexSession({
+      outcomes: ["startedNewTurn"],
+      async onPrompt(ports) {
+        await ports.onUpdate(toolDone("call_1"))
+        return "end_turn"
+      },
+      async onSteer(ports) {
+        await ports.onUpdate(status("active"))
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        await ports.onUpdate(say("Done that too."))
+        await ports.onUpdate(status("idle"))
+      },
+    })
+    const updates: EngineUpdate[] = []
+    await new ExternalEngine({ sessionFactory: codex.factory }).run(
+      { ...turn, takeSteers: inbox.takeSteers },
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+    expect(updates.at(-2)).toEqual({
+      kind: "session_update",
+      update: status("idle"),
+    })
+    expect(updates.filter((u) => u.kind === "done")).toEqual([
+      { kind: "done", stopReason: "end_turn" },
+    ])
+    expect(updates).toContainEqual({
+      kind: "session_update",
+      update: say("Done that too."),
+    })
+  })
+
+  it("a stop during a turn a Steer started cancels it", async () => {
+    const inbox = inboxOf(["one more thing"])
+    const controller = new AbortController()
+    const codex = codexSession({
+      outcomes: ["startedNewTurn"],
+      async onPrompt(ports) {
+        await ports.onUpdate(toolDone("call_1"))
+        return "end_turn"
+      },
+      async onSteer(ports) {
+        await ports.onUpdate(status("active"))
+        controller.abort()
+      },
+    })
+    const updates: EngineUpdate[] = []
+    await new ExternalEngine({ sessionFactory: codex.factory }).run(
+      { ...turn, takeSteers: inbox.takeSteers },
+      (u) => void updates.push(u),
+      controller.signal
+    )
+    expect(codex.cancel).toHaveBeenCalledTimes(1)
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "cancelled" })
+  })
+
+  it("over ACP: a failed request leaves the Steer for the next step, where the model reads it", async () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const step = (id: string, extra: unknown[] = []) => ({
+      chunks: [
+        { type: "tool-input-start", id, toolName: "read_file" } as any,
+        { type: "tool-call", toolCallId: id, toolName: "read_file", input: {} },
+        ...extra,
+        {
+          type: "tool-result",
+          toolCallId: id,
+          toolName: "read_file",
+          output: "x",
+        },
+      ] as any[],
+      response: [],
+    })
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    const inbox = inboxOf([])
+    const sent: ModelMessage[][] = []
+    const driver = steppedDriver(
+      [
+        [
+          step("call_1", [
+            () =>
+              void inbox.pending.push({
+                id: "s1",
+                content: [textBlock("skip the tests")],
+              }),
+          ]),
+          step("call_2"),
+          {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chunks: [{ type: "text-delta", id: "t", text: "Done." } as any],
+            response: [],
+          },
+        ],
+      ],
+      sent
+    )
+    await new ExternalEngine({
+      sessionFactory: acpSessionFactoryFromDriver(driver, {
+        steering: { failures: 1 },
+      }),
+    }).run(
+      { ...turn, takeSteers: inbox.takeSteers },
+      () => {},
+      new AbortController().signal
+    )
+    // Still pending after call_1 (failed), read before the step after call_2.
+    expect(sent[1]!.at(-1)).not.toMatchObject({ content: "skip the tests" })
+    expect(sent[2]!.at(-1)).toMatchObject({
+      role: "user",
+      content: "skip the tests",
+    })
+    expect(inbox.settled).toEqual(["skip the tests"])
+  })
+
+  it("sends Steers still waiting when the turn ends as one new prompt", async () => {
+    const inbox = inboxOf([])
+    const codex = codexSession({
+      async onPrompt() {
+        if (codex.prompts.length === 1)
+          inbox.pending.push(
+            { id: "s1", content: [textBlock("a")] },
+            { id: "s2", content: [textBlock("b")] }
+          )
+        return "end_turn"
+      },
+    })
+    await new ExternalEngine({ sessionFactory: codex.factory }).run(
+      { ...turn, takeSteers: inbox.takeSteers },
+      () => {},
+      new AbortController().signal
+    )
+    expect(codex.prompts.slice(1)).toEqual([[textBlock("a"), textBlock("b")]])
+    expect(codex.steered).toEqual([])
+    expect(inbox.settled).toEqual(["a", "b"])
   })
 })
 

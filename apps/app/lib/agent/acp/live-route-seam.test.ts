@@ -155,6 +155,9 @@ function liveHarness(
       for (const row of taken) row.taken = true
       return taken.map(toSteer)
     },
+    async release(ids) {
+      for (const row of steerRows) if (ids.includes(row.id)) row.taken = false
+    },
     async drain(runId) {
       const left = pendingOn(runId)
       removeRows(left)
@@ -311,6 +314,7 @@ function liveHarness(
                 id: steer.id,
                 content: wireToContentBlocks(steer.message),
               })),
+            releaseSteers: (ids) => inbox.release(ids),
             reportSteering: turn.reportSteering,
           }
         ),

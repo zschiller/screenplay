@@ -16,6 +16,7 @@ import {
   textBlock,
   type Agent,
   type AnyMessage,
+  type ContentBlock,
   type InitializeResponse,
   type PromptRequest,
   type PromptResponse,
@@ -478,17 +479,30 @@ function inMemoryStreams(): {
  * while one runs joins the running turn at its next step, where the model reads
  * it as the newest user message. The earlier prompt resolves `end_turn` at that
  * handoff; a prompt the turn finished before reading starts another pass.
+ *
+ * With `steering` it does what Codex's adapter does instead (#1192): it
+ * advertises `_meta.steering.supported` and takes a mid-turn message through
+ * `_session/steering`. A message sent while a turn runs joins it at its next
+ * step (`injected`) without a prompt of its own; one sent between turns starts
+ * a turn nobody's prompt waits on (`startedNewTurn`), reported through the
+ * thread status `session_info_update`s every turn carries. `failures` answers
+ * that many requests `failed` first.
  */
 export function acpSessionFactoryFromDriver(
   driver: StreamDriver,
-  options: { promptQueueing?: boolean } = {}
+  options: { promptQueueing?: boolean; steering?: { failures?: number } } = {}
 ): AcpSessionFactory {
   return {
     async open(ports, openOptions) {
       const { client, agent: agentStream, exit } = inMemoryStreams()
       const agentConn = new AgentSideConnection(
         (conn) =>
-          new DriverAgent(conn, driver, options.promptQueueing ?? false),
+          new DriverAgent(
+            conn,
+            driver,
+            options.promptQueueing ?? false,
+            options.steering
+          ),
         agentStream
       )
       // `agentConn` keeps the agent's receive loop alive for the session.
@@ -516,12 +530,17 @@ class DriverAgent implements Agent {
   private queued: DriverPrompt[] = []
   private active: DriverPrompt | null = null
   private abort = new AbortController()
+  /** Steering requests still to answer `failed`. */
+  private failures: number
 
   constructor(
     private readonly conn: AgentSideConnection,
     private readonly driver: StreamDriver,
-    private readonly promptQueueing: boolean
-  ) {}
+    private readonly promptQueueing: boolean,
+    private readonly steering?: { failures?: number }
+  ) {
+    this.failures = steering?.failures ?? 0
+  }
   async initialize(): Promise<InitializeResponse> {
     return {
       protocolVersion: PROTOCOL_VERSION,
@@ -531,7 +550,34 @@ class DriverAgent implements Agent {
           ? { _meta: { claudeCode: { promptQueueing: true } } }
           : {}),
       },
+      ...(this.steering ? { _meta: { steering: { supported: true } } } : {}),
     }
+  }
+  /** Codex's `_session/steering`: join the running turn, or start one. */
+  async extMethod(
+    method: string,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    if (method !== "_session/steering" || !this.steering) {
+      throw new Error(`unknown method ${method}`)
+    }
+    if (this.failures > 0) {
+      this.failures--
+      return { outcome: "failed" }
+    }
+    const blocks = params.prompt as ContentBlock[]
+    const steer: DriverPrompt = {
+      text: blocks.map((b) => ("text" in b ? b.text : "")).join(""),
+      resolve: () => {},
+    }
+    if (this.active) {
+      this.queued.push(steer)
+      return { outcome: "injected" }
+    }
+    this.active = steer
+    this.conversation.push({ role: "user", content: steer.text })
+    void this.play(params.sessionId as string)
+    return { outcome: "startedNewTurn" }
   }
   async newSession(): Promise<{ sessionId: string }> {
     return { sessionId: CONTRACT_SESSION_ID }
@@ -564,37 +610,58 @@ class DriverAgent implements Agent {
    * batch of prompts that arrived after its last step.
    */
   private async play(sessionId: string): Promise<void> {
+    await this.threadStatus(sessionId, "active")
     for (;;) {
       this.abort = new AbortController()
       const outcome = await this.pass(sessionId)
       if (outcome === "cancelled") {
-        for (const prompt of [this.active!, ...this.queued]) {
-          prompt.resolve("cancelled")
-        }
+        const prompts = [this.active!, ...this.queued]
         this.queued = []
         this.active = null
+        await this.threadStatus(sessionId, "idle")
+        for (const prompt of prompts) prompt.resolve("cancelled")
         return
       }
       if (this.queued.length === 0) {
-        this.active!.resolve(outcome)
+        const prompt = this.active!
         this.active = null
+        await this.threadStatus(sessionId, "idle")
+        prompt.resolve(outcome)
         return
       }
       this.conversation.push(this.handOff())
     }
   }
 
+  /** Report the thread's status the way Codex's adapter does, when steering. */
+  private async threadStatus(
+    sessionId: string,
+    type: "active" | "idle"
+  ): Promise<void> {
+    if (!this.steering) return
+    await this.conn.sessionUpdate({
+      sessionId,
+      update: {
+        sessionUpdate: "session_info_update",
+        _meta: { codex: { threadStatus: { type } } },
+      },
+    })
+  }
+
   /**
-   * Hand the turn over to the queued prompts, oldest first: each earlier
-   * prompt resolves `end_turn`, and they reach the model together as one user
-   * message.
+   * Hand the turn over to the queued prompts, oldest first: they reach the
+   * model together as one user message. With prompt queueing each earlier
+   * prompt resolves `end_turn`; a steered message has no prompt, so the turn's
+   * own prompt stays the one that resolves.
    */
   private handOff(): ModelMessage {
     const next = this.queued
     this.queued = []
-    this.active!.resolve("end_turn")
-    for (const prompt of next.slice(0, -1)) prompt.resolve("end_turn")
-    this.active = next.at(-1)!
+    if (!this.steering) {
+      this.active!.resolve("end_turn")
+      for (const prompt of next.slice(0, -1)) prompt.resolve("end_turn")
+      this.active = next.at(-1)!
+    }
     return { role: "user", content: next.map((p) => p.text).join("\n\n") }
   }
 
@@ -930,14 +997,31 @@ export function steeringContractFor(
             systemPrompt: "sys",
             model: "anthropic:test",
             history: [{ role: "user", content: [textBlock("fix the bug")] }],
-            // What the live route does: take, settle, hand over.
-            takeSteers: async () => {
-              const steers: TakenSteer[] = inbox
-                .splice(0)
-                .map((s) => ({ id: s.id, content: [textBlock(s.text)] }))
-              if (steers.length > 0) taken.push(steers.map((s) => s.id))
-              await consumer.acceptSteers(steers)
-              return steers
+            // What the live route does: take, settle, hand over. With
+            // `deliver`, a Steer settles once the agent took it, and the first
+            // it didn't goes back to the inbox with the rest.
+            takeSteers: async (deliver) => {
+              const pending = inbox.splice(0)
+              const steers: TakenSteer[] = pending.map((s) => ({
+                id: s.id,
+                content: [textBlock(s.text)],
+              }))
+              if (!deliver) {
+                if (steers.length > 0) taken.push(steers.map((s) => s.id))
+                await consumer.acceptSteers(steers)
+                return steers
+              }
+              const delivered: TakenSteer[] = []
+              for (const [index, steer] of steers.entries()) {
+                if (!(await deliver(steer))) {
+                  inbox.unshift(...pending.slice(index))
+                  break
+                }
+                await consumer.acceptSteers([steer])
+                delivered.push(steer)
+              }
+              if (delivered.length > 0) taken.push(delivered.map((s) => s.id))
+              return delivered
             },
             reportSteering: async (steers) => {
               reports.push(steers)
