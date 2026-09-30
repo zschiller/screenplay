@@ -9,6 +9,11 @@ import {
   nextGroupNumber,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import {
+  hiddenDoneFrames,
+  keepHiddenMembers,
+  shownIndexToMemberIndex,
+} from "@/lib/canvas/done-workspaces"
 import { groupSwitchFrames } from "@/lib/canvas/group-workspace"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
@@ -323,8 +328,25 @@ export type CanvasOps = {
    * source Group if the move empties it. When source and target are the same
    * Group this reorders the Member to `index`. No-op if the layer or target is
    * missing.
+   *
+   * `index` counts the target's shown Members, the Canvas's view: a Done
+   * Workspace's hidden frames (#976) are skipped and keep their places. It
+   * counts them with the moving Member lifted out, unless `gapIncludesMover`
+   * says it is a gap among them as the caller sees them, the Member still in
+   * place (a sidebar drop).
    */
-  moveLayerToGroup(layerId: string, targetGroupId: string, index?: number): void
+  moveLayerToGroup(
+    layerId: string,
+    targetGroupId: string,
+    index?: number,
+    options?: { gapIncludesMover?: boolean }
+  ): void
+  /**
+   * Write a Group's Members in the order the Canvas's view shows them. A Done
+   * Workspace's hidden frames (#976), which the view leaves out, keep their
+   * places.
+   */
+  reorderGroupMembers(groupId: string, members: GroupMember[]): void
   /**
    * Merge the source Group into the target: append every source Member onto
    * the target's row and prune the emptied source. The target keeps its
@@ -991,10 +1013,31 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     })
   }
 
+  /** Whether a Member is one of a Done Workspace's frames the Canvas hides. */
+  function hiddenFromView(): (m: GroupMember) => boolean {
+    const hidden = hiddenDoneFrames({
+      groups: collections.iframeLayerGroups.toArray(),
+      iframeLayers: collections.iframeLayers.toArray(),
+      branches: collections.branches.toArray(),
+    })
+    return (m) => m.kind === "iframe-layer" && hidden.has(m.id)
+  }
+
+  function reorderGroupMembers(groupId: string, members: GroupMember[]): void {
+    batch(() => {
+      const group = collections.iframeLayerGroups.get(groupId)
+      if (!group) return
+      collections.iframeLayerGroups.update(groupId, {
+        members: keepHiddenMembers(getGroupMembers(group), members),
+      })
+    })
+  }
+
   function moveLayerToGroup(
     layerId: string,
     targetGroupId: string,
-    index?: number
+    index?: number,
+    options: { gapIncludesMover?: boolean } = {}
   ): void {
     batch(() => {
       const target = collections.iframeLayerGroups.get(targetGroupId)
@@ -1015,10 +1058,30 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       const targetMembers = getGroupMembers(target).filter(
         (m) => m.id !== layerId
       )
+      const isHidden = hiddenFromView()
+      // A gap counted with the Member still in place lands one earlier once it
+      // is lifted out, when it sat before the gap.
+      const shownBefore =
+        options.gapIncludesMover && source.id === target.id
+          ? getGroupMembers(target)
+              .slice(
+                0,
+                getGroupMembers(target).findIndex((m) => m.id === layerId)
+              )
+              .filter((m) => !isHidden(m)).length
+          : -1
+      const shownIndex =
+        index != null && shownBefore >= 0 && shownBefore < index
+          ? index - 1
+          : index
       const at =
-        index == null
+        shownIndex == null
           ? targetMembers.length
-          : Math.max(0, Math.min(index, targetMembers.length))
+          : shownIndexToMemberIndex(
+              targetMembers,
+              Math.max(0, shownIndex),
+              isHidden
+            )
       const nextTarget: GroupMember[] = [
         ...targetMembers.slice(0, at),
         member,
@@ -1126,6 +1189,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     reorderRepos,
     reorderBranches,
     moveLayerToGroup,
+    reorderGroupMembers,
     mergeGroups,
     splitToNewGroup,
     internal: { pruneIfEmpty },
