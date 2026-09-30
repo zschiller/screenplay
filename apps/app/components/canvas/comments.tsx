@@ -191,7 +191,12 @@ export function Comments({
   // into each registered editor. (Their pins are placed by
   // `useCommentPlacements`, like frame pins.) Selection ranges drift through
   // doc edits via the plugin's decoration mapping in between refreshes, so
-  // this doesn't need to re-run on every doc transaction.
+  // this doesn't need to re-run on every doc transaction. A passage the
+  // composer is open on is held in the active colour too: the editor's own
+  // selection stops painting once the composer takes focus.
+  const draftDocumentId = newCommentPos?.documentId ?? null
+  const draftAnchorStart = newCommentPos?.anchorStart ?? null
+  const draftAnchorEnd = newCommentPos?.anchorEnd ?? null
   useEffect(() => {
     if (!getDocumentEditor) return
     const docThreads = threads.filter(
@@ -202,6 +207,9 @@ export function Comments({
       const arr = byDoc.get(t.documentId!)
       if (arr) arr.push(t)
       else byDoc.set(t.documentId!, [t])
+    }
+    if (draftDocumentId && !byDoc.has(draftDocumentId)) {
+      byDoc.set(draftDocumentId, [])
     }
     const cleanups: Array<() => void> = []
     for (const [docId, group] of byDoc.entries()) {
@@ -219,6 +227,13 @@ export function Comments({
           active: activeThreadId === t.id,
         })
       }
+      if (docId === draftDocumentId && draftAnchorStart && draftAnchorEnd) {
+        const from = decodeAnchor(editor, draftAnchorStart)
+        const to = decodeAnchor(editor, draftAnchorEnd)
+        if (from !== null && to !== null && from < to) {
+          ranges.push({ id: "draft", from, to, pending: true })
+        }
+      }
       setDocumentCommentRanges(editor.view, ranges)
       // On unmount/refresh, clear the highlights so a stale set doesn't
       // linger if the doc unmounts before the next push.
@@ -230,7 +245,15 @@ export function Comments({
     return () => {
       for (const fn of cleanups) fn()
     }
-  }, [threads, activeThreadId, getDocumentEditor, documentEditorsVersion])
+  }, [
+    threads,
+    activeThreadId,
+    getDocumentEditor,
+    documentEditorsVersion,
+    draftDocumentId,
+    draftAnchorStart,
+    draftAnchorEnd,
+  ])
 
   // Canvas position of a thread's pin: its placement (frame or document
   // threads, pinned for this viewer only) offset by the container's canvas
