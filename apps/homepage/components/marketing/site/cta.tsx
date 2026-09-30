@@ -14,7 +14,7 @@ export function CTA() {
         Download Screenplay, add a repository, and ask your agent for a few
         versions of a change. Review them side by side.
       </p>
-      <div className="mt-8 flex flex-wrap gap-3">
+      <div className="mt-8 flex flex-wrap gap-3 max-sm:flex-col">
         <a
           href={releasesUrl}
           target="_blank"

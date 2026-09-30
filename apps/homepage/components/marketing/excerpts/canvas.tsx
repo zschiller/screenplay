@@ -136,7 +136,7 @@ export function Frame({
       ) : null}
       <div
         className={cn(
-          "absolute bottom-full left-0 mb-1.5 truncate text-[11px] leading-none whitespace-nowrap",
+          "absolute bottom-full left-0 mb-1.5 truncate text-xs leading-none whitespace-nowrap",
           selected ? "text-selection" : "text-muted-foreground"
         )}
       >
@@ -178,7 +178,7 @@ function GroupLabel({
   return (
     <div
       className={cn(
-        "absolute flex items-center gap-2 text-[11px] leading-none whitespace-nowrap text-muted-foreground",
+        "absolute flex items-center gap-2 text-xs leading-none whitespace-nowrap text-muted-foreground",
         className
       )}
       style={style}
@@ -217,11 +217,11 @@ export function FrameBar({
       <Tool>
         <ArrowRightIcon />
       </Tool>
-      <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-muted pr-0.5 pl-2">
+      <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-muted pr-0.5 pl-2 text-xs">
         <WorkspaceGlyph />
-        <span className="truncate">{workspace}</span>
+        <span className="truncate font-medium">{workspace}</span>
         <CaretUpDownIcon className="size-3 shrink-0 text-muted-foreground" />
-        <span className="flex-1 text-muted-foreground">/</span>
+        <span className="flex-1 font-mono text-muted-foreground">/</span>
         <Tool>
           <span className="size-2 rounded-full bg-muted-foreground" />
         </Tool>
@@ -508,9 +508,11 @@ export function CanvasExcerpt() {
         <FrameBar
           workspace="Hero gradient & trust line"
           className="z-[5] max-sm:hidden"
+          // Centred under the frame like the app's: as wide as the frame, or
+          // 360px under a narrow one, never past the canvas's edges.
           style={{
-            left: "6%",
-            width: "max(66%, min(440px, 88%))",
+            left: "max(8px, calc(39% - min(max(33%, 180px), 50% - 8px)))",
+            width: "min(max(66%, 360px), calc(100% - 16px))",
             top: "calc(var(--top) + 41.25cqw + 10px)",
           }}
         />
@@ -524,9 +526,10 @@ export function CanvasExcerpt() {
         <Frame
           label="Pricing"
           group={["Pricing", "Pricing FAQ"]}
+          className="[--gap:96px] max-sm:[--gap:56px]"
           style={{
             left: "6%",
-            top: "calc(var(--top) + 41.25cqw + 96px)",
+            top: "calc(var(--top) + 41.25cqw + var(--gap))",
             width: "66%",
           }}
         >

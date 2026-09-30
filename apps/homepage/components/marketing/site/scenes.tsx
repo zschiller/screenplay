@@ -52,12 +52,20 @@ export function Scenes() {
         title="From one prompt to several running versions."
         body="Describe a change once, let your agents build it several ways, and review every version on the same canvas."
       />
-      <ol className="mt-14 grid gap-x-9 border-t border-foreground sm:grid-cols-2 lg:grid-cols-4">
+      <ol className="mt-12 grid gap-x-9 border-t border-foreground sm:grid-cols-2 lg:grid-cols-4 lg:grid-rows-[repeat(4,auto)]">
         {scenes.map(({ slug, title, body, Excerpt }, i) => (
           <li
             key={slug}
             className={cn(
               "relative flex min-w-0 flex-col gap-3 pt-4.5 pb-8",
+              // One row per part across the columns, so a title that wraps
+              // doesn't push its excerpt below the others'.
+              "lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:content-start",
+              // At two columns, a hairline over the second row, carried
+              // across the gutter like the Features grid's.
+              i >= 2 &&
+                "sm:max-lg:after:absolute sm:max-lg:after:inset-x-0 sm:max-lg:after:top-0 sm:max-lg:after:h-px sm:max-lg:after:bg-border",
+              i === 2 && "sm:max-lg:after:-right-9",
               // A hairline in the gutter between columns, so every column
               // (and every image) is the same width.
               "before:absolute before:inset-y-0 before:-left-4.5 before:w-px before:bg-border",

@@ -1,6 +1,6 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-import { measure } from "./editorial"
+import { focusRing, measure } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const faqs = [
@@ -40,7 +40,12 @@ export function Faq() {
             key={f.q}
             className="faq-item group border-b border-border py-5 [&_summary::-webkit-details-marker]:hidden"
           >
-            <summary className="flex cursor-pointer list-none items-baseline justify-between gap-4 font-heading text-[20px] leading-[1.25] tracking-[-0.03em]">
+            <summary
+              className={cn(
+                focusRing,
+                "flex cursor-pointer list-none items-baseline justify-between gap-4 font-heading text-[20px] leading-[1.25] tracking-[-0.03em] focus-visible:outline-offset-4"
+              )}
+            >
               {f.q}
               <span
                 aria-hidden

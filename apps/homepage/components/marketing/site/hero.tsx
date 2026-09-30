@@ -30,7 +30,7 @@ export function Hero() {
               Run your coding agents on separate branches and see every result
               live on one canvas.
             </p>
-            <div data-veil className="flex flex-wrap gap-3">
+            <div data-veil className="flex flex-wrap gap-3 max-sm:flex-col">
               <a
                 href={releasesUrl}
                 target="_blank"

@@ -138,7 +138,7 @@ export function CreateWorkspacesExcerpt() {
       <div
         className={cn(
           surface,
-          "absolute top-3 left-4 flex w-[288px] flex-col gap-2.5 p-3 text-xs"
+          "absolute top-3 left-4 flex w-[288px] flex-col gap-2 p-3 text-xs"
         )}
       >
         <div className="flex items-start justify-between">
@@ -167,28 +167,28 @@ export function CompareExcerpt() {
         label="Home"
         group={["Homepage", "Hero gradient"]}
         selected
-        style={{ left: 16, top: 52, width: 180 }}
+        style={{ left: 16, top: 46, width: 180 }}
       >
         <Northwind version="gradient" />
       </Frame>
       <Frame
         label="Mobile"
         device="mobile"
-        style={{ left: 208, top: 52, width: 52 }}
+        style={{ left: 208, top: 46, width: 52 }}
       >
         <Northwind device="mobile" version="gradient" />
       </Frame>
       <Frame
         label="Home"
         group={["Homepage", "Main"]}
-        style={{ left: 16, top: 204, width: 180 }}
+        style={{ left: 16, top: 212, width: 180 }}
       >
         <Northwind />
       </Frame>
       <Frame
         label="Mobile"
         device="mobile"
-        style={{ left: 208, top: 204, width: 52 }}
+        style={{ left: 208, top: 212, width: 52 }}
       >
         <Northwind device="mobile" />
       </Frame>
@@ -222,7 +222,8 @@ export function PullRequestExcerpt() {
       <div
         className={cn(
           surface,
-          "absolute top-[88px] left-[108px] flex w-[200px] flex-col p-1 text-[13px]"
+          // Menus take the other theme in the app (`inverted`, #1073).
+          "inverted absolute top-[88px] left-[108px] flex w-[200px] flex-col p-1 text-[13px]"
         )}
       >
         {menu.map((item, i) =>
