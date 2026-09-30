@@ -3,9 +3,8 @@ import * as Y from "yjs"
 import { getRoomCollections } from "@/lib/yjs/schema"
 import {
   groupBranchId,
-  groupSwitchFrames,
   groupSwitchSummary,
-  isWorkspaceException,
+  groupWorkspace,
 } from "./group-workspace"
 
 const frames = new Map([
@@ -47,15 +46,6 @@ describe("groupBranchId", () => {
         frames
       )
     ).toBeUndefined()
-  })
-})
-
-describe("isWorkspaceException", () => {
-  it("is true only when the frame shows another Workspace than its Group", () => {
-    expect(isWorkspaceException({ branchId: "ws-1" }, "ws-1")).toBe(false)
-    expect(isWorkspaceException({ branchId: "ws-2" }, "ws-1")).toBe(true)
-    expect(isWorkspaceException({}, "ws-1")).toBe(false)
-    expect(isWorkspaceException({ branchId: "ws-2" }, undefined)).toBe(false)
   })
 })
 
@@ -121,74 +111,58 @@ describe("on-load conversion", () => {
   })
 })
 
-describe("groupSwitchFrames", () => {
-  it("splits a Group's frames into followers and exceptions, skipping Documents", () => {
-    expect(
-      groupSwitchFrames(
-        {
-          branchId: "ws-1",
-          members: [
-            { kind: "iframe-layer", id: "a" },
-            { kind: "markdown-layer", id: "doc" },
-            { kind: "iframe-layer", id: "b" },
-            { kind: "iframe-layer", id: "empty" },
-          ],
-        },
-        frames
-      )
-    ).toEqual({ following: ["a", "empty"], exceptions: ["b"] })
+describe("groupWorkspace", () => {
+  const moreFrames = new Map([
+    ...frames,
+    ["a2", { branchId: "ws-1" }],
+    ["empty2", {}],
+  ])
+  const group = (...ids: string[]) => ({
+    members: [
+      { kind: "markdown-layer" as const, id: "doc" },
+      ...ids.map((id) => ({ kind: "iframe-layer" as const, id })),
+    ],
   })
 
-  it("uses the leftmost frame's Workspace for a Group without its own", () => {
-    expect(
-      groupSwitchFrames(
-        {
-          members: [
-            { kind: "iframe-layer", id: "b" },
-            { kind: "iframe-layer", id: "a" },
-          ],
-        },
-        frames
-      )
-    ).toEqual({ following: ["b"], exceptions: ["a"] })
+  it("names the Workspace every frame shows, skipping Documents", () => {
+    expect(groupWorkspace(group("a", "a2"), moreFrames)).toEqual({
+      branchId: "ws-1",
+      frames: ["a", "a2"],
+    })
+  })
+
+  it("names none when the frames show different Workspaces", () => {
+    expect(groupWorkspace(group("a", "b"), moreFrames)).toBeNull()
+  })
+
+  it("names none when only some frames have a Workspace", () => {
+    expect(groupWorkspace(group("a", "empty"), moreFrames)).toBeNull()
+  })
+
+  it("offers the choice once when no frame has a Workspace yet", () => {
+    expect(groupWorkspace(group("empty", "empty2"), moreFrames)).toEqual({
+      branchId: undefined,
+      frames: ["empty", "empty2"],
+    })
+  })
+
+  it("ignores the Group's own stored Workspace", () => {
+    const stored = { ...group("a", "a2"), branchId: "ws-2" }
+    expect(groupWorkspace(stored, moreFrames)?.branchId).toBe("ws-1")
+  })
+
+  it("names none for a Group of Documents", () => {
+    expect(groupWorkspace(group(), moreFrames)).toBeNull()
   })
 })
 
 describe("groupSwitchSummary", () => {
   it("counts the frames that move", () => {
-    expect(groupSwitchSummary(2, [])).toEqual([
-      "Moves 2 frames. Each keeps its route and state.",
-    ])
-    expect(groupSwitchSummary(1, [])).toEqual([
-      "Moves 1 frame. It keeps its route and state.",
-    ])
-  })
-
-  it("names an exception and the Workspace it stays on", () => {
-    expect(
-      groupSwitchSummary(2, [
-        { name: "Gift card balance", workspace: "gift-cards" },
-      ])
-    ).toEqual([
-      "Moves 2 frames. Each keeps its route and state.",
-      "Gift card balance stays on gift-cards.",
-    ])
-  })
-
-  it("lists several exceptions, shortening a long list", () => {
-    expect(
-      groupSwitchSummary(1, [
-        { name: "Pay", workspace: "a" },
-        { name: "Cart", workspace: "b" },
-      ])[1]
-    ).toBe("Pay and Cart stay on their own workspaces.")
-    expect(
-      groupSwitchSummary(1, [
-        { name: "A" },
-        { name: "B" },
-        { name: "C" },
-        { name: "D" },
-      ])[1]
-    ).toBe("A, B and 2 more stay on their own workspaces.")
+    expect(groupSwitchSummary(2)).toBe(
+      "Moves 2 frames. Each keeps its route and state."
+    )
+    expect(groupSwitchSummary(1)).toBe(
+      "Moves 1 frame. It keeps its route and state."
+    )
   })
 })

@@ -22,21 +22,15 @@ import type { JsonObject } from "@/lib/postmessage-protocol"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { frameWorkspaceOf, type FrameWorkspace } from "./frame-nav"
 import { LayerLabelRow } from "./layer-title-bar"
-import {
-  CompactWorkspaceMention,
-  WorkspaceCommandList,
-  type FollowGroup,
-} from "./workspace-list"
+import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
 interface IframeLayerLabelProps {
   label: string
   branchId?: string
-  /** Name the frame's Workspace after its name: the frame differs from its
-   *  Group's Workspace, or it is a Group of one with no group label (#868).
-   *  Every other frame leaves its Workspace to the group label. */
+  /** Name the frame's Workspace after its name: its Group's frames show
+   *  different Workspaces, or it is a Group of one with no group label
+   *  (#1276). Otherwise the group label names the one they all show. */
   showWorkspace?: boolean
-  /** Set on an exception: the pill's list leads with "Follow <Group>". */
-  followGroup?: FollowGroup
   /** Agents the user can pick from (typically all running agents in the room). */
   assignableBranches?: BranchData[]
   onAssignBranch?: (branchId: string) => void
@@ -62,7 +56,6 @@ export function IframeLayerLabel({
   label,
   branchId,
   showWorkspace,
-  followGroup,
   assignableBranches,
   onAssignBranch,
   selected,
@@ -90,7 +83,6 @@ export function IframeLayerLabel({
     trailing = onAssignBranch ? (
       <BranchPicker
         workspace={workspace}
-        followGroup={followGroup}
         assignableBranches={assignableBranches ?? []}
         onAssignBranch={onAssignBranch}
       />
@@ -119,7 +111,6 @@ export function IframeLayerLabel({
 interface BranchPickerProps {
   /** Unset on an unassigned frame, which offers "Choose a workspace". */
   workspace?: FrameWorkspace
-  followGroup?: FollowGroup
   assignableBranches: BranchData[]
   onAssignBranch: (branchId: string) => void
 }
@@ -180,7 +171,6 @@ export function SharedStateIndicator({
  */
 function BranchPicker({
   workspace,
-  followGroup,
   assignableBranches,
   onAssignBranch,
 }: BranchPickerProps) {
@@ -232,7 +222,6 @@ function BranchPicker({
         <WorkspaceCommandList
           branches={assignableBranches}
           currentBranchId={currentBranchId}
-          followGroup={followGroup}
           onPick={(id) => {
             if (id !== currentBranchId) onAssignBranch(id)
             setOpen(false)

@@ -87,7 +87,7 @@ import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
 
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 
-import { groupBranchId } from "@/lib/canvas/group-workspace"
+import { groupWorkspace } from "@/lib/canvas/group-workspace"
 
 import {
   parseSidebarRowId,
@@ -398,24 +398,24 @@ export function RoomSidebar({
    * kind, drop another entry here keyed by `kind` — the dispatch loop
    * below picks the right components automatically.
    */
-  // Each Group's Workspace (#868): its row names it, and its frame rows name
-  // theirs only when they differ.
+  // The Workspace each Group's row names: the one all its frames show
+  // (#1276). Its frame rows then leave it off; otherwise each names its own.
   const groupBranchById = useMemo(() => {
     const m = new Map<string, string | undefined>()
     for (const g of iframeLayerGroups)
-      m.set(g.id, groupBranchId(g, iframeLayersById))
+      m.set(g.id, groupWorkspace(g, iframeLayersById)?.branchId)
     return m
   }, [iframeLayerGroups, iframeLayersById])
-  const groupBranchIdByLayerId = useMemo(() => {
-    const m = new Map<string, string | undefined>()
+  const framesNamedByGroup = useMemo(() => {
+    const ids = new Set<string>()
     for (const g of iframeLayerGroups)
-      for (const member of getGroupMembers(g))
-        m.set(member.id, groupBranchById.get(g.id))
-    return m
+      if (groupBranchById.get(g.id))
+        for (const member of getGroupMembers(g)) ids.add(member.id)
+    return ids
   }, [iframeLayerGroups, groupBranchById])
   const IframeLayerRow = useMemo(
-    () => makeIframeLayerRow({ branchesById, groupBranchIdByLayerId }),
-    [branchesById, groupBranchIdByLayerId]
+    () => makeIframeLayerRow({ branchesById, framesNamedByGroup }),
+    [branchesById, framesNamedByGroup]
   )
   type AnyRowDispatcher = {
     Row: React.ComponentType<

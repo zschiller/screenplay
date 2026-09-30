@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { UndoManager } from "yjs"
-import {
-  groupBranchId,
-  isWorkspaceException,
-} from "@/lib/canvas/group-workspace"
+import { groupBranchId } from "@/lib/canvas/group-workspace"
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { CANVAS_OPS_ORIGIN } from "@/lib/canvas/ops"
@@ -1388,7 +1385,7 @@ describe("assignGroupBranch", () => {
     return harness
   }
 
-  it("moves the Group and every following frame, leaving exceptions", () => {
+  it("moves the Group and every frame in it", () => {
     const { ops, collections } = seedCartGroup()
 
     ops.assignGroupBranch("cart", "ws-cp")
@@ -1399,21 +1396,21 @@ describe("assignGroupBranch", () => {
     expect(layer("cart-mobile")?.branchId).toBe("ws-cp")
     // A frame with no Workspace yet follows its Group too.
     expect(layer("new-frame")?.branchId).toBe("ws-cp")
-    expect(layer("gift-card")?.branchId).toBe("ws-gc")
+    expect(layer("gift-card")?.branchId).toBe("ws-cp")
     // Route, state and size survive the switch.
     expect(layer("empty-cart")?.route).toBe("/cart")
     expect(layer("empty-cart")?.iframeState).toEqual({ step: 2 })
     expect(layer("cart-mobile")?.width).toBe(390)
   })
 
-  it("keeps a frame that was an exception one after the switch", () => {
+  it("leaves a frame a Done Workspace hides where it is", () => {
     const { ops, collections } = seedCartGroup()
+    collections.branches.set("ws-gc", { ...baseBranch("ws-gc"), doneAt: 1 })
 
-    ops.assignGroupBranch("cart", "ws-gc")
+    ops.assignGroupBranch("cart", "ws-cp")
 
-    // The old exception now matches its Group, so it follows it again.
     expect(collections.iframeLayers.get("gift-card")?.branchId).toBe("ws-gc")
-    expect(collections.iframeLayers.get("empty-cart")?.branchId).toBe("ws-gc")
+    expect(collections.iframeLayers.get("empty-cart")?.branchId).toBe("ws-cp")
   })
 
   it("commits as one transaction, undone in one step", () => {
@@ -1505,9 +1502,6 @@ describe("Unassigned Groups (#871)", () => {
     const notes = collections.iframeLayerGroups.get("notes")!
     const branch = groupBranchId(notes, collections.iframeLayers)
     expect(branch).toBe("agent-2")
-    expect(
-      isWorkspaceException(collections.iframeLayers.get("cart-1")!, branch)
-    ).toBe(false)
   })
 
   it("keeps the Workspace while a frame is left", () => {

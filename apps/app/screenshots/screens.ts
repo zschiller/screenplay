@@ -2216,18 +2216,18 @@ export const SCREENS: Screen[] = [
   {
     name: "workspaces-menu-hover-groups",
     description:
-      "Hovering a Workspace row lights up the Groups on it and their following frames; frames of those Groups on other Workspaces stay unlit (#872).",
-    path: `/${ids.rooms.frameStates}`,
+      "Hovering a Workspace row lights up the Groups whose frames all show it, and those frames (#872, #1276).",
+    path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
-      await hoverWorkspaceRow(page, "search-filters")
+      await hoverWorkspaceRow(page, "Pricing tiers")
     },
     settleMs: 300,
   },
   {
     name: "workspaces-menu-hover-exception",
     description:
-      "Hovering the Workspace of an exception frame: that frame lights up, its Group (on another Workspace) doesn't (#872).",
+      "Hovering the Workspace of one frame in a Group of mixed Workspaces: that frame lights up, its Group doesn't (#872).",
     path: `/${ids.rooms.frameStates}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -2239,13 +2239,13 @@ export const SCREENS: Screen[] = [
     name: "sidebar-group-row-hover-workspace",
     description:
       "Hovering a Group row in the layer list: its Workspace row lights up in the open Workspaces menu (#872).",
-    path: `/${ids.rooms.frameStates}`,
+    path: `/${ids.rooms.pricing}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openWorkspacesMenu(page)
       await page
         .locator(".group\\/frame-group-row")
-        .filter({ hasText: "Progress" })
+        .filter({ hasText: "Pricing" })
         .first()
         .hover({ timeout: 15_000 })
     },
@@ -2255,11 +2255,10 @@ export const SCREENS: Screen[] = [
     name: "canvas-group-pill-hover-workspace",
     description:
       "Hovering the Workspace pill on a Group's label on the Canvas: its Workspace row lights up (#872).",
-    path: `/${ids.rooms.frameStates}`,
+    path: `/${ids.rooms.pricing}`,
     prepare: async (page) => {
       await page
         .locator('[data-slot="group-workspace"]')
-        .filter({ hasText: "search-filters" })
         .first()
         .hover({ timeout: 15_000 })
     },
@@ -3367,42 +3366,22 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-frame-states",
     description:
-      "A frame in every Workspace stage: booting, starting, ready, failed, stopped, and no Workspace.",
+      "A frame in every Workspace stage: booting, starting, ready, failed, stopped, and no Workspace. Each Group's frames differ, so every frame names its own Workspace (#1276).",
     path: `/${ids.rooms.frameStates}`,
     // Long enough for the ready frame's page to paint and the probe of the
     // cold ones to settle on "not ready".
     settleMs: 2500,
   },
   {
-    name: "canvas-frame-follow-group",
-    description:
-      "An exception frame's Workspace list, opened from the pill on its label: Follow <Group> leads, then the Workspaces for this frame only (#868).",
-    path: `/${ids.rooms.frameStates}`,
-    prepare: async (page) => {
-      // "Starting" is on saved-searches; its Group, Progress, is on
-      // search-filters.
-      await page
-        .getByRole("button", { name: "Workspace: saved-searches" })
-        .first()
-        .click({ timeout: 15_000 })
-      await page
-        .getByPlaceholder("Search workspaces…")
-        .waitFor({ state: "visible", timeout: 15_000 })
-    },
-    settleMs: 800,
-  },
-  {
     name: "canvas-group-workspace-hover",
     description:
       "Hovering a Group's Workspace pill on its group label: the up-down chevron shows that it switches the whole Group (#869).",
-    path: `/${ids.rooms.checkout}`,
+    path: `/${ids.rooms.pricing}`,
     prepare: async (page) => {
-      // Frames that follow their Group name no Workspace, so the only canvas
-      // label carrying Empty cart state is the Cart group's. (Checkout's label
-      // sits under the top chrome at this viewport.)
+      // Both Pricing frames show one Workspace, so only the group label
+      // names it (#1276).
       await page
-        .locator(".canvas-frame-label")
-        .getByText("Empty cart state")
+        .locator('[data-slot="group-workspace"]')
         .first()
         .hover({ timeout: 15_000 })
     },
@@ -3412,29 +3391,13 @@ export const SCREENS: Screen[] = [
     name: "canvas-group-workspace-switcher",
     description:
       "A Group's Workspace list, opened from the pill on its group label: Show <Group> from…, and a footer saying how many frames move (#869).",
-    path: `/${ids.rooms.checkout}`,
+    path: `/${ids.rooms.pricing}`,
     prepare: async (page) => {
       await page
-        .getByRole("button", { name: /^Show Cart from another workspace/ })
+        .getByRole("button", { name: /^Show Pricing from another workspace/ })
         .click({ timeout: 15_000 })
       await page
-        .getByPlaceholder("Show Cart from…")
-        .waitFor({ state: "visible", timeout: 15_000 })
-    },
-    settleMs: 800,
-  },
-  {
-    name: "canvas-group-workspace-exceptions",
-    description:
-      "A Group switcher whose Group has exceptions: the footer names the frames that stay on their own Workspaces (#869).",
-    path: `/${ids.rooms.frameStates}`,
-    prepare: async (page) => {
-      // Progress is on search-filters; Starting and Ready are exceptions.
-      await page
-        .getByRole("button", { name: /^Show Progress from another workspace/ })
-        .click({ timeout: 15_000 })
-      await page
-        .getByPlaceholder("Show Progress from…")
+        .getByPlaceholder("Show Pricing from…")
         .waitFor({ state: "visible", timeout: 15_000 })
     },
     settleMs: 800,

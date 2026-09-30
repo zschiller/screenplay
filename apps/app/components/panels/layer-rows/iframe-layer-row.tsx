@@ -26,7 +26,6 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
-import { isWorkspaceException } from "@/lib/canvas/group-workspace"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
 import {
@@ -41,9 +40,9 @@ import type { LayerRowMenuProps, LayerRowProps } from "./types"
 export interface IframeLayerRowExtraProps {
   /** Branches indexed by id, for fast branch-badge lookup. */
   branchesById: ReadonlyMap<string, BranchData>
-  /** Each frame's Group's Workspace, by frame id (#868). A row inside a Group
-   *  names its Workspace only when it differs from this. */
-  groupBranchIdByLayerId: ReadonlyMap<string, string | undefined>
+  /** Frames whose Group's row names the Workspace they all show (#1276).
+   *  Every other row inside a Group names its own. */
+  framesNamedByGroup: ReadonlySet<string>
 }
 
 export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
@@ -62,10 +61,9 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     const Icon = iframeLayerKind.Icon
     const label = iframeLayerKind.getLabel(item)
     // A Group of one's row names its Workspace; a row inside a Group names it
-    // only when it differs from the Group's, whose row names it once (#868).
+    // unless the Group's row names the one all its frames show (#1276).
     const showWorkspace =
-      variant === "flat" ||
-      isWorkspaceException(item, extras.groupBranchIdByLayerId.get(item.id))
+      variant === "flat" || !extras.framesNamedByGroup.has(item.id)
     const workspace = showWorkspace ? frameWorkspaceOf(branch) : undefined
     const workspaceMention = workspace ? (
       // Names win: the Workspace takes only the room the name leaves.
