@@ -24,12 +24,14 @@
 //   2. Refuse to run on a dirty working tree.
 //   3. Resolve the target version via the seam; abort if its tag already exists.
 //   4. Rewrite package.json, tauri.conf.json, Cargo.toml in lockstep.
-//   5. Build the sidecar, then `tauri build` → signed + notarized .app/.dmg.
+//   5. Build the sidecar, then `tauri build` → signed + notarized .app/.dmg,
+//      with the disk-drive volume icon swapped into the dmg.
 //   6. Verify signature, Gatekeeper assessment, and notarization staple.
 //   7. Only then: commit the bump → tag desktop-v<version> → create the Release.
 
 import { execFileSync } from "node:child_process"
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
@@ -209,6 +211,37 @@ const dmgPath = join(
 )
 if (!existsSync(appPath)) fail(`Expected bundle missing: ${appPath}`)
 if (!existsSync(dmgPath)) fail(`Expected disk image missing: ${dmgPath}`)
+
+// Tauri always gives the mounted dmg the app's own .icns as its volume icon.
+// Swap in the disk-drive composite (scripts/build-volume-icon.mjs) so the
+// mounted volume reads as an installer disk: convert to read-write, replace
+// .VolumeIcon.icns in place (keeping its Finder flags), convert back to the
+// same compressed UDZO Tauri produced, and re-sign, since the rewrite drops
+// Tauri's dmg signature.
+log("setting the dmg volume icon…")
+const volumeWorkDir = mkdtempSync(join(tmpdir(), "screenplay-dmg-"))
+const rwDmgPath = join(volumeWorkDir, "rw.dmg")
+const mountPoint = join(volumeWorkDir, "mnt")
+run("hdiutil", ["convert", dmgPath, "-format", "UDRW", "-o", rwDmgPath])
+run("hdiutil", ["attach", rwDmgPath, "-nobrowse", "-noautoopen", "-mountpoint", mountPoint])
+try {
+  copyFileSync(join(srcTauri, "icons", "dmg-volume.icns"), join(mountPoint, ".VolumeIcon.icns"))
+} finally {
+  run("hdiutil", ["detach", mountPoint])
+}
+run("hdiutil", [
+  "convert",
+  rwDmgPath,
+  "-format",
+  "UDZO",
+  "-imagekey",
+  "zlib-level=9",
+  "-ov",
+  "-o",
+  dmgPath,
+])
+rmSync(volumeWorkDir, { recursive: true, force: true })
+run("codesign", ["--force", "--timestamp", "--sign", releaseEnv.APPLE_SIGNING_IDENTITY, dmgPath])
 
 // Tauri notarizes only the .app; the dmg needs its own ticket or Gatekeeper
 // rejects it as "Unnotarized Developer ID" (and the offline fresh-Mac install
