@@ -1,4 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "bash ../../scripts/vercel-ignore-build.sh docs"
+  "ignoreCommand": "bash ../../scripts/vercel-ignore-build.sh docs",
+  "rewrites": [
+    { "source": "/", "destination": "/docs" },
+    { "source": "/favicon.ico", "destination": "/docs/icon.svg" }
+  ]
 }

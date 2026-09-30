@@ -3,7 +3,9 @@ import { getSessionCookie } from "better-auth/cookies"
 import { isLocalBuild } from "@/lib/local-mode"
 
 // Routes reachable without a session. Everything else bounces to /sign-in.
-const PUBLIC_PATHS = ["/", "/sign-in", "/api/auth", "/api/yjs/auth"]
+// `/icon` is the favicon (app/icon.ts): the sign-in page and Vercel's
+// dashboard ask for it signed out.
+const PUBLIC_PATHS = ["/", "/sign-in", "/icon", "/api/auth", "/api/yjs/auth"]
 
 function isPublic(pathname: string): boolean {
   if (
