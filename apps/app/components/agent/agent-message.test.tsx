@@ -5,6 +5,8 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import { inputStore } from "@/lib/input-store"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
+import { renderHistory } from "@/lib/agent/history-render"
+import { wireToContentBlocks } from "@/lib/agent/acp/markers"
 import { sentToWorkspaceResult } from "@/lib/agent/workspace-task"
 import type { BranchData } from "@/lib/types"
 import {
@@ -1027,5 +1029,46 @@ describe("AgentMessageItem — Coordinator wakes (#897)", () => {
       </WorkspaceTasksProvider>
     )
     expect(screen.queryByTestId("workspace-link")).toBeNull()
+  })
+})
+
+describe("AgentMessageItem — user turns after a reload (#1252)", () => {
+  /** A persisted user turn, rendered the way a reload renders it. */
+  const reloaded = (wire: string): AgentMessage => {
+    const [message] = renderHistory([
+      {
+        kind: "record",
+        record: { role: "user", content: wireToContentBlocks(wire) },
+      },
+    ])
+    return message
+  }
+
+  it("hides a reloaded Coordinator wake", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={reloaded(
+          prependTurnMarkers("Workspace finished its turn.", {
+            wakeFrom: "ws-1",
+          })
+        )}
+      />
+    )
+    expect(container.textContent).toBe("")
+  })
+
+  it("keeps a reloaded Delegated Message collapsed", () => {
+    render(
+      <AgentMessageItem
+        message={reloaded(
+          prependTurnMarkers("Keep the next param.", {
+            delegatedFrom: "room-chat-r1",
+            branch: "fix-sign-in",
+          })
+        )}
+      />
+    )
+    expect(screen.getByTestId("delegated-message")).toBeTruthy()
+    expect(screen.queryByText("Keep the next param.")).toBeNull()
   })
 })
