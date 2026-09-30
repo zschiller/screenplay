@@ -96,9 +96,8 @@ export function toolNamingForTurn(
  * `model` is the chat's stored `model` id, parsed by the harness codec into
  * `{ harnessKey, modelId? }` (#526, AC#1). A `harness:<key>` id picks which
  * adapter the (already build-selected) external engine spawns; the optional
- * `:<modelId>` half refines *which model* that adapter runs, threaded to both
- * the spawn (codex's `-c model=`) and the session (claude-code's
- * `set_config_option`). Any other id — a `provider:` model, or none — falls back
+ * `:<modelId>` half refines *which model* that adapter runs, applied in-session
+ * through the adapter's `set_config_option`. Any other id — a `provider:` model, or none — falls back
  * to {@link acpHarnessFromEnv} with no model. The id only ever selects the
  * adapter and refines its model, never the engine (ADR 0006): it can't flip a
  * deployment between in-process and external. A harness the user picked but
@@ -139,7 +138,7 @@ export async function resolveLiveEngine(
   const harnessKey = decoded?.key ?? acpHarnessFromEnv()
   const modelId = decoded?.modelId
 
-  const sessionFactory = new SpawnAcpSessionFactory({ harnessKey, modelId })
+  const sessionFactory = new SpawnAcpSessionFactory({ harnessKey })
   // Resume the agent's own session across turns/reloads when we have a chat to
   // key it on. The id is loaded once here (per-request) and re-bound by the
   // engine on a fresh `session/new`.

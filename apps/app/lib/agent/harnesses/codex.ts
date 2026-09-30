@@ -232,22 +232,20 @@ export const codexHarness: Harness = {
   launchArgv: ["codex"],
   // The desktop detector probes `codex` on PATH (the global install exposes it).
   hostBinary: "codex",
-  // Backs agent chat via the Zed codex ACP adapter — rides `codex login` /
-  // `CODEX_API_KEY`, per spike #405. The adapter advertises no `availableModels`
-  // (spike #523), so a per-chat model choice can't ride ACP's in-session
-  // `set_config_option`; it's applied at spawn as a config override,
-  // `-c model="<id>"` (the adapter has no `--model` flag and exits on one, #1192).
-  // Omitted when no model is stored (bare `harness:codex`), so codex spawns
-  // unchanged.
+  // Backs agent chat via the maintained codex ACP adapter (#1271), which rides
+  // `codex login` / `CODEX_API_KEY` like the CLI does. It is built on the Codex
+  // App Server and bundles a current Codex core, so today's models run. Like
+  // claude-code it advertises a `model` config option, so a chat's model is
+  // applied in-session (`session/set_config_option`) rather than at spawn.
+  // Pinned so a new adapter release can't change the tool-call contract under us.
   acpAdapter: {
     command: "npx",
-    args: ["-y", "@zed-industries/codex-acp"],
-    modelArgs: (modelId) => ["-c", `model=${JSON.stringify(modelId)}`],
+    args: ["-y", "@agentclientprotocol/codex-acp@2.0.1"],
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.
-  // The ids are Codex's model slugs (the same names its `-c model=` override /
-  // `config.toml` take, https://developers.openai.com/codex/models). `gpt-6-astra`
+  // The ids are Codex's model slugs (the values of the adapter's `model` config
+  // option and `config.toml`'s `model`, https://developers.openai.com/codex/models). `gpt-6-astra`
   // is the most capable and the pre-selected per-Harness default; `gpt-6-luna`
   // is the efficient tier. `gpt-5.5` stays until Codex retires it (2026-10-14).
   // `gpt-6.1-sol` is left out while its rollout is still partial.

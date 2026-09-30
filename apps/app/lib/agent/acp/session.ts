@@ -106,8 +106,8 @@ export interface OpenSessionOptions {
    * reconciles via {@link reconcileModel} — a model is a preference refinement,
    * not an identity, so a stale one never fails the turn (unlike a missing
    * Harness, which fails loud). Absent ⇒ no model call, the Harness runs its own
-   * default. An adapter that advertises *no* model option (codex — spike #523)
-   * takes the no-op branch here; its model rode the spawn argv instead.
+   * default. An adapter that advertises *no* model option takes the no-op
+   * branch here.
    */
   modelId?: string
   /**
@@ -169,8 +169,7 @@ export interface AvailableModel {
  * the model-application path needs: the option's `configId` (to target
  * `session/set_config_option`), the value currently active, and the models it
  * offers. Kept structural so this module reads only what it needs, mirroring
- * {@link SessionModes}. An agent that advertises no model option (codex — spike
- * #523) yields `null`, which the model-application path treats as "the Harness
+ * {@link SessionModes}. An agent that advertises no model option yields `null`, which the model-application path treats as "the Harness
  * runs its own default".
  */
 interface ModelConfig {
@@ -186,6 +185,8 @@ const MODEL_OPTION_ID = "model"
 
 /** ACP/JSON-RPC internal-error code; an adapter returns it for a model it can't run. */
 const INTERNAL_ERROR_CODE = -32603
+/** JSON-RPC invalid-params code; codex's adapter returns it for a model it doesn't offer. */
+const INVALID_PARAMS_CODE = -32602
 
 /**
  * The structural slice of an advertised `configOptions` entry this module reads.
@@ -203,8 +204,7 @@ interface ConfigOptionLike {
 
 /**
  * Pull the model selector out of an agent's advertised `configOptions`, or
- * `null` when it advertises none (a mode/effort-only agent, or codex which
- * advertises nothing). Recognised by ACP's reserved `"model"` category, falling
+ * `null` when it advertises none (a mode/effort-only agent). Recognised by ACP's reserved `"model"` category, falling
  * back to the conventional `"model"` option id — both are spec-blessed hints, so
  * this never hard-codes an adapter's private id. Only a single-value `select`
  * with a string `currentValue` qualifies; its value groups are flattened so a
@@ -311,7 +311,7 @@ export class AcpSession {
   /**
    * The models the agent advertised for this session, in advertised order —
    * captured at {@link AcpSession.open} from the model config option. Empty when
-   * the agent advertises no model option (codex — spike #523), or before the
+   * the agent advertises no model option, or before the
    * session is opened. This is the "what models does the current build offer?"
    * mechanism (#638): the list reflects the *actually-spawned* adapter, not the
    * static Harness catalog, so a build whose adapter gained or dropped a model is
@@ -425,8 +425,7 @@ export class AcpSession {
    * model counterpart of {@link maybeEnterPlanMode}. First captures the advertised
    * model list (for {@link availableModels}) and the selector's `configId`, then:
    *
-   *  - no model option advertised (codex — spike #523): no call, the Harness runs
-   *    its own default (codex took its model at spawn);
+   *  - no model option advertised: no call, the Harness runs its own default;
    *  - no `modelId`: no call, the Harness runs its own default;
    *  - `modelId` is the current model already: no call;
    *  - otherwise: `session/set_config_option` forwards it, and we remember the
@@ -444,6 +443,12 @@ export class AcpSession {
    * recovers to the default, reconciles the stored id, and retries once — the same
    * silent recovery, just driven by the agent's verdict rather than a guess from
    * its advertised list.
+   *
+   * Codex's adapter validates eagerly instead (#1271): it rejects an id it
+   * doesn't offer on the `set_config_option` call itself with invalid params.
+   * That is the same verdict arriving earlier, so it gets the same silent
+   * recovery: the session stays on the Harness default and the stored id is
+   * reconciled to it.
    */
   private async maybeSetModel(
     modelId: string | undefined,
@@ -456,11 +461,17 @@ export class AcpSession {
     this.modelConfigId = model.configId
     if (!modelId) return
     if (modelId === model.currentValue) return
-    await this.conn.setSessionConfigOption({
-      sessionId: this.id,
-      configId: model.configId,
-      value: modelId,
-    })
+    try {
+      await this.conn.setSessionConfigOption({
+        sessionId: this.id,
+        configId: model.configId,
+        value: modelId,
+      })
+    } catch (e) {
+      if (!isRejectedModelError(e)) throw e
+      await this.reconcileModel?.(model.currentValue)
+      return
+    }
     this.appliedModelFallback = model.currentValue
   }
 
@@ -614,6 +625,19 @@ function supportedMcpServers(
 /** Whether an advertised session mode is the agent's plan mode (id or name). */
 function isPlanMode(mode: { id: string; name: string }): boolean {
   return mode.id === "plan" || /plan/i.test(mode.name)
+}
+
+/**
+ * Whether a `set_config_option` call failed because the agent doesn't offer the
+ * model (codex's eager check, #1271). Only invalid params qualifies; any other
+ * failure still fails the open.
+ */
+function isRejectedModelError(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    (e as { code?: unknown }).code === INVALID_PARAMS_CODE
+  )
 }
 
 /**

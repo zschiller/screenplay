@@ -51,9 +51,7 @@ export interface ExternalEngineConfig {
    * The chat's chosen model *within* the Harness (the `modelId` half of its
    * stored `harness:<key>:<modelId>` id — ADR 0006: it refines which model the
    * already-build-selected external engine runs, never the engine itself). At
-   * session open the ACP-native adapter applies it via `set_config_option`; an
-   * adapter that takes its model at spawn (codex) already has it on the argv, so
-   * this is inert there. Absent ⇒ the Harness runs its own default.
+   * session open the adapter applies it via `set_config_option`. Absent ⇒ the Harness runs its own default.
    */
   modelId?: string
   /**

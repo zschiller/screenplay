@@ -62,20 +62,6 @@ export interface AcpAdapter {
   command: string
   /** Arguments passed to {@link command}. */
   args: string[]
-  /**
-   * Fold a chosen model id into the adapter's spawn argv, for Harnesses whose
-   * ACP adapter does **not** advertise/honor ACP-native model selection
-   * (`session/set_config_option`) and so must take their model at launch instead
-   * (spike #523). Codex advertises no `availableModels`, so it carries the choice
-   * as a spawn arg (codex: `-c model="<id>"`); claude-code is ACP-native and omits this, so
-   * its model is applied in-session via {@link import("../acp/session").AcpSession}
-   * rather than at spawn. Returns the extra args to append after {@link args};
-   * absent or called with no model ⇒ no extra args, so a Harness with no stored
-   * model spawns exactly as before. The spawn path applies this; the in-session
-   * `set_config_option` path is a no-op for these adapters (no models advertised),
-   * so the two never double-apply.
-   */
-  modelArgs?(modelId: string): string[]
 }
 
 /**
