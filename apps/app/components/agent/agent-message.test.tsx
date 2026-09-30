@@ -167,6 +167,22 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     expect(text).not.toContain("Search Files")
   })
 
+  // A harness reaches the Coordinator's tools over MCP, under its namespace.
+  it("labels our own tools by name when a harness namespaces them", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "mcp__screenplay__read_canvas",
+          kind: "other",
+          status: "completed",
+        })}
+      />
+    )
+    const text = screen.getByTestId("tool-call").textContent ?? ""
+    expect(text).toContain("Read canvas")
+    expect(text).not.toContain("mcp__")
+  })
+
   // A generic ACP adapter (e.g. claude-agent-acp) sends an already
   // human-readable, markdown-formatted title — not a raw snake_case name.
   // We must render it verbatim (no per-word re-casing) and honor its markdown.

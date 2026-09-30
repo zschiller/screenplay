@@ -11,14 +11,17 @@ import {
   ArrowsOutCardinalIcon,
   BookBookmarkIcon,
   BrainIcon,
+  ChatTextIcon,
   CaretRightIcon,
   CheckCircleIcon,
   ClipboardTextIcon,
   ClockCounterClockwiseIcon,
   CrosshairIcon,
+  EyeIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderOpenIcon,
+  GitDiffIcon,
   GitPullRequestIcon,
   ListDashesIcon,
   NotePencilIcon,
@@ -57,6 +60,7 @@ import {
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import type { TurnSummary } from "@/lib/agent/turn-summary"
+import { bareToolName } from "@/lib/agent/tool-name"
 import {
   elementMarkersToPills,
   parseTargetedElementsFooter,
@@ -101,6 +105,11 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   restart_dev_server: ArrowsClockwiseIcon,
   read_document: FileTextIcon,
   read_canvas: SquaresFourIcon,
+  read_workspace_chat: ChatTextIcon,
+  read_workspace_diff: GitDiffIcon,
+  read_workspace_file: FileTextIcon,
+  view_frame: EyeIcon,
+  write_memory: BrainIcon,
   replace_document_body: NotePencilIcon,
   append_to_document_body: NotePencilIcon,
   set_document_title: PencilSimpleLineIcon,
@@ -132,6 +141,11 @@ const toolLabels: Record<string, string> = {
   submit_plan: "Submit plan",
   read_document: "Read document",
   read_canvas: "Read canvas",
+  read_workspace_chat: "Read Workspace chat",
+  read_workspace_diff: "Read Workspace diff",
+  read_workspace_file: "Read Workspace file",
+  view_frame: "View frame",
+  write_memory: "Save to memory",
   replace_document_body: "Rewrite document",
   append_to_document_body: "Append to document",
   set_document_title: "Set title",
@@ -228,7 +242,7 @@ const CANVAS_CHANGE_TOOLS = new Set([
 function canvasChangeLine(
   message: AgentMessage & { role: "tool_call" }
 ): string | null {
-  if (!CANVAS_CHANGE_TOOLS.has(message.title)) return null
+  if (!CANVAS_CHANGE_TOOLS.has(bareToolName(message.title))) return null
   if (message.status !== "completed") return null
   const text = message.content
     .map((b) =>
@@ -500,8 +514,11 @@ function ToolCallRow({
   const running =
     message.status === "pending" || message.status === "in_progress"
   const failed = message.status === "failed"
+  // Our own tools reached over a harness's MCP connection carry its
+  // namespace (`mcp__screenplay__read_canvas`); label them by their own name.
+  const name = bareToolName(message.title)
   const Icon =
-    toolIcons[message.title] ??
+    toolIcons[name] ??
     (message.kind ? kindIcons[message.kind] : undefined) ??
     TerminalIcon
   // Render every engine's tool call the same way: derive the verb + detail from
@@ -512,15 +529,15 @@ function ToolCallRow({
   // adapter's prose title is normalized via its ACP `kind`. A call we can't
   // structure (an unknown kind with no recognizable input) keeps the adapter's
   // prose title verbatim, rendered with inline `code` only.
-  const isRawToolName = RAW_TOOL_NAME.test(message.title)
+  const isRawToolName = RAW_TOOL_NAME.test(name)
   const path = toolPath(message.rawInput)
   const detail = isRawToolName
-    ? toolDetail(message.title, message.rawInput)
+    ? toolDetail(name, message.rawInput)
     : message.kind === "execute"
       ? toolCommand(message.rawInput)
       : path
   const verb = isRawToolName
-    ? formatToolName(message.title)
+    ? formatToolName(name)
     : message.kind
       ? (KIND_VERB[message.kind] ?? null)
       : null

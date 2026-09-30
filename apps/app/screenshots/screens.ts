@@ -554,6 +554,45 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-coordinator-harness",
+    description:
+      "A finished Coordinator turn on the Claude harness, steps open: its MCP tools labelled by their own names, Claude Code's ToolSearch left out.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(
+        page,
+        roomChatId(ids.rooms.checkout),
+        harnessCoordinatorRun({ finished: true })
+      )
+      await page.getByTestId("turn-summary-trigger").first().click()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-coordinator-harness-running",
+    description:
+      "The same Coordinator turn on the Claude harness while it runs.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(
+        page,
+        roomChatId(ids.rooms.checkout),
+        harnessCoordinatorRun({ finished: false })
+      )
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-coordinator-undo",
     description:
       "The Coordinator removing a frame and a document, then undoing it when asked, with both turns' steps open (#894).",
@@ -4399,6 +4438,101 @@ export function coordinatorRun(): RunEvent[] {
             "",
             "There are four frames (checkout on desktop and iPhone, the empty cart, and one with no Workspace) and one document, Checkout brief.",
           ].join("\n")
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
+/**
+ * A Coordinator turn on the Claude harness, which reaches our tools over MCP:
+ * claude-agent-acp titles each call `mcp__screenplay__<tool>` (kind "other",
+ * its input as a JSON block until the result lands), after Claude Code's own
+ * `ToolSearch` loads them. `finished: false` stops before the reply.
+ */
+export function harnessCoordinatorRun({
+  finished,
+}: {
+  finished: boolean
+}): RunEvent[] {
+  const call = (
+    toolCallId: string,
+    title: string,
+    rawInput: Record<string, unknown>,
+    result: string
+  ): RunEvent[] => [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId,
+        title,
+        kind: "other",
+        status: "pending",
+        rawInput,
+        content: [
+          {
+            type: "content",
+            content: text(
+              "```json\n" + JSON.stringify(rawInput, null, 2) + "```"
+            ),
+          },
+        ],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId,
+        status: "completed",
+        content: [{ type: "content", content: text(result) }],
+      },
+    },
+  ]
+  const steps: RunEvent[] = [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text(
+          "What's on this canvas, and which Workspaces are behind?"
+        ),
+      },
+    },
+    { type: "chat-stream-start" },
+    ...call(
+      "harness-tool-search",
+      "ToolSearch",
+      {
+        query:
+          "select:mcp__screenplay__read_canvas,mcp__screenplay__list_changes",
+      },
+      "Loaded 2 tools."
+    ),
+    ...call(
+      "harness-read-canvas",
+      "mcp__screenplay__read_canvas",
+      {},
+      'Canvas "Checkout flow": 4 Workspaces, 4 frames, 1 document.'
+    ),
+    ...call(
+      "harness-list-changes",
+      "mcp__screenplay__list_changes",
+      {},
+      "No changes yet."
+    ),
+  ]
+  if (!finished) return steps
+  return [
+    ...steps,
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "Four Workspaces on acme/storefront. **Checkout polish** has PR #482 open, **Empty cart state** has no PR yet, **Apple Pay button** is still starting and **gift-cards** failed setup."
         ),
       },
     },
