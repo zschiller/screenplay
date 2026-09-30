@@ -81,6 +81,7 @@ export async function POST(req: Request) {
       chatId,
       message,
       sandboxName,
+      markdownLayerId,
       model,
       userId,
       retry: body.retry === true,

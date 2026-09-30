@@ -132,9 +132,60 @@ describe("buildMarkdownLayerSystemPrompt — formatting rules", () => {
     expect(rule).toContain("replace_document_body")
   })
 
-  it("never mentions a sandbox, shell, or commands", () => {
-    expect(prompt()).toMatch(/no sandbox, no shell, no git/)
+  it("offers no shell or commands", () => {
+    expect(prompt()).toMatch(/no shell and never change code/)
     expect(prompt()).not.toMatch(/run_command/)
+  })
+})
+
+describe("buildMarkdownLayerSystemPrompt — the canvas's code", () => {
+  const prompt = (
+    opts: Partial<Parameters<typeof buildMarkdownLayerSystemPrompt>[0]> = {}
+  ) =>
+    buildMarkdownLayerSystemPrompt({
+      currentTitle: "Onboarding spec",
+      currentBody: "",
+      layerDirectory: EMPTY_DIRECTORY,
+      ...opts,
+    })
+
+  it("lists the Workspaces whose code it reads, and the tools that read it", () => {
+    const out = prompt({
+      checkouts: [
+        { workspaceId: "ws-1", title: "Sign-in fix", repo: "web" },
+        { workspaceId: "ws-2", title: "API errors", repo: "api" },
+      ],
+    })
+
+    expect(out).toContain('- [ws-1] "Sign-in fix" (web)')
+    expect(out).toContain('- [ws-2] "API errors" (api)')
+    expect(out).toContain("`read_code_file`")
+    expect(out).toContain("`search_code`")
+    expect(out).toContain("Pass the `workspaceId`")
+  })
+
+  it("lets a canvas with one Workspace leave out its id", () => {
+    const out = prompt({
+      checkouts: [{ workspaceId: "ws-1", title: "Sign-in fix", repo: "web" }],
+    })
+
+    expect(out).toContain("you can leave out `workspaceId`")
+  })
+
+  it("says there is no code when no Workspace has a checkout", () => {
+    expect(prompt()).toContain("no Workspace with a checkout yet")
+    expect(prompt()).not.toContain("read_code_file")
+  })
+
+  it("names its tools the way a desktop harness exposes them (#1223)", () => {
+    const out = prompt({
+      checkouts: [{ workspaceId: "ws-1", title: "Sign-in fix", repo: "web" }],
+      toolNaming: { name: (tool) => `mcp__screenplay__${tool}` },
+    })
+
+    expect(out).toContain("`mcp__screenplay__replace_document_body`")
+    expect(out).toContain("`mcp__screenplay__search_code`")
+    expect(out).not.toMatch(/[^_]`read_document`/)
   })
 })
 

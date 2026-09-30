@@ -11,6 +11,7 @@ import {
 } from "@/lib/agent/message-markers"
 import { workspaceLink } from "@/lib/agent/workspace-task"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
+import type { CodeCheckout } from "@/lib/agent/code-read-tools"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
@@ -28,12 +29,16 @@ export interface LayerDirectory {
  * directory doesn't list the doc itself (the targeted doc's full body is
  * already inlined elsewhere in the prompt).
  */
-function renderLayerDirectory(dir: LayerDirectory, excludeId?: string): string {
+function renderLayerDirectory(
+  dir: LayerDirectory,
+  excludeId?: string,
+  t: ToolNaming["name"] = BARE_TOOL_NAMING.name
+): string {
   const docs = dir.documents.filter((d) => d.id !== excludeId)
   if (docs.length === 0) return ""
   const lines: string[] = [
     "",
-    "Layers on this canvas (call `read_document` with the id):",
+    `Layers on this canvas (call \`${t("read_document")}\` with the id):`,
   ]
   lines.push("  Documents:")
   for (const d of docs) lines.push(`    - ${d.id}: ${d.title || "Untitled"}`)
@@ -66,11 +71,14 @@ export function renderCanvasMemory(
  * System prompt for chat sessions that target a *document layer* on the
  * canvas instead of an agent's sandbox. The agent's job here is editorial:
  * it reads the doc body, edits the title, and rewrites the body using
- * lightweight markdown. No file system, no shell, no git.
+ * lightweight markdown. It has no shell and writes no code, but it reads the
+ * code of the canvas's Workspaces (`checkouts`), so a document can be about
+ * the codebase.
  *
  * `currentTitle` and `currentBody` are baked in so the model has the
  * latest state without having to call `read_document` first; it can still
- * read peer documents to follow `@<title>` mentions.
+ * read peer documents to follow `@<title>` mentions. `toolNaming` names its
+ * tools the way the turn's engine exposes them (#1223).
  */
 export function buildMarkdownLayerSystemPrompt(opts: {
   currentTitle: string
@@ -79,28 +87,36 @@ export function buildMarkdownLayerSystemPrompt(opts: {
   /** This doc's own id — excluded from the directory to avoid self-recursion. */
   selfId?: string
   memory?: readonly MemoryData[]
+  /** The Workspaces whose code the chat can read. */
+  checkouts?: readonly Pick<CodeCheckout, "workspaceId" | "title" | "repo">[]
+  toolNaming?: ToolNaming
 }): string {
+  const naming = opts.toolNaming ?? BARE_TOOL_NAMING
+  const t = naming.name
   return [
-    "You are an editor working inside a Notion-style document tile on a collaborative canvas. You can read, retitle, and rewrite the document via your tools. There is no sandbox, no shell, no git — only the document body.",
+    "You are an editor working inside a Notion-style document tile on a collaborative canvas. You can read, retitle, and rewrite the document via your tools, and read the code of the canvas's Workspaces. You have no shell and never change code: Workspace agents do that.",
+    ...(naming.note ? ["", naming.note] : []),
     "",
     "Formatting rules for the document body:",
     "- Separate paragraphs with a blank line.",
     "- Headings: prefix with `# `, `## `, `### ` (up to 6 hashes).",
     "- Bullet lists: prefix each item with `- ` or `* `.",
     "- Inline marks are preserved — use `**bold**`, `*italic*`, `` `code` ``, `[link](url)` where they help.",
-    "- One exception: `append_to_document_body` re-reads the existing body as plain text before concatenating, so marks *already in the document* are flattened. What you append keeps its own marks. If preserving the document's existing marks matters, rewrite the whole body with `replace_document_body` instead.",
+    `- One exception: \`${t("append_to_document_body")}\` re-reads the existing body as plain text before concatenating, so marks *already in the document* are flattened. What you append keeps its own marks. If preserving the document's existing marks matters, rewrite the whole body with \`${t("replace_document_body")}\` instead.`,
     "",
     "When the user asks for a change:",
-    "1. If you need to confirm the current text, call `read_document` first (with no `id`, you get the targeted doc).",
-    "2. For full rewrites or restructures, call `replace_document_body` with the entire new body.",
-    "3. For incremental additions, call `append_to_document_body`.",
-    "4. To rename the doc, call `set_document_title`.",
+    `1. If you need to confirm the current text, call \`${t("read_document")}\` first (with no \`id\`, you get the targeted doc).`,
+    `2. For full rewrites or restructures, call \`${t("replace_document_body")}\` with the entire new body.`,
+    `3. For incremental additions, call \`${t("append_to_document_body")}\`.`,
+    `4. To rename the doc, call \`${t("set_document_title")}\`.`,
     "5. After editing, give the user a short summary of what you changed.",
+    "",
+    renderCodeAccess(opts.checkouts ?? [], t),
     "",
     "Following mentions to other docs:",
     `- The user's message may contain \`${MENTION_MARKER_TOKEN}\` markers, and any document body you fetch may contain free-text \`@<title>\` references.`,
-    "- Look up the title in the layer directory below to get the id, then call `read_document(id)` to load it.",
-    `- Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the user's message, pairing each id with its title so you can \`read_document(id)\` directly.`,
+    `- Look up the title in the layer directory below to get the id, then call \`${t("read_document")}(id)\` to load it.`,
+    `- Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the user's message, pairing each id with its title so you can \`${t("read_document")}(id)\` directly.`,
     "",
     `Current title: ${opts.currentTitle || "(untitled)"}`,
     "",
@@ -108,8 +124,30 @@ export function buildMarkdownLayerSystemPrompt(opts: {
     "```",
     opts.currentBody || "(empty)",
     "```",
-    renderLayerDirectory(opts.layerDirectory, opts.selfId),
+    renderLayerDirectory(opts.layerDirectory, opts.selfId, t),
     ...(opts.memory?.length ? [renderCanvasMemory(opts.memory)] : []),
+  ].join("\n")
+}
+
+/**
+ * The document chat's code block: which Workspaces' code it reads and with
+ * which tools, or that there is none yet.
+ */
+function renderCodeAccess(
+  checkouts: readonly Pick<CodeCheckout, "workspaceId" | "title" | "repo">[],
+  t: ToolNaming["name"]
+): string {
+  if (checkouts.length === 0) {
+    return "Code: this canvas has no Workspace with a checkout yet, so there is no code to read. If the user asks about the code, say so."
+  }
+  return [
+    "Reading the code:",
+    `- When the document is about the product or its code, ground it in the code: find files with \`${t("find_code_files")}\`, search with \`${t("search_code")}\`, and read them with \`${t("read_code_file")}\`. Don't guess what the code does.`,
+    checkouts.length === 1
+      ? "- The canvas has one Workspace, so you can leave out `workspaceId`."
+      : "- Pass the `workspaceId` of the Workspace to read. Each is a branch of its repository; when the user doesn't say which, read the one whose repository fits, and the oldest when they are the same repository.",
+    "Workspaces:",
+    ...checkouts.map((c) => `- [${c.workspaceId}] "${c.title}" (${c.repo})`),
   ].join("\n")
 }
 

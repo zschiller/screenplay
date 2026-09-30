@@ -54,9 +54,13 @@ vi.mock("@/lib/local-mode", () => localMode)
 const ensureCoordinatorFolder = vi.fn(
   async (roomId: string) => `/coordinator/${roomId}`
 )
+const ensureDocumentsFolder = vi.fn(
+  async (roomId: string) => `/coordinator/documents/${roomId}`
+)
 vi.mock("@/lib/agent/coordinator-mcp", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/agent/coordinator-mcp")>()),
   ensureCoordinatorFolder: (roomId: string) => ensureCoordinatorFolder(roomId),
+  ensureDocumentsFolder: (roomId: string) => ensureDocumentsFolder(roomId),
 }))
 
 import { ENGINE_ENV_VAR } from "./engine-select"
@@ -289,6 +293,7 @@ describe("resolveLiveEngine", () => {
     afterEach(() => {
       localMode.isLocalBuild = false
       ensureCoordinatorFolder.mockClear()
+      ensureDocumentsFolder.mockClear()
     })
 
     it("runs in the Room's own folder and gets its tools over MCP", async () => {
@@ -358,6 +363,30 @@ describe("resolveLiveEngine", () => {
         roomId: "r1",
         chatId: "chat-9",
         sandboxName: "branch-7",
+      })
+      expect(config.sessionMeta).toEqual({
+        claudeCode: { options: { allowedTools: ["mcp__screenplay__*"] } },
+      })
+    })
+
+    it("gives a document chat its Room's documents folder and its tools", async () => {
+      process.env[ENGINE_ENV_VAR] = "external"
+      localMode.isLocalBuild = true
+      const config = configOf(
+        await resolveLiveEngine({
+          markdownLayerId: "doc-1",
+          chatId: "chat-doc",
+          roomId: "r1",
+        })
+      )
+      expect(config.cwd).toBe("/coordinator/documents/r1")
+      const auth = config.mcpServers![0]!.headers!.find(
+        (h) => h.name === "Authorization"
+      )
+      expect(resolveCoordinatorToken(auth!.value)).toEqual({
+        roomId: "r1",
+        chatId: "chat-doc",
+        markdownLayerId: "doc-1",
       })
       expect(config.sessionMeta).toEqual({
         claudeCode: { options: { allowedTools: ["mcp__screenplay__*"] } },

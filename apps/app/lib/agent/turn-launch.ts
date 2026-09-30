@@ -66,6 +66,8 @@ export interface TurnRequest {
   /** The user's message as typed, for the live echo. */
   message: string
   sandboxName?: string
+  /** The document a document chat's turn targets. */
+  markdownLayerId?: string
   model?: string
   /** Who sent the message, recorded on a Steer so a stop can hand it back. */
   userId?: string | null
@@ -111,6 +113,7 @@ export interface EngineTurnLaunch {
 export interface TurnLaunchDeps {
   resolveEngine(input: {
     sandboxName?: string
+    markdownLayerId?: string
     chatId: string
     model?: string
     roomId: string
@@ -228,6 +231,7 @@ export async function launchTurn(
 
   const engine = await deps.resolveEngine({
     sandboxName: request.sandboxName,
+    markdownLayerId: request.markdownLayerId,
     chatId,
     model: request.model,
     roomId,

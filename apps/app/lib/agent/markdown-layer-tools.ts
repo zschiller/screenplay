@@ -2,6 +2,8 @@ import "server-only"
 
 import { tool, jsonSchema } from "ai"
 import type { RoomDoc } from "@/lib/room-access"
+import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { CODE_READ_TOOL_ANNOTATIONS } from "@/lib/agent/code-read-tools"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -99,3 +101,18 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
 }
 
 export type DocumentTools = ReturnType<typeof buildMarkdownLayerTools>
+
+/**
+ * MCP hints for a document chat's tools on a desktop harness: its own
+ * document edits (undoable in the editor, never destructive), the shared
+ * document reader, and its code reads.
+ */
+export const MARKDOWN_LAYER_TOOL_ANNOTATIONS: Readonly<
+  Record<string, McpToolAnnotations>
+> = {
+  replace_document_body: { destructiveHint: false, openWorldHint: false },
+  append_to_document_body: { destructiveHint: false, openWorldHint: false },
+  set_document_title: { destructiveHint: false, openWorldHint: false },
+  read_document: { readOnlyHint: true, openWorldHint: false },
+  ...CODE_READ_TOOL_ANNOTATIONS,
+}

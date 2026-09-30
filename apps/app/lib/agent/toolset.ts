@@ -6,19 +6,29 @@ import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 import { buildMarkdownLayerTools } from "@/lib/agent/markdown-layer-tools"
 import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
+import {
+  buildCodeReadTools,
+  type CodeReadPorts,
+} from "@/lib/agent/code-read-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
 
 /**
  * What a chat target needs to assemble its toolset. The sandbox kind carries a
  * {@link ToolContext} (which VM, room, acting user); the markdown-layer kind
- * carries the document it's editing; the room kind carries the ports the
+ * carries the document it's editing and how to open a Workspace's Sandbox for
+ * its code reads; the room kind carries the ports the
  * Coordinator tools module drives. All carry the turn's Room (from Room
  * Access) so the cross-cutting read tools can resolve peer layers.
  */
 export type ToolTarget =
   | { kind: "sandbox"; room: RoomDoc; sandbox: ToolContext }
-  | { kind: "markdown-layer"; room: RoomDoc; markdownLayerId: string }
+  | {
+      kind: "markdown-layer"
+      room: RoomDoc
+      markdownLayerId: string
+      openSandbox: CodeReadPorts["openSandbox"]
+    }
   | {
       kind: "room"
       room: RoomDoc
@@ -43,10 +53,16 @@ export function toolsetFor(target: ToolTarget): ToolSet {
       ? buildSandboxTools(target.sandbox)
       : target.kind === "room"
         ? buildRoomTools(target.room.roomId, target.ports, target.turnId)
-        : buildMarkdownLayerTools({
-            room: target.room,
-            markdownLayerId: target.markdownLayerId,
-          })
+        : {
+            ...buildMarkdownLayerTools({
+              room: target.room,
+              markdownLayerId: target.markdownLayerId,
+            }),
+            ...buildCodeReadTools({
+              readDoc: (fn) => target.room.readDoc(fn),
+              openSandbox: target.openSandbox,
+            }),
+          }
   return withRedactedOutput({ ...own, ...read })
 }
 

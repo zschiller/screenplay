@@ -13,6 +13,8 @@ import { prependTurnMarkers } from "./message-markers"
 import type { ToolContext } from "./tools"
 import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
 import { liveWorkspaceReadPorts } from "./room-read-ports"
+import { codeCheckouts, type CodeCheckout } from "./code-read-tools"
+import { sandboxProvider } from "@/lib/sandbox"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import { getSkillIndex } from "@/lib/skills"
@@ -165,7 +167,8 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
 }
 
 // ---------------------------------------------------------------------------
-// Document target — edits a document layer's title + body via Yjs writes.
+// Document target — edits a document layer's title + body via Yjs writes, and
+// reads the code of the canvas's Workspaces.
 // ---------------------------------------------------------------------------
 
 export interface MarkdownLayerTarget {
@@ -178,6 +181,8 @@ interface MarkdownLayerContext {
   body: string
   layerDirectory: LayerDirectory
   memory: MemoryData[]
+  /** The Workspaces whose code the chat can read. */
+  checkouts: CodeCheckout[]
 }
 
 export const markdownLayerChatTarget: ChatTargetSpec<
@@ -186,7 +191,7 @@ export const markdownLayerChatTarget: ChatTargetSpec<
 > = {
   kind: "markdown-layer",
   async loadContext(room, target) {
-    const [self, layerDirectory, memory] = await Promise.all([
+    const [self, layerDirectory, memory, checkouts] = await Promise.all([
       room.readDoc(({ markdownLayers, doc }) => {
         const layer = markdownLayers.get(target.markdownLayerId)
         if (!layer) return null
@@ -199,17 +204,20 @@ export const markdownLayerChatTarget: ChatTargetSpec<
       }),
       loadLayerDirectory(room),
       loadCanvasMemory(room),
+      room.readDoc(codeCheckouts).catch(() => []),
     ])
     if (!self) return null
-    return { ...self, layerDirectory, memory }
+    return { ...self, layerDirectory, memory, checkouts }
   },
-  buildSystemPrompt(ctx) {
+  buildSystemPrompt(ctx, { toolNaming }) {
     return buildMarkdownLayerSystemPrompt({
       currentTitle: ctx.title,
       currentBody: ctx.body,
       layerDirectory: ctx.layerDirectory,
       selfId: ctx.id,
       memory: ctx.memory,
+      checkouts: ctx.checkouts,
+      toolNaming,
     })
   },
   buildTools(room, target) {
@@ -217,6 +225,8 @@ export const markdownLayerChatTarget: ChatTargetSpec<
       kind: "markdown-layer",
       room,
       markdownLayerId: target.markdownLayerId,
+      // A document chat reads code when asked, so an asleep Sandbox wakes.
+      openSandbox: (name) => sandboxProvider.get({ name, resume: true }),
     })
   },
   // No turn markers for a document chat. `[branch: …]` is meaningless without

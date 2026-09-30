@@ -26,12 +26,12 @@ import {
 import { applyTextEdit } from "@/lib/agent/edit"
 import { buildDevServerTools } from "@/lib/agent/dev-server-tools"
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
-import { renderFileWindow } from "@/lib/agent/render"
 import {
-  buildGlobInvocation,
-  buildGrepInvocation,
-  truncateOutput,
-} from "@/lib/agent/search"
+  findCodeFiles,
+  readCodeFile,
+  searchCode,
+} from "@/lib/agent/code-read-tools"
+import { truncateOutput } from "@/lib/agent/search"
 
 /**
  * Everything a sandbox tool needs to act on behalf of the acting collaborator:
@@ -87,16 +87,8 @@ export function buildSandboxTools(ctx: ToolContext) {
           .optional()
           .describe("Maximum number of lines to read"),
       }),
-      execute: async ({ path, offset, limit }) => {
-        const sandbox = await getSandbox(ctx)
-        const buf = await sandbox.readFileToBuffer({ path })
-        if (!buf) return `File not found: ${path}`
-        return renderFileWindow({
-          content: buf.toString("utf-8"),
-          offset,
-          limit,
-        })
-      },
+      execute: async ({ path, offset, limit }) =>
+        readCodeFile(await getSandbox(ctx), { path, offset, limit }),
     }),
 
     write_file: tool({
@@ -201,22 +193,13 @@ export function buildSandboxTools(ctx: ToolContext) {
           .describe("Restrict to files matching this glob, e.g. '*.tsx'"),
         case_insensitive: z.boolean().optional(),
       }),
-      execute: async ({ pattern, path, include, case_insensitive }) => {
-        const sandbox = await getSandbox(ctx)
-        const opts = { pattern, path, include, ignoreCase: case_insensitive }
-
-        const rg = buildGrepInvocation({ ...opts, useRipgrep: true })
-        let result = await sandbox.runCommand(rg.cmd, rg.args)
-        // Exit 127 = ripgrep isn't installed in this image; retry with grep.
-        if (result.exitCode === 127) {
-          const fallback = buildGrepInvocation({ ...opts, useRipgrep: false })
-          result = await sandbox.runCommand(fallback.cmd, fallback.args)
-        }
-
-        const stdout = await result.stdout()
-        if (!stdout.trim()) return "(no matches found)"
-        return truncateOutput(stdout)
-      },
+      execute: async ({ pattern, path, include, case_insensitive }) =>
+        searchCode(await getSandbox(ctx), {
+          pattern,
+          path,
+          include,
+          ignoreCase: case_insensitive,
+        }),
     }),
 
     glob: tool({
@@ -229,14 +212,8 @@ export function buildSandboxTools(ctx: ToolContext) {
           .optional()
           .describe("Directory to search in (defaults to the project root)"),
       }),
-      execute: async ({ pattern, path }) => {
-        const sandbox = await getSandbox(ctx)
-        const { cmd, args } = buildGlobInvocation({ pattern, path })
-        const result = await sandbox.runCommand(cmd, args)
-        const stdout = await result.stdout()
-        if (!stdout.trim()) return "(no files found)"
-        return truncateOutput(stdout)
-      },
+      execute: async ({ pattern, path }) =>
+        findCodeFiles(await getSandbox(ctx), { pattern, path }),
     }),
 
     create_pr: tool({
