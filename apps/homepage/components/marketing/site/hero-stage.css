@@ -52,8 +52,23 @@
   .hc-rows {
     gap: 36px;
   }
+  /* One row is enough to show the idea and keeps Fig. 1 closer. */
+  .hc-track + .hc-track {
+    display: none;
+  }
   .hc-copy {
     width: 220px;
+  }
+}
+/* Under the veil the copies sit back, so the real headline is the only bright
+   type; the one an agent is changing comes forward while it works. */
+@media (min-width: 1024px) {
+  .hc-copy {
+    opacity: 0.45;
+    transition: opacity 0.5s;
+  }
+  .hc-copy.working {
+    opacity: 1;
   }
 }
 @keyframes hc-pan {

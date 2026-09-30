@@ -1,6 +1,6 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-import { docsUrl, releasesUrl } from "@/lib/app-url"
+import { releasesUrl } from "@/lib/app-url"
 import { AppleLogo } from "../header"
 import { buttonClass, measure } from "./editorial"
 
@@ -24,8 +24,8 @@ export function CTA() {
           <AppleLogo className="size-4 -translate-y-px" />
           Download for Mac
         </a>
-        <a href={docsUrl} className={buttonClass("outline", "lg")}>
-          Read the docs
+        <a href="#self-hosting" className={buttonClass("outline", "lg")}>
+          Host it for your team
         </a>
       </div>
     </section>
