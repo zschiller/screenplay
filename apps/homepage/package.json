@@ -9,7 +9,8 @@
     "start": "next start --port ${PORT:-3001}",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "og-image": "node scripts/og-image.mjs"
   },
   "dependencies": {
     "@workspace/ui": "workspace:*",
@@ -26,6 +27,7 @@
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.9",
+    "playwright-core": "~1.56.0",
     "typescript": "^5.9.3"
   }
 }

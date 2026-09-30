@@ -38,6 +38,10 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+  // The link preview (P14): app/opengraph-image.jpg, captured from app/og by
+  // `pnpm og-image`. X, Slack and iMessage read these tags.
+  openGraph: { siteName: "Screenplay", type: "website" },
+  twitter: { card: "summary_large_image" },
   title: "Screenplay — every branch, side by side",
   description:
     "Screenplay runs each coding agent on its own branch, in its own sandbox, and shows every result as a live frame on one canvas. Compare them side by side and ship the one that works. Works with Claude Code, Codex and opencode.",
