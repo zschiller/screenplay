@@ -82,7 +82,7 @@ describe("withChatQuote", () => {
     expect(
       withChatQuote(quote("Ship on Friday\nAfter the review"), "Why Friday?")
     ).toBe(
-      "**Launch plan · Lines 3–4**\n> Ship on Friday\n> After the review\n\nWhy Friday?"
+      "**Launch plan · Lines 3–4**\n> Ship on Friday  \n> After the review\n\nWhy Friday?"
     )
   })
 })

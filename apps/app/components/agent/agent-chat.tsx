@@ -1,11 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react"
-import {
-  ArrowUUpLeftIcon,
-  ClockIcon,
-  XIcon,
-} from "@workspace/ui/components/icons"
+import { ClockIcon, FileTextIcon, XIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -493,27 +489,25 @@ export function AgentChat({
         draftKey={chatId}
         placeholder={capabilities.placeholder}
         aboveInput={
-          queued.length > 0 || quote ? (
-            <>
-              {queued.length > 0 && (
-                <ul aria-label="Queued messages" className="mb-2 space-y-1">
-                  {queued.map((q) => (
-                    <QueuedRow
-                      key={q.id}
-                      message={q.message}
-                      onEdit={() => restoreToComposer(takeQueued(q.id))}
-                      onRemove={() => takeQueued(q.id)}
-                    />
-                  ))}
-                </ul>
-              )}
-              {quote && (
-                <QuoteRow
-                  quote={quote}
-                  onRemove={() => chatQuoteStore.remove(chatId)}
+          queued.length > 0 ? (
+            <ul aria-label="Queued messages" className="mb-2 space-y-1">
+              {queued.map((q) => (
+                <QueuedRow
+                  key={q.id}
+                  message={q.message}
+                  onEdit={() => restoreToComposer(takeQueued(q.id))}
+                  onRemove={() => takeQueued(q.id)}
                 />
-              )}
-            </>
+              ))}
+            </ul>
+          ) : undefined
+        }
+        inputHeader={
+          quote ? (
+            <QuoteRow
+              quote={quote}
+              onRemove={() => chatQuoteStore.remove(chatId)}
+            />
           ) : undefined
         }
         onPickElement={pickBranchId ? handlePickElement : undefined}
@@ -703,8 +697,8 @@ function QueuedRow({
 }
 
 /**
- * The Document passage Reply in chat quoted (#1243), above the input until the
- * next send takes it: the Document and line range, then up to three lines of
+ * The Document passage Reply in chat quoted (#1243), at the top of the input
+ * box until the next send takes it: the Document and line range, then up to three lines of
  * the text. The X drops it.
  */
 function QuoteRow({
@@ -718,9 +712,9 @@ function QuoteRow({
   return (
     <div
       aria-label="Quoted passage"
-      className="mb-2 flex gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
+      className="flex w-full gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
     >
-      <ArrowUUpLeftIcon className="mt-1.5 size-3.5 shrink-0 text-muted-foreground" />
+      <FileTextIcon className="mt-1.5 size-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1 py-1">
         <div className="truncate font-medium">
           {quote.documentTitle ? `${quote.documentTitle} · ${range}` : range}

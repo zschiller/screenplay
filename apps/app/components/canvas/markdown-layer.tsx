@@ -1137,8 +1137,11 @@ export function MarkdownLayer({
                           ...getLineNumbers(doc, from, to),
                         })
                         // Typing now belongs to the chat, never the
-                        // selection, even before its composer is ready.
+                        // selection, even before its composer is ready. The
+                        // toolbar goes too, as it does for Comment, so it
+                        // doesn't sit over the Document while you type.
                         editor.commands.blur()
+                        setBubbleAnchor(null)
                       }}
                     >
                       <ArrowUUpLeftIcon />
