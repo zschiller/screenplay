@@ -194,14 +194,10 @@ export function ChatPanelHost({
             label="Collapse chat"
             shortcut="⌘I"
             tooltipSide="left"
-            asChild
+            className="mr-1.5 text-muted-foreground"
+            onClick={() => chatPanelRef.current?.collapse()}
           >
-            <button
-              className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-              onClick={() => chatPanelRef.current?.collapse()}
-            >
-              <SidebarSimpleIcon mirrored />
-            </button>
+            <SidebarSimpleIcon mirrored />
           </IconButton>
           <span className="text-xs text-muted-foreground">No repositories</span>
         </div>

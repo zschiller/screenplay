@@ -51,7 +51,7 @@ const MARGIN = 16
 // as the HUD has rendered, used only so the very first frame already lands
 // near the right corner.
 const HUD_WIDTH = 132
-const HUD_HEIGHT = 32
+const HUD_HEIGHT = 36
 const PANEL_WIDTH = 320
 // The comments panel's filters and grouped rows need a fixed, taller box.
 const COMMENTS_PANEL_HEIGHT = 480
@@ -197,7 +197,7 @@ export function PlayerHud({
   }, [cornerPos, persistCorner, onDraggingChange, snapTo])
 
   // Where to dock the expanded panel relative to the pill's anchor corner.
-  // The pill height is a stable shadcn `icon-xs` row so we use the static
+  // The pill height is a stable shadcn `icon-sm` row so we use the static
   // constant rather than reaching for the live ref during render.
   const panelStyle = useMemo<React.CSSProperties>(() => {
     const isTop = corner === "tl" || corner === "tr"
@@ -275,7 +275,7 @@ export function PlayerHud({
       <TooltipProvider>
         <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10">
           <span
-            className="flex h-6 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
+            className="flex h-7 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
             aria-label="Drag to a corner"
           >
             <DotsSixVerticalIcon className="size-3.5" />
@@ -290,7 +290,7 @@ export function PlayerHud({
               <Button
                 asChild
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <Link href={`/${roomId}`}>

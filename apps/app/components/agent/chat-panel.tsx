@@ -347,7 +347,7 @@ function ChatTabLabel({
   return (
     <span className="flex items-center gap-1.5">
       {isStreaming ? (
-        <GripSpinner className="size-3 shrink-0 text-muted-foreground" />
+        <GripSpinner className="size-3.5 shrink-0 text-muted-foreground" />
       ) : hasUnread ? (
         <span className="size-1.5 shrink-0 rounded-full bg-info-fill" />
       ) : null}
@@ -381,7 +381,7 @@ function TerminalTabLabel({
     <span className="flex items-center gap-1.5">
       <TerminalWindowIcon
         aria-hidden
-        className="size-3 shrink-0 text-muted-foreground"
+        className="size-3.5 shrink-0 text-muted-foreground"
       />
       <EditableText
         as="span"
@@ -974,14 +974,10 @@ export function ChatPanel({
             label="Collapse chat"
             shortcut="⌘I"
             tooltipSide="left"
-            asChild
+            className="mr-1.5 text-muted-foreground"
+            onClick={onCollapse}
           >
-            <button
-              className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-              onClick={onCollapse}
-            >
-              <SidebarSimpleIcon mirrored />
-            </button>
+            <SidebarSimpleIcon mirrored />
           </IconButton>
         )}
         {onShowRoomChat && (
@@ -1076,7 +1072,11 @@ export function ChatPanel({
             usingMouse ? "" : "[&_[data-slot=scroll-area-scrollbar]]:hidden"
           }`}
         >
-          <TabsList variant="line" className="h-9 px-2">
+          <TabsList
+            variant="line"
+            // Tall enough for the 28px close buttons to sit inside the tabs.
+            className="px-2 group-data-horizontal/tabs:h-10"
+          >
             {isAgentTarget && (
               <TabsTrigger
                 value={LOGS_TAB_VALUE}
@@ -1084,7 +1084,7 @@ export function ChatPanel({
                 aria-label="Sandbox logs"
                 title="Sandbox logs"
               >
-                <ListDashesIcon className="size-3.5" />
+                <ListDashesIcon />
               </TabsTrigger>
             )}
             {/* Drag-reorderable chat/terminal tabs. The logs trigger and the
@@ -1151,7 +1151,7 @@ export function ChatPanel({
                     >
                       <TabsTrigger
                         value={tab.id}
-                        className="relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-xs active:cursor-grabbing"
+                        className="relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-sm active:cursor-grabbing"
                       >
                         {tab.kind === "terminal" ? (
                           <TerminalTabLabel
@@ -1178,7 +1178,6 @@ export function ChatPanel({
                               ? "Close terminal"
                               : "Close chat"
                           }
-                          size="icon-xxs"
                           className="relative text-muted-foreground"
                           tabIndex={tab.id === tabsValue ? 0 : -1}
                           // Keep the press from starting a tab drag.
@@ -1187,7 +1186,7 @@ export function ChatPanel({
                             onCloseChat(tab.id, neighbourTabId(tab.id))
                           }
                         >
-                          <XIcon className="size-3" />
+                          <XIcon />
                         </IconButton>
                       </div>
                     </motion.div>
@@ -1208,7 +1207,7 @@ export function ChatPanel({
                   onClick={createStickyTab}
                   disabled={isAgentBusy}
                 >
-                  <PlusIcon className="size-3" />
+                  <PlusIcon />
                 </IconButton>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1217,7 +1216,7 @@ export function ChatPanel({
                       className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
                       disabled={isAgentBusy}
                     >
-                      <CaretDownIcon className="size-3" />
+                      <CaretDownIcon />
                     </IconButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -1269,7 +1268,7 @@ export function ChatPanel({
                   onClick={onCreateChat}
                   disabled={isAgentBusy}
                 >
-                  <PlusIcon className="size-3" />
+                  <PlusIcon />
                 </IconButton>
               </span>
             )}

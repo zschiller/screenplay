@@ -198,7 +198,7 @@ export function FrameAddressBar({
           : undefined,
       }}
       className={cn(
-        "flex h-6 max-w-[28rem] min-w-56 items-center rounded-md bg-muted px-0.5 text-muted-foreground",
+        "flex h-7 max-w-[28rem] min-w-56 items-center rounded-md bg-muted px-0.5 text-muted-foreground",
         // A recording fills the bar, black on red like every solid fill.
         recording && "bg-destructive-fill text-destructive-foreground"
       )}
@@ -233,9 +233,7 @@ export function FrameAddressBar({
       <IconButton
         label={recording ? "Stop recording" : "Record flow"}
         pressed={recording}
-        size="icon-xs"
         className={cn(
-          "size-5",
           // Idle it's a muted dot like Reload's grey; red is for a recording.
           recording
             ? "text-destructive-foreground hover:bg-transparent hover:text-destructive-foreground aria-pressed:bg-transparent dark:hover:bg-transparent"
@@ -253,11 +251,10 @@ export function FrameAddressBar({
       {!recording && (
         <IconButton
           label="Reload"
-          size="icon-xs"
-          className="size-5 text-muted-foreground"
+          className="text-muted-foreground"
           onClick={onReload}
         >
-          <ArrowClockwiseIcon className="size-3" />
+          <ArrowClockwiseIcon />
         </IconButton>
       )}
     </div>

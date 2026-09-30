@@ -13,6 +13,7 @@ import Markdown, { type Components, type UrlTransform } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
 import { CheckIcon, CopyIcon } from "@workspace/ui/components/icons"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
@@ -148,19 +149,13 @@ function CodeBlock({
     <div className="chat-markdown-codeblock">
       <div className="chat-markdown-codeblock-header">
         <span>{language ?? ""}</span>
-        <button
-          type="button"
+        <IconButton
+          label={copied ? "Copied" : "Copy code"}
           onClick={handleCopy}
-          aria-label={copied ? "Copied" : "Copy code"}
-          title={copied ? "Copied" : "Copy code"}
           className="chat-markdown-copy"
         >
-          {copied ? (
-            <CheckIcon className="size-3.5" />
-          ) : (
-            <CopyIcon className="size-3.5" />
-          )}
-        </button>
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </IconButton>
       </div>
       <pre ref={preRef} {...props}>
         {children}

@@ -138,7 +138,7 @@ export function ChatHistoryMenu({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <IconButton label="Chat history">
-          <ArchiveIcon className="size-3" />
+          <ArchiveIcon />
         </IconButton>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 gap-0 p-1">

@@ -1007,16 +1007,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                     ? undefined
                     : "Open this workspace's preview first"
                 }
-                asChild
                 disabled={noAgents || !targetEligible}
+                onClick={triggerPick}
               >
-                <InputGroupButton
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={triggerPick}
-                >
-                  <CrosshairIcon />
-                </InputGroupButton>
+                <CrosshairIcon />
               </IconButton>
             )}
             {hideSend ? null : (
@@ -1024,14 +1018,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 {isStreaming &&
                 onStop &&
                 !(queueWhileStreaming && hasContent) ? (
-                  <IconButton label="Stop" asChild>
-                    <InputGroupButton
-                      size="icon-xs"
-                      variant="default"
-                      onClick={onStop}
-                    >
-                      <SquareIcon weight="fill" className="size-2.5" />
-                    </InputGroupButton>
+                  <IconButton label="Stop" variant="default" onClick={onStop}>
+                    <SquareIcon weight="fill" />
                   </IconButton>
                 ) : (
                   <IconButton
@@ -1053,20 +1041,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                         </span>
                       )
                     }
-                    asChild
+                    variant="default"
                     disabled={
                       (!hasContent && !allowEmptySubmit) ||
                       sendBlocked ||
                       noAgents
                     }
+                    onClick={handleSubmit}
                   >
-                    <InputGroupButton
-                      size="icon-xs"
-                      variant="default"
-                      onClick={handleSubmit}
-                    >
-                      <ArrowUpIcon />
-                    </InputGroupButton>
+                    <ArrowUpIcon />
                   </IconButton>
                 )}
               </span>

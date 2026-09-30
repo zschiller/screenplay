@@ -69,7 +69,7 @@ function IconButton({
   hint,
   asChild = false,
   variant = "ghost",
-  size = "icon-xs",
+  size = "icon-sm",
   ...props
 }: IconButtonProps) {
   // Controlled so a press always closes the tooltip. Radix's own close-on-press

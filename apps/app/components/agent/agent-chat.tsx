@@ -694,7 +694,7 @@ function QueuedRow({
       <Button variant="ghost" size="xs" onClick={onEdit}>
         Edit
       </Button>
-      <IconButton label="Remove from queue" size="icon-xs" onClick={onRemove}>
+      <IconButton label="Remove from queue" onClick={onRemove}>
         <XIcon />
       </IconButton>
     </li>

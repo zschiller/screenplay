@@ -1292,14 +1292,10 @@ export function RoomSidebar({
             label="Collapse sidebar"
             shortcut="⌘B"
             tooltipSide="right"
-            asChild
+            className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent"
+            onClick={onCollapseSidebar}
           >
-            <button
-              className="flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-              onClick={onCollapseSidebar}
-            >
-              <SidebarSimpleIcon />
-            </button>
+            <SidebarSimpleIcon />
           </IconButton>
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
@@ -1336,7 +1332,7 @@ export function RoomSidebar({
                           tooltipSide="right"
                           asChild
                         >
-                          <SidebarGroupAction className="top-1.5 right-9">
+                          <SidebarGroupAction className="top-0.5 right-11">
                             <DotsThreeIcon />
                           </SidebarGroupAction>
                         </IconButton>
@@ -1414,7 +1410,7 @@ export function RoomSidebar({
                       asChild
                     >
                       <SidebarGroupAction
-                        className="top-1.5"
+                        className="top-0.5"
                         onClick={() => {
                           setNewWorkspaceBaseBranch(null)
                           setNewWorkspaceRepoId(lastUsedRepoId)
@@ -2248,13 +2244,13 @@ function BranchDropdownSlot({
     >
       <DropdownMenu open={menuOpen} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
-          <IconButton label="Workspace options" tooltipSide="right" asChild>
-            <button
-              className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <DotsThreeIcon className="size-4" />
-            </button>
+          <IconButton
+            label="Workspace options"
+            tooltipSide="right"
+            className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent dark:hover:bg-sidebar-accent"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DotsThreeIcon />
           </IconButton>
         </DropdownMenuTrigger>
         {menuContent}

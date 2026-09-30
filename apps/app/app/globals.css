@@ -384,29 +384,19 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.125rem 0.25rem 0.125rem 0.625rem;
+  padding: 0 0.25rem 0 0.625rem;
   border-bottom: 1px solid var(--chat-block-border);
   color: var(--chat-block-muted);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 0.75rem;
   line-height: 1.5rem;
 }
+/* The copy button is a stock IconButton; only its ink follows the block. */
 .chat-markdown-copy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.25rem;
   color: var(--chat-block-muted);
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
 }
 .chat-markdown-copy:hover,
 .chat-markdown-copy:focus-visible {
-  background-color: var(--chat-code-bg);
   color: var(--chat-code-fg);
 }
 .chat-markdown .chat-markdown-codeblock pre {
