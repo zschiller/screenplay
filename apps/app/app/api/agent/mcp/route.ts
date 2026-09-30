@@ -10,6 +10,7 @@ import { ROOM_TOOL_ANNOTATIONS } from "@/lib/agent/room-tools"
 import { findActiveRun } from "@/lib/agent/persistence"
 import { coordinatorTarget } from "@/lib/agent/turn-launch-live"
 import { planGateOf } from "@/lib/agent/plan-gate"
+import { raiseHarnessGate } from "@/lib/agent/acp/harness-gate"
 import type { ToolSet } from "ai"
 import {
   buildDevServerTools,
@@ -86,7 +87,8 @@ export async function POST(req: Request) {
   const server: McpToolServer = {
     name: COORDINATOR_MCP_SERVER_NAME,
     version: "1",
-    tools: withoutPlanGates(
+    tools: withHarnessGates(
+      binding.chatId,
       roomChatTarget.buildTools(
         room,
         coordinatorTarget(room, binding.chatId, { turnId: run?.id })
@@ -130,20 +132,29 @@ function methodNotAllowed(): Response {
 
 /**
  * A plan-gated tool (`create_workspaces`, #898; `open_pull_request` and
- * `remove_workspace`, #901) needs Screenplay's plan review or confirm card,
- * which only the built-in engine raises: a harness runs MCP tools itself and
- * never halts on our card, and a harness permission prompt doesn't count as
- * the user's confirm. Over MCP it says so instead, so the Coordinator can tell
- * the user rather than retrying.
+ * `remove_workspace`, #901) acts only once the user approves its plan or
+ * confirm card. A harness runs MCP tools itself and never halts on our card,
+ * so the call hands the card to the Coordinator's running turn, which shows it
+ * and winds down as the built-in engine does; approving it runs the tool and
+ * resumes the Coordinator with the result (`/api/agent/plan`). A call its gate
+ * refuses fails with the reason.
  */
-function withoutPlanGates(tools: ToolSet): ToolSet {
+function withHarnessGates(chatId: string, tools: ToolSet): ToolSet {
   const out: ToolSet = {}
   for (const [name, t] of Object.entries(tools)) {
-    out[name] = planGateOf(t)
+    const gate = planGateOf(t)
+    out[name] = gate
       ? {
           ...t,
-          execute: async () => {
-            throw new Error(harnessGateRefusal(name))
+          execute: async (input: unknown) => {
+            const request = await gate(input)
+            if ("refusal" in request) throw new Error(request.refusal)
+            const raised = await raiseHarnessGate(chatId, {
+              toolName: name,
+              ...request,
+            })
+            if (!raised) throw new Error(HARNESS_GATE_UNAVAILABLE)
+            return HARNESS_GATE_RAISED
           },
         }
       : t
@@ -151,25 +162,8 @@ function withoutPlanGates(tools: ToolSet): ToolSet {
   return out
 }
 
-const GATED_ACTIONS: Record<string, { needs: string; instead: string }> = {
-  create_workspaces: {
-    needs: "Creating Workspaces needs the user to approve a plan",
-    instead: "create them from the canvas",
-  },
-  open_pull_request: {
-    needs: "Opening a pull request needs the user to confirm it",
-    instead: "open it from the Workspace's menu",
-  },
-  remove_workspace: {
-    needs: "Removing a Workspace needs the user to confirm it",
-    instead: "delete it from the sidebar",
-  },
-}
+const HARNESS_GATE_RAISED =
+  "The user sees this in Screenplay as a card to approve or cancel. End your turn now without writing anything more; their decision and the result arrive as the next message."
 
-function harnessGateRefusal(tool: string): string {
-  const action = GATED_ACTIONS[tool] ?? {
-    needs: "This needs the user's approval",
-    instead: "do it from the canvas",
-  }
-  return `${action.needs}, which this harness can't show yet. Tell the user to ${action.instead}, or to switch the Coordinator's model to a built-in one.`
-}
+const HARNESS_GATE_UNAVAILABLE =
+  "This needs the user's approval, which can only be asked for once per turn. Tell the user what you were about to do and ask them to say so again."

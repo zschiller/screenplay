@@ -735,6 +735,26 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-coordinator-harness-plan",
+    description:
+      "The Coordinator on the Claude harness proposing two new Workspaces: the same plan card the built-in engine raises, waiting for approval.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(
+        page,
+        roomChatId(ids.rooms.checkout),
+        harnessWorkspacePlanRun(roomChatId(ids.rooms.checkout))
+      )
+      await page.getByText("Create 2 Workspaces").first().waitFor()
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-coordinator-workspaces-created",
     description:
       "The same plan approved: a task row per created Workspace, one starting and one that failed to start (#898).",
@@ -4860,6 +4880,33 @@ export function harnessCoordinatorRun({
       },
     },
     { type: "chat-stream-end" },
+  ]
+}
+
+/**
+ * {@link workspacePlanRun} on the Claude harness: Claude Code loads
+ * `create_workspaces`, then its call raises the plan card. The call's own
+ * chip is held back, as the built-in engine shows none.
+ */
+export function harnessWorkspacePlanRun(chatId: string): RunEvent[] {
+  const [echo, start, narration, ...rest] = workspacePlanRun(chatId)
+  return [
+    echo!,
+    start!,
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "harness-plan-tool-search",
+        title: "ToolSearch",
+        kind: "other",
+        status: "completed",
+        rawInput: { query: "select:mcp__screenplay__create_workspaces" },
+        content: [{ type: "content", content: text("Loaded 1 tool.") }],
+      },
+    },
+    narration!,
+    ...rest,
   ]
 }
 

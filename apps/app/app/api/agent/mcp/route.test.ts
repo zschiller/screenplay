@@ -44,6 +44,10 @@ vi.mock("@/lib/agent/dev-server-ports", () => ({
 
 import { DELETE, GET, POST } from "./route"
 import { coordinatorToken } from "@/lib/agent/coordinator-mcp"
+import {
+  registerHarnessGate,
+  type HarnessGateCall,
+} from "@/lib/agent/acp/harness-gate"
 
 const PORT = process.env.PORT || "3000"
 const binding = { roomId: "room-1", chatId: "room-chat-room-1" }
@@ -142,30 +146,81 @@ describe("the Coordinator's MCP route", () => {
     expect(openRoomForRoute).toHaveBeenCalledWith("room-1", "room-chat-room-1")
   })
 
-  it("explains that creating Workspaces needs the built-in engine's plan review", async () => {
-    const res = await POST(
-      rpc({
-        jsonrpc: "2.0",
-        id: 6,
-        method: "tools/call",
-        params: {
-          name: "create_workspaces",
-          arguments: {
-            workspaces: [
-              {
-                title: "Fix",
-                repository: "acme/web",
-                brief: "Fix it.",
-                prompt: "Fix it.",
-              },
-            ],
+  const createCall = {
+    jsonrpc: "2.0",
+    id: 6,
+    method: "tools/call",
+    params: {
+      name: "create_workspaces",
+      arguments: {
+        workspaces: [
+          {
+            title: "Fix",
+            repository: "acme/web",
+            brief: "Fix it.",
+            prompt: "Fix it.",
           },
-        },
-      })
-    )
-    const { result } = await res.json()
+        ],
+      },
+    },
+  }
+
+  it("hands a plan-gated call's card to the Coordinator's running turn", async () => {
+    const raised: HarnessGateCall[] = []
+    const unregister = registerHarnessGate(binding.chatId, async (call) => {
+      raised.push(call)
+      return true
+    })
+    try {
+      const { result } = await (await POST(rpc(createCall))).json()
+      expect(result.isError).toBe(false)
+      expect(result.content[0].text).toMatch(/End your turn now/)
+    } finally {
+      unregister()
+    }
+    expect(raised).toHaveLength(1)
+    expect(raised[0]).toMatchObject({
+      toolName: "create_workspaces",
+      input: {
+        gate: "create_workspaces",
+        workspaces: [{ title: "Fix", repository: "acme/web" }],
+      },
+    })
+    expect(raised[0]!.plan).toContain("Fix")
+  })
+
+  it("fails a plan-gated call when no turn can show its card", async () => {
+    const { result } = await (await POST(rpc(createCall))).json()
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toMatch(/approve a plan/)
+    expect(result.content[0].text).toMatch(/approval/)
+  })
+
+  it("fails a call its gate refuses, without raising a card", async () => {
+    const raised: HarnessGateCall[] = []
+    const unregister = registerHarnessGate(binding.chatId, async (call) => {
+      raised.push(call)
+      return true
+    })
+    try {
+      const { result } = await (
+        await POST(
+          rpc({
+            jsonrpc: "2.0",
+            id: 7,
+            method: "tools/call",
+            params: {
+              name: "remove_workspace",
+              arguments: { workspace_id: "no-such" },
+            },
+          })
+        )
+      ).json()
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toMatch(/No Workspace has the id no-such/)
+    } finally {
+      unregister()
+    }
+    expect(raised).toEqual([])
   })
 
   it("answers an unknown tool with a JSON-RPC error", async () => {

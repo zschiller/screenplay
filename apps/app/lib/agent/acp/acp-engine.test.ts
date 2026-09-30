@@ -7,7 +7,10 @@ vi.mock("@/lib/agent/providers", () => ({
   resolveLanguageModel: () => ({}),
 }))
 
+import { jsonSchema, tool } from "ai"
 import { ExternalEngine } from "./acp-engine"
+import { raiseHarnessGate } from "./harness-gate"
+import { withPlanGate } from "../plan-gate"
 import { inProcessEngine } from "./in-process-engine"
 import type { EngineTurn, EngineUpdate } from "./engine-seam"
 import { supportsUsageReporting } from "./engine-seam"
@@ -354,5 +357,181 @@ describe("ExternalEngine — native session resume", () => {
     )
 
     expect(rec.prompted()).toEqual([{ type: "text", text: "second question" }])
+  })
+})
+
+/**
+ * Plan-gated Coordinator tools on a desktop harness (#903): the harness calls
+ * `create_workspaces`, `open_pull_request` or `remove_workspace` over MCP, and
+ * the MCP route hands the call to the running turn, which raises the same card
+ * the built-in engine does and winds the turn down.
+ */
+describe("ExternalEngine — plan-gated tools over MCP", () => {
+  const gatedTool = withPlanGate(
+    tool({ inputSchema: jsonSchema({ type: "object" }) }),
+    async () => ({ plan: "", input: { gate: "create_workspaces" } })
+  )
+
+  function turn(history: AcpMessageRecord[] = []): EngineTurn {
+    return {
+      chatId: "coord-chat",
+      runId: "run",
+      roomId: "room",
+      systemPrompt: "",
+      model: "model",
+      history: [
+        { role: "user", content: [{ type: "text", text: "try it 3 ways" }] },
+        ...history,
+      ],
+      tools: { create_workspaces: gatedTool },
+    }
+  }
+
+  function factory(
+    body: (ports: AcpSessionPorts, signal: AbortSignal) => Promise<unknown>,
+    prompted?: (blocks: ContentBlock[]) => void
+  ) {
+    return {
+      open: async (ports: AcpSessionPorts) =>
+        ({
+          id: "sess",
+          prompt: (blocks: ContentBlock[], signal: AbortSignal) => {
+            prompted?.(blocks)
+            return body(ports, signal)
+          },
+        }) as unknown as AcpSession,
+    }
+  }
+
+  const call = {
+    sessionUpdate: "tool_call",
+    toolCallId: "toolu_1",
+    title: "mcp__screenplay__create_workspaces",
+    status: "pending",
+  } as const
+
+  it("raises the card on the harness's call and winds the turn down", async () => {
+    const updates: EngineUpdate[] = []
+    let raised: boolean | undefined
+    let aborted = false
+    const engine = new ExternalEngine({
+      sessionFactory: factory(async (ports, signal) => {
+        await ports.onUpdate(call)
+        raised = await raiseHarnessGate("coord-chat", {
+          toolName: "create_workspaces",
+          plan: "- Variant A",
+          input: { gate: "create_workspaces", workspaces: [] },
+        })
+        aborted = signal.aborted
+        // What the harness sends once the call returns is past the card.
+        await ports.onUpdate({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "toolu_1",
+          status: "completed",
+        })
+        return "cancelled"
+      }),
+    })
+
+    await engine.run(
+      turn(),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(raised).toBe(true)
+    expect(aborted).toBe(true)
+    // The card, under the harness's own call id; the call's chip never shows.
+    expect(updates).toHaveLength(1)
+    const [update] = updates
+    expect(update?.kind).toBe("permission_request")
+    const request = (update as { request: RequestPermissionRequest }).request
+    expect(request.toolCall.toolCallId).toBe("toolu_1")
+    expect(request.toolCall.rawInput).toMatchObject({
+      gate: "create_workspaces",
+      plan: "- Variant A",
+    })
+    // Once the turn is over, a late call finds nothing to pause.
+    expect(
+      await raiseHarnessGate("coord-chat", {
+        toolName: "create_workspaces",
+        plan: "",
+        input: { gate: "create_workspaces" },
+      })
+    ).toBe(false)
+  })
+
+  it("shows a gated call its gate refused", async () => {
+    const updates: EngineUpdate[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: factory(async (ports) => {
+        await ports.onUpdate(call)
+        await ports.onUpdate({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "toolu_1",
+          status: "failed",
+          content: [
+            { type: "content", content: { type: "text", text: "No repo." } },
+          ],
+        })
+        return "end_turn"
+      }),
+    })
+
+    await engine.run(
+      turn(),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    const shown = updates.filter((u) => u.kind === "session_update")
+    expect(shown).toHaveLength(1)
+    expect(shown[0]).toMatchObject({
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "toolu_1",
+        title: "mcp__screenplay__create_workspaces",
+        status: "failed",
+      },
+    })
+  })
+
+  it("leads the resumed turn with the outcome of the card the user decided", async () => {
+    let prompted: ContentBlock[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: factory(
+        async () => "end_turn",
+        (blocks) => (prompted = blocks)
+      ),
+      loadSessionId: "sess",
+    })
+
+    await engine.run(
+      turn([
+        {
+          role: "user",
+          content: [{ type: "text", text: "Approved the plan." }],
+        },
+        {
+          role: "tool_call",
+          toolCallId: "plan-1",
+          title: "create_workspaces",
+          status: "completed",
+          content: [
+            {
+              type: "content",
+              content: { type: "text", text: "Started 1 of 1 Workspace." },
+            },
+          ],
+        },
+      ]),
+      () => {},
+      new AbortController().signal
+    )
+
+    expect(prompted.map(blockText)).toEqual([
+      "Approved the plan.",
+      "create_workspaces result: Started 1 of 1 Workspace.",
+    ])
   })
 })
