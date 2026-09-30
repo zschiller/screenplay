@@ -53,6 +53,12 @@ files. When you ask for work in a workspace, it sends that workspace's agent a
 message, and the agent does the work. When no workspace fits, it can start new
 ones, after you approve its plan.
 
+On a new canvas, the workspace that adding a repository started hasn't been
+asked anything yet. The Coordinator sends your next ask for that repository
+there, straight away, instead of planning a new workspace; if its app is still
+starting, the ask runs as soon as it's up. Until then its empty chat asks what
+should change in the repository.
+
 ### Messages to workspaces
 
 Each workspace the Coordinator messaged shows up in its reply as a card with the

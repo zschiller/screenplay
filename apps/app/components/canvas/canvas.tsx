@@ -198,6 +198,8 @@ import { CanvasEmptyState } from "./canvas-empty-state"
 
 import { GettingStartedChecklist } from "./getting-started-checklist"
 
+import { isFreshWorkspace } from "@/lib/fresh-workspace"
+
 import {
   AddRepositoryDialog,
   AddRepositoryFlowProvider,
@@ -1505,11 +1507,12 @@ export function Canvas({
   // panel, the getting-started checklist, the Workspaces menu) goes straight to
   // the picker and closes when the repository is added (#1182).
   const addRepository = useAddRepositoryFlow()
-  // A canvas with no Workspace yet opens on the chat panel (#1182), so the
-  // Coordinator, or where to add a repository, is the first thing you meet.
-  // The panel's size is shared by every canvas, so this runs once per mount.
+  // A new canvas opens on the chat panel (#1182): while no Workspace has had a
+  // turn, the Coordinator, or where to add a repository, is the first thing
+  // you meet. The panel's size is shared by every canvas, so this runs once
+  // per mount.
   const expandChatPanel = chatTarget.expandPanel
-  const opensOnPanelRef = useRef(agents.length === 0)
+  const opensOnPanelRef = useRef(agents.every(isFreshWorkspace))
   useEffect(() => {
     if (!opensOnPanelRef.current) return
     opensOnPanelRef.current = false

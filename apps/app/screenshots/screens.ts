@@ -31,6 +31,7 @@ import type { BranchData } from "@/lib/types"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
 import {
   createdWorkspacesResult,
+  queuedForWorkspaceResult,
   sentToWorkspaceResult,
   workspaceLink,
   workspacePlanMarkdown,
@@ -2213,6 +2214,18 @@ export const SCREENS: Screen[] = [
           coordinatorChatId: roomChatId(ids.rooms.empty),
         },
       })
+    },
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText(/What should change|Ask about this canvas/)
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.empty), firstAskRun())
+      await page
+        .getByTestId("workspace-task")
+        .first()
+        .waitFor({ timeout: 15_000 })
     },
     settleMs: 600,
   },
@@ -4401,6 +4414,54 @@ const DELEGATED_STICKY = "Make the order summary sticky on mobile, below 768px."
  * canvas: its reply, one `send_to_workspace` call per Workspace (task rows),
  * and a closing line.
  */
+/**
+ * The first ask on a fresh canvas (#1182): the Coordinator hands it to the
+ * Workspace adding the repository started, which gets it once it runs.
+ */
+export function firstAskRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Make the header sticky"),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-send-first",
+        title: "send_to_workspace",
+        status: "completed",
+        rawInput: {
+          workspace_id: "branch-first",
+          message: "Make the header sticky",
+        },
+        content: [
+          {
+            type: "content",
+            content: text(
+              queuedForWorkspaceResult("New Workspace", "chat-first")
+            ),
+          },
+        ],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "Sent to the Workspace on the canvas. It starts as soon as the app is running."
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
 export function delegationRun(): RunEvent[] {
   const send = (
     toolCallId: string,

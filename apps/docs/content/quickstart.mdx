@@ -56,8 +56,8 @@ seconds, so there's no need to reload.
 
 ### Create a canvas
 
-**Finish** creates your first canvas and opens it, with a **Get started**
-checklist. Later, **New canvas** on the home screen (or
+**Finish** creates your first canvas and opens it, with the agent panel open
+and a **Get started** checklist in the corner. Later, **New canvas** on the home screen (or
 
 <kbd>N</kbd>) creates and opens another one; rename it from its title. A canvas
 holds one piece of work: one or more repositories, their workspaces, and
@@ -65,9 +65,8 @@ everything you lay out around them.
 
 ### Add a repository
 
-Click **Add repository** in the **Get started** checklist (or in
-the agent panel's **Workspaces** menu). It opens **Canvas settings** on
-**Repositories**; click **Add repository** there:
+Click **Add repository** in the **Get started** checklist, on the empty
+canvas, or in the agent panel. It goes straight to choosing one:
 
 - **Open folder** adds a folder on disk, such as your existing clone.
 - **Open GitHub repository** lets you pick a repository, or paste a clone URL.
@@ -80,21 +79,31 @@ the agent panel's **Workspaces** menu). It opens **Canvas settings** on
 Screenplay detects your setup and run scripts and shows them for review in
 **Configure repository**. Check **Save as a preset** to reuse them on other
 canvases. See [Repositories](/guides/repositories) for every
-field; you can change them later in the canvas's **Settings**.
+field; you can change them later in the canvas's **Settings**. **Add
+repository** closes it all and leaves you on the canvas.
 
 Adding a repository creates your first **workspace**: a fresh branch checked out
-in its own worktree, with its dev server running and a frame showing it.
+in its own worktree, with its dev server running and a frame showing it. It
+reads **New Workspace** until your first ask names it.
 
-### Ask the agent for a change
+### Ask the Coordinator for a change
 
-Open the chat panel with <kbd>⌘</kbd> <kbd>I</kbd> and describe what you want:
+The agent panel stays on the [Coordinator](/guides/agent#the-coordinator),
+which asks what should change. Describe it:
 
 > Make the hero headline use a gradient from the accent color to cyan, and add
 > a small "Trusted by 4,000+ product teams" line under the buttons.
 
-The agent reads the code, edits it, and commits. Every tool call appears in the
-chat as it runs, and the preview hot-reloads the moment a file changes. The
-first message also gives the branch and chat a descriptive name.
+Your first ask runs in the workspace already on the canvas, straight away,
+with no plan to approve. If its app is still starting, the ask waits and runs
+as soon as it's up. The Coordinator shows it as a card, and the panel stays
+with the Coordinator so you can keep asking from one place while the frame
+updates.
+
+Click the card (or **Open Workspace** in the checklist) to follow the
+workspace's agent: it reads the code, edits it, and commits. Every tool call
+appears in its chat as it runs, and the preview hot-reloads the moment a file
+changes. Your first ask also gives the workspace its title.
 
 <Screenshot
   name="hero"
