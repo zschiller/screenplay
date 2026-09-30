@@ -137,7 +137,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     name: "canvas-delete-undo",
     description:
-      "Delete a frame from the layers list, then Undo in its toast; select a frame, press Delete, then ⌘Z.",
+      "Delete a frame from the layers list, then ⌘Z; select a frame, press Delete, then ⌘Z.",
     path: `/${ids.rooms.checkout}`,
     run: async (page) => {
       // Frozen so the deletes happen on screen only, never in the persisted
@@ -154,11 +154,7 @@ export const INTERACTIONS: Interaction[] = [
           .click({ timeout: 1500 })
       )
       await page.waitForTimeout(1800)
-      await step(() =>
-        page
-          .getByRole("button", { name: "Undo", exact: true })
-          .click({ timeout: 1500 })
-      )
+      await page.keyboard.press("Control+z")
       await page.waitForTimeout(1800)
       await click(page, page.getByText("Empty cart", { exact: true }).first())
       await page.waitForTimeout(800)
