@@ -170,7 +170,7 @@ function StateChip({
       variant={chip.kind === "lost" ? "outline" : "secondary"}
       className={cn(
         "ml-auto shrink-0 gap-1 font-normal",
-        chip.kind !== "lost" && "text-muted-foreground"
+        chip.kind === "lost" ? "text-warning-text" : "text-muted-foreground"
       )}
     >
       {chip.kind === "lost" && (

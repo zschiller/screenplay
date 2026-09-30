@@ -747,18 +747,16 @@ export function TurnSummaryRow({
           {failures.length > 0 && " "}
           {failures.length > 0 && (
             // Inline, so it follows the text onto a wrapped line.
-            <span
+            <Badge
+              variant="destructive"
               data-testid="turn-summary-failure"
-              className="mt-px inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-top text-xs font-medium whitespace-nowrap text-foreground"
+              className="gap-1 px-1.5 align-top whitespace-nowrap"
             >
-              <WarningCircleIcon
-                aria-hidden
-                className="size-3 shrink-0 text-destructive"
-              />
+              <WarningCircleIcon aria-hidden className="size-3 shrink-0" />
               {failures.length === 1
                 ? `${failures[0]} failed`
                 : `${failures.length} failed`}
-            </span>
+            </Badge>
           )}
         </span>
       </CollapsibleTrigger>
@@ -807,7 +805,10 @@ function PlanMessage({
   const statusBadge = {
     pending: null,
     approved: (
-      <Badge variant="outline" className="h-4 gap-1 px-1.5 py-0 text-xs">
+      <Badge
+        variant="outline"
+        className="h-4 gap-1 px-1.5 py-0 text-xs text-success-text"
+      >
         <CheckCircleIcon className="size-3 text-success" /> Approved
       </Badge>
     ),
