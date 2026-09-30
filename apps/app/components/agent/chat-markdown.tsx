@@ -14,6 +14,7 @@ import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
 import { CheckIcon, CopyIcon } from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
@@ -112,6 +113,19 @@ const BASE_COMPONENTS: Components = {
       <table {...props} />
     </div>
   ),
+  // GFM task items: the app's Checkbox, read-only at full ink, not the
+  // browser's own grey disabled control.
+  input: ({ node: _node, type, checked, ...props }) =>
+    type === "checkbox" ? (
+      <Checkbox
+        checked={!!checked}
+        disabled
+        aria-readonly
+        className="mr-1.5 inline-flex translate-y-0.5 disabled:cursor-default disabled:opacity-100"
+      />
+    ) : (
+      <input type={type} checked={checked} {...props} />
+    ),
 }
 
 /** The fence's language, off the `language-*` class on its inner `<code>`. */

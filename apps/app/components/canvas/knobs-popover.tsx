@@ -48,7 +48,7 @@ export function KnobsPopover({
           {hasOverrides ? (
             <span
               aria-hidden
-              className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-orange-500 ring-1 ring-background"
+              className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-info-fill ring-1 ring-background"
             />
           ) : null}
         </FloatingToolbarButton>

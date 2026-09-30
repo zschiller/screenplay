@@ -29,8 +29,11 @@ describe("ChatMarkdown (issue #727)", () => {
 
     expect(screen.getByRole("table")).toBeTruthy()
     expect(screen.getByRole("cell", { name: "a.tsx" })).toBeTruthy()
-    const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[]
-    expect(boxes.map((b) => b.checked)).toEqual([true, false])
+    const boxes = screen.getAllByRole("checkbox")
+    expect(boxes.map((b) => b.getAttribute("aria-checked"))).toEqual([
+      "true",
+      "false",
+    ])
     expect(container.querySelector("del")?.textContent).toBe("gone")
     expect(container.textContent).not.toContain("| --- |")
     expect(container.textContent).not.toContain("[x]")

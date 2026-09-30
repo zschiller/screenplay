@@ -1100,7 +1100,7 @@ export function IframeLayer({
               toolbarPortalTarget!
             )}
           <div
-            className={`relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900 ${LAYER_SURFACE_CLASS}`}
+            className={`relative h-full w-full overflow-hidden bg-white dark:bg-neutral-900 ${LAYER_SURFACE_CLASS}`}
           >
             {/* Mount the iframe as soon as there's a URL — don't gate it on the
             probe. The probe is a server-action round-trip; gating the mount on
@@ -1112,7 +1112,7 @@ export function IframeLayer({
               <iframe
                 ref={iframeRef}
                 src={iframeSrc}
-                className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-zinc-900"
+                className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-neutral-900"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                 style={{ pointerEvents: interactive ? "auto" : "none" }}
               />

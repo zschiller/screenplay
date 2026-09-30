@@ -91,7 +91,7 @@ export function FrameStatus({
     <Empty
       data-frame-stage={stage}
       className={cn(
-        "pointer-events-none absolute inset-0 gap-3 rounded-none bg-white dark:bg-zinc-900",
+        "pointer-events-none absolute inset-0 gap-3 rounded-none bg-white dark:bg-neutral-900",
         className
       )}
     >

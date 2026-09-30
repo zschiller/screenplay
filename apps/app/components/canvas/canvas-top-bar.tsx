@@ -109,11 +109,11 @@ export function CanvasTopBar({
           </IconButton>
         )}
         <Breadcrumb>
-          <BreadcrumbList className="gap-0 text-xs sm:gap-0">
+          <BreadcrumbList className="gap-0 text-sm sm:gap-0">
             <BreadcrumbItem className="gap-0">
               <BreadcrumbLink
                 href={parentFolder ? `/files/${parentFolder.id}` : "/files"}
-                className="max-w-[14rem] truncate px-1.5 py-1 font-medium"
+                className="max-w-[14rem] truncate px-1.5 py-0.5"
                 onClick={(e) => {
                   e.preventDefault()
                   stopRoomDevServers()
@@ -151,7 +151,7 @@ export function CanvasTopBar({
                 value={currentRoomName}
                 onCommit={onRoomRename}
                 placeholder="Untitled"
-                className="min-w-0 px-1.5 py-1 text-xs font-medium text-foreground"
+                className="min-w-0 px-1.5 py-0.5 text-sm text-foreground"
                 viewClassName="truncate"
                 editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 mx-1 my-0.5"
               />

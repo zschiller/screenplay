@@ -16,7 +16,7 @@ export type SetupStepState = "current" | "upcoming" | "done" | "skipped"
 /** A small muted chip beside a step or agent name ("Optional", "Recommended"). */
 export function SetupChip({ children }: { children: React.ReactNode }) {
   return (
-    <Badge variant="secondary" className="font-normal text-muted-foreground">
+    <Badge variant="outline" className="font-normal text-muted-foreground">
       {children}
     </Badge>
   )
@@ -42,7 +42,7 @@ export function CurrentSetupStep({
   return (
     <section
       aria-labelledby={titleId}
-      className="flex flex-col gap-3 rounded-lg border border-foreground/20 p-4 shadow-xs ring-3 ring-foreground/5"
+      className="flex flex-col gap-3 rounded-lg border border-foreground/20 p-4"
     >
       <div className="flex items-center gap-2.5">
         <StepMarker step={step} state="current" />
