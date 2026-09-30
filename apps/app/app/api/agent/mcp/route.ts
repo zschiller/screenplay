@@ -137,7 +137,7 @@ function methodNotAllowed(): Response {
  * so the call hands the card to the Coordinator's running turn, which shows it
  * and winds down as the built-in engine does; approving it runs the tool and
  * resumes the Coordinator with the result (`/api/agent/plan`). A call its gate
- * refuses fails with the reason.
+ * refuses returns the reason as its result, not as an error (#1231).
  */
 function withHarnessGates(chatId: string, tools: ToolSet): ToolSet {
   const out: ToolSet = {}
@@ -148,7 +148,7 @@ function withHarnessGates(chatId: string, tools: ToolSet): ToolSet {
           ...t,
           execute: async (input: unknown) => {
             const request = await gate(input)
-            if ("refusal" in request) throw new Error(request.refusal)
+            if ("refusal" in request) return request.refusal
             const raised = await raiseHarnessGate(chatId, {
               toolName: name,
               ...request,

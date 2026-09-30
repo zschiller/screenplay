@@ -775,6 +775,45 @@ describe("AgentMessageItem — a Coordinator canvas change (#894)", () => {
   })
 })
 
+describe("AgentMessageItem — a Coordinator tool's refusal (#1231)", () => {
+  const result = (text: string): ToolCallContent[] => [
+    { type: "content", content: { type: "text", text } },
+  ]
+  const refusal =
+    "\"Page title: clear & descriptive\" isn't in a GitHub repository, so it can't have a pull request."
+
+  it("shows a refused open_pull_request as a finished row with its reason, not a failure", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "mcp__screenplay__open_pull_request",
+          status: "completed",
+          rawInput: { workspace_id: "ws-1" },
+          content: result(refusal),
+        })}
+      />
+    )
+    const row = screen.getByTestId("tool-call")
+    expect(row.getAttribute("data-status")).toBe("completed")
+    expect(row.textContent).toContain(refusal.replace(/\.$/, ""))
+    expect(screen.queryByLabelText("Failed")).toBeNull()
+  })
+
+  it("still shows a thrown error as a failed row", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "open_pull_request",
+          status: "failed",
+          content: result("GitHub is down."),
+        })}
+      />
+    )
+    expect(screen.getByLabelText("Failed")).toBeTruthy()
+    expect(screen.getByText("GitHub is down.")).toBeTruthy()
+  })
+})
+
 describe("AgentMessageItem — Delegated Message (#896)", () => {
   const delegated: AgentMessage = {
     role: "user",
