@@ -113,11 +113,12 @@ export function formatQuoteForChat(opts: {
   const range =
     lineFrom === lineTo ? `Line ${lineFrom}` : `Lines ${lineFrom}–${lineTo}`
   const where = documentTitle ? `${documentTitle} · ${range}` : range
-  // Block-quote each line of the captured text so multi-line quotes render
-  // cleanly in markdown.
+  // Block-quote each line of the captured text, ending all but the last with
+  // a hard break (two trailing spaces) so the lines stay lines instead of
+  // running together into one paragraph when the chat renders the markdown.
   const quoted = quotedText
     .split("\n")
     .map((l) => `> ${l}`)
-    .join("\n")
+    .join("  \n")
   return `**${where}**\n${quoted}`
 }
