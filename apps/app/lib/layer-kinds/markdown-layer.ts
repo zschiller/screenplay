@@ -8,5 +8,4 @@ export const markdownLayerKind: LayerKindDescriptor<MarkdownLayerData> = {
   singularLabel: "document",
   Icon: FileTextIcon,
   getLabel: (d) => d.title || "Untitled",
-  canBeChatTarget: true,
 }

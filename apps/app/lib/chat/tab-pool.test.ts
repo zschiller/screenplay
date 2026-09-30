@@ -10,7 +10,7 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
 function chat(
   id: string,
   createdAt: number,
-  target: { branchId?: string; markdownLayerId?: string },
+  target: { branchId?: string },
   extra: Partial<ChatSessionData> = {}
 ): ChatSessionData {
   return {
@@ -37,24 +37,16 @@ function terminal(
 }
 
 describe("buildTabPool", () => {
-  it("keeps agent chats and doc chats in separate pools", () => {
+  it("leaves out chats saved against a Document before #1314", () => {
     const agentChat = chat("a1", 1, { branchId: "branch-1" })
-    const docChat = chat("d1", 2, { markdownLayerId: "layer-1" })
-    const chats = [agentChat, docChat]
-
+    // A retired document chat: neither a Branch nor the Room.
+    const docChat = chat("d1", 2, {})
     const agentPool = buildTabPool(
       { kind: "agent", branchId: "branch-1" },
-      chats,
+      [agentChat, docChat],
       []
     )
     expect(agentPool.chats.map((c) => c.id)).toEqual(["a1"])
-
-    const docPool = buildTabPool(
-      { kind: "doc", markdownLayerId: "layer-1" },
-      chats,
-      []
-    )
-    expect(docPool.chats.map((c) => c.id)).toEqual(["d1"])
   })
 
   it("excludes closed chats and includes the agent's terminals", () => {
@@ -76,20 +68,10 @@ describe("buildTabPool", () => {
     expect(pool.chats.map((c) => c.id)).toEqual(["a1"])
     expect(pool.terminals.map((t) => t.id)).toEqual(["t1"])
   })
-
-  it("never gives a doc pool terminals", () => {
-    const pool = buildTabPool(
-      { kind: "doc", markdownLayerId: "layer-1" },
-      [chat("d1", 1, { markdownLayerId: "layer-1" })],
-      [terminal("t1", 1, "branch-1")]
-    )
-    expect(pool.terminals).toEqual([])
-  })
 })
 
 describe("resolveTabClose", () => {
   const agentTarget = { kind: "agent" as const, branchId: "branch-1" }
-  const docTarget = { kind: "doc" as const, markdownLayerId: "layer-1" }
 
   it("leaves selection untouched when a non-selected tab is closed", () => {
     const pool: TabPool = {
@@ -162,21 +144,6 @@ describe("resolveTabClose", () => {
     }
     const outcome = resolveTabClose(pool, "a1", "a1", "a3")
     expect(outcome.nextSelectedId).toBe("a3")
-  })
-
-  it("respawns a doc chat when the last doc tab is closed", () => {
-    const pool: TabPool = {
-      target: docTarget,
-      chats: [chat("d1", 1, { markdownLayerId: "layer-1" })],
-      terminals: [],
-    }
-    const outcome = resolveTabClose(pool, "d1", "d1")
-    expect(outcome.respawn).toEqual({
-      target: "doc",
-      markdownLayerId: "layer-1",
-    })
-    // Selection follows the respawned tab at the call site.
-    expect(outcome.nextSelectedId).toBeUndefined()
   })
 
   it("respawns the agent default when the last agent tab is closed", () => {

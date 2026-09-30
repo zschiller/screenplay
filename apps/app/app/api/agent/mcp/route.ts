@@ -1,10 +1,11 @@
 import { openRoomForRoute } from "@/lib/room-access"
 import { isLocalBuild } from "@/lib/local-mode"
+import { roomChatTarget } from "@/lib/agent/chat-target-kinds"
 import {
-  markdownLayerChatTarget,
-  roomChatTarget,
-} from "@/lib/agent/chat-target-kinds"
-import { MARKDOWN_LAYER_TOOL_ANNOTATIONS } from "@/lib/agent/markdown-layer-tools"
+  buildDocumentTools,
+  DOCUMENT_TOOL_ANNOTATIONS,
+} from "@/lib/agent/document-tools"
+import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import {
   COORDINATOR_MCP_SERVER_NAME,
   isAllowedMcpOrigin,
@@ -33,8 +34,8 @@ export const dynamic = "force-dynamic"
 /**
  * The Coordinator's tools as a Streamable HTTP MCP server, for a Coordinator
  * running on a desktop harness (#903). A Workspace chat on a harness reaches
- * its dev server's tools (log, restart) through the same route, and a
- * document chat its document and code-read tools. Local build only: the sidecar listens
+ * its dev server's tools (log, restart) and its Document tools (#1314) through
+ * the same route. Local build only: the sidecar listens
  * on 127.0.0.1, and the hosted build has no such surface, so it 404s.
  *
  * Every request needs the bearer token the Coordinator's harness session was
@@ -62,7 +63,8 @@ export async function POST(req: Request) {
   if (room instanceof Response) return room
 
   // A Workspace chat's harness gets its own dev server's tools and the frame
-  // reads, bound to the Sandbox its token was minted for.
+  // reads, bound to the Sandbox its token was minted for, and its Document
+  // tools, bound to its chat.
   if (binding.sandboxName) {
     const response = await handleMcpMessage(
       {
@@ -76,35 +78,17 @@ export async function POST(req: Request) {
             sandboxName: binding.sandboxName,
             room,
           }),
+          ...buildDocumentTools({ room, chatId: binding.chatId }),
+          ...buildLayerReadTools({ room }),
         }),
         annotations: {
           ...DEV_SERVER_TOOL_ANNOTATIONS,
           ...FRAME_READ_TOOL_ANNOTATIONS,
+          ...DOCUMENT_TOOL_ANNOTATIONS,
         },
         onInitialize: (client) =>
           console.info(
             `[workspace-mcp] ${client.name ?? "client"} connected for ${binding.sandboxName}`
-          ),
-      },
-      message
-    )
-    if (!response) return new Response(null, { status: 202 })
-    return Response.json(response)
-  }
-  // A document chat's harness gets its document chat tools, bound to the
-  // document its token was minted for.
-  if (binding.markdownLayerId) {
-    const response = await handleMcpMessage(
-      {
-        name: COORDINATOR_MCP_SERVER_NAME,
-        version: "1",
-        tools: markdownLayerChatTarget.buildTools(room, {
-          markdownLayerId: binding.markdownLayerId,
-        }),
-        annotations: MARKDOWN_LAYER_TOOL_ANNOTATIONS,
-        onInitialize: (client) =>
-          console.info(
-            `[document-mcp] ${client.name ?? "client"} connected for document ${binding.markdownLayerId}`
           ),
       },
       message

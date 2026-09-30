@@ -17,17 +17,20 @@ import {
   seedGroup,
 } from "@/test/canvas/harness"
 
-/** A canvas with one Group holding two frames and a document with a chat. */
+/** A canvas with one Group holding two frames and a document a chat wrote. */
 function canvas() {
   const h = makeHarness()
   const { collections } = h
   collections.branches.set("ws-1", baseBranch("ws-1"))
   collections.iframeLayers.set("frame-1", baseLayer("frame-1"))
   collections.iframeLayers.set("frame-2", baseLayer("frame-2"))
-  collections.markdownLayers.set("doc-1", baseDoc("doc-1"))
+  collections.markdownLayers.set(
+    "doc-1",
+    baseDoc("doc-1", { ownerChatId: "chat-1" })
+  )
   collections.chatSessions.set(
     "chat-1",
-    baseChat("chat-1", { markdownLayerId: "doc-1" })
+    baseChat("chat-1", { branchId: "ws-1" })
   )
   seedGroup(collections, "group-1", [
     { kind: "iframe-layer", id: "frame-1" },
@@ -62,16 +65,13 @@ describe("⌘Z", () => {
     ).toEqual(["frame-1", "frame-2", "doc-1"])
   })
 
-  it("brings a deleted document back with its chat", () => {
+  it("brings a deleted document back with its owner", () => {
     const { ops, collections, undo } = canvas()
     ops.removeDocuments(["doc-1"])
-    expect(collections.chatSessions.has("chat-1")).toBe(false)
+    expect(collections.chatSessions.has("chat-1")).toBe(true)
 
     undo.undo()
-    expect(collections.markdownLayers.has("doc-1")).toBe(true)
-    expect(collections.chatSessions.get("chat-1")?.markdownLayerId).toBe(
-      "doc-1"
-    )
+    expect(collections.markdownLayers.get("doc-1")?.ownerChatId).toBe("chat-1")
   })
 
   it("skips what a running prototype reports on its frame", () => {

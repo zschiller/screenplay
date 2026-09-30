@@ -3,7 +3,6 @@ import "server-only"
 import type { ModelMessage, Tool } from "ai"
 import {
   buildAgentSystemPrompt,
-  buildMarkdownLayerSystemPrompt,
   buildRoomSystemPrompt,
   type LayerDirectory,
 } from "./config"
@@ -13,8 +12,6 @@ import { prependTurnMarkers } from "./message-markers"
 import type { ToolContext } from "./tools"
 import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
 import { liveWorkspaceReadPorts } from "./room-read-ports"
-import { codeCheckouts, type CodeCheckout } from "./code-read-tools"
-import { sandboxProvider } from "@/lib/sandbox"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import { getSkillIndex } from "@/lib/skills"
@@ -22,14 +19,11 @@ import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { RoomDoc, RoomReader } from "@/lib/room-access"
 import { readMemory } from "@/lib/canvas/memory"
 import type { MemoryData } from "@/lib/types"
-import {
-  documentFragment,
-  fragmentBodyToPlainText,
-} from "@/lib/yjs/fragment-text"
 
 /**
- * Server-side registry of chat target kinds (a Branch's sandbox, a document,
- * or the whole Room). Each entry contains the
+ * Server-side registry of chat target kinds (a Branch's sandbox or the whole
+ * Room). A Document is no longer a target (#1314): a Workspace chat writes the
+ * Documents it owns with its own tools. Each entry contains the
  * code paths that change between targets:
  *
  *   - `loadContext` reads the live state of the target from Yjs.
@@ -41,8 +35,6 @@ import {
  * Every chat target's toolset includes the cross-cutting `read_document`
  * tool (via `buildLayerReadTools`) so the model can follow `@<title>`
  * mentions to peer layers, regardless of which kind is being targeted.
- * The targeted layer's *write* tools stay private to that target's own
- * factory.
  *
  * `/api/agent/stream` looks up the right entry by `target.kind` and drives the
  * Engine seam against whatever toolset the entry returns.
@@ -83,7 +75,7 @@ export async function loadCanvasMemory(
 
 /**
  * Snapshot the canvas's docs for the model's directory block. Cheap — the
- * collection is already in memory; we copy id + title only.
+ * collection is already in memory; we copy id, title and owning chat only.
  */
 export async function loadLayerDirectory(
   room: RoomDoc
@@ -91,9 +83,11 @@ export async function loadLayerDirectory(
   return (
     (await room
       .readDoc(({ markdownLayers }) => ({
-        documents: markdownLayers
-          .toArray()
-          .map((d) => ({ id: d.id, title: d.title })),
+        documents: markdownLayers.toArray().map((d) => ({
+          id: d.id,
+          title: d.title,
+          ...(d.ownerChatId ? { ownerChatId: d.ownerChatId } : {}),
+        })),
       }))
       .catch(() => null)) ?? { documents: [] }
   )
@@ -107,9 +101,12 @@ export interface AgentTarget {
   sandboxName: string
   branch: string
   agentId?: string
+  /** The chat, which owns the Documents it makes (#1314). */
+  chatId: string
 }
 
 interface AgentContext {
+  chatId: string
   repoSystemPrompt: string | undefined
   layerDirectory: LayerDirectory
   /** Merged App ∪ Repo Skill index, enumerated once from this Branch's sandbox. */
@@ -135,22 +132,29 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
         getMergedSkillIndexForSandbox(target.sandboxName),
         loadCanvasMemory(room),
       ])
-    return { repoSystemPrompt, layerDirectory, skills, memory }
+    return {
+      chatId: target.chatId,
+      repoSystemPrompt,
+      layerDirectory,
+      skills,
+      memory,
+    }
   },
   buildSystemPrompt(ctx, { toolNaming }) {
     return buildAgentSystemPrompt({
       repoSystemPrompt: ctx.repoSystemPrompt ?? undefined,
       layerDirectory: ctx.layerDirectory,
+      chatId: ctx.chatId,
       skills: ctx.skills,
       memory: ctx.memory,
       toolNaming,
     })
   },
-  buildTools(room, _target, sandbox) {
+  buildTools(room, target, sandbox) {
     if (!sandbox) {
       throw new Error("agent chat target requires a sandbox ToolContext")
     }
-    return toolsetFor({ kind: "sandbox", room, sandbox })
+    return toolsetFor({ kind: "sandbox", room, sandbox, chatId: target.chatId })
   },
   decorateUserMessage(
     message,
@@ -167,82 +171,7 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
 }
 
 // ---------------------------------------------------------------------------
-// Document target — edits a document layer's title + body via Yjs writes, and
-// reads the code of the canvas's Workspaces.
-// ---------------------------------------------------------------------------
-
-export interface MarkdownLayerTarget {
-  markdownLayerId: string
-}
-
-interface MarkdownLayerContext {
-  id: string
-  title: string
-  body: string
-  layerDirectory: LayerDirectory
-  memory: MemoryData[]
-  /** The Workspaces whose code the chat can read. */
-  checkouts: CodeCheckout[]
-}
-
-export const markdownLayerChatTarget: ChatTargetSpec<
-  MarkdownLayerTarget,
-  MarkdownLayerContext
-> = {
-  kind: "markdown-layer",
-  async loadContext(room, target) {
-    const [self, layerDirectory, memory, checkouts] = await Promise.all([
-      room.readDoc(({ markdownLayers, doc }) => {
-        const layer = markdownLayers.get(target.markdownLayerId)
-        if (!layer) return null
-        const fragment = documentFragment(doc, target.markdownLayerId)
-        return {
-          id: target.markdownLayerId,
-          title: layer.title,
-          body: fragmentBodyToPlainText(fragment),
-        }
-      }),
-      loadLayerDirectory(room),
-      loadCanvasMemory(room),
-      room.readDoc(codeCheckouts).catch(() => []),
-    ])
-    if (!self) return null
-    return { ...self, layerDirectory, memory, checkouts }
-  },
-  buildSystemPrompt(ctx, { toolNaming }) {
-    return buildMarkdownLayerSystemPrompt({
-      currentTitle: ctx.title,
-      currentBody: ctx.body,
-      layerDirectory: ctx.layerDirectory,
-      selfId: ctx.id,
-      memory: ctx.memory,
-      checkouts: ctx.checkouts,
-      toolNaming,
-    })
-  },
-  buildTools(room, target) {
-    return toolsetFor({
-      kind: "markdown-layer",
-      room,
-      markdownLayerId: target.markdownLayerId,
-      // A document chat reads code when asked, so an asleep Sandbox wakes.
-      openSandbox: (name) => sandboxProvider.get({ name, resume: true }),
-    })
-  },
-  // No turn markers for a document chat. `[branch: …]` is meaningless without
-  // a sandbox, and `[plan mode: enabled]` would be noise: this target's
-  // toolset has no `submit_plan` gate and its system prompt never mentions
-  // plan mode, so the marker would reach the model with nothing to act on
-  // (#743). The composer hides the Plan toggle for document targets; this is
-  // the server-side half of that contract, so a stale client that still sends
-  // `planMode: true` can't slip the prefix into the prompt.
-  decorateUserMessage(message) {
-    return message
-  },
-}
-
-// ---------------------------------------------------------------------------
-// Room target — the whole canvas (the Coordinator). No sandbox, no document:
+// Room target — the whole canvas (the Coordinator). No sandbox:
 // its tools come from the Coordinator tools module (`room-tools.ts`).
 // ---------------------------------------------------------------------------
 
@@ -377,8 +306,8 @@ export type PreparedChatTarget = {
 
 /**
  * One-shot helper: pick the spec, load its context, build prompt + tools.
- * Returns `null` when the target can't be resolved (e.g. document was
- * deleted) so the caller can return a 404 cleanly. `toolNaming` names the
+ * Returns `null` when the target can't be resolved so the caller can return
+ * a 404 cleanly. `toolNaming` names the
  * target's tools the way the turn's engine exposes them (#1223).
  */
 export async function prepareChatTarget<TTarget, TContext>(

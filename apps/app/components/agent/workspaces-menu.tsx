@@ -135,8 +135,6 @@ import type { BranchPrInfo } from "@/lib/github-actions"
 
 import { listRepoBranches } from "@/lib/github-actions"
 
-import { CHAT_TARGETABLE_LAYER_KINDS } from "@/lib/layer-kinds"
-
 import { isLocalBuild } from "@/lib/local-mode"
 
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
@@ -175,7 +173,8 @@ import { useChatSessions } from "@/lib/yjs/react"
  * of the panel header, the same on the Coordinator and inside a Workspace, that
  * opens the list of every chat on the canvas. The Coordinator leads it, then
  * the Workspaces list (what the sidebar used to hold: sort, grouping, Done,
- * row menus, drag), then document chats. It is the one way to move between
+ * row menus, drag). Documents have no chats of their own (#1314). It is the
+ * one way to move between
  * chats; the header's breadcrumb only says where you are.
  *
  * {@link WorkspacesMenuProvider} sits around the panel and owns everything
@@ -187,10 +186,7 @@ import { useChatSessions } from "@/lib/yjs/react"
 
 /** Which chat the panel shows, for the menu's check marks. */
 export type WorkspacesMenuCurrent =
-  | { kind: "room" }
-  | { kind: "agent"; id: string }
-  | { kind: "layer"; layerKind: string; id: string }
-  | { kind: "none" }
+  { kind: "room" } | { kind: "agent"; id: string } | { kind: "none" }
 
 export interface WorkspacesMenuProviderProps {
   userId: string
@@ -206,7 +202,6 @@ export interface WorkspacesMenuProviderProps {
   onShowRoomChat: () => void
   /** Open a Workspace's chat; `expandPanel` defaults to true. */
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
-  onSelectLayer: (layerKind: string, id: string) => void
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRebaseOnDefault: (branchId: string) => void
@@ -682,7 +677,6 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
     activeBranches,
     doneBranches,
     stateOf,
-    markdownLayers,
     setOpen,
   } = menu
   const [search, setSearch] = useState("")
@@ -728,10 +722,6 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
         />
       )
     })
-
-  const layersByKind: Record<string, Array<{ id: string } & object>> = {
-    "markdown-layer": markdownLayers,
-  }
 
   return (
     <Command
@@ -843,46 +833,6 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
             )}
           </>
         )}
-
-        {CHAT_TARGETABLE_LAYER_KINDS.map((descriptor) => {
-          const items = layersByKind[descriptor.kind] ?? []
-          if (items.length === 0) return null
-          return (
-            <CommandGroup
-              key={descriptor.kind}
-              heading={descriptor.pluralLabel}
-            >
-              {items.map((item) => {
-                const label = descriptor.getLabel(item as never)
-                const isCurrent =
-                  current.kind === "layer" &&
-                  current.layerKind === descriptor.kind &&
-                  current.id === item.id
-                return (
-                  <CommandItem
-                    key={item.id}
-                    value={`${label} ${item.id}`}
-                    keywords={[label]}
-                    onSelect={() =>
-                      pick(() => menu.onSelectLayer(descriptor.kind, item.id))
-                    }
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center">
-                      <descriptor.Icon className="size-3.5 opacity-70" />
-                    </span>
-                    <span className="truncate">{label}</span>
-                    <CheckIcon
-                      className={cn(
-                        "ml-auto size-3.5",
-                        !isCurrent && "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
-          )
-        })}
       </CommandList>
     </Command>
   )
@@ -1108,7 +1058,7 @@ function WorkspaceMenuRow({
       )}
       {/* The … sits over the row's end, like a chat tab's close button, so
           it holds no slot at rest and the row stays as tall as the
-          Coordinator and Documents rows (#1165). It shows on hover, when the
+          Coordinator row (#1165). It shows on hover, when the
           row is arrowed to, and while it holds focus; a fade in the row's
           colour runs under the meta it covers. right-7.5 clears the check
           column (px-2 + gap-2 + the 14px check). */}

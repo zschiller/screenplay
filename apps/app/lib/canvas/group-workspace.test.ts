@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { getRoomCollections } from "@/lib/yjs/schema"
+import { documentWorkspaceIds } from "./document-owner"
 import {
   groupBranchId,
   groupSwitchSummary,
@@ -153,6 +154,53 @@ describe("groupWorkspace", () => {
 
   it("names none for a Group of Documents", () => {
     expect(groupWorkspace(group(), moreFrames)).toBeNull()
+  })
+
+  // #1314: a Document a chat made counts as showing the chat's Workspace.
+  describe("with chat-made Documents", () => {
+    it("names the Workspace when the Document's chat is the frames'", () => {
+      const docs = new Map([["doc", "ws-1"]])
+      expect(groupWorkspace(group("a", "a2"), moreFrames, docs)).toEqual({
+        branchId: "ws-1",
+        frames: ["a", "a2"],
+      })
+    })
+
+    it("names none when the Document's chat is another Workspace's", () => {
+      const docs = new Map([["doc", "ws-2"]])
+      expect(groupWorkspace(group("a", "a2"), moreFrames, docs)).toBeNull()
+    })
+
+    it("names the chat's Workspace on a Group of its Documents alone", () => {
+      const docs = new Map([["doc", "ws-1"]])
+      expect(groupWorkspace(group(), moreFrames, docs)).toEqual({
+        branchId: "ws-1",
+        frames: [],
+      })
+    })
+
+    it("lets a hand-made Document leave the label alone", () => {
+      expect(groupWorkspace(group("a"), moreFrames, new Map())).toEqual({
+        branchId: "ws-1",
+        frames: ["a"],
+      })
+    })
+  })
+})
+
+describe("documentWorkspaceIds", () => {
+  it("maps each chat-made Document to its chat's Workspace", () => {
+    expect(
+      documentWorkspaceIds(
+        [
+          { id: "doc-1", ownerChatId: "chat-1" },
+          { id: "doc-2" },
+          { id: "doc-3", ownerChatId: "gone" },
+          { id: "doc-4", ownerChatId: "room-chat" },
+        ],
+        [{ id: "chat-1", branchId: "ws-1" }, { id: "room-chat" }]
+      )
+    ).toEqual(new Map([["doc-1", "ws-1"]]))
   })
 })
 

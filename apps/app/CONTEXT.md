@@ -388,8 +388,12 @@ _Avoid_: screen, window, panel; "frame" is the UI label only.
 **Markdown Layer** (Document):
 A rich-text layer whose body is a TipTap-owned `Y.XmlFragment` keyed
 `markdown-layer-{id}`. Its title is mirrored into both the fragment heading and
-the layer's collection record.
-_Avoid_: note, text layer.
+the layer's collection record. A Document a chat made records that chat as
+its **owner** (`ownerChatId`, #1314): only the owner edits it with tools, and
+it shows the owner's name by the Group label rule. One a person made has no
+owner and no name. Every chat reads every Document.
+_Avoid_: note, text layer; "document chat" (Documents are not Chat Targets
+since #1314).
 
 **Layer Shell**:
 The canvas frame that wraps either Layer kind: it owns the world-space container,
@@ -466,11 +470,11 @@ _Avoid_: the grid for plain progress; `Spinner` or a raw `Loader2` for model
 activity; a third spinner style.
 
 **Chat Target**:
-What a Chat Session talks to — a Branch's **sandbox**, a Markdown Layer (a
-document), or the whole **Room** (see **Room Target**). The target decides the
+What a Chat Session talks to — a Branch's **sandbox**, or the whole **Room**
+(see **Room Target**). A Document is not one: a Workspace chat writes
+Documents with its own tools (#1314). The target decides the
 system prompt and which Tools the model is given. On the client it is one
-value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `document`,
-`room`), which the chat store maps to the wire target in one place. What the
+value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `room`), which the chat store maps to the wire target in one place. What the
 Composer offers for each kind (skills, plan mode, element picking, placeholder,
 empty state and starters) is one row of the capability table in
 `lib/chat/chat-capabilities`; only the `agent` kind has a sandbox, so only it
@@ -531,21 +535,20 @@ run).
 **Chat-Target selection**:
 _Which_ Chat Target the agent panel shows — the other half of the panel model
 from the Tab Pool, which owns the tabs _within_ a target. Owned by the
-**Chat-Target controller** (`useChatTarget`, PRD #569): the selected agent / doc
-/ chat, the **per-target memory** (last chat per agent, per document; last agent
-per repo) that restores your place when you switch back, and the **pending-agent
+**Chat-Target controller** (`useChatTarget`, PRD #569): the selected agent /
+chat, the **per-target memory** (last chat per agent; last agent per repo) that restores your place when you switch back, and the **pending-agent
 readiness** (a just-created agent renders a LogProbe; selection flips to it once
 its sandbox streams logs). The decisions are **pure functions** (`lib/chat/chat-target`,
 the sibling of `lib/chat/tab-pool`): resolving the `ChatPanelTarget`, the
 remembered-chat rule (the remembered chat if still open, else the first open
 one), and the readiness transitions; the controller applies them and exposes the
-resolved `target` plus selection verbs (`selectAgent`, `selectDocument`,
-`selectChat`, …). The Tab Pool and Branch Intake controllers **compose with it**
+resolved `target` plus selection verbs (`selectAgent`, `selectChat`,
+`selectAgentChat`, …). The Tab Pool and Branch Intake controllers **compose with it**
 for their selection side effects rather than poking raw setters. Same shape as
 the Tab Pool: decide purely, apply at the call site (the call site is the
 controller). With nothing selected the panel shows the Room: `ChatPanel` takes a
 `room` target too and draws the Coordinator chat under the same header
-(`ChatPanelHeader`, the one Collapse chat button) as a Workspace or document.
+(`ChatPanelHeader`, the one Collapse chat button) as a Workspace.
 _Avoid_: conflating _which_ target is shown (this) with the tabs within it (Tab
 Pool); reaching around the controller to set `selectedAgentId` / `selectedChatId`
 directly; folding the pure decisions into the controller.
@@ -557,7 +560,9 @@ comment-mode placement state (`newCommentPos`, the open inline thread, the
 inspect-hover overlay) and the two ref-backed registries the flow reads — the
 per-Iframe-Layer DOM accessors and the per-Markdown-Layer TipTap editors, each
 with a version counter so membership changes re-render their consumers — plus
-the `replyInChat` verb, which hands a Document passage to **Chat Quote**. The
+the `replyInChat` verb, which hands a Document passage to **Chat Quote**. A
+passage from a Document a chat owns goes to that chat, brought on screen; any
+other goes to the foreground chat (#1314). The
 old "anchor a doc text span and **Send to agent**" path (a fresh Document chat
 sent from the comment composer, `lib/canvas/chat-reference`) was retired by
 Reply in chat (#1243), after the frame element → owning-agent route (#570) went
@@ -569,8 +574,10 @@ persisted thread is its own surface).
 **Chat Quote**:
 A Document passage quoted into a chat's composer by **Reply in chat** (#1243),
 the last button of a Document's selection toolbar on the web and desktop. It
-lands in the composer of the chat the panel is **showing** — the Coordinator, or
-the active chat tab of a Workspace or Document — the way an element token lands
+lands in the composer of the Document's **owner** chat when a chat made it,
+which the panel switches to (`quoteInto`, #1314); otherwise in the chat the
+panel is **showing** — the Coordinator, or the active chat tab of a Workspace —
+the way an element token lands
 in the composer that picked it, and opens the panel if it's collapsed. The
 quote sits above the input (the Document's title and line range, up to three
 lines of the text, an X) and nothing is sent until the person sends; that send
@@ -580,7 +587,7 @@ holds one quote, and a second Reply in chat replaces it. The bridge is the
 **foreground** (the newest claim wins), and a quote asked for while no chat is
 on screen (a terminal tab, the logs) waits for the next chat to claim it.
 _Avoid_: opening a fresh chat for the quote; sending it without the person's
-own words; routing it by the Document instead of the panel.
+own words; routing a hand-made Document's quote anywhere but the panel.
 
 **Element Targeting**:
 A Composer's one-shot crosshair **pick** of an element in one of its own
@@ -642,11 +649,8 @@ Vercel, node-pty on the desktop build).
 The per-Chat-Target set of open tabs in the agent panel — a target's open Chat
 Sessions plus, for an agent (Branch) target, its Terminal Tabs — treated as one
 pool. **Invariant: while the target lives, its pool is never empty.** Closing the
-last tab respawns the user's **preferred default tab kind** (chat or terminal for an
-agent target; always a chat for a doc target), so the panel is never left blank.
-Agent chats and doc chats are **separate pools** — filtered by `branchId` vs
-`markdownLayerId`, since every doc chat shares an undefined `agentId` and would
-otherwise collide — and a doc target has no terminals. The close decision is a
+last tab respawns the user's **preferred default tab kind** (chat or terminal),
+so the panel is never left blank. A pool is filtered by `branchId`. The close decision is a
 **pure function** (`resolveTabClose`: pool + closing tab → what survives, the next
 selection, and whether to respawn); the **Tab Pool controller** (`useTabPool`,
 PRD #563) applies the effects (server actions, killing the tmux/PTY session, the
@@ -660,7 +664,7 @@ and the player**: the Chat Session half and Chat Sync live in `useChatTabs`, whi
 the player's chat host uses directly and `useTabPool` composes (adding Terminal
 Tabs, the per-user default tab kind and Chat-Target selection).
 _Avoid_: tab bar / tab list (that's the rendered strip; the Pool is the model behind
-it); mixing the agent and doc pools; treating an empty pool as a valid resting state
+it); treating an empty pool as a valid resting state
 for a live target; folding the respawn effects into the decision (it returns whether
 to respawn; the controller performs it); re-implementing tab creation outside the
 controller (Branch Intake's seed step calls `useTabPool().seed`).
@@ -1117,7 +1121,7 @@ member out itself — see **Sidebar Drop**),
 `removeIframeLayerGroup` keeps its chat-store cleanup + selection follow, and the
 route/seed creators keep their viewport-centered placement. Constructed from
 `ops`, the live `collections`, the viewport-center reader (**Canvas Camera**),
-the **Chat-Target** memory (`rememberDocChat`), and the **Canvas Selection**
+and the **Canvas Selection**
 controller (for the delete-follow on group teardown).
 _Avoid_: putting these structural mutations back as loose callbacks on the
 composition root (add a field to `GroupActions` instead); writing a Group / Layer

@@ -109,7 +109,9 @@ export interface BranchActions {
   sendComments: (
     agentId: string,
     message: string,
-    threadIds: string[]
+    threadIds: string[],
+    /** The chat to send in (a Document's owner, #1314), when open and idle. */
+    chatId?: string
   ) => boolean
 }
 
@@ -150,7 +152,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
     (
       prompt: string,
       agent: BranchData,
-      options: { commentThreadIds?: string[] } = {}
+      options: { commentThreadIds?: string[]; chatId?: string } = {}
     ): boolean => {
       const decision = resolveTargetChat({
         roomId,
@@ -159,7 +161,8 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         message: prompt,
         agent,
         chatSessions,
-        rememberedChatId: chatTarget.rememberedAgentChatId(agent.id),
+        rememberedChatId:
+          options.chatId ?? chatTarget.rememberedAgentChatId(agent.id),
         isBusy: (chatId) =>
           chatStore.getSnapshot(chatId).isStreaming ||
           chatSessions.find((c) => c.id === chatId)?.isStreaming === true,
@@ -283,10 +286,13 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
           RecoveryOutcome | undefined
         if (outcome && !outcome.ok) throw new Error(outcome.error)
       },
-      sendComments: (agentId, message, threadIds) => {
+      sendComments: (agentId, message, threadIds, chatId) => {
         const agent = agents.find((a) => a.id === agentId)
         if (!agent) return false
-        return applyEngine(message, agent, { commentThreadIds: threadIds })
+        return applyEngine(message, agent, {
+          commentThreadIds: threadIds,
+          chatId,
+        })
       },
     }),
     [run, recoveryDeps, agents, applyEngine, iframeLayers, iframeLayerGroups]

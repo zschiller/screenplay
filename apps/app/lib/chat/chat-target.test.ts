@@ -7,11 +7,7 @@ import {
   resolvePendingReady,
   restoreAgentChatSelection,
 } from "@/lib/chat/chat-target"
-import type {
-  BranchData,
-  ChatSessionData,
-  MarkdownLayerData,
-} from "@/lib/types"
+import type { BranchData, ChatSessionData } from "@/lib/types"
 
 function agent(id: string, extra: Partial<BranchData> = {}): BranchData {
   return {
@@ -31,14 +27,10 @@ function agent(id: string, extra: Partial<BranchData> = {}): BranchData {
 function chat(
   id: string,
   createdAt: number,
-  target: { branchId?: string; markdownLayerId?: string },
+  target: { branchId?: string },
   extra: Partial<ChatSessionData> = {}
 ): ChatSessionData {
   return { id, label: "Untitled", createdAt, ...target, ...extra }
-}
-
-function doc(id: string): MarkdownLayerData {
-  return { id, width: 200, height: 120, title: "Doc" }
 }
 
 describe("chatTargetOf", () => {
@@ -48,45 +40,23 @@ describe("chatTargetOf", () => {
       branchId: "a1",
       sandboxName: "sb-a1",
     })
-    expect(
-      chatTargetOf({
-        kind: "layer",
-        layerKind: "markdown-layer",
-        layer: { id: "d1" },
-      })
-    ).toEqual({ kind: "document", layerId: "d1" })
     expect(chatTargetOf({ kind: "room" })).toEqual({ kind: "room" })
   })
 })
 
 describe("resolveChatPanelTarget", () => {
   it("packs a selected agent with a sandbox into an agent target", () => {
-    const target = resolveChatPanelTarget(agent("a1"), null)
+    const target = resolveChatPanelTarget(agent("a1"))
     expect(target).toEqual({ kind: "agent", agent: agent("a1") })
-  })
-
-  it("prefers the agent over a document when both are present", () => {
-    const target = resolveChatPanelTarget(agent("a1"), doc("d1"))
-    expect(target?.kind).toBe("agent")
-  })
-
-  it("falls through to the document when no agent has a sandbox", () => {
-    const target = resolveChatPanelTarget(undefined, doc("d1"))
-    expect(target).toEqual({
-      kind: "layer",
-      layerKind: "markdown-layer",
-      layer: doc("d1"),
-    })
   })
 
   it("ignores a selected agent that is still provisioning (no sandbox)", () => {
     const provisioning = agent("a1", { sandboxName: "" })
-    expect(resolveChatPanelTarget(provisioning, doc("d1"))?.kind).toBe("layer")
-    expect(resolveChatPanelTarget(provisioning, null)).toBeNull()
+    expect(resolveChatPanelTarget(provisioning)).toBeNull()
   })
 
-  it("resolves to nothing when neither target is set", () => {
-    expect(resolveChatPanelTarget(undefined, null)).toBeNull()
+  it("resolves to nothing when no agent is selected", () => {
+    expect(resolveChatPanelTarget(undefined)).toBeNull()
   })
 })
 

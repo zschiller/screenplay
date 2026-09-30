@@ -1168,16 +1168,6 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "canvas-chat-empty-document",
-    description: "A Document chat with nothing sent yet: the empty state.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await selectChatTarget(page, "Checkout brief")
-    },
-    settleMs: 400,
-  },
-  {
     name: "canvas-chat-loading",
     description: "A chat while its history is still loading.",
     path: `/${ids.rooms.checkout}`,
@@ -4599,22 +4589,6 @@ export async function addPeer(
   }
   await page.bringToFront()
   return peer
-}
-
-/**
- * Pick a Chat Target from the chat panel's Workspaces menu (#1152): how a
- * Document chat is reached.
- */
-export async function selectChatTarget(
-  page: Page,
-  label: string
-): Promise<void> {
-  const menu = await openWorkspacesMenu(page)
-  await menu
-    .getByRole("option", { name: new RegExp(label, "i") })
-    .first()
-    .click({ timeout: 15_000 })
-  await menu.waitFor({ state: "hidden", timeout: 10_000 })
 }
 
 /**

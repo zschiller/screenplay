@@ -150,25 +150,21 @@ describe("removeDocuments", () => {
     expect(findEmptyGroups(collections)).toEqual([])
   })
 
-  it("deletes the Chat Sessions targeting the removed Documents and returns their ids", () => {
+  it("leaves the chat that wrote a removed Document (#1314)", () => {
     const { ops, collections } = makeHarness()
-    collections.markdownLayers.set("doc-1", baseDoc("doc-1"))
-    collections.chatSessions.set(
-      "chat-1",
-      baseChat("chat-1", { markdownLayerId: "doc-1" })
+    collections.markdownLayers.set(
+      "doc-1",
+      baseDoc("doc-1", { ownerChatId: "chat-1" })
     )
     collections.chatSessions.set(
-      "chat-2",
-      baseChat("chat-2", { markdownLayerId: "other" })
+      "chat-1",
+      baseChat("chat-1", { branchId: "agent-1" })
     )
     seedGroup(collections, "group-1", [{ kind: "markdown-layer", id: "doc-1" }])
 
-    const { removedChatIds } = ops.removeDocuments(["doc-1"])
-
-    expect(removedChatIds).toEqual(["chat-1"])
-    expect(collections.chatSessions.has("chat-1")).toBe(false)
-    // A Chat Session targeting a different Document is untouched.
-    expect(collections.chatSessions.has("chat-2")).toBe(true)
+    expect(ops.removeDocuments(["doc-1"])).toEqual({ removedChatIds: [] })
+    expect(collections.markdownLayers.has("doc-1")).toBe(false)
+    expect(collections.chatSessions.has("chat-1")).toBe(true)
   })
 
   it("leaves a mixed Group standing when only its Document Member is removed", () => {
@@ -650,10 +646,10 @@ describe("createFramesForAgents", () => {
 })
 
 describe("createDocument", () => {
-  it("seeds the body fragment at the right key and returns a coherent { docId, groupId, chatId }", () => {
+  it("seeds the body fragment at the right key and returns a coherent { docId, groupId }", () => {
     const { ops, collections, doc } = makeHarness()
 
-    const { docId, groupId, chatId } = ops.createDocument(
+    const { docId, groupId } = ops.createDocument(
       { x: 40, y: 60 },
       { width: 320, height: 240 }
     )
@@ -673,9 +669,22 @@ describe("createDocument", () => {
     expect(fragment.length).toBe(1)
     expect(getFragmentTitle(fragment)).toBe("")
 
-    // A Chat Session targeting the Document is pre-created and returned.
-    expect(collections.chatSessions.get(chatId)?.markdownLayerId).toBe(docId)
+    // No chat comes with it (#1314): a hand-made Document has no owner.
+    expect(collections.chatSessions.toArray()).toEqual([])
+    expect(document?.ownerChatId).toBeUndefined()
     expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("records the chat that made a Document (#1314)", () => {
+    const { ops, collections } = makeHarness()
+
+    const { docId } = ops.createDocument(
+      { x: 0, y: 0 },
+      { width: 320, height: 240 },
+      { ownerChatId: "chat-1" }
+    )
+
+    expect(collections.markdownLayers.get(docId)?.ownerChatId).toBe("chat-1")
   })
 
   it("clamps a below-minimum size up to the document floor", () => {
@@ -922,7 +931,7 @@ describe("addDocumentToGroup", () => {
     })
 
     expect(result).toBeDefined()
-    const { docId, chatId } = result!
+    const { docId } = result!
     const document = collections.markdownLayers.get(docId)
     expect(document?.width).toBe(360)
     expect(document?.height).toBe(280)
@@ -931,11 +940,11 @@ describe("addDocumentToGroup", () => {
       { kind: "iframe-layer", id: "layer-1" },
       { kind: "markdown-layer", id: docId },
     ])
-    // Same fragment + chat seeding as createDocument.
+    // Same fragment seeding as createDocument, and no chat.
     const fragment = documentFragment(doc, docId)
     expect(fragment.length).toBe(1)
     expect(getFragmentTitle(fragment)).toBe("")
-    expect(collections.chatSessions.get(chatId)?.markdownLayerId).toBe(docId)
+    expect(collections.chatSessions.toArray()).toEqual([])
   })
 
   it("clamps a below-minimum size up to the document floor", () => {

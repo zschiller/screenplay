@@ -684,6 +684,8 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       width: 720,
       height: 800,
       title: "Checkout brief",
+      // The Checkout polish chat wrote it (#1314).
+      ownerChatId: FIXTURE_IDS.chats.checkoutPolish,
     },
   ]
 
@@ -769,14 +771,6 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       label: "Shipping estimate copy",
       createdAt: minutesAgo(now, 60 * 24 * 3),
       closedAt: minutesAgo(now, 60 * 24 * 3 - 40),
-      model: "claude-sonnet-4-5",
-    },
-    {
-      // A doc-targeted chat, so the Chat Target selector shows both kinds.
-      id: "chat-brief",
-      markdownLayerId: "doc-checkout-brief",
-      label: "Checkout brief",
-      createdAt: minutesAgo(now, 9),
       model: "claude-sonnet-4-5",
     },
   ]

@@ -34,8 +34,8 @@ import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
  * the route/seed creators keep their viewport-centered placement.
  *
  * Constructed from `ops`, the live `collections`, the viewport-center reader
- * (Camera), the Chat-Target memory (`rememberDocChat`, for a new document's
- * chat), and the Selection controller (for the delete-follow on group teardown).
+ * (Camera), and the Selection controller (for the delete-follow on group
+ * teardown).
  *
  * Note: the two thin multi-Layer remove wrappers (`removeIframeLayers` /
  * `removeDocumentLayers`) stay on the Canvas root because the Selection
@@ -47,8 +47,6 @@ export interface GroupActionInputs {
   collections: RoomCollections
   /** Viewport center in canvas space — placement for the route/seed creators. */
   getViewportCenter: () => { cx: number; cy: number }
-  /** Chat-Target memory — remember a new document's seeded chat. */
-  rememberDocChat: (markdownLayerId: string, chatId: string) => void
   /** Selection controller — `removeIframeLayerGroup` drops the deleted group. */
   selection: CanvasSelection
 }
@@ -113,7 +111,6 @@ export function useGroupActions({
   ops,
   collections,
   getViewportCenter,
-  rememberDocChat,
   selection,
 }: GroupActionInputs): GroupActions {
   // Depend on the stable verb, not the whole (re-created-each-render) selection
@@ -224,8 +221,7 @@ export function useGroupActions({
   /**
    * Append a new document to an existing group — the Document sibling of
    * `addIframeLayerToGroup`. Mirrors the last member's bounds so the new doc
-   * visually replaces the placeholder rect the user just clicked, and remembers
-   * the seeded chat so the doc's chat tab is ready on open.
+   * visually replaces the placeholder rect the user just clicked.
    */
   const addDocumentLayerToGroup = useCallback(
     (groupId: string): string | undefined => {
@@ -243,11 +239,9 @@ export function useGroupActions({
         width: lastSize.width,
         height: lastSize.height,
       })
-      if (!result) return
-      rememberDocChat(result.docId, result.chatId)
-      return result.docId
+      return result?.docId
     },
-    [collections, ops, rememberDocChat]
+    [collections, ops]
   )
 
   /**
@@ -262,14 +256,10 @@ export function useGroupActions({
       width: number,
       height: number
     ): string => {
-      const { docId, chatId } = ops.createDocument(
-        { x: canvasX, y: canvasY },
-        { width, height }
-      )
-      rememberDocChat(docId, chatId)
-      return docId
+      return ops.createDocument({ x: canvasX, y: canvasY }, { width, height })
+        .docId
     },
-    [ops, rememberDocChat]
+    [ops]
   )
 
   /** Reorder groups in the sidebar Frames list. */

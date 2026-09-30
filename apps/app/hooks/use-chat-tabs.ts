@@ -90,9 +90,7 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
       const id = nanoid()
       addChatSession(id, {
         id,
-        ...(target.kind === "agent"
-          ? { branchId: target.branchId }
-          : { markdownLayerId: target.markdownLayerId }),
+        branchId: target.branchId,
         label: "Untitled",
         createdAt: Date.now(),
       })
@@ -108,12 +106,8 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     (outcome: TabCloseOutcome) => {
       const { respawn, nextSelectedId } = outcome
       if (respawn) {
-        if (respawn.target === "agent") {
-          if (respawnAgent) respawnAgent(respawn.branchId)
-          else open({ kind: "agent", branchId: respawn.branchId })
-        } else {
-          open({ kind: "doc", markdownLayerId: respawn.markdownLayerId })
-        }
+        if (respawnAgent) respawnAgent(respawn.branchId)
+        else open({ kind: "agent", branchId: respawn.branchId })
         return
       }
       if (nextSelectedId !== undefined) selectChat(nextSelectedId)
@@ -121,20 +115,16 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     [respawnAgent, open, selectChat]
   )
 
-  // Resolve a chat's pool (agent vs doc, kept apart in buildTabPool) and apply
-  // the pure decision. A chat that is already closed isn't in its pool
-  // (removing it from the history menu decides nothing), and a chat with no
-  // agent or doc target has no pool; both return false and leave selection.
+  // Resolve a chat's pool (its Branch's, from buildTabPool) and apply the pure
+  // decision. A chat that is already closed isn't in its pool (removing it
+  // from the history menu decides nothing), and a chat with no Branch has no
+  // pool; both return false and leave selection.
   const resolveChatClose = useCallback(
     (chatId: string, nextSelectedId?: string): boolean => {
       const chat = chatSessions.find((c) => c.id === chatId)
       if (!chat || chat.closedAt) return false
-      const target: TabPoolTarget | null = chat.branchId
-        ? { kind: "agent", branchId: chat.branchId }
-        : chat.markdownLayerId
-          ? { kind: "doc", markdownLayerId: chat.markdownLayerId }
-          : null
-      if (!target) return false
+      if (!chat.branchId) return false
+      const target: TabPoolTarget = { kind: "agent", branchId: chat.branchId }
       const pool = buildTabPool(target, chatSessions, terminals)
       applyCloseOutcome(
         resolveTabClose(pool, chatId, selectedChatId, nextSelectedId)

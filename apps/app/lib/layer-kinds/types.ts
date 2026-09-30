@@ -2,9 +2,9 @@ import type { ComponentType } from "react"
 
 /**
  * Per-kind descriptor for canvas layers (frames, documents, future kinds
- * like sticky notes / images / embeds). The sidebar list, the chat target
- * picker, and any other surface that displays "a layer" generically reads
- * its UI hooks from here, so adding a new kind is:
+ * like sticky notes / images / embeds). The sidebar list and any other
+ * surface that displays "a layer" generically reads its UI hooks from here, so
+ * adding a new kind is:
  *
  *   1. Add a new entry to `GroupMemberKind` in `lib/types.ts`.
  *   2. Add a Yjs collection + migration step in `lib/yjs/schema.ts`.
@@ -14,7 +14,7 @@ import type { ComponentType } from "react"
  *   6. Ship a `LayerKindDescriptor` and register it in `LAYER_KINDS`.
  *
  * Steps 4–6 are the only ones that touch UI code; the dispatchers in the
- * sidebar / picker / pill don't need to know about specific kinds.
+ * sidebar don't need to know about specific kinds.
  *
  * `<T>` is the concrete data shape for the kind (e.g. `IframeLayerData`,
  * `MarkdownLayerData`).
@@ -26,13 +26,8 @@ export interface LayerKindDescriptor<T = unknown> {
   pluralLabel: string
   /** Singular noun: "frame", "document". */
   singularLabel: string
-  /** Lucide icon used in sidebar rows + picker items + chat target pills. */
+  /** Icon used in sidebar rows. */
   Icon: ComponentType<{ className?: string }>
-  /** Display label for an item (sidebar row text, picker item, target pill). */
+  /** Display label for an item (sidebar row text). */
   getLabel: (item: T) => string
-  /**
-   * Whether this kind can be the target of an agent chat. Drives whether
-   * the chat panel's picker shows it as a selectable target.
-   */
-  canBeChatTarget: boolean
 }

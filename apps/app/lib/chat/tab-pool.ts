@@ -13,40 +13,38 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
  *
  * Two invariants live here so the two close handlers cannot drift apart:
  *
- * 1. **Separate pools by target.** Agent chats (keyed by `branchId`) and doc
- *    chats (keyed by `markdownLayerId`) are isolated *by construction* in
- *    {@link buildTabPool}, so a respawned chat never loses its document target.
+ * 1. **Separate pools by target.** Each Branch's chats and terminals (keyed by
+ *    `branchId`) are isolated *by construction* in {@link buildTabPool}, so a
+ *    respawned chat never lands on another Branch.
  * 2. **Never empty while the target lives.** Closing the last tab returns a
  *    {@link DefaultTabSpec} respawn rather than leaving the panel blank.
  */
 
-/** The target a Tab Pool belongs to — an agent Branch or a markdown document. */
-export type TabPoolTarget =
-  { kind: "agent"; branchId: string } | { kind: "doc"; markdownLayerId: string }
+/**
+ * The target a Tab Pool belongs to — an agent Branch. Documents have no chats
+ * of their own since #1314.
+ */
+export type TabPoolTarget = { kind: "agent"; branchId: string }
 
 /**
- * A target's open tabs: its persisted Chat Sessions plus, for an agent target,
- * its ephemeral Terminal Tabs. Doc targets have no terminals, so `terminals` is
- * always empty for them. Built by {@link buildTabPool} from the room-wide lists
- * so the same-target filtering exists in exactly one place.
+ * A target's open tabs: its persisted Chat Sessions plus its ephemeral
+ * Terminal Tabs. Built by {@link buildTabPool} from the room-wide lists so the
+ * same-target filtering exists in exactly one place.
  */
 export type TabPool = {
   target: TabPoolTarget
   /** Open chat sessions for the target (closed ones already excluded). */
   chats: ChatSessionData[]
-  /** Terminal tabs for the target — always empty for a doc target. */
+  /** Terminal tabs for the target. */
   terminals: TerminalTabData[]
 }
 
 /**
  * What to respawn when the last tab on a live target is closed. Names only the
  * target; the call site decides the agent's default *kind* (chat vs terminal,
- * from the per-user pref) and performs the create + select. Doc targets always
- * respawn a chat.
+ * from the per-user pref) and performs the create + select.
  */
-export type DefaultTabSpec =
-  | { target: "agent"; branchId: string }
-  | { target: "doc"; markdownLayerId: string }
+export type DefaultTabSpec = { target: "agent"; branchId: string }
 
 /** A surviving tab, flattened across kinds for the caller's convenience. */
 export type SurvivingTab = {
@@ -72,31 +70,20 @@ export type TabCloseOutcome = {
 }
 
 /**
- * Scope the room-wide chat and terminal lists down to one target's pool. This
- * is the single place agent and doc pools are kept apart: an agent pool matches
- * `branchId` (which excludes doc chats, whose `branchId` is undefined), a doc
- * pool matches `markdownLayerId` (which excludes agent chats). Closed chats are
- * dropped; the tab being closed is left in (still open at decision time) and
- * removed by {@link resolveTabClose}.
+ * Scope the room-wide chat and terminal lists down to one target's pool: the
+ * chats and terminals whose `branchId` matches. Closed chats are dropped; the
+ * tab being closed is left in (still open at decision time) and removed by
+ * {@link resolveTabClose}.
  */
 export function buildTabPool(
   target: TabPoolTarget,
   chats: readonly ChatSessionData[],
   terminals: readonly TerminalTabData[]
 ): TabPool {
-  if (target.kind === "agent") {
-    return {
-      target,
-      chats: chats.filter((c) => c.branchId === target.branchId && !c.closedAt),
-      terminals: terminals.filter((t) => t.branchId === target.branchId),
-    }
-  }
   return {
     target,
-    chats: chats.filter(
-      (c) => c.markdownLayerId === target.markdownLayerId && !c.closedAt
-    ),
-    terminals: [],
+    chats: chats.filter((c) => c.branchId === target.branchId && !c.closedAt),
+    terminals: terminals.filter((t) => t.branchId === target.branchId),
   }
 }
 
@@ -142,7 +129,10 @@ export function resolveTabClose(
   // Selection then follows the respawned tab at the call site, so no
   // nextSelectedId here.
   if (surviving.length === 0) {
-    return { surviving, respawn: respawnSpecFor(pool.target) }
+    return {
+      surviving,
+      respawn: { target: "agent", branchId: pool.target.branchId },
+    }
   }
 
   // Selection only moves when the closing tab was the selected one. A
@@ -159,10 +149,4 @@ export function resolveTabClose(
   }
 
   return { surviving }
-}
-
-function respawnSpecFor(target: TabPoolTarget): DefaultTabSpec {
-  return target.kind === "agent"
-    ? { target: "agent", branchId: target.branchId }
-    : { target: "doc", markdownLayerId: target.markdownLayerId }
 }

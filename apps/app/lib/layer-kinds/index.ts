@@ -15,9 +15,9 @@ type AnyLayerKindDescriptor = LayerKindDescriptor<never>
 
 /**
  * Every registered layer kind. Order matters for default rendering order —
- * picker sections, sidebar default sort, etc. Add a new entry here when
- * you ship a new kind; the central dispatchers (sidebar, picker, target
- * pill) iterate this array rather than enumerating kinds inline.
+ * sidebar default sort, etc. Add a new entry here when you ship a new kind;
+ * the central dispatchers (sidebar) iterate this array rather than
+ * enumerating kinds inline.
  */
 export const LAYER_KINDS: ReadonlyArray<AnyLayerKindDescriptor> = [
   iframeLayerKind as unknown as AnyLayerKindDescriptor,
@@ -33,7 +33,3 @@ const KIND_BY_KEY = new Map<string, AnyLayerKindDescriptor>(
 export function getLayerKind(kind: string): AnyLayerKindDescriptor | undefined {
   return KIND_BY_KEY.get(kind)
 }
-
-/** Subset that can be selected as a chat target. */
-export const CHAT_TARGETABLE_LAYER_KINDS: ReadonlyArray<AnyLayerKindDescriptor> =
-  LAYER_KINDS.filter((k) => k.canBeChatTarget)

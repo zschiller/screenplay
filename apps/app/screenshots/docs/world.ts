@@ -68,7 +68,6 @@ export const DOCS_IDS = {
   chats: {
     hero: "chat-hero-gradient",
     faq: "chat-pricing-faq",
-    checklist: "chat-launch-checklist",
     stories: "chat-customer-stories",
   },
 } as const
@@ -104,7 +103,6 @@ const ROUTES = [
 const PROMPTS = {
   hero: 'Make the hero headline use a gradient from the accent color to cyan, and add a small "Trusted by 4,000+ product teams" line under the buttons.',
   faq: "Add an FAQ section below the pricing cards with four common questions.",
-  checklist: "Turn this into a launch checklist for the new pricing page.",
 }
 
 const FAQ_PLAN = `## Add an FAQ to the pricing page
@@ -243,7 +241,7 @@ export async function buildDocsWorld(
       }),
     ],
     terminalTabs: [],
-    chats: [await heroChat(now), await faqChat(now), checklistChat(now)],
+    chats: [await heroChat(now), await faqChat(now)],
     pins: [
       { id: "pin-northwind", roomId: ids.rooms.northwind, position: 0 },
       { id: "pin-marketing", folderId: ids.folders.marketing, position: 1 },
@@ -387,12 +385,6 @@ function northwindRoom(
       createdAt: minutesAgo(50),
       planMode: true,
     },
-    {
-      id: ids.chats.checklist,
-      markdownLayerId: l.checklist,
-      label: "Launch Checklist",
-      createdAt: minutesAgo(20),
-    },
   ]
 
   return {
@@ -410,6 +402,8 @@ function northwindRoom(
           width: 520,
           height: 700,
           title: "Pricing launch checklist",
+          // The Pricing FAQ chat wrote it (#1314), so it shows that chat.
+          ownerChatId: ids.chats.faq,
         },
       ],
       iframeLayerGroups: [
@@ -753,30 +747,6 @@ async function faqChat(now: number): Promise<FixtureChat> {
       createdAt: planAt,
       status: "approved",
     },
-  }
-}
-
-function checklistChat(now: number): FixtureChat {
-  const start = now - 20 * MINUTE
-  const t = transcript("checklist", start)
-  t.user(PROMPTS.checklist)
-  t.agent(
-    "Here's a first draft — edit anything you like and I'll keep it in sync."
-  )
-  t.documentTool("set_document_title", { title: "Pricing launch checklist" })
-  t.documentTool("replace_document_body", {})
-  t.agent(
-    "Drafted **Pricing launch checklist** with before, during and after sections. Tell me if you want owners or dates on each item."
-  )
-  return {
-    id: DOCS_IDS.chats.checklist,
-    roomId: DOCS_IDS.rooms.northwind,
-    // Document chats have no sandbox behind them.
-    sandboxName: "",
-    model: "harness:claude-code:opus",
-    systemPrompt: "",
-    createdAt: start,
-    messages: t.messages,
   }
 }
 

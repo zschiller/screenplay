@@ -67,7 +67,6 @@ import { WorkspacesMenuButton } from "./workspaces-menu"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { ChatSessionData, TabKind, TerminalTabData } from "@/lib/types"
-import { getLayerKind } from "@/lib/layer-kinds"
 import {
   DEFAULT_HARNESS_KEY,
   readLastHarnessKey,
@@ -89,7 +88,7 @@ import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
 
-/** A target that has a tab strip: a Workspace's chats or a document's. */
+/** A target that has a tab strip: a Workspace's chats. */
 type TabbedTarget = Exclude<ChatPanelTarget, { kind: "room" }>
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
@@ -468,9 +467,8 @@ interface ChatPanelProps {
 }
 
 /**
- * The right chat panel for one target. A Workspace or document gets its tab
- * strip of chats (and, for a Workspace, terminals and logs); the Room gets its
- * one Coordinator chat (#893). Both sit under the same {@link ChatPanelHeader}.
+ * The right chat panel for one target. A Workspace gets its tab strip of
+ * chats, terminals and logs; the Room gets its one Coordinator chat (#893). Both sit under the same {@link ChatPanelHeader}.
  */
 export function ChatPanel(props: ChatPanelProps) {
   const { target } = props
@@ -527,11 +525,6 @@ function TabbedChatPanel({
 }: ChatPanelProps & { target: TabbedTarget }) {
   const isAgentTarget = target.kind === "agent"
   const agent = target.kind === "agent" ? target.agent : null
-  // Layer-kind targets (currently just markdownLayers) are routed through the
-  // shared `LayerKindDescriptor` registry; the chrome (target pill,
-  // picker entry) reads icon/label from there so future kinds light up
-  // without changes to this file.
-  const layerTarget = target.kind === "layer" ? target : null
   const chatTarget = chatTargetOf(target)
 
   // The tab strip interleaves two distinct tab types — durable chats and
@@ -682,7 +675,7 @@ function TabbedChatPanel({
   // doesn't inherit the previous target's "logs tab open" state. Done during
   // render via the previous-value pattern rather than in an effect, which
   // would cascade an extra render after the target switch.
-  const targetKey = agent?.id ?? layerTarget?.layer.id ?? ""
+  const targetKey = agent?.id ?? ""
   const [lastTargetKey, setLastTargetKey] = useState(targetKey)
   // Operator's drag-chosen tab order for this target (ids), seeded from
   // localStorage. Reconciled with the live tab set in `orderedTabs` below.
@@ -1360,14 +1353,10 @@ function TabbedChatPanel({
           )
         }
         const chat = tab.chat
-        // First chat for this target — drives auto branch/chat naming on the
-        // agent flow; for doc chats it's just used to skip naming logic.
+        // First chat for this target — drives auto branch/chat naming.
         const isFirst = !chatSessions.some(
           (c) =>
-            c.id !== chat.id &&
-            ((chat.branchId && c.branchId === chat.branchId) ||
-              (chat.markdownLayerId &&
-                c.markdownLayerId === chat.markdownLayerId))
+            c.id !== chat.id && !!chat.branchId && c.branchId === chat.branchId
         )
         return (
           <TabsContent
@@ -1397,40 +1386,23 @@ function TabbedChatPanel({
 }
 
 /**
- * The header's name for the panel's current target. A Workspace is the shared
- * Workspace mention without its PR, and hovering it shows the Workspace hover
- * card; every layer kind renders generically through its
- * `LayerKindDescriptor` label, so adding a new chat-targetable kind doesn't
- * touch this file.
+ * The header's name for the panel's current target: the shared Workspace
+ * mention without its PR, and hovering it shows the Workspace hover card.
  */
 function TargetPill({ target }: { target: TabbedTarget }) {
   const stateOf = useWorkspaceStates()
-  if (target.kind === "agent") {
-    // State icon and plain name (#974); no PR badge, since the header keeps
-    // its own PR button on the right (#799).
-    return (
-      <WorkspaceHoverCard
-        branchId={target.agent.id}
-        side="bottom"
-        align="start"
-      >
-        <span className="flex min-w-0">
-          <WorkspaceMention
-            branch={target.agent}
-            state={stateOf(target.agent)}
-            pr={false}
-            className="flex-initial text-sm"
-          />
-        </span>
-      </WorkspaceHoverCard>
-    )
-  }
-  const descriptor = getLayerKind(target.layerKind)
-  if (!descriptor) return null
-  const label = descriptor.getLabel(target.layer as never)
+  // State icon and plain name (#974); no PR badge, since the header keeps its
+  // own PR button on the right (#799).
   return (
-    <span className="inline-flex items-center gap-2 text-sm">
-      <span className="max-w-[14rem] truncate">{label}</span>
-    </span>
+    <WorkspaceHoverCard branchId={target.agent.id} side="bottom" align="start">
+      <span className="flex min-w-0">
+        <WorkspaceMention
+          branch={target.agent}
+          state={stateOf(target.agent)}
+          pr={false}
+          className="flex-initial text-sm"
+        />
+      </span>
+    </WorkspaceHoverCard>
   )
 }

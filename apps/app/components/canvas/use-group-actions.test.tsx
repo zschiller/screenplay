@@ -19,7 +19,6 @@ function setup() {
       ops,
       collections,
       getViewportCenter: () => ({ cx: 0, cy: 0 }),
-      rememberDocChat: () => {},
       selection: {
         removeGroupFromSelection: () => {},
       } as never as CanvasSelection,

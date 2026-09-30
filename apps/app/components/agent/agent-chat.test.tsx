@@ -95,21 +95,6 @@ describe("AgentChat — affordances per Chat Target", () => {
     ).toBeTruthy()
   })
 
-  it("gives a document chat none of the sandbox affordances", () => {
-    renderChat({ kind: "document", layerId: "doc-1" })
-
-    expect(skillSource()).toBeUndefined()
-    expect(screen.queryByRole("button", { name: "Plan" })).toBeNull()
-    expect(
-      screen.queryByRole("button", { name: /target an element/i })
-    ).toBeNull()
-    expect(placeholder()).toBe("Ask the agent… (@ to mention a document)")
-    expect(screen.getByText("Edit this Document")).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: "Tighten the wording" })
-    ).toBeTruthy()
-  })
-
   it("gives the Coordinator's chat none of the sandbox affordances", () => {
     renderChat({ kind: "room" })
 

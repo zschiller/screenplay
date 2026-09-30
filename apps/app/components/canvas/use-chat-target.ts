@@ -10,22 +10,17 @@ import {
   restoreAgentChatSelection,
   type PendingProbe,
 } from "@/lib/chat/chat-target"
-import type {
-  BranchData,
-  ChatSessionData,
-  MarkdownLayerData,
-  TerminalTabData,
-} from "@/lib/types"
+import type { BranchData, ChatSessionData, TerminalTabData } from "@/lib/types"
 
 /**
  * Chat-Target selection controller (PRD #569) — the apply-side of *which* Chat
  * Target the agent panel shows, lifted out of `components/canvas/canvas.tsx`. It
  * is the symmetric sibling of the Tab Pool controller (`useTabPool`, #563):
  * target selection + tab pool = the panel model. This hook owns the selection
- * state (`selectedAgentId`, `selectedDocumentChatTargetId`, `selectedChatId`,
- * `pendingAgentIds`), the per-target memory (last chat per agent / per document,
- * last agent per repo), and the pending-agent readiness; it exposes the resolved
- * `target` and a small set of selection verbs.
+ * state (`selectedAgentId`, `selectedChatId`, `pendingAgentIds`), the per-target
+ * memory (last chat per agent, last agent per repo), and the pending-agent
+ * readiness; it exposes the resolved `target` and a small set of selection
+ * verbs.
  *
  * The pure decisions stay in `lib/chat/chat-target.ts`: the `ChatPanelTarget`
  * resolution, the remembered-chat restoration rule, and the pending-agent
@@ -40,19 +35,17 @@ import type {
 export interface ChatTargetDeps {
   agents: BranchData[]
   chatSessions: ChatSessionData[]
-  markdownLayers: MarkdownLayerData[]
   /** This client's local Terminal Tabs — needed to resolve a selected tab's target. */
   localTerminals: TerminalTabData[]
   chatPanelRef: RefObject<PanelImperativeHandle | null>
 }
 
 export interface ChatTarget {
-  /** The resolved panel target — an agent (sandbox-backed) or a layer, else null. */
+  /** The resolved panel target — an agent (sandbox-backed), else null. */
   target: ChatPanelTarget | null
-  /** The selected agent record, or undefined when a doc / nothing is targeted. */
+  /** The selected agent record, or undefined when nothing is targeted. */
   selectedAgent: BranchData | undefined
   selectedAgentId: string | null
-  selectedDocumentChatTargetId: string | null
   selectedChatId: string | null
   /** The pending agents currently worth probing (one LogProbe rendered each). */
   pendingProbes: PendingProbe[]
@@ -60,21 +53,18 @@ export interface ChatTarget {
   /**
    * Point the panel at an agent: save the outgoing agent's chat, remember the
    * repo's agent, restore the remembered chat (or the first open one), and
-   * expand the panel. `clearDocument` clears any picked doc target (the panel's
-   * target dropdown does this; the sidebar leaves it latent, agent-wins).
+   * expand the panel.
    */
   selectAgent: (
     agentId: string | null,
-    options?: { expandPanel?: boolean; clearDocument?: boolean }
+    options?: { expandPanel?: boolean }
   ) => void
-  /** Point the panel at a document target, restoring its last open chat. */
-  selectDocument: (markdownLayerId: string) => void
   /**
    * Return the panel to its home, the Coordinator chat: clear the selected
-   * Workspace and document (the "Coordinator" crumb does this).
+   * Workspace (the "Coordinator" crumb does this).
    */
   showRoomChat: () => void
-  /** Select a specific tab, tracking its target (agent/doc) and remembering it. */
+  /** Select a specific tab, tracking its agent and remembering it. */
   selectChat: (chatId: string | null) => void
   /** Point the panel at an agent and a specific chat/terminal on it. */
   selectAgentChat: (
@@ -82,22 +72,13 @@ export interface ChatTarget {
     chatId: string,
     options?: {
       expandPanel?: boolean
-      clearDocument?: boolean
       remember?: boolean
     }
-  ) => void
-  /** Point the panel at a document and a specific chat on it (remembers it). */
-  selectDocChat: (
-    markdownLayerId: string,
-    chatId: string,
-    options?: { expandPanel?: boolean }
   ) => void
   /** Move selection to a chat id without re-resolving its target. */
   selectChatId: (chatId: string | null) => void
   /** Clear selection + collapse the panel when the given agent was selected. */
   clearIfSelected: (agentId: string) => void
-  /** Remember a doc's last chat without changing the current selection. */
-  rememberDocChat: (markdownLayerId: string, chatId: string) => void
   /** The chat last selected for an agent (the remembered-chat memory). */
   rememberedAgentChatId: (agentId: string) => string | undefined
 
@@ -111,28 +92,19 @@ export interface ChatTarget {
 }
 
 export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
-  const { agents, chatSessions, markdownLayers, localTerminals, chatPanelRef } =
-    deps
+  const { agents, chatSessions, localTerminals, chatPanelRef } = deps
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  /**
-   * When a chat tab targets a document layer instead of an agent's branch the
-   * panel pivots into "doc mode". Mutually exclusive with `selectedAgentId` from
-   * the panel's POV.
-   */
-  const [selectedDocumentChatTargetId, setSelectedDocumentChatTargetId] =
-    useState<string | null>(null)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   // Agents created this session whose sandbox isn't streaming logs yet. A
   // LogProbe is rendered for each (see `pendingProbes`); on ready we flip
   // selection and drop the id.
   const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
 
-  // Per-repo / per-agent / per-document memory so switching back restores the
-  // prior selection.
+  // Per-repo / per-agent memory so switching back restores the prior
+  // selection.
   const selectedAgentByRepoRef = useRef<Record<string, string>>({})
   const selectedChatByAgentRef = useRef<Record<string, string>>({})
-  const selectedChatByDocumentRef = useRef<Record<string, string>>({})
 
   const expandPanel = useCallback(() => {
     const panel = chatPanelRef.current
@@ -144,10 +116,7 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
   }, [chatPanelRef])
 
   const selectAgent = useCallback(
-    (
-      agentId: string | null,
-      options?: { expandPanel?: boolean; clearDocument?: boolean }
-    ) => {
+    (agentId: string | null, options?: { expandPanel?: boolean }) => {
       if (!agentId) return
 
       // Save the outgoing agent's chat selection.
@@ -159,7 +128,6 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
       const agent = agents.find((a) => a.id === agentId)
       if (agent) selectedAgentByRepoRef.current[agent.repoId] = agentId
 
-      if (options?.clearDocument) setSelectedDocumentChatTargetId(null)
       setSelectedAgentId(agentId)
 
       // Restore the remembered chat if still open, else the first open one.
@@ -173,19 +141,11 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
     [agents, chatSessions, selectedAgentId, selectedChatId, expandPanel]
   )
 
-  const selectDocument = useCallback((markdownLayerId: string) => {
-    setSelectedAgentId(null)
-    setSelectedDocumentChatTargetId(markdownLayerId)
-    const lastChat = selectedChatByDocumentRef.current[markdownLayerId]
-    setSelectedChatId(lastChat ?? null)
-  }, [])
-
   const showRoomChat = useCallback(() => {
     if (selectedAgentId && selectedChatId) {
       selectedChatByAgentRef.current[selectedAgentId] = selectedChatId
     }
     setSelectedAgentId(null)
-    setSelectedDocumentChatTargetId(null)
     setSelectedChatId(null)
   }, [selectedAgentId, selectedChatId])
 
@@ -211,10 +171,6 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
           setSelectedAgentId(chat.branchId)
           selectedChatByAgentRef.current[chat.branchId] = chatId
         }
-        if (chat.markdownLayerId) {
-          setSelectedDocumentChatTargetId(chat.markdownLayerId)
-          selectedChatByDocumentRef.current[chat.markdownLayerId] = chatId
-        }
       }
     },
     [chatSessions, localTerminals, showRoomChat]
@@ -226,29 +182,12 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
       chatId: string,
       options?: {
         expandPanel?: boolean
-        clearDocument?: boolean
         remember?: boolean
       }
     ) => {
       setSelectedAgentId(branchId)
-      if (options?.clearDocument) setSelectedDocumentChatTargetId(null)
       setSelectedChatId(chatId)
       if (options?.remember) selectedChatByAgentRef.current[branchId] = chatId
-      if (options?.expandPanel) expandPanel()
-    },
-    [expandPanel]
-  )
-
-  const selectDocChat = useCallback(
-    (
-      markdownLayerId: string,
-      chatId: string,
-      options?: { expandPanel?: boolean }
-    ) => {
-      setSelectedAgentId(null)
-      setSelectedDocumentChatTargetId(markdownLayerId)
-      setSelectedChatId(chatId)
-      selectedChatByDocumentRef.current[markdownLayerId] = chatId
       if (options?.expandPanel) expandPanel()
     },
     [expandPanel]
@@ -266,13 +205,6 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
       chatPanelRef.current?.collapse()
     },
     [selectedAgentId, chatPanelRef]
-  )
-
-  const rememberDocChat = useCallback(
-    (markdownLayerId: string, chatId: string) => {
-      selectedChatByDocumentRef.current[markdownLayerId] = chatId
-    },
-    []
   )
 
   const rememberedAgentChatId = useCallback(
@@ -297,28 +229,20 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
   // once its sandbox streams logs (see `handlePendingReady`).
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const selectedDocLayer = selectedDocumentChatTargetId
-    ? (markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ??
-      null)
-    : null
-  const target = resolveChatPanelTarget(selectedAgent, selectedDocLayer)
+  const target = resolveChatPanelTarget(selectedAgent)
 
   return {
     target,
     selectedAgent,
     selectedAgentId,
-    selectedDocumentChatTargetId,
     selectedChatId,
     pendingProbes: pendingProbes(pendingAgentIds, agents),
     selectAgent,
-    selectDocument,
     showRoomChat,
     selectChat,
     selectAgentChat,
-    selectDocChat,
     selectChatId,
     clearIfSelected,
-    rememberDocChat,
     rememberedAgentChatId,
     addPending,
     handlePendingReady,

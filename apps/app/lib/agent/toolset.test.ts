@@ -58,6 +58,7 @@ const sandboxTarget: ToolTarget = {
   kind: "sandbox",
   room,
   sandbox: sandboxCtx,
+  chatId: "chat-1",
 }
 
 function fakeSandboxReturning(content: string): SandboxInstance {
