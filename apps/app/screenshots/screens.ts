@@ -2065,6 +2065,24 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-workspace-done-keeps-docs",
+    description:
+      "The reference Canvas after Mark as done on Checkout polish: its frames are hidden, the Checkout brief stays in its Group, and a toast offers Undo.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: (page) => markWorkspaceDone(page, "Checkout polish"),
+    settleMs: 600,
+  },
+  {
+    name: "workspaces-menu-row-menu-merged",
+    description:
+      "A Workspace's … menu once its PR has merged: Mark as done leads.",
+    path: `/${ids.rooms.pricing}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: (page) => openBranchRowMenu(page, "Rate-limit headers"),
+    settleMs: 400,
+  },
+  {
     name: "workspaces-menu-view-menu",
     description:
       "The Workspaces … menu (#885): the Sort by submenu open, Group by state and Open existing git branch.",

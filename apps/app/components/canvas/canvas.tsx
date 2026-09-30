@@ -1271,6 +1271,8 @@ export function Canvas({
     agents,
     repos,
     chatSessions,
+    iframeLayers: allIframeLayers,
+    iframeLayerGroups: allIframeLayerGroups,
     roomId,
     chatTarget,
     addChatSession,

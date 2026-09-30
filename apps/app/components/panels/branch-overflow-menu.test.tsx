@@ -207,6 +207,17 @@ describe("workspaceMenuLead", () => {
     ).toBe("reopen")
   })
 
+  it("leads with Mark as done once the PR has merged and the agent is idle", () => {
+    expect(lead({ pr: { state: "merged" } })).toBe("mark-done")
+    expect(lead({ pr: { state: "merged" }, hasChanges: true })).toBe(
+      "mark-done"
+    )
+    expect(
+      lead({ branch: { ...ready, status: "stopped" }, pr: { state: "merged" } })
+    ).toBe("mark-done")
+    expect(lead({ pr: { state: "merged" }, isBusy: true })).toBe("play")
+  })
+
   it("leads with the PR when one is open, or when there are changes", () => {
     expect(lead({ pr: { state: "open" } })).toBe("create-pr")
     expect(lead({ hasChanges: true })).toBe("create-pr")
@@ -214,7 +225,7 @@ describe("workspaceMenuLead", () => {
 
   it("leads with the player when there's nothing to propose", () => {
     expect(lead()).toBe("play")
-    expect(lead({ pr: { state: "merged" } })).toBe("play")
+    expect(lead({ pr: { state: "closed" } })).toBe("play")
     // Create pull request is disabled mid-turn, so it doesn't lead then.
     expect(lead({ hasChanges: true, isBusy: true })).toBe("play")
   })

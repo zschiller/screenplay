@@ -126,10 +126,11 @@ export interface WorkspaceMenuLeadInput {
 
 /**
  * The one action that leads the Workspace menu, from its state: Retry when
- * setup failed, the open PR when there is one, Create pull request when there
- * are changes to propose, otherwise the prototype player. A Workspace that's
- * still being set up (or stopped) has no lead: nothing in it works yet. A Done
- * one leads with Reopen (#976).
+ * setup failed, Mark as done once its PR has merged and the agent is idle, the
+ * open PR when there is one, Create pull request when there are changes to
+ * propose, otherwise the prototype player. A Workspace that's still being set
+ * up (or stopped, until its PR merges) has no lead: nothing in it works yet. A
+ * Done one leads with Reopen (#976).
  */
 export function workspaceMenuLead({
   branch,
@@ -139,13 +140,9 @@ export function workspaceMenuLead({
 }: WorkspaceMenuLeadInput): BranchMenuItemKey | null {
   if (branch.doneAt) return "reopen"
   if (branch.status === "error" || branch.error) return "retry"
-  if (
-    branch.status === "creating" ||
-    branch.status === "starting" ||
-    branch.status === "stopped"
-  ) {
-    return null
-  }
+  if (branch.status === "creating" || branch.status === "starting") return null
+  if (pr?.state === "merged" && !isBusy) return "mark-done"
+  if (branch.status === "stopped") return null
   if (pr?.state === "open") return "create-pr"
   if (hasChanges && !isBusy) return "create-pr"
   return branch.previewDomain ? "play" : null

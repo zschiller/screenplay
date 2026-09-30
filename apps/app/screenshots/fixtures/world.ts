@@ -925,6 +925,10 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     colorIndex: 5,
     diffAdditions: 24,
     diffDeletions: 3,
+    // Merged and idle, so its … menu leads with Mark as done.
+    prNumber: 212,
+    prUrl: "https://github.com/acme/platform/pull/212",
+    prState: "merged",
   }
 
   return {

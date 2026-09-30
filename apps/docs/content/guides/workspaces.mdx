@@ -180,9 +180,10 @@ its title.
 ## Workspace actions
 
 In the Workspaces menu, hover a workspace and click **…**. The menu starts with the one action the
-workspace's state calls for (**Retry setup** after a failed setup, the pull
-request, **Reopen** on a done workspace, or **Open prototype player**), then
-the rest, with dividers between viewing, git and managing actions:
+workspace's state calls for (**Retry setup** after a failed setup, **Mark as
+done** once its pull request has merged, the pull request, **Reopen** on a done
+workspace, or **Open prototype player**), then the rest, with dividers between
+viewing, git and managing actions:
 
 <Screenshot name="ws-menu" alt="The workspace menu" />
 
@@ -236,17 +237,18 @@ When you're finished with a workspace, **… → Mark as done** puts it away
 without deleting anything:
 
 - its dev server stops;
-- its frames leave the canvas. A group on the workspace hides whole, and a
-  frame on it inside another group hides on its own;
+- its frames leave the canvas. Documents and other workspaces' frames in the
+  same group stay where they are;
 - its row moves into a collapsed **Done** section at the bottom of the
   Workspaces list, with a check circle for its status icon;
 - its chats and history stay, and frame workspace lists stop offering it.
 
 Everyone on the canvas sees it as done. It isn't available while the agent is
-working. Merging its pull request doesn't mark a workspace done; only the menu
-does.
+working. Merging its pull request doesn't mark a workspace done, but once it
+has merged, **Mark as done** moves to the top of the menu.
 
-To bring one back, open **Done** and choose **… → Reopen**. The workspace
+A toast says how many frames were hidden. Its **Undo** reopens the workspace
+straight away. Later, open **Done** and choose **… → Reopen**. The workspace
 starts again and its frames return where they were.
 
 ## Pull requests

@@ -19,11 +19,22 @@ import {
   startWorkspace as startWorkspaceRecovery,
   type RecoveryOutcome,
 } from "@/lib/branch/recovery"
+import {
+  countWorkspaceFrames,
+  markedDoneMessage,
+} from "@/lib/canvas/done-workspaces"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import { isLocalBuild } from "@/lib/local-mode"
 import { openExternal } from "@/lib/open-external"
-import type { BranchData, ChatSessionData, RepoData } from "@/lib/types"
+import type {
+  BranchData,
+  ChatSessionData,
+  IframeLayerData,
+  IframeLayerGroupData,
+  RepoData,
+} from "@/lib/types"
+import { workspaceLabel } from "@/lib/workspace-label"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 
 /**
@@ -54,6 +65,9 @@ export interface BranchActionsDeps {
   agents: BranchData[]
   repos: RepoData[]
   chatSessions: ChatSessionData[]
+  /** Every frame and Group in the Room doc, Done ones included. */
+  iframeLayers: IframeLayerData[]
+  iframeLayerGroups: IframeLayerGroupData[]
   roomId: string
   /** The Chat-Target controller — remembered-chat lookup + dispatch selection. */
   chatTarget: ChatTarget
@@ -75,7 +89,10 @@ export interface BranchActions {
   restartSandbox: (agentId: string) => void
   /** A frame's Retry / Start on a failed or stopped Workspace (issue #731). */
   startWorkspace: (agentId: string) => void
-  /** Mark the Workspace Done: stop its sandbox, hide its frames (#976). */
+  /**
+   * Mark the Workspace Done: stop its sandbox, hide its frames (#976), and say
+   * so in a toast whose Undo reopens it.
+   */
   markDone: (agentId: string) => void
   /** Undo Mark as done: start it again and show its frames where they were. */
   reopen: (agentId: string) => void
@@ -101,6 +118,8 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
     agents,
     repos,
     chatSessions,
+    iframeLayers,
+    iframeLayerGroups,
     roomId,
     chatTarget,
     addChatSession,
@@ -242,7 +261,22 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         void startWorkspaceRecovery(agentId, recoveryDeps, {
           local: isLocalBuild,
         }),
-      markDone: (agentId) => void markDoneRecovery(agentId, recoveryDeps),
+      markDone: (agentId) => {
+        const agent = agents.find((a) => a.id === agentId)
+        if (!agent) return
+        const frames = countWorkspaceFrames(
+          agentId,
+          iframeLayerGroups,
+          iframeLayers
+        )
+        void markDoneRecovery(agentId, recoveryDeps)
+        toast(markedDoneMessage(workspaceLabel(agent), frames), {
+          action: {
+            label: "Undo",
+            onClick: () => void reopenRecovery(agentId, recoveryDeps),
+          },
+        })
+      },
       reopen: (agentId) => void reopenRecovery(agentId, recoveryDeps),
       recreate: async (agentId) => {
         const outcome = (await run("recreate", agentId)) as
@@ -256,6 +290,6 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         return applyEngine(message, agent, { commentThreadIds: threadIds })
       },
     }),
-    [run, recoveryDeps, agents, applyEngine]
+    [run, recoveryDeps, agents, applyEngine, iframeLayers, iframeLayerGroups]
   )
 }
