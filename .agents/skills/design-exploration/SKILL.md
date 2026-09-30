@@ -1,11 +1,11 @@
 ---
 name: design-exploration
-description: Design exploration answers one design question with lettered options on one page, and ends at recording the owner's pick. Use when asked to explore, mock up, compare or rethink how a screen, flow, component or visual system should look or work.
+description: Design exploration answers one design question with lettered options on one page, over as many rounds as the owner wants. Use when asked to explore, mock up, compare or rethink how a screen, flow, component or visual system should look or work.
 ---
 
 # Design exploration
 
-An **exploration** answers one design question with **options**: distinct, lettered answers (A, B, C) shown side by side on one published Artifact, next to **Today** (what main does now). A **round** is one pass of options; the owner's reaction starts the next. A **pick** is the owner's answer. An exploration ends when its picks are recorded; building starts only when the owner asks for it.
+An **exploration** answers one design question with **options**: distinct, lettered answers (A, B, C) shown side by side on one published Artifact, next to **Today** (what main does now). A **round** is one pass of options; the owner's reaction, picks included, starts the next. A **pick** is the owner's answer to one question in a round. An exploration runs several rounds and keeps going until the owner ends it; sometimes the owner asks for a spec at the end.
 
 An exploration is the sibling of [`design-audit`](../design-audit/SKILL.md): an audit finds many problems across a surface and asks its calls on a decisions page; an exploration takes one question (the owner's, or one audit call that needs mockups to answer) and settles it. For a question that needs working code to feel out, such as an interaction or a state model, build a prototype instead (the `prototype` skill when the repo has one).
 
@@ -46,19 +46,19 @@ Reply with the link and one line on the recommendation. The owner can react on t
 
 When the owner reacts:
 
-- A pick settles that question. Say which option you follow in one line.
+- A pick settles that question for this round and becomes the starting point of the next: the next round explores what the pick leaves open, or the next question the owner raises. Say which option you follow in one line.
 - A rejection ends that direction. Record it in the topic file's never-re-offer list, and build the next round from what the owner said they wanted, not a variant of what they rejected.
 - Details the owner wants to decide themselves stay open: ask them, rather than defaulting to your pick.
 
-## 6. Record the picks
+## 6. Record the round, then start the next
 
-Once every question has a pick:
+After each round:
 
 1. Write or update the exploration's topic file in memory (`<subject>-exploration`): the owner's quote, the Artifact link, the options, each round's feedback, the picks, the never-re-offer list, and how the captures were made.
-2. Reply with the picks in one line each, linking the Artifact, and stop there. Tickets, triage labels and build threads come later, from the owner: the exploration hands them its record and leaves creating them to the owner's own ask.
+2. Go back to step 1 for the next round on the same Artifact, carrying the picks forward as Today's direction.
 
-Done when memory holds every pick, the owner has the summary, and the tracker is unchanged.
+Done with a round when memory holds its feedback and picks and the next round is under way. The exploration continues until the owner says it is done. Tickets, triage labels and build threads come only from the owner's own ask, so the tracker stays unchanged throughout.
 
-## When the owner asks to build
+## When the owner asks for a spec
 
-Only on the owner's explicit ask to build a pick: draft tickets from the topic file with the repo's ticketing skill (such as `to-tickets`, or `to-spec` for one larger change), each linking the Artifact and naming the option picked, and show them to the owner. Labels and dependencies follow the tracker's docs and the owner's answer. Each ticket is built in its own thread and PR, with the screenshots RULES.md's PR evidence rule asks for.
+Only when the owner says to: write one spec from the topic file with the repo's spec skill (such as `to-spec`), linking the Artifact and naming each pick, and show it to the owner before filing. Labels, tickets and dependencies follow the tracker's docs and the owner's answer. Building happens in its own threads and PRs, with the screenshots RULES.md's PR evidence rule asks for.
