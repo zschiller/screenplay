@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   failureTitle,
   formatElapsed,
+  planPendingBranchIds,
   workspaceStatusLine,
 } from "@/lib/branch/status-line"
 
@@ -70,6 +71,51 @@ describe("workspaceStatusLine", () => {
     })
   })
 
+  it("reads Needs you while a plan waits for approval", () => {
+    const waiting = {
+      kind: "idle",
+      state: "needs-you",
+      text: "Plan waiting for approval",
+    }
+    expect(
+      workspaceStatusLine(
+        { status: "running" },
+        { agentWorking: false, planPending: true }
+      )
+    ).toEqual(waiting)
+    expect(
+      workspaceStatusLine(
+        { status: "stopped" },
+        { agentWorking: false, planPending: true }
+      )
+    ).toEqual(waiting)
+    // A new turn after the plan reads as working.
+    expect(
+      workspaceStatusLine(
+        { status: "running" },
+        { agentWorking: true, planPending: true }
+      )
+    ).toMatchObject({ state: "working" })
+  })
+
+  it("reads Needs you for a blocked PR, and Ready for a healthy one", () => {
+    expect(
+      workspaceStatusLine(
+        { status: "running", prState: "open", prBlocked: true },
+        idle
+      )
+    ).toEqual({ kind: "idle", state: "needs-you", text: "Merge blocked" })
+    expect(
+      workspaceStatusLine({ status: "running", prState: "open" }, idle)
+    ).toMatchObject({ state: "ready" })
+    expect(
+      workspaceStatusLine(
+        { status: "running", prState: "merged", prBlocked: true },
+        idle
+      )
+    ).toMatchObject({ state: "ready" })
+  })
+
   it("reads Done once a member marked it done, whatever the sandbox says", () => {
     const done = { kind: "idle", state: "done", text: "Done" }
     expect(workspaceStatusLine({ status: "stopped", doneAt: 1 }, idle)).toEqual(
@@ -78,6 +124,18 @@ describe("workspaceStatusLine", () => {
     expect(
       workspaceStatusLine({ status: "error", error: "x", doneAt: 1 }, idle)
     ).toEqual(done)
+  })
+})
+
+describe("planPendingBranchIds", () => {
+  it("collects only pending plans", () => {
+    expect(
+      planPendingBranchIds([
+        { branchId: "a", status: "pending" },
+        { branchId: "b", status: "approved" },
+        { branchId: "c", status: "rejected" },
+      ])
+    ).toEqual(new Set(["a"]))
   })
 })
 

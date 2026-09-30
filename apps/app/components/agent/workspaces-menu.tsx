@@ -121,6 +121,10 @@ import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 
 import { checkBranchRename } from "@/lib/branch-rename"
+import {
+  planPendingBranchIds,
+  type StatusLineContext,
+} from "@/lib/branch/status-line"
 
 import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
 
@@ -162,7 +166,7 @@ import {
   type WorkspaceSort,
 } from "@/lib/workspace-list-view"
 
-import { useChatSessions } from "@/lib/yjs/react"
+import { useChatSessions, usePlans } from "@/lib/yjs/react"
 
 /**
  * The chat panel's Workspaces menu (#1152): one button pinned to the far right
@@ -239,6 +243,8 @@ type WorkspacesMenuValue = Omit<
   /** Done Workspaces, most recently done first. */
   doneBranches: BranchData[]
   needsYou: boolean
+  /** A Workspace's live facts for its state icon and section. */
+  statusOf: (branchId: string) => StatusLineContext
   lastUsedRepoId: string | null
   /** Which Workspaces have a dialog open over them (no row hover then). */
   pendingBranchIds: Set<string>
@@ -272,7 +278,6 @@ export function WorkspacesMenuProvider({
     repos,
     branches,
     markdownLayers,
-    branchPrs,
     activeBranchIds,
     onSelectWorkspace,
     onCreateBranchFromGitBranch,
@@ -380,13 +385,19 @@ export function WorkspacesMenuProvider({
         .sort((a, b) => (b.doneAt ?? 0) - (a.doneAt ?? 0)),
     [flatBranches]
   )
+  // Workspaces whose plan waits for approval: they need you.
+  const plans = usePlans()
+  const planPendingIds = useMemo(() => planPendingBranchIds(plans), [plans])
+  const statusOf = useCallback(
+    (branchId: string): StatusLineContext => ({
+      agentWorking: activeBranchIds.has(branchId),
+      planPending: planPendingIds.has(branchId),
+    }),
+    [activeBranchIds, planPendingIds]
+  )
   const needsYou = useMemo(
-    () =>
-      anyWorkspaceNeedsYou(flatBranches, (b) => ({
-        agentWorking: activeBranchIds.has(b.id),
-        openPr: (branchPrs.get(b.id)?.state ?? b.prState) === "open",
-      })),
-    [flatBranches, activeBranchIds, branchPrs]
+    () => anyWorkspaceNeedsYou(flatBranches, (b) => statusOf(b.id)),
+    [flatBranches, statusOf]
   )
   // New workspace starts in the Repo used last: the newest Workspace's.
   const lastUsedRepoId = useMemo(() => {
@@ -466,6 +477,7 @@ export function WorkspacesMenuProvider({
     activeBranches,
     doneBranches,
     needsYou,
+    statusOf,
     lastUsedRepoId,
     pendingBranchIds,
     openNewWorkspace,
@@ -680,8 +692,7 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
     reposById,
     activeBranches,
     doneBranches,
-    activeBranchIds,
-    branchPrs,
+    statusOf,
     markdownLayers,
     setOpen,
   } = menu
@@ -697,12 +708,9 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
   const sections = useMemo(
     () =>
       listView.groupByState
-        ? groupWorkspaces(activeBranches, listView.sort, (b) => ({
-            agentWorking: activeBranchIds.has(b.id),
-            openPr: (branchPrs.get(b.id)?.state ?? b.prState) === "open",
-          }))
+        ? groupWorkspaces(activeBranches, listView.sort, (b) => statusOf(b.id))
         : null,
-    [activeBranches, listView, activeBranchIds, branchPrs]
+    [activeBranches, listView, statusOf]
   )
   // Drag writes manual order, so it only runs where rows show it, and not
   // over a filtered list.
@@ -1059,7 +1067,7 @@ function WorkspaceMenuRow({
         icon={
           <WorkspaceStatusIcon
             branch={branch}
-            context={{ agentWorking }}
+            context={menu.statusOf(branch.id)}
             onRetry={() => menu.onRetryBranch(branch.id)}
             onRecreate={() => menu.askRecreate(branch.id)}
           />

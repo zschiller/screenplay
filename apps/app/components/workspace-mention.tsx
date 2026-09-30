@@ -7,6 +7,7 @@ import {
   CircleIcon,
   GitMergeIcon,
   GitPullRequestIcon,
+  WarningCircleIcon,
   WarningIcon,
 } from "@workspace/ui/components/icons"
 import { Badge } from "@workspace/ui/components/badge"
@@ -16,13 +17,16 @@ import { GripSpinner } from "@/components/grip-spinner"
 import { prStateColor, prStateTextColor } from "@/components/pr-state-color"
 import { isBranchBusy } from "@/lib/branch-busy"
 import {
+  planPendingBranchIds,
   workspaceStatusLine,
+  type StatusLineBranch,
+  type StatusLineContext,
   type WorkspaceStatusLine,
 } from "@/lib/branch/status-line"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
-import { useChatSessions } from "@/lib/yjs/react"
+import { useChatSessions, usePlans } from "@/lib/yjs/react"
 
 /**
  * One way to draw a Workspace (#974): its state icon, its plain name, and its
@@ -42,13 +46,16 @@ export type WorkspaceMentionBranch = Pick<
   | "doneAt"
   | "prNumber"
   | "prState"
+  | "prBlocked"
 >
 
 /**
  * The Workspace's state as one glyph (#963): the regular spinner while setting
- * up, the 9-dot while its agent works, a small dot when ready, a dashed circle
+ * up, the 9-dot while its agent works, the warning circle in the warning
+ * colour when it needs you (a plan to approve or a blocked PR, as the
+ * Coordinator's task rows draw it), a small dot when ready, a dashed circle
  * when stopped, a muted check circle when Done (#976), the warning triangle
- * when setup failed. Never PR state. It
+ * when setup failed. Never the PR's own state. It
  * takes its colour from the text around it, so it reads the same in the
  * sidebar and in a popover.
  */
@@ -60,6 +67,8 @@ export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
       <Spinner className="size-3.5 opacity-70" />
     ) : line.state === "working" ? (
       <GripSpinner className="size-3.5 opacity-70" />
+    ) : line.state === "needs-you" ? (
+      <WarningCircleIcon className="size-3.5 text-warning" />
     ) : line.state === "done" ? (
       <CheckCircleIcon weight="bold" className="size-3! opacity-50" />
     ) : line.state === "stopped" ? (
@@ -79,12 +88,12 @@ export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
 /** The state glyph for a Workspace, labelled with its state in words. */
 export function WorkspaceStateIcon({
   branch,
-  agentWorking,
+  status,
 }: {
-  branch: Pick<BranchData, "status" | "statusMessage" | "error" | "doneAt">
-  agentWorking: boolean
+  branch: StatusLineBranch
+  status: StatusLineContext
 }) {
-  const line = workspaceStatusLine(branch, { agentWorking })
+  const line = workspaceStatusLine(branch, status)
   return (
     <span
       role="img"
@@ -153,10 +162,18 @@ export function workspacePr(
   return { number: branch.prNumber, state: branch.prState }
 }
 
-/** Whether each Workspace has a chat turn in flight, read from the room doc. */
-export function useWorkspaceAgentWorking(): (branchId: string) => boolean {
+/**
+ * Each Workspace's live facts for its status line, read from the room doc:
+ * whether a chat turn is in flight and whether a plan waits for approval.
+ */
+export function useWorkspaceStatus(): (branchId: string) => StatusLineContext {
   const chats = useChatSessions()
-  return (branchId) => isBranchBusy(branchId, chats)
+  const plans = usePlans()
+  const pending = planPendingBranchIds(plans)
+  return (branchId) => ({
+    agentWorking: isBranchBusy(branchId, chats),
+    planPending: pending.has(branchId),
+  })
 }
 
 /**
@@ -176,7 +193,7 @@ export function useWorkspaceAgentWorking(): (branchId: string) => boolean {
  */
 export function WorkspaceMention({
   branch,
-  agentWorking = false,
+  status = { agentWorking: false },
   pr = "end",
   prOverride,
   fallback,
@@ -186,7 +203,8 @@ export function WorkspaceMention({
   className,
 }: {
   branch: WorkspaceMentionBranch
-  agentWorking?: boolean
+  /** Its live facts, from {@link useWorkspaceStatus}. */
+  status?: StatusLineContext
   pr?: "end" | "after" | false
   /** The PR to show when the caller holds a fresher one than the doc. */
   prOverride?: WorkspacePr | null
@@ -211,9 +229,7 @@ export function WorkspaceMention({
         className
       )}
     >
-      {icon ?? (
-        <WorkspaceStateIcon branch={branch} agentWorking={agentWorking} />
-      )}
+      {icon ?? <WorkspaceStateIcon branch={branch} status={status} />}
       <span
         className={cn(
           // One line tall; a badge that doesn't fit wraps onto a second line

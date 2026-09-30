@@ -46,7 +46,7 @@ vi.mock("@/lib/add-repo/actions", () => ({
 // with the answer.
 vi.mock("@/components/workspace-mention", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/workspace-mention")>()),
-  useWorkspaceAgentWorking: () => () => false,
+  useWorkspaceStatus: () => () => ({ agentWorking: false }),
 }))
 vi.mock("@/hooks/use-unsaved-work", () => ({
   useUnsavedWork: () => new Map(),

@@ -17,9 +17,18 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { isBranchBusy } from "@/lib/branch-busy"
 import { workspaceDetails } from "@/lib/branch/workspace-details"
-import { formatElapsed, workspaceStatusLine } from "@/lib/branch/status-line"
+import {
+  formatElapsed,
+  planPendingBranchIds,
+  workspaceStatusLine,
+} from "@/lib/branch/status-line"
 import { workspaceLabel } from "@/lib/workspace-label"
-import { useBranches, useChatSessions, useRepos } from "@/lib/yjs/react"
+import {
+  useBranches,
+  useChatSessions,
+  usePlans,
+  useRepos,
+} from "@/lib/yjs/react"
 
 // The card portals out of sidebar rows and canvas labels while React events
 // still bubble through them: keep its clicks and pointer-downs from selecting,
@@ -115,11 +124,13 @@ function WorkspaceHoverDetail({ branchId }: { branchId: string }) {
   const branch = useBranches().find((b) => b.id === branchId)
   const repos = useRepos()
   const chats = useChatSessions()
+  const plans = usePlans()
   if (!branch) return null
 
   const repo = repos.find((r) => r.id === branch.repoId)
   const line = workspaceStatusLine(branch, {
     agentWorking: isBranchBusy(branch.id, chats),
+    planPending: planPendingBranchIds(plans).has(branch.id),
   })
   const details = workspaceDetails(branch, repo)
   const label = workspaceLabel(branch)

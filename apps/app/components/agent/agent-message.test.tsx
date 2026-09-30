@@ -865,8 +865,8 @@ describe("AgentMessageItem — Workspace task row (#896)", () => {
     )
     expect(
       screen.getByTestId("workspace-task").getAttribute("data-state")
-    ).toBe("done")
-    expect(screen.getByText("Done")).toBeTruthy()
+    ).toBe("finished")
+    expect(screen.getByText("Finished")).toBeTruthy()
   })
 
   it("stays a tool row outside the Coordinator chat", () => {

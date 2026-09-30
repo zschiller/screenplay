@@ -83,7 +83,7 @@ function StateIcon({ state }: { state: WorkspaceTaskState }) {
       )
     case "removed":
       return <CircleDashedIcon aria-hidden className={cls} />
-    case "done":
+    case "finished":
       return <CheckIcon aria-hidden className={cn(cls, "text-success")} />
   }
 }
