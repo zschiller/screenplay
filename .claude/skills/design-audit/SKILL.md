@@ -1,61 +1,43 @@
 ---
 name: design-audit
-description: Audit several product surfaces at three depths, combine each surface into one sequenced PR plan, then collect the user's calls on an interactive decisions page and fan out one thread per PR.
+description: Design audit of a product surface, run as four stages. Use when asked to audit a surface, combine its audits into a plan, put the plan's calls on a decisions page, or start the work from pasted decisions.
 ---
 
 # Design audit
 
-Use when the user wants a surface (homepage, docs, app, ...) audited end to end and turned into work, or asks for any stage of that: the audits, "combine the audits", "a page where I can answer the questions", or "spin up the work from my decisions". Each stage produces an Artifact. Nothing is ticketed or opened until the user has answered the decisions page.
+A **surface** is one product area (homepage, docs, app). A **depth** is one lens on it. A **call** is a question only the owner can answer. The four stages run in separate threads, and each produces a published Artifact. Tickets and PRs start in stage 4, once the owner has answered the calls.
 
-## Stage 1: audits (one thread per surface × depth)
+Find which stage you are in from the ask, then do only that stage.
 
-Default depths, each its own thread and Artifact:
-- **Product**: is every claim true, what is missing or wrong for a real user. Check claims in code and cite `file:line`.
-- **Interaction / hierarchy** (wayfinding for docs): what a person sees first, what they can reach, where flows dead-end.
-- **Visual nits**: spacing, type, colour and component drift against the project's design rules. Build the fixes as a patch or branch (`/mnt/project-files/<surface>-visual-nits/fixes.patch`) with before and after captures in light and dark.
+## 1. Audit: one thread per surface × depth
 
-Every finding gets a tag: depth letter + number (P3, H7, N12, or V/I/D as the surface uses). Captures are labelled Now, Mockup or After. Check findings against project memory's design rules and "don't re-raise" lists before including them.
+The three depths:
 
-## Stage 2: combined plan (one thread per surface, after all its audits are done)
+- **Product**: whether every claim is true and what a real user is missing. Cite the code (`file:line`) behind each claim you check.
+- **Hierarchy** (wayfinding for docs, interaction for the app): what a person sees first, what they can reach, and where flows dead-end.
+- **Visual nits**: spacing, type, colour and component drift against the design rules in project memory. Build the fixes as a patch in `/mnt/project-files/<surface>-visual-nits/`, with before and after captures in light and dark.
 
-Read that surface's audits and produce one Artifact, in this order:
-1. **Header**: surface, date, a lede with the counts (findings, overlaps merged, proposed PRs, decisions needed), and links to each source audit (and any built branch or patch).
-2. **The sequence**: numbered PRs in the order you'd do them. Each: title, size and kind ("Copy only · 6 files"), and what it depends on. Put false claims and bugs first, already-built patches early, and big redesigns after the PRs they build on. Note steps that need the user's machine (a release, a Mac-only test).
-3. **Needs your call**: numbered questions, each with its question in one line, the finding tags and PR it gates, one or two sentences of context, and 2 or 3 options with a one-line consequence. The recommended option comes first and is marked. Say which PRs can start without any of the answers.
-4. **Worth your oversight**: things you'll do by default that the user may want to watch (a release, copy that changes the pitch, a change everyone on a canvas sees, unverified captures, edits another surface's plan depends on).
-5. **Defaults I picked and what was merged**: duplicates across audits ship once (say where), findings dropped and why, and a check against the user's design rules.
-6. **Per-PR sections**: why, depends on, touches (files), then each finding with its tag, the concrete change, and its captures copied from the audit Artifacts (`files` with `{artifact, path}` sources, so nothing is downloaded).
-7. **Out of scope**: items moved to another surface's plan (for example, product bugs found by the docs audit go to the app plan).
+Tag each finding with its depth letter and a number (P3, H7, N12). Label captures Now, Mockup or After. Check memory's "don't re-raise" list first, and keep only findings it doesn't already settle.
 
-## Stage 3: decisions page (one Artifact for all surfaces)
+Done when every finding has a tag, every product claim has a citation, and every visual finding has captures.
 
-1. Read each combined plan with the Artifact tool. For long pages, extract `<section class="pr">` blocks, headings and image `src` plus caption with a short script instead of reading the whole file.
-2. For each call, fill a question object in `decisions-template.html`'s `SURFACES` array: id (surface letter + number: H1, D3, A2), `where`, `t` question, `c` context, `o` options (recommended first), and `img` with the one or two captures that show the thing decided (light plus dark when the plan has both). Leave `img` off when no capture shows it, rather than adding one that's loosely related.
-3. Fill `RUNS` with every PR per surface: `""` for runs regardless, `"waits on H1, H3"` where it's gated.
-4. Copy `decisions-template.html` (next to this file), replace the `{{...}}` placeholders and the jump and plan links. Load `artifact-design` first, keep the template's tokens, extract the script and run `node --check` on it once, then publish with `files` mapping each image path to `{artifact: <plan url>, path: <its published path>}`.
-5. Reply with the link: pick answers, press Copy decisions, paste the text back. Blank means the recommendation stands.
+## 2. Combine: one thread per surface, after all three audits are done
 
-The copied text looks like this:
+Read [`PLAN.md`](PLAN.md) and build the surface's combined plan.
 
-```
-Decisions on the homepage, docs and app audit plans (30 Sep 2026)
+Done when every finding from the three audits is accounted for exactly once: in a PR, merged into another finding, dropped with a reason, or moved to another surface's plan.
 
-HOMEPAGE
-H1. Should the figures sell versions of one change, or parallel tasks?
-   → Versions (recommended)
-H6. Swap Pick elements for a Play mode card?
-   → None of these
-   Note: pick elements is useful. Let's think about what these cards should be.
-```
+## 3. Decide: one page for all surfaces
 
-## Stage 4: take the answers and fan out
+Read [`DECISIONS.md`](DECISIONS.md) and build the decisions page from `decisions-template.html`.
 
-- Record the answers in project memory next to the plans, spelling out every non-recommended answer and every note.
-- Notes often ask a question ("didn't we have it?", "do we even need this?"). Answer each one from the code or git history, citing the PR or `file:line`. A note that says "file an issue" means filing it now, with the repo's triage label (`needs-triage`).
-- A "None of these" answer with a note that reopens the question: drop that item from its PR and list it as an open discussion.
-- Reply once in the thread with the answers to the notes and what changed in the plan.
-- Hand the answers to the coordinator (or start the threads yourself if you are the coordinator): one thread per PR, each briefed with its plan link, its PR section and the answers it waits on. PRs marked "runs regardless" can start at once; steps that need the user's machine go through Remote Control.
+Done when every call in every plan is a question on the page and every PR is in its runs list.
 
-## Decisions page template
+## 4. Fan out: when the owner pastes their decisions back
 
-`decisions-template.html` in this folder is the page. Its `homepage` entries in `SURFACES` and `RUNS` are examples to replace; everything below the data arrays (rendering, None of these and Write my own, notes, the answered count, Copy decisions with its select-text fallback, localStorage drafts) works as is.
+1. Record the answers in project memory next to the plans. Write out every answer that isn't the recommendation, and every note.
+2. Answer each question asked in a note from the code or git history, citing the PR or `file:line`. When a note asks for an issue, file it now with the label for the needs-triage role in `docs/agents/triage-labels.md`.
+3. When the answer is "None of these" and the note reopens the question, take that item out of its PR and list it as an open discussion.
+4. Start one thread per PR, or ask the coordinator to. Brief each with its plan link, its PR section and the answers it waits on. PRs that wait on no call start first. Steps that need the owner's machine run over Remote Control.
+
+Done when every note has an answer and every PR has a thread whose brief carries the answers it depends on.
