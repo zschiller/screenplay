@@ -8,9 +8,11 @@
     "tauri": "tauri",
     "dev": "tauri dev",
     "build": "pnpm build:sidecar && tauri build --config src-tauri/tauri.release.conf.json",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "build:volume-icon": "node scripts/build-volume-icon.mjs"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@tauri-apps/cli": "^2.0.0",
+    "sharp": "^0.34.5"
   }
 }
