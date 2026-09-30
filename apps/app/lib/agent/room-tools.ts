@@ -17,6 +17,7 @@ import {
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
 import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { QUESTION_TOOL_ANNOTATIONS } from "@/lib/agent/question-tools"
 import {
   addMemory,
   editMemory,
@@ -166,8 +167,9 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   remove_workspace: { destructiveHint: true, openWorldHint: false },
   // Reads a bundled Coordinator App Skill (#905).
   read_skill: { readOnlyHint: true, openWorldHint: false },
-  // Shared by every chat's toolset (`layer-read-tools.ts`).
+  // Shared by every chat's toolset (`layer-read-tools.ts`, `question-tools.ts`).
   read_document: { readOnlyHint: true, openWorldHint: false },
+  ...QUESTION_TOOL_ANNOTATIONS,
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
   // undoable with `undo_changes`, so none is destructive.
   create_frames: { destructiveHint: false, openWorldHint: false },

@@ -31,6 +31,7 @@ import {
   NotePencilIcon,
   PencilSimpleIcon,
   PencilSimpleLineIcon,
+  QuestionIcon,
   RobotIcon,
   SelectionIcon,
   SparkleIcon,
@@ -82,6 +83,12 @@ import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
 import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
+import { QuestionCard } from "./question-card"
+import {
+  isQuestionCall,
+  parseQuestion,
+  type QuestionAnswer,
+} from "@/lib/agent/question"
 import {
   WORKSPACE_LINK_SCHEME,
   workspaceTasksOf,
@@ -126,6 +133,7 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   stop_workspace: StopCircleIcon,
   open_pull_request: GitPullRequestIcon,
   remove_workspace: TrashIcon,
+  ask_question: QuestionIcon,
 }
 
 const toolLabels: Record<string, string> = {
@@ -168,6 +176,7 @@ const toolLabels: Record<string, string> = {
   stop_workspace: "Stop Workspace",
   open_pull_request: "Open pull request",
   remove_workspace: "Remove Workspace",
+  ask_question: "Ask a question",
 }
 
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
@@ -1194,10 +1203,19 @@ function keepWorkspaceLinks(url: string): string {
  */
 function ToolCallItem({
   message,
+  chatId,
+  questionAnswer,
 }: {
   message: AgentMessage & { role: "tool_call" }
+  chatId?: string
+  questionAnswer?: QuestionAnswer
 }) {
   const tasks = useWorkspaceTasks()
+  if (isQuestionCall(message) && parseQuestion(message.rawInput)) {
+    return (
+      <QuestionCard message={message} chatId={chatId} answer={questionAnswer} />
+    )
+  }
   const found = tasks ? workspaceTasksOf(message) : []
   if (tasks && found.length > 0) {
     return (
@@ -1221,12 +1239,15 @@ export function AgentMessageItem({
   roomId,
   chatId,
   onRetry,
+  questionAnswer,
 }: {
   message: AgentMessage
   roomId?: string
   chatId?: string
   /** Retry for an error the chat can redo (a failed turn, approval or stop). */
   onRetry?: () => Promise<unknown>
+  /** How a question card was answered, once a user message follows it. */
+  questionAnswer?: QuestionAnswer
 }) {
   switch (message.role) {
     case "user":
@@ -1239,7 +1260,13 @@ export function AgentMessageItem({
       return <ReasoningMessage message={message} />
 
     case "tool_call":
-      return <ToolCallItem message={message} />
+      return (
+        <ToolCallItem
+          message={message}
+          chatId={chatId}
+          questionAnswer={questionAnswer}
+        />
+      )
 
     case "plan":
       if (!roomId || !chatId) return null

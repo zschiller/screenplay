@@ -166,6 +166,19 @@ instead of editing. Plan mode is for workspace chats; the Coordinator has no
   feedback. Any message sent while a plan is pending counts as feedback, so
   you can also just reply, and the agent revises the plan.
 
+## Questions
+
+When the agent reaches a fork only you can decide, it can ask you with a
+question instead of guessing: one sentence, with two to four options to pick
+from, and the one it would pick marked **Recommended**. Pick an option to send
+it as your reply; the agent carries on from there. To answer
+something else, just type it in the composer.
+
+Once answered, the question keeps the option you chose selected and can't be
+answered again. Workspace chats and the [Coordinator](/guides/coordinator)
+can both ask questions this way, in the browser and on desktop, including
+chats running on Claude Code, Codex or OpenCode.
+
 ## Following the work
 
 Agent replies stream in as they're written. Each tool call is a compact row
@@ -185,6 +198,7 @@ you can expand for details:
 | **Read document**                  | Read a document on the canvas                |
 | **Create PR**                      | Opened a pull request (shown as a link card) |
 | **Submit plan**                    | Presented a plan for approval                |
+| A question with options            | Asked you to pick an option                  |
 
 Failed calls are marked in red and always show the error, or say that none
 was reported. Once a turn finishes, its tool calls fold behind one summary

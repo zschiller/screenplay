@@ -36,6 +36,24 @@ function shape(messages: AgentMessage[], streaming = false): string[] {
 }
 
 describe("foldFinishedTurns (issue #800)", () => {
+  it("keeps a question card on screen in a folded turn (#1312)", () => {
+    expect(
+      shape([
+        user("tidy the header"),
+        call("t1"),
+        assistant("Two ways to go."),
+        call("q1", { title: "ask_question" }),
+        user("Compact"),
+      ])
+    ).toEqual([
+      "user",
+      "summary(1)",
+      "assistant:Two ways to go.",
+      "tool_call",
+      "user",
+    ])
+  })
+
   it("shows only a Coordinator wake's reply and task rows, never its message or steps, keeping its task rows (#897)", () => {
     const wake: AgentMessage = {
       role: "user",

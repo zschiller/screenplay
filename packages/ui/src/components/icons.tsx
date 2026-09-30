@@ -92,6 +92,7 @@ import { PlugIcon as PlugBase } from "@phosphor-icons/react/dist/ssr/Plug"
 import { PlusIcon as PlusBase } from "@phosphor-icons/react/dist/ssr/Plus"
 import { PushPinIcon as PushPinBase } from "@phosphor-icons/react/dist/ssr/PushPin"
 import { PushPinSlashIcon as PushPinSlashBase } from "@phosphor-icons/react/dist/ssr/PushPinSlash"
+import { QuestionIcon as QuestionBase } from "@phosphor-icons/react/dist/ssr/Question"
 import { QuotesIcon as QuotesBase } from "@phosphor-icons/react/dist/ssr/Quotes"
 import { RecycleIcon as RecycleBase } from "@phosphor-icons/react/dist/ssr/Recycle"
 import { RobotIcon as RobotBase } from "@phosphor-icons/react/dist/ssr/Robot"
@@ -320,6 +321,7 @@ export const PlugIcon = phosphor(PlugBase, "ph-plug")
 export const PlusIcon = phosphor(PlusBase, "ph-plus")
 export const PushPinIcon = phosphor(PushPinBase, "ph-push-pin")
 export const PushPinSlashIcon = phosphor(PushPinSlashBase, "ph-push-pin-slash")
+export const QuestionIcon = phosphor(QuestionBase, "ph-question")
 export const QuotesIcon = phosphor(QuotesBase, "ph-quotes")
 export const RecycleIcon = phosphor(RecycleBase, "ph-recycle")
 export const RobotIcon = phosphor(RobotBase, "ph-robot")

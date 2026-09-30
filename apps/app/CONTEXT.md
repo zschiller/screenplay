@@ -589,6 +589,19 @@ on screen (a terminal tab, the logs) waits for the next chat to claim it.
 _Avoid_: opening a fresh chat for the quote; sending it without the person's
 own words; routing a hand-made Document's quote anywhere but the panel.
 
+**Question Card**:
+A question a chat asks with the `ask_question` Tool (#1312): one sentence, 2 to
+4 options, optionally one marked recommended, drawn with shadcn's Questionnaire
+(`@workspace/ui/components/questionnaire`). Every Chat Target has the Tool,
+and a Harness reaches it over MCP. The call's arguments are the card; picking
+an option sends its label as the person's next message through the chat's own
+send path (`inputStore.send`), so it steers or queues like anything typed. The
+in-process Engine ends the turn on the call. Nothing else is stored: a card is
+answered once a user message follows it, and the option that message names is
+the chosen one (`questionAnswers`, `lib/agent/question.ts`).
+_Avoid_: a pending-tool-call row or a paused run for it (that's the plan gate);
+answering on the person's behalf.
+
 **Element Targeting**:
 A Composer's one-shot crosshair **pick** of an element in one of its own
 Branch's preview frames, inserted as an element token (PRD #616). The Composer

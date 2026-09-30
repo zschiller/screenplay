@@ -126,6 +126,7 @@ describe("room chat target", () => {
 
     expect(Object.keys(tools).sort()).toEqual([
       "arrange_groups",
+      "ask_question",
       "create_document",
       "create_frames",
       "create_workspaces",

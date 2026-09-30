@@ -1,6 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react"
 import { ClockIcon, FileTextIcon, XIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
@@ -38,6 +44,7 @@ import {
 } from "./composer"
 import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
+import { questionAnswers } from "@/lib/agent/question"
 import { targetingStore } from "@/lib/targeting-store"
 import { useModelCatalog } from "@/lib/use-model-catalog"
 import {
@@ -315,6 +322,9 @@ export function AgentChat({
     })
   }, [chatId, sendMessage, effectiveModel, model, onModelChange])
 
+  // Question cards (#1312) close once a user message follows them.
+  const answers = useMemo(() => questionAnswers(messages), [messages])
+
   // While the sandbox is still booting there's no agent to talk to yet — show
   // the same provisioning spinner the terminal does (terminal-tab.tsx) instead
   // of a live composer whose first send would just error. Mirrors the copy and
@@ -352,6 +362,9 @@ export function AgentChat({
         message={msg}
         roomId={roomId}
         chatId={chatId}
+        questionAnswer={
+          msg.role === "tool_call" ? answers.get(msg.toolCallId) : undefined
+        }
         // Retry only while the error is the last thing in the chat: once the
         // conversation has moved on, redoing it would act out of turn.
         onRetry={
