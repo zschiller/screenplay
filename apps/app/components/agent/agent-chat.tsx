@@ -246,8 +246,8 @@ export function AgentChat({
   )
 
   // Reply in chat (#1243) quotes into the chat on screen: this one while it's
-  // the visible tab. A new quote focuses the composer so the question can be
-  // typed straight away.
+  // the visible tab. A new quote focuses the composer (its `focusKey`) so the
+  // question can be typed straight away.
   useEffect(() => {
     if (!isActive) return
     return chatQuoteStore.claimForeground(chatId)
@@ -260,10 +260,6 @@ export function AgentChat({
     () => chatQuoteStore.get(chatId),
     () => undefined
   )
-  const quoteKey = quote?.key
-  useEffect(() => {
-    if (quoteKey !== undefined) composerRef.current?.focus()
-  }, [quoteKey])
 
   // Put a held message (refused or queued) back in the composer to edit. The
   // composer's own document restores mentions and element tokens intact; a
@@ -524,6 +520,7 @@ export function AgentChat({
         }
         onPickElement={pickBranchId ? handlePickElement : undefined}
         targetEligible={targetEligible}
+        focusKey={quote?.key}
       />
     </div>
   )

@@ -1136,6 +1136,9 @@ export function MarkdownLayer({
                           quotedText: getQuotedText(doc, from, to),
                           ...getLineNumbers(doc, from, to),
                         })
+                        // Typing now belongs to the chat, never the
+                        // selection, even before its composer is ready.
+                        editor.commands.blur()
                       }}
                     >
                       <ArrowUUpLeftIcon />

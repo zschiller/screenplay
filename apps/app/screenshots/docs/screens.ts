@@ -108,6 +108,8 @@ const VIEW = {
   pricing: { x: 16, y: -250, zoom: 0.31 },
   document: { x: -1080, y: -600, zoom: 0.62 },
   documentEdit: { x: -1150, y: -700, zoom: 0.8 },
+  /** {@link documentEdit} moved left to clear the open chat panel. */
+  documentEditWithChat: { x: -1480, y: -700, zoom: 0.8 },
 } as const
 
 // Panel widths are percentages of the window: a 240px sidebar and a 420px chat.
@@ -1126,7 +1128,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     prepare: async (page) => {
-      await camera(page, VIEW.documentEdit)
+      await camera(page, VIEW.documentEditWithChat)
       const line = await centerOf(page, "li p, li", "Annual toggle QA")
       const at = { x: line.x - 120, y: line.y }
       await page.mouse.click(at.x, at.y, { clickCount: 2 })
@@ -1134,6 +1136,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.mouse.click(at.x, at.y, { clickCount: 3 })
       await sleep(page, 1000)
       await page.getByRole("button", { name: "Reply in chat" }).click()
+      // The composer takes focus on the next frame.
+      await sleep(page, 500)
       await page.keyboard.type("Is this still blocking the launch?")
       await page.mouse.move(0, 0)
       await sleep(page, 800)
