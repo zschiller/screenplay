@@ -426,8 +426,8 @@ _Avoid_: redefining these wrappers as facades on the composition root (the
 consumers read them from the owner); writing a Chat Session record outside `ops`.
 
 **Chat Sync**:
-The single owner of the Canvas's chat-store ↔ Y.Doc synchronization effects
-(`useChatSync`, PRD #588) — the three sync effects that used to sit among the
+The single owner of the chat-store ↔ Y.Doc synchronization effects
+(`useChatSync`, PRD #588; run by `useChatTabs` for the Canvas and the player) — the three sync effects that used to sit among the
 orphan effects on the composition root, sharing one home because they all
 reconcile the client chat-store against the room's synced chat state: the
 **history load** (load past messages for every Chat Session so other clients see
@@ -645,7 +645,10 @@ selection write) and exposes the apply-side as plain verbs — `open`, `close`,
 The controller owns the chat-store and Y.Doc tab writes and the never-empty
 invariant; the component renders the strip and calls intent. Mirrors the Gesture
 Intent shape: decide purely, apply at the call site (the call site is the
-controller, not the component).
+controller, not the component). The pool is **per Branch and shared by the Canvas
+and the player**: the Chat Session half and Chat Sync live in `useChatTabs`, which
+the player's chat host uses directly and `useTabPool` composes (adding Terminal
+Tabs, the per-user default tab kind and Chat-Target selection).
 _Avoid_: tab bar / tab list (that's the rendered strip; the Pool is the model behind
 it); mixing the agent and doc pools; treating an empty pool as a valid resting state
 for a live target; folding the respawn effects into the decision (it returns whether

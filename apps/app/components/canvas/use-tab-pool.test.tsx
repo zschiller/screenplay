@@ -12,6 +12,9 @@ vi.mock("@/lib/terminal-tabs-actions", () => ({
   killTerminalSessionAction: vi.fn().mockResolvedValue(undefined),
 }))
 
+// Chat Sync rides along in `useChatTabs`; its effects are tested there.
+vi.mock("@/hooks/use-chat-sync", () => ({ useChatSync: () => {} }))
+
 vi.mock("@/lib/chat-store", () => ({
   chatStore: { cleanup: vi.fn() },
 }))
