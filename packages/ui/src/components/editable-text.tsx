@@ -10,6 +10,12 @@ export type EditableTextHandle = {
   isEditing: () => boolean
 }
 
+/** The one look for a name being renamed in place: a white field with black
+ *  text in both themes, scrolling sideways inside the row. Consumers add only
+ *  their own sizing and offsets, e.g. `cn(editableTextFieldClass, "min-w-0")`. */
+export const editableTextFieldClass =
+  "relative z-10 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15"
+
 type ElementTag = "span" | "div" | "h1" | "h2" | "h3" | "h4" | "p"
 
 export type EditableTextProps = {

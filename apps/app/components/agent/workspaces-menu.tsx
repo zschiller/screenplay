@@ -79,6 +79,7 @@ import {
 
 import {
   EditableText,
+  editableTextFieldClass,
   type EditableTextHandle,
 } from "@workspace/ui/components/editable-text"
 
@@ -1101,7 +1102,10 @@ function WorkspaceMenuRow({
                 }}
                 className="min-w-0"
                 viewClassName="truncate"
-                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-background text-foreground ring-[0.5px] ring-foreground/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                editClassName={cn(
+                  editableTextFieldClass,
+                  "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
+                )}
               />
             </span>
           ) : (
