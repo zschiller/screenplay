@@ -148,8 +148,6 @@ import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
 
 import { useChatSessionWrites } from "@/components/canvas/use-chat-session-writes"
 
-import { useChatSync } from "@/components/canvas/use-chat-sync"
-
 import { CANVAS_SIZE } from "@/lib/constants"
 
 import {
@@ -1333,10 +1331,6 @@ export function Canvas({
     sendComments: branchActions.sendComments,
   })
 
-  // Chat history load, the streaming-heal hydration, and the `useChatStreamEvents`
-  // broadcast handling are owned by the Chat Sync controller now (PRD #588),
-  // called below once its `updateChatSession` dependency is in scope.
-
   // The frame-seed-on-provision effect (auto-seed + zoom-to once an agent's
   // sandbox finishes provisioning) lives on the Branch Intake controller now
   // (PRD #588), beside the eager seed it defers to.
@@ -1354,15 +1348,8 @@ export function Canvas({
     updateAgentInStorage,
   })
 
-  // Chat Sync controller (PRD #588): the single owner of the chat-store ↔ Y.Doc
-  // sync effects — history load, the streaming-heal hydration (moved off Sandbox
-  // Reconnect), and the `useChatStreamEvents` broadcast handling that mirrors
-  // streaming / rename signals into the Chat Session for late joiners.
-  useChatSync({ chatSessions, roomId, updateChatSession })
-
-  // Mount-time Sandbox recovery (reconnect) and the keep-alive heartbeat live in
-  // `useSandboxReconnect`, called above; the streaming-heal hydration that used
-  // to ride along there now lives on the Chat Sync owner.
+  // Chat Sync (history load, streaming-heal hydration, broadcast handling) runs
+  // inside `useTabPool`, through the `useChatTabs` hook the player shares.
 
   // Following another user's viewport, the manual follow-break, the Figma-style
   // wheel pan/zoom, and the forwarded-from-iframe wheel all live in the Canvas

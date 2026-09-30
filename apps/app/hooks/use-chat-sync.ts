@@ -6,9 +6,9 @@ import { useChatStreamEvents } from "@/lib/yjs/react"
 import type { ChatSessionData } from "@/lib/types"
 
 /**
- * Chat Sync controller (PRD #588) — the single home for the Canvas's
- * chat-store ↔ Y.Doc synchronization effects, lifted out of the composition
- * root where they sat among the rest of the orphan sync effects. Three effects
+ * Chat Sync controller (PRD #588) — the single home for the chat-store ↔
+ * Y.Doc synchronization effects, run by `useChatTabs` for both the Canvas and
+ * the player (#1261). Three effects
  * share this one owner because they all reconcile the client chat-store against
  * the room's synced chat state:
  *
