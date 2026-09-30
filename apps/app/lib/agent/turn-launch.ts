@@ -7,6 +7,7 @@ import type { PlanResolution, RunStatus } from "./run-state"
 import { isWakeStatus, type WorkspaceTurnEnd } from "./coordinator-wake"
 import type { BranchRenameClaim } from "./auto-naming"
 import type { SteerInbox } from "./steer-inbox"
+import { parseUserMessage } from "./message-markers"
 
 /**
  * What a Chat Target hands {@link launchTurn} once its kind-specific setup is
@@ -90,6 +91,11 @@ export interface EngineTurnLaunch {
   model: string
   tools: Record<string, Tool>
   planMode?: boolean
+  /**
+   * The turn answers a Coordinator wake (#897): a stock no-reply line it
+   * writes is dropped rather than shown (#1224).
+   */
+  wake?: boolean
 }
 
 /**
@@ -270,6 +276,7 @@ export async function launchTurn(
       model: prepared.model,
       tools: prepared.tools,
       planMode: prepared.planMode,
+      wake: Boolean(parseUserMessage(prepared.userText).wakeFrom),
     })
     if (commentRequest) {
       await deps.settleCommentRequest({
