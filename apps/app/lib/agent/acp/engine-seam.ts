@@ -116,7 +116,7 @@ export interface Engine {
   ): Promise<void>
 }
 
-/** Prompt-cache token usage for a completed turn (Anthropic `totalUsage`). */
+/** Prompt-cache token usage for a completed turn (the AI SDK's all-step `usage`). */
 export interface PromptCacheUsage {
   inputTokens?: number
   outputTokens?: number
@@ -126,8 +126,8 @@ export interface PromptCacheUsage {
 
 /**
  * Capability sub-interface: an engine that can report prompt-cache token usage
- * for the turn it just ran — the `totalUsage` the in-process loop logs in
- * `onFinish`. Not every engine can: a generic ACP agent may never surface
+ * for the turn it just ran — the all-step `usage` the in-process loop logs in
+ * `onEnd`. Not every engine can: a generic ACP agent may never surface
  * usage, so this is **not** a method on the core. It sits behind the
  * {@link supportsUsageReporting} type guard, exactly as `snapshot()` etc. sit
  * behind `supportsHibernation` (ADR 0003) — an engine that can't report usage

@@ -68,6 +68,7 @@ function room() {
       (await tools[name]!.execute!(input, {
         toolCallId: "t",
         messages: [],
+        context: {},
       })) as string
   }
   return {

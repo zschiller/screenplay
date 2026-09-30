@@ -77,7 +77,7 @@ async function run(
   input: Record<string, unknown>
 ): Promise<unknown> {
   const tools = buildRoomTools("room-1", ports)
-  return tools[name].execute!(input, { toolCallId: "t1", messages: [] })
+  return tools[name].execute!(input, { toolCallId: "t1", messages: [], context: {} })
 }
 
 function addChat(

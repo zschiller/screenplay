@@ -52,7 +52,7 @@ export async function runOneShotModel(opts: {
   try {
     const result = await generateText({
       model: resolveLanguageModel(opts.model ?? DEFAULT_MODEL),
-      system: opts.system,
+      instructions: opts.system,
       prompt: opts.prompt,
       abortSignal: opts.timeoutMs
         ? AbortSignal.timeout(opts.timeoutMs)

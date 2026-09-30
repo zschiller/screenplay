@@ -80,6 +80,7 @@ async function run(
   return tools[name].execute!(input as never, {
     toolCallId: "t1",
     messages: [],
+    context: {},
   })
 }
 
