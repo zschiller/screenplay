@@ -643,15 +643,21 @@ backend runs a **node-pty** process in the sidecar over a localhost WebSocket
 socket — no tmux, no public URL. Explicitly **not** a Chat Session: nothing here
 enters the chat-store, the conversation tables, or the Y.Doc, and it is modeled
 by its own `TerminalTabData`, never `ChatSessionData`.
-Its **lifecycle** is owned by the **Terminal Tab controller** (`useTerminalTabs`,
-PRD #579): the client-local `localTerminals` state, the first-paint seed from the
-server-fetched rows, the `listTerminalTabsAction` re-fetch-and-**merge** (pure
-`mergeRestoredTabs` — restored-first, never replace, so a tab opened mid-resolve
-isn't dropped), and the **orphan prune** (drop the tab + delete the persisted row
-when its Branch is gone, over the pure `partitionTerminalsByBranch`). The Tab Pool
-controller **composes it** (the way it composes Chat-Target), so the Terminal Tab
-apply-side and lifecycle share one ownership chain rather than being split between
-the canvas composition root and the Tab Pool.
+One module owns the list, **Terminal Tabs** (`useTerminalTabs`, #1265), and
+nothing else changes it: its verbs are **open** (create the tab, save its row),
+**close**, **rename**, and the two it runs itself, **restore** (the first-paint
+seed from the server-fetched rows, then a re-fetch-and-**merge** — pure
+`mergeRestoredTabs`, restored-first, never replace, so a tab opened mid-resolve
+isn't dropped) and **prune** (a tab whose Branch is gone, over the pure
+`partitionTerminalsByBranch`). **Close and prune guarantee the same three
+things**: the tab leaves the strip, its row is deleted (it never comes back on
+reload), and its session is killed (the shell and anything running in it stop).
+Prune kills with no Sandbox to name, since the Sandbox went with the Branch: the
+hosted tmux session died with it, and the desktop PTY, which lives in the
+sidecar, is killed there. The row and the session sit behind one
+`TerminalTabStore` adapter (`lib/terminal/tab-store.ts`): the server actions in
+production, in memory in tests. The Tab Pool controller **composes it** (the way
+it composes Chat-Target) for its pool decisions but never sets the list.
 _Avoid_: chat tab; terminal session (reserve "tmux session" for the hosted
 backend's in-sandbox multiplexer, "Terminal Tab" for the UI surface); harness
 (that's the tool the operator runs _inside_ the tab — see Engine for why the
