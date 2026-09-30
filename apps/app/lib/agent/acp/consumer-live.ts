@@ -10,7 +10,7 @@ import { appendAcpMessage, upsertAcpToolCall } from "../persistence"
 import { pauseForPlan, transition, type RunStatus } from "../run-state"
 import type { AcpConsumerPorts } from "./consumer"
 import { contentBlocksToWire } from "./markers"
-import { userMessageChunk } from "./schema"
+import { userTurnEcho } from "../user-turn"
 
 /**
  * The live {@link AcpConsumerPorts} bound to the real Y.Doc broadcast, the
@@ -53,7 +53,7 @@ export function liveAcpConsumerPorts(
         await broadcastAcpUpdate(
           roomId,
           chatId,
-          userMessageChunk(contentBlocksToWire(steer.content))
+          userTurnEcho(contentBlocksToWire(steer.content))
         )
       }
     },

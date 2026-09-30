@@ -61,6 +61,7 @@ import {
   serializeSkill,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
+import type { UserTurn } from "@/lib/agent/user-turn"
 import Link from "next/link"
 import {
   useModelCatalog,
@@ -262,23 +263,33 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
  * serializes — the markers make `text` non-empty — so a message that references
  * elements with no prose sends. An empty draft serializes to `""`. Shared by
  * the submit path and the live `onChange` mirror so both see identical text.
+ *
+ * Alongside it comes what the message shows (`turn`): the body without its
+ * footers and the targeted elements, straight from the draft. It is the
+ * user-turn projection the server's echo carries, so the sender draws its
+ * message without parsing the wire body back.
  */
 function serializeDraft(
   editor: Editor,
   markdownLayers: MarkdownLayerData[]
-): string {
+): { text: string; turn: UserTurn } {
   const { text, mentions, elements } = extractTextAndMentions(editor.getJSON())
   const trimmed = text.trim()
-  if (!trimmed) return ""
+  if (!trimmed) return { text: "", turn: { body: "" } }
   const docs = mentions.map((m) => ({
     id: m.id,
     title: markdownLayers.find((d) => d.id === m.id)?.title,
   }))
-  return (
-    trimmed +
-    buildReferencedDocsFooter(docs) +
-    buildTargetedElementsFooter(elements)
-  )
+  return {
+    text:
+      trimmed +
+      buildReferencedDocsFooter(docs) +
+      buildTargetedElementsFooter(elements),
+    turn: {
+      body: trimmed,
+      ...(elements.length > 0 ? { targetedElements: elements } : {}),
+    },
+  }
 }
 
 /** What a submit hands back: the decorated wire body and the chosen model. */
@@ -290,6 +301,8 @@ export interface ComposerSubmitPayload {
    * prefixes (plan/branch) are the caller's concern, not the Composer's.
    */
   text: string
+  /** What the message shows: `text`'s user-turn projection, from the draft. */
+  turn: UserTurn
   /** The model selected in the Composer at submit time. */
   model: string
   /**
@@ -745,7 +758,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         // dialog's collapsed-row preview). Reads markdownLayers/model through
         // refs so this construction-time closure always serializes the latest.
         onChangeRef.current?.({
-          text: serializeDraft(editor, markdownLayersRef.current),
+          ...serializeDraft(editor, markdownLayersRef.current),
           model: modelRef.current,
           draft: editor.getJSON(),
         })
@@ -779,9 +792,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       // An empty draft only submits where the caller opted in — the seed
       // Composer treats it as a deliberate request for a bare scratch Branch.
       if (editor.isEmpty && !allowEmptySubmit) return
-      const decorated = serializeDraft(editor, markdownLayersRef.current)
+      const { text: decorated, turn } = serializeDraft(
+        editor,
+        markdownLayersRef.current
+      )
       if (!decorated && !allowEmptySubmit) return
-      onSubmit({ text: decorated, model, draft: editor.getJSON() })
+      onSubmit({ text: decorated, turn, model, draft: editor.getJSON() })
       // Clearing emits an update, which drops the stored draft: the message now
       // lives in the log, the queue, or (if refused) the chat's failed send.
       editor.commands.clearContent(true)

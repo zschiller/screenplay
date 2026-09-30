@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync, statSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -9,7 +11,13 @@ import {
   serializeSkill,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
-import { projectUserTurn, userTurnMessage } from "@/lib/agent/user-turn"
+import { userMessageChunk } from "@/lib/agent/acp/schema"
+import {
+  echoedUserTurn,
+  projectUserTurn,
+  userTurnEcho,
+  userTurnMessage,
+} from "@/lib/agent/user-turn"
 
 const element: TargetedElement = {
   ref: "el1",
@@ -89,5 +97,59 @@ describe("userTurnMessage", () => {
       delegatedFrom: "room-chat-r1",
       targetedElements: [element],
     })
+  })
+})
+
+describe("userTurnEcho", () => {
+  it("carries the projection, which the browser reads back without parsing", () => {
+    const wire =
+      prependTurnMarkers(`Make ${serializeElement("button", "el1")} blue`, {
+        wakeFrom: "ws-1",
+        planMode: true,
+      }) + buildTargetedElementsFooter([element])
+
+    const echo = userTurnEcho(wire)
+    expect(echo).toMatchObject({
+      sessionUpdate: "user_message_chunk",
+      content: {
+        type: "text",
+        text: "Make [element: button](element:el1) blue",
+      },
+    })
+    expect(echoedUserTurn(echo)).toEqual(userTurnMessage(wire))
+  })
+
+  it("echoes a plain turn as a plain chunk", () => {
+    expect(userTurnEcho("ship it")).toEqual(userMessageChunk("ship it"))
+    expect(echoedUserTurn(userMessageChunk("ship it"))).toEqual({
+      role: "user",
+      content: "ship it",
+    })
+  })
+})
+
+describe("the browser parses no marker strings (#1253)", () => {
+  const parsers = [
+    "parseUserMessage",
+    "parseTargetedElementsFooter",
+    "projectUserTurn",
+    "userTurnMessage",
+  ]
+  const appRoot = join(__dirname, "../..")
+  const sources = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name)
+      if (statSync(path).isDirectory()) return sources(path)
+      return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : []
+    })
+
+  it("in components, hooks or the chat store", () => {
+    const call = new RegExp(`\\b(${parsers.join("|")})\\(`)
+    const offenders = [
+      ...sources(join(appRoot, "components")),
+      ...sources(join(appRoot, "hooks")),
+      join(appRoot, "lib/chat-store.ts"),
+    ].filter((path) => call.test(readFileSync(path, "utf8")))
+    expect(offenders).toEqual([])
   })
 })
