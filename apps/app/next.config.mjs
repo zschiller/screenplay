@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url"
+
 // Mount prefix for the product. Empty by default (served at root); set to a
 // path like `/app` to serve every page, `_next/static` asset, and route handler
 // beneath it. This file is plain Node config loaded before the TS pipeline, so
@@ -33,6 +35,10 @@ const nextConfig = {
   // "Blocked cross-origin request" warning. Allow the loopback hosts the shell
   // uses in dev. Dev-only — the key is ignored by production builds.
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // The monorepo root, named rather than inferred: Next 16.3 skips a
+  // pnpm-workspace.yaml whose tree holds $HOME, and the docs screenshot harness
+  // runs the app with a stand-in home inside it (apps/app/.screenshots/docs/home).
+  turbopack: { root: fileURLToPath(new URL("../..", import.meta.url)) },
   transpilePackages: ["@workspace/ui"],
   serverExternalPackages: [
     "@sparticuz/chromium",

@@ -3512,14 +3512,12 @@ export const SCREENS: Screen[] = [
       ["failed", "framesFailed", "Failed"],
       ["stopped", "framesStopped", "Stopped"],
     ] as const
-  ).map(
-    ([stage, branch, label]): Screen => ({
-      name: `play-${stage}`,
-      description: `The prototype player on a Workspace that is ${label.toLowerCase()}.`,
-      path: playPath(ids.branches[branch], `layer-frames-${stage}`),
-      settleMs: 2500,
-    })
-  ),
+  ).map(([stage, branch, label]): Screen => ({
+    name: `play-${stage}`,
+    description: `The prototype player on a Workspace that is ${label.toLowerCase()}.`,
+    path: playPath(ids.branches[branch], `layer-frames-${stage}`),
+    settleMs: 2500,
+  })),
   {
     name: "canvas-frame-open-logs",
     description:
@@ -5790,12 +5788,12 @@ async function hoverWorkspaceRow(page: Page, name: string): Promise<void> {
 async function replyInChatFromBrief(page: Page): Promise<void> {
   await openChatTab(page, "Checkout polish")
   // The Checkout brief, clear of the chat panel. The hosted build has no
-  // camera handle, so it pans there with the wheel instead.
+  // camera handle, so it zooms to fit instead.
   if (await page.evaluate("!!window.__canvasCamera")) {
     await page.evaluate("window.__canvasCamera.setTransform(-1190, 40, 0.7)")
   } else {
-    await page.mouse.move(700, 500)
-    await page.mouse.wheel(630, 0)
+    // Zoom to fit, which clears the panel.
+    await page.keyboard.press("Shift+Digit1")
     await page.waitForTimeout(500)
   }
   const line = page
