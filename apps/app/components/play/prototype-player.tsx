@@ -469,7 +469,7 @@ export function PrototypePlayer({
       ref={iframeRef}
       src={initialSrc}
       title={`${roomName} — ${branch}`}
-      className="h-full w-full border-0 bg-white dark:bg-zinc-900"
+      className="h-full w-full border-0 bg-white dark:bg-neutral-900"
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
       style={iframeStyle}
     />
@@ -510,7 +510,7 @@ export function PrototypePlayer({
               className={
                 isDesktop
                   ? "relative h-full w-full"
-                  : "relative shrink-0 overflow-hidden bg-white shadow-2xl ring-1 ring-white/10 dark:bg-zinc-900"
+                  : "relative shrink-0 overflow-hidden bg-white shadow-2xl ring-1 ring-white/10 dark:bg-neutral-900"
               }
               style={
                 isDesktop

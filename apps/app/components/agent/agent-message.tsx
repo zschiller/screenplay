@@ -866,7 +866,6 @@ function PlanMessage({
             <Button
               size="sm"
               variant="default"
-              className="h-7 text-xs"
               onClick={handleApprove}
               disabled={isSubmitting}
             >
@@ -875,7 +874,6 @@ function PlanMessage({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs"
               onClick={handleRequestChanges}
               disabled={isSubmitting}
             >
