@@ -1,11 +1,11 @@
 import { type RefObject, useCallback, useRef, useState } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
-import type { ChatPanelTarget } from "@/components/agent/chat-panel"
 import { isRoomChatId } from "@/lib/chat/room-chat"
 import {
   pendingProbes,
   resolveChatPanelTarget,
+  type ChatPanelTarget,
   resolvePendingReady,
   restoreAgentChatSelection,
   type PendingProbe,

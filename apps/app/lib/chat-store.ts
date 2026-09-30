@@ -14,6 +14,7 @@ import { bareToolName } from "@/lib/agent/tool-name"
 import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
 import { isFixtureWorld } from "@/lib/fixture-world"
 import { userTurnMessage } from "@/lib/agent/user-turn"
+import type { ChatTarget } from "@/lib/chat/chat-target"
 
 export type ChatState = {
   messages: AgentMessage[]
@@ -83,6 +84,25 @@ export interface FailedSend {
   options: SendMessageOptions
 }
 
+/**
+ * The `/api/agent/stream` body fields that name a Chat Target. The one place a
+ * client {@link ChatTarget} becomes the wire shape.
+ */
+function wireTarget(target: ChatTarget): {
+  sandboxName?: string
+  markdownLayerId?: string
+  target?: "room"
+} {
+  switch (target.kind) {
+    case "agent":
+      return { sandboxName: target.sandboxName }
+    case "document":
+      return { markdownLayerId: target.layerId }
+    case "room":
+      return { target: "room" }
+  }
+}
+
 /** A message waiting for the current run to finish (#802). */
 export interface QueuedMessage {
   id: string
@@ -94,12 +114,8 @@ export interface QueuedMessage {
 export interface SendMessageOptions {
   roomId: string
   chatId: string
-  /** Sandbox-backed chat target. */
-  sandboxName?: string
-  /** Document-layer chat target — mutually exclusive with sandboxName. */
-  markdownLayerId?: string
-  /** The Room's Coordinator chat (no sandbox, no document). */
-  roomTarget?: boolean
+  /** What the chat talks to; mapped to the wire target by {@link wireTarget}. */
+  target: ChatTarget
   message: string
   isFirstChat?: boolean
   planMode?: boolean
@@ -604,9 +620,7 @@ class ChatStore {
       body: JSON.stringify({
         roomId: opts.roomId,
         chatId: opts.chatId,
-        sandboxName: opts.sandboxName,
-        markdownLayerId: opts.markdownLayerId,
-        target: opts.roomTarget ? "room" : undefined,
+        ...wireTarget(opts.target),
         message: opts.message,
         isFirstChat: opts.isFirstChat,
         planMode: opts.planMode,

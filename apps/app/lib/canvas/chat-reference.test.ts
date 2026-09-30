@@ -72,7 +72,7 @@ describe("resolveReference — document routing", () => {
       send: {
         roomId: "room-1",
         chatId: "chat-new",
-        markdownLayerId: "d1",
+        target: { kind: "document", layerId: "d1" },
         message: "**README · Lines 1–2**\n> alpha\n\nlook here",
         isFirstChat: true,
       },

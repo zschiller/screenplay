@@ -456,7 +456,9 @@ activity; a third spinner style.
 **Chat Target**:
 What a Chat Session talks to — a Branch's **sandbox**, a Markdown Layer (a
 document), or the whole **Room** (see **Room Target**). The target decides the
-system prompt and which Tools the model is given.
+system prompt and which Tools the model is given. On the client it is one
+value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `document`,
+`room`), which the chat store maps to the wire target in one place.
 _Avoid_: subject, destination.
 
 **Room Target** (planned, wayfinder #856):

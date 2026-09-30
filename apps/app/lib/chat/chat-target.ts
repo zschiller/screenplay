@@ -1,4 +1,3 @@
-import type { ChatPanelTarget } from "@/components/agent/chat-panel"
 import type {
   BranchData,
   ChatSessionData,
@@ -26,6 +25,53 @@ import type {
  *    readiness flow: which sandboxes to probe, and what selection results when
  *    one becomes ready.
  */
+
+/**
+ * What one chat talks to, on the client (`apps/app/CONTEXT.md`, "Chat
+ * Target"): a Branch's sandbox, a document, or the whole Room. One value, so an
+ * impossible combination (a sandbox and a Room at once) can't be written. The
+ * chat store maps it to the wire target in one place.
+ */
+export type ChatTarget =
+  | {
+      kind: "agent"
+      /** The Branch the chat belongs to; also the Element Targeting pick key. */
+      branchId: string
+      sandboxName: string
+    }
+  | { kind: "document"; layerId: string }
+  | { kind: "room" }
+
+/**
+ * The chat panel can target one of two top-level kinds:
+ *  - an *agent* (sandbox-backed flow): file editing, git, PR creation, logs.
+ *  - a *layer* of any kind whose `LayerKindDescriptor.canBeChatTarget` is
+ *    true (currently just markdownLayers). The `layerKind` discriminator
+ *    determines which descriptor's icon/label drives the chrome and which
+ *    server-side toolset runs.
+ *
+ * New layer kinds become valid chat targets by setting
+ * `canBeChatTarget: true` on their descriptor and registering a server-side
+ * `chat-target-kinds` entry — no changes here needed.
+ */
+export type ChatPanelTarget =
+  | { kind: "agent"; agent: BranchData }
+  | {
+      kind: "layer"
+      layerKind: string
+      layer: { id: string } & Record<string, unknown>
+    }
+
+/** The {@link ChatTarget} of a chat shown in the panel for `target`. */
+export function chatTargetOf(target: ChatPanelTarget): ChatTarget {
+  return target.kind === "agent"
+    ? {
+        kind: "agent",
+        branchId: target.agent.id,
+        sandboxName: target.agent.sandboxName,
+      }
+    : { kind: "document", layerId: target.layer.id }
+}
 
 /**
  * Resolve the panel's current target from the live selection. An agent wins when
@@ -96,7 +142,8 @@ export function pendingProbes(
   const probes: PendingProbe[] = []
   for (const agentId of pendingAgentIds) {
     const agent = agents.find((a) => a.id === agentId)
-    if (agent?.sandboxName) probes.push({ agentId, sandboxName: agent.sandboxName })
+    if (agent?.sandboxName)
+      probes.push({ agentId, sandboxName: agent.sandboxName })
   }
   return probes
 }

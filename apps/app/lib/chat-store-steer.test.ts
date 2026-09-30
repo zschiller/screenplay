@@ -7,7 +7,13 @@ const nextId = () => `evt_steer_${++seq}`
 const newChat = () => `chat_steer_${++seq}`
 
 function send(chatId: string, message: string, draft?: unknown) {
-  return chatStore.sendMessage({ roomId: "room", chatId, message, draft })
+  return chatStore.sendMessage({
+    roomId: "room",
+    chatId,
+    target: { kind: "room" },
+    message,
+    draft,
+  })
 }
 
 /** Answer the stream route: `body` as JSON with `status`. */

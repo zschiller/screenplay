@@ -1,18 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react"
 import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore, type ChatState } from "@/lib/chat-store"
+import type { ChatTarget } from "@/lib/chat/chat-target"
 
 interface UseAgentChatOptions {
   chatId: string
   roomId: string
-  /** Sandbox-backed target. Mutually exclusive with `markdownLayerId`. */
-  sandboxName?: string
-  /** Document-layer target. Mutually exclusive with `sandboxName`. */
-  markdownLayerId?: string
-  /** The Room's Coordinator chat. Mutually exclusive with the other targets. */
-  roomTarget?: boolean
+  /** What the chat talks to. */
+  target: ChatTarget
   isFirstChat?: boolean
   planMode?: boolean
   /** Whether the chat is on screen. Defaults to true. */
@@ -28,13 +25,17 @@ interface SendOptions {
 export function useAgentChat({
   chatId,
   roomId,
-  sandboxName,
-  markdownLayerId,
-  roomTarget,
+  target,
   isFirstChat,
   planMode,
   isActive = true,
 }: UseAgentChatOptions) {
+  // Callers build the target inline, a fresh object each render. Key it on
+  // what it names so `sendMessage` keeps its identity.
+  const targetKey = JSON.stringify(target)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableTarget = useMemo(() => target, [targetKey])
+
   const state: ChatState = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
     () => chatStore.getSnapshot(chatId),
@@ -66,9 +67,7 @@ export function useAgentChat({
       return chatStore.sendMessage({
         roomId,
         chatId,
-        sandboxName,
-        markdownLayerId,
-        roomTarget,
+        target: stableTarget,
         message: text,
         isFirstChat,
         planMode,
@@ -76,15 +75,7 @@ export function useAgentChat({
         draft: options?.draft,
       })
     },
-    [
-      chatId,
-      roomId,
-      sandboxName,
-      markdownLayerId,
-      roomTarget,
-      isFirstChat,
-      planMode,
-    ]
+    [chatId, roomId, stableTarget, isFirstChat, planMode]
   )
 
   const stopMessage = useCallback(() => {

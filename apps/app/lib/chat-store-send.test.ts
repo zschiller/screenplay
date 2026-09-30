@@ -1,12 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { chatStore } from "./chat-store"
+import type { ChatTarget } from "./chat/chat-target"
 
 let seq = 0
 const nextId = () => `evt_send_${++seq}`
 const newChat = () => `chat_send_${++seq}`
 
 function send(chatId: string, message: string, draft?: unknown) {
-  return chatStore.sendMessage({ roomId: "room", chatId, message, draft })
+  return chatStore.sendMessage({
+    roomId: "room",
+    chatId,
+    target: { kind: "room" },
+    message,
+    draft,
+  })
 }
 
 function stubFetch(...responses: Array<{ ok: boolean; body?: string }>) {
@@ -135,5 +142,49 @@ describe("chat-store — queueing during a run that can't steer (#802)", () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
     chatStore.cleanup(chatId)
+  })
+})
+
+describe("chat-store — the Chat Target on the wire", () => {
+  async function bodyFor(target: ChatTarget) {
+    const chatId = newChat()
+    const fetchMock = stubFetch({ ok: true })
+    await chatStore.sendMessage({
+      roomId: "room",
+      chatId,
+      target,
+      message: "Hi",
+    })
+    chatStore.cleanup(chatId)
+    return JSON.parse(fetchMock.mock.calls[0][1].body)
+  }
+
+  it("names an agent chat's sandbox", async () => {
+    expect(
+      await bodyFor({ kind: "agent", branchId: "b1", sandboxName: "sbx-1" })
+    ).toEqual({
+      roomId: "room",
+      chatId: expect.any(String),
+      sandboxName: "sbx-1",
+      message: "Hi",
+    })
+  })
+
+  it("names a document chat's layer", async () => {
+    expect(await bodyFor({ kind: "document", layerId: "doc-1" })).toEqual({
+      roomId: "room",
+      chatId: expect.any(String),
+      markdownLayerId: "doc-1",
+      message: "Hi",
+    })
+  })
+
+  it("names the Room for the Coordinator chat", async () => {
+    expect(await bodyFor({ kind: "room" })).toEqual({
+      roomId: "room",
+      chatId: expect.any(String),
+      target: "room",
+      message: "Hi",
+    })
   })
 })
