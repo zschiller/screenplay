@@ -63,6 +63,9 @@ function setup(overrides: Partial<RoomToolPorts> = {}) {
       throw new Error("no browser")
     }),
     readFrameCapture: vi.fn(async () => null),
+    readFramePage: vi.fn(async () => {
+      throw new Error("no browser")
+    }),
     ...overrides,
   }
   return { collections, ports }

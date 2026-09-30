@@ -55,6 +55,9 @@ function room() {
       throw new Error("no browser")
     },
     readFrameCapture: async () => null,
+    readFramePage: async () => {
+      throw new Error("no browser")
+    },
     launchWorkspaceTurn: async () => {
       throw new Error("no Workspaces")
     },

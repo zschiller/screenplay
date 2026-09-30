@@ -126,8 +126,8 @@ importers:
         specifier: ^2.8.0
         version: 2.8.0
       '@vercel/sandbox':
-        specifier: ^2.0.0-beta.13
-        version: 2.0.0-beta.14
+        specifier: ^3.5.1
+        version: 3.5.1
       '@workspace/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -150,8 +150,8 @@ importers:
         specifier: ^0.45.3
         version: 0.45.3(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.0)(@upstash/redis@1.37.0)(kysely@0.29.6)
       motion:
-        specifier: ^12.38.0
-        version: 12.38.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: ^13.4.6
+        version: 13.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       nanoid:
         specifier: ^6.0.1
         version: 6.0.1
@@ -3920,6 +3920,10 @@ packages:
     resolution: {integrity: sha512-g9XerViJ/paZujufXYcu5XYI2vU2rtB4sgdpjUHde5RnOkdmpu0ngH46LCFGHoPXO/C+qDPSczIHIRN+8Q2YKQ==}
     engines: {node: '>= 18'}
 
+  '@vercel/detect-agent@1.2.5':
+    resolution: {integrity: sha512-0krENrjuitlW8s6TJu0MlqCevyCU7K7JK63jZAf7xZ6n17tx+vUEwzHT3sTxawtwZxaW21hu+oFUpoOrm49FsQ==}
+    engines: {node: '>=14'}
+
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
     engines: {node: '>= 20'}
@@ -3928,8 +3932,8 @@ packages:
     resolution: {integrity: sha512-TcbdH3YtGS2KU98T99dN4sbf+E4vbJZsJTRN97wKQ7QWQ0BR7U02QX3KN4+5GHxBtKTj1c5CnvTTitc2ZRad0A==}
     engines: {node: '>= 20'}
 
-  '@vercel/sandbox@2.0.0-beta.14':
-    resolution: {integrity: sha512-rXz0UYzDXC7nPe3BfRWe7WJMqZvvMCkDMcCWUaGnDNpfJ+AEIlCO5WIDJ4dIW5TD5d2bTPHzktUenn8wXYLsKA==}
+  '@vercel/sandbox@3.5.1':
+    resolution: {integrity: sha512-VHItQtcv4FkSXET29b088p87MNPAIhRscF3ifrup2KkC8ix4hy4NpgCO9F3GI4yOsztgGtuV7bDx29Iufun2hQ==}
 
   '@vitest/mocker@5.0.3':
     resolution: {integrity: sha512-T8sWAIbkSyAjkwTcaEc3Iu0o9A27X1/kdXrizhZkGuSKScRQtRzclfAMpOTcGdXCsqxeWlpGy3XjqaW8CpLORg==}
@@ -5365,15 +5369,12 @@ packages:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
     engines: {node: '>= 0.6'}
 
-  framer-motion@12.38.0:
-    resolution: {integrity: sha512-rFYkY/pigbcswl1XQSb7q424kSTQ8q6eAC+YUsSKooHQYuLdzdHjrt6uxUC+PRAO++q5IS7+TamgIw1AphxR+g==}
+  framer-motion@13.4.6:
+    resolution: {integrity: sha512-TwKWt2CC8rjhARzwV00TZIh04ipumSAqyKM/JZmS+urdncSHg6wTF/mfj/Fd6Oi2W01TZSWsiA3uxXDrXZtKyw==}
     peerDependencies:
-      '@emotion/is-prop-valid': '*'
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
-      '@emotion/is-prop-valid':
-        optional: true
       react:
         optional: true
       react-dom:
@@ -5913,6 +5914,9 @@ packages:
 
   jose@6.2.12:
     resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
+
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
   js-base64@3.9.4:
     resolution: {integrity: sha512-PtOMXpEGuP0RRiRXsjzHzl44dMHxSu2CPvAhinupR1tBa88me+1DPqsobl7eupn5UukjLkln1ZnAOAOXOrYG0Q==}
@@ -6558,21 +6562,18 @@ packages:
     resolution: {integrity: sha512-snEhs+6G5Tjd4I7tLCDOaoln2RgE0bD19RzEKgvgK2hZ5VKy3MpLhLTZ2fWpXSTg4K2cyPwp+VHATFJhxfnOeA==}
     engines: {node: '>=18.0.0'}
 
-  motion-dom@12.38.0:
-    resolution: {integrity: sha512-pdkHLD8QYRp8VfiNLb8xIBJis1byQ9gPT3Jnh2jqfFtAsWUA3dEepDlsWe/xMpO8McV+VdpKVcp+E+TGJEtOoA==}
+  motion-dom@13.4.5:
+    resolution: {integrity: sha512-p63p2Doq+US/O5wADauIPUVx0/eONHMLPzsudBM9XMWRuBQLXogdxH0vwIA8WYQZw864pyzoV723xoDqakwWTg==}
 
-  motion-utils@12.36.0:
-    resolution: {integrity: sha512-eHWisygbiwVvf6PZ1vhaHCLamvkSbPIeAYxWUuL3a2PD/TROgE7FvfHWTIH4vMl798QLfMw15nRqIaRDXTlYRg==}
+  motion-utils@13.3.0:
+    resolution: {integrity: sha512-sgSschQp7EseHInIlR7hBbMuvet3RA0bs28KPZAXJcGKGdxHGvh1ogpYDilY3bOMtl73EqPNmp75sAKHYPU5sg==}
 
-  motion@12.38.0:
-    resolution: {integrity: sha512-uYfXzeHlgThchzwz5Te47dlv5JOUC7OB4rjJ/7XTUgtBZD8CchMN8qEJ4ZVsUmTyYA44zjV0fBwsiktRuFnn+w==}
+  motion@13.4.6:
+    resolution: {integrity: sha512-zDXi6lIdyhda6wZlTsv9QgT2ed6UExAfRegtl/akQmZb5iaeLlArXr9Gmo/hx3iTx2y4R7tmdb9k9koFQmV+NQ==}
     peerDependencies:
-      '@emotion/is-prop-valid': '*'
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
-      '@emotion/is-prop-valid':
-        optional: true
       react:
         optional: true
       react-dom:
@@ -7933,10 +7934,6 @@ packages:
     resolution: {integrity: sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==}
     engines: {node: '>=18.17'}
 
-  undici@7.25.0:
-    resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
-    engines: {node: '>=20.18.1'}
-
   undici@7.30.0:
     resolution: {integrity: sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ==}
     engines: {node: '>=20.18.1'}
@@ -8371,9 +8368,6 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
-
-  zod@3.24.4:
-    resolution: {integrity: sha512-OdqJE9UDRPwWsrHjLN2F8bPxvwJBK22EHLWtanu0LSYr5YqzsaaW3RMgmjwr8Rypg5k+meEJdSPXJZXE/yqOMg==}
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
@@ -11599,6 +11593,8 @@ snapshots:
     dependencies:
       execa: 5.1.1
 
+  '@vercel/detect-agent@1.2.5': {}
+
   '@vercel/oidc@3.2.0': {}
 
   '@vercel/oidc@3.8.9':
@@ -11607,18 +11603,21 @@ snapshots:
       '@vercel/cli-exec': 1.0.1
       jose: 5.10.0
 
-  '@vercel/sandbox@2.0.0-beta.14':
+  '@vercel/sandbox@3.5.1':
     dependencies:
+      '@vercel/detect-agent': 1.2.5
       '@vercel/oidc': 3.2.0
       '@workflow/serde': 4.1.0-beta.2
       async-retry: 1.3.3
+      jose: 6.2.3
       jsonlines: 0.1.1
+      lru-cache: 10.4.3
       ms: 2.1.3
       picocolors: 1.1.1
       tar-stream: 3.1.7
-      undici: 7.25.0
+      undici: 7.30.0
       xdg-app-paths: 5.1.0
-      zod: 3.24.4
+      zod: 4.6.5
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
@@ -13275,10 +13274,10 @@ snapshots:
 
   forwarded@0.2.0: {}
 
-  framer-motion@12.38.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  framer-motion@13.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
-      motion-dom: 12.38.0
-      motion-utils: 12.36.0
+      motion-dom: 13.4.5
+      motion-utils: 13.3.0
       tslib: 2.8.1
     optionalDependencies:
       react: 19.3.0
@@ -13853,6 +13852,8 @@ snapshots:
   jose@5.10.0: {}
 
   jose@6.2.12: {}
+
+  jose@6.2.3: {}
 
   js-base64@3.9.4: {}
 
@@ -14751,15 +14752,15 @@ snapshots:
 
   modern-tar@0.8.5: {}
 
-  motion-dom@12.38.0:
+  motion-dom@13.4.5:
     dependencies:
-      motion-utils: 12.36.0
+      motion-utils: 13.3.0
 
-  motion-utils@12.36.0: {}
+  motion-utils@13.3.0: {}
 
-  motion@12.38.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  motion@13.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
-      framer-motion: 12.38.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      framer-motion: 13.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       tslib: 2.8.1
     optionalDependencies:
       react: 19.3.0
@@ -16538,8 +16539,6 @@ snapshots:
 
   undici@6.29.0: {}
 
-  undici@7.25.0: {}
-
   undici@7.30.0: {}
 
   undici@8.11.2: {}
@@ -16965,8 +16964,6 @@ snapshots:
   zod-validation-error@4.0.2(zod@4.6.5):
     dependencies:
       zod: 4.6.5
-
-  zod@3.24.4: {}
 
   zod@3.25.76: {}
 

@@ -72,7 +72,13 @@ class VercelSandboxProvider implements SandboxProvider {
     // (token, projectId, teamId). At runtime those come from VERCEL_OIDC_TOKEN
     // in the environment — no need to pass them — but the types treat them as
     // required on the input, so we loosen here rather than at every call site.
+    //
+    // `runtime: "node24"` pins the base image this adapter's paths and the
+    // terminal/provision scripts are written against. SDK v3 otherwise defaults
+    // to the image-backed `vercel/sandbox/universal` (Ubuntu) via /v3/sandboxes,
+    // a different filesystem/user layout; moving to it is its own change.
     const sandbox = await Sandbox.create({
+      runtime: "node24",
       ...opts,
       networkPolicy: opts.networkPolicy as NetworkPolicy | undefined,
     } as Parameters<typeof Sandbox.create>[0])

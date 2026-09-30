@@ -26,6 +26,7 @@ import {
   baseBranch,
   baseChat,
   baseDoc,
+  baseLayer,
   baseRepo,
   makeHarness,
   seedGroup,
@@ -135,6 +136,7 @@ describe("room chat target", () => {
       "open_pull_request",
       "read_canvas",
       "read_document",
+      "read_frame_html",
       "read_skill",
       "read_workspace_chat",
       "read_workspace_diff",
@@ -335,5 +337,72 @@ describe("a Workspace chat's Document tools", () => {
     expect(prompt).toContain("create_document")
     expect(prompt).toMatch(/My plan.*\(yours\)/)
     expect(prompt).not.toMatch(/Notes.*\(yours\)/)
+  })
+})
+
+describe("frame reads in every chat (#1311)", () => {
+  /** Two Workspaces, each with a frame; neither preview is running. */
+  function canvasWithFrames(): RoomDoc {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { title: "Sign-in", sandboxName: "sb-1" })
+    )
+    collections.branches.set(
+      "ws-2",
+      baseBranch("ws-2", { title: "Pricing", sandboxName: "sb-2" })
+    )
+    collections.iframeLayers.set(
+      "frame-1",
+      baseLayer("frame-1", { branchId: "ws-1", route: "/login" })
+    )
+    collections.iframeLayers.set(
+      "frame-2",
+      baseLayer("frame-2", { branchId: "ws-2", route: "/pricing" })
+    )
+    collections.markdownLayers.set("doc-1", baseDoc("doc-1"))
+    return {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+  }
+
+  const toolsOf = (room: RoomDoc) => ({
+    workspace: agentChatTarget.buildTools(
+      room,
+      { sandboxName: "sb-1", branch: "sign-in", chatId: "chat-1" },
+      { sandboxName: "sb-1", room, userId: "user-1" }
+    ),
+  })
+
+  const call = (tool: { execute?: unknown }, input: object) =>
+    (tool.execute as (i: object, o: object) => Promise<unknown>)(input, {
+      toolCallId: "t1",
+      messages: [],
+    })
+
+  it("gives a Workspace agent frame reads", () => {
+    const { workspace } = toolsOf(canvasWithFrames())
+    expect(Object.keys(workspace)).toEqual(
+      expect.arrayContaining(["view_frame", "read_frame_html"])
+    )
+  })
+
+  it("lets a Workspace agent read another Workspace's frame", async () => {
+    const { workspace } = toolsOf(canvasWithFrames())
+
+    expect(await call(workspace.read_frame_html!, { frameId: "frame-2" })).toBe(
+      'Can\'t read the page in frame [frame-2] (/pricing in Workspace "Pricing"): its Workspace has no running preview.'
+    )
+  })
+
+  it("reads a Workspace agent's own frame when none is named", async () => {
+    const { workspace } = toolsOf(canvasWithFrames())
+
+    expect(await call(workspace.read_frame_html!, {})).toBe(
+      'Can\'t read the page in frame [frame-1] (/login in Workspace "Sign-in"): its Workspace has no running preview.'
+    )
   })
 })

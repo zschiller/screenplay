@@ -180,6 +180,8 @@ you can expand for details:
 | **Read skill** `name`              | Loaded a skill's instructions                |
 | **Read dev server logs**           | Read the dev server's recent output          |
 | **Restart dev server**             | Restarted the workspace's dev server         |
+| **View frame**                     | Took a screenshot of a frame                 |
+| **Read frame HTML**                | Read the page in a frame as HTML             |
 | **Read document**                  | Read a document on the canvas                |
 | **Create PR**                      | Opened a pull request (shown as a link card) |
 | **Submit plan**                    | Presented a plan for approval                |
@@ -195,8 +197,13 @@ A few defaults are worth knowing:
 - **The workspace preview updates on its own.** The dev server hot-reloads as
   files change. The agent can read the dev server's output (the same as the
   **Sandbox logs** tab) to debug a broken preview, and restart the dev server
-  when a change needs it. Workspace chats running on Claude Code, Codex or
-  OpenCode on desktop get the same two tools.
+  when a change needs it.
+- **The agent can see the frames.** It can take a screenshot of a frame, or
+  read the page in it as HTML with the styles included, for example to start a
+  mockup from how the app looks now. It reads its own workspace's frame unless
+  it names another one; any frame on the canvas can be read, never changed.
+  Workspace chats running on Claude Code, Codex or OpenCode on desktop get
+  these tools and the dev server ones too.
 - **Chats are shared.** On a shared canvas everyone sees every chat live,
   including history from before they joined.
 

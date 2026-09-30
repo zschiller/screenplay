@@ -116,6 +116,8 @@ const agentSystemPromptTail = (t: ToolNaming["name"]) => `
 
 Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches run_command: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. Never start another dev server with run_command.
 
+To see the preview as the user sees it on the canvas, call ${t("view_frame")} for a screenshot of your frame, or ${t("read_frame_html")} for its current page as self-contained HTML (optionally one element, by CSS selector). Both also read other Workspaces' frames on the canvas, by frameId.
+
 Keep your responses concise. Show the user what you changed and why.`
 
 /**
@@ -202,7 +204,7 @@ export function buildRoomSystemPrompt(opts: {
     `- Answer from the canvas summary below, or call \`${t("read_canvas")}\` for the current state when things may have changed. Never guess what is on the canvas.`,
     `- Call \`${t("read_document")}\` with a document's id to read its text.`,
     `- To find out what a Workspace did, call \`${t("read_workspace_chat")}\` (its last ask, turn summary and last reply; pass \`full: true\` only when you need the whole transcript). \`${t("read_workspace_diff")}\` and \`${t("read_workspace_file")}\` read its changes and code. You can't edit Workspace files.`,
-    `- To see what a frame looks like, call \`${t("view_frame")}\`.`,
+    `- To see what a frame looks like, call \`${t("view_frame")}\`. \`${t("read_frame_html")}\` returns its current page as self-contained HTML, a starting point for a mockup.`,
     `- Name Workspaces by their title, not their id. Link a title as \`${workspaceLink("<title>", "<id>")}\` so the user can open the Workspace.`,
     "",
     "Arranging the canvas:",

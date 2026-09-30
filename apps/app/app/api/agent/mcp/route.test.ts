@@ -329,11 +329,13 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists its dev server's tools and its Document tools (#1314)", async () => {
+  it("lists its dev server's tools, its frame reads and its Document tools (#1314)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
       "restart_dev_server",
+      "view_frame",
+      "read_frame_html",
       "create_document",
       "replace_document_body",
       "append_to_document_body",
@@ -341,6 +343,7 @@ describe("a Workspace chat's MCP route", () => {
       "read_document",
     ])
     expect(result.tools[0].annotations).toMatchObject({ readOnlyHint: true })
+    expect(result.tools[3].annotations).toMatchObject({ readOnlyHint: true })
   })
 
   it("makes Documents owned by the chat its token is bound to", async () => {

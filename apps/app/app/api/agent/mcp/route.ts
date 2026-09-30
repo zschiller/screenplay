@@ -19,6 +19,8 @@ import {
   DEV_SERVER_TOOL_ANNOTATIONS,
 } from "@/lib/agent/dev-server-tools"
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
+import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
+import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
 import { withRedactedOutput } from "@/lib/agent/toolset"
 import {
   handleMcpMessage,
@@ -60,9 +62,9 @@ export async function POST(req: Request) {
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
 
-  // A Workspace chat's harness gets its own dev server's tools, bound to the
-  // Sandbox its token was minted for, and its Document tools, bound to its
-  // chat.
+  // A Workspace chat's harness gets its own dev server's tools and the frame
+  // reads, bound to the Sandbox its token was minted for, and its Document
+  // tools, bound to its chat.
   if (binding.sandboxName) {
     const response = await handleMcpMessage(
       {
@@ -72,11 +74,16 @@ export async function POST(req: Request) {
           ...buildDevServerTools(
             liveDevServerPorts({ sandboxName: binding.sandboxName, room })
           ),
+          ...chatFrameReadTools({
+            sandboxName: binding.sandboxName,
+            room,
+          }),
           ...buildDocumentTools({ room, chatId: binding.chatId }),
           ...buildLayerReadTools({ room }),
         }),
         annotations: {
           ...DEV_SERVER_TOOL_ANNOTATIONS,
+          ...FRAME_READ_TOOL_ANNOTATIONS,
           ...DOCUMENT_TOOL_ANNOTATIONS,
         },
         onInitialize: (client) =>
