@@ -58,7 +58,7 @@ you pick in a chat decides which CLI runs it.
 `SCREENPLAY_ACP_HARNESS=codex` changes the default for chats that haven't
 picked a model (default `claude-code`).
 
-The [Coordinator](/guides/agent#the-coordinator) runs on these CLIs too. Its
+The [Coordinator](/guides/coordinator) runs on these CLIs too. Its
 canvas tools reach the CLI as an MCP server that only the desktop app serves,
 on `127.0.0.1`, behind a token that works for that one canvas. Screenplay
 allows those tools up front, so the CLI never asks you to approve them. Each

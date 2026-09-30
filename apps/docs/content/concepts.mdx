@@ -35,7 +35,7 @@ document. It arranges the canvas for you, and when you ask for a change it
 sends a message to the right workspace's agent, which does the work. The
 Coordinator never edits code itself. On the web app it can also start new
 workspaces once you approve its plan.
-→ [The Coordinator](/guides/agent#the-coordinator)
+→ [The Coordinator](/guides/coordinator)
 
 ## Repository
 
@@ -103,7 +103,7 @@ from depends on how you run Screenplay:
   OpenAI-compatible endpoint).
 
 Alongside chat, **terminal tabs** give you an interactive shell in the same
-sandbox, with a coding CLI pre-launched. → [Agent chat](/guides/agent),
+sandbox, with a coding CLI pre-launched. → [Workspace chats](/guides/agent),
 [Terminal tabs](/guides/terminals)
 
 ## Memory
@@ -112,7 +112,7 @@ Each canvas keeps a shared **memory**: preferences, decisions and facts about
 its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
 it, so no chat has to ask the same thing twice. The Coordinator saves to it
 when you tell it something worth keeping, and you can edit it in Canvas
-settings. → [Canvas memory](/guides/agent#canvas-memory)
+settings. → [Canvas memory](/guides/coordinator#canvas-memory)
 
 ## Names you'll see in the code
 
