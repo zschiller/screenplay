@@ -62,16 +62,22 @@ function FolderRowName({ folder }: { folder: FolderSummary }) {
 // row tile, standing in for the old empty-doc icon. Renders the same frame
 // composite as the grid (`ThumbnailComposite`) on the canvas plane the grid
 // card uses, so a captured canvas shows its real layout. An uncaptured one
-// gets the grid's dashed empty preview. The composite never draws text.
+// gets the grid's dashed empty preview on the same plane. The composite never
+// draws text.
 const ROW_THUMBNAIL =
   "relative aspect-[4/3] h-14 shrink-0 overflow-hidden rounded-xs @2xl/home:h-20"
 
 function RoomRowThumbnail({ room }: { room: RoomSummary }) {
   if (!hasThumbnail(room.thumbnailManifest)) {
-    return <EmptyThumbnail className={ROW_THUMBNAIL} />
+    return <EmptyThumbnail className={cn(ROW_THUMBNAIL, "bg-canvas-plane")} />
   }
   return (
-    <div className={cn(ROW_THUMBNAIL, "bg-canvas-plane ring-1 ring-border ring-inset")}>
+    <div
+      className={cn(
+        ROW_THUMBNAIL,
+        "bg-canvas-plane ring-1 ring-border ring-inset"
+      )}
+    >
       <ThumbnailComposite
         manifest={room.thumbnailManifest}
         version={room.thumbnailUpdatedAt}

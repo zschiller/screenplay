@@ -918,7 +918,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end" className="gap-0.5">
             {noAgents ? (
-              <span className="-ml-1 text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 No coding agent detected — install a CLI (e.g. Claude Code or
                 Codex) and restart, or add one in Settings.
               </span>
@@ -927,7 +927,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="-ml-1 inline-flex">
+                      <span className="-ml-1.5 inline-flex">
                         <DropdownMenuTrigger asChild>
                           <InputGroupButton
                             size="xs"

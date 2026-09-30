@@ -176,10 +176,7 @@ function RoomTileFace({
     <>
       <Link
         href={`/${room.id}`}
-        className={cn(
-          "relative block aspect-[4/3] w-full overflow-hidden",
-          hasThumbnail(room.thumbnailManifest) && "bg-canvas-plane"
-        )}
+        className="relative block aspect-[4/3] w-full overflow-hidden bg-canvas-plane"
         aria-label={`Open ${room.name}`}
       >
         {hasThumbnail(room.thumbnailManifest) ? (
