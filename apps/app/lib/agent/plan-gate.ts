@@ -20,8 +20,9 @@ export interface PlanGateRequest {
 
 /**
  * A gate that can't raise its card for this call (the Workspace it names is
- * gone, or already has a PR): the call shows as failed with `refusal` as its
- * result, and nothing waits on the user.
+ * gone, or already has a PR): the call completes with `refusal` as its
+ * result, and nothing waits on the user. A refusal is an outcome, not a
+ * failure, so its row isn't shown as failed (#1231).
  */
 export interface PlanGateRefusal {
   refusal: string

@@ -461,7 +461,11 @@ describe("ExternalEngine — plan-gated tools over MCP", () => {
     ).toBe(false)
   })
 
-  it("shows a gated call its gate refused", async () => {
+  // A refusal completes with its reason (#1231); a failure fails.
+  it.each([
+    ["its gate refused", "completed", "No repo."],
+    ["that failed", "failed", "GitHub is down."],
+  ] as const)("shows a gated call %s", async (_, status, reason) => {
     const updates: EngineUpdate[] = []
     const engine = new ExternalEngine({
       sessionFactory: factory(async (ports) => {
@@ -469,9 +473,9 @@ describe("ExternalEngine — plan-gated tools over MCP", () => {
         await ports.onUpdate({
           sessionUpdate: "tool_call_update",
           toolCallId: "toolu_1",
-          status: "failed",
+          status,
           content: [
-            { type: "content", content: { type: "text", text: "No repo." } },
+            { type: "content", content: { type: "text", text: reason } },
           ],
         })
         return "end_turn"
@@ -491,7 +495,8 @@ describe("ExternalEngine — plan-gated tools over MCP", () => {
         sessionUpdate: "tool_call",
         toolCallId: "toolu_1",
         title: "mcp__screenplay__create_workspaces",
-        status: "failed",
+        status,
+        content: [{ type: "content", content: { type: "text", text: reason } }],
       },
     })
   })

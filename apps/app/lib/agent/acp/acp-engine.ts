@@ -555,8 +555,10 @@ class PromptSteering {
  * A harness's own calls to plan-gated Coordinator tools (#898, #901), held
  * back from the chat. Such a call either raises a card, whose outcome is
  * recorded under the tool's own name once the user decides (as on the
- * built-in engine, which shows no chip for the call either), or fails because
- * its gate refused it, which is shown.
+ * built-in engine, which shows no chip for the call either), or ends without
+ * one, which is shown: its gate refused it (a completed call carrying the
+ * reason, #1231), or it failed. A call that raised a card never ends here,
+ * since the card closes the turn before its result arrives.
  */
 class GatedToolCalls {
   private readonly calls = new Map<string, AcpToolCallRecord>()
@@ -575,7 +577,7 @@ class GatedToolCalls {
     const call = applyToolCallUpdate(this.calls.get(id), update)
     if (!this.isGated(call.title)) return update
     this.calls.set(id, call)
-    if (call.status !== "failed") return null
+    if (call.status !== "failed" && call.status !== "completed") return null
     // The first update the chat sees for it, so it carries the whole call.
     return toolCallStart({
       toolCallId: call.toolCallId,

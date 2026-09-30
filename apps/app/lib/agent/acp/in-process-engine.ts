@@ -235,8 +235,9 @@ export class InProcessEngine implements UsageReportingEngine, SteeringEngine {
         if (chunk.type === "tool-call" && gate) {
           const request = await gate(chunk.input)
           // A gate that can't raise its card for this call (#901) records
-          // the call as failed with the reason, so the user sees why and the
-          // next turn's history carries it; nothing waits on the user.
+          // the call with the reason, so the user sees why and the next
+          // turn's history carries it; nothing waits on the user. The call
+          // did what it should, so it's completed, not failed (#1231).
           if ("refusal" in request) {
             await sink({
               kind: "session_update",
@@ -244,7 +245,7 @@ export class InProcessEngine implements UsageReportingEngine, SteeringEngine {
                 toolCallId: chunk.toolCallId,
                 title: chunk.toolName,
                 kind: toolKindFor(chunk.toolName),
-                status: "failed",
+                status: "completed",
                 rawInput: chunk.input as Record<string, unknown>,
                 content: [
                   { type: "content", content: textBlock(request.refusal) },

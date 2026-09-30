@@ -375,7 +375,7 @@ describe("InProcessEngine — plan-gated tools (#898)", () => {
     })
   })
 
-  it("records a refused gate's call as failed, with the reason, and raises no card (#901)", async () => {
+  it("records a refused gate's call as completed, with the reason, and raises no card (#901, #1231)", async () => {
     const updates: EngineUpdate[] = []
     const gated = withPlanGate(
       tool({ inputSchema: jsonSchema<{ id: string }>({ type: "object" }) }),
@@ -416,7 +416,7 @@ describe("InProcessEngine — plan-gated tools (#898)", () => {
           sessionUpdate: "tool_call",
           toolCallId: "t1",
           title: "gated",
-          status: "failed",
+          status: "completed",
           rawInput: { id: "w9" },
           content: [
             {
@@ -427,5 +427,60 @@ describe("InProcessEngine — plan-gated tools (#898)", () => {
         }),
       },
     ])
+  })
+
+  it("still fails a Coordinator tool's call that throws (#1231)", async () => {
+    const updates: EngineUpdate[] = []
+    const driver: StreamDriver = (config) => ({
+      consumeStream: async () => {
+        const chunk = (c: unknown) =>
+          config.onChunk?.({ chunk: c } as never) as Promise<void>
+        await chunk({
+          type: "tool-call",
+          toolCallId: "t1",
+          toolName: "stop_workspace",
+          input: { workspace_id: "w9" },
+        })
+        await chunk({
+          type: "tool-error",
+          toolCallId: "t1",
+          toolName: "stop_workspace",
+          input: { workspace_id: "w9" },
+          error: new Error("GitHub is down."),
+        })
+      },
+    })
+    await new InProcessEngine(driver).run(
+      {
+        chatId: "c",
+        runId: "r",
+        roomId: "rm",
+        systemPrompt: "s",
+        model: "anthropic:test",
+        history: [],
+        tools: {
+          stop_workspace: tool({
+            inputSchema: jsonSchema<{ workspace_id: string }>({
+              type: "object",
+            }),
+            execute: async (): Promise<string> => {
+              throw new Error("GitHub is down.")
+            },
+          }),
+        },
+      },
+      (u) => {
+        updates.push(u)
+      },
+      new AbortController().signal
+    )
+    expect(updates).toContainEqual({
+      kind: "session_update",
+      update: expect.objectContaining({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "t1",
+        status: "failed",
+      }),
+    })
   })
 })

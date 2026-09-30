@@ -231,8 +231,14 @@ function renderTitleWithCode(title: string): ReactNode[] {
   return parts
 }
 
-/** The Coordinator's canvas-changing tools, whose results name the change. */
-const CANVAS_CHANGE_TOOLS = new Set([
+/**
+ * The Coordinator's tools whose results name what happened: its canvas
+ * changes, and a Workspace's PR or removal, whose result is what it did or
+ * why it didn't (#1231).
+ */
+const OUTCOME_LINE_TOOLS = new Set([
+  "open_pull_request",
+  "remove_workspace",
   "create_frames",
   "create_document",
   "move_group",
@@ -244,14 +250,15 @@ const CANVAS_CHANGE_TOOLS = new Set([
 ])
 
 /**
- * What a finished canvas change did, from its result's first line (the lines
- * after it are ids for the model), without the closing period. Null while it
- * runs, for any other tool, and for a result that reports an error.
+ * What a finished canvas change, PR or removal did, from its result's first
+ * line (the lines after it are ids for the model), without the closing
+ * period. Null while it runs, for any other tool, and for a result that
+ * reports an error.
  */
-function canvasChangeLine(
+function outcomeLine(
   message: AgentMessage & { role: "tool_call" }
 ): string | null {
-  if (!CANVAS_CHANGE_TOOLS.has(bareToolName(message.title))) return null
+  if (!OUTCOME_LINE_TOOLS.has(bareToolName(message.title))) return null
   if (message.status !== "completed") return null
   const text = message.content
     .map((b) =>
@@ -561,15 +568,16 @@ function ToolCallRow({
       : verb
   // A Coordinator canvas change (#894) names what it changed in its result's
   // first line ("Removed frame "Settings""), so a finished one shows that line
-  // in place of its verb, with nothing to expand.
-  const canvasChange = canvasChangeLine(message)
+  // in place of its verb, with nothing to expand. So does a PR or removal,
+  // including one its gate refused (#1231).
+  const outcome = outcomeLine(message)
   // Structure it when we have a real verb (our own raw tool, or a known kind we
   // could attach a detail to); otherwise fall back to the adapter's prose title.
   const structured = isRawToolName || (verb != null && detail != null)
-  const hasContent = message.content.length > 0 && !canvasChange
+  const hasContent = message.content.length > 0 && !outcome
 
-  const title = canvasChange ? (
-    canvasChange
+  const title = outcome ? (
+    outcome
   ) : structured ? (
     <>
       {label}
@@ -583,8 +591,8 @@ function ToolCallRow({
   ) : (
     renderTitleWithCode(message.title)
   )
-  const fullText = canvasChange
-    ? canvasChange
+  const fullText = outcome
+    ? outcome
     : structured
       ? [label, detail].filter(Boolean).join(" ")
       : message.title.replace(/`/g, "")

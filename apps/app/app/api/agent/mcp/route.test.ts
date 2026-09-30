@@ -212,32 +212,51 @@ describe("the Coordinator's MCP route", () => {
     expect(result.content[0].text).toMatch(/approval/)
   })
 
-  it("fails a call its gate refuses, without raising a card", async () => {
+  const toolCall = (id: number, name: string, workspace_id: string) =>
+    rpc({
+      jsonrpc: "2.0",
+      id,
+      method: "tools/call",
+      params: { name, arguments: { workspace_id } },
+    })
+
+  // A refusal is the call's result, not an error, so the harness shows it as
+  // a finished step (#1231).
+  it("returns a call its gate refuses as a result, without raising a card", async () => {
     const raised: HarnessGateCall[] = []
     const unregister = registerHarnessGate(binding.chatId, async (call) => {
       raised.push(call)
       return true
     })
     try {
-      const { result } = await (
-        await POST(
-          rpc({
-            jsonrpc: "2.0",
-            id: 7,
-            method: "tools/call",
-            params: {
-              name: "remove_workspace",
-              arguments: { workspace_id: "no-such" },
-            },
-          })
-        )
+      const removal = await (
+        await POST(toolCall(7, "remove_workspace", "no-such"))
       ).json()
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toMatch(/No Workspace has the id no-such/)
+      expect(removal.result.isError).toBe(false)
+      expect(removal.result.content[0].text).toMatch(
+        /No Workspace has the id no-such/
+      )
+
+      // ws-1's repository isn't on GitHub.
+      const pr = await (
+        await POST(toolCall(8, "open_pull_request", "ws-1"))
+      ).json()
+      expect(pr.result.isError).toBe(false)
+      expect(pr.result.content[0].text).toBe(
+        "\"Fix sign-in redirect\" isn't in a GitHub repository, so it can't have a pull request."
+      )
     } finally {
       unregister()
     }
     expect(raised).toEqual([])
+  })
+
+  it("still fails a call whose tool throws", async () => {
+    const { result } = await (
+      await POST(toolCall(9, "stop_workspace", "no-such"))
+    ).json()
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toMatch(/No Workspace has the id no-such/)
   })
 
   it("answers an unknown tool with a JSON-RPC error", async () => {
