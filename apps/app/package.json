@@ -38,7 +38,7 @@
     "@liveblocks/yjs": "^3.24.2",
     "@napi-rs/keyring": "^2.1.0",
     "@neondatabase/serverless": "^1.0.3",
-    "@netlify/build-info": "10.5.1",
+    "@netlify/build-info": "11.3.0",
     "@sparticuz/chromium": "^147.0.2",
     "@tiptap/core": "^3.31.4",
     "@tiptap/extension-collaboration": "^3.31.4",
