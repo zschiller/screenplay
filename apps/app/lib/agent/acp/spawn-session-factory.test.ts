@@ -133,6 +133,27 @@ describe("SpawnAcpSessionFactory — resolution and lifecycle", () => {
     expect(seen!.env.PATH).toBe("/usr/bin")
   })
 
+  it("opens the session with its Harness's adapter facts", async () => {
+    const open = async (harnessKey: string) => {
+      const factory = new SpawnAcpSessionFactory({
+        harnessKey,
+        env: { PATH: process.env.PATH },
+        spawn: fakeAgentSpawn({} as AcpScript),
+      })
+      spawnedFactories.push(factory)
+      return factory.open(
+        {
+          onUpdate: () => {},
+          requestPlanApproval: async () => ({ approved: false }),
+        },
+        { cwd: "/" }
+      )
+    }
+    // The fake agent advertises neither; only the descriptor says so.
+    expect((await open("claude-code")).promptQueueing).toBe(true)
+    expect((await open("codex")).promptQueueing).toBe(false)
+  })
+
   it("dispose kills the spawned child", async () => {
     let killed = false
     const factory = new SpawnAcpSessionFactory({

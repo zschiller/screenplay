@@ -745,7 +745,7 @@ auth), with the spawn argv/env resolved by a harness → ACP launch resolver
 `resolveLaunchArgv`. Both speak ACP at the seam; they are
 named for _where the model runs_ (in-process vs. a separate external agent), not
 for the protocol. Which _engine_ runs is a per-deployment choice
-(`AGENT_ENGINE=in-process|external`, default in-process — `engine-select.ts`), not a
+(`AGENT_ENGINE=in-process|external`, default in-process — `resolve-live-engine.ts`), not a
 per-Chat-Session column; but which **Harness backs the external engine _is_ a
 per-Chat-Session choice** — the chat's stored model id, when it carries the
 `harness:<key>` form, names the Harness whose ACP adapter is spawned (so the model

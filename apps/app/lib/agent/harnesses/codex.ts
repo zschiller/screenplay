@@ -234,13 +234,18 @@ export const codexHarness: Harness = {
   hostBinary: "codex",
   // Backs agent chat via the maintained codex ACP adapter (#1271), which rides
   // `codex login` / `CODEX_API_KEY` like the CLI does. It is built on the Codex
-  // App Server and bundles a current Codex core, so today's models run. Like
-  // claude-code it advertises a `model` config option, so a chat's model is
-  // applied in-session (`session/set_config_option`) rather than at spawn.
+  // App Server and bundles a current Codex core, so today's models run.
   // Pinned so a new adapter release can't change the tool-call contract under us.
   acpAdapter: {
     command: "npx",
     args: ["-y", "@agentclientprotocol/codex-acp@2.0.1"],
+    // It advertises a `model` config option and validates the value eagerly:
+    // `set_config_option` rejects a model it doesn't offer, and the session
+    // stays on the adapter's default (ADR 0011).
+    modelOption: "model",
+    // A second prompt doesn't join the running turn; a mid-turn message goes
+    // through the adapter's steering request instead (#1192).
+    promptQueueing: false,
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.

@@ -200,6 +200,14 @@ export const claudeCodeHarness: Harness = {
   acpAdapter: {
     command: "npx",
     args: ["-y", "@agentclientprotocol/claude-agent-acp@0.54.1"],
+    // It advertises a `model` config option and validates the value lazily: a
+    // model the login can't run fails the first prompt, and the session falls
+    // back to the adapter's default (ADR 0011).
+    modelOption: "model",
+    // A prompt sent while a turn runs joins it, the way a message typed while
+    // Claude Code works joins it in its own terminal (#1191). The adapter also
+    // says so at initialize (`_meta.claudeCode.promptQueueing`).
+    promptQueueing: true,
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.

@@ -53,7 +53,7 @@ export interface DriveTurnDeps {
  * reaches the chat or the log (#1263).
  *
  * This is the move ADR 0006 sequenced last: the live routes drive
- * `selectEngine → Engine.run → AcpUpdateConsumer` through here instead of the
+ * `resolveLiveEngine → Engine.run → AcpUpdateConsumer` through here instead of the
  * legacy `runAgentLoop`. The watchdog used to live inside that loop; it now sits
  * at the seam so every engine inherits it for free.
  */

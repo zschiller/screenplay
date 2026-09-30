@@ -17,6 +17,8 @@ describe("resolveAcpLaunch", () => {
     expect(launch).toEqual({
       command: "npx",
       args: ["-y", "@agentclientprotocol/claude-agent-acp@0.54.1"],
+      modelOption: "model",
+      promptQueueing: true,
       cwd: "/work/tree",
       env: {},
     })
@@ -26,6 +28,8 @@ describe("resolveAcpLaunch", () => {
     const launch = resolveAcpLaunch("codex", { cwd: "/work/tree", env: {} })
     expect(launch?.command).toBe("npx")
     expect(launch?.args).toEqual(["-y", "@agentclientprotocol/codex-acp@2.0.1"])
+    expect(launch?.modelOption).toBe("model")
+    expect(launch?.promptQueueing).toBe(false)
   })
 
   it("uses the worktree as the child cwd", () => {

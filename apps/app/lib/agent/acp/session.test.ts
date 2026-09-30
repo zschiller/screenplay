@@ -79,6 +79,11 @@ type FakeAgentOpts = {
    * this (#1192); a thrown error answers with a JSON-RPC error.
    */
   steering?: (params: Record<string, unknown>) => Promise<{ outcome: string }>
+  /**
+   * Advertise the model selector under this option id and without the
+   * reserved `"model"` category, so only a Harness descriptor naming it finds it.
+   */
+  modelOptionId?: string
 }
 
 /**
@@ -89,14 +94,15 @@ type FakeAgentOpts = {
  * the agent advertises no model option at all.
  */
 function modelConfigOptions(
-  models: FakeModels | undefined
+  models: FakeModels | undefined,
+  optionId?: string
 ): SessionConfigOption[] | undefined {
   if (!models) return undefined
   return [
     {
-      id: "model",
+      id: optionId ?? "model",
       name: "Model",
-      category: "model",
+      ...(optionId ? {} : { category: "model" }),
       type: "select",
       currentValue: models.currentModelId,
       options: models.availableModels.map((m) => ({
@@ -163,7 +169,10 @@ class FakeAcpAgent implements Agent {
     return {
       sessionId: SESSION_ID,
       modes: this.opts.modes,
-      configOptions: modelConfigOptions(this.opts.models),
+      configOptions: modelConfigOptions(
+        this.opts.models,
+        this.opts.modelOptionId
+      ),
     }
   }
 
@@ -178,7 +187,10 @@ class FakeAcpAgent implements Agent {
     this.loadSessionParams = params
     return {
       modes: this.opts.modes,
-      configOptions: modelConfigOptions(this.opts.models),
+      configOptions: modelConfigOptions(
+        this.opts.models,
+        this.opts.modelOptionId
+      ),
     }
   }
 
@@ -192,7 +204,8 @@ class FakeAcpAgent implements Agent {
   async setSessionConfigOption(
     params: SetSessionConfigOptionRequest
   ): Promise<{ configOptions: SessionConfigOption[] }> {
-    if (params.configId === "model" && typeof params.value === "string") {
+    const modelOption = this.opts.modelOptionId ?? "model"
+    if (params.configId === modelOption && typeof params.value === "string") {
       this.setSessionModelCalls.push(params.value)
       const listed = this.opts.models?.availableModels.some(
         (m) => m.modelId === params.value
@@ -201,7 +214,10 @@ class FakeAcpAgent implements Agent {
         throw RequestError.invalidParams()
       }
     }
-    return { configOptions: modelConfigOptions(this.opts.models) ?? [] }
+    return {
+      configOptions:
+        modelConfigOptions(this.opts.models, this.opts.modelOptionId) ?? [],
+    }
   }
 
   async prompt(params: PromptRequest): Promise<PromptResponse> {
@@ -914,6 +930,55 @@ describe("AcpSession — /stop and supersession map to ACP cancellation", () => 
 
     expect(stopReason).toBe("cancelled")
     expect(agent.cancelCalls).toBe(1)
+  })
+})
+
+describe("AcpSession — adapter facts from the Harness descriptor (#1266)", () => {
+  it("queues prompts only when the descriptor says so, whatever the agent advertises", async () => {
+    const queueing = await AcpSession.open(
+      connectFakeAgent(async () => "end_turn").transport,
+      collectingPorts().ports,
+      { cwd: "/work", adapter: { promptQueueing: true } }
+    )
+    const plain = await AcpSession.open(
+      connectFakeAgent(async () => "end_turn").transport,
+      collectingPorts().ports,
+      { cwd: "/work" }
+    )
+    expect(queueing.promptQueueing).toBe(true)
+    expect(plain.promptQueueing).toBe(false)
+  })
+
+  it("applies the model through the option the descriptor names", async () => {
+    const models: FakeModels = {
+      availableModels: [
+        { modelId: "small", name: "Small" },
+        { modelId: "large", name: "Large" },
+      ],
+      currentModelId: "small",
+    }
+    const named = connectFakeAgent(async () => "end_turn", {
+      models,
+      modelOptionId: "llm",
+    })
+    await AcpSession.open(named.transport, collectingPorts().ports, {
+      cwd: "/work",
+      modelId: "large",
+      adapter: { modelOption: "llm" },
+    })
+    expect(named.agent.setSessionModelCalls).toEqual(["large"])
+
+    // Unnamed, an option outside the reserved category isn't taken for the
+    // model selector.
+    const unnamed = connectFakeAgent(async () => "end_turn", {
+      models,
+      modelOptionId: "llm",
+    })
+    await AcpSession.open(unnamed.transport, collectingPorts().ports, {
+      cwd: "/work",
+      modelId: "large",
+    })
+    expect(unnamed.agent.setSessionModelCalls).toEqual([])
   })
 })
 
