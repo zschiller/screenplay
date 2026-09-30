@@ -790,12 +790,26 @@ export function TurnSummaryRow({
  * The plan quoted as markdown, with an empty line after it for the feedback.
  * Sending a message while a plan waits is how the server takes a rejection, so
  * this is all Request changes needs to do.
+ *
+ * A `\` hard break at a line end becomes two trailing spaces: the same break
+ * once sent, without a stray backslash in the composer. Code blocks and an
+ * escaped `\\` are content and stay as written.
  */
 export function quotePlan(content: string): string {
+  let fence: string | null = null
   const quoted = content
     .trim()
     .split("\n")
-    .map((line) => (line ? `> ${line}` : ">"))
+    .map((line) => {
+      const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1]
+      if (marker && (!fence || marker.startsWith(fence))) {
+        fence = fence ? null : marker
+      } else if (!fence) {
+        const trailing = /\\+$/.exec(line)?.[0].length ?? 0
+        if (trailing % 2 === 1) line = `${line.slice(0, -1)}  `
+      }
+      return line ? `> ${line}` : ">"
+    })
     .join("\n")
   return `${quoted}\n\n`
 }
