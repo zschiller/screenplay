@@ -1,7 +1,7 @@
 import { cn } from "@workspace/ui/lib/utils"
 
 import { docsUrl, githubUrl } from "@/lib/app-url"
-import { measure } from "./editorial"
+import { focusRing, measure } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const perks = [
@@ -30,7 +30,7 @@ export function SelfHosting() {
         title="Host it and review together."
       />
       <div className="mt-12 grid gap-12 md:grid-cols-2">
-        <div className="flex flex-col items-start gap-5">
+        <div className="flex flex-col items-start gap-5 md:pt-3.5">
           <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
             Deploy the web app for your team and share a canvas. It&rsquo;s free
             and MIT licensed.
@@ -38,7 +38,10 @@ export function SelfHosting() {
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <a
               href={`${docsUrl}/self-hosting`}
-              className="font-mono text-sm underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+              className={cn(
+                focusRing,
+                "font-mono text-sm underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+              )}
             >
               Self-hosting guide
             </a>
@@ -46,7 +49,10 @@ export function SelfHosting() {
               href={githubUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-mono text-sm underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+              className={cn(
+                focusRing,
+                "font-mono text-sm underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+              )}
             >
               github.com/zschiller/screenplay
             </a>

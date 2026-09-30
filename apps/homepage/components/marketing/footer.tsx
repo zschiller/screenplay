@@ -6,7 +6,7 @@ import {
   stateNpmUrl,
 } from "@/lib/app-url"
 import { cn } from "@workspace/ui/lib/utils"
-import { measure, monoLabel } from "./site/editorial"
+import { focusRing, measure, monoLabel } from "./site/editorial"
 import { Wordmark } from "./wordmark"
 
 const columns = [
@@ -67,6 +67,7 @@ export function Footer() {
                 href={l.href}
                 {...(l.external ? { target: "_blank", rel: "noreferrer" } : {})}
                 className={cn(
+                  focusRing,
                   "text-muted-foreground transition-colors hover:text-foreground",
                   "mono" in l && l.mono && "font-mono text-xs"
                 )}
