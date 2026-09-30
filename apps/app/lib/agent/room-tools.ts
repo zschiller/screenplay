@@ -28,22 +28,11 @@ import {
   createdWorkspacesResult,
   queuedForWorkspaceResult,
   sentToWorkspaceResult,
-  workspacePlanMarkdown,
   CREATE_WORKSPACES_TOOL,
-  type WorkspaceCreateOutcome,
-} from "@/lib/agent/workspace-task"
-import {
-  withPlanGate,
-  type PlanGateRefusal,
-  type PlanGateRequest,
-} from "@/lib/agent/plan-gate"
-import {
-  confirmCancelledResult,
   OPEN_PULL_REQUEST_TOOL,
   REMOVE_WORKSPACE_TOOL,
-  type ConfirmCard,
-  type ConfirmGateInput,
-} from "@/lib/agent/confirm-card"
+  type WorkspaceCreateOutcome,
+} from "@/lib/agent/workspace-task"
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import { getSkill, getSkillIndex } from "@/lib/skills"
 import { createCanvasOps } from "@/lib/canvas/ops"
@@ -141,9 +130,14 @@ export type TerminalTabSummary = {
 
 /**
  * MCP annotations for the Coordinator's tools, by tool name, sent when a
- * desktop harness lists them (#903). Codex runs an MCP tool without asking
- * only when it is `readOnlyHint`, or both `destructiveHint: false` and
- * `openWorldHint: false`, so give each new tool the honest hints here.
+ * desktop harness lists them (#903). Give each tool the honest hints: no
+ * Screenplay tool asks the user first on either harness (#1217), and that is
+ * the harness's configuration, not the hints. Claude Code pre-allows every
+ * tool on the server (`COORDINATOR_ALLOWED_TOOLS`). Codex asks for a tool
+ * that isn't `readOnlyHint` or both `destructiveHint: false` and
+ * `openWorldHint: false`, but it asks the ACP client, and the external
+ * engine allows every such request on a Coordinator turn, which is never in
+ * plan mode (`acp-engine.ts`).
  */
 export const ROOM_TOOL_ANNOTATIONS: Readonly<
   Record<string, McpToolAnnotations>
@@ -162,12 +156,11 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   },
   // Starts a turn in a Workspace chat the user can see and take over.
   send_to_workspace: { destructiveHint: false, openWorldHint: false },
-  // Creates Workspaces only after the user approves the plan (#898).
+  // Creates Workspaces the user can remove again (#898).
   create_workspaces: { destructiveHint: false, openWorldHint: false },
   // Stops a turn the user can resume by messaging the Workspace again.
   stop_workspace: { destructiveHint: false, openWorldHint: false },
-  // Act only after the user confirms (#901): a PR on GitHub, and a removal
-  // that tears the sandbox down for good.
+  // A PR on GitHub, and a removal that tears the sandbox down for good (#901).
   open_pull_request: { destructiveHint: false, openWorldHint: true },
   remove_workspace: { destructiveHint: true, openWorldHint: false },
   // Reads a bundled Coordinator App Skill (#905).
@@ -258,88 +251,77 @@ export function buildRoomTools(
       execute: async ({ workspace_id, message }) =>
         sendToWorkspace(ports, workspace_id, message),
     }),
-    [CREATE_WORKSPACES_TOOL]: withPlanGate(
-      tool({
-        description:
-          "Create Workspaces, each seeded with a first message for its agent. Use it when the user asks for work no existing Workspace fits; send follow-ups to an existing Workspace with `send_to_workspace` instead. The call shows the user a plan with one row per Workspace (title, repository, brief) and creates nothing until they approve it; you hear the result in the next turn. There's no limit on how many you list, but propose only what the ask needs.",
-        inputSchema: jsonSchema<CreateWorkspacesInput>({
-          type: "object",
-          properties: {
-            workspaces: {
-              type: "array",
-              minItems: 1,
-              items: {
-                type: "object",
-                properties: {
-                  title: {
-                    type: "string",
-                    description:
-                      'The Workspace\'s title: a few words naming the work, e.g. "Fix sign-in redirect".',
-                  },
-                  repository: {
-                    type: "string",
-                    description:
-                      "One of the canvas's repositories, by full name (owner/name) as `read_canvas` lists it.",
-                  },
-                  base_branch: {
-                    type: "string",
-                    description:
-                      "The branch to start from. Defaults to the repository's default branch.",
-                  },
-                  brief: {
-                    type: "string",
-                    description:
-                      "One line for the plan saying what the Workspace will do.",
-                  },
-                  prompt: {
-                    type: "string",
-                    description:
-                      "The seed message its agent starts on, written as the user would write it.",
-                  },
+    [CREATE_WORKSPACES_TOOL]: tool({
+      description:
+        "Create Workspaces, each seeded with a first message for its agent. Use it when the user asks for work no existing Workspace fits; send follow-ups to an existing Workspace with `send_to_workspace` instead. It creates them right away, their frames together in one new Group, and returns each one's id and whether it started. There's no limit on how many you list, but create only what the ask needs.",
+      inputSchema: jsonSchema<CreateWorkspacesInput>({
+        type: "object",
+        properties: {
+          workspaces: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              properties: {
+                title: {
+                  type: "string",
+                  description:
+                    'The Workspace\'s title: a few words naming the work, e.g. "Fix sign-in redirect".',
                 },
-                required: ["title", "repository", "brief", "prompt"],
+                repository: {
+                  type: "string",
+                  description:
+                    "One of the canvas's repositories, by full name (owner/name) as `read_canvas` lists it.",
+                },
+                base_branch: {
+                  type: "string",
+                  description:
+                    "The branch to start from. Defaults to the repository's default branch.",
+                },
+                prompt: {
+                  type: "string",
+                  description:
+                    "The seed message its agent starts on, written as the user would write it.",
+                },
               },
+              required: ["title", "repository", "prompt"],
             },
           },
-          required: ["workspaces"],
-        }),
+        },
+        required: ["workspaces"],
       }),
-      (input) => workspacePlan(ports, input as CreateWorkspacesInput)
-    ),
-    [OPEN_PULL_REQUEST_TOOL]: withPlanGate(
-      tool({
-        description:
-          "Open a pull request on GitHub for a Workspace's branch, into its repository's default branch. The user sees a confirm card and nothing happens until they click Open PR; you hear the result in the next turn. It's opened with the GitHub account of the Workspace's owner. Its title and description come from the branch's commits, so make sure the Workspace's agent has committed and pushed first.",
-        inputSchema: jsonSchema<{ workspace_id: string }>({
-          type: "object",
-          properties: {
-            workspace_id: {
-              type: "string",
-              description: "The Workspace's id, from `read_canvas`.",
-            },
+      execute: async (input) => createWorkspaces(ports, input),
+    }),
+    [OPEN_PULL_REQUEST_TOOL]: tool({
+      description:
+        "Open a pull request on GitHub for a Workspace's branch, into its repository's default branch. It opens right away, with the GitHub account of the Workspace's owner, and returns the PR's link. Its title and description come from the branch's commits, so make sure the Workspace's agent has committed and pushed first.",
+      inputSchema: jsonSchema<{ workspace_id: string }>({
+        type: "object",
+        properties: {
+          workspace_id: {
+            type: "string",
+            description: "The Workspace's id, from `read_canvas`.",
           },
-          required: ["workspace_id"],
-        }),
+        },
+        required: ["workspace_id"],
       }),
-      (input) => openPullRequestGate(ports, input as { workspace_id?: string })
-    ),
-    [REMOVE_WORKSPACE_TOOL]: withPlanGate(
-      tool({
-        description:
-          "Remove a Workspace from the canvas, as Delete in the Workspaces menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. The user sees a confirm card and nothing happens until they click Remove; you hear the result in the next turn.",
-        inputSchema: jsonSchema<{ workspace_id: string }>({
-          type: "object",
-          properties: {
-            workspace_id: {
-              type: "string",
-              description: "The Workspace's id, from `read_canvas`.",
-            },
+      execute: async ({ workspace_id }) => openPullRequest(ports, workspace_id),
+    }),
+    [REMOVE_WORKSPACE_TOOL]: tool({
+      description:
+        "Remove a Workspace from the canvas, as Delete in the Workspaces menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. It acts right away.",
+      inputSchema: jsonSchema<{ workspace_id: string }>({
+        type: "object",
+        properties: {
+          workspace_id: {
+            type: "string",
+            description: "The Workspace's id, from `read_canvas`.",
           },
-          required: ["workspace_id"],
-        }),
+        },
+        required: ["workspace_id"],
       }),
-      (input) => removeWorkspaceGate(ports, input as { workspace_id?: string })
-    ),
+      execute: async ({ workspace_id }) => removeWorkspace(ports, workspace_id),
+    }),
     stop_workspace: tool({
       description:
         "Stop a Workspace's running turn right away, as its chat's Stop button does. Use it when a Workspace's work has gone off track or the user asks you to stop it. Its chat keeps everything so far; send it a message to carry on.",
@@ -383,30 +365,10 @@ export type WorkspaceSpec = {
   title: string
   repository: string
   base_branch?: string
-  brief: string
   prompt: string
 }
 
 type CreateWorkspacesInput = { workspaces: WorkspaceSpec[] }
-
-/**
- * What a `create_workspaces` plan keeps for its approval: the Workspaces as
- * the plan showed them, and who they will belong to.
- */
-export type WorkspacePlanInput = {
-  gate: typeof CREATE_WORKSPACES_TOOL
-  workspaces: WorkspaceSpec[]
-  requesterId: string
-}
-
-/** Whether a pending plan's stored input is a `create_workspaces` plan. */
-export function isWorkspacePlanInput(
-  input: Record<string, unknown>
-): input is WorkspacePlanInput {
-  return (
-    input.gate === CREATE_WORKSPACES_TOOL && Array.isArray(input.workspaces)
-  )
-}
 
 /**
  * The owner of Workspaces a wake turn creates (#890): the owner of the
@@ -420,40 +382,6 @@ export function wakeRequesterId(
   return wakingBranch?.createdBy ?? fallback
 }
 
-/**
- * The plan review `create_workspaces` raises: one row per Workspace with its
- * title, repository and brief, and the base branch when it isn't the default.
- * Never throws, so a doc read failing still shows the user a plan.
- */
-async function workspacePlan(
-  ports: RoomToolPorts,
-  input: CreateWorkspacesInput
-): Promise<PlanGateRequest> {
-  const workspaces = (input?.workspaces ?? []).map(cleanSpec)
-  const repos = await ports
-    .readDoc((c) => records<RepoData>(c, COLLECTION_KEYS.repos))
-    .catch(() => [] as RepoData[])
-  const rows = workspaces.map((w) => {
-    const repo = findRepo(repos, w.repository)
-    const where = repo
-      ? repo.repoFullName +
-        (w.base_branch && w.base_branch !== repo.defaultBranch
-          ? ` from ${w.base_branch}`
-          : "")
-      : `${w.repository} (not on this canvas, so it can't be created)`
-    return { title: w.title, where, brief: w.brief }
-  })
-  const plan = workspacePlanMarkdown(rows)
-  return {
-    plan,
-    input: {
-      gate: CREATE_WORKSPACES_TOOL,
-      workspaces,
-      requesterId: ports.requesterId,
-    },
-  }
-}
-
 function cleanSpec(raw: WorkspaceSpec): WorkspaceSpec {
   const text = (v: unknown) => (typeof v === "string" ? v.trim() : "")
   const base = text(raw?.base_branch)
@@ -461,7 +389,6 @@ function cleanSpec(raw: WorkspaceSpec): WorkspaceSpec {
     title: text(raw?.title),
     repository: text(raw?.repository),
     ...(base ? { base_branch: base } : {}),
-    brief: text(raw?.brief),
     prompt: text(raw?.prompt),
   }
 }
@@ -477,16 +404,16 @@ function findRepo(
 }
 
 /**
- * Create the Workspaces of an approved `create_workspaces` plan (#898), each
- * owned by the plan's requester and seeded with its prompt once its sandbox
+ * Create the Workspaces a `create_workspaces` call asks for (#898), each
+ * owned by the turn's requester and seeded with its prompt once its sandbox
  * runs. Every Workspace is created before any is provisioned, together in one
  * new Group of frames; a Workspace that fails to start is marked failed (its
  * row offers Retry) and the rest carry on. Returns the tool result the
  * Coordinator reads, naming each Workspace so its task row shows.
  */
-export async function createWorkspaces(
+async function createWorkspaces(
   ports: RoomToolPorts,
-  plan: WorkspacePlanInput
+  input: CreateWorkspacesInput
 ): Promise<string> {
   const outcomes: WorkspaceCreateOutcome[] = []
   const toProvision: {
@@ -504,7 +431,7 @@ export async function createWorkspaces(
     const ops = createCanvasOps(createRoomCollections(collections.doc))
     const frames: { agentId: string; label: string }[] = []
     ops.batch(() => {
-      for (const spec of plan.workspaces.map(cleanSpec)) {
+      for (const spec of (input?.workspaces ?? []).map(cleanSpec)) {
         const title = spec.title || "Untitled"
         const repo = findRepo(repos, spec.repository)
         if (!repo) {
@@ -547,7 +474,7 @@ export async function createWorkspaces(
             ...(flow === "duplicate-branch"
               ? { createSourceBranch: base }
               : {}),
-            createdBy: plan.requesterId,
+            createdBy: ports.requesterId,
             pendingSeed: {
               chatId,
               message: spec.prompt,
@@ -603,67 +530,6 @@ export async function createWorkspaces(
   return createdWorkspacesResult(outcomes)
 }
 
-/**
- * The Workspace a confirm gate acts on, or the refusal when there is none.
- * Reads the raw map, never a cached collection snapshot.
- */
-async function confirmTarget(
-  ports: RoomToolPorts,
-  workspaceId: unknown
-): Promise<
-  | {
-      branch: BranchData
-      repo: RepoData | undefined
-      chats: number
-      frames: number
-    }
-  | PlanGateRefusal
-> {
-  const id = typeof workspaceId === "string" ? workspaceId.trim() : ""
-  const found = await ports
-    .readDoc((c) => {
-      const branch = records<BranchData>(c, COLLECTION_KEYS.branches).find(
-        (b) => b.id === id
-      )
-      if (!branch) return null
-      return {
-        branch,
-        repo: records<RepoData>(c, COLLECTION_KEYS.repos).find(
-          (r) => r.id === branch.repoId
-        ),
-        chats: records<ChatSessionData>(c, COLLECTION_KEYS.chatSessions).filter(
-          (chat) => chat.branchId === id
-        ).length,
-        frames: records<IframeLayerData>(
-          c,
-          COLLECTION_KEYS.iframeLayers
-        ).filter((f) => f.branchId === id).length,
-      }
-    })
-    .catch(() => null)
-  return (
-    found ?? {
-      refusal: `No Workspace has the id ${id || "(none)"}. Call read_canvas for current ids.`,
-    }
-  )
-}
-
-function confirmRequest(
-  card: ConfirmCard,
-  workspaceId: string,
-  ports: RoomToolPorts
-): PlanGateRequest {
-  const input: ConfirmGateInput = {
-    gate: card.action,
-    confirm: card,
-    workspaceId,
-    requesterId: ports.requesterId,
-  }
-  // The plan text is what the card falls back to, and what the model and a
-  // reload read beside the card.
-  return { plan: `**${card.title}**\n\n${card.description}`, input }
-}
-
 /** A Workspace's open PR, if it has one. */
 function openPr(branch: BranchData): number | null {
   return branch.prNumber && (branch.prState ?? "open") === "open"
@@ -672,64 +538,16 @@ function openPr(branch: BranchData): number | null {
 }
 
 /**
- * The confirm card `open_pull_request` raises (#901): the branch into the
- * repository's default branch, with the changed lines.
+ * What a Workspace tool returns for an id no Workspace has. Like every
+ * refusal these tools return, it's a result, not an error: the call did what
+ * it should, so its row isn't shown as failed (#1231).
  */
-async function openPullRequestGate(
-  ports: RoomToolPorts,
-  input: { workspace_id?: string }
-): Promise<PlanGateRequest | PlanGateRefusal> {
-  const target = await confirmTarget(ports, input?.workspace_id)
-  if ("refusal" in target) return target
-  const { branch, repo } = target
-  const title = workspaceLabel(branch)
-  const pr = openPr(branch)
-  if (pr) return { refusal: `"${title}" already has PR #${pr} open.` }
-  if (!repo || !hasGitHubRemote(repo)) {
-    return {
-      refusal: `"${title}" isn't in a GitHub repository, so it can't have a pull request.`,
-    }
-  }
-  const lines = lineCounts(branch)
-  return confirmRequest(
-    {
-      action: OPEN_PULL_REQUEST_TOOL,
-      title: `Open a pull request for ${title}?`,
-      description: `From \`${branch.ref}\` into \`${repo.defaultBranch}\`${lines ? `, ${lines}` : ""}.`,
-      confirmLabel: "Open PR",
-    },
-    branch.id,
-    ports
-  )
+function noSuchWorkspace(id: string): string {
+  return `No Workspace has the id ${id || "(none)"}. Call read_canvas for current ids.`
 }
 
-/**
- * The confirm card `remove_workspace` raises (#901): what goes, in the delete
- * dialog's words, and the PR that stays.
- */
-async function removeWorkspaceGate(
-  ports: RoomToolPorts,
-  input: { workspace_id?: string }
-): Promise<PlanGateRequest | PlanGateRefusal> {
-  const target = await confirmTarget(ports, input?.workspace_id)
-  if ("refusal" in target) return target
-  const { branch, chats, frames } = target
-  const removes = [
-    chats > 0 && plural(chats, "chat"),
-    frames > 0 && plural(frames, "frame"),
-    "its sandbox",
-  ].filter((f): f is string => Boolean(f))
-  const pr = openPr(branch)
-  return confirmRequest(
-    {
-      action: REMOVE_WORKSPACE_TOOL,
-      title: `Remove ${workspaceLabel(branch)}?`,
-      description: `Removes ${joinFacts(removes)}.${pr ? ` Keeps PR #${pr}.` : ""}`,
-      confirmLabel: "Remove",
-    },
-    branch.id,
-    ports
-  )
+function workspaceIdOf(input: unknown): string {
+  return typeof input === "string" ? input.trim() : ""
 }
 
 function plural(n: number, noun: string): string {
@@ -742,42 +560,39 @@ function joinFacts(facts: string[]): string {
 }
 
 /**
- * Act on a confirm the user decided (#901) and return the tool result the
- * Coordinator reads. A cancel does nothing. The Workspace is read again, since
- * it may have changed while the card waited.
- */
-export async function settleConfirm(
-  ports: RoomToolPorts,
-  gate: ConfirmGateInput,
-  approved: boolean
-): Promise<string> {
-  if (!approved) return confirmCancelledResult()
-  return gate.gate === OPEN_PULL_REQUEST_TOOL
-    ? openPullRequest(ports, gate)
-    : removeWorkspace(ports, gate)
-}
-
-/**
- * Open the Workspace's PR with its owner's GitHub account (#890: the
- * Coordinator acts as each Workspace's owner, whoever confirms), then record
- * it on the Workspace so its row and badge show it now.
+ * Open the Workspace's PR (#901) from its branch into the repository's
+ * default branch, with its owner's GitHub account (#890: the Coordinator acts
+ * as each Workspace's owner, whoever asked), then record it on the Workspace
+ * so its row and badge show it now. A Workspace that already has a PR open,
+ * or isn't in a GitHub repository, is refused.
  */
 async function openPullRequest(
   ports: RoomToolPorts,
-  gate: ConfirmGateInput
+  workspaceId: unknown
 ): Promise<string> {
-  const branch = await ports.readDoc(({ branches }) =>
-    branches.get(gate.workspaceId)
-  )
-  if (!branch) throw new Error("Not opened: the Workspace is gone.")
+  const id = workspaceIdOf(workspaceId)
+  // The raw maps, never a cached collection snapshot.
+  const target = await ports.readDoc((c) => {
+    const branch = records<BranchData>(c, COLLECTION_KEYS.branches).find(
+      (b) => b.id === id
+    )
+    if (!branch) return null
+    const repo = records<RepoData>(c, COLLECTION_KEYS.repos).find(
+      (r) => r.id === branch.repoId
+    )
+    return { branch, repo }
+  })
+  if (!target) return noSuchWorkspace(id)
+  const { branch, repo } = target
   const title = workspaceLabel(branch)
   const existing = openPr(branch)
   if (existing) return `"${title}" already has PR #${existing} open.`
-  const requester =
-    typeof gate.requesterId === "string" ? gate.requesterId : ports.requesterId
+  if (!repo || !hasGitHubRemote(repo)) {
+    return `"${title}" isn't in a GitHub repository, so it can't have a pull request.`
+  }
   const { url, number } = await ports.openPullRequest({
     sandboxName: branch.sandboxName,
-    ownerId: workspaceOwnerId(branch, requester),
+    ownerId: workspaceOwnerId(branch, ports.requesterId),
   })
   await ports.mutateDoc(({ branches }) =>
     branches.update(branch.id, {
@@ -801,27 +616,43 @@ export function workspaceOwnerId(
 }
 
 /**
- * Remove the Workspace the way Delete in the Workspaces menu does: the Branch, its
- * frames and chats leave the doc in one change, then its sandbox is torn
- * down. The git branch stays wherever it is.
+ * Remove the Workspace the way Delete in the Workspaces menu does (#901): the
+ * Branch, its frames and chats leave the doc in one change, then its sandbox
+ * is torn down. The git branch and any PR stay where they are.
  */
 async function removeWorkspace(
   ports: RoomToolPorts,
-  gate: ConfirmGateInput
+  workspaceId: unknown
 ): Promise<string> {
+  const id = workspaceIdOf(workspaceId)
   const removed = await ports.mutateDoc((collections) => {
-    const branch = collections.branches.get(gate.workspaceId)
+    const branch = collections.branches.get(id)
     if (!branch) return null
+    const chats = records<ChatSessionData>(
+      collections,
+      COLLECTION_KEYS.chatSessions
+    ).filter((chat) => chat.branchId === id).length
+    const frames = records<IframeLayerData>(
+      collections,
+      COLLECTION_KEYS.iframeLayers
+    ).filter((f) => f.branchId === id).length
     createCanvasOps(createRoomCollections(collections.doc)).removeBranch(
       branch.id
     )
-    return branch
+    return { branch, chats, frames }
   })
-  if (!removed) return "Already removed: the Workspace was gone."
-  if (removed.sandboxName) {
-    await ports.deleteSandbox(removed.sandboxName).catch(() => {})
+  if (!removed) return noSuchWorkspace(id)
+  const { branch, chats, frames } = removed
+  if (branch.sandboxName) {
+    await ports.deleteSandbox(branch.sandboxName).catch(() => {})
   }
-  return `Removed "${workspaceLabel(removed)}" and tore down its sandbox.`
+  const gone = [
+    chats > 0 && plural(chats, "chat"),
+    frames > 0 && plural(frames, "frame"),
+    "its sandbox",
+  ].filter((f): f is string => Boolean(f))
+  const pr = openPr(branch)
+  return `Removed "${workspaceLabel(branch)}": ${joinFacts(gone)}.${pr ? ` PR #${pr} stays open on GitHub.` : ""}`
 }
 
 /** A branch name from the title, unique among `taken` (which it joins). */

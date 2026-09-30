@@ -1,12 +1,4 @@
-import { nanoid } from "nanoid"
-import { planGateOf } from "../plan-gate"
-import { bareToolName } from "../tool-name"
-import { registerHarnessGate } from "./harness-gate"
-import {
-  applyToolCallUpdate,
-  type AcpMessageRecord,
-  type AcpToolCallRecord,
-} from "./record"
+import type { AcpMessageRecord } from "./record"
 import type { AcpSession, AcpSessionPorts, OpenSessionOptions } from "./session"
 import type {
   EngineTurn,
@@ -16,9 +8,7 @@ import type {
 } from "./engine-seam"
 import {
   blockText,
-  planPermissionRequest,
   textBlock,
-  toolCallStart,
   type ContentBlock,
   type SessionUpdate,
   type StopReason,
@@ -166,15 +156,11 @@ export class ExternalEngine implements SteeringEngine {
     // streaming after that, or after a stop (the chat already shows it
     // stopped while the agent winds down), has nothing more to show.
     let ended = false
-    const gated = new GatedToolCalls(turn)
     const ports: AcpSessionPorts = {
       onUpdate: (update) =>
         inOrder(async () => {
-          // Nor after a card closed the turn: nothing after it belongs to
-          // this run.
-          if (ended || signal.aborted || planPause.signal.aborted) return
-          const forward = gated.filter(update)
-          if (forward) await sink({ kind: "session_update", update: forward })
+          if (ended || signal.aborted) return
+          await sink({ kind: "session_update", update })
           // A finished tool call is the step boundary a Steer can join at.
           if (steering && endsToolCall(update)) await steering.take()
         }),
@@ -223,25 +209,6 @@ export class ExternalEngine implements SteeringEngine {
     }
     if (signal.aborted) onStop()
     else signal.addEventListener("abort", onStop, { once: true })
-
-    // A plan-gated Coordinator tool the harness calls over MCP (#903) pauses
-    // the turn on the same card the built-in engine raises: the MCP route
-    // hands the call here, and the turn winds down as for the plan-mode gate.
-    const unregisterGate = registerHarnessGate(turn.chatId, async (call) => {
-      if (planPause.signal.aborted || signal.aborted) return false
-      await inOrder(async () => {
-        const request = planPermissionRequest({
-          sessionId: turn.chatId,
-          toolCallId: gated.openCallId(call.toolName) ?? `gate_${nanoid()}`,
-          plan: call.plan,
-          input: call.input,
-        })
-        await sink({ kind: "permission_request", request })
-      })
-      planPause.abort()
-      return true
-    })
-
     try {
       const opened = await this.openSession(ports, turn)
       session = opened.session
@@ -300,7 +267,6 @@ export class ExternalEngine implements SteeringEngine {
     } finally {
       clearTimeout(stopTimer)
       signal.removeEventListener("abort", onStop)
-      unregisterGate()
     }
   }
 
@@ -416,7 +382,8 @@ function replayBlocks(history: AcpMessageRecord[]): ContentBlock[] {
   const transcript = priorTranscript(history.slice(0, lastUserIndex))
   // `lastUserIndex` points at a `user` record by construction; narrow the union
   // so its `content` is `ContentBlock[]` rather than the record's wider type.
-  const newMessage = lastUserContent(history) ?? []
+  const newRecord = history[lastUserIndex]!
+  const newMessage = newRecord.role === "user" ? newRecord.content : []
   return transcript ? [textBlock(transcript), ...newMessage] : newMessage
 }
 
@@ -462,31 +429,13 @@ function lastUserRecordIndex(history: AcpMessageRecord[]): number {
   return -1
 }
 
-/**
- * The last `user` record's content, or null if the history has no user turn.
- * Tool calls recorded after it lead into the turn with it: the outcome of a
- * card the user just decided (#898, #901), which Screenplay ran and the
- * harness never saw.
- */
+/** The last `user` record's content, or null if the history has no user turn. */
 function lastUserContent(history: AcpMessageRecord[]): ContentBlock[] | null {
   const index = lastUserRecordIndex(history)
   if (index < 0) return null
   // The index is a `user` record by construction; narrow to its `ContentBlock[]`.
   const record = history[index]!
-  if (record.role !== "user") return null
-  const outcomes = history
-    .slice(index + 1)
-    .flatMap((r) => (r.role === "tool_call" ? [toolOutcomeText(r)] : []))
-  return outcomes.length
-    ? [...record.content, textBlock(outcomes.join("\n\n"))]
-    : record.content
-}
-
-function toolOutcomeText(call: AcpToolCallRecord): string {
-  const result = call.content
-    .map((c) => (c.type === "content" ? blockText(c.content) : ""))
-    .join("")
-  return `${bareToolName(call.title)} ${call.status === "failed" ? "failed" : "result"}: ${result}`
+  return record.role === "user" ? record.content : null
 }
 
 /** How long a stopped turn's agent gets to wind down before it is ended. */
@@ -552,64 +501,6 @@ class PromptSteering {
 }
 
 /** Whether an update reports a tool call finishing, a step boundary. */
-/**
- * A harness's own calls to plan-gated Coordinator tools (#898, #901), held
- * back from the chat. Such a call either raises a card, whose outcome is
- * recorded under the tool's own name once the user decides (as on the
- * built-in engine, which shows no chip for the call either), or ends without
- * one, which is shown: its gate refused it (a completed call carrying the
- * reason, #1231), or it failed. A call that raised a card never ends here,
- * since the card closes the turn before its result arrives.
- */
-class GatedToolCalls {
-  private readonly calls = new Map<string, AcpToolCallRecord>()
-
-  constructor(private readonly turn: EngineTurn) {}
-
-  /** The update to pass on, or null to hold it back. */
-  filter(update: SessionUpdate): SessionUpdate | null {
-    if (
-      update.sessionUpdate !== "tool_call" &&
-      update.sessionUpdate !== "tool_call_update"
-    ) {
-      return update
-    }
-    const id = update.toolCallId
-    const call = applyToolCallUpdate(this.calls.get(id), update)
-    if (!this.isGated(call.title)) return update
-    this.calls.set(id, call)
-    if (call.status !== "failed" && call.status !== "completed") return null
-    // The first update the chat sees for it, so it carries the whole call.
-    return toolCallStart({
-      toolCallId: call.toolCallId,
-      title: call.title,
-      kind: call.kind,
-      status: call.status,
-      rawInput: isObject(call.rawInput) ? call.rawInput : undefined,
-      content: call.content,
-    })
-  }
-
-  /** The id of the gated call to `toolName` still in flight, if any. */
-  openCallId(toolName: string): string | undefined {
-    const open = [...this.calls.values()].filter(
-      (c) =>
-        bareToolName(c.title) === toolName &&
-        c.status !== "completed" &&
-        c.status !== "failed"
-    )
-    return open.at(-1)?.toolCallId
-  }
-
-  private isGated(title: string): boolean {
-    return planGateOf(this.turn.tools?.[bareToolName(title)]) !== null
-  }
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 function endsToolCall(update: SessionUpdate): boolean {
   return (
     (update.sessionUpdate === "tool_call" ||

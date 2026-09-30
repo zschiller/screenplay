@@ -8,7 +8,6 @@ import {
 } from "@/lib/agent/acp/schema"
 import { applyToolCallUpdate } from "@/lib/agent/acp/record"
 import { describeSendError, describeTurnError } from "@/lib/agent/chat-errors"
-import { confirmCardOf } from "@/lib/agent/confirm-card"
 import { withBasePath } from "@/lib/base-path"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
@@ -884,8 +883,7 @@ class ChatStore {
     chatId: string,
     request: RequestPermissionRequest
   ) {
-    const { toolCallId, plan, input } = planFromPermissionRequest(request)
-    const confirm = confirmCardOf(input)
+    const { toolCallId, plan } = planFromPermissionRequest(request)
     // A permission request closes any in-flight agent text block.
     this.acpAgentText.delete(chatId)
     const prev = this.getOrCreate(chatId).messages
@@ -897,7 +895,6 @@ class ChatStore {
           content: plan,
           status: "pending" as const,
           planId: toolCallId,
-          ...(confirm ? { confirm } : {}),
         },
       ],
     })
@@ -1068,13 +1065,8 @@ class ChatStore {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      this.appendError(
-        chatId,
-        this.isConfirmCard(chatId, planId)
-          ? "Couldn't send your answer."
-          : "Couldn't approve the plan.",
-        msg,
-        () => this.approvePlan(roomId, chatId, planId)
+      this.appendError(chatId, "Couldn't approve the plan.", msg, () =>
+        this.approvePlan(roomId, chatId, planId)
       )
     }
   }
@@ -1103,21 +1095,10 @@ class ChatStore {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      this.appendError(
-        chatId,
-        this.isConfirmCard(chatId, planId)
-          ? "Couldn't send your answer."
-          : "Couldn't reject the plan.",
-        msg,
-        () => this.rejectPlan(roomId, chatId, planId, feedback)
+      this.appendError(chatId, "Couldn't reject the plan.", msg, () =>
+        this.rejectPlan(roomId, chatId, planId, feedback)
       )
     }
-  }
-
-  private isConfirmCard(chatId: string, planId: string): boolean {
-    return this.getOrCreate(chatId).messages.some(
-      (m) => m.role === "plan" && m.planId === planId && !!m.confirm
-    )
   }
 
   // --- Transcript errors ---

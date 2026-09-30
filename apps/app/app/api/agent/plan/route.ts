@@ -9,15 +9,7 @@ import {
   liveTurnLaunchDeps,
   planResumeTurn,
   roomTurn,
-  settleConfirmGate,
-  settleWorkspacePlan,
 } from "@/lib/agent/turn-launch-live"
-import { isWorkspacePlanInput } from "@/lib/agent/room-tools"
-import { workspacePlanResolutionText } from "@/lib/agent/workspace-task"
-import {
-  confirmResolutionText,
-  isConfirmGateInput,
-} from "@/lib/agent/confirm-card"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -69,21 +61,13 @@ export async function POST(req: Request) {
   // continuation as the next user turn: approve → "proceed", reject → the
   // feedback.
   //
-  // A `create_workspaces` plan (#898) comes from the Coordinator: it resumes
-  // with the Coordinator's own tools, and approving it creates exactly the
-  // Workspaces the plan showed.
-  //
-  // A confirm (Open PR, Remove, #901) comes from the Coordinator too: Cancel
-  // does nothing, and the action runs only on the confirm.
-  const workspacePlan = isWorkspacePlanInput(pending.input)
-    ? pending.input
-    : null
-  const confirmGate = isConfirmGateInput(pending.input) ? pending.input : null
-  const message = confirmGate
-    ? confirmResolutionText(approved)
-    : workspacePlan
-      ? workspacePlanResolutionText({ approved, feedback })
-      : planResolutionText({ approved, feedback })
+  // A Coordinator card left pending from before its actions stopped asking
+  // (#1217) resumes the Coordinator with the answer and its own tools; it
+  // does nothing itself, and on a yes the Coordinator calls the tool again.
+  const coordinatorCard = typeof pending.input?.gate === "string"
+  const message = coordinatorCard
+    ? coordinatorCardAnswer({ approved, feedback })
+    : planResolutionText({ approved, feedback })
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
     {
@@ -94,7 +78,7 @@ export async function POST(req: Request) {
       model: chat.model,
       planDecision: { planId, approved, feedback },
     },
-    workspacePlan || confirmGate
+    coordinatorCard
       ? roomTurn({ room, chatId, message, model: chat.model })
       : planResumeTurn({ room, userId, message, chat })
   )
@@ -103,25 +87,15 @@ export async function POST(req: Request) {
   if (result.kind !== "started") {
     return new Response("Plan already resolved", { status: 409 })
   }
-  // Before the response: the resumed turn runs after it, and reads the
-  // outcome this records.
-  if (confirmGate) {
-    await settleConfirmGate(room, {
-      chatId,
-      runId: result.runId,
-      planId,
-      gate: confirmGate,
-      approved,
-    })
-  } else if (workspacePlan) {
-    await settleWorkspacePlan(room, {
-      chatId,
-      runId: result.runId,
-      planId,
-      plan: workspacePlan,
-      approved,
-      feedback,
-    })
-  }
   return Response.json({ success: true, runId: result.runId })
+}
+
+/** The user's answer to a pending Coordinator card, as their next message. */
+function coordinatorCardAnswer(resolution: {
+  approved: boolean
+  feedback?: string
+}): string {
+  return resolution.approved
+    ? "Yes, go ahead."
+    : resolution.feedback?.trim() || "No, leave it."
 }

@@ -13,10 +13,16 @@ type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 /** The Coordinator tool that sends a Delegated Message into a Workspace. */
 export const SEND_TO_WORKSPACE_TOOL = "send_to_workspace"
 
-/** The Coordinator tool that creates Workspaces after plan review (#898). */
+/** The Coordinator tool that creates Workspaces (#898). */
 export const CREATE_WORKSPACES_TOOL = "create_workspaces"
 
-/** One Workspace of an approved `create_workspaces` plan, as it turned out. */
+/** The Coordinator tool that opens a Workspace's pull request (#901). */
+export const OPEN_PULL_REQUEST_TOOL = "open_pull_request"
+
+/** The Coordinator tool that removes a Workspace (#901). */
+export const REMOVE_WORKSPACE_TOOL = "remove_workspace"
+
+/** One Workspace a `create_workspaces` call asked for, as it turned out. */
 export interface WorkspaceCreateOutcome {
   title: string
   repository: string
@@ -27,7 +33,7 @@ export interface WorkspaceCreateOutcome {
 }
 
 /**
- * The result `create_workspaces` records once its plan is approved. Each
+ * The result `create_workspaces` returns. Each
  * Workspace that exists carries `[workspace <id>]`, which is how its task row
  * finds it; one that failed says why and that its row offers Retry.
  */
@@ -50,58 +56,6 @@ export function createdWorkspacesResult(
       lines.push(`- ${name}: not created, because ${o.error}. Tell the user.`)
   }
   return lines.join("\n")
-}
-
-/** One Workspace as its `create_workspaces` plan shows it. */
-export interface WorkspacePlanRow {
-  title: string
-  /** The repository, and the base branch when it isn't the default. */
-  where: string
-  brief: string
-}
-
-/**
- * The plan `create_workspaces` puts in front of the user: one row per
- * Workspace, its title and repository, then its brief.
- */
-export function workspacePlanMarkdown(
-  rows: readonly WorkspacePlanRow[]
-): string {
-  const line = (text: string) => text.replace(/\s+/g, " ").trim()
-  const count = rows.length
-  return [
-    `Create ${count} Workspace${count === 1 ? "" : "s"}:`,
-    "",
-    ...rows.map(
-      (r) =>
-        `- **${line(r.title) || "Untitled"}** · ${line(r.where)}\\\n  ${line(r.brief)}`
-    ),
-    "",
-    "Each one starts its sandbox, and its agent begins once it's running.",
-  ].join("\n")
-}
-
-/**
- * The continuation a decided `create_workspaces` plan resumes the Coordinator
- * with, as the user's turn. The server creates the Workspaces itself, so an
- * approval asks for no further action.
- */
-export function workspacePlanResolutionText(resolution: {
-  approved: boolean
-  feedback?: string
-}): string {
-  return resolution.approved
-    ? "Approved the plan."
-    : resolution.feedback?.trim() ||
-        "Requested changes to the plan. Please revise."
-}
-
-/** The result recorded when the user asks for changes to the plan instead. */
-export function workspacePlanRejectedResult(feedback?: string): string {
-  const said = feedback?.trim()
-  return said
-    ? `Not created: the user asked for changes to the plan: ${said}`
-    : "Not created: the user asked for changes to the plan."
 }
 
 /** The Workspace a task row stands for, and the chat the message went to. */

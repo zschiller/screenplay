@@ -13,9 +13,6 @@ import {
 import { ROOM_TOOL_ANNOTATIONS } from "@/lib/agent/room-tools"
 import { findActiveRun } from "@/lib/agent/persistence"
 import { coordinatorTarget } from "@/lib/agent/turn-launch-live"
-import { planGateOf } from "@/lib/agent/plan-gate"
-import { raiseHarnessGate } from "@/lib/agent/acp/harness-gate"
-import type { ToolSet } from "ai"
 import {
   buildDevServerTools,
   DEV_SERVER_TOOL_ANNOTATIONS,
@@ -113,12 +110,9 @@ export async function POST(req: Request) {
   const server: McpToolServer = {
     name: COORDINATOR_MCP_SERVER_NAME,
     version: "1",
-    tools: withHarnessGates(
-      binding.chatId,
-      roomChatTarget.buildTools(
-        room,
-        coordinatorTarget(room, binding.chatId, { turnId: run?.id })
-      )
+    tools: roomChatTarget.buildTools(
+      room,
+      coordinatorTarget(room, binding.chatId, { turnId: run?.id })
     ),
     annotations: ROOM_TOOL_ANNOTATIONS,
     // A wrong URL or token only ever shows up as "the tools aren't there", so
@@ -155,41 +149,3 @@ function methodNotAllowed(): Response {
     headers: { Allow: "POST" },
   })
 }
-
-/**
- * A plan-gated tool (`create_workspaces`, #898; `open_pull_request` and
- * `remove_workspace`, #901) acts only once the user approves its plan or
- * confirm card. A harness runs MCP tools itself and never halts on our card,
- * so the call hands the card to the Coordinator's running turn, which shows it
- * and winds down as the built-in engine does; approving it runs the tool and
- * resumes the Coordinator with the result (`/api/agent/plan`). A call its gate
- * refuses returns the reason as its result, not as an error (#1231).
- */
-function withHarnessGates(chatId: string, tools: ToolSet): ToolSet {
-  const out: ToolSet = {}
-  for (const [name, t] of Object.entries(tools)) {
-    const gate = planGateOf(t)
-    out[name] = gate
-      ? {
-          ...t,
-          execute: async (input: unknown) => {
-            const request = await gate(input)
-            if ("refusal" in request) return request.refusal
-            const raised = await raiseHarnessGate(chatId, {
-              toolName: name,
-              ...request,
-            })
-            if (!raised) throw new Error(HARNESS_GATE_UNAVAILABLE)
-            return HARNESS_GATE_RAISED
-          },
-        }
-      : t
-  }
-  return out
-}
-
-const HARNESS_GATE_RAISED =
-  "The user sees this in Screenplay as a card to approve or cancel. End your turn now without writing anything more; their decision and the result arrive as the next message."
-
-const HARNESS_GATE_UNAVAILABLE =
-  "This needs the user's approval, which can only be asked for once per turn. Tell the user what you were about to do and ask them to say so again."

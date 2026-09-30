@@ -7,9 +7,9 @@ description: Try one task several ways side by side, each in its own Workspace, 
 # Skill: Trying one task several ways
 
 There's no special feature for this. You compose it from your tools: one
-`create_workspaces` call with one Workspace per variant. Once the user
-approves, each variant gets its own Workspace, and their frames land side by
-side in one new Group, so the variants read as one comparison on the canvas.
+`create_workspaces` call with one Workspace per variant. Each variant gets
+its own Workspace right away, and their frames land side by side in one new
+Group, so the variants read as one comparison on the canvas.
 
 ## Defaults
 
@@ -22,24 +22,22 @@ side in one new Group, so the variants read as one comparison on the canvas.
   clearly different ones, not small tweaks of one idea. Fewer strong
   directions beat padding to the number.
 
-## The plan
+## The call
 
 Call `create_workspaces` once, with one entry per variant:
 
 - **title:** the subject and the variant's direction, short enough to read in
   a frame label, e.g. "Sign-in: single column", "Sign-in: split screen",
-  "Sign-in: passwordless". You propose these titles; the user can ask for
-  changes before approving.
-- **brief:** one line saying how this variant differs from the others.
+  "Sign-in: passwordless".
 - **prompt:** the user's ask, written as they would write it, plus this
   variant's direction. Say that other Workspaces are trying the other
   directions, so this one sticks to its own, and keep the change to the part
   the user asked about so the variants stay comparable.
 
-Nothing is created until the user approves the plan. If they ask for changes,
-revise the rows and call `create_workspaces` again.
+It creates the Workspaces without asking the user first. In one line, name
+the variants you started and how each differs.
 
-## After approval
+## Afterwards
 
 - The variants' frames are already together in one Group. Leave them there
   and don't rearrange them. Rename the Group to the subject, e.g. "Sign-in

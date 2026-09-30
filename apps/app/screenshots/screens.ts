@@ -34,11 +34,8 @@ import {
   queuedForWorkspaceResult,
   sentToWorkspaceResult,
   workspaceLink,
-  workspacePlanMarkdown,
 } from "@/lib/agent/workspace-task"
 import { wakeMessage } from "@/lib/agent/coordinator-wake"
-import { planPermissionRequest } from "@/lib/agent/acp/schema"
-import type { ConfirmCard } from "@/lib/agent/confirm-card"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
@@ -715,49 +712,9 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "chat-coordinator-workspace-plan",
-    description:
-      "The Coordinator proposing two new Workspaces: the plan card with one row per Workspace, waiting for approval (#898).",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await page
-        .getByText("Ask about this canvas")
-        .first()
-        .waitFor({ timeout: 30_000 })
-      await replayRun(
-        page,
-        roomChatId(ids.rooms.checkout),
-        workspacePlanRun(roomChatId(ids.rooms.checkout))
-      )
-      await page.getByText("Create 2 Workspaces").first().waitFor()
-    },
-    settleMs: 400,
-  },
-  {
-    name: "chat-coordinator-harness-plan",
-    description:
-      "The Coordinator on the Claude harness proposing two new Workspaces: the same plan card the built-in engine raises, waiting for approval.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await page
-        .getByText("Ask about this canvas")
-        .first()
-        .waitFor({ timeout: 30_000 })
-      await replayRun(
-        page,
-        roomChatId(ids.rooms.checkout),
-        harnessWorkspacePlanRun(roomChatId(ids.rooms.checkout))
-      )
-      await page.getByText("Create 2 Workspaces").first().waitFor()
-    },
-    settleMs: 400,
-  },
-  {
     name: "chat-coordinator-workspaces-created",
     description:
-      "The same plan approved: a task row per created Workspace, one starting and one that failed to start (#898).",
+      "The Coordinator starting two Workspaces straight away: a task row per Workspace, one starting and one that failed to start (#898, #1217).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -766,10 +723,7 @@ export const SCREENS: Screen[] = [
         .first()
         .waitFor({ timeout: 30_000 })
       const chatId = roomChatId(ids.rooms.checkout)
-      await replayRun(page, chatId, [
-        ...workspacePlanRun(chatId),
-        ...workspacesCreatedRun(),
-      ])
+      await replayRun(page, chatId, workspacesCreatedRun())
       await page
         .getByTestId("workspace-task")
         .first()
@@ -778,9 +732,9 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "chat-coordinator-confirm-pr",
+    name: "chat-coordinator-pr-and-remove",
     description:
-      "The Coordinator asking to open a Workspace's pull request: the confirm card with Open PR and Cancel (#901).",
+      "The Coordinator opening a Workspace's pull request and removing another straight away, each shown as one line saying what it did (#901, #1217).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -789,29 +743,8 @@ export const SCREENS: Screen[] = [
         .first()
         .waitFor({ timeout: 30_000 })
       const chatId = roomChatId(ids.rooms.checkout)
-      await replayRun(page, chatId, openPrConfirmRun(chatId))
-      await page.getByTestId("chat-confirm").first().waitFor()
-    },
-    settleMs: 400,
-  },
-  {
-    name: "chat-coordinator-confirm-remove",
-    description:
-      "The pull request opened after Open PR, then the confirm card for removing a Workspace (#901).",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await page
-        .getByText("Ask about this canvas")
-        .first()
-        .waitFor({ timeout: 30_000 })
-      const chatId = roomChatId(ids.rooms.checkout)
-      await replayRun(page, chatId, [
-        ...openPrConfirmRun(chatId),
-        ...openPrConfirmedRun(),
-        ...removeConfirmRun(chatId),
-      ])
-      await page.getByText("Remove gift-cards?").first().waitFor()
+      await replayRun(page, chatId, pullRequestAndRemoveRun())
+      await page.getByText('Removed "gift-cards"').first().waitFor()
     },
     settleMs: 400,
   },
@@ -4899,33 +4832,6 @@ export function harnessCoordinatorRun({
   ]
 }
 
-/**
- * {@link workspacePlanRun} on the Claude harness: Claude Code loads
- * `create_workspaces`, then its call raises the plan card. The call's own
- * chip is held back, as the built-in engine shows none.
- */
-export function harnessWorkspacePlanRun(chatId: string): RunEvent[] {
-  const [echo, start, narration, ...rest] = workspacePlanRun(chatId)
-  return [
-    echo!,
-    start!,
-    {
-      type: "chat-acp-update",
-      update: {
-        sessionUpdate: "tool_call",
-        toolCallId: "harness-plan-tool-search",
-        title: "ToolSearch",
-        kind: "other",
-        status: "completed",
-        rawInput: { query: "select:mcp__screenplay__create_workspaces" },
-        content: [{ type: "content", content: text("Loaded 1 tool.") }],
-      },
-    },
-    narration!,
-    ...rest,
-  ]
-}
-
 /** The ask the Coordinator splits across two Workspaces (#896). */
 const DELEGATED_STICKY = "Make the order summary sticky on mobile, below 768px."
 
@@ -5050,14 +4956,13 @@ export function delegationRun(): RunEvent[] {
   ]
 }
 
-const WORKSPACE_PLAN_ID = "fixture-create-workspaces"
-
 /**
- * A Coordinator turn that splits an ask into two new Workspaces and halts on
- * the plan card `create_workspaces` raises (#898). The two stand in for the
- * checkout canvas's Apple Pay and Gift cards Workspaces.
+ * A Coordinator turn that splits an ask into two new Workspaces and starts
+ * them straight away (#898, #1217): a task row per Workspace, one starting and
+ * one that failed to start. The two stand in for the checkout canvas's Apple
+ * Pay and Gift cards Workspaces.
  */
-export function workspacePlanRun(chatId: string): RunEvent[] {
+export function workspacesCreatedRun(): RunEvent[] {
   return [
     {
       type: "chat-acp-update",
@@ -5074,62 +4979,15 @@ export function workspacePlanRun(chatId: string): RunEvent[] {
       update: {
         sessionUpdate: "agent_message_chunk",
         content: text(
-          "No Workspace covers either yet, so I'd start one for each."
+          "No Workspace covers either yet, so I'll start one for each."
         ),
-      },
-    },
-    {
-      type: "chat-acp-permission",
-      request: planPermissionRequest({
-        sessionId: chatId,
-        toolCallId: WORKSPACE_PLAN_ID,
-        plan: workspacePlanMarkdown([
-          {
-            title: "Apple Pay button",
-            where: "acme/storefront",
-            brief: "Add an Apple Pay button to the payment step.",
-          },
-          {
-            title: "Gift cards",
-            where: "acme/storefront",
-            brief: "Accept a gift card code at checkout and apply its balance.",
-          },
-        ]),
-      }),
-    },
-    { type: "chat-stream-end" },
-  ]
-}
-
-/**
- * The approval of {@link workspacePlanRun}: the plan resolved, the resumed
- * turn with the recorded `create_workspaces` outcome (task rows) and the
- * Coordinator's report.
- */
-export function workspacesCreatedRun(): RunEvent[] {
-  return [
-    // Turn Launch's order: the stream starts, the plan flips, then the echo.
-    { type: "chat-stream-start" },
-    {
-      type: "chat-control",
-      control: {
-        kind: "plan_resolved",
-        planId: WORKSPACE_PLAN_ID,
-        approved: true,
-      },
-    },
-    {
-      type: "chat-acp-update",
-      update: {
-        sessionUpdate: "user_message_chunk",
-        content: text("Approved the plan."),
       },
     },
     {
       type: "chat-acp-update",
       update: {
         sessionUpdate: "tool_call",
-        toolCallId: WORKSPACE_PLAN_ID,
+        toolCallId: "fixture-create-workspaces",
         title: "create_workspaces",
         status: "completed",
         rawInput: { workspaces: [] },
@@ -5168,93 +5026,57 @@ export function workspacesCreatedRun(): RunEvent[] {
   ]
 }
 
-const OPEN_PR_CONFIRM_ID = "fixture-open-pull-request"
-const REMOVE_CONFIRM_ID = "fixture-remove-workspace"
-
-/** A confirm card's permission request, as the confirm gates raise it. */
-function confirmRequest(
-  chatId: string,
-  toolCallId: string,
-  confirm: ConfirmCard
-): RunEvent {
-  return {
-    type: "chat-acp-permission",
-    request: planPermissionRequest({
-      sessionId: chatId,
-      toolCallId,
-      plan: `**${confirm.title}**\n\n${confirm.description}`,
-      input: { gate: confirm.action, confirm, workspaceId: "fixture" },
-    }),
-  }
-}
-
 /**
- * A Coordinator turn halting on the Open PR confirm for Empty cart state
- * (#901), with the card the gate builds from its branch and changed lines.
+ * A Coordinator turn that opens Empty cart state's pull request and removes
+ * gift-cards straight away (#901, #1217). Each call's row is the line saying
+ * what it did.
  */
-export function openPrConfirmRun(chatId: string): RunEvent[] {
+export function pullRequestAndRemoveRun(): RunEvent[] {
+  const call = (
+    toolCallId: string,
+    title: string,
+    workspaceId: string,
+    result: string
+  ): RunEvent => ({
+    type: "chat-acp-update",
+    update: {
+      sessionUpdate: "tool_call",
+      toolCallId,
+      title,
+      status: "completed",
+      rawInput: { workspace_id: workspaceId },
+      content: [{ type: "content", content: text(result) }],
+    },
+  })
   return [
     {
       type: "chat-acp-update",
       update: {
         sessionUpdate: "user_message_chunk",
-        content: text("Empty cart state looks good. Open a PR for it."),
+        content: text(
+          "Empty cart state looks good, open a PR for it. And remove gift-cards, it never started."
+        ),
       },
     },
     { type: "chat-stream-start" },
-    confirmRequest(chatId, OPEN_PR_CONFIRM_ID, {
-      action: "open_pull_request",
-      title: "Open a pull request for Empty cart state?",
-      description: "From `empty-cart-state` into `main`, +46 −4.",
-      confirmLabel: "Open PR",
-    }),
-    { type: "chat-stream-end" },
-  ]
-}
-
-/** {@link openPrConfirmRun} confirmed: the recorded call and the report. */
-export function openPrConfirmedRun(): RunEvent[] {
-  return [
-    { type: "chat-stream-start" },
-    {
-      type: "chat-control",
-      control: {
-        kind: "plan_resolved",
-        planId: OPEN_PR_CONFIRM_ID,
-        approved: true,
-      },
-    },
-    {
-      type: "chat-acp-update",
-      update: {
-        sessionUpdate: "user_message_chunk",
-        content: text("Confirmed."),
-      },
-    },
-    {
-      type: "chat-acp-update",
-      update: {
-        sessionUpdate: "tool_call",
-        toolCallId: OPEN_PR_CONFIRM_ID,
-        title: "open_pull_request",
-        status: "completed",
-        rawInput: { workspace_id: ids.branches.emptyCart },
-        content: [
-          {
-            type: "content",
-            content: text(
-              'Opened PR #483 for "Empty cart state": https://github.com/acme/storefront/pull/483'
-            ),
-          },
-        ],
-      },
-    },
+    call(
+      "fixture-open-pull-request",
+      "open_pull_request",
+      ids.branches.emptyCart,
+      'Opened PR #483 for "Empty cart state": https://github.com/acme/storefront/pull/483'
+    ),
+    call(
+      "fixture-remove-workspace",
+      "remove_workspace",
+      ids.branches.giftCards,
+      'Removed "gift-cards": its sandbox.'
+    ),
     {
       type: "chat-acp-update",
       update: {
         sessionUpdate: "agent_message_chunk",
         content: text(
-          "Opened [PR #483](https://github.com/acme/storefront/pull/483) for Empty cart state."
+          "Opened [PR #483](https://github.com/acme/storefront/pull/483) for Empty cart state, and removed gift-cards."
         ),
       },
     },
@@ -5263,8 +5085,8 @@ export function openPrConfirmedRun(): RunEvent[] {
 }
 
 /**
- * A Coordinator turn whose open_pull_request its gate refused, since the
- * Workspace already has a PR: the call completes with the reason (#1231).
+ * A Coordinator turn whose open_pull_request refused, since the Workspace
+ * already has a PR: the call completes with the reason (#1231).
  */
 export function refusedPrRun(): RunEvent[] {
   return [
@@ -5301,28 +5123,6 @@ export function refusedPrRun(): RunEvent[] {
         ),
       },
     },
-    { type: "chat-stream-end" },
-  ]
-}
-
-/** A Coordinator turn halting on the Remove confirm for gift-cards (#901). */
-export function removeConfirmRun(chatId: string): RunEvent[] {
-  return [
-    {
-      type: "chat-acp-update",
-      update: {
-        sessionUpdate: "user_message_chunk",
-        content: text("And remove gift-cards, it never started."),
-      },
-    },
-    { type: "chat-stream-start" },
-    confirmRequest(chatId, REMOVE_CONFIRM_ID, {
-      action: "remove_workspace",
-      title: "Remove gift-cards?",
-      // gift-cards has no chats or frames in the fixture world.
-      description: "Removes its sandbox.",
-      confirmLabel: "Remove",
-    }),
     { type: "chat-stream-end" },
   ]
 }
