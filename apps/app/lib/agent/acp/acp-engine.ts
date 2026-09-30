@@ -71,6 +71,11 @@ export interface ExternalEngineConfig {
    */
   mcpServers?: OpenSessionOptions["mcpServers"]
   sessionMeta?: OpenSessionOptions["sessionMeta"]
+  /**
+   * How long a stopped turn's agent gets to answer the cancel before its
+   * process is ended. Defaults to {@link STOP_GRACE_MS}; tests shorten it.
+   */
+  stopGraceMs?: number
 }
 
 /**
@@ -189,6 +194,21 @@ export class ExternalEngine implements SteeringEngine {
     }
 
     let session: AcpSession | null = null
+    // A stop cancels the session first. But a message the Claude adapter had
+    // already pushed into the running turn (a taken Steer) keeps the agent
+    // working past the cancel (#1191), so an agent still going a while later
+    // is ended, which fails whatever it hadn't answered, and the turn closes
+    // as the stop it is. A stopped turn's agent is ended once its prompts are
+    // over too; the next turn resumes the session with `session/load`.
+    let stopTimer: ReturnType<typeof setTimeout> | undefined
+    const onStop = () => {
+      stopTimer = setTimeout(
+        () => session?.close(),
+        this.config.stopGraceMs ?? STOP_GRACE_MS
+      )
+    }
+    if (signal.aborted) onStop()
+    else signal.addEventListener("abort", onStop, { once: true })
     try {
       const opened = await this.openSession(ports, turn)
       session = opened.session
@@ -223,7 +243,7 @@ export class ExternalEngine implements SteeringEngine {
       // consumer closes a cancelled `done` with no `completed` transition; the
       // watchdog already recorded the terminal stop.
       if (signal.aborted) {
-        stopAgent(session)
+        session.close()
         await sink({ kind: "done", stopReason: "cancelled" })
         return
       }
@@ -232,7 +252,7 @@ export class ExternalEngine implements SteeringEngine {
       await inOrder(async () => {}).catch(() => {})
       ended = true
       if (signal.aborted) {
-        if (session) stopAgent(session)
+        session?.close()
         // The run is no longer live (user `/stop` or supersession) and the abort
         // surfaced as a thrown transport/stream error rather than a clean
         // cancellation. Report it as the cancellation it is, not a failure.
@@ -243,6 +263,9 @@ export class ExternalEngine implements SteeringEngine {
           message: e instanceof Error ? e.message : String(e),
         })
       }
+    } finally {
+      clearTimeout(stopTimer)
+      signal.removeEventListener("abort", onStop)
     }
   }
 
@@ -414,16 +437,8 @@ function lastUserContent(history: AcpMessageRecord[]): ContentBlock[] | null {
   return record.role === "user" ? record.content : null
 }
 
-/**
- * End a stopped turn's agent. Cancelling resolves every prompt `cancelled`,
- * but a message the Claude adapter had already pushed into the running turn
- * (a Steer) can keep the agent working after the cancel; it only ends when
- * the process does. The next turn resumes the session from the agent's own
- * record with `session/load`.
- */
-function stopAgent(session: AcpSession): void {
-  session.close()
-}
+/** How long a stopped turn's agent gets to wind down before it is ended. */
+const STOP_GRACE_MS = 2000
 
 /**
  * One steered turn on a Harness that queues prompts (#1191). The first prompt

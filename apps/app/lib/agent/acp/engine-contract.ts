@@ -449,12 +449,23 @@ export function finishToStopReason(
 }
 
 /** A pair of crossed in-memory streams — the whole transport, no bytes, no process. */
-function inMemoryStreams(): { client: Stream; agent: Stream } {
+function inMemoryStreams(): {
+  client: Stream
+  agent: Stream
+  /** End the client's side, as an agent process exiting does. */
+  exit(): void
+} {
   const toAgent = new TransformStream<AnyMessage, AnyMessage>()
   const toClient = new TransformStream<AnyMessage, AnyMessage>()
+  const exited = new AbortController()
+  const readable = toClient.readable.pipeThrough(
+    new TransformStream<AnyMessage, AnyMessage>(),
+    { signal: exited.signal }
+  )
   return {
-    client: { writable: toAgent.writable, readable: toClient.readable },
+    client: { writable: toAgent.writable, readable },
     agent: { writable: toClient.writable, readable: toAgent.readable },
+    exit: () => exited.abort(new Error("agent exited")),
   }
 }
 
@@ -478,7 +489,7 @@ export function acpSessionFactoryFromDriver(
 ): AcpSessionFactory {
   return {
     async open(ports, openOptions) {
-      const { client, agent: agentStream } = inMemoryStreams()
+      const { client, agent: agentStream, exit } = inMemoryStreams()
       const agentConn = new AgentSideConnection(
         (conn) =>
           new DriverAgent(conn, driver, options.promptQueueing ?? false),
@@ -486,7 +497,9 @@ export function acpSessionFactoryFromDriver(
       )
       // `agentConn` keeps the agent's receive loop alive for the session.
       void agentConn
-      return AcpSession.open(client, ports, openOptions)
+      const session = await AcpSession.open(client, ports, openOptions)
+      session.onClose(exit)
+      return session
     },
   }
 }

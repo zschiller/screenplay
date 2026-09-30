@@ -199,6 +199,33 @@ describe("ExternalEngine — steering", () => {
     expect(updates).toHaveLength(1)
   })
 
+  it("a stop ends an agent that keeps working past the cancel", async () => {
+    const updates: EngineUpdate[] = []
+    const controller = new AbortController()
+    const run = new ExternalEngine({
+      // An agent that never answers the cancel, like one still working a
+      // Steer it had taken.
+      sessionFactory: acpSessionFactoryFromDriver(
+        () => ({
+          consumeStream: () => {
+            controller.abort()
+            return new Promise<void>(() => {})
+          },
+        }),
+        { promptQueueing: true }
+      ),
+      stopGraceMs: 10,
+    }).run(
+      { ...turn, takeSteers: async () => [] },
+      (u) => {
+        updates.push(u)
+      },
+      controller.signal
+    )
+    await run
+    expect(updates).toEqual([{ kind: "done", stopReason: "cancelled" }])
+  })
+
   it("a turn that ends on its own leaves the agent be", async () => {
     const close = vi.fn()
     const inner = acpSessionFactoryFromDriver(reply(), { promptQueueing: true })
