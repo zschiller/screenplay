@@ -190,6 +190,22 @@ describe("summarizeSteps", () => {
   const summarize = (messages: AgentMessage[]) =>
     summarizeSteps(groupToolCalls(messages))
 
+  it("names the Coordinator's reads, under a harness's MCP names too", () => {
+    const { text } = summarize([
+      call("1", { title: "mcp__screenplay__read_canvas", kind: "other" }),
+      call("2", {
+        title: "read_workspace_chat",
+        rawInput: { workspaceId: "ws-a" },
+      }),
+      call("3", {
+        title: "mcp__screenplay__read_workspace_diff",
+        rawInput: { workspaceId: "ws-a" },
+      }),
+      call("4", { title: "Tool: screenplay/list_changes" }),
+    ])
+    expect(text).toBe("Read the canvas, checked 1 Workspace, listed changes")
+  })
+
   it("counts reads, edits and commands, each file once", () => {
     const { text, failures } = summarize([
       call("1", { title: "read_file", rawInput: { path: "a.ts" } }),

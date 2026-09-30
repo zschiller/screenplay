@@ -2,6 +2,7 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
 import { parseUserMessage } from "@/lib/agent/message-markers"
+import { bareToolName } from "@/lib/agent/tool-name"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 
@@ -146,6 +147,11 @@ type Category =
   | "canvas"
   | "run"
   | "search"
+  | "readCanvas"
+  | "readWorkspace"
+  | "viewFrame"
+  | "listChanges"
+  | "memory"
 
 const TITLE_CATEGORY: Record<string, Category> = {
   read_file: "read",
@@ -165,6 +171,13 @@ const TITLE_CATEGORY: Record<string, Category> = {
   rename: "canvas",
   remove: "canvas",
   undo_changes: "canvas",
+  // The Coordinator's reads (#893).
+  read_canvas: "readCanvas",
+  read_workspace_chat: "readWorkspace",
+  read_workspace_diff: "readWorkspace",
+  view_frame: "viewFrame",
+  list_changes: "listChanges",
+  write_memory: "memory",
 }
 
 const KIND_CATEGORY: Record<string, Category> = {
@@ -200,7 +213,8 @@ function callPath(call: ToolCallMessage): string | null {
 }
 
 function categorize(call: ToolCallMessage): Category | null {
-  const byTitle = TITLE_CATEGORY[call.title]
+  // A harness reaches our tools over MCP, under its own namespace.
+  const byTitle = TITLE_CATEGORY[bareToolName(call.title)]
   if (byTitle) return byTitle
   if (!call.kind) return null
   const byKind = KIND_CATEGORY[call.kind]
@@ -219,7 +233,9 @@ function commandLine(call: ToolCallMessage): string {
       .join(" ")
     if (line) return line
   }
-  return call.title === "run_command" ? "" : call.title.replace(/`/g, "")
+  return bareToolName(call.title) === "run_command"
+    ? ""
+    : call.title.replace(/`/g, "")
 }
 
 /** The shortest name that says which call failed. */
@@ -233,7 +249,25 @@ function failureName(call: ToolCallMessage): string {
   if (category === "edit" || category === "editDoc") return "Edit"
   if (category === "search") return "Search"
   if (category === "canvas") return "Canvas change"
+  if (category === "readCanvas") return "Read canvas"
+  if (category === "readWorkspace") return "Workspace read"
+  if (category === "viewFrame") return "View frame"
+  if (category === "listChanges") return "List changes"
+  if (category === "memory") return "Save to memory"
   return "A step"
+}
+
+/** The Workspace or frame a Coordinator read names, so repeats count once. */
+function inputId(
+  call: ToolCallMessage,
+  category: "readWorkspace" | "viewFrame"
+): string | null {
+  const raw = call.rawInput
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const id = (raw as Record<string, unknown>)[
+    category === "viewFrame" ? "frameId" : "workspaceId"
+  ]
+  return typeof id === "string" && id ? id : null
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -268,6 +302,11 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     canvas: new Set(),
     run: new Set(),
     search: new Set(),
+    readCanvas: new Set(),
+    readWorkspace: new Set(),
+    viewFrame: new Set(),
+    listChanges: new Set(),
+    memory: new Set(),
   }
   let other = 0
   const failures = failed.map(failureName)
@@ -280,7 +319,9 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     const key =
       category === "read" || category === "edit"
         ? (callPath(call) ?? call.toolCallId)
-        : call.toolCallId
+        : category === "readWorkspace" || category === "viewFrame"
+          ? (inputId(call, category) ?? call.toolCallId)
+          : call.toolCallId
     seen[category].add(key)
   }
 
@@ -299,7 +340,13 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
         : `edited ${plural(n("edit"), "file", "files")}`),
     n("readDoc") && "read the document",
     n("editDoc") && "edited the document",
+    n("readCanvas") && "read the canvas",
+    n("readWorkspace") &&
+      `checked ${plural(n("readWorkspace"), "Workspace", "Workspaces")}`,
+    n("viewFrame") && `viewed ${plural(n("viewFrame"), "frame", "frames")}`,
+    n("listChanges") && "listed changes",
     n("canvas") && "changed the canvas",
+    n("memory") && "saved to memory",
     runs.length > 0 && `ran ${runs.join(" and ")}`,
     n("search") && `searched ${plural(n("search"), "time", "times")}`,
   ].filter((p): p is string => typeof p === "string")

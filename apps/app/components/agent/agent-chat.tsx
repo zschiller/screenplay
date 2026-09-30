@@ -29,6 +29,7 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { CoordinatorStart } from "@/lib/fresh-workspace"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceTasks } from "./workspace-task-row"
+import { isHarnessPlumbing } from "@/lib/agent/tool-name"
 import {
   Composer,
   type ComposerHandle,
@@ -441,9 +442,18 @@ export function AgentChat({
           ) : (
             <div className="space-y-4">
               {stackTaskRows(
-                foldFinishedTurns(groupToolCalls(messages), {
-                  streaming: isStreaming,
-                }),
+                foldFinishedTurns(
+                  groupToolCalls(
+                    // The Coordinator's chat leaves out a harness's own
+                    // plumbing (loading our MCP tools); a Workspace's keeps it.
+                    workspaceTasks
+                      ? messages.filter((m) => !isHarnessPlumbing(m))
+                      : messages
+                  ),
+                  {
+                    streaming: isStreaming,
+                  }
+                ),
                 workspaceTasks != null
               ).map((item) =>
                 item.kind === "turn-summary" ? (
