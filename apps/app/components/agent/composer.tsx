@@ -62,7 +62,7 @@ import {
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 import type { ModelInfo } from "@/lib/models-store"
-import { groupModelsByProvider, modelDisplayLabel } from "@/lib/model-selection"
+import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
@@ -901,9 +901,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     )
 
     const currentModel = models.find((m) => m.id === model)
-    const currentModelLabel = currentModel
-      ? modelDisplayLabel(currentModel)
-      : model || "Loading…"
+    // The pill names the model alone; the menu's group labels say which
+    // Harness it runs on.
+    const currentModelLabel = currentModel?.label ?? (model || "Loading…")
     const defaultModelInfo = models.find((m) => m.id === defaultModel)
     const offDefault =
       !!currentModel && !!defaultModelInfo && model !== defaultModel

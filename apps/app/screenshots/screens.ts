@@ -1090,7 +1090,7 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "New chat")
-      await page.getByRole("button", { name: /^Claude Code · / }).click()
+      await page.getByRole("button", { name: /^Opus 5\.5/ }).click()
       await page.getByRole("menuitem", { name: "Sonnet 5.5" }).click()
       await page.getByText("· not default").waitFor()
     },
@@ -2085,7 +2085,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openChatTab(page, "Checkout polish")
       await page
-        .getByRole("button", { name: /^Claude Code · / })
+        .getByRole("button", { name: /^Opus 5\.5/ })
         .last()
         .click({ timeout: 15_000 })
       await page.getByRole("menuitem", { name: "Sonnet 5.5" }).waitFor()
