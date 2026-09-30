@@ -55,7 +55,10 @@ function portsOver(
 async function readCanvas(ports: RoomToolPorts): Promise<string> {
   const tools = buildRoomTools("room-1", ports)
   const execute = tools.read_canvas.execute!
-  return (await execute({}, { toolCallId: "t1", messages: [] })) as string
+  return (await execute(
+    {},
+    { toolCallId: "t1", messages: [], context: {} }
+  )) as string
 }
 
 describe("the Coordinator's tools", () => {
@@ -220,7 +223,11 @@ async function writeMemory(
 ): Promise<string> {
   const tools = buildRoomTools("room-1", ports)
   const execute = tools.write_memory.execute!
-  return (await execute(input, { toolCallId: "t1", messages: [] })) as string
+  return (await execute(input, {
+    toolCallId: "t1",
+    messages: [],
+    context: {},
+  })) as string
 }
 
 describe("write_memory", () => {
@@ -302,6 +309,7 @@ describe("send_to_workspace", () => {
       (await buildRoomTools("room-1", ports).send_to_workspace.execute!(input, {
         toolCallId: "t1",
         messages: [],
+        context: {},
       })) as string
     return { collections, launched, ports, send }
   }
@@ -378,7 +386,7 @@ describe("send_to_workspace", () => {
       },
     }).send_to_workspace.execute!(
       { workspace_id: "ws-1", message: "Go" },
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )
     await expect(result).resolves.toMatch(/Sent to/)
     expect(queued).toBe(true)
@@ -503,7 +511,7 @@ describe("create_workspaces", () => {
   async function create(ports: RoomToolPorts, input: unknown) {
     return (await buildRoomTools("room-1", ports).create_workspaces.execute!(
       input,
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )) as string
   }
 
@@ -623,7 +631,7 @@ describe("stop_workspace", () => {
     const stop = async (workspace_id: string) =>
       (await buildRoomTools("room-1", ports).stop_workspace.execute!(
         { workspace_id },
-        { toolCallId: "t1", messages: [] }
+        { toolCallId: "t1", messages: [], context: {} }
       )) as string
     return { collections, stopped, stop }
   }
@@ -709,7 +717,7 @@ describe("open_pull_request and remove_workspace (#901, #1217)", () => {
   async function call(ports: RoomToolPorts, name: string, workspaceId: string) {
     return (await buildRoomTools("room-1", ports)[name]!.execute!(
       { workspace_id: workspaceId },
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )) as string
   }
 
@@ -791,7 +799,7 @@ describe("read_skill (#905)", () => {
     const execute = tools.read_skill.execute!
     return (await execute(
       { name },
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )) as string
   }
 

@@ -479,7 +479,7 @@ const planDriver: StreamDriver = (config) => ({
       } as any,
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await config.onFinish?.({ finishReason: "tool-calls" } as any)
+    await config.onEnd?.({ finishReason: "tool-calls" } as any)
   },
 })
 
@@ -492,7 +492,7 @@ function replyDriver(text: string): StreamDriver {
         chunk: { type: "text-delta", id: "t2", text } as any,
       })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await config.onFinish?.({ finishReason: "stop" } as any)
+      await config.onEnd?.({ finishReason: "stop" } as any)
     },
   })
 }
@@ -512,7 +512,7 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
           chunk: { type: "text-delta", id: "t1", text: "lo" } as any,
         })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await config.onFinish?.({ finishReason: "stop" } as any)
+        await config.onEnd?.({ finishReason: "stop" } as any)
       },
     })
     await h.run("hi", driver)
@@ -574,7 +574,7 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
           } as any,
         })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await config.onFinish?.({ finishReason: "tool-calls" } as any)
+        await config.onEnd?.({ finishReason: "tool-calls" } as any)
       },
     })
     await h.run("plan it", driver)

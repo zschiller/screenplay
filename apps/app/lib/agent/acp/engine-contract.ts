@@ -90,9 +90,9 @@ export function contractFor(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             chunk: { type: "text-delta", id: "t1", text: "lo" } as any,
           })
-          await config.onFinish?.({
+          await config.onEnd?.({
             finishReason: "stop",
-            totalUsage: {
+            usage: {
               inputTokens: 12,
               outputTokens: 3,
               inputTokenDetails: { cacheReadTokens: 10, cacheWriteTokens: 2 },
@@ -193,7 +193,7 @@ export function contractFor(
             } as any,
           })
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await config.onFinish?.({ finishReason: "tool-calls" } as any)
+          await config.onEnd?.({ finishReason: "tool-calls" } as any)
         },
       })
 
@@ -299,7 +299,7 @@ export function contractFor(
             } as any,
           })
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await config.onFinish?.({ finishReason: "stop" } as any)
+          await config.onEnd?.({ finishReason: "stop" } as any)
         },
       })
 
@@ -675,7 +675,14 @@ class DriverAgent implements Agent {
     const result = this.driver({
       messages: [...this.conversation],
       abortSignal: this.abort.signal,
-      prepareStep: async ({ messages }: { messages: ModelMessage[] }) => {
+      prepareStep: async ({
+        initialMessages,
+        responseMessages,
+      }: {
+        initialMessages: ModelMessage[]
+        responseMessages: ModelMessage[]
+      }) => {
+        const messages = [...initialMessages, ...responseMessages]
         // Let prompts the client sent after the last update arrive first.
         await new Promise((resolve) => setTimeout(resolve, 0))
         if (this.queued.length > 0) {
@@ -716,15 +723,15 @@ class DriverAgent implements Agent {
         const update = aiSdkChunkToAcpUpdate(chunk)
         if (update) await this.conn.sessionUpdate({ sessionId, update })
       },
-      onFinish: async ({
+      onEnd: async ({
         finishReason: fr,
-        response,
+        responseMessages,
       }: {
         finishReason?: string
-        response?: { messages: ModelMessage[] }
+        responseMessages?: ModelMessage[]
       }) => {
         finishReason = fr
-        responses = response?.messages ?? []
+        responses = responseMessages ?? []
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
@@ -815,7 +822,7 @@ export async function captureAcpScript(
       const update = aiSdkChunkToAcpUpdate(chunk)
       if (update) instructions.push({ kind: "update", update })
     },
-    onFinish: async ({ finishReason: fr }: { finishReason?: string }) => {
+    onEnd: async ({ finishReason: fr }: { finishReason?: string }) => {
       finishReason = fr
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -843,10 +850,12 @@ export interface ScriptedStep {
 }
 
 /**
- * A {@link StreamDriver} that plays the AI SDK's multi-step loop faithfully
- * enough for steering: before each step it calls `prepareStep` with the pass's
- * messages plus every earlier step's responses, and records what the model
- * was sent (the override, when `prepareStep` returns one). Each `streamText`
+ * A {@link StreamDriver} that plays the AI SDK 7 multi-step loop faithfully
+ * enough for steering: before each step it calls `prepareStep` with the
+ * step's messages (the last override, carried forward, plus the responses
+ * since), the pass's initial messages and every earlier step's responses, and
+ * records what the model was sent (the override, when `prepareStep` returns
+ * one). Each `streamText`
  * call plays the next pass. A step that finds the signal aborted throws, as
  * the SDK does.
  */
@@ -858,18 +867,21 @@ export function steppedDriver(
   return (config) => ({
     consumeStream: async () => {
       const steps = passes[pass++] ?? []
+      const initialMessages = config.messages ?? []
       const responses: ModelMessage[] = []
+      let input: ModelMessage[] = initialMessages
       for (const [stepNumber, step] of steps.entries()) {
-        const input = [...(config.messages ?? []), ...responses]
         const prepared = await config.prepareStep?.({
           stepNumber,
           steps: [],
           messages: input,
-          model: config.model,
-          experimental_context: undefined,
-        })
+          initialMessages,
+          responseMessages: [...responses],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
         if (config.abortSignal?.aborted) throw new Error("aborted")
-        sent.push(prepared?.messages ?? input)
+        if (prepared?.messages) input = prepared.messages
+        sent.push(input)
         for (const chunk of step.chunks) {
           if (typeof chunk === "function") await chunk()
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -877,11 +889,12 @@ export function steppedDriver(
         }
         if (config.abortSignal?.aborted) throw new Error("aborted")
         responses.push(...step.response)
+        input = [...input, ...step.response]
       }
-      await config.onFinish?.({
+      await config.onEnd?.({
         finishReason: "stop",
-        totalUsage: {},
-        response: { messages: responses },
+        usage: {},
+        responseMessages: responses,
         steps: steps.map(() => ({})),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
@@ -1297,10 +1310,10 @@ export function stopGateContractFor(
           await emit(read.result)
           await emit(textChunk("Done."))
           await emit(plan)
-          await config.onFinish?.({
+          await config.onEnd?.({
             finishReason: "stop",
-            totalUsage: {},
-            response: { messages: [] },
+            usage: {},
+            responseMessages: [],
             steps: [{}],
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any)

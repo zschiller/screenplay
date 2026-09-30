@@ -96,7 +96,7 @@ export interface ExternalEngineConfig {
  * **Graceful capability degradation (ADR 0003 / ADR 0006).** This engine
  * deliberately does **not** implement {@link
  * import("./engine-seam").UsageReportingEngine}: a generic ACP agent may never
- * surface prompt-cache `totalUsage`, so the capability is simply absent and
+ * surface prompt-cache usage, so the capability is simply absent and
  * {@link import("./engine-seam").supportsUsageReporting} narrows it out — the
  * caller takes the no-usage branch rather than calling a half-implemented
  * method.
