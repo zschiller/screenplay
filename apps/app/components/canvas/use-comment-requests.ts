@@ -43,13 +43,12 @@ export function useCommentRequests({
   /** A Document's title, which the request names. */
   documentTitle: (documentId: string) => string | undefined
   agents: readonly BranchData[]
-  /** Hands one request to a Workspace's agent (see `useBranchActions`),
-   *  in `chatId` when given. */
+  /** Hands one request to a Workspace's agent, in its one chat (see
+   *  `useBranchActions`). */
   sendComments: (
     agentId: string,
     message: string,
-    threadIds: string[],
-    chatId?: string
+    threadIds: string[]
   ) => boolean
 }): CommentRequests {
   const agentReady = useCallback(
@@ -101,14 +100,12 @@ export function useCommentRequests({
             quotedText: t.quotedText,
           }))
         )
-        // A Document's threads go to the chat that made it, or the one the
-        // panel shows; any other request to the Workspace's usual chat.
-        const docThread = list.find((t) => t.documentId)
+        // A Document's threads go to the Workspace of the chat that made it,
+        // or the one the panel shows, and land in that Workspace's one chat.
         const ok = sendComments(
           workspaceId,
           message,
-          list.map((t) => t.id),
-          docThread ? documentChat(docThread.documentId!)?.chatId : undefined
+          list.map((t) => t.id)
         )
         if (ok) sent += list.length
       }
@@ -130,7 +127,6 @@ export function useCommentRequests({
       frameWorkspace,
       agentReady,
       documentWorkspace,
-      documentChat,
       documentTitle,
       sendComments,
     ]

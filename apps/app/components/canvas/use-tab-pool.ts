@@ -2,6 +2,7 @@ import { useCallback } from "react"
 import { nanoid } from "nanoid"
 
 import { useChatTabs } from "@/hooks/use-chat-tabs"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import {
   buildTabPool,
   resolveTabClose,
@@ -131,6 +132,18 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
   const seed = useCallback(
     (branchId: string, kind: TabKind, options?: { select?: boolean }) => {
       const select = options?.select !== false
+      // Every Workspace has its one chat from the start (#1315), whatever the
+      // default tab kind: a terminal default adds a terminal beside it.
+      let chatId = workspaceChatId(chatSessions, branchId)
+      if (!chatId) {
+        chatId = nanoid()
+        addChatSession(chatId, {
+          id: chatId,
+          branchId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
+      }
       if (kind === "terminal") {
         // A terminal-default tab launches the same harness as the "+" button:
         // the operator's last-selected harness (#290), falling back to the
@@ -143,17 +156,10 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         if (select) chatTarget.selectChatId(tab.id)
         return tab.id
       }
-      const id = nanoid()
-      addChatSession(id, {
-        id,
-        branchId,
-        label: "Untitled",
-        createdAt: Date.now(),
-      })
-      if (select) chatTarget.selectChatId(id)
-      return id
+      if (select) chatTarget.selectChatId(chatId)
+      return chatId
     },
-    [addChatSession, userId, terminalTabs, chatTarget]
+    [chatSessions, addChatSession, userId, terminalTabs, chatTarget]
   )
 
   const selectChat = useCallback(

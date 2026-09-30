@@ -1,3 +1,4 @@
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
 
 /**
@@ -8,7 +9,7 @@ import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
  */
 
 type Doc = Pick<MarkdownLayerData, "id" | "ownerChatId">
-type Chat = Pick<ChatSessionData, "id" | "branchId" | "closedAt">
+type Chat = Pick<ChatSessionData, "id" | "branchId">
 
 /**
  * The Workspace each chat-made Document shows: its owning chat's Workspace,
@@ -30,17 +31,20 @@ export function documentWorkspaceIds(
 }
 
 /**
- * The open chat that made a Document, and its Workspace: where its Send to
- * agent and Reply in chat go. Null for a Document made by hand, or whose chat
- * is closed or gone; those go to the chat on screen instead.
+ * The chat a Document goes back to, and its Workspace: where its Send to agent
+ * and Reply in chat go. That is the Workspace chat of the chat that made it
+ * (#1315), the same chat unless it was made in one of the Workspace's earlier
+ * chats. Null for a Document made by hand, or whose chat is gone; those go to
+ * the chat on screen instead.
  */
 export function documentOwnerChat(
   documentId: string,
   documents: readonly Doc[],
-  chats: readonly Chat[]
+  chats: readonly (Chat & Pick<ChatSessionData, "createdAt">)[]
 ): { chatId: string; branchId: string } | null {
   const ownerChatId = documents.find((d) => d.id === documentId)?.ownerChatId
   const chat = ownerChatId ? chats.find((c) => c.id === ownerChatId) : undefined
-  if (!chat?.branchId || chat.closedAt) return null
-  return { chatId: chat.id, branchId: chat.branchId }
+  if (!chat?.branchId) return null
+  const chatId = workspaceChatId(chats, chat.branchId) ?? chat.id
+  return { chatId, branchId: chat.branchId }
 }

@@ -9,6 +9,7 @@ import {
   type TabPoolTarget,
 } from "@/lib/chat/tab-pool"
 import { useChatSync } from "@/hooks/use-chat-sync"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import type { ChatSessionData, TerminalTabData } from "@/lib/types"
 
 /**
@@ -51,7 +52,11 @@ export interface ChatTabsDeps {
 }
 
 export interface ChatTabs {
-  /** Create a fresh chat on a target and select it. Returns its id. */
+  /**
+   * Bring up a target's chat and select it. Returns its id. A Workspace has one
+   * chat (#1315): its own chat when it has one, reopened if it was closed; a
+   * fresh one only for a Workspace without any.
+   */
   open: (target: TabPoolTarget) => string
   /** Archive a chat (`closedAt` stamped, reopenable). */
   close: (chatId: string, nextSelectedId?: string) => void
@@ -87,6 +92,14 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
 
   const open = useCallback(
     (target: TabPoolTarget) => {
+      const own = workspaceChatId(chatSessions, target.branchId)
+      if (own) {
+        if (chatSessions.find((c) => c.id === own)?.closedAt) {
+          updateChatSession(own, { closedAt: 0 })
+        }
+        selectChat(own, target)
+        return own
+      }
       const id = nanoid()
       addChatSession(id, {
         id,
@@ -97,7 +110,7 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
       selectChat(id, target)
       return id
     },
-    [addChatSession, selectChat]
+    [chatSessions, addChatSession, updateChatSession, selectChat]
   )
 
   // With no respawn, selection moves only when the decision says so
@@ -134,16 +147,20 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     [chatSessions, terminals, selectedChatId, applyCloseOutcome]
   )
 
+  // A Workspace's own chat never closes or goes (#1315); only its earlier
+  // chats do.
   const close = useCallback(
     (chatId: string, nextSelectedId?: string) => {
+      if (isOwnChat(chatSessions, chatId)) return
       updateChatSession(chatId, { closedAt: Date.now() })
       resolveChatClose(chatId, nextSelectedId)
     },
-    [updateChatSession, resolveChatClose]
+    [chatSessions, updateChatSession, resolveChatClose]
   )
 
   const remove = useCallback(
     (chatId: string) => {
+      if (isOwnChat(chatSessions, chatId)) return
       // A deleted chat can't stay selected, even when it had no pool to decide.
       if (!resolveChatClose(chatId) && selectedChatId === chatId) {
         selectChat(null)
@@ -151,7 +168,13 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
       chatStore.cleanup(chatId)
       removeChatSession(chatId)
     },
-    [resolveChatClose, selectedChatId, selectChat, removeChatSession]
+    [
+      chatSessions,
+      resolveChatClose,
+      selectedChatId,
+      selectChat,
+      removeChatSession,
+    ]
   )
 
   const reopen = useCallback(
@@ -170,4 +193,13 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
   )
 
   return { open, close, remove, reopen, rename, applyCloseOutcome }
+}
+
+/** Whether `chatId` is its Workspace's one chat (#1315). */
+function isOwnChat(
+  chatSessions: readonly ChatSessionData[],
+  chatId: string
+): boolean {
+  const branchId = chatSessions.find((c) => c.id === chatId)?.branchId
+  return !!branchId && workspaceChatId(chatSessions, branchId) === chatId
 }

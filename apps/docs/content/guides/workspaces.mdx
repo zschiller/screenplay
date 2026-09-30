@@ -6,7 +6,7 @@ description: Create workspaces with their own live environment, and manage them 
 # Workspaces
 
 A workspace is one git branch of a repository, running in its own sandbox with
-its own dev server, frames, agent chats, and terminals. The **Workspaces**
+its own dev server, frames, one agent chat, and terminals. The **Workspaces**
 button at the top right of the Coordinator opens the list of every workspace
 on the canvas, by title. Wherever a workspace is named, on a row, a group or frame label, or
 the address bar, it shows the same way: an icon for what it's doing, its
@@ -63,7 +63,7 @@ bar. Titles are in sentence case, like "Add pricing FAQ". Where a title comes
 from depends on how the workspace started:
 
 - **From the Workspaces menu or a new repository**, the first message in the
-  workspace's first chat titles it and renames its branch to match (for
+  workspace's chat titles it and renames its branch to match (for
   example `add-pricing-faq`). If that branch name is already taken on the
   remote, a numeric suffix is added.
 - **From a Coordinator plan**, the workspace takes the title from the plan,
@@ -72,8 +72,8 @@ from depends on how the workspace started:
 - **From Open existing git branch**, its first message changes neither the
   branch nor the title. It reads **New Workspace** until you rename it.
 
-Later chats get their own names but never change the workspace's title or
-branch.
+Earlier chats on a canvas from before workspaces had one chat keep their own
+names and never change the workspace's title or branch.
 
 Renaming a workspace (**… → Rename**, then type over its title) changes only
 the title, so it never touches the branch, its pull request or anyone's
@@ -243,7 +243,7 @@ without deleting anything:
   same group stay where they are;
 - its row moves into a collapsed **Done** section at the bottom of the
   Workspaces list, with a check circle for its status icon;
-- its chats and history stay, and frame workspace lists stop offering it.
+- its chat and history stay, and frame workspace lists stop offering it.
 
 Everyone on the canvas sees it as done. It isn't available while the agent is
 working. Merging its pull request doesn't mark a workspace done, but once it
@@ -270,7 +270,7 @@ needs a GitHub connection.
 
 ## Deleting
 
-**… → Delete** removes the workspace, its chats and its frames from the
+**… → Delete** removes the workspace, its chat and its frames from the
 canvas, and shuts down its sandbox. The dialog lists what it **Removes** and
 what it **Keeps** (the git branch itself isn't deleted), and warns when
 uncommitted changes, or on the hosted app unpushed commits, would be lost. If

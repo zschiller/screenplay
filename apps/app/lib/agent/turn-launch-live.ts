@@ -458,9 +458,8 @@ export function sandboxTurn(input: {
       await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })
 
       // First-message naming (#910). Every new chat earns a label; the Branch
-      // rename is narrower: only the first chat on the Branch, and only while
-      // the room doc says it is still auto-named, so a later chat can't rename
-      // it under its siblings. The names go straight into the room doc here;
+      // rename is narrower: only the Branch's first chat (its one chat since
+      // #1315), and only while the room doc says it is still auto-named. The names go straight into the room doc here;
       // clients observe it. The git rename runs before the Engine does.
       let effectiveBranch = branchState?.ref
       let branchRename: BranchRenameClaim | undefined
@@ -484,7 +483,9 @@ export function sandboxTurn(input: {
           chatId,
           sandboxName,
           userId,
-          label: chatLabel || undefined,
+          // A Workspace and its one chat share a name (#1315): when the
+          // first message titles the Workspace, the chat takes that title too.
+          label: (shouldNameBranch && title) || chatLabel || undefined,
           branch,
           // The Workspace takes its title from the same call (#881).
           title: shouldNameBranch ? title || undefined : undefined,

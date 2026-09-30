@@ -376,23 +376,15 @@ describe("send_to_workspace", () => {
     })
   })
 
-  it("queues the message in the Workspace's newest open chat and returns", async () => {
+  it("queues the message in the Workspace's one chat and returns", async () => {
     const { collections, launched, send } = sendHarness()
     collections.branches.set(
       "ws-1",
       baseBranch("ws-1", { title: "Fix sign-in redirect" })
     )
     collections.chatSessions.set(
-      "old",
-      baseChat("old", { branchId: "ws-1", createdAt: 1 })
-    )
-    collections.chatSessions.set(
-      "new",
-      baseChat("new", { branchId: "ws-1", createdAt: 2, model: "m-1" })
-    )
-    collections.chatSessions.set(
-      "closed",
-      baseChat("closed", { branchId: "ws-1", createdAt: 3, closedAt: 4 })
+      "chat",
+      baseChat("chat", { branchId: "ws-1", createdAt: 1, model: "m-1" })
     )
 
     const result = await send({
@@ -404,13 +396,31 @@ describe("send_to_workspace", () => {
       {
         branchId: "ws-1",
         sandboxName: "sandbox-ws-1",
-        chatId: "new",
+        chatId: "chat",
         message: "Keep the next param.",
-        isFirstChat: false,
+        isFirstChat: true,
         model: "m-1",
       },
     ])
-    expect(result).toContain('Sent to "Fix sign-in redirect" [chat new]')
+    expect(result).toContain('Sent to "Fix sign-in redirect" [chat chat]')
+  })
+
+  it("sends to the newest of an old canvas's chats, closed or not (#1315)", async () => {
+    const { collections, launched, send } = sendHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1"))
+    collections.chatSessions.set(
+      "old",
+      baseChat("old", { branchId: "ws-1", createdAt: 1 })
+    )
+    collections.chatSessions.set(
+      "newest",
+      baseChat("newest", { branchId: "ws-1", createdAt: 3, closedAt: 4 })
+    )
+
+    await send({ workspace_id: "ws-1", message: "Go" })
+
+    expect(launched[0]).toMatchObject({ chatId: "newest", isFirstChat: false })
+    expect(collections.chatSessions.toArray()).toHaveLength(2)
   })
 
   it("never waits on the Workspace turn", async () => {
@@ -431,7 +441,7 @@ describe("send_to_workspace", () => {
     expect(queued).toBe(true)
   })
 
-  it("opens a chat when the Workspace has none open", async () => {
+  it("opens a chat when the Workspace has none", async () => {
     const { collections, launched, send } = sendHarness()
     collections.branches.set("ws-1", baseBranch("ws-1"))
 

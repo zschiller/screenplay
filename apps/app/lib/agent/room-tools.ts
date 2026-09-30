@@ -39,6 +39,7 @@ import { getSkill, getSkillIndex } from "@/lib/skills"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
@@ -777,20 +778,19 @@ async function sendToWorkspace(
         `"${title}" is waiting for the user to approve its plan. Only the user approves plans: tell them it's waiting.`
       )
     }
-    const branchChats = chats.filter((c) => c.branchId === branchId)
-    const open = branchChats
-      .filter((c) => !c.closedAt)
-      .sort((a, b) => b.createdAt - a.createdAt)[0]
+    // The Workspace's one chat (#1315); a fresh one only when it has none.
+    const ownId = workspaceChatId(chats, branchId)
+    const own = ownId ? chats.find((c) => c.id === ownId) : undefined
     let target: {
       chatId: string
       model: string | undefined
       isFirstChat: boolean
     }
-    if (open) {
+    if (own) {
       target = {
-        chatId: open.id,
-        model: open.model,
-        isFirstChat: branchChats.length === 1,
+        chatId: own.id,
+        model: own.model,
+        isFirstChat: chats.filter((c) => c.branchId === branchId).length === 1,
       }
     } else {
       const chat: ChatSessionData = {
@@ -800,11 +800,7 @@ async function sendToWorkspace(
         createdAt: Date.now(),
       }
       collections.chatSessions.set(chat.id, chat)
-      target = {
-        chatId: chat.id,
-        model: undefined,
-        isFirstChat: branchChats.length === 0,
-      }
+      target = { chatId: chat.id, model: undefined, isFirstChat: true }
     }
     if (queue) {
       // Provisioning sends it the moment the sandbox runs (`sendPendingSeed`),

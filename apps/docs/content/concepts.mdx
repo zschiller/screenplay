@@ -59,7 +59,7 @@ A **workspace** is one git branch of a repository, running in its own isolated
   repository.
 
 Each workspace has a title (the agent writes it from your first message), its
-own dev server, and its own agent chats and terminals. The **Workspaces**
+own dev server, and its own agent chat and terminals. The **Workspaces**
 button at the top right of the agent panel lists every workspace in one flat
 list, like threads in a project; on a canvas with several repositories each
 row ends with its repository's name.
@@ -99,9 +99,11 @@ otherwise each frame names its own.
 
 ## Workspace agent
 
-A **workspace agent** does the coding. Every workspace has its own chats, and
-when you (or the Coordinator) give it work, it reads files, edits them, runs
-commands, and commits inside that workspace's sandbox. Where the agent comes
+A **workspace agent** does the coding. Every workspace has exactly one chat,
+and only that chat changes its code. When you (or the Coordinator) give it
+work, it reads files, edits them, runs commands, and commits inside that
+workspace's sandbox. It can read other workspaces' code, but never changes
+it. Where the agent comes
 from depends on how you run Screenplay:
 
 - **Desktop**: the coding CLI installed on your machine (Claude Code or Codex),

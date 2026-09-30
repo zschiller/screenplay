@@ -14,7 +14,11 @@ workspace's sandbox.
 The Coordinator uses the same composer, with less in it. It is one chat with
 no tabs, and has no **Plan** toggle, <kbd>/</kbd> skills menu or crosshair.
 
-A workspace's chat can also [write documents](/guides/documents#documents-a-chat-writes)
+Every workspace has exactly one chat, from the moment it starts, and that chat
+is the only one that changes the workspace's code. More work in parallel means
+more workspaces: each is its own branch, sandbox, dev server and chat. A
+workspace's chat can read other workspaces' code and frames, but never changes
+them. It can also [write documents](/guides/documents#documents-a-chat-writes)
 on the canvas, and edits the ones it wrote.
 
 ## Choosing a target
@@ -35,29 +39,31 @@ workspace's **+/−** diff and a **Create PR** button (see
 
 ## Tabs
 
-Each workspace and document has its own set of tabs:
+Each workspace has its own set of tabs:
 
 - **Sandbox logs** (the first icon) streams the setup script and dev server
   output. It opens automatically while a workspace is starting, and stays put
   at the left when the other tabs overflow and scroll.
-- **Chat tabs**, as many as you like. New chats are named from their first
-  message. A spinner means the agent is working; a pink dot means there's a
-  reply you haven't seen.
+- **The chat tab**: the workspace's one chat, named from its first message. A
+  spinner means the agent is working; a pink dot means there's a reply you
+  haven't seen. It has no close button.
 - **Terminal tabs**: see [Terminal tabs](/guides/terminals).
 
 <Screenshot
   name="new-tab-menu"
-  alt="The new-tab menu: New chat and New terminal"
+  alt="The + button at the end of the tab strip, which opens a new terminal"
 />
 
-**+** opens a new tab of whichever kind you used last. The caret next to it
-lets you choose. Double-click a tab to rename it, drag to reorder, and hover
-to close. Closed chats aren't lost: reopen them from the **Chat history**
-menu at the end of the strip, which lists them with their date and first
-message, and where you can delete them for good. Closing a target's last tab opens a fresh
-one. If a target ends up with no open tabs anyway (you deleted its last chat
-from the history, say), the panel says **No open chats** with a **New chat**
-button.
+**+** opens a new terminal tab; there's no second chat to open. Double-click a
+tab to rename it, drag to reorder, and hover a terminal to close it.
+
+A canvas from before workspaces had one chat can hold several chats on one
+workspace. The newest is the workspace's chat. The others are **earlier
+chats**: you can still open and read them, and close them, but they can't
+send. In place of the composer they point you to the workspace's chat. Closed
+earlier chats stay in the **Chat history** menu at the end of the strip, with
+their date and first message, where you can reopen them or delete them for
+good.
 
 <Screenshot
   name="logs"
@@ -223,9 +229,9 @@ A few defaults are worth knowing:
 
 ## Chat naming
 
-A new chat is named from its first message. In a new workspace, that first
-message usually names the workspace and its branch too; see
-[Titles](/guides/workspaces#titles) for when it does.
+A workspace's chat is named from its first message. That message usually
+titles the workspace and names its branch too, and then the chat takes the
+workspace's title; see [Titles](/guides/workspaces#titles) for when it does.
 
 <Callout type="info">
   **"No coding agent found"** on desktop means no supported CLI is installed.

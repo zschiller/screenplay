@@ -1,4 +1,5 @@
 import type { BranchData, ChatSessionData } from "@/lib/types"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
 /**
  * Chat-Target selection — the pure decisions behind *which* Chat Target the
@@ -79,22 +80,28 @@ export function resolveChatPanelTarget(
 /**
  * The remembered-chat restoration rule for an agent target: when you switch back
  * to an agent, reopen the chat you last had selected there *if it is still
- * open*, otherwise fall back to the agent's first open chat (earliest by
- * `createdAt`), otherwise nothing. Closed chats and other agents' chats never
- * win. Tested against plain chat-session snapshots.
+ * open* (an earlier chat on an old canvas, say), otherwise the Workspace's one
+ * chat (#1315), otherwise nothing. Closed earlier chats and other agents' chats
+ * never win. Tested against plain chat-session snapshots.
  */
 export function restoreAgentChatSelection(
   chats: readonly ChatSessionData[],
   agentId: string,
   rememberedChatId: string | null | undefined
 ): string | null {
-  const open = chats
-    .filter((c) => c.branchId === agentId && !c.closedAt)
-    .sort((a, b) => a.createdAt - b.createdAt)
-  if (rememberedChatId && open.some((c) => c.id === rememberedChatId)) {
+  const own = workspaceChatId(chats, agentId)
+  if (
+    rememberedChatId &&
+    chats.some(
+      (c) =>
+        c.id === rememberedChatId &&
+        c.branchId === agentId &&
+        (!c.closedAt || c.id === own)
+    )
+  ) {
     return rememberedChatId
   }
-  return open[0]?.id ?? null
+  return own ?? null
 }
 
 /** A pending agent whose Sandbox is ready to be probed for streaming logs. */

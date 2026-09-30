@@ -1,4 +1,5 @@
-import { openRoomForRoute } from "@/lib/room-access"
+import { openRoomForRoute, type RoomDoc } from "@/lib/room-access"
+import { isEarlierChat } from "@/lib/chat/workspace-chat"
 import { isRoomChatId, roomChatId } from "@/lib/chat/room-chat"
 import { launchTurn } from "@/lib/agent/turn-launch"
 import {
@@ -51,6 +52,12 @@ export async function POST(req: Request) {
   if (room instanceof Response) return room
   const { userId } = room
 
+  // One chat per Workspace (#1315): an earlier chat on an old canvas stays
+  // readable, but only the Workspace's own chat changes its code.
+  if (!isRoomTarget && (await isEarlierChatInRoom(room, chatId))) {
+    return Response.json({ error: "earlier_chat" }, { status: 409 })
+  }
+
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,
   // drive after the response) and whether a message sent while the chat's
   // agent is working steers it; this route only picks the Chat Target.
@@ -97,4 +104,18 @@ export async function POST(req: Request) {
     return Response.json({ error: "not_steerable" }, { status: 409 })
   }
   return Response.json({ chatId, runId: result.runId })
+}
+
+/** Whether `chatId` is one of its Workspace's earlier chats (#1315). */
+async function isEarlierChatInRoom(
+  room: RoomDoc,
+  chatId: string
+): Promise<boolean> {
+  return room.readDoc(({ chatSessions }) => {
+    // `get` is fresh where the `toArray` snapshot can lag a just-added chat.
+    const chat = chatSessions.get(chatId)
+    if (!chat) return false
+    const others = chatSessions.toArray().filter((c) => c.id !== chatId)
+    return isEarlierChat([...others, chat], chat)
+  })
 }
