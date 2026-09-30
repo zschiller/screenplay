@@ -22,6 +22,8 @@ import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
 // variables onto Nextra's fonts.
 const sans = Instrument_Sans({
   subsets: ["latin"],
+  // Real italics for *emphasis*, instead of the browser slanting the upright.
+  style: ["normal", "italic"],
   variable: "--font-instrument-sans",
 })
 const serif = Instrument_Serif({

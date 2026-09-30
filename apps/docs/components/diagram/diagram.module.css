@@ -7,7 +7,8 @@
   --dg-hair: oklch(0 0 0 / 12%);
   --dg-bg: #fff;
   --dg-accent: oklch(0.667 0.295 322.15);
-  margin: 1.5rem 0 0;
+  /* The same rhythm as screenshots (.sp-screenshot), centred in the column. */
+  margin: 1.75rem 0;
 }
 :global(html.dark) .figure {
   --dg-fg: #fff;
@@ -22,6 +23,7 @@
 }
 .svg {
   display: block;
+  margin-inline: auto;
   max-width: none;
   font-family: var(--x-font-sans);
 }

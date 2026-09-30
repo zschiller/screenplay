@@ -6,12 +6,12 @@ import { Chip, Diagram, Edge, Label, Node, Note, SIZE, box } from "./kit"
 
 /** self-hosting/index.mdx: the hosted app and the services behind it. */
 export function ArchitectureDiagram() {
-  const browser = box(0, 88, 96, SIZE.pair)
-  const app = box(128, 88, 136, SIZE.pair)
-  const busX = 288
-  const col = 308
-  const w = 160
-  const notes = 484
+  const browser = box(0, 88, 88, SIZE.pair)
+  const app = box(112, 88, 132, SIZE.pair)
+  const busX = 268
+  const col = 288
+  const w = 184
+  const notes = 488
   const yjs = box(col, 44, w, SIZE.row)
   const postgres = box(col, 96, w, SIZE.row)
   const sandbox = box(col, 148, w, 92)
@@ -65,10 +65,10 @@ export function ArchitectureDiagram() {
       />
       <Node b={sandbox} title="Sandbox provider" />
       <Note x={notes} y={sandboxRow} text="one VM per workspace" />
-      <Chip b={box(col + 8, sandbox.y + 40, 68, 20)} text="dev server" />
-      <Chip b={box(col + 80, sandbox.y + 40, 72, 20)} text="git" />
-      <Chip b={box(col + 8, sandbox.y + 64, 68, 20)} text="terminals" />
-      <Chip b={box(col + 80, sandbox.y + 64, 72, 20)} text="coding CLIs" />
+      <Chip b={box(col + 8, sandbox.y + 40, 80, 20)} text="dev server" />
+      <Chip b={box(col + 96, sandbox.y + 40, 80, 20)} text="git" />
+      <Chip b={box(col + 8, sandbox.y + 64, 80, 20)} text="terminals" />
+      <Chip b={box(col + 96, sandbox.y + 64, 80, 20)} text="coding CLIs" />
       <Node b={model} title="Model provider(s)" />
       <Note x={notes} y={model.left[1]} text="the agent" />
       <Node b={blob} title="Blob store" />
@@ -160,7 +160,7 @@ export function ScreenshotsFolderDiagram() {
       label="apps/app/.screenshots/ holds the seeded world (pglite, yjs, blobs), secrets.env, and captures/<label>/ with a PNG per screen and theme plus manifest.json."
     >
       <Node b={root} title="apps/app/.screenshots/" mono />
-      <Note of={root} text="gitignored" />
+      <Note x={notes} y={root.left[1]} text="gitignored" />
       <Edge
         points={[
           [spine, root.y + root.h],
@@ -196,7 +196,6 @@ export function ScreenshotsFolderDiagram() {
         x={notes}
         y={captures}
         text="<screen>.<theme>.png + manifest.json"
-        mono
       />
     </Diagram>
   )

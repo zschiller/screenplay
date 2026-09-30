@@ -512,3 +512,134 @@ footer {
 html.dark footer {
   color: oklch(0.708 0 0);
 }
+
+/* ---- Visual nits audit, 2026-09-30 (prototype; one block per finding) ---- */
+
+/* Navbar on the solid page colour, like the app's headers: Nextra's 70%
+   frosted bar smears the text scrolling under it into a grey ghost. */
+.nextra-navbar-blur {
+  backdrop-filter: none;
+  background: #fff;
+}
+html.dark .nextra-navbar-blur {
+  background: #000;
+}
+
+/* "On this page": the current heading in the foreground at medium weight, the
+   same active state as the sidebar, instead of magenta. */
+.nextra-toc a.x\:text-primary-600 {
+  color: #000;
+  font-weight: 500;
+  font-stretch: 98.8%;
+}
+html.dark .nextra-toc a.x\:text-primary-600 {
+  color: #fff;
+}
+
+/* Code blocks on the same hairline as cards, tables, callouts and the search
+   box. Nextra's gray-300 / neutral-700 ring was the one darker line. */
+article pre {
+  --tw-ring-color: oklch(0 0 0 / 12%);
+}
+html.dark article pre {
+  --tw-ring-color: oklch(1 0 0 / 16%);
+}
+
+/* Previous / next links at the sidebar's 14px, not 18px. */
+article div.x\:mb-8.x\:border-t > a {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+article div.x\:mb-8.x\:border-t > a svg {
+  height: 16px;
+}
+
+/* Sidebar section labels sit on their group, not halfway between groups. */
+.nextra-sidebar li:not(:has(*)),
+.nextra-mobile-nav li:not(:has(*)) {
+  margin-bottom: 0;
+}
+
+/* Callout text in the foreground like the rest of the article. */
+.nextra-callout > div:last-child {
+  color: #000;
+}
+html.dark .nextra-callout > div:last-child {
+  color: #fff;
+}
+
+/* Tables: code chips and short labels in the first column never break
+   mid-word; tables of the same shape on a page share their column widths. */
+.sp-table code,
+.sp-table td:first-child:not(:has(code, kbd)) {
+  white-space: nowrap;
+}
+.sp-table:is([data-head^="Variable|"], [data-head="Shortcut|Action"]) table {
+  table-layout: fixed;
+}
+.sp-table[data-head^="Variable|"] th:first-child {
+  width: 32%;
+}
+.sp-table[data-head="Shortcut|Action"] th:first-child {
+  width: 30%;
+}
+.sp-table[data-head="Variable|Required|Description"] th:nth-child(2) {
+  width: 15%;
+}
+.sp-table:is([data-head^="Variable|"], [data-head="Shortcut|Action"]) td {
+  overflow-wrap: anywhere;
+}
+
+/* A code chip that wraps in prose keeps its padding and corners on both
+   lines. */
+article :not(pre) > code.nextra-code {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Code in a heading: text-sized mono without the heading's tight tracking,
+   so it doesn't grow the heading box. */
+article :is(h2, h3) > code.nextra-code:not([class*="twoslash-"]) {
+  font-size: 0.8em;
+  letter-spacing: normal;
+  padding-block: 0;
+}
+
+/* Emphasis in a heading (e.g. "(desktop)"): Unbounded has no italic, so it
+   reads as a quiet aside in the text face instead of a slanted display face. */
+article :is(h1, h2, h3) em {
+  font-family: var(--x-font-sans);
+  font-size: 0.85em;
+  font-style: normal;
+  letter-spacing: normal;
+  opacity: 0.6;
+}
+
+/* File trees: one row pitch, whether or not the row above had children. */
+.nextra-filetree,
+.nextra-filetree ul {
+  gap: 0.25rem;
+}
+
+/* Steps end on the paragraph rhythm, not Nextra's 48px. */
+article .nextra-steps {
+  margin-bottom: 1.25em;
+}
+
+/* External links: the arrow sits after the last word (see mdx-components). */
+.sp-ext-link {
+  white-space: nowrap;
+}
+.sp-ext-link svg {
+  display: inline;
+  margin-left: 0.15em;
+  vertical-align: baseline;
+}
+
+/* 404 title in the heading face. */
+.sp-not-found {
+  font-family: var(--font-unbounded), sans-serif;
+  font-size: 1.6875rem;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
