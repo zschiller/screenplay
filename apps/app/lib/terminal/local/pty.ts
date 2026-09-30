@@ -127,7 +127,9 @@ const PROVIDER_SECRET_VARS = [
 /** Append to a session's replay buffer, keeping only the trailing window. */
 function appendBuffer(buffer: string, chunk: string): string {
   const next = buffer + chunk
-  return next.length > BUFFER_LIMIT ? next.slice(next.length - BUFFER_LIMIT) : next
+  return next.length > BUFFER_LIMIT
+    ? next.slice(next.length - BUFFER_LIMIT)
+    : next
 }
 
 /**
@@ -184,6 +186,11 @@ export class TerminalSessions {
         current.listeners.delete(listener)
       },
     }
+  }
+
+  /** The pid at the root of `key`'s PTY, or `null` when none is live. */
+  pid(key: string): number | null {
+    return this.map.get(key)?.pty.pid ?? null
   }
 
   /** True when a live PTY currently backs `key`. */

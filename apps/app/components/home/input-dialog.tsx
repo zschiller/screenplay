@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
+import { Spinner } from "@workspace/ui/components/spinner"
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,13 @@ type InputDialogProps = {
   onSubmit: (value: string) => Promise<void>
 }
 
+/**
+ * A one-field dialog (Rename, New folder). It follows ConfirmDialog while the
+ * submit is in flight: the dialog can't be dismissed, both buttons are
+ * disabled, and the submit shows the regular spinner. Submit stays disabled
+ * while the field is empty or still holds `initialValue`, so it never sends a
+ * no-op.
+ */
 export function InputDialog({
   open,
   onOpenChange,
@@ -42,9 +50,20 @@ export function InputDialog({
   errorMessage,
   onSubmit,
 }: InputDialogProps) {
+  const [submitting, setSubmitting] = useState(false)
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (submitting) return
+        onOpenChange(next)
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-md"
+        // No ×, like Escape and Cancel, while the submit is in flight.
+        showCloseButton={!submitting}
+      >
         {open && (
           <InputDialogForm
             title={title}
@@ -55,6 +74,8 @@ export function InputDialog({
             placeholder={placeholder}
             errorMessage={errorMessage}
             onSubmit={onSubmit}
+            submitting={submitting}
+            onSubmittingChange={setSubmitting}
             onCancel={() => onOpenChange(false)}
           />
         )}
@@ -72,6 +93,8 @@ function InputDialogForm({
   placeholder,
   errorMessage,
   onSubmit,
+  submitting,
+  onSubmittingChange,
   onCancel,
 }: {
   title: string
@@ -82,24 +105,30 @@ function InputDialogForm({
   placeholder?: string
   errorMessage: string
   onSubmit: (value: string) => Promise<void>
+  submitting: boolean
+  onSubmittingChange: (submitting: boolean) => void
   onCancel: () => void
 }) {
   const [value, setValue] = useState(initialValue)
-  const [submitting, setSubmitting] = useState(false)
   const [failed, setFailed] = useState(false)
+  const trimmed = value.trim()
+  const canSubmit =
+    !submitting && trimmed !== "" && trimmed !== initialValue.trim()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitting(true)
+    // Enter submits the form even while the button is disabled.
+    if (!canSubmit) return
+    onSubmittingChange(true)
     setFailed(false)
     try {
       await onSubmit(value)
+      onSubmittingChange(false)
       onCancel()
     } catch (err) {
       console.error(err)
       setFailed(true)
-    } finally {
-      setSubmitting(false)
+      onSubmittingChange(false)
     }
   }
 
@@ -115,6 +144,8 @@ function InputDialogForm({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
+          // Read-only, not disabled, so the field keeps its look and focus.
+          readOnly={submitting}
         />
         {failed && (
           <p role="alert" className="text-sm text-destructive">
@@ -123,11 +154,24 @@ function InputDialogForm({
         )}
       </div>
       <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onCancel}>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={submitting}
+          onClick={onCancel}
+        >
           Cancel
         </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? submittingLabel : submitLabel}
+        <Button type="submit" disabled={!canSubmit}>
+          {submitting ? (
+            <>
+              {/* The regular Spinner, as ConfirmDialog: plain progress. */}
+              <Spinner aria-hidden role={undefined} aria-label={undefined} />
+              {submittingLabel}
+            </>
+          ) : (
+            submitLabel
+          )}
         </Button>
       </DialogFooter>
     </form>

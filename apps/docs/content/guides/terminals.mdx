@@ -41,7 +41,9 @@ Which CLIs are offered depends on how you run Screenplay:
 - Tabs survive a **page reload** and reattach to the same running process.
 - **Scrollback** isn't saved, and it ends with the sandbox.
 - **Closing** a terminal tab ends its session for good. Closed terminals
-  aren't archived the way chats are.
+  aren't archived the way chats are. If something is still running in it,
+  such as a coding CLI or a dev server, Screenplay asks before closing; an
+  idle shell closes at once.
 
 <Callout type="info">
   A terminal and a chat can run in the same workspace at the same time, and
