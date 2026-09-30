@@ -62,7 +62,11 @@ import {
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 import Link from "next/link"
-import type { ModelInfo } from "@/lib/models-store"
+import {
+  useModelCatalog,
+  useSkillIndex,
+  type SkillSource,
+} from "@/lib/use-model-catalog"
 import { isLocalBuild } from "@/lib/local-mode"
 import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
@@ -315,43 +319,20 @@ export interface ComposerProps {
    */
   markdownLayers: MarkdownLayerData[]
   /**
-   * `/`-Skill source. App Skills only before a Sandbox exists, the merged
-   * App ∪ Repo set once one is — resolved by the caller (see
-   * `lib/skills/menu-source.ts`). Ignored unless `enableSkills` is set.
+   * Where the `/`-Skill picker's index comes from: a Sandbox's Branch (App ∪
+   * Repo), or `{}` before a Sandbox exists (App Skills only). Omit it for
+   * Document/Markdown-Layer chats, which have no `read_skill` tool, so `/`
+   * stays a literal slash there.
    */
-  skills?: SkillMenuItem[]
-  /** Whether the Skill index is still loading, for the `/` menu's spinner. */
-  skillsLoading?: boolean
+  skillSource?: SkillSource
   /**
-   * Enables the `/`-Skill picker. Off for Document/Markdown-Layer chats, which
-   * have no `read_skill` tool, so `/` stays a literal slash there.
+   * The model picked for this chat or row, if any. The Composer resolves it
+   * against the model catalog (`lib/model-catalog`), falling back to the
+   * user's default, and says when the pick is off the default. When the
+   * catalog loads empty it shows "no coding agent detected" and blocks send;
+   * when it fails, it says so with Retry.
    */
-  enableSkills?: boolean
-  /** The loaded model catalog. Empty while still fetching. */
-  models: ModelInfo[]
-  /**
-   * Whether the model catalog fetch has settled. Gates the no-agent empty state:
-   * once loaded with an empty catalog, the composer shows an actionable
-   * "no coding agent detected" notice and disables send instead of a dead,
-   * always-"Loading…" dropdown. Defaults `false` so callers that don't track
-   * loading (the seed Composer) never trip the empty state — their dropdown just
-   * shows "Loading…" on an empty catalog, as before.
-   */
-  modelsLoaded?: boolean
-  /**
-   * The model catalog fetch failed. The composer says so with Retry, rather
-   * than reading the missing list as "no coding agent".
-   */
-  modelsFailed?: boolean
-  /** Fetch the model catalog again after it failed. */
-  onRetryModels?: () => void
-  /** The currently-selected model id (already resolved by the caller). */
-  model: string
-  /**
-   * The user's default model (Settings). When given and {@link model} differs,
-   * the picker says the chat is off the default.
-   */
-  defaultModel?: string
+  model?: string | null
   /**
    * Called when the user picks a different model from the dropdown. A chat can
    * switch at any point; the pick applies from its next turn.
@@ -472,15 +453,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
   function Composer(
     {
       markdownLayers,
-      skills,
-      skillsLoading,
-      enableSkills = false,
-      models,
-      modelsLoaded = false,
-      modelsFailed = false,
-      onRetryModels,
-      model,
-      defaultModel,
+      skillSource,
+      model: chosenModel,
       onModelChange,
       planMode,
       onPlanModeChange,
@@ -504,6 +478,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     },
     ref
   ) {
+    const {
+      status: modelsStatus,
+      models,
+      model,
+      defaultModel,
+      noAgents,
+      retry: retryModels,
+    } = useModelCatalog(chosenModel)
+    const { skills, loading: skillsLoading } = useSkillIndex(skillSource)
+    const enableSkills = !!skillSource
     const [hasContent, setHasContent] = useState(false)
     // The draft-store key, read by the construction-time `onUpdate`.
     const draftKeyRef = useRef(draftKey)
@@ -516,8 +500,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     // at editor-construction time, so they can't read these props directly —
     // funnel them through refs so the latest values are always visible.
     const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
-    const skillsRef = useRef<SkillMenuItem[]>(skills ?? [])
-    const skillsLoadingRef = useRef<boolean>(skillsLoading ?? false)
+    const skillsRef = useRef<SkillMenuItem[]>(skills)
+    const skillsLoadingRef = useRef<boolean>(skillsLoading)
 
     // Tracks whether the mention popover is currently open. ProseMirror checks
     // direct `editorProps.handleKeyDown` before plugin props, so without this
@@ -571,10 +555,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       markdownLayersRef.current = markdownLayers
     })
     useEffect(() => {
-      skillsRef.current = skills ?? []
+      skillsRef.current = skills
     })
     useEffect(() => {
-      skillsLoadingRef.current = skillsLoading ?? false
+      skillsLoadingRef.current = skillsLoading
     })
 
     // Build the editor once. The mention extension's suggestion handlers read
@@ -768,10 +752,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       },
     })
 
-    // The catalog has loaded but is empty — on the desktop backend this means no
-    // coding CLI was detected (the seam returned nothing). Surface an actionable
-    // empty state and disable send rather than a dead model dropdown.
-    const noAgents = modelsLoaded && models.length === 0
+    // `noAgents`: the catalog has loaded but is empty — on the desktop backend
+    // this means no coding CLI was detected (the seam returned nothing). Surface
+    // an actionable empty state and disable send rather than a dead dropdown.
 
     // Load this key's saved draft into the editor once it exists, and again if
     // the Composer is re-pointed at another chat. Emitted as an update so the
@@ -949,18 +932,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           <EmptyAwarePlaceholder editor={editor} text={placeholder} />
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end" className="gap-0.5">
-            {modelsFailed ? (
+            {modelsStatus === "failed" ? (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 Couldn&apos;t load models.
-                {onRetryModels && (
-                  <InputGroupButton
-                    size="xs"
-                    className="text-xs text-foreground"
-                    onClick={onRetryModels}
-                  >
-                    Retry
-                  </InputGroupButton>
-                )}
+                <InputGroupButton
+                  size="xs"
+                  className="text-xs text-foreground"
+                  onClick={retryModels}
+                >
+                  Retry
+                </InputGroupButton>
               </span>
             ) : noAgents ? (
               <span className="text-xs text-muted-foreground">

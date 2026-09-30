@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { CaretDownIcon, CheckIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -11,17 +11,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import {
-  getDefaultModelId,
-  getModels,
-  type ModelInfo,
-} from "@/lib/models-store"
-import {
-  groupModelsByProvider,
-  modelDisplayLabel,
-  resolveDefaultModel,
-} from "@/lib/model-selection"
-import { useDefaultModel, writeDefaultModel } from "@/lib/default-model-store"
+import { groupModelsByProvider, modelDisplayLabel } from "@/lib/model-selection"
+import { writeDefaultModel } from "@/lib/default-model-store"
+import { useModelCatalog } from "@/lib/use-model-catalog"
 
 /**
  * The "Default agent" control in Settings: the agent and model new chats and
@@ -30,61 +22,31 @@ import { useDefaultModel, writeDefaultModel } from "@/lib/default-model-store"
  * chooses, so it never shows a default that isn't the real one.
  */
 export function DefaultAgentPicker({ label }: { label: string }) {
-  const [models, setModels] = useState<ModelInfo[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const [failed, setFailed] = useState(false)
-  // Bumped by Retry on a failed model list, to fetch it again.
-  const [attempt, setAttempt] = useState(0)
-  const [serverDefault, setServerDefault] = useState<string | null>(null)
-  const userDefault = useDefaultModel()
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([getModels(), getDefaultModelId()])
-      .then(([list, def]) => {
-        if (cancelled) return
-        setModels(list)
-        setServerDefault(def)
-        setFailed(false)
-        setLoaded(true)
-      })
-      .catch(() => {
-        // A list that failed isn't an empty one, so it doesn't read as "No
-        // coding agent installed yet".
-        if (!cancelled) setFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [attempt])
-
-  const current = resolveDefaultModel({
-    stored: userDefault,
-    serverDefault,
+  // Sits on what a new chat would pick today: the user's default, else the
+  // server's. A list that failed isn't an empty one, so it doesn't read as "No
+  // coding agent installed yet".
+  const {
+    status,
     models,
-  })
+    defaultModel: current,
+    noAgents,
+    retry,
+  } = useModelCatalog()
+  const loaded = status === "loaded"
   const currentModel = models.find((m) => m.id === current)
   const groups = useMemo(() => groupModelsByProvider(models), [models])
 
   return (
     <div className="flex items-center gap-3">
       <span className="w-28 shrink-0 text-sm">{label}</span>
-      {failed ? (
+      {status === "failed" ? (
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           Couldn&apos;t load models.
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setFailed(false)
-              setAttempt((n) => n + 1)
-            }}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={retry}>
             Retry
           </Button>
         </span>
-      ) : loaded && models.length === 0 ? (
+      ) : noAgents ? (
         <span className="text-sm text-muted-foreground">
           No coding agent installed yet.
         </span>

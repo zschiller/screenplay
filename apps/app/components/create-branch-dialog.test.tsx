@@ -9,6 +9,9 @@ import {
 } from "@testing-library/react"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { RepoData } from "@/lib/types"
+import type { ModelInfo } from "@/lib/models-store"
+import { createModelCatalog, inMemoryCatalogSource } from "@/lib/model-catalog"
+import { ModelCatalogProvider } from "@/lib/use-model-catalog"
 
 // The base picker reaches GitHub through `github-actions`, which imports the
 // server-only stack. It only mounts when its popover opens, so stub it.
@@ -95,5 +98,52 @@ describe("Create workspaces' repository chip (#884)", () => {
     expect(onSubmit).toHaveBeenCalledWith([
       expect.objectContaining({ repoId: api.id, baseBranch: "trunk" }),
     ])
+  })
+})
+
+describe("Create workspaces with no coding agent (#1257)", () => {
+  function renderWith(models: ModelInfo[]) {
+    const catalog = createModelCatalog(inMemoryCatalogSource({ models }))
+    render(
+      <ModelCatalogProvider catalog={catalog}>
+        <CreateBranchDialog
+          open
+          onOpenChange={() => {}}
+          repos={[web]}
+          repoId={web.id}
+          markdownLayers={[]}
+          onSubmit={vi.fn()}
+        />
+      </ModelCatalogProvider>
+    )
+    return screen.getByRole("dialog")
+  }
+
+  it("says no coding agent was found and disables Create", async () => {
+    const dialog = renderWith([])
+    expect(
+      await within(dialog).findByText(/No models are set up|No coding agent/)
+    ).not.toBeNull()
+    expect(
+      within(dialog)
+        .getByRole("button", { name: /Create workspace/ })
+        .hasAttribute("disabled")
+    ).toBe(true)
+  })
+
+  it("offers the model picker once a coding agent is there", async () => {
+    const dialog = renderWith([
+      {
+        id: "cc:opus",
+        label: "Opus",
+        provider: { key: "cc", label: "Claude Code" },
+      },
+    ])
+    expect(await within(dialog).findByText("Opus")).not.toBeNull()
+    expect(
+      within(dialog)
+        .getByRole("button", { name: /Create workspace/ })
+        .hasAttribute("disabled")
+    ).toBe(false)
   })
 })
