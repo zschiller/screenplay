@@ -1,14 +1,9 @@
 import { type RefObject, useEffect } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
-import {
-  hasModKey,
-  isInComposer,
-  isInOverlay,
-  isKeyboardFocusedControl,
-  isTextEntry,
-} from "@/lib/canvas/key-target"
-import { matchCanvasShortcut } from "@/lib/canvas/shortcuts"
+import { resolveEscapeAction, type EscapeState } from "@/lib/canvas/escape"
+import { keyTargetOf } from "@/lib/canvas/key-target"
+import { matchCanvasKey } from "@/lib/canvas/shortcuts"
 import { isLocalBuild } from "@/lib/local-mode"
 
 import type { CanvasInteraction } from "@/components/canvas/use-canvas-interaction"
@@ -18,31 +13,19 @@ import type { ElementTargetingController } from "@/components/canvas/use-element
 import type { ToolModeController } from "@/components/canvas/use-tool-mode"
 
 /**
- * Canvas Keyboard controller (PRD #579, cut 4/4) — the single home for the
- * global `keydown`/`keyup` shortcut dispatch, lifted out of the Canvas
- * composition root where it was the largest effect in the file (~190 lines).
+ * Canvas Keyboard controller (PRD #579) — the single home for the global
+ * `keydown`/`keyup` listeners on the canvas. It is a dispatch from action to
+ * verb: which key means what, and where each key is allowed (in text entry, in
+ * the Composer, in an open menu or dialog), is the table in
+ * `lib/canvas/shortcuts` (#1264), matched by the React-free `matchCanvasKey`
+ * over where the key landed (`keyTargetOf`). The same table feeds the `?` sheet
+ * and the zoom menu's key hints, and the player reuses the matcher for ⌘I.
  *
- * Sequenced last so it consumes the controllers the earlier cuts bundled (Tool
- * Mode, Canvas Selection, Element Reference, the Yjs history) rather than the
- * loose setters they replaced. The controller owns the window listeners and the
- * shortcut map; it dispatches into the controllers, panel refs, cursor-chat
- * verbs, and focus / Create-Flow setters it is handed.
- *
- * The Escape *precedence* stays in the React-free `resolveEscapeAction`, wrapped
- * by the Canvas Interaction controller's `resolveEscape` (over
- * `lib/canvas/escape.ts`, pinned by `escape.test.ts`); this controller only
- * applies the chosen exit (including cancelling an armed Element Targeting
- * pick, the top of the precedence). No shortcut semantics change from the lift — every
- * shortcut (Escape exits, `v`/`c`/`d`/`f` tools, `/` cursor chat, ⌘B / ⌘I / ⌘.
- * panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, space-pan) behaves
- * exactly as before, including the `isEditing` guard that suppresses shortcuts
- * inside inputs / textareas / contenteditable. Keys another handler already
- * took (`defaultPrevented`) and keys pressed inside an open menu, dialog or
- * popover never reach the canvas (`lib/canvas/key-target`).
- *
- * The zoom keys (⌘= / ⌘- / ⌘0 / ⇧1) and `?` for the shortcut sheet (#734) are
- * matched by the React-free `matchCanvasShortcut` in `lib/canvas/shortcuts`,
- * which is also the catalogue the tooltips and the sheet read.
+ * Escape is one action in the table; which exit it takes is the pure
+ * precedence in `resolveEscapeAction` (`lib/canvas/escape.ts`, pinned by
+ * `escape.test.ts`). Its inputs are gathered in one place, `readEscapeState`,
+ * and this controller only applies the chosen exit (including cancelling an
+ * armed Element Targeting pick, the top of the precedence).
  */
 export interface CanvasKeyboardInputs {
   /** Tool Mode controller — the `/`-resolver source plus the tool dispatches. */
@@ -57,8 +40,8 @@ export interface CanvasKeyboardInputs {
   history: { undo: () => void; redo: () => void }
   /**
    * Canvas Interaction controller — owns the Focus / Create-Flow / editing /
-   * space-held / cursor-chat state. Escape dispatches on its `resolveEscape`
-   * and applies the mode/edit/cursor-chat exits through its verbs; `/` opens
+   * space-held / cursor-chat state. Escape reads its `escapeState` and
+   * applies the mode/edit/cursor-chat exits through its verbs; `/` opens
    * cursor chat and space toggles its pan flag.
    */
   interaction: CanvasInteraction
@@ -92,201 +75,146 @@ export function useCanvasKeyboard({
   commentsPanel,
 }: CanvasKeyboardInputs): void {
   useEffect(() => {
-    const isEditing = (e: KeyboardEvent) => isTextEntry(e.target)
+    // Everything Escape's precedence reads, gathered in one place: the
+    // Interaction controller's own state plus the target-pick, tool and
+    // comment bits the other controllers own.
+    const readEscapeState = (): EscapeState => ({
+      ...interaction.escapeState(),
+      targetPickActive: targeting.isPickActive(),
+      toolMode: toolMode.current(),
+      hasNewCommentPos: reference.newCommentPos !== null,
+      commentsPanelOpen: commentsPanel.isOpen(),
+    })
+
+    const togglePanel = (panel: PanelImperativeHandle | null) => {
+      if (!panel) return
+      if (panel.isCollapsed()) panel.expand()
+      else panel.collapse()
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // A key something else already handled (a menu closing on Escape, a
-      // field that consumed it) isn't the canvas's.
-      if (e.defaultPrevented) return
-      // With a menu, dialog or popover open, focus sits inside it and every key
-      // is its own: Backspace there must not delete the frame behind it.
-      // Escape still falls through for overlays that don't claim it.
-      if (e.key !== "Escape" && isInOverlay(e.target)) return
-      if (e.key === "Escape") {
-        // Precedence (innermost/most-transient first) lives in the React-free
-        // `resolveEscapeAction`, wrapped by the Interaction controller's
-        // `resolveEscape` (it fills its own state, the caller passes the
-        // tool/comment bits); this switch just applies the chosen exit. The
-        // focus / Create Flow steps are the two manual mode exits pinned by
-        // lib/canvas/escape.test.ts.
-        switch (
-          interaction.resolveEscape({
-            targetPickActive: targeting.isPickActive(),
-            toolMode: toolMode.current(),
-            hasNewCommentPos: reference.newCommentPos !== null,
-            commentsPanelOpen: commentsPanel.isOpen(),
-          })
-        ) {
-          case "cancel-target-pick":
-            e.preventDefault()
-            targeting.cancel()
-            break
-          case "close-cursor-chat":
-            interaction.closeCursorChat()
-            break
-          case "stop-editing-document":
-            interaction.setEditingDocumentLayerId(null)
-            break
-          case "exit-document-mode":
-            toolMode.set("select")
-            break
-          case "exit-frame-mode":
-            toolMode.set("select")
-            break
-          case "exit-comment-mode":
-            toolMode.set("select")
-            reference.clearMode()
-            break
-          case "close-comments-panel":
-            commentsPanel.close()
-            break
-          case "exit-focus-mode":
-            interaction.setFocusedIframeLayerId(null)
-            break
-          case "exit-create-flow-mode":
-            interaction.setCreateFlowIframeLayerId(null)
-            break
-          case "clear-selection":
-            selection.clear()
-            break
-        }
-        return
-      }
-      const action = matchCanvasShortcut(e, isEditing(e))
-      if (action) {
-        e.preventDefault()
-        if (action === "zoom-in") zoom.zoomIn()
-        else if (action === "zoom-out") zoom.zoomOut()
-        else if (action === "zoom-to-100") zoom.zoomTo100()
-        else if (action === "zoom-to-fit") zoom.zoomToFit()
-        else openShortcutSheet()
-        return
-      }
-      // The four draw-tool shortcuts each dispatch one Tool Mode intent; the
-      // union keeps the tools mutually exclusive, so there's no "clear the other
-      // three" to do here. Resetting the comment-placement sub-state stays.
-      if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        toolMode.set("select")
-        reference.clearMode()
-      }
-      // Comment mode is web-only; the local build has no comment surface
-      // (persisted threads excluded #417, element→agent targeting moved to the
-      // composer token path #618), so `c` is inert there.
-      if (
-        e.key === "c" &&
-        !isLocalBuild &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !isEditing(e)
-      ) {
-        toolMode.toggle("comment")
-        reference.clearMode()
-      }
-      if (e.key === "d" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        toolMode.toggle("document")
-        reference.clearMode()
-      }
-      if (e.key === "f" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        toolMode.toggle("frame")
-        reference.clearMode()
-      }
-      // Figma-style cursor chat. Opens an inline input next to the cursor and
-      // broadcasts each keystroke through awareness so peers see the message
-      // floating beside the user's remote cursor.
-      if (
-        e.key === "/" &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !isEditing(e) &&
-        !interaction.isCursorChatOpen()
-      ) {
-        e.preventDefault()
-        interaction.openCursorChat()
-      }
-      // ⌘B / ⌘I / ⌘. accept Ctrl too, and leave text alone: in a document ⌘B
-      // is Bold and ⌘I Italic. The composer has neither (chat is plain text),
-      // so ⌘I still closes the chat from it.
-      if (
-        (e.key === "b" || e.key === "B") &&
-        hasModKey(e) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        !isEditing(e)
-      ) {
-        e.preventDefault()
-        const panel = sidebarPanelRef.current
-        if (panel) {
-          if (panel.isCollapsed()) panel.expand()
-          else panel.collapse()
-        }
-      }
-      if (
-        (e.key === "i" || e.key === "I") &&
-        hasModKey(e) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        (!isEditing(e) || isInComposer(e.target))
-      ) {
-        e.preventDefault()
-        const panel = chatPanelRef.current
-        if (panel) {
-          if (panel.isCollapsed()) panel.expand()
-          else panel.collapse()
-        }
-      }
-      // Toggle both side panels: Cmd+.
-      if (
-        e.key === "." &&
-        hasModKey(e) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        !isEditing(e)
-      ) {
-        e.preventDefault()
-        const sidebarPanel = sidebarPanelRef.current
-        const chatPanel = chatPanelRef.current
-        const anyOpen =
-          (sidebarPanel && !sidebarPanel.isCollapsed()) ||
-          (chatPanel && !chatPanel.isCollapsed())
-        if (anyOpen) {
-          if (sidebarPanel && !sidebarPanel.isCollapsed())
-            sidebarPanel.collapse()
-          if (chatPanel && !chatPanel.isCollapsed()) chatPanel.collapse()
-        } else {
-          if (sidebarPanel) sidebarPanel.expand()
-          if (chatPanel) chatPanel.expand()
-        }
-      }
-      // Space pans, unless it lands in text or presses a control focused from
-      // the keyboard.
-      if (e.key === " " && !e.repeat) {
-        if (!isEditing(e) && !isKeyboardFocusedControl(e.target)) {
+      const action = matchCanvasKey(e, keyTargetOf(e.target), {
+        comments: !isLocalBuild,
+      })
+      switch (action) {
+        case null:
+          return
+        case "escape":
+          // The precedence (innermost/most-transient first) lives in the
+          // React-free `resolveEscapeAction`; this switch just applies the
+          // chosen exit. The focus / Create Flow steps are the two manual mode
+          // exits pinned by lib/canvas/escape.test.ts.
+          switch (resolveEscapeAction(readEscapeState())) {
+            case "cancel-target-pick":
+              e.preventDefault()
+              targeting.cancel()
+              break
+            case "close-cursor-chat":
+              interaction.closeCursorChat()
+              break
+            case "stop-editing-document":
+              interaction.setEditingDocumentLayerId(null)
+              break
+            case "exit-document-mode":
+              toolMode.set("select")
+              break
+            case "exit-frame-mode":
+              toolMode.set("select")
+              break
+            case "exit-comment-mode":
+              toolMode.set("select")
+              reference.clearMode()
+              break
+            case "close-comments-panel":
+              commentsPanel.close()
+              break
+            case "exit-focus-mode":
+              interaction.setFocusedIframeLayerId(null)
+              break
+            case "exit-create-flow-mode":
+              interaction.setCreateFlowIframeLayerId(null)
+              break
+            case "clear-selection":
+              selection.clear()
+              break
+          }
+          return
+        case "zoom-in":
           e.preventDefault()
-          interaction.setSpaceHeld(true)
+          return zoom.zoomIn()
+        case "zoom-out":
+          e.preventDefault()
+          return zoom.zoomOut()
+        case "zoom-to-100":
+          e.preventDefault()
+          return zoom.zoomTo100()
+        case "zoom-to-fit":
+          e.preventDefault()
+          return zoom.zoomToFit()
+        case "shortcut-sheet":
+          e.preventDefault()
+          return openShortcutSheet()
+        // The draw tools each dispatch one Tool Mode intent; the union keeps
+        // the tools mutually exclusive, so there's no "clear the other three"
+        // to do here. Resetting the comment-placement sub-state stays.
+        case "tool-select":
+          toolMode.set("select")
+          return reference.clearMode()
+        case "tool-comment":
+          toolMode.toggle("comment")
+          return reference.clearMode()
+        case "tool-document":
+          toolMode.toggle("document")
+          return reference.clearMode()
+        case "tool-frame":
+          toolMode.toggle("frame")
+          return reference.clearMode()
+        // Figma-style cursor chat. Opens an inline input next to the cursor
+        // and broadcasts each keystroke through awareness so peers see the
+        // message floating beside the user's remote cursor.
+        case "cursor-chat":
+          if (interaction.isCursorChatOpen()) return
+          e.preventDefault()
+          return interaction.openCursorChat()
+        case "toggle-sidebar":
+          e.preventDefault()
+          return togglePanel(sidebarPanelRef.current)
+        case "toggle-chat":
+          e.preventDefault()
+          return togglePanel(chatPanelRef.current)
+        case "toggle-panels": {
+          e.preventDefault()
+          const sidebarPanel = sidebarPanelRef.current
+          const chatPanel = chatPanelRef.current
+          const anyOpen =
+            (sidebarPanel && !sidebarPanel.isCollapsed()) ||
+            (chatPanel && !chatPanel.isCollapsed())
+          if (anyOpen) {
+            if (sidebarPanel && !sidebarPanel.isCollapsed())
+              sidebarPanel.collapse()
+            if (chatPanel && !chatPanel.isCollapsed()) chatPanel.collapse()
+          } else {
+            if (sidebarPanel) sidebarPanel.expand()
+            if (chatPanel) chatPanel.expand()
+          }
+          return
         }
-      }
-      // Delete/Backspace removes the selection (cascading selected groups to
-      // their members) and selects what's next — the decision + apply both live
-      // in the Canvas Selection controller, which reads its own current
-      // selection. preventDefault only when something was actually deleted.
-      if ((e.key === "Delete" || e.key === "Backspace") && !isEditing(e)) {
-        if (selection.deleteSelected()) e.preventDefault()
-      }
-      // Undo: Cmd/Ctrl+Z
-      if (e.key === "z" && hasModKey(e) && !e.shiftKey && !isEditing(e)) {
-        e.preventDefault()
-        history.undo()
-      }
-      // Redo: Cmd/Ctrl+Shift+Z
-      if (
-        (e.key === "z" || e.key === "Z") &&
-        hasModKey(e) &&
-        e.shiftKey &&
-        !isEditing(e)
-      ) {
-        e.preventDefault()
-        history.redo()
+        case "pan":
+          e.preventDefault()
+          return interaction.setSpaceHeld(true)
+        // Delete/Backspace removes the selection (cascading selected groups to
+        // their members) and selects what's next — the decision + apply both
+        // live in the Canvas Selection controller. preventDefault only when
+        // something was actually deleted.
+        case "delete-selection":
+          if (selection.deleteSelected()) e.preventDefault()
+          return
+        case "undo":
+          e.preventDefault()
+          return history.undo()
+        case "redo":
+          e.preventDefault()
+          return history.redo()
       }
     }
     const handleKeyUp = (e: KeyboardEvent) => {

@@ -60,3 +60,27 @@ export function isKeyboardFocusedControl(target: EventTarget | null): boolean {
 export function hasModKey(e: { metaKey: boolean; ctrlKey: boolean }): boolean {
   return e.metaKey || e.ctrlKey
 }
+
+/**
+ * Where a key landed, as bare data: the four facts the Canvas Shortcut table
+ * gates on. Read once per keydown so the matcher stays DOM-free.
+ */
+export interface KeyTarget {
+  /** In an input, textarea, select or contenteditable ({@link isTextEntry}). */
+  textEntry: boolean
+  /** In the chat composer ({@link isInComposer}). */
+  composer: boolean
+  /** In an open menu, dialog or listbox ({@link isInOverlay}). */
+  overlay: boolean
+  /** On a control focused from the keyboard ({@link isKeyboardFocusedControl}). */
+  keyboardControl: boolean
+}
+
+export function keyTargetOf(target: EventTarget | null): KeyTarget {
+  return {
+    textEntry: isTextEntry(target),
+    composer: isInComposer(target),
+    overlay: isInOverlay(target),
+    keyboardControl: isKeyboardFocusedControl(target),
+  }
+}

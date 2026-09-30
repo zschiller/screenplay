@@ -22,8 +22,12 @@ function setup({ commentsPanelOpen = false } = {}) {
   const selection = { clear: vi.fn(), deleteSelected: vi.fn(() => true) }
   const history = { undo: vi.fn(), redo: vi.fn() }
   const interaction = {
-    resolveEscape: (input: { commentsPanelOpen: boolean }) =>
-      input.commentsPanelOpen ? "close-comments-panel" : "clear-selection",
+    escapeState: () => ({
+      cursorChatOpen: false,
+      editingDocumentLayerId: null,
+      focusedIframeLayerId: null,
+      createFlowIframeLayerId: null,
+    }),
     setSpaceHeld: vi.fn(),
     isCursorChatOpen: () => false,
     openCursorChat: vi.fn(),

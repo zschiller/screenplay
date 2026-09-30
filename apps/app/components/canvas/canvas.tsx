@@ -641,10 +641,9 @@ export function Canvas({
   // keydown/keyup listeners and the whole shortcut map, dispatching into the
   // bundled controllers (Tool Mode, Selection, Element Reference, Element
   // Targeting, Yjs history, Interaction), the panel refs, and the cursor-chat
-  // verbs. The Escape
-  // precedence stays in the pure `resolveEscapeAction`, wrapped by the
-  // Interaction controller's `resolveEscape`; the keyboard only applies the
-  // chosen exit.
+  // verbs. Which key means what is the table in `lib/canvas/shortcuts`; the
+  // Escape precedence stays in the pure `resolveEscapeAction`, and the
+  // keyboard only applies the chosen exit.
   // Zoom controls + shortcut sheet (#734): the zoom pill and the ⌘= / ⌘- /
   // ⌘0 / ⇧1 keys share these verbs; fit frames every Layer on the canvas.
   const [shortcutSheetOpen, setShortcutSheetOpen] = useState(false)
