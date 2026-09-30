@@ -1,5 +1,10 @@
 import type { AcpUpdateConsumer } from "./consumer"
-import type { Engine, EngineTurn, TakenSteer } from "./engine-seam"
+import type {
+  DeliverSteer,
+  Engine,
+  EngineTurn,
+  TakenSteer,
+} from "./engine-seam"
 
 /** How often the abort watchdog polls the run's liveness. */
 const ABORT_POLL_INTERVAL_MS = 250
@@ -20,6 +25,11 @@ export interface DriveTurnDeps {
    * run that steers.
    */
   takeSteers?(runId: string): Promise<TakenSteer[]>
+  /**
+   * Put taken Steers back in the inbox, pending again (#1192): the agent
+   * didn't take them, so a later step boundary or Turn Launch hands them on.
+   */
+  releaseSteers?(ids: string[]): Promise<void>
   /**
    * Where the run's answer to "does it take Steers?" goes (#1250). The Engine
    * reports once its session is open.
@@ -81,15 +91,30 @@ export async function driveEngineTurn(
   // A run that steers pulls its pending Steers at each step boundary; they
   // are settled into the transcript before the Engine hands them to the
   // model, so the log and every client put them where the agent took them.
-  const { takeSteers, reportSteering } = deps
+  // With `deliver` (#1192), a Steer settles only once the agent took it.
+  const { takeSteers, releaseSteers, reportSteering } = deps
   const steerable = takeSteers
     ? {
         ...turn,
-        takeSteers: async () => {
+        takeSteers: async (deliver?: DeliverSteer) => {
           if (controller.signal.aborted) return []
           const steers = await takeSteers(turn.runId)
-          await consumer.acceptSteers(steers)
-          return steers
+          if (!deliver) {
+            await consumer.acceptSteers(steers)
+            return steers
+          }
+          const delivered: TakenSteer[] = []
+          for (const [index, steer] of steers.entries()) {
+            // A stop while the agent was answering ends the turn anyway; the
+            // Steer goes back so the sender gets it back.
+            if (!(await deliver(steer)) || controller.signal.aborted) {
+              await releaseSteers?.(steers.slice(index).map((s) => s.id))
+              break
+            }
+            await consumer.acceptSteers([steer])
+            delivered.push(steer)
+          }
+          return delivered
         },
         reportSteering: async (steers: boolean) => {
           await reportSteering?.(steers)

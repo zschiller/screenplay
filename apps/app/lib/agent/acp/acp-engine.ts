@@ -5,6 +5,7 @@ import type {
   EngineTurn,
   EngineUpdateSink,
   TakeSteers,
+  TakenSteer,
 } from "./engine-seam"
 import {
   blockText,
@@ -121,11 +122,13 @@ export interface ExternalEngineConfig {
  * error, the run lifecycle's watchdog having already recorded the terminal
  * stop; Turn Launch owns what the stop shows.
  *
- * **Steering (#1191).** When the Harness queues prompts (the Claude adapter's
- * `promptQueueing`, read at initialize), a Steer joins the running turn the way
- * a message typed while Claude Code works does in its own terminal: see
- * {@link PromptSteering}. The engine reports whether it does once the session
- * is open; on a Harness that doesn't (codex) the chat queues instead.
+ * **Steering (#1191, #1192).** A Steer joins the running turn when the Harness
+ * says at initialize that it can take one: the Claude adapter queues a further
+ * prompt (`promptQueueing`), the way a message typed while Claude Code works
+ * joins it in its own terminal, and Codex's adapter takes it through its
+ * steering request (`_session/steering`). See {@link PromptSteering}. The
+ * engine reports whether the run steers once the session is open; on a Harness
+ * that advertises neither, the chat queues instead.
  */
 export class ExternalEngine implements Engine {
   readonly id = "external"
@@ -158,6 +161,7 @@ export class ExternalEngine implements Engine {
         inOrder(async () => {
           if (ended) return
           await sink({ kind: "session_update", update })
+          steering?.observe(update)
           // A finished tool call is the step boundary a Steer can join at.
           if (steering && endsToolCall(update)) await steering.take()
         }),
@@ -218,9 +222,11 @@ export class ExternalEngine implements Engine {
       const blocks = resumed
         ? promptBlocks(turn.history)
         : withSystemPrompt(turn.systemPrompt, replayBlocks(turn.history))
-      // Only a Harness that queues prompts can be steered (#1191); the run
-      // records the answer now its session is open (#1250).
-      const steers = Boolean(turn.takeSteers) && session.promptQueueing
+      // Only a Harness that queues prompts (#1191) or takes a steering request
+      // (#1192) can be steered; the run records the answer now its session is
+      // open (#1250).
+      const steers =
+        Boolean(turn.takeSteers) && (session.promptQueueing || session.steering)
       await turn.reportSteering?.(steers)
       let stopReason: StopReason
       if (turn.takeSteers && steers) {
@@ -443,22 +449,35 @@ function lastUserContent(history: AcpMessageRecord[]): ContentBlock[] | null {
 const STOP_GRACE_MS = 2000
 
 /**
- * One steered turn on a Harness that queues prompts (#1191). The first prompt
- * starts the turn; each Steer taken while a prompt is outstanding goes to the
- * agent as a further `session/prompt` on the live session, which the adapter
- * pushes into the running turn. An earlier prompt resolves `end_turn` when the
- * agent hands over to the next (a handoff, not the end of the turn), so the
- * turn is over only once the newest prompt resolves and no Steer is waiting.
+ * One steered turn (#1191, #1192). The first prompt starts the turn, and each
+ * Steer taken while it runs joins it the way the Harness takes a mid-turn
+ * message:
+ *
+ * - **Prompt queueing** (Claude): the Steer goes as a further `session/prompt`
+ *   on the live session, which the adapter pushes into the running turn. An
+ *   earlier prompt resolves `end_turn` when the agent hands over to the next (a
+ *   handoff, not the end of the turn).
+ * - **Steering request** (Codex): the Steer goes through `_session/steering`
+ *   and settles only once the agent answers. `injected` joined the running
+ *   turn. `startedNewTurn` means that turn had ended first and the Steer began
+ *   another, which has no prompt of ours to resolve: the turn waits until the
+ *   adapter reports the thread active and then no longer active. `failed`
+ *   hands the Steer back to the inbox for the next boundary.
  *
  * Steers are taken at step boundaries: when a tool call finishes, and once
- * more when the newest prompt resolves, which starts another prompt when some
- * are waiting. A stop cancels the live session, which resolves every prompt
- * `cancelled`; nothing more is taken, so pending Steers stay in the inbox for
- * Turn Launch to hand back.
+ * more when everything sent so far is over. That last take starts another
+ * prompt when some are waiting (one prompt for all of them on a steering
+ * Harness, which runs one turn at a time), so the turn is over only once the
+ * newest prompt resolves and no Steer is waiting. A stop cancels the live
+ * session, which resolves every prompt `cancelled`; nothing more is taken, so
+ * pending Steers stay in the inbox for Turn Launch to hand back.
  */
 class PromptSteering {
-  private readonly prompts: Promise<StopReason>[] = []
+  /** Everything the turn waits on: our prompts and any turn a Steer started. */
+  private readonly turns: Promise<StopReason>[] = []
   private readonly inOrder = serially()
+  /** Turns a Steer started (`startedNewTurn`), until the thread goes idle. */
+  private startedTurns: StartedTurn[] = []
 
   constructor(
     private readonly session: AcpSession,
@@ -477,19 +496,88 @@ class PromptSteering {
   ): Promise<StopReason> {
     this.send(blocks)
     for (;;) {
-      const sent = this.prompts.length
-      const stopReasons = await Promise.all(this.prompts)
+      const sent = this.turns.length
+      const stopReasons = await Promise.all(this.turns)
       await settleUpdates()
-      await this.take()
-      if (this.prompts.length === sent) return stopReasons.at(-1)!
+      await this.inOrder(() => this.takeAsPrompt())
+      if (this.turns.length === sent) return stopReasons.at(-1)!
     }
   }
 
-  /** Take every waiting Steer and send each as a further prompt, oldest first. */
+  /** Take every waiting Steer at a step boundary of the running turn. */
   take(): Promise<void> {
     return this.inOrder(async () => {
+      if (this.session.promptQueueing) return this.takeAsPrompt()
       if (this.signal.aborted) return
-      for (const steer of await this.takeSteers()) this.send(steer.content)
+      await this.takeSteers((steer) => this.steer(steer))
+    })
+  }
+
+  /**
+   * Follow the thread status Codex's adapter reports (`session_info_update`
+   * with `_meta.codex.threadStatus`), which is how a turn a Steer started is
+   * seen to end.
+   */
+  observe(update: SessionUpdate): void {
+    const status = threadStatus(update)
+    if (!status || this.startedTurns.length === 0) return
+    for (const turn of this.startedTurns) {
+      if (status === "active") turn.active = true
+      else if (turn.active) turn.end("end_turn")
+    }
+    this.startedTurns = this.startedTurns.filter((turn) => !turn.ended)
+  }
+
+  /**
+   * Take every waiting Steer and send it as a prompt: each as its own on a
+   * Harness that queues prompts, all as one on a steering Harness.
+   */
+  private async takeAsPrompt(): Promise<void> {
+    if (this.signal.aborted) return
+    const steers = await this.takeSteers()
+    if (steers.length === 0) return
+    if (this.session.promptQueueing) {
+      for (const steer of steers) this.send(steer.content)
+    } else {
+      this.send(steers.flatMap((steer) => steer.content))
+    }
+  }
+
+  /**
+   * Hand one Steer to the agent's steering request; false when it failed.
+   * Codex reports the started turn `active` in the same instant it answers;
+   * this runs inside a step boundary that holds the update queue, so that
+   * update is handled only after the turn below is registered.
+   */
+  private async steer(steer: TakenSteer): Promise<boolean> {
+    const outcome = await this.session.steer(steer.content)
+    if (outcome === "startedNewTurn") this.turns.push(this.startedTurn())
+    return outcome !== "failed"
+  }
+
+  /**
+   * A turn the agent started from a Steer: over once the thread has been
+   * active and no longer is, or at a stop, which cancels it.
+   */
+  private startedTurn(): Promise<StopReason> {
+    return new Promise((resolve) => {
+      const turn: StartedTurn = {
+        active: false,
+        ended: false,
+        end: (stopReason) => {
+          if (turn.ended) return
+          turn.ended = true
+          this.signal.removeEventListener("abort", onStop)
+          resolve(stopReason)
+        },
+      }
+      const onStop = () => {
+        this.session.cancel()
+        turn.end("cancelled")
+      }
+      if (this.signal.aborted) return onStop()
+      this.signal.addEventListener("abort", onStop, { once: true })
+      this.startedTurns.push(turn)
     })
   }
 
@@ -497,8 +585,30 @@ class PromptSteering {
     const prompt = this.session.prompt(blocks, this.signal)
     // Awaited together in `run`; a rejection before then isn't unhandled.
     prompt.catch(() => {})
-    this.prompts.push(prompt)
+    this.turns.push(prompt)
   }
+}
+
+/** A turn a Steer started, as {@link PromptSteering} follows it. */
+interface StartedTurn {
+  /** Whether the thread has reported active since the turn started. */
+  active: boolean
+  ended: boolean
+  end(stopReason: StopReason): void
+}
+
+/**
+ * The Codex thread status an update reports: `active` while a turn runs, and
+ * another status (`idle`, `systemError`) once it is over. Null for any other
+ * update.
+ */
+function threadStatus(update: SessionUpdate): "active" | "inactive" | null {
+  if (update.sessionUpdate !== "session_info_update") return null
+  const codex = update._meta?.codex
+  if (typeof codex !== "object" || codex === null) return null
+  const status = (codex as { threadStatus?: { type?: unknown } }).threadStatus
+  if (typeof status?.type !== "string") return null
+  return status.type === "active" ? "active" : "inactive"
 }
 
 /** Whether an update reports a tool call finishing, a step boundary. */

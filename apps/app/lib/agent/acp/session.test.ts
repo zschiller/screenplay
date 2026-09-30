@@ -74,6 +74,11 @@ type FakeAgentOpts = {
    * way codex's adapter validates on `set_config_option` itself (#1271).
    */
   rejectUnlistedModels?: boolean
+  /**
+   * Advertise Codex's steering request and answer `_session/steering` with
+   * this (#1192); a thrown error answers with a JSON-RPC error.
+   */
+  steering?: (params: Record<string, unknown>) => Promise<{ outcome: string }>
 }
 
 /**
@@ -113,6 +118,7 @@ class FakeAcpAgent implements Agent {
   cancelCalls = 0
   setSessionModeCalls: string[] = []
   setSessionModelCalls: string[] = []
+  steeringCalls: Record<string, unknown>[] = []
   private cancelled = false
   private cancelWaiters: Array<() => void> = []
 
@@ -130,7 +136,21 @@ class FakeAcpAgent implements Agent {
         loadSession: this.opts.loadSession ?? true,
         mcpCapabilities: this.opts.mcpCapabilities,
       },
+      ...(this.opts.steering
+        ? { _meta: { steering: { supported: true } } }
+        : {}),
     }
+  }
+
+  async extMethod(
+    method: string,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    if (method !== "_session/steering" || !this.opts.steering) {
+      throw RequestError.methodNotFound(method)
+    }
+    this.steeringCalls.push(params)
+    return this.opts.steering(params)
   }
 
   async newSession(params: NewSessionRequest): Promise<{
@@ -894,5 +914,69 @@ describe("AcpSession — /stop and supersession map to ACP cancellation", () => 
 
     expect(stopReason).toBe("cancelled")
     expect(agent.cancelCalls).toBe(1)
+  })
+})
+
+describe("AcpSession — Codex steering request (#1192)", () => {
+  it("reads the steering request from initialize, and nothing else takes it", async () => {
+    const steering = async () => ({ outcome: "injected" })
+    const codex = await AcpSession.open(
+      connectFakeAgent(async () => "end_turn", { steering }).transport,
+      collectingPorts().ports,
+      { cwd: "/work" }
+    )
+    const plain = await AcpSession.open(
+      connectFakeAgent(async () => "end_turn").transport,
+      collectingPorts().ports,
+      { cwd: "/work" }
+    )
+    expect(codex.steering).toBe(true)
+    expect(codex.promptQueueing).toBe(false)
+    expect(plain.steering).toBe(false)
+  })
+
+  it("sends the message with the session id and passes the agent's answer on", async () => {
+    const outcomes = ["injected", "startedNewTurn", "failed"]
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      steering: async () => ({ outcome: outcomes.shift()! }),
+    })
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+    })
+
+    expect(await session.steer([textBlock("skip the tests")])).toBe("injected")
+    expect(await session.steer([textBlock("b")])).toBe("startedNewTurn")
+    expect(await session.steer([textBlock("c")])).toBe("failed")
+    expect(agent.steeringCalls[0]).toEqual({
+      sessionId: SESSION_ID,
+      prompt: [textBlock("skip the tests")],
+    })
+  })
+
+  it("counts an error or an answer it doesn't know as failed", async () => {
+    const answers: Array<() => Promise<{ outcome: string }>> = [
+      async () => {
+        throw RequestError.invalidRequest("session is closing")
+      },
+      async () => ({ outcome: "queued" }),
+    ]
+    const { transport } = connectFakeAgent(async () => "end_turn", {
+      steering: () => answers.shift()!(),
+    })
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+    })
+
+    expect(await session.steer([textBlock("a")])).toBe("failed")
+    expect(await session.steer([textBlock("b")])).toBe("failed")
+  })
+
+  it("cancels whatever the agent is running", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn")
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+    })
+    session.cancel()
+    await vi.waitFor(() => expect(agent.cancelCalls).toBe(1))
   })
 })

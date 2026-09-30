@@ -519,8 +519,8 @@ it at a step boundary, and **taken** from then on, when it becomes an ordinary
 user message where the Engine took it. A Steer the run never took starts the
 next turn, or, when the user stopped the run, goes back to its sender. Whether a
 run takes Steers is a fact about the run, recorded once its Engine's session
-opens: yes on the in-process engine and on a Harness that queues prompts
-(Claude Code), no elsewhere. Until the run says yes, a mid-run message waits in
+opens: yes on the in-process engine, on a Harness that queues prompts (Claude
+Code) and on one that takes a steering request (Codex), no elsewhere. Until the run says yes, a mid-run message waits in
 the client's queue.
 _Shown to users as_: a dimmed user message, "Waiting for the agent", at the end
 of the chat.

@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq, isNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { db as defaultDb } from "@/lib/db"
 import type { DB } from "@/lib/db"
@@ -39,6 +39,12 @@ export interface SteerInbox {
    * before the Engine noticed leaves its Steers pending for the sender.
    */
   take(runId: string): Promise<Steer[]>
+  /**
+   * Make taken Steers pending again (#1192): the Engine took them but the
+   * agent didn't, so they wait for the next take, a stop's hand-back or the
+   * next turn like any other pending Steer.
+   */
+  release(ids: string[]): Promise<void>
   /** Remove every Steer the run never took, oldest first. */
   drain(runId: string): Promise<Steer[]>
   /** Remove one Steer if it is still pending; false when it no longer is. */
@@ -86,6 +92,13 @@ export function createSteerInbox(database: DB = defaultDb): SteerInbox {
         )
         .returning(returning)
       return rows.sort(byCreatedAt).map(toSteer)
+    },
+    async release(ids) {
+      if (ids.length === 0) return
+      await database
+        .update(agentSteer)
+        .set({ takenAt: null })
+        .where(and(inArray(agentSteer.id, ids), isNotNull(agentSteer.takenAt)))
     },
     async drain(runId) {
       const rows = await database

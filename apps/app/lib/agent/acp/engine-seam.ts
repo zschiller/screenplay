@@ -80,8 +80,20 @@ export interface TakenSteer {
   content: ContentBlock[]
 }
 
-/** Take every pending Steer for the run now (empty when there are none). */
-export type TakeSteers = () => Promise<TakenSteer[]>
+/**
+ * Take every pending Steer for the run now (empty when there are none).
+ *
+ * With `deliver`, each Steer is handed to the agent before it settles (#1192):
+ * an Engine whose agent answers whether it took a message (Codex's steering
+ * request) passes it, and only a Steer it delivered settles into the
+ * transcript. The first one it can't deliver goes back to the inbox with every
+ * Steer after it, still pending, so a later step boundary takes them again or
+ * Turn Launch hands them on. The result is what was delivered.
+ */
+export type TakeSteers = (deliver?: DeliverSteer) => Promise<TakenSteer[]>
+
+/** Hand one taken Steer to the agent; false when it didn't take it. */
+export type DeliverSteer = (steer: TakenSteer) => Promise<boolean>
 
 /**
  * The honest Engine seam (ADR 0006), modelled on the sandbox-provider split of

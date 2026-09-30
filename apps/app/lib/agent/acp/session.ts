@@ -292,6 +292,8 @@ export class AcpSession {
   private closer: (() => void) | null = null
   /** Whether the agent advertised prompt queueing (see {@link promptQueueing}). */
   private queuesPrompts = false
+  /** Whether the agent advertised a steering request (see {@link steering}). */
+  private takesSteering = false
   /** Prompts sent and not yet resolved; the turn signal is cleared at zero. */
   private outstanding = 0
 
@@ -334,6 +336,15 @@ export class AcpSession {
   }
 
   /**
+   * Whether the agent takes a mid-turn message through a steering request
+   * (#1192): Codex's adapter advertises `_meta.steering.supported` at
+   * initialize and answers {@link steer}. False for any agent that doesn't.
+   */
+  get steering(): boolean {
+    return this.takesSteering
+  }
+
+  /**
    * Set how {@link close} ends the agent: the factory that spawned it kills
    * its process. A session with none (an in-memory test agent) closes as a
    * no-op.
@@ -369,6 +380,9 @@ export class AcpSession {
       clientCapabilities: {},
     })
     session.queuesPrompts = advertisesPromptQueueing(init.agentCapabilities)
+    session.takesSteering =
+      advertisesSteering(init._meta) ||
+      advertisesSteering(init.agentCapabilities?._meta)
     const mcpServers = supportedMcpServers(
       options.mcpServers ?? [],
       init.agentCapabilities?.mcpCapabilities
@@ -504,6 +518,39 @@ export class AcpSession {
     }
   }
 
+  /**
+   * Send a message into the running turn through the agent's steering request
+   * (`_session/steering`, #1192). The agent answers `injected` when the message
+   * joined the running turn, `startedNewTurn` when that turn had already ended
+   * and the message began another one (which streams like any turn but has no
+   * prompt of ours to resolve), and `failed` when it couldn't take it. An error
+   * or an answer it doesn't recognise counts as `failed`: the caller still
+   * holds the message and can send it another way.
+   */
+  async steer(blocks: ContentBlock[]): Promise<SteerOutcome> {
+    try {
+      const response = await this.conn.request<{ outcome?: unknown }>(
+        STEERING_METHOD,
+        { sessionId: this.id, prompt: blocks }
+      )
+      const outcome = response?.outcome
+      return outcome === "injected" || outcome === "startedNewTurn"
+        ? outcome
+        : "failed"
+    } catch {
+      return "failed"
+    }
+  }
+
+  /**
+   * Cancel whatever the agent is running now (ACP `session/cancel`). A prompt
+   * of ours is cancelled through its own signal; this is for a turn the agent
+   * started itself, such as one a Steer began (#1192).
+   */
+  cancel(): void {
+    void this.conn.cancel({ sessionId: this.id }).catch(() => {})
+  }
+
   /** Send one turn as an ACP `prompt`, wiring `/stop` cancellation for it. */
   private async sendTurn(
     blocks: ContentBlock[],
@@ -588,6 +635,29 @@ export class AcpSession {
       ? { outcome: "selected", optionId: option.optionId }
       : { outcome: "cancelled" }
   }
+}
+
+/** The agent's steering request (Codex's adapter, #1192). */
+const STEERING_METHOD = "_session/steering"
+
+/** How the agent answered a {@link AcpSession.steer}. */
+export type SteerOutcome = "injected" | "startedNewTurn" | "failed"
+
+/**
+ * Whether initialize advertised the steering request: `_meta.steering.supported`
+ * (`@agentclientprotocol/codex-acp` 2.x puts it on the response, beside the
+ * capabilities; either place counts). Like prompt queueing
+ * it is the adapter's own `_meta`, not a standard ACP capability.
+ */
+function advertisesSteering(
+  meta: { [key: string]: unknown } | null | undefined
+): boolean {
+  const steering = meta?.steering
+  return (
+    typeof steering === "object" &&
+    steering !== null &&
+    (steering as { supported?: unknown }).supported === true
+  )
 }
 
 /**

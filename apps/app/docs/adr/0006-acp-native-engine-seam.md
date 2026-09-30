@@ -284,6 +284,22 @@ the engine reports `done` once the newest prompt resolves with no Steer
 waiting. It also hands `session/update`s to the sink one at a time, since the
 connection doesn't wait for one before delivering the next.
 
+Codex's adapter (`@agentclientprotocol/codex-acp`) steers through a second
+mechanism (#1192): it advertises `_meta.steering.supported` at initialize and
+takes a mid-turn message through its own `_session/steering` request, backed
+by Codex's native `turn/steer`, instead of a further prompt. The engine prefers
+prompt queueing when a Harness advertises it and uses the steering request
+otherwise. There a Steer settles only once the adapter answers, so
+`takeSteers` takes an optional `deliver` callback: a Steer the agent took
+(`injected`) settles, and the first it couldn't (`failed`) goes back to the
+inbox pending, with every Steer after it, for the next step boundary or Turn
+Launch. `startedNewTurn` means the running turn ended before the message
+arrived and the adapter began another from it, which no prompt of ours
+resolves; the engine waits for the thread status the adapter reports
+(`session_info_update` with `_meta.codex.threadStatus`) to go active and then
+not, and cancels it on a stop. Steers still waiting when the turn is over go as
+one new `session/prompt`, since Codex runs one turn at a time.
+
 ## Consequences
 
 - The seam, the consumer, the AI-SDK ⟷ ACP adapter, the in-process engine, and

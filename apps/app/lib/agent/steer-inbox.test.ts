@@ -66,6 +66,21 @@ describe("Steer inbox", () => {
     expect(await inbox.drain("run_1")).toEqual([])
   })
 
+  it("makes a released Steer pending again, in its place", async () => {
+    const { inbox } = await seedRun()
+    await add(inbox, "first")
+    await add(inbox, "second")
+    const taken = await inbox.take("run_1")
+    await inbox.release(taken.map((s) => s.id))
+
+    expect((await inbox.take("run_1")).map((s) => s.message)).toEqual([
+      "first",
+      "second",
+    ])
+    await inbox.release([taken[1]!.id])
+    expect(await inbox.drain("run_1")).toMatchObject([{ message: "second" }])
+  })
+
   it("gives a Steer back once, and not after it was taken", async () => {
     const { inbox } = await seedRun()
     const kept = await add(inbox, "kept")
