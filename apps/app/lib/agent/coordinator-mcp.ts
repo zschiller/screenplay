@@ -34,13 +34,16 @@ export const COORDINATOR_ALLOWED_TOOLS = [
 /**
  * Which chat a token acts for. A Coordinator chat gets the Coordinator tools;
  * a Workspace chat (one with a `sandboxName`) gets the tools for its own dev
- * server, which a harness has no other way to see (`dev-server-tools.ts`).
+ * server, which a harness has no other way to see (`dev-server-tools.ts`); a
+ * document chat (one with a `markdownLayerId`) gets its document chat tools.
  */
 export interface CoordinatorBinding {
   roomId: string
   chatId: string
   /** The Workspace's Sandbox, for a Workspace chat. */
   sandboxName?: string
+  /** The document, for a document chat. */
+  markdownLayerId?: string
 }
 
 /**
@@ -65,7 +68,8 @@ export function coordinatorToken(binding: CoordinatorBinding): string {
   if (
     existing &&
     bound?.roomId === binding.roomId &&
-    bound.sandboxName === binding.sandboxName
+    bound.sandboxName === binding.sandboxName &&
+    bound.markdownLayerId === binding.markdownLayerId
   ) {
     return existing
   }
@@ -132,6 +136,21 @@ export function isAllowedMcpOrigin(
     origin === `http://127.0.0.1:${port}` ||
     origin === `http://localhost:${port}`
   )
+}
+
+/**
+ * The working folder a Room's document chats share: app-owned and not a git
+ * repo, like the Coordinator's, so a harness keys their sessions by a stable
+ * folder and never mistakes one for a project.
+ */
+export async function ensureDocumentsFolder(
+  roomId: string,
+  env: Record<string, string | undefined> = process.env
+): Promise<string> {
+  const safe = roomId.replace(/[^A-Za-z0-9_-]/g, "_")
+  const folder = path.join(coordinatorRoot(env), "documents", safe)
+  await mkdir(folder, { recursive: true })
+  return folder
 }
 
 export const COORDINATOR_ROOT_ENV_VAR = "SCREENPLAY_COORDINATOR_ROOT"

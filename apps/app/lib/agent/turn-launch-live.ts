@@ -238,8 +238,9 @@ export const liveTurnStopDeps: TurnStopDeps = {
 }
 
 /**
- * A chat on a Markdown Layer: no sandbox, and its kind-specific bits (system
- * prompt, tools, message decoration) come from the layer's `ChatTargetSpec`.
+ * A chat on a Markdown Layer: no sandbox of its own (it reads the Workspaces'
+ * code), and its kind-specific bits (system prompt, tools, message
+ * decoration) come from the layer's `ChatTargetSpec`.
  */
 export function markdownLayerTurn(input: {
   room: RoomDoc
@@ -257,7 +258,9 @@ export function markdownLayerTurn(input: {
         markdownLayerChatTarget as unknown as Parameters<
           typeof prepareChatTarget
         >[1],
-        { markdownLayerId: input.markdownLayerId } as unknown as never
+        { markdownLayerId: input.markdownLayerId } as unknown as never,
+        undefined,
+        { toolNaming: toolNamingForTurn(input.model) }
       )
       if (!prepared) return null
 

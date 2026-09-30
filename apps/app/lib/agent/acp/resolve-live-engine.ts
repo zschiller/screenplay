@@ -23,6 +23,7 @@ import {
   coordinatorMcpServer,
   coordinatorSessionMeta,
   ensureCoordinatorFolder,
+  ensureDocumentsFolder,
 } from "@/lib/agent/coordinator-mcp"
 import { engineChoiceFromEnv, selectEngine } from "./engine-select"
 import type { ExternalEngineConfig } from "./acp-engine"
@@ -107,6 +108,8 @@ export function toolNamingForTurn(
 export async function resolveLiveEngine(
   opts: {
     sandboxName?: string
+    /** The document a document chat's turn targets. */
+    markdownLayerId?: string
     chatId?: string
     model?: string
     /** The turn's Room, which a Workspace chat's MCP token is bound to. */
@@ -120,13 +123,14 @@ export async function resolveLiveEngine(
 
   // The agent runs in the Branch's worktree — the same absolute path the
   // terminal transport and tools resolve (`SandboxInstance.worktreePath`). The
-  // Coordinator runs in its Room's own folder with its tools served over MCP.
-  // A layer-targeted chat has no sandbox, so the engine falls back to "/".
-  const coordinator = await coordinatorSession(opts.chatId)
-  const mcp = coordinator ?? workspaceSession(opts)
+  // Coordinator and a document chat run in an app-owned folder with their
+  // tools served over MCP.
+  const folderSession =
+    (await coordinatorSession(opts.chatId)) ?? (await documentSession(opts))
+  const mcp = folderSession ?? workspaceSession(opts)
   const cwd = opts.sandboxName
     ? (await sandboxProvider.get({ name: opts.sandboxName })).worktreePath
-    : coordinator?.cwd
+    : folderSession?.cwd
 
   // Parse the stored id once into `{ key, modelId? }`. A non-harness id (a
   // `provider:` model, or none) decodes to null → the env-default harness and no
@@ -203,6 +207,32 @@ async function coordinatorSession(chatId: string | undefined): Promise<
   return {
     cwd: await ensureCoordinatorFolder(roomId),
     mcpServers: [coordinatorMcpServer({ roomId, chatId })],
+    sessionMeta: coordinatorSessionMeta(),
+  }
+}
+
+/**
+ * A document chat's harness session setup: its Room's documents folder, and
+ * its tools (the document's edits, document reads, and reads of the
+ * Workspaces' code) as the same MCP server, bound to its document. Without
+ * them a harness has nothing to edit the document with. Local build only,
+ * like the route.
+ */
+async function documentSession(opts: {
+  markdownLayerId?: string
+  chatId?: string
+  roomId?: string
+}): Promise<
+  | (Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> & {
+      cwd: string
+    })
+  | null
+> {
+  const { markdownLayerId, chatId, roomId } = opts
+  if (!markdownLayerId || !chatId || !roomId || !isLocalBuild) return null
+  return {
+    cwd: await ensureDocumentsFolder(roomId),
+    mcpServers: [coordinatorMcpServer({ roomId, chatId, markdownLayerId })],
     sessionMeta: coordinatorSessionMeta(),
   }
 }

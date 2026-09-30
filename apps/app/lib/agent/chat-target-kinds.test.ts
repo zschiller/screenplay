@@ -218,6 +218,28 @@ describe("canvas memory in every kind's system prompt", () => {
     expect(prompt).toContain("write_memory")
   })
 
+  it("gives a document chat the canvas's Workspaces to read code from", async () => {
+    const room = roomWithMemory()
+    const ctx = await markdownLayerChatTarget.loadContext(room, {
+      markdownLayerId: "doc-1",
+    })
+    const prompt = markdownLayerChatTarget.buildSystemPrompt(ctx!, {})
+    const tools = markdownLayerChatTarget.buildTools(room, {
+      markdownLayerId: "doc-1",
+    })
+
+    expect(prompt).toContain("- [ws-1]")
+    expect(Object.keys(tools)).toEqual(
+      expect.arrayContaining([
+        "read_code_file",
+        "search_code",
+        "find_code_files",
+        "replace_document_body",
+        "read_document",
+      ])
+    )
+  })
+
   it("gives a document chat no memory write tool", () => {
     const tools = markdownLayerChatTarget.buildTools(roomWithMemory(), {
       markdownLayerId: "doc-1",

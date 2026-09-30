@@ -201,6 +201,9 @@ export function toolKindFor(toolName: string): ToolKind {
     case "read_workspace_chat":
     case "read_workspace_diff":
     case "read_workspace_file":
+    case "read_code_file":
+    case "search_code":
+    case "find_code_files":
     case "view_frame":
     case "read_skill":
     case "list_files":
