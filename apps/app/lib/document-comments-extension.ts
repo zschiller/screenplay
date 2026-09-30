@@ -9,6 +9,9 @@ export interface DocumentCommentRange {
   from: number
   to: number
   active?: boolean
+  /** A passage a new comment is being written on: painted like the active
+   *  thread, but not clickable since no thread exists yet. */
+  pending?: boolean
 }
 
 interface DocumentCommentsState {
@@ -43,12 +46,18 @@ function buildDeco(doc: PMNode, ranges: DocumentCommentRange[]): DecorationSet {
     const to = Math.max(0, Math.min(r.to, size))
     if (from >= to) continue
     decorations.push(
-      Decoration.inline(from, to, {
-        class:
-          "doc-comment-highlight" +
-          (r.active ? " doc-comment-highlight-active" : ""),
-        "data-comment-thread": r.id,
-      })
+      Decoration.inline(
+        from,
+        to,
+        r.pending
+          ? { class: "doc-comment-highlight doc-comment-highlight-active" }
+          : {
+              class:
+                "doc-comment-highlight" +
+                (r.active ? " doc-comment-highlight-active" : ""),
+              "data-comment-thread": r.id,
+            }
+      )
     )
   }
   return DecorationSet.create(doc, decorations)

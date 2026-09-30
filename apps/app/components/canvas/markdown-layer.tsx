@@ -12,6 +12,7 @@ import { createPortal } from "react-dom"
 import {
   type Icon,
   CaretDownIcon,
+  ChatIcon,
   CheckIcon,
   CodeBlockIcon,
   CodeIcon,
@@ -67,6 +68,12 @@ import {
 } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import type { MarkdownLayerData } from "@/lib/types"
+import { isLocalBuild } from "@/lib/local-mode"
+import {
+  encodeAnchor,
+  getLineNumbers,
+  getQuotedText,
+} from "@/lib/document-comments"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
 
 export interface InlineCommentDraft {
@@ -296,7 +303,7 @@ interface MarkdownLayerProps {
   /** Notify the canvas when this doc's editor instance is created/destroyed
    *  so threads anchored inside the doc can find their highlight target. */
   onEditorReady?: (id: string, editor: Editor | null) => void
-  /** User clicked the inline "Comment" button on a non-empty selection. */
+  /** User clicked Comment in the selection toolbar on a non-empty selection. */
   onStartInlineComment?: (draft: InlineCommentDraft) => void
   /** User clicked an existing inline-comment highlight inside the doc. */
   onSelectInlineThread?: (threadId: string) => void
@@ -418,6 +425,7 @@ export function MarkdownLayer({
   onStartEdit,
   onStopEdit,
   onEditorReady,
+  onStartInlineComment,
   onSelectInlineThread,
 }: MarkdownLayerProps) {
   const { awareness } = useYjs()
@@ -734,6 +742,33 @@ export function MarkdownLayer({
         : null,
   })
 
+  // Comment in the selection toolbar: hand the canvas the selection's anchors,
+  // quote and line numbers, and a composer position at the doc's right edge
+  // level with the top of the selection (where the thread's pin will sit).
+  // The canvas holds the passage highlighted while the composer is open.
+  const startInlineComment = () => {
+    if (!editor) return
+    const { from, to, empty } = editor.state.selection
+    if (empty) return
+    const anchorStart = encodeAnchor(editor, from)
+    const anchorEnd = encodeAnchor(editor, to)
+    if (!anchorStart || !anchorEnd) return
+    const rect = rootRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const { lineFrom, lineTo } = getLineNumbers(editor.state.doc, from, to)
+    onStartInlineComment?.({
+      documentId: layer.id,
+      anchorStart,
+      anchorEnd,
+      quotedText: getQuotedText(editor.state.doc, from, to),
+      lineFrom,
+      lineTo,
+      canvasX: layer.width,
+      canvasY: (editor.view.coordsAtPos(from).top - rect.top) / zoom,
+    })
+    setBubbleAnchor(null)
+  }
+
   // Keep the portaled bubble anchored to the start of the selection.
   useCanvasAnchoredPortal({
     enabled: !!bubbleAnchor && editing && !!bubblePortalTarget,
@@ -981,6 +1016,23 @@ export function MarkdownLayer({
                   >
                     <ListNumbersIcon />
                   </FormatButton>
+                  {!isLocalBuild && onStartInlineComment && (
+                    <>
+                      <FloatingToolbarSeparator />
+                      <FloatingToolbarButton
+                        label="Comment"
+                        variant="ghost"
+                        tabIndex={-1}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          startInlineComment()
+                        }}
+                      >
+                        <ChatIcon />
+                      </FloatingToolbarButton>
+                    </>
+                  )}
                 </FloatingToolbar>
               </div>,
               bubblePortalTarget
