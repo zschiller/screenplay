@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  chatTargetOf,
   pendingProbes,
   resolveChatPanelTarget,
   resolvePendingReady,
@@ -39,6 +40,24 @@ function chat(
 function doc(id: string): MarkdownLayerData {
   return { id, width: 200, height: 120, title: "Doc" }
 }
+
+describe("chatTargetOf", () => {
+  it("maps each panel target to the chat's target", () => {
+    expect(chatTargetOf({ kind: "agent", agent: agent("a1") })).toEqual({
+      kind: "agent",
+      branchId: "a1",
+      sandboxName: "sb-a1",
+    })
+    expect(
+      chatTargetOf({
+        kind: "layer",
+        layerKind: "markdown-layer",
+        layer: { id: "d1" },
+      })
+    ).toEqual({ kind: "document", layerId: "d1" })
+    expect(chatTargetOf({ kind: "room" })).toEqual({ kind: "room" })
+  })
+})
 
 describe("resolveChatPanelTarget", () => {
   it("packs a selected agent with a sandbox into an agent target", () => {
@@ -113,11 +132,7 @@ describe("restoreAgentChatSelection", () => {
 
 describe("pendingProbes", () => {
   it("probes only pending agents whose sandbox exists", () => {
-    const agents = [
-      agent("a1"),
-      agent("a2", { sandboxName: "" }),
-      agent("a3"),
-    ]
+    const agents = [agent("a1"), agent("a2", { sandboxName: "" }), agent("a3")]
     const probes = pendingProbes(["a1", "a2", "a3"], agents)
     expect(probes).toEqual([
       { agentId: "a1", sandboxName: "sb-a1" },

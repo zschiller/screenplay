@@ -1,13 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef } from "react"
-import { SidebarSimpleIcon } from "@workspace/ui/components/icons"
-
-import { IconButton } from "@workspace/ui/components/icon-button"
-
 import { AgentChat } from "@/components/agent/agent-chat"
 import { WorkspaceTasksProvider } from "@/components/agent/workspace-task-row"
-import { WorkspacesMenuButton } from "@/components/agent/workspaces-menu"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
 import { coordinatorStart } from "@/lib/fresh-workspace"
 import {
@@ -16,31 +11,29 @@ import {
   usePlans,
   useRepos,
 } from "@/lib/yjs/react"
-import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
+import { roomChatId } from "@/lib/chat/room-chat"
 import { ensureRoomChatAction } from "@/lib/room-chat-actions"
 import type { ChatSessionData } from "@/lib/types"
 
 /**
- * The chat panel's home (#893): the Room's one Coordinator chat, shown when no
- * Workspace or document is selected. One chat per canvas, so there is no tab
- * strip; the header is the collapse button, the chat's name and the Workspaces
- * button (#1152).
+ * The body of the chat panel's home (#893): the Room's one Coordinator chat,
+ * shown when no Workspace or document is selected. `ChatPanel` draws it under
+ * its shared header for the Room target; one chat per canvas, so there is no
+ * tab strip.
  *
  * The chat's record is created on the server the first time any member's panel
  * shows it (its id is derived from the Room, so concurrent creates agree).
  */
-export function RoomChatPanel({
+export function CoordinatorChat({
   roomId,
   chatSession,
   onModelChange,
-  onCollapse,
   onOpenWorkspace,
 }: {
   roomId: string
   /** The Room's Coordinator chat record, or undefined until it's created. */
   chatSession: ChatSessionData | undefined
   onModelChange: (chatId: string, model: string) => void
-  onCollapse: () => void
   /** Open a Workspace from its task row, on the chat the message went to. */
   onOpenWorkspace: (task: WorkspaceTaskRef) => void
 }) {
@@ -72,37 +65,17 @@ export function RoomChatPanel({
   }, [chatSession, roomId])
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      {/* `box-content` keeps the border outside the 48px row, so the title sits
-          where the Workspace header's Coordinator crumb does and doesn't
-          jump half a pixel when you switch between them. */}
-      <div className="box-content flex h-12 items-center border-b border-border bg-background px-3">
-        <IconButton
-          label="Collapse chat"
-          shortcut="⌘I"
-          tooltipSide="left"
-          className="mr-1.5 text-muted-foreground"
-          onClick={onCollapse}
-        >
-          <SidebarSimpleIcon mirrored />
-        </IconButton>
-        <h2 className="text-sm font-medium">{ROOM_CHAT_LABEL}</h2>
-        <div className="ml-auto flex items-center">
-          <WorkspacesMenuButton />
-        </div>
-      </div>
-      <div className="min-h-0 flex-1">
-        <WorkspaceTasksProvider value={workspaceTasks}>
-          <AgentChat
-            chatId={chatId}
-            roomId={roomId}
-            target={{ kind: "room" }}
-            roomStart={roomStart}
-            model={chatSession?.model}
-            onModelChange={(model) => onModelChange(chatId, model)}
-          />
-        </WorkspaceTasksProvider>
-      </div>
+    <div className="min-h-0 flex-1">
+      <WorkspaceTasksProvider value={workspaceTasks}>
+        <AgentChat
+          chatId={chatId}
+          roomId={roomId}
+          target={{ kind: "room" }}
+          roomStart={roomStart}
+          model={chatSession?.model}
+          onModelChange={(model) => onModelChange(chatId, model)}
+        />
+      </WorkspaceTasksProvider>
     </div>
   )
 }

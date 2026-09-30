@@ -17,7 +17,6 @@ import {
   GitPullRequestIcon,
   ListDashesIcon,
   PlusIcon,
-  SidebarSimpleIcon,
   TerminalWindowIcon,
   XIcon,
 } from "@workspace/ui/components/icons"
@@ -62,6 +61,9 @@ import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
 import { useTerminalCloseGuard } from "./use-terminal-close-guard"
 import { ChatHistoryMenu } from "./chat-history-menu"
+import { ChatPanelHeader } from "./chat-panel-header"
+import { CoordinatorChat } from "./coordinator-chat"
+import { WorkspacesMenuButton } from "./workspaces-menu"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { ChatSessionData, TabKind, TerminalTabData } from "@/lib/types"
@@ -83,8 +85,12 @@ import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
 import { prStateColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
-import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
+import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
+import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
+
+/** A target that has a tab strip: a Workspace's chats or a document's. */
+type TabbedTarget = Exclude<ChatPanelTarget, { kind: "room" }>
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
 
@@ -449,7 +455,9 @@ interface ChatPanelProps {
    * succeeds, rather than on the next 60s poll.
    */
   onPrCreated?: (branchId: string, pr: BranchPrInfo) => void
-  onCollapse?: () => void
+  onCollapse: () => void
+  /** Open a Workspace from a Coordinator task row (Room target only). */
+  onOpenWorkspace?: (task: WorkspaceTaskRef) => void
   onLogsReady?: () => void
   /**
    * Ask the panel to show a Workspace's sandbox logs (a frame's "Open logs",
@@ -459,7 +467,42 @@ interface ChatPanelProps {
   logsRequest?: { agentId: string; nonce: number } | null
 }
 
-export function ChatPanel({
+/**
+ * The right chat panel for one target. A Workspace or document gets its tab
+ * strip of chats (and, for a Workspace, terminals and logs); the Room gets its
+ * one Coordinator chat (#893). Both sit under the same {@link ChatPanelHeader}.
+ */
+export function ChatPanel(props: ChatPanelProps) {
+  const { target } = props
+  if (target.kind === "room") {
+    const chatId = roomChatId(props.roomId)
+    return (
+      <div className="flex h-full flex-col bg-background">
+        {/* `box-content` keeps the border outside the 48px row, so the title
+            sits where the Workspace header's Coordinator crumb does and
+            doesn't jump half a pixel when you switch between them. */}
+        <ChatPanelHeader
+          onCollapse={props.onCollapse}
+          className="box-content border-b border-border"
+        >
+          <h2 className="text-sm font-medium">{ROOM_CHAT_LABEL}</h2>
+          <div className="ml-auto flex items-center">
+            <WorkspacesMenuButton />
+          </div>
+        </ChatPanelHeader>
+        <CoordinatorChat
+          roomId={props.roomId}
+          chatSession={props.chatSessions.find((c) => c.id === chatId)}
+          onModelChange={props.onModelChange}
+          onOpenWorkspace={props.onOpenWorkspace ?? (() => {})}
+        />
+      </div>
+    )
+  }
+  return <TabbedChatPanel {...props} target={target} />
+}
+
+function TabbedChatPanel({
   target,
   chatSessions,
   terminalTabs,
@@ -481,7 +524,7 @@ export function ChatPanel({
   onCollapse,
   onLogsReady,
   logsRequest,
-}: ChatPanelProps) {
+}: ChatPanelProps & { target: TabbedTarget }) {
   const isAgentTarget = target.kind === "agent"
   const agent = target.kind === "agent" ? target.agent : null
   // Layer-kind targets (currently just markdownLayers) are routed through the
@@ -931,18 +974,7 @@ export function ChatPanel({
       onValueChange={handleTabChange}
       className="flex h-full flex-col gap-0"
     >
-      <div className="flex h-12 items-center bg-background px-3">
-        {onCollapse && (
-          <IconButton
-            label="Collapse chat"
-            shortcut="⌘I"
-            tooltipSide="left"
-            className="mr-1.5 text-muted-foreground"
-            onClick={onCollapse}
-          >
-            <SidebarSimpleIcon mirrored />
-          </IconButton>
-        )}
+      <ChatPanelHeader onCollapse={onCollapse}>
         {onShowRoomChat && (
           <>
             <button
@@ -1012,7 +1044,7 @@ export function ChatPanel({
               </Button>
             ))}
         </div>
-      </div>
+      </ChatPanelHeader>
       <div
         ref={tabBarRef}
         className="flex border-b border-border bg-background"
@@ -1371,7 +1403,7 @@ export function ChatPanel({
  * `LayerKindDescriptor` label, so adding a new chat-targetable kind doesn't
  * touch this file.
  */
-function TargetPill({ target }: { target: ChatPanelTarget }) {
+function TargetPill({ target }: { target: TabbedTarget }) {
   const stateOf = useWorkspaceStates()
   if (target.kind === "agent") {
     // State icon and plain name (#974); no PR badge, since the header keeps
