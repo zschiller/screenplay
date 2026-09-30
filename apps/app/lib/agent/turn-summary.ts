@@ -3,6 +3,7 @@ import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
 import { parseUserMessage } from "@/lib/agent/message-markers"
 import { bareToolName } from "@/lib/agent/tool-name"
+import { isNoReply } from "@/lib/agent/coordinator-wake"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 
@@ -131,18 +132,24 @@ export function foldFinishedTurns(
 /**
  * The reply a wake turn shows: its last assistant message once finished;
  * while it runs, only a message still being written (the last entry), so the
- * narration between its reads never flashes up.
+ * narration between its reads never flashes up. A stock no-reply line
+ * ("No response requested.", #1224) is no reply; the server drops those, and
+ * this hides any a chat stored before it did.
  */
 function wakeReplyIndex(turn: GroupedMessage[], live: boolean): number {
+  let reply = -1
   if (live) {
     const last = turn.length - 1
-    return turn[last]?.message.role === "assistant" ? last : -1
+    if (turn[last]?.message.role === "assistant") reply = last
+  } else {
+    turn.forEach((e, i) => {
+      if (e.message.role === "assistant") reply = i
+    })
   }
-  let reply = -1
-  turn.forEach((e, i) => {
-    if (e.message.role === "assistant") reply = i
-  })
-  return reply
+  const message = turn[reply]?.message
+  return message?.role === "assistant" && isNoReply(message.content)
+    ? -1
+    : reply
 }
 
 type Category =

@@ -76,6 +76,31 @@ export function wakeMessage(input: {
 }
 
 /**
+ * The stock lines a harness writes when a wake needs no answer (#1224):
+ * "No response requested.", "No reply needed.", "(nothing to add)" and close
+ * variants. Claude Code sometimes writes one instead of ending its turn
+ * silently; a wake turn drops it rather than showing it.
+ */
+const NO_REPLY_RE =
+  /^(?:no (?:response|reply|answer|message|update|action)s?(?: (?:is |was )?(?:requested|needed|necessary|required))?|nothing (?:to (?:say|add|report|do)|new)(?: here)?)$/
+
+/**
+ * The longest reply that can still be a no-reply line, so a wake turn only
+ * holds back that much of a reply before it can tell.
+ */
+export const NO_REPLY_MAX_LENGTH = 48
+
+/** Whether a wake turn's reply says nothing: empty, or a stock no-reply line. */
+export function isNoReply(text: string): boolean {
+  const core = text
+    .trim()
+    .toLowerCase()
+    .replace(/^[\s("'*_`]+|[\s)"'*_`.!]+$/g, "")
+    .replace(/\s+/g, " ")
+  return core === "" || NO_REPLY_RE.test(core)
+}
+
+/**
  * Runs tasks one at a time per key, in the order they were queued; different
  * keys run side by side. A failed task doesn't stop the ones behind it.
  */

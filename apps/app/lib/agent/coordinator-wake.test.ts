@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { createKeyedQueue, isWakeStatus, wakeMessage } from "./coordinator-wake"
+import {
+  createKeyedQueue,
+  isNoReply,
+  isWakeStatus,
+  wakeMessage,
+} from "./coordinator-wake"
 import { parseUserMessage } from "./message-markers"
 
 describe("Coordinator wakes (#897)", () => {
@@ -40,6 +45,31 @@ describe("Coordinator wakes (#897)", () => {
       "Tell the user that [Checkout form](workspace:ws-1) is waiting for them to approve its plan"
     )
     expect(message).toContain("You can't approve plans; the user does.")
+  })
+
+  it("recognizes the stock lines a harness writes when a wake needs no answer (#1224)", () => {
+    for (const line of [
+      "No response requested.",
+      "No response needed.",
+      "no reply needed",
+      "  No response requested.\n",
+      "(No response requested)",
+      "*No response required.*",
+      "Nothing to add.",
+      "No action needed.",
+      "",
+      "   ",
+    ]) {
+      expect(isNoReply(line), JSON.stringify(line)).toBe(true)
+    }
+    for (const reply of [
+      "No.",
+      "Checkout is ready.",
+      "No response from the Workspace yet; it may be stuck.",
+      "No tests failed.",
+    ]) {
+      expect(isNoReply(reply), reply).toBe(false)
+    }
   })
 
   it("runs one Room's wakes one at a time, in order, and other Rooms' alongside", async () => {

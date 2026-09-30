@@ -95,7 +95,9 @@ function recordingDeps(
       log.push(`settle comments ${runId}`)
     },
     async driveTurn(turn) {
-      log.push(`drive ${turn.runId} planMode=${turn.planMode ?? false}`)
+      log.push(
+        `drive ${turn.runId} planMode=${turn.planMode ?? false}${turn.wake ? " wake" : ""}`
+      )
     },
     async loadRunStatus() {
       return opts.runStatus ?? "completed"
@@ -242,6 +244,24 @@ describe("Turn Launch", () => {
       "response sent",
       "drive run_1 planMode=false",
     ])
+  })
+
+  it("marks the engine turn as a wake when its message is a Coordinator wake (#1224)", async () => {
+    const wake = recordingDeps()
+    await launchTurn(
+      wake.deps,
+      request,
+      target(wake.log, {
+        userText: "[workspace update: ws-1] Workspace finished.",
+      })
+    )
+    await wake.flush()
+    expect(wake.log).toContain("drive run_1 planMode=false wake")
+
+    const typed = recordingDeps()
+    await launchTurn(typed.deps, request, target(typed.log))
+    await typed.flush()
+    expect(typed.log).toContain("drive run_1 planMode=false")
   })
 
   it("a missing target stops before any write", async () => {

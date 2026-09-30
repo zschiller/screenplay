@@ -1,4 +1,5 @@
 import type { RunStatus } from "../run-state"
+import { isNoReply, NO_REPLY_MAX_LENGTH } from "../coordinator-wake"
 import { agentChunksToRecord, thoughtChunksToRecord } from "./adapter"
 import {
   applyToolCallUpdate,
@@ -112,7 +113,15 @@ export class AcpUpdateConsumer {
    * block is ever pending: switching streams flushes the previous one first, so
    * `role` is unambiguous. `null` between blocks.
    */
-  private pending: { role: "agent" | "thought"; texts: string[] } | null = null
+  private pending: {
+    role: "agent" | "thought"
+    texts: string[]
+    /**
+     * On a wake turn, the reply chunks not broadcast yet: held while the
+     * reply could still be a no-reply line (#1224). `null` once released.
+     */
+    held: SessionUpdate[] | null
+  } | null = null
   /**
    * In-flight tool calls, keyed by `toolCallId`, so a `tool_call_update` merges
    * onto the record we already hold rather than starting a new one — the same
@@ -122,7 +131,15 @@ export class AcpUpdateConsumer {
   /** Guards against a double-close (e.g. `done` after an `error`). */
   private closed = false
 
-  constructor(private readonly ports: AcpConsumerPorts) {}
+  /**
+   * `wake`: the turn answers a Coordinator wake (#897), so a reply that is
+   * only a stock no-reply line ("No response requested.") is neither
+   * broadcast nor stored (#1224). Other turns show every reply.
+   */
+  constructor(
+    private readonly ports: AcpConsumerPorts,
+    private readonly options: { wake?: boolean } = {}
+  ) {}
 
   async handle(update: EngineUpdate): Promise<void> {
     switch (update.kind) {
@@ -166,6 +183,11 @@ export class AcpUpdateConsumer {
     // boundary (see flushPending).
     if (isUpdate(update, "agent_message_chunk")) {
       await this.pushText("agent", blockText(update.content))
+      if (this.pending?.held) {
+        this.pending.held.push(update)
+        await this.releaseHeldPastNoReply()
+        return
+      }
     } else if (isUpdate(update, "agent_thought_chunk")) {
       await this.pushText("thought", blockText(update.content))
     } else if (
@@ -198,8 +220,24 @@ export class AcpUpdateConsumer {
     text: string
   ): Promise<void> {
     if (this.pending && this.pending.role !== role) await this.flushPending()
-    if (!this.pending) this.pending = { role, texts: [] }
+    if (!this.pending) {
+      const held = role === "agent" && this.options.wake ? [] : null
+      this.pending = { role, texts: [], held }
+    }
     this.pending.texts.push(text)
+  }
+
+  /**
+   * Broadcast a wake turn's held reply chunks once the reply has grown too
+   * long to be a no-reply line; after that its chunks stream as usual.
+   */
+  private async releaseHeldPastNoReply(): Promise<void> {
+    const pending = this.pending
+    if (!pending?.held) return
+    if (pending.texts.join("").trim().length <= NO_REPLY_MAX_LENGTH) return
+    const held = pending.held
+    pending.held = null
+    for (const chunk of held) await this.ports.broadcastUpdate(chunk)
   }
 
   /**
@@ -211,6 +249,12 @@ export class AcpUpdateConsumer {
     const pending = this.pending
     if (!pending) return
     this.pending = null
+    if (pending.held) {
+      // A wake turn's short reply: a no-reply line says nothing, so it
+      // never shows; anything else goes out now, before its record.
+      if (isNoReply(pending.texts.join(""))) return
+      for (const chunk of pending.held) await this.ports.broadcastUpdate(chunk)
+    }
     const record =
       pending.role === "agent"
         ? agentChunksToRecord(pending.texts)

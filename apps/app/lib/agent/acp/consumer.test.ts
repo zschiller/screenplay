@@ -37,7 +37,10 @@ import {
  * ACP-native records, and the recorded run status — never on how they were
  * produced. Mirrors `engine.test.ts`'s `fakeRuns`.
  */
-function harness(seedStatus: RunStatus = "running") {
+function harness(
+  seedStatus: RunStatus = "running",
+  options: { wake?: boolean } = {}
+) {
   const broadcasts: SessionUpdate[] = []
   const permissionRequests: RequestPermissionRequest[] = []
   const errors: string[] = []
@@ -109,7 +112,7 @@ function harness(seedStatus: RunStatus = "running") {
   }
 
   return {
-    consumer: new AcpUpdateConsumer(ports),
+    consumer: new AcpUpdateConsumer(ports, options),
     broadcasts,
     permissionRequests,
     errors,
@@ -347,6 +350,108 @@ describe("AcpUpdateConsumer — text path", () => {
 // concatenated, separator-less block. These pin that each contiguous run is
 // flushed at its boundary, in arrival order — the interleaving the live stream
 // showed and the durable log must reproduce.
+describe("AcpUpdateConsumer — a Coordinator wake's no-reply line (#1224)", () => {
+  const wake = () => harness("running", { wake: true })
+
+  it("neither broadcasts nor stores a wake turn's 'No response requested.'", async () => {
+    const h = wake()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentMessageChunk("No response") },
+      { kind: "session_update", update: agentMessageChunk(" requested.") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.broadcasts).toEqual([])
+    expect(h.records).toEqual([])
+    expect(h.statusOf()).toBe("completed")
+    expect(h.endCount()).toBe(1)
+  })
+
+  it("drops the line after the wake turn's reads, keeping the reads", async () => {
+    const h = wake()
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "t1", title: "read_canvas" }),
+      },
+      {
+        kind: "session_update",
+        update: agentMessageChunk("No response needed."),
+      },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.broadcasts.map((u) => u.sessionUpdate)).toEqual(["tool_call"])
+    expect(h.records).toEqual([])
+    expect([...h.toolCalls.keys()]).toEqual(["t1"])
+  })
+
+  it("shows a wake turn's real one-line reply, broadcast before its record", async () => {
+    const h = wake()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentMessageChunk("Checkout ") },
+      { kind: "session_update", update: agentMessageChunk("is ready.") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.broadcasts).toEqual([
+      agentMessageChunk("Checkout "),
+      agentMessageChunk("is ready."),
+    ])
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      {
+        role: "agent",
+        content: [{ type: "text", text: "Checkout is ready." }],
+      },
+    ])
+  })
+
+  it("streams a long wake reply once it can no longer be a no-reply line", async () => {
+    const h = wake()
+    const opening = "No response requested from you, but note that "
+    await h.consumer.handle({
+      kind: "session_update",
+      update: agentMessageChunk(opening),
+    })
+    expect(h.broadcasts).toEqual([])
+    await h.consumer.handle({
+      kind: "session_update",
+      update: agentMessageChunk("Checkout failed its tests."),
+    })
+    expect(h.broadcasts).toEqual([
+      agentMessageChunk(opening),
+      agentMessageChunk("Checkout failed its tests."),
+    ])
+    await h.consumer.handle({
+      kind: "session_update",
+      update: agentMessageChunk(" Want me to look?"),
+    })
+    expect(h.broadcasts).toHaveLength(3)
+    await h.consumer.handle({ kind: "done", stopReason: "end_turn" })
+    expect(h.broadcasts).toHaveLength(3)
+    expect(h.records).toHaveLength(1)
+  })
+
+  it("keeps the line on a turn that isn't a wake: a user always sees the reply", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: agentMessageChunk("No response requested."),
+      },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.broadcasts).toEqual([agentMessageChunk("No response requested.")])
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      {
+        role: "agent",
+        content: [{ type: "text", text: "No response requested." }],
+      },
+    ])
+  })
+})
+
 describe("AcpUpdateConsumer — reload ordering (flush on boundary)", () => {
   it("flushes narration around a tool call so it persists in arrival order, not batched at turn end", async () => {
     const h = harness()

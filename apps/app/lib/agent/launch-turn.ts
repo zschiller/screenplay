@@ -31,6 +31,8 @@ export async function launchEngineTurn(params: {
   tools: Record<string, Tool>
   /** Whether the turn was sent in plan mode (the external engine maps it to ACP). */
   planMode?: boolean
+  /** The turn answers a Coordinator wake; its no-reply line never shows. */
+  wake?: boolean
 }): Promise<void> {
   const {
     engine,
@@ -41,9 +43,11 @@ export async function launchEngineTurn(params: {
     model,
     tools,
     planMode,
+    wake,
   } = params
   const consumer = new AcpUpdateConsumer(
-    liveAcpConsumerPorts(roomId, chatId, runId)
+    liveAcpConsumerPorts(roomId, chatId, runId),
+    { wake }
   )
   try {
     const history = await loadAcpHistoryForModel(chatId)

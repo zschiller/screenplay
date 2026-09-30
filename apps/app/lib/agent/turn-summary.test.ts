@@ -80,6 +80,23 @@ describe("foldFinishedTurns (issue #800)", () => {
     ])
   })
 
+  it("hides a wake's stored no-reply line, but not a user turn's (#1224)", () => {
+    const wake = user("[workspace update: ws-a] Workspace finished its turn.")
+    expect(
+      shape([
+        user("hi"),
+        assistant("Hello"),
+        wake,
+        call("r", { title: "read_workspace_chat" }),
+        assistant("No response requested."),
+      ])
+    ).toEqual(["user", "assistant:Hello"])
+    expect(shape([user("hi"), assistant("No response requested.")])).toEqual([
+      "user",
+      "assistant:No response requested.",
+    ])
+  })
+
   it("keeps Workspace task rows on screen (#896)", () => {
     const send = (id: string) =>
       call(id, {
