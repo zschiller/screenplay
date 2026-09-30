@@ -5,7 +5,7 @@ import type { TargetedElement } from "@/lib/agent/message-markers"
 // list to drift. These are `import type` only — erased at build, so this stays
 // client-safe even though the builders are server-only.
 import type { buildSandboxTools } from "@/lib/agent/tools"
-import type { buildMarkdownLayerTools } from "@/lib/agent/markdown-layer-tools"
+import type { buildDocumentTools } from "@/lib/agent/document-tools"
 import type { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import type {
   ToolCallContent,
@@ -14,7 +14,7 @@ import type {
 } from "@/lib/agent/acp/schema"
 
 type AllTools = ReturnType<typeof buildSandboxTools> &
-  ReturnType<typeof buildMarkdownLayerTools> &
+  ReturnType<typeof buildDocumentTools> &
   ReturnType<typeof buildLayerReadTools>
 
 export type CustomToolName = keyof AllTools

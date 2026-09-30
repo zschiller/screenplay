@@ -34,8 +34,7 @@ import type { BranchData, ChatSessionData, TabKind } from "@/lib/types"
  * selecting a tab itself is now a Chat-Target verb (`selectChat`).
  *
  * The pure decision core stays in `lib/chat/tab-pool.ts`: {@link buildTabPool}
- * scopes the room-wide lists down to one target's pool (the agent-vs-doc split
- * resolved once, by construction) and {@link resolveTabClose} decides what
+ * scopes the room-wide lists down to one Branch's pool and {@link resolveTabClose} decides what
  * survives, where selection lands, and whether to respawn. This controller is
  * the adapter that applies that outcome — "decide purely, apply at the call
  * site", with the call site now the controller rather than the component.
@@ -77,20 +76,19 @@ export interface TabPoolDeps {
    * The Chat-Target controller (#569). The Tab Pool composes with it for the
    * selection side effects it used to perform by poking raw setters and memory
    * refs: it reads the current `selectedChatId` and calls the chat-target verbs
-   * (`selectChatId`, `selectAgentChat`, `selectDocChat`) to move selection.
+   * (`selectChatId`, `selectAgentChat`) to move selection.
    */
   chatTarget: ChatTarget
 }
 
 /**
  * What to open. A discriminated union so the component calls intent — a chat or
- * terminal tab on an agent Branch, or a chat on a document — rather than the
- * effect sequence each kind requires.
+ * terminal tab on an agent Branch — rather than the effect sequence each kind
+ * requires.
  */
 export type OpenTabSpec =
   | { kind: "chat"; branchId: string }
   | { kind: "terminal"; branchId: string; harnessKey: string }
-  | { kind: "doc-chat"; markdownLayerId: string }
 
 export interface TabPool {
   /** Create a new tab on a target and select it. */
@@ -185,10 +183,8 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
 
   const selectChat = useCallback(
     (chatId: string | null, target?: TabPoolTarget) => {
-      if (chatId && target?.kind === "agent") {
+      if (chatId && target) {
         chatTarget.selectAgentChat(target.branchId, chatId)
-      } else if (chatId && target?.kind === "doc") {
-        chatTarget.selectDocChat(target.markdownLayerId, chatId)
       } else {
         chatTarget.selectChatId(chatId)
       }
@@ -197,7 +193,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
   )
 
   // An agent's respawn follows the per-user default tab kind (chat or
-  // terminal); a doc target always gets a fresh chat, in `useChatTabs`.
+  // terminal).
   const respawnAgent = useCallback(
     (branchId: string) => {
       seed(branchId, readLastTabKind())
@@ -287,12 +283,6 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     (spec: OpenTabSpec) => {
       if (spec.kind === "chat") {
         openChat({ kind: "agent", branchId: spec.branchId })
-        return
-      }
-      if (spec.kind === "doc-chat") {
-        // A doc chat stamps `markdownLayerId` instead of a branch, so the server
-        // picks the doc-targeted flow when this chat first sends a message.
-        openChat({ kind: "doc", markdownLayerId: spec.markdownLayerId })
         return
       }
       // A new terminal tab builds a `TerminalTabData` (using the tab id as the

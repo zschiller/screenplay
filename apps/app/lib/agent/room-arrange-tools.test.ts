@@ -115,15 +115,15 @@ function seedCanvas(r: ReturnType<typeof room>) {
   )
   collections.markdownLayers.set(
     "doc-1",
-    baseDoc("doc-1", { title: "Launch spec" })
+    baseDoc("doc-1", { title: "Launch spec", ownerChatId: "chat-ws-1" })
   )
   const fragment = documentFragment(doc, "doc-1")
   seedDocumentFragment(fragment)
   setFragmentTitle(fragment, "Launch spec")
   replaceFragmentBodyPreservingTitle(fragment, "Ship **Friday**.\n\n- QA")
   collections.chatSessions.set(
-    "chat-doc-1",
-    baseChat("chat-doc-1", { markdownLayerId: "doc-1", label: "Doc chat" })
+    "chat-ws-1",
+    baseChat("chat-ws-1", { branchId: "ws-1", label: "Checkout chat" })
   )
   seedGroup(collections, "group-1", [
     { kind: "iframe-layer", id: "frame-1" },
@@ -146,7 +146,8 @@ describe("remove and undo", () => {
     expect(result).toBe('Removed frame "Settings", document "Launch spec".')
     expect(r.collections.iframeLayers.get("frame-1")).toBeUndefined()
     expect(r.collections.markdownLayers.get("doc-1")).toBeUndefined()
-    expect(r.collections.chatSessions.get("chat-doc-1")).toBeUndefined()
+    // The chat that wrote the Document stays (#1314).
+    expect(r.collections.chatSessions.get("chat-ws-1")).toBeDefined()
     // The emptied Group went with them.
     expect(r.collections.iframeLayerGroups.get("group-1")).toBeUndefined()
 

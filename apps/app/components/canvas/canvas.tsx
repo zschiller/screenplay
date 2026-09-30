@@ -35,6 +35,10 @@ import {
 } from "@/lib/yjs/react"
 
 import { createCanvasOps } from "@/lib/canvas/ops"
+import {
+  documentOwnerChat as documentOwnerChatOf,
+  documentWorkspaceIds,
+} from "@/lib/canvas/document-owner"
 
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 
@@ -891,6 +895,17 @@ export function Canvas({
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
+  // Each chat-made Document's Workspace (#1314), for its label and the Group's.
+  const documentWorkspaces = useMemo(
+    () => documentWorkspaceIds(markdownLayers, chatSessions),
+    [markdownLayers, chatSessions]
+  )
+  // Where Reply in chat and Send to agent on a chat-made Document go.
+  const documentOwnerChat = useCallback(
+    (documentId: string) =>
+      documentOwnerChatOf(documentId, markdownLayers, chatSessions),
+    [markdownLayers, chatSessions]
+  )
 
   const agentDomains = useMemo(() => {
     const domains: Record<
@@ -950,14 +965,13 @@ export function Canvas({
   )
 
   // Chat-Target selection controller (PRD #569): owns which Chat Target the
-  // panel shows — the selected agent/doc/chat, the per-target memory, and the
+  // panel shows — the selected agent/chat, the per-target memory, and the
   // pending-agent readiness — and resolves the `ChatPanelTarget`. The symmetric
   // sibling of the Tab Pool controller (which owns the tabs *within* a target);
   // both `useTabPool` and `useBranchIntake` compose with it for selection.
   const chatTarget = useChatTarget({
     agents,
     chatSessions,
-    markdownLayers,
     localTerminals: terminalTabs.localTerminals,
     chatPanelRef,
   })
@@ -1147,7 +1161,6 @@ export function Canvas({
     ops,
     collections,
     getViewportCenter,
-    rememberDocChat: chatTarget.rememberDocChat,
     selection,
   })
   // Alias the controller verbs to the local names the render tree / other
@@ -1217,7 +1230,6 @@ export function Canvas({
       }
       chatTarget.selectAgentChat(branchId, chatId, {
         expandPanel: true,
-        clearDocument: true,
         remember: true,
       })
       inputStore.prefill(chatId, ASK_FOR_KNOB_PROMPT)
@@ -1233,6 +1245,7 @@ export function Canvas({
     referenceInputsRef.current = {
       iframeLayerLayouts,
       chatTarget,
+      documentOwnerChat,
     }
   })
 
@@ -1307,9 +1320,31 @@ export function Canvas({
     (frameId: string) => commentFrameInfo.get(frameId)?.branchId,
     [commentFrameInfo]
   )
+  // A Document's threads go to the chat that made it, else to the Workspace
+  // chat the panel shows (#1314).
+  const commentDocumentChat = useCallback(
+    (documentId: string) => {
+      const owner = documentOwnerChat(documentId)
+      if (owner) return owner
+      if (chatTarget.target?.kind !== "agent") return null
+      const branchId = chatTarget.target.agent.id
+      const shown = chatSessions.find(
+        (c) => c.id === chatTarget.selectedChatId && c.branchId === branchId
+      )
+      return { branchId, chatId: shown?.id }
+    },
+    [documentOwnerChat, chatTarget, chatSessions]
+  )
+  const commentDocumentTitle = useCallback(
+    (documentId: string) =>
+      markdownLayers.find((d) => d.id === documentId)?.title,
+    [markdownLayers]
+  )
   const commentRequests = useCommentRequests({
     threads: commentThreads.threads,
     frameWorkspace: commentFrameWorkspace,
+    documentChat: commentDocumentChat,
+    documentTitle: commentDocumentTitle,
     agents,
     sendComments: branchActions.sendComments,
   })
@@ -1634,23 +1669,12 @@ export function Canvas({
           current={
             chatTarget.target?.kind === "agent"
               ? { kind: "agent", id: chatTarget.target.agent.id }
-              : chatTarget.target?.kind === "layer"
-                ? {
-                    kind: "layer",
-                    layerKind: chatTarget.target.layerKind,
-                    id: chatTarget.target.layer.id,
-                  }
-                : repos.length > 0
-                  ? { kind: "room" }
-                  : { kind: "none" }
+              : repos.length > 0
+                ? { kind: "room" }
+                : { kind: "none" }
           }
           onShowRoomChat={chatTarget.showRoomChat}
-          onSelectWorkspace={(id, options) =>
-            chatTarget.selectAgent(id, { ...options, clearDocument: true })
-          }
-          onSelectLayer={(layerKind, id) => {
-            if (layerKind === "markdown-layer") chatTarget.selectDocument(id)
-          }}
+          onSelectWorkspace={chatTarget.selectAgent}
           onCreateBranchFromGitBranch={createBranchFromGitBranch}
           onCreateWorkspace={createBranch}
           onRebaseOnDefault={branchActions.rebaseOnDefault}
@@ -1729,9 +1753,7 @@ export function Canvas({
                         chatTarget.showRoomChat()
                         chatTarget.expandPanel()
                       }}
-                      onOpenWorkspace={(id) =>
-                        chatTarget.selectAgent(id, { clearDocument: true })
-                      }
+                      onOpenWorkspace={(id) => chatTarget.selectAgent(id)}
                       onDismiss={clearGettingStartedCanvas}
                     />
                   ) : null
@@ -1867,6 +1889,7 @@ export function Canvas({
                         iframeLayerGroups={iframeLayerGroups}
                         iframeLayers={iframeLayers}
                         markdownLayers={markdownLayers}
+                        documentWorkspaces={documentWorkspaces}
                         selection={selection}
                         onIframeWheel={camera.handleIframeWheel}
                         reference={reference}

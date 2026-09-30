@@ -170,15 +170,6 @@ describe("chat-store — the Chat Target on the wire", () => {
     })
   })
 
-  it("names a document chat's layer", async () => {
-    expect(await bodyFor({ kind: "document", layerId: "doc-1" })).toEqual({
-      roomId: "room",
-      chatId: expect.any(String),
-      markdownLayerId: "doc-1",
-      message: "Hi",
-    })
-  })
-
   it("names the Room for the Coordinator chat", async () => {
     expect(await bodyFor({ kind: "room" })).toEqual({
       roomId: "room",

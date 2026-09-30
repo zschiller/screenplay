@@ -63,23 +63,6 @@ vi.mock("@/lib/agent/dev-server-ports", () => ({
   },
 }))
 
-// A document token's code reads, standing in for the Workspace's Sandbox.
-const openSandbox = vi.hoisted(() => vi.fn())
-vi.mock("@/lib/sandbox", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/sandbox")>()),
-  sandboxProvider: {
-    get: async (opts: { name: string }) => {
-      openSandbox(opts)
-      return {
-        readFileToBuffer: async ({ path }: { path: string }) =>
-          path === "src/sign-in.tsx"
-            ? Buffer.from("export function SignIn() {}\n")
-            : null,
-      }
-    },
-  },
-}))
-
 import { DELETE, GET, POST } from "./route"
 import { coordinatorToken } from "@/lib/agent/coordinator-mcp"
 
@@ -346,13 +329,33 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists only its dev server's tools", async () => {
+  it("lists its dev server's tools and its Document tools (#1314)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
       "restart_dev_server",
+      "create_document",
+      "replace_document_body",
+      "append_to_document_body",
+      "set_document_title",
+      "read_document",
     ])
     expect(result.tools[0].annotations).toMatchObject({ readOnlyHint: true })
+  })
+
+  it("makes Documents owned by the chat its token is bound to", async () => {
+    const { result } = await (
+      await call(4, "tools/call", {
+        name: "create_document",
+        arguments: { title: "Sign-in notes" },
+      })
+    ).json()
+    expect(result.isError).toBe(false)
+    const [doc] = collections.markdownLayers.toArray()
+    expect(doc).toMatchObject({
+      title: "Sign-in notes",
+      ownerChatId: "chat-ws-1",
+    })
   })
 
   it("reads the log of the Sandbox its token is bound to", async () => {
@@ -377,56 +380,5 @@ describe("a Workspace chat's MCP route", () => {
       arguments: {},
     })
     expect((await res.json()).error.code).toBe(-32602)
-  })
-})
-
-describe("a document chat's MCP route", () => {
-  const document = {
-    roomId: "room-1",
-    chatId: "chat-doc-1",
-    markdownLayerId: "doc-1",
-  }
-  const call = (id: number, method: string, params?: unknown) =>
-    POST(
-      rpc(
-        { jsonrpc: "2.0", id, method, params },
-        { authorization: `Bearer ${coordinatorToken(document)}` }
-      )
-    )
-
-  it("lists its document tools and code reads", async () => {
-    const { result } = await (await call(1, "tools/list")).json()
-    const names = result.tools.map((t: { name: string }) => t.name)
-    expect(names).toEqual(
-      expect.arrayContaining([
-        "replace_document_body",
-        "append_to_document_body",
-        "set_document_title",
-        "read_document",
-        "read_code_file",
-        "search_code",
-        "find_code_files",
-      ])
-    )
-    expect(names).not.toContain("read_canvas")
-    const read = result.tools.find(
-      (t: { name: string }) => t.name === "read_code_file"
-    )
-    expect(read.annotations).toMatchObject({ readOnlyHint: true })
-  })
-
-  it("reads a Workspace's code, waking its Sandbox", async () => {
-    const { result } = await (
-      await call(2, "tools/call", {
-        name: "read_code_file",
-        arguments: { path: "src/sign-in.tsx" },
-      })
-    ).json()
-    expect(result.isError).toBe(false)
-    expect(result.content[0].text).toContain("export function SignIn()")
-    expect(openSandbox).toHaveBeenCalledWith({
-      name: "sandbox-ws-1",
-      resume: true,
-    })
   })
 })

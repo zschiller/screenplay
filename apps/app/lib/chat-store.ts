@@ -95,14 +95,11 @@ export interface FailedSend {
  */
 function wireTarget(target: ChatTarget): {
   sandboxName?: string
-  markdownLayerId?: string
   target?: "room"
 } {
   switch (target.kind) {
     case "agent":
       return { sandboxName: target.sandboxName }
-    case "document":
-      return { markdownLayerId: target.layerId }
     case "room":
       return { target: "room" }
   }

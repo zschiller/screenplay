@@ -197,6 +197,59 @@ export function placeNewIframeLayerGroup(
   return { x: maxRight + IFRAME_LAYER_GROUP_GAP, y: minY }
 }
 
+/**
+ * Anchor coords for a new single-member group that belongs with `beside` (the
+ * Groups holding a chat's other layers, #1314): just right of the rightmost of
+ * them, top-aligned with it. Falls back to {@link placeNewIframeLayerGroup}
+ * when there are none, or when that spot would overlap another Group.
+ */
+export function placeNewGroupBeside(
+  groups: readonly IframeLayerGroupData[],
+  iframeLayers: readonly IframeLayerData[],
+  markdownLayers: readonly MarkdownLayerData[],
+  beside: ReadonlySet<string>,
+  width: number,
+  height: number
+): { x: number; y: number } {
+  const rectOf = (g: IframeLayerGroupData) => ({
+    x: g.x,
+    y: g.y,
+    width: groupContentWidth(g, iframeLayers, markdownLayers),
+    height: groupContentHeight(g, iframeLayers, markdownLayers),
+  })
+  let anchor: { x: number; y: number } | null = null
+  let right = -Infinity
+  for (const g of groups) {
+    if (!beside.has(g.id)) continue
+    const r = rectOf(g)
+    if (r.x + r.width > right) {
+      right = r.x + r.width
+      anchor = { x: right + IFRAME_LAYER_GROUP_GAP, y: r.y }
+    }
+  }
+  const spot = anchor
+  const clear =
+    spot &&
+    groups.every((g) => {
+      const r = rectOf(g)
+      return (
+        spot.x + width <= r.x ||
+        r.x + r.width <= spot.x ||
+        spot.y + height <= r.y ||
+        r.y + r.height <= spot.y
+      )
+    })
+  if (spot && clear) return spot
+  return placeNewIframeLayerGroup(
+    groups,
+    iframeLayers,
+    { x: 0, y: 0 },
+    width,
+    height,
+    markdownLayers
+  )
+}
+
 // ─── Whole-Canvas geometry derivation ──────────────────────────────────────
 //
 // These derivations turn a plain Canvas snapshot into the geometry the canvas

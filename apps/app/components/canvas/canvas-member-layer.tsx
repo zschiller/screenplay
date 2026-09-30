@@ -70,6 +70,7 @@ function CanvasMemberLayerImpl({
   iframeLayerGroups,
   iframeLayers,
   markdownLayers,
+  documentWorkspaces,
   selection,
   onIframeWheel,
   reference,
@@ -113,6 +114,8 @@ function CanvasMemberLayerImpl({
   iframeLayerGroups: IframeLayerGroupData[]
   iframeLayers: IframeLayerData[]
   markdownLayers: MarkdownLayerData[]
+  /** The Workspace of each Document's owning chat (#1314), by Document id. */
+  documentWorkspaces: ReadonlyMap<string, string>
   selection: CanvasSelection
   /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom).
    *  Just `camera.handleIframeWheel` — passed as the bare callback rather than
@@ -225,7 +228,7 @@ function CanvasMemberLayerImpl({
         // The group label's pill, as a switcher for the whole Group (#869).
         // Only a Group whose frames all show one Workspace names it (#1276).
         const groupSwitcherOf = (group: IframeLayerGroupData) => {
-          const shared = groupWorkspace(group, framesById)
+          const shared = groupWorkspace(group, framesById, documentWorkspaces)
           if (!shared) {
             // Frames on different Workspaces: the label names none, and
             // offers putting them all on one while hovered (#1276).
@@ -257,6 +260,9 @@ function CanvasMemberLayerImpl({
           }
           if (!shared.branchId) return { switcher }
           const workspace = workspaceOf(shared.branchId)
+          // A Group of one chat's Documents names its Workspace, with no
+          // frames for a pick to move (#1314).
+          if (shared.frames.length === 0) return workspace
           return workspace ? { ...workspace, switcher } : undefined
         }
 
@@ -271,7 +277,8 @@ function CanvasMemberLayerImpl({
           // Every frame names its own Workspace unless the group label names
           // the one they all show (#1276).
           const groupNamesWorkspace =
-            showGroupLabel && !!groupWorkspace(group, framesById)
+            showGroupLabel &&
+            !!groupWorkspace(group, framesById, documentWorkspaces)
           const groupLabelWorkspace =
             index === 0 && showGroupLabel ? groupSwitcherOf(group) : undefined
           // Tint this member's name (and, on the leftmost member,
@@ -340,6 +347,13 @@ function CanvasMemberLayerImpl({
                 remoteGroupSelectedColor={remoteGroupSelectedColor}
                 groupLabel={index === 0 ? groupLabel : undefined}
                 groupWorkspace={groupLabelWorkspace}
+                // The chat that made it, unless the group label names it
+                // (#1314); a hand-made Document names none.
+                ownerWorkspace={
+                  groupNamesWorkspace
+                    ? undefined
+                    : workspaceOf(documentWorkspaces.get(doc.id))
+                }
                 groupSelected={groupSelected}
                 onSelectGroup={
                   index === 0 && showGroupLabel

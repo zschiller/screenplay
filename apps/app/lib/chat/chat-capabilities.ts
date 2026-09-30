@@ -32,25 +32,11 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
     placeholder: "Ask the agent… (@ document, / skill)",
     emptyTitle: "Change what your frames show",
     emptyBody:
-      "The agent edits this Workspace's code and can run commands, and your frames update as it works.",
+      "The agent edits this Workspace's code and can run commands, and your frames update as it works. It can write Documents on the canvas too.",
     starters: [
       "Explain how this page is built",
       "Tighten the spacing on mobile",
       "Add a loading state",
-    ],
-  },
-  document: {
-    skills: false,
-    planMode: false,
-    elementPicking: false,
-    placeholder: "Ask the agent… (@ to mention a document)",
-    emptyTitle: "Edit this Document",
-    emptyBody:
-      "The agent can rewrite and retitle it, and read any Document you @ mention.",
-    starters: [
-      "Tighten the wording",
-      "Add a summary at the top",
-      "Turn this into a checklist",
     ],
   },
   // The Coordinator sees the whole canvas.

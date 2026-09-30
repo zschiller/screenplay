@@ -413,19 +413,6 @@ async function focusComposer(page: Page) {
   await clickAt(page, at, 300)
 }
 
-/** Open the chat panel's Workspaces menu, optionally picking a chat. */
-async function pickTarget(page: Page, label?: string) {
-  await openWorkspacesMenu(page)
-  if (label) {
-    await page
-      .locator("[cmdk-item],[role=option]")
-      .filter({ hasText: label })
-      .first()
-      .click({ timeout: 10_000 })
-    await sleep(page, 1500)
-  }
-}
-
 /** The widest preview iframe showing `pathname` (the desktop frame). */
 async function previewFrame(page: Page, pathname: string) {
   let best:
@@ -972,14 +959,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "workspaces-menu",
     description:
-      "The chat panel's Workspaces menu (#1152): the Coordinator, the Workspaces and Documents.",
+      "The chat panel's Workspaces menu (#1152): the Coordinator and the Workspaces.",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [700, 0, 580, 460],
     focus: POPOVER,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await pickTarget(page)
+      await openWorkspacesMenu(page)
     },
   }),
   screen({
@@ -1096,12 +1083,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "doc-chat",
-    description: "A chat about the launch checklist document.",
+    description:
+      "The launch checklist document, with the name of the chat that wrote it (#1314), and that chat open.",
     path: ROOM,
     cookies: WITH_CHAT,
     prepare: async (page) => {
       await camera(page, VIEW.document)
-      await pickTarget(page, "Pricing launch checklist")
+      await selectWorkspace(page, "Pricing FAQ")
     },
   }),
   screen({

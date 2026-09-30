@@ -45,7 +45,6 @@ function setup(chatSessions: ChatSessionData[], selectedChatId: string) {
       selectedChatId,
       selectChatId: vi.fn(),
       selectAgentChat: vi.fn(),
-      selectDocChat: vi.fn(),
     } as unknown as ChatTarget,
     terminalTabs: {
       localTerminals: [],
@@ -102,17 +101,6 @@ describe("useTabPool remove", () => {
     const [newId, data] = addChatSession.mock.calls[0]
     expect(data).toMatchObject({ branchId: "ws-1", label: "Untitled" })
     expect(chatTarget.selectChatId).toHaveBeenCalledWith(newId)
-  })
-
-  it("respawns a doc chat when the last doc tab is removed", () => {
-    const doc = chat("d", 1, { branchId: undefined, markdownLayerId: "md-1" })
-    const { tabPool, chatTarget, addChatSession } = setup([doc], "d")
-
-    tabPool.remove("d")
-
-    const [newId, data] = addChatSession.mock.calls[0]
-    expect(data).toMatchObject({ markdownLayerId: "md-1" })
-    expect(chatTarget.selectDocChat).toHaveBeenCalledWith("md-1", newId)
   })
 
   it("decides nothing when a closed chat is deleted from history", () => {

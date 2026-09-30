@@ -83,7 +83,7 @@ export function baseDoc(
   return { id, width: 300, height: 200, title: "", ...overrides }
 }
 
-/** A minimal valid Chat Session record. Pass `branchId` or `markdownLayerId` to set its target. */
+/** A minimal valid Chat Session record. Pass `branchId` to set its Workspace. */
 export function baseChat(
   id: string,
   overrides: Partial<ChatSessionData> = {}

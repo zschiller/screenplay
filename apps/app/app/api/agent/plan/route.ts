@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     },
     coordinatorCard
       ? roomTurn({ room, chatId, message, model: chat.model })
-      : planResumeTurn({ room, userId, message, chat })
+      : planResumeTurn({ room, chatId, userId, message, chat })
   )
   // Nothing was still pending: a double-submit, or a gate a /stop or a
   // follow-up message already resolved.

@@ -142,11 +142,13 @@ export type TabKind = "chat" | "terminal"
 
 /**
  * A chat tab: the durable Engine conversation. Targets exactly one of a
- * *Branch* (`branchId` set), a *markdown layer* (`markdownLayerId` set) or the
- * whole *Room* (`target: "room"`), and its scrollback is persisted + shared.
- * Multiple chats can target the same Branch (or layer), so a user can keep
- * parallel conversations going; a Room has exactly one Room Target chat (see
- * `lib/chat/room-chat.ts`).
+ * *Branch* (`branchId` set) or the whole *Room* (`target: "room"`), and its
+ * scrollback is persisted + shared. Multiple chats can target the same Branch,
+ * so a user can keep parallel conversations going; a Room has exactly one Room
+ * Target chat (see `lib/chat/room-chat.ts`). Documents are no longer a chat's
+ * target (#1314): a chat writes the Documents it owns
+ * ({@link MarkdownLayerData.ownerChatId}). Chats saved against a Document
+ * before then have neither field and are listed nowhere.
  *
  * Chat sessions live in the shared `chatSessions` Y.Doc collection. Terminal
  * tabs are deliberately *not* `ChatSessionData` (see {@link TerminalTabData}),
@@ -155,10 +157,8 @@ export type TabKind = "chat" | "terminal"
  */
 export type ChatSessionData = {
   id: string
-  /** Set when the chat targets a Branch. Mutually exclusive with the layer ids. */
+  /** Set when the chat targets a Branch. */
   branchId?: string
-  /** Set when the chat targets a markdown layer. */
-  markdownLayerId?: string
   /** `"room"` when the chat targets the whole Room (the Coordinator). */
   target?: "room"
   label: string
@@ -306,6 +306,12 @@ export type MarkdownLayerData = {
   width: number
   height: number
   title: string
+  /**
+   * The chat that made this Document (#1314), which alone edits it with its
+   * tools and gets its Send to agent and Reply in chat. Unset for a Document
+   * a person made by hand, or one the Coordinator made.
+   */
+  ownerChatId?: string
 }
 
 export type ViewportData = {

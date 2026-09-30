@@ -11,17 +11,17 @@ with the agent. With nothing selected it shows the canvas's
 workspace's agent instead, and everything the agent does happens inside that
 workspace's sandbox.
 
-The Coordinator and [document chats](/guides/documents#chatting-with-a-document)
-use the same composer, with less in it. The Coordinator is one chat with no
-tabs, and neither has a **Plan** toggle, a <kbd>/</kbd> skills menu or the
-crosshair. A document chat has no sandbox of its own (it reads the workspaces'
-code), so it has no **Sandbox logs** or terminal tabs either.
+The Coordinator uses the same composer, with less in it. It is one chat with
+no tabs, and has no **Plan** toggle, <kbd>/</kbd> skills menu or crosshair.
+
+A workspace's chat can also [write documents](/guides/documents#documents-a-chat-writes)
+on the canvas, and edits the ones it wrote.
 
 ## Choosing a target
 
 The **Workspaces** button at the far right of the Coordinator's header opens the
 list of every chat on the canvas: the **Coordinator**, each workspace with its
-status icon and pull request, and **Documents** (see
+status icon and pull request (see
 [The Workspaces menu](/guides/workspaces#the-workspaces-menu)). Pick one to
 open its chat. When you switch back to a target, the panel reopens the chat
 you last used there.
@@ -153,8 +153,8 @@ token to highlight the element on the canvas. <kbd>Esc</kbd> cancels picking.
 
 Turn on **Plan** in the composer when you want to approve the approach before
 any code changes. The agent investigates, then presents a **Plan** card
-instead of editing. Plan mode is for workspace chats; the composer in a
-document chat has no **Plan** toggle.
+instead of editing. Plan mode is for workspace chats; the Coordinator has no
+**Plan** toggle.
 
 <Screenshot
   name="plan-card"

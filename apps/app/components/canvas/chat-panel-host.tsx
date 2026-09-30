@@ -68,21 +68,16 @@ export function ChatPanelHost({
     (() => {
       // The panel's current target is resolved by the Chat-Target
       // controller (#569): an agent (sandbox-backed) when one is selected
-      // and ready, otherwise the doc-chat target when one was picked from
-      // the dropdown. With neither set it is the Room (the Coordinator),
-      // or, on a canvas with no repositories, the empty state below.
+      // and ready. Otherwise it is the Room (the Coordinator), or, on a
+      // canvas with no repositories, the empty state below.
       const target: ChatPanelTarget | null =
         chatTarget.target ?? (repos.length > 0 ? ROOM_TARGET : null)
       if (!target) return null
-      const filteredSessions = chatSessions.filter((c) => {
-        if (target.kind === "room") return c.id === roomChatId(roomId)
-        if (target.kind === "agent") return c.branchId === target.agent.id
-        // Layer targets: per-kind state lives on the chat session
-        // under different fields.
-        if (target.layerKind === "markdown-layer")
-          return c.markdownLayerId === target.layer.id
-        return false
-      })
+      const filteredSessions = chatSessions.filter((c) =>
+        target.kind === "room"
+          ? c.id === roomChatId(roomId)
+          : c.branchId === target.agent.id
+      )
       // This client's local terminal tabs for an agent target. Passed as a
       // separate collection (never merged into `chatSessions`), so a
       // terminal can't structurally reach the conversation model.
@@ -103,14 +98,6 @@ export function ChatPanelHost({
             // The Room has one chat, and no "+" to make another.
             if (target.kind === "agent")
               tabPool.open({ kind: "chat", branchId: target.agent.id })
-            else if (
-              target.kind === "layer" &&
-              target.layerKind === "markdown-layer"
-            )
-              tabPool.open({
-                kind: "doc-chat",
-                markdownLayerId: target.layer.id,
-              })
           }}
           onCreateTerminal={
             target.kind === "agent"
@@ -149,11 +136,10 @@ export function ChatPanelHost({
             )
             if (chat) {
               chatTarget.selectAgentChat(branchId, chat.id, {
-                clearDocument: true,
                 remember: true,
               })
             } else {
-              chatTarget.selectAgent(branchId, { clearDocument: true })
+              chatTarget.selectAgent(branchId)
             }
           }}
           onLogsReady={onLogsReady}
