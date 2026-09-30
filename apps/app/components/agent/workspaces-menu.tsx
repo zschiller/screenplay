@@ -119,13 +119,15 @@ import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
 
 import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 
+import { useWorkspaceStates } from "@/hooks/use-workspace-states"
+
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 
 import { checkBranchRename } from "@/lib/branch-rename"
 import {
-  planPendingBranchIds,
-  type StatusLineContext,
-} from "@/lib/branch/status-line"
+  anyWorkspaceNeedsYou,
+  type WorkspaceState,
+} from "@/lib/branch/workspace-state"
 
 import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
 
@@ -160,14 +162,13 @@ import { workspaceLabel } from "@/lib/workspace-label"
 import {
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SORT_LABELS,
-  anyWorkspaceNeedsYou,
   canDragWorkspaces,
   groupWorkspaces,
   sortWorkspaces,
   type WorkspaceSort,
 } from "@/lib/workspace-list-view"
 
-import { useChatSessions, usePlans } from "@/lib/yjs/react"
+import { useChatSessions } from "@/lib/yjs/react"
 
 /**
  * The chat panel's Workspaces menu (#1152): one button pinned to the far right
@@ -201,8 +202,6 @@ export interface WorkspacesMenuProviderProps {
   diffStats: Map<string, DiffStats>
   /** GitHub-polled PR state per branch, shared with the chat header. */
   branchPrs: Map<string, BranchPrInfo>
-  /** Workspaces with a chat turn in flight. */
-  activeBranchIds: Set<string>
   current: WorkspacesMenuCurrent
   onShowRoomChat: () => void
   /** Open a Workspace's chat; `expandPanel` defaults to true. */
@@ -244,8 +243,8 @@ type WorkspacesMenuValue = Omit<
   /** Done Workspaces, most recently done first. */
   doneBranches: BranchData[]
   needsYou: boolean
-  /** A Workspace's live facts for its state icon and section. */
-  statusOf: (branchId: string) => StatusLineContext
+  /** A Workspace's state: its icon, section and whether its agent works. */
+  stateOf: (branch: BranchData) => WorkspaceState
   lastUsedRepoId: string | null
   /** Which Workspaces have a dialog open over them (no row hover then). */
   pendingBranchIds: Set<string>
@@ -279,7 +278,6 @@ export function WorkspacesMenuProvider({
     repos,
     branches,
     markdownLayers,
-    activeBranchIds,
     onSelectWorkspace,
     onCreateBranchFromGitBranch,
     onRecreateBranch,
@@ -386,19 +384,10 @@ export function WorkspacesMenuProvider({
         .sort((a, b) => (b.doneAt ?? 0) - (a.doneAt ?? 0)),
     [flatBranches]
   )
-  // Workspaces whose plan waits for approval: they need you.
-  const plans = usePlans()
-  const planPendingIds = useMemo(() => planPendingBranchIds(plans), [plans])
-  const statusOf = useCallback(
-    (branchId: string): StatusLineContext => ({
-      agentWorking: activeBranchIds.has(branchId),
-      planPending: planPendingIds.has(branchId),
-    }),
-    [activeBranchIds, planPendingIds]
-  )
+  const stateOf = useWorkspaceStates()
   const needsYou = useMemo(
-    () => anyWorkspaceNeedsYou(flatBranches, (b) => statusOf(b.id)),
-    [flatBranches, statusOf]
+    () => anyWorkspaceNeedsYou(flatBranches, stateOf),
+    [flatBranches, stateOf]
   )
   // New workspace starts in the Repo used last: the newest Workspace's.
   const lastUsedRepoId = useMemo(() => {
@@ -478,7 +467,7 @@ export function WorkspacesMenuProvider({
     activeBranches,
     doneBranches,
     needsYou,
-    statusOf,
+    stateOf,
     lastUsedRepoId,
     pendingBranchIds,
     openNewWorkspace,
@@ -692,7 +681,7 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
     reposById,
     activeBranches,
     doneBranches,
-    statusOf,
+    stateOf,
     markdownLayers,
     setOpen,
   } = menu
@@ -708,9 +697,13 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
   const sections = useMemo(
     () =>
       listView.groupByState
-        ? groupWorkspaces(activeBranches, listView.sort, (b) => statusOf(b.id))
+        ? groupWorkspaces(
+            activeBranches,
+            listView.sort,
+            (b) => stateOf(b).section
+          )
         : null,
-    [activeBranches, listView, statusOf]
+    [activeBranches, listView, stateOf]
   )
   // Drag writes manual order, so it only runs where rows show it, and not
   // over a filtered list.
@@ -1031,7 +1024,7 @@ function WorkspaceMenuRow({
       workspaceHoverStore.clear({ branchId: branch.id, source: "workspace" }),
     [branch.id]
   )
-  const agentWorking = menu.activeBranchIds.has(branch.id)
+  const state = menu.stateOf(branch)
   const pr = menu.branchPrs.get(branch.id)
   const stats = menu.diffStats.get(branch.id)
   const hasStats = !!stats && (stats.additions > 0 || stats.deletions > 0)
@@ -1066,8 +1059,7 @@ function WorkspaceMenuRow({
         }
         icon={
           <WorkspaceStatusIcon
-            branch={branch}
-            context={menu.statusOf(branch.id)}
+            line={state.line}
             onRetry={() => menu.onRetryBranch(branch.id)}
             onRecreate={() => menu.askRecreate(branch.id)}
           />
@@ -1172,7 +1164,7 @@ function WorkspaceMenuRow({
               e.preventDefault()
               editableRef.current?.startEditing()
             }}
-            isBusy={agentWorking}
+            isBusy={state.agentWorking}
           />
         </DropdownMenu>
       </span>

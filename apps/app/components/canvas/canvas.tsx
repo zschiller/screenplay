@@ -103,8 +103,6 @@ import type { IframeLayerGroupData, ViewportData } from "@/lib/types"
 
 import { chatStore } from "@/lib/chat-store"
 
-import { isBranchBusy } from "@/lib/branch-busy"
-
 import { useDiffStats } from "@/hooks/use-diff-stats"
 
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
@@ -894,15 +892,6 @@ export function Canvas({
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
-  // Workspaces with a chat turn in flight: the Workspaces menu's state icons
-  // and its needs-you dot read these.
-  const activeBranchIds = useMemo(
-    () =>
-      new Set(
-        agents.filter((a) => isBranchBusy(a.id, chatSessions)).map((a) => a.id)
-      ),
-    [agents, chatSessions]
-  )
 
   const agentDomains = useMemo(() => {
     const domains: Record<
@@ -1648,7 +1637,6 @@ export function Canvas({
           iframeLayers={iframeLayers}
           diffStats={diffStats}
           branchPrs={branchPrs}
-          activeBranchIds={activeBranchIds}
           current={
             chatTarget.target?.kind === "agent"
               ? { kind: "agent", id: chatTarget.target.agent.id }

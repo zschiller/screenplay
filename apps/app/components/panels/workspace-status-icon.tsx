@@ -11,11 +11,7 @@ import {
 } from "@workspace/ui/components/popover"
 import { useCloseWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import { WorkspaceStateGlyph } from "@/components/workspace-mention"
-import {
-  workspaceStatusLine,
-  type StatusLineBranch,
-  type StatusLineContext,
-} from "@/lib/branch/status-line"
+import type { WorkspaceStatusLine } from "@/lib/branch/workspace-state"
 
 // The icon sits inside the dnd-kit sortable row, and the popover portals out
 // of it while React events still bubble through: keep clicks from selecting
@@ -37,17 +33,15 @@ const isolate = {
  * by the step that failed, with the error and Retry, Recreate and Copy error.
  */
 export function WorkspaceStatusIcon({
-  branch,
-  context,
+  line,
   onRetry,
   onRecreate,
 }: {
-  branch: StatusLineBranch
-  context: StatusLineContext
+  /** The Workspace's status line, from its Workspace State. */
+  line: WorkspaceStatusLine
   onRetry: () => void
   onRecreate: () => void
 }) {
-  const line = workspaceStatusLine(branch, context)
   const [open, setOpen] = useState(false)
   const closeHoverCard = useCloseWorkspaceHoverCard()
 
