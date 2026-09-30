@@ -12,7 +12,8 @@
 // and swaps the result into the dmg afterwards, because Tauri's bundler always
 // uses the app's own .icns as the volume icon.
 //
-// The smiley is `icon.icon/Assets/face.svg`, the face layer of the app icon.
+// The smiley is `icon.icon/Assets/face.svg`, the face layer of the app icon,
+// placed off-centre on the drive just as `icon.icon/icon.json` places it.
 
 import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
@@ -31,10 +32,14 @@ const SYSTEM_DRIVE_ICNS =
 const CANVAS = 1024
 // The down arrow on the drive's face, with its light rim (1024px canvas).
 const ARROW = { left: 352, top: 274, right: 672, bottom: 644 }
-// face.svg is drawn on a 32-unit grid; the smiley spans x 7.5–25.5, y 7–19.3.
-const FACE_SCALE = 18
+// The drive's face above its base strip (1024px canvas). The smiley sits on
+// it where the app icon puts it on the icon's square, scaled to the face.
+const DRIVE_FACE = { left: 155, top: 75, width: 715, height: 770 }
+// face.svg is drawn on a 32-unit grid; the smiley's bounding box is centred at
+// (16.5, 13.15) and spans y 7–19.3.
 const FACE_CENTRE = { x: 16.5, y: 13.15 }
-const FACE_AT = { x: 512, y: 458 }
+// Icon Composer lays the icon out on a 1024pt square.
+const ICON_CANVAS = 1024
 
 if (process.platform !== "darwin") {
   process.stderr.write("[build-volume-icon] needs macOS: it reads the system disk-image icon\n")
@@ -106,9 +111,15 @@ function pressedFaceSvg() {
   const shapes = [...face.matchAll(/<(?:circle|path)[^>]*\/>/g)]
     .map(([shape]) => shape.replace(/ fill="[^"]*"/, ""))
     .join("")
-  const s = FACE_SCALE
-  const tx = FACE_AT.x - FACE_CENTRE.x * s
-  const ty = FACE_AT.y - FACE_CENTRE.y * s
+  const iconJson = JSON.parse(readFileSync(join(iconsDir, "icon.icon", "icon.json"), "utf8"))
+  const layer = iconJson.groups.flatMap((g) => g.layers).find((l) => l["image-name"] === "face.svg")
+  const { scale, "translation-in-points": [dx, dy] } = layer.position
+  // Where the smiley's centre sits on the app icon, as a fraction from its centre.
+  const offsetX = ((FACE_CENTRE.x - 16) * scale + dx) / ICON_CANVAS
+  const offsetY = ((FACE_CENTRE.y - 16) * scale + dy) / ICON_CANVAS
+  const s = (scale * DRIVE_FACE.width) / ICON_CANVAS
+  const tx = DRIVE_FACE.left + DRIVE_FACE.width * (0.5 + offsetX) - FACE_CENTRE.x * s
+  const ty = DRIVE_FACE.top + DRIVE_FACE.height * (0.5 + offsetY) - FACE_CENTRE.y * s
   const glyph = `<g transform="translate(${tx} ${ty}) scale(${s})">${shapes}</g>`
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS}" height="${CANVAS}">
   <defs>
