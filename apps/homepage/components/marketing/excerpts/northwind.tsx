@@ -2,6 +2,8 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import "./northwind.css"
 
+type Version = "main" | "gradient" | "split" | "dark"
+
 const bars = [38, 52, 45, 61, 58, 72, 69, 84, 80, 92, 88, 97]
 
 /**
@@ -9,8 +11,9 @@ const bars = [38, 52, 45, 61, 58, 72, 69, 84, 80, 92, 88, 97]
  * shows it. Sized by its frame: put it in an element with `container-type:
  * inline-size` (see `northwind.css`).
  *
- * `version` is which Workspace's build it is: `main`, or the "Hero gradient &
- * trust line" change the docs world's agent made.
+ * `version` is which Workspace's build it is: `main`, the "Hero gradient &
+ * trust line" change the docs world's agent made, or one of the other two
+ * versions of the hero the homepage's figures ask for.
  */
 export function Northwind({
   page = "home",
@@ -19,7 +22,7 @@ export function Northwind({
 }: {
   page?: "home" | "pricing"
   device?: "desktop" | "mobile"
-  version?: "main" | "gradient"
+  version?: Version
 }) {
   const mobile = device === "mobile"
   return (
@@ -28,7 +31,7 @@ export function Northwind({
       className={cn(
         "nw",
         mobile && "nw-mobile",
-        version === "gradient" && "nw-gradient"
+        version !== "main" && `nw-${version}`
       )}
     >
       <div className="nw-nav">
@@ -57,28 +60,24 @@ export function Northwind({
   )
 }
 
-function Home({
-  mobile,
-  version,
-}: {
-  mobile: boolean
-  version: "main" | "gradient"
-}) {
+function Home({ mobile, version }: { mobile: boolean; version: Version }) {
   return (
     <div className="nw-hero">
-      <span className="nw-pill">New · Session replay is here →</span>
-      <div className="nw-h1">Know what your users actually do</div>
-      <div className="nw-lede">
-        Northwind turns product events into answers. Funnels, retention and
-        replays in one place, no SQL required.
+      <div className="nw-copy">
+        <span className="nw-pill">New · Session replay is here →</span>
+        <div className="nw-h1">Know what your users actually do</div>
+        <div className="nw-lede">
+          Northwind turns product events into answers. Funnels, retention and
+          replays in one place, no SQL required.
+        </div>
+        <div className="nw-row">
+          <span className="nw-btn">Start free trial</span>
+          <span className="nw-btn nw-outline">Book a demo</span>
+        </div>
+        {version === "gradient" ? (
+          <div className="nw-trust">Trusted by 4,000+ product teams</div>
+        ) : null}
       </div>
-      <div className="nw-row">
-        <span className="nw-btn">Start free trial</span>
-        <span className="nw-btn nw-outline">Book a demo</span>
-      </div>
-      {version === "gradient" ? (
-        <div className="nw-trust">Trusted by 4,000+ product teams</div>
-      ) : null}
       <div className="nw-chart">
         {(mobile ? bars.slice(4) : bars).map((h, i) => (
           <div key={i} className="nw-bar" style={{ height: `${h}%` }} />

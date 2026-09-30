@@ -10,7 +10,7 @@ const features: { title: string; body: React.ReactNode }[] = [
   },
   {
     title: "The Coordinator",
-    body: "One chat for the whole canvas. Ask what changed in each Workspace, or have it start new ones.",
+    body: "One chat for the whole canvas. Ask what changed in each Workspace, or have it start new ones, for versions of one change or separate tasks in parallel.",
   },
   {
     title: "Pick elements",

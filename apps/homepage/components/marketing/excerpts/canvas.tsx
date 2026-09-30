@@ -6,17 +6,15 @@ import {
   CaretDownIcon,
   CaretRightIcon,
   CaretUpDownIcon,
+  CheckCircleIcon,
+  CheckIcon,
   CircleIcon,
   ClipboardTextIcon,
-  CrosshairIcon,
   CursorIcon,
   DotsThreeIcon,
   FileTextIcon,
-  FolderOpenIcon,
   FrameCornersIcon,
   GitPullRequestIcon,
-  ListDashesIcon,
-  PlusIcon,
   SidebarSimpleIcon,
   SlidersHorizontalIcon,
 } from "@workspace/ui/components/icons"
@@ -131,7 +129,7 @@ export function Frame({
         <GroupLabel
           name={group[0]}
           workspace={group[1]}
-          className="bottom-full left-0 mb-6"
+          className="bottom-full left-0 mb-6 max-w-full"
         />
       ) : null}
       <div
@@ -183,10 +181,10 @@ function GroupLabel({
       )}
       style={style}
     >
-      <span>{name}</span>
-      <span className="flex items-center gap-1">
+      <span className="shrink-0">{name}</span>
+      <span className="flex min-w-0 items-center gap-1">
         <WorkspaceGlyph className="size-2.5" />
-        {workspace}
+        <span className="truncate">{workspace}</span>
       </span>
     </div>
   )
@@ -281,152 +279,186 @@ export function WorkspaceRow({
   )
 }
 
-function TreeRow({
-  icon,
-  name,
-  selected,
-  aside,
+/** The three versions the figures ask for, in canvas order. */
+export const versions = [
+  {
+    version: "gradient",
+    title: "Gradient headline",
+    brief: "Accent-to-cyan headline and a trust line",
+    prompt:
+      "Run the headline from the accent color to cyan and add a trust line.",
+    diff: [14, 3],
+  },
+  {
+    version: "split",
+    title: "Split layout",
+    brief: "Copy on the left, the chart beside it",
+    prompt: "Put the copy on the left and the chart beside it.",
+    diff: [38, 21],
+  },
+  {
+    version: "dark",
+    title: "Dark hero",
+    brief: "The hero on a dark background",
+    prompt: "Put the hero on a dark background with a soft accent glow.",
+    diff: [27, 6],
+  },
+] as const
+
+/** The ask the figures tell the story of. */
+export const ask = "Try three versions of the homepage hero."
+
+/** The user's message in a chat: a soft bubble on the right. */
+export function UserBubble({
+  className,
+  children,
 }: {
-  icon: React.ReactNode
-  name: string
-  selected?: boolean
-  aside?: string
+  className?: string
+  children: React.ReactNode
 }) {
   return (
-    <div
-      className={cn(
-        "flex h-8 items-center gap-2 rounded-md px-2 text-sm [&>svg]:size-4 [&>svg]:shrink-0",
-        selected && "bg-sidebar-accent"
-      )}
-    >
-      {icon}
-      <span className="shrink-0">{name}</span>
-      {aside ? (
-        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <WorkspaceGlyph className="size-2.5" />
-          <span className="truncate">{aside}</span>
-        </span>
-      ) : null}
-    </div>
-  )
-}
-
-/** A Group's frames, indented under it with a guide line. */
-function TreeChildren({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="ml-3.5 flex flex-col gap-px border-l border-border pl-1.5">
+    <p className={cn("ml-8 self-end rounded-lg bg-muted px-3 py-2", className)}>
       {children}
-    </div>
+    </p>
   )
 }
 
-/** The canvas sidebar: the canvas's layers. */
-function Sidebar() {
+/**
+ * The plan the Coordinator raises before it creates Workspaces: one row per
+ * Workspace with its repository and brief. Pending, it asks for approval;
+ * `compact` leaves the briefs out where there's no room for them.
+ */
+export function WorkspacePlan({
+  pending,
+  compact,
+}: {
+  pending?: boolean
+  compact?: boolean
+}) {
   return (
-    <div className="flex w-[216px] shrink-0 flex-col gap-px border-r border-border bg-sidebar px-2 py-2 max-md:hidden">
-      <div className="flex justify-end pb-3 text-muted-foreground">
-        <Tool>
-          <SidebarSimpleIcon />
-        </Tool>
+    <div className="rounded-md border border-border bg-muted/30">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground">
+        <ClipboardTextIcon className="size-3 shrink-0" />
+        <span className="font-medium">Plan</span>
+        {pending ? null : (
+          <span className="ml-1 flex h-4 items-center gap-1 rounded-full border border-border px-1.5 text-success-text">
+            <CheckCircleIcon className="size-3 text-success" />
+            Approved
+          </span>
+        )}
       </div>
-      <TreeRow
-        icon={<FolderOpenIcon />}
-        name="Homepage"
-        aside="Hero gradient"
-      />
-      <TreeChildren>
-        <TreeRow icon={<FrameCornersIcon />} name="Home" selected />
-        <TreeRow icon={<FrameCornersIcon />} name="Home · mobile" />
-      </TreeChildren>
-      <TreeRow icon={<FolderOpenIcon />} name="Pricing" aside="Pricing FAQ" />
-      <TreeChildren>
-        <TreeRow icon={<FrameCornersIcon />} name="Pricing" />
-        <TreeRow icon={<FrameCornersIcon />} name="Pricing · mobile" />
-      </TreeChildren>
-      <TreeRow
-        icon={<FrameCornersIcon />}
-        name="Customers"
-        aside="Customer stories"
-      />
-      <TreeRow icon={<FileTextIcon />} name="Pricing launch checklist" />
+      <div className="flex flex-col gap-2 border-t border-border px-3 py-2.5 text-xs">
+        <span>Create 3 Workspaces:</span>
+        <ul className="flex list-disc flex-col gap-1.5 pl-4">
+          {versions.map((v) => (
+            <li key={v.title}>
+              <span className="font-medium">{v.title}</span>
+              <span className="text-muted-foreground">
+                {" "}
+                · acme/northwind-web
+              </span>
+              {compact ? null : (
+                <span className="block truncate text-muted-foreground">
+                  {v.brief}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+        {pending ? (
+          <div className="mt-1 flex gap-2">
+            <span className="flex h-7 items-center rounded-md bg-primary px-2.5 text-primary-foreground">
+              Approve
+            </span>
+            <span className="flex h-7 items-center rounded-md border border-border bg-background px-2.5">
+              Request changes
+            </span>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
 
 /**
- * The chat panel with a Workspace's chat open: the Coordinator breadcrumb and
- * the Workspace's pull request above, its chat tabs, the thread and composer.
+ * A Workspace the Coordinator started, as a task row in its chat: state,
+ * title, changed lines and the state in a word, then what it was asked.
  */
-function Chat() {
+function TaskRow({
+  title,
+  prompt,
+  diff,
+  working,
+}: {
+  title: string
+  prompt: string
+  diff: readonly [number, number]
+  working?: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-lg bg-input/70 px-2.5 py-2">
+      <span className="flex items-center gap-2">
+        {working ? (
+          <WorkspaceGlyph state="working" className="size-3.5" />
+        ) : (
+          <CheckIcon className="size-3.5 shrink-0 text-success" />
+        )}
+        <span className="min-w-0 flex-1 truncate">{title}</span>
+        <Diff add={diff[0]} del={diff[1]} />
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {working ? "Working" : "Finished"}
+        </span>
+        <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
+      </span>
+      <span className="truncate pl-5.5 text-xs text-muted-foreground">
+        {prompt}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * The chat panel at its home, the Coordinator: the ask, the approved plan and
+ * the three Workspaces it started, each updating in place.
+ */
+function Coordinator() {
   return (
     <div className="flex w-[320px] shrink-0 flex-col border-l border-border bg-background max-lg:hidden">
-      <div className="flex h-11 items-center gap-1 border-b border-border pr-2 pl-1.5 text-[13px] whitespace-nowrap">
+      <div className="flex h-11 items-center gap-1 border-b border-border pr-2 pl-1.5 text-sm whitespace-nowrap">
         <Tool>
           <SidebarSimpleIcon />
         </Tool>
-        <span className="shrink-0 text-muted-foreground">Coordinator</span>
-        <span className="shrink-0 text-muted-foreground">/</span>
-        <WorkspaceGlyph />
-        <span className="min-w-0 flex-1 truncate">
-          Hero gradient &amp; trust line
-        </span>
-        <Diff add={3} del={0} />
-        <span className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs">
-          <GitPullRequestIcon className="size-3.5" />
-          Create PR
-        </span>
-      </div>
-      <div className="flex h-10 items-stretch gap-1 border-b border-border px-1.5 text-sm">
-        <span className="flex items-center text-muted-foreground">
-          <Tool>
-            <ListDashesIcon />
-          </Tool>
-        </span>
-        <span className="flex items-center border-b-2 border-foreground px-2 font-medium">
-          Hero gradient &amp; trust line
-        </span>
-        <span className="flex items-center text-muted-foreground">
-          <Tool>
-            <PlusIcon />
-          </Tool>
+        <span className="min-w-0 flex-1 truncate">Coordinator</span>
+        <span className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground">
+          Workspaces
+          <CaretDownIcon className="size-3" />
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 overflow-hidden px-3 py-4 text-[13px] leading-normal">
-        <p className="ml-6 rounded-lg bg-muted px-3 py-2">
-          Make the hero headline a gradient from the accent color to cyan, and
-          add a small &ldquo;Trusted by 4,000+ product teams&rdquo; line under
-          the buttons.
-        </p>
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <CaretRightIcon className="size-3" />
-          Read 2 files, edited 2, ran 3 commands
-        </p>
-        <p>Done. The preview has already reloaded:</p>
-        <ul className="flex list-disc flex-col gap-1.5 pl-4">
-          <li>
-            <span className="font-medium">Headline</span> now runs from the
-            accent color to cyan. It follows the Accent color knob.
-          </li>
-          <li>
-            <span className="font-medium">Trust line</span> sits under the
-            buttons in muted 13px.
-          </li>
-        </ul>
+        <UserBubble>{ask}</UserBubble>
+        <WorkspacePlan />
+        <p>Started all three. Dark hero is still working.</p>
+        <div className="flex flex-col gap-1">
+          {versions.map((v) => (
+            <TaskRow
+              key={v.title}
+              title={v.title}
+              prompt={v.prompt}
+              diff={v.diff}
+              working={v.version === "dark"}
+            />
+          ))}
+        </div>
       </div>
       <div className="m-3 mt-0 flex flex-col gap-3 rounded-lg border border-border p-3 text-[13px]">
         <span className="truncate text-muted-foreground">
-          Ask the agent… (@ document, / skill)
+          Ask the Coordinator… (@ to mention a document)
         </span>
         <div className="flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1">
-            Opus 5.5
+            Claude Code · Opus 5.5
             <CaretDownIcon className="size-3 text-muted-foreground" />
           </span>
-          <span className="flex items-center gap-1">
-            <ClipboardTextIcon className="size-3.5" />
-            Plan
-          </span>
-          <CrosshairIcon className="size-3.5 text-muted-foreground" />
           <span className="ml-auto flex size-7 items-center justify-center rounded-md bg-muted-foreground text-background">
             <ArrowUpIcon className="size-4" />
           </span>
@@ -440,10 +472,12 @@ function Chat() {
 function CanvasChrome({ zoom }: { zoom: string }) {
   return (
     <>
-      <div
-        className={cn(floating, "absolute top-2 left-2 z-10 pl-2.5 text-sm")}
-      >
-        <span className="flex h-7 items-center gap-1.5">
+      <div className={cn(floating, "absolute top-2 left-2 z-10 text-sm")}>
+        {/* The sidebar is collapsed, so its toggle leads the breadcrumb. */}
+        <Tool>
+          <SidebarSimpleIcon />
+        </Tool>
+        <span className="flex h-7 items-center gap-1.5 pl-1">
           <span className="text-muted-foreground">All files</span>
           <span className="text-muted-foreground">/</span>
           <span>Northwind marketing site</span>
@@ -479,104 +513,117 @@ function CanvasChrome({ zoom }: { zoom: string }) {
 }
 
 /**
- * The hero's figure: the whole canvas with its sidebar and the agent's chat,
- * three Workspaces' frames and the selected one's bar. The sidebar and chat
- * drop out on narrow screens, leaving the canvas.
+ * Fig. 1's columns: where each version starts and how wide it is. Phones
+ * have room for two versions, so the third drops out.
+ */
+const columns =
+  "[--w:44%] [--h:27.5cqw] [--gap:36px] [--l0:4%] [--l1:52%] sm:[--w:29%] sm:[--h:18.125cqw] sm:[--gap:76px] sm:[--l1:35.5%] [--l2:67%]"
+
+/**
+ * The hero's figure: one ask to the Coordinator and its three Workspaces,
+ * side by side on the canvas, desktop over phone, with the selected one's
+ * bar. The chat drops out on narrow screens, leaving the canvas.
  */
 export function CanvasExcerpt() {
   return (
     <div
       role="img"
-      aria-label="The Screenplay canvas: the canvas's layers in the sidebar, the Northwind site's frames running side by side with one selected, and the agent's chat on the right."
+      aria-label="The Screenplay canvas: three versions of the Northwind homepage hero running side by side, each in its own Workspace, with the Coordinator chat that started them on the right."
       className="flex aspect-square w-full overflow-hidden border border-border bg-background text-foreground sm:aspect-[16/10] lg:aspect-[16/9.4]"
     >
-      <Sidebar />
       <div
-        className="bg-plane [container-type:inline-size] relative min-w-0 flex-1 overflow-hidden"
-        // Frames start below the breadcrumb, however short the canvas.
-        style={{ "--top": "max(22%, 88px)" } as React.CSSProperties}
+        className={cn(
+          "bg-plane [container-type:inline-size] relative min-w-0 flex-1 overflow-hidden",
+          columns
+        )}
+        style={
+          {
+            // Frames start below the breadcrumb, however short the canvas.
+            "--top": "max(17%, 88px)",
+            // Each column's phone frame starts under the desktop frame's bar, or
+            // right under the frame on phones, where the bar is hidden.
+            "--phone": "calc(var(--top) + var(--h) + var(--gap))",
+          } as React.CSSProperties
+        }
       >
-        <CanvasChrome zoom="38%" />
-        <Frame
-          label="Home"
-          group={["Homepage", "Hero gradient & trust line"]}
-          selected
-          style={{ left: "6%", top: "var(--top)", width: "66%" }}
-        >
-          <Northwind version="gradient" />
-        </Frame>
+        <CanvasChrome zoom="31%" />
+        {versions.map((v, i) => (
+          <Frame
+            key={v.title}
+            label="Home"
+            group={["Homepage", v.title]}
+            selected={i === 1}
+            className={cn(i === 2 && "max-sm:hidden")}
+            style={{
+              left: `var(--l${i})`,
+              top: "var(--top)",
+              width: "var(--w)",
+            }}
+          >
+            <Northwind version={v.version} />
+          </Frame>
+        ))}
         <FrameBar
-          workspace="Hero gradient & trust line"
+          workspace={versions[1].title}
           className="z-[5] max-sm:hidden"
-          // Centred under the frame like the app's: as wide as the frame, or
-          // 360px under a narrow one, never past the canvas's edges.
+          // Centred under the middle frame like the app's: as wide as the
+          // frame, or 360px under a narrow one, never past the canvas's edges.
           style={{
-            left: "max(8px, calc(39% - min(max(33%, 180px), 50% - 8px)))",
-            width: "min(max(66%, 360px), calc(100% - 16px))",
-            top: "calc(var(--top) + 41.25cqw + 10px)",
+            left: "max(8px, calc(50% - min(max(14.5%, 180px), 50% - 8px)))",
+            width: "min(max(29%, 360px), calc(100% - 16px))",
+            top: "calc(var(--top) + var(--h) + 10px)",
           }}
         />
-        <Frame
-          label="Home · mobile"
-          device="mobile"
-          style={{ left: "76%", top: "var(--top)", width: "17%" }}
-        >
-          <Northwind device="mobile" version="gradient" />
-        </Frame>
-        <Frame
-          label="Pricing"
-          group={["Pricing", "Pricing FAQ"]}
-          className="[--gap:96px] max-sm:[--gap:56px]"
-          style={{
-            left: "6%",
-            top: "calc(var(--top) + 41.25cqw + var(--gap))",
-            width: "66%",
-          }}
-        >
-          <Northwind page="pricing" />
-        </Frame>
+        {versions.map((v, i) => (
+          <Frame
+            key={v.title}
+            label="Home · mobile"
+            device="mobile"
+            className={cn(i === 2 && "max-sm:hidden")}
+            style={{ left: `var(--l${i})`, top: "var(--phone)", width: "12%" }}
+          >
+            <Northwind device="mobile" version={v.version} />
+          </Frame>
+        ))}
       </div>
-      <Chat />
+      <Coordinator />
     </div>
   )
 }
 
 /**
- * A closer look at one selected frame and its bar, with the next Workspace's
- * frames beside it: the problem section's "with Screenplay" side.
+ * Two of the versions as whole frames, the selected one with its bar: the
+ * problem section's "with Screenplay" side.
  */
 export function FrameExcerpt() {
   return (
     <div
       role="img"
-      aria-label="A selected frame on the canvas, with its bar underneath, next to another Workspace's frames of the same page."
-      className="bg-plane [container-type:inline-size] relative aspect-[16/10] w-full overflow-hidden border border-border"
-      style={{ "--top": "max(14%, 44px)" } as React.CSSProperties}
+      aria-label="Two versions of the same page running side by side on the canvas, each in its own Workspace, the selected one with its bar underneath."
+      className="bg-plane [container-type:inline-size] relative aspect-[2/1] w-full overflow-hidden border border-border"
+      style={{ "--top": "max(15%, 48px)" } as React.CSSProperties}
     >
-      <Frame
-        label="Home"
-        group={["Homepage", "Hero gradient & trust line"]}
-        selected
-        style={{ left: "5%", top: "var(--top)", width: "62%" }}
-      >
-        <Northwind version="gradient" />
-      </Frame>
+      {versions.slice(1).map((v, i) => (
+        <Frame
+          key={v.title}
+          label="Home"
+          group={["Homepage", v.title]}
+          selected={i === 0}
+          style={{ left: i ? "52%" : "4%", top: "var(--top)", width: "44%" }}
+        >
+          <Northwind version={v.version} />
+        </Frame>
+      ))}
       <FrameBar
-        workspace="Hero gradient & trust line"
+        workspace={versions[1].title}
         className="z-[5] max-sm:hidden"
+        // Centred under the left frame, never past the excerpt's edge.
         style={{
-          left: "5%",
-          width: "62%",
-          top: "calc(var(--top) + 38.75cqw + 10px)",
+          left: "max(8px, calc(26% - max(22%, 180px)))",
+          width: "min(max(44%, 360px), calc(100% - 16px))",
+          top: "calc(var(--top) + 27.5cqw + 10px)",
         }}
       />
-      <Frame
-        label="Home"
-        group={["Homepage", "Main"]}
-        style={{ left: "72%", top: "var(--top)", width: "62%" }}
-      >
-        <Northwind />
-      </Frame>
     </div>
   )
 }
