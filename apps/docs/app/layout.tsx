@@ -22,6 +22,8 @@ import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
 // variables onto Nextra's fonts.
 const sans = Instrument_Sans({
   subsets: ["latin"],
+  // Real italics for *emphasis*, instead of the browser slanting the upright.
+  style: ["normal", "italic"],
   variable: "--font-instrument-sans",
 })
 const serif = Instrument_Serif({
@@ -97,6 +99,8 @@ export default async function RootLayout({
           toc={{ title: "On this page" }}
           // components/copy-page.tsx renders it as the app's split button.
           copyPageButton={false}
+          // components/page-nav.tsx renders previous / next as buttons.
+          navigation={false}
         >
           {children}
         </Layout>

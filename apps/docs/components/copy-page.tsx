@@ -42,7 +42,7 @@ export function CopyPage({ sourceCode }: { sourceCode: string }) {
   }
 
   return (
-    <ButtonGroup className="float-end text-foreground">
+    <ButtonGroup data-pagefind-ignore className="float-end text-foreground">
       <Button variant="outline" onClick={copy}>
         {copied ? <CheckIcon /> : <CopyIcon />}
         {copied ? "Copied" : "Copy page"}

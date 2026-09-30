@@ -17,9 +17,9 @@ Generate secrets with `openssl rand -hex 32`.
 
 The minimum for a working deployment with the default backends:
 
-```bash
+```dotenv
 # Auth
-BETTER_AUTH_URL=https://screenplay.example.com       # production only
+BETTER_AUTH_URL=https://screenplay.example.com  # production only
 BETTER_AUTH_PRODUCTION_URL=https://screenplay.example.com
 BETTER_AUTH_SECRET=<openssl rand -hex 32>
 GITHUB_CLIENT_ID=...
@@ -28,7 +28,7 @@ GITHUB_CLIENT_SECRET=...
 # Data
 DATABASE_URL=postgres://...
 LIVEBLOCKS_SECRET_KEY=sk_...
-BLOB_READ_WRITE_TOKEN=...                              # injected when you connect Vercel Blob
+BLOB_READ_WRITE_TOKEN=...  # injected when you connect Vercel Blob
 
 # Agent
 ANTHROPIC_API_KEY=sk-ant-...
