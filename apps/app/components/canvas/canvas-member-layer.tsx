@@ -226,7 +226,23 @@ function CanvasMemberLayerImpl({
         // Only a Group whose frames all show one Workspace names it (#1276).
         const groupSwitcherOf = (group: IframeLayerGroupData) => {
           const shared = groupWorkspace(group, framesById)
-          if (!shared) return undefined
+          if (!shared) {
+            // Frames on different Workspaces: the label names none, and
+            // offers putting them all on one while hovered (#1276).
+            const frames = getGroupMembers(group).filter(
+              (m) => m.kind === "iframe-layer" && framesById.has(m.id)
+            ).length
+            if (frames === 0) return undefined
+            return {
+              mixed: true as const,
+              switcher: {
+                branches: agents,
+                summary: [groupSwitchSummary(frames)],
+                onPick: (branchId: string) =>
+                  layerMutations.assignGroupAgent(group.id, branchId),
+              },
+            }
+          }
           const switcher = {
             branches: agents,
             summary: [

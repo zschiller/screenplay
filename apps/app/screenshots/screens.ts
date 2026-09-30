@@ -3373,6 +3373,41 @@ export const SCREENS: Screen[] = [
     settleMs: 2500,
   },
   {
+    name: "canvas-group-set-workspace-hover",
+    description:
+      "Hovering the label of a Group whose frames show different Workspaces: Set workspace appears, to put every frame on one (#1276).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/group-label")
+        .filter({ hasText: "Progress" })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 600,
+  },
+  {
+    name: "canvas-group-set-workspace-open",
+    description:
+      "Set workspace opened from a hovered Group whose frames differ: Show <Group> from…, and a footer saying how many frames move (#1276).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/group-label")
+        .filter({ hasText: "Progress" })
+        .first()
+        .hover({ timeout: 15_000 })
+      await page
+        .getByRole("button", { name: "Set workspace" })
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .getByPlaceholder("Show Progress from…")
+        .waitFor({ state: "visible", timeout: 15_000 })
+    },
+    settleMs: 800,
+  },
+  {
     name: "canvas-group-workspace-hover",
     description:
       "Hovering a Group's Workspace pill on its group label: the up-down chevron shows that it switches the whole Group (#869).",
