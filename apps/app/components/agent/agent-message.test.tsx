@@ -508,6 +508,20 @@ describe("AgentMessageItem — plan card (issue #803)", () => {
       "> ## Title\n>\n> 1. Step\n\n"
     )
   })
+
+  it("turns backslash hard breaks into trailing spaces", () => {
+    expect(quotePlan("- **Title** · site\\\n  Short line.\n")).toBe(
+      "> - **Title** · site  \n>   Short line.\n\n"
+    )
+  })
+
+  it("keeps escaped backslashes and backslashes in code blocks", () => {
+    expect(
+      quotePlan("C:\\\\\n```\nfoo \\\n```\n~~~~\n```\nbar \\\n~~~~\n")
+    ).toBe(
+      "> C:\\\\\n> ```\n> foo \\\n> ```\n> ~~~~\n> ```\n> bar \\\n> ~~~~\n\n"
+    )
+  })
 })
 
 describe("AgentMessageItem — transcript error", () => {
