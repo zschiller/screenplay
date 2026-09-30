@@ -281,6 +281,31 @@ export const agentPendingToolCall = pgTable(
   ]
 )
 
+// The Steer inbox (#1190): user messages sent into a chat while its run is
+// `running`. Turn Launch records one here against the run, and the Engine
+// running that run takes every pending row at its next step boundary, in
+// another server invocation, so the handoff goes through the database. A row
+// is pending while `taken_at` is null; leftovers the run never took are
+// deleted when they start the next turn or go back to the sender's composer.
+export const agentSteer = pgTable(
+  "agent_steer",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => agentRun.id, { onDelete: "cascade" }),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => agentChat.id, { onDelete: "cascade" }),
+    message: text("message").notNull(),
+    // Who sent it. Null for a message nobody typed.
+    userId: text("user_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    takenAt: timestamp("taken_at"),
+  },
+  (t) => [index("agent_steer_run_idx").on(t.runId, t.createdAt)]
+)
+
 // Persisted terminal tabs (#258). One row per open terminal tab, keyed by
 // user + room + branch so the tab strip can restore a User's tabs on reload
 // and follow them across devices. Terminal tabs are deliberately *not* part of

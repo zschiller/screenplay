@@ -78,15 +78,26 @@ describe("chat-store — a send the server refuses (#802)", () => {
   })
 })
 
-describe("chat-store — queueing during a run (#802)", () => {
+/** A run starts on an Engine that can't take Steers, so sends queue. */
+function startUnsteerableRun(chatId: string) {
+  chatStore.handleBroadcastEvent({
+    type: "chat-stream-start",
+    chatId,
+    id: nextId(),
+  })
+  chatStore.handleBroadcastEvent({
+    type: "chat-control",
+    chatId,
+    id: nextId(),
+    control: { kind: "steerable", steerable: false },
+  })
+}
+
+describe("chat-store — queueing during a run that can't steer (#802)", () => {
   it("queues a message sent mid-run and sends it when the run ends", async () => {
     const chatId = newChat()
     const fetchMock = stubFetch({ ok: true })
-    chatStore.handleBroadcastEvent({
-      type: "chat-stream-start",
-      chatId,
-      id: nextId(),
-    })
+    startUnsteerableRun(chatId)
 
     expect(await send(chatId, "Then the cart")).toBe(true)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -111,11 +122,7 @@ describe("chat-store — queueing during a run (#802)", () => {
   it("never sends a queued message that was cancelled", () => {
     const chatId = newChat()
     const fetchMock = stubFetch({ ok: true })
-    chatStore.handleBroadcastEvent({
-      type: "chat-stream-start",
-      chatId,
-      id: nextId(),
-    })
+    startUnsteerableRun(chatId)
     void send(chatId, "Then the cart")
     const [item] = chatStore.getSnapshot(chatId).queued
 

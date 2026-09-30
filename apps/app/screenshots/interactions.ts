@@ -18,7 +18,9 @@ import {
   openChatTab,
   openTerminalTab,
   replayRun,
+  stubSteer,
   tabTo,
+  typeInComposer,
   type RunEvent,
 } from "./screens"
 
@@ -271,6 +273,113 @@ export const INTERACTIONS: Interaction[] = [
         page.locator('[title="Stop"], [aria-label="Stop"]').first()
       )
       await page.waitForTimeout(2500)
+    },
+  },
+  {
+    name: "chat-steer",
+    description:
+      "While the agent works, the user sends a correction: it waits at the end of the chat, then settles where the agent takes it and the turn carries on (#1190).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    run: async (page) => {
+      const chatId = ids.chats.fresh
+      // No agent runs here: the send is answered as the server answers a
+      // Steer, and the run is replayed as the broadcasts a real one sends.
+      await stubSteer(page, chatId)
+      await openChatTab(page, "New chat").catch(() => {})
+      await page.waitForTimeout(1000)
+
+      const say = async (reply: string) => {
+        const words = reply.split(" ")
+        for (let i = 0; i < words.length; i += 3) {
+          await replayRun(page, chatId, [
+            {
+              type: "chat-acp-update",
+              update: {
+                sessionUpdate: "agent_message_chunk",
+                content: {
+                  type: "text",
+                  text: `${i ? " " : ""}${words.slice(i, i + 3).join(" ")}`,
+                },
+              },
+            },
+          ])
+          await page.waitForTimeout(120)
+        }
+      }
+      const tool = (id: string, title: string, status: string) => ({
+        type: "chat-acp-update",
+        update: {
+          sessionUpdate: id.endsWith("-done")
+            ? "tool_call_update"
+            : "tool_call",
+          toolCallId: id.replace(/-done$/, ""),
+          title,
+          kind: "edit",
+          status,
+        },
+      })
+
+      await replayRun(page, chatId, [
+        {
+          type: "chat-acp-update",
+          update: {
+            sessionUpdate: "user_message_chunk",
+            content: {
+              type: "text",
+              text: "Make the order summary sticky on mobile.",
+            },
+          },
+        },
+        { type: "chat-stream-start" },
+        {
+          type: "chat-control",
+          control: { kind: "steerable", steerable: true },
+        },
+      ])
+      await page.waitForTimeout(900)
+      await say(
+        "I'll pin the summary to the bottom of the viewport below 768px."
+      )
+      await replayRun(page, chatId, [
+        tool("fixture-edit", "Edit app/checkout/summary.tsx", "in_progress"),
+      ])
+      await page.waitForTimeout(600)
+
+      // The correction, sent while the edit runs.
+      await step(() =>
+        typeInComposer(page, "Keep the pay button inside it too")
+      )
+      await page.waitForTimeout(500)
+      await page.keyboard.press("Enter")
+      await page.waitForTimeout(2600)
+
+      // The edit finishes; at the next step the agent takes the message.
+      await replayRun(page, chatId, [
+        tool("fixture-edit-done", "Edit app/checkout/summary.tsx", "completed"),
+      ])
+      await page.waitForTimeout(500)
+      await replayRun(page, chatId, [
+        {
+          type: "chat-control",
+          control: { kind: "steers_taken", ids: ["fixture-steer-1"] },
+        },
+        {
+          type: "chat-acp-update",
+          update: {
+            sessionUpdate: "user_message_chunk",
+            content: {
+              type: "text",
+              text: "Keep the pay button inside it too",
+            },
+          },
+        },
+      ])
+      await page.waitForTimeout(900)
+      await say(
+        "Good call. I'll move the pay button into the pinned bar so the total and the action stay together."
+      )
+      await page.waitForTimeout(2000)
     },
   },
   {

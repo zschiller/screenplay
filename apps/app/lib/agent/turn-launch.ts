@@ -1,11 +1,12 @@
 import type { Tool } from "ai"
-import type { Engine } from "./acp/engine-seam"
+import { supportsSteering, type Engine } from "./acp/engine-seam"
 import type { SessionUpdate } from "./acp/schema"
 import { userMessageChunk } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
 import type { PlanResolution, RunStatus } from "./run-state"
 import { isWakeStatus, type WorkspaceTurnEnd } from "./coordinator-wake"
 import type { BranchRenameClaim } from "./auto-naming"
+import type { SteerInbox } from "./steer-inbox"
 
 /**
  * What a Chat Target hands {@link launchTurn} once its kind-specific setup is
@@ -50,6 +51,12 @@ export interface PreparedTurn {
  */
 export interface TurnTarget {
   prepare(): Promise<PreparedTurn | null>
+  /**
+   * The same target for a later message: the turn Steers left over from this
+   * one start (#1190), with the chat's current model and plan mode. Without
+   * it, leftovers go back to their sender instead.
+   */
+  followUp?(message: string): TurnTarget
 }
 
 export interface TurnRequest {
@@ -59,6 +66,8 @@ export interface TurnRequest {
   message: string
   sandboxName?: string
   model?: string
+  /** Who sent the message, recorded on a Steer so a stop can hand it back. */
+  userId?: string | null
   /**
    * The human's decision on a paused plan, when this turn resumes from one
    * (the plan route). Without it, a plan still pending on the chat is
@@ -141,10 +150,22 @@ export interface TurnLaunchDeps {
   wakeCoordinator(end: WorkspaceTurnEnd): Promise<void>
   /** Schedule work to run after the HTTP response (`after()` in production). */
   runAfterResponse(task: () => Promise<void>): void
+  /** The chat's run that hasn't finished, if any. */
+  findActiveRun(
+    chatId: string
+  ): Promise<{ id: string; status: "running" | "paused_for_plan" } | null>
+  /** Whether a run is still `running`. */
+  isRunActive(runId: string): Promise<boolean>
+  /** The Steer inbox (#1190). */
+  steers: Pick<SteerInbox, "add" | "drain" | "reclaim">
 }
 
 export type TurnLaunchResult =
   | { kind: "started"; runId: string }
+  /** The chat's run was working; the message joined it as a pending Steer. */
+  | { kind: "steered"; steerId: string }
+  /** The chat's run was working on an Engine that can't take a Steer. */
+  | { kind: "not-steerable" }
   | { kind: "target-not-found" }
   /** The plan decision arrived after the plan was already resolved. */
   | { kind: "plan-already-resolved" }
@@ -155,19 +176,27 @@ export type TurnLaunchResult =
  *
  * 1. Resolve the Engine before any side effect, so a misconfigured deployment
  *    fails loud at the boundary instead of after writes (ADR 0006).
- * 2. Let the target prepare (its own writes).
- * 3. Resolve the chat's plan, the one way a plan is ever resolved: the human's
+ * 2. Never supersede a running run by sending (#1190). While the chat's run
+ *    is `running`, the message becomes a pending Steer on it when the Engine
+ *    can steer, and is refused as "not steerable" when it can't, so the
+ *    client queues it. Nothing else happens for a Steer: the Engine settles
+ *    it into the transcript when it takes it.
+ * 3. Let the target prepare (its own writes).
+ * 4. Resolve the chat's plan, the one way a plan is ever resolved: the human's
  *    explicit decision when resuming, otherwise an implicit rejection of any
  *    plan still pending (the message is the revision instruction). A decision
  *    on a plan that is no longer pending stops here.
- * 4. Persist the user message before starting the run.
- * 5. Broadcast `chat-stream-start` before the plan card flip and the user
- *    echo. Clients replay back to the latest start marker and the event log
+ * 5. Persist the user message before starting the run.
+ * 6. Broadcast `chat-stream-start` before whether the turn is steerable, the
+ *    plan card flip and the user echo. Clients replay back to the latest start marker and the event log
  *    is trimmed on each start, so anything emitted earlier is lost to a
  *    client joining mid-stream.
- * 6. After the response, rename the claimed git branch, then drive the Engine
+ * 7. After the response, rename the claimed git branch, then drive the Engine
  *    turn, with the comment request started before it and settled after it.
- * 7. Once a Workspace turn is over, wake the Coordinator with how it ended:
+ * 8. Steers the run never took don't wait: when it completed, failed or
+ *    paused for a plan, they start the next turn at once, joined oldest first
+ *    into one message; when it was stopped, they go back to their sender.
+ * 9. Once a Workspace turn is over, wake the Coordinator with how it ended:
  *    completed, failed, stopped, or paused for plan approval. Whichever
  *    Engine ran it, this is where every turn ends. A superseded run wakes
  *    nothing: the turn that superseded it will.
@@ -189,6 +218,11 @@ export async function launchTurn(
     roomId,
   })
 
+  if (!request.planDecision) {
+    const steered = await steerRunningTurn(deps, request, engine)
+    if (steered) return steered
+  }
+
   const prepared = await target.prepare()
   if (!prepared) return { kind: "target-not-found" }
 
@@ -201,6 +235,10 @@ export async function launchTurn(
   const runId = await deps.startRun(chatId)
 
   await deps.broadcastStreamStart(roomId, chatId)
+  await deps.broadcastControl(roomId, chatId, {
+    kind: "steerable",
+    steerable: supportsSteering(engine),
+  })
   if (resolvedPlan) {
     await deps.broadcastControl(roomId, chatId, {
       kind: "plan_resolved",
@@ -242,15 +280,120 @@ export async function launchTurn(
         userId: commentRequest.userId,
       })
     }
-    if (prepared.wakesCoordinator) {
-      const status = await deps.loadRunStatus(runId)
-      if (status && isWakeStatus(status)) {
-        await deps.wakeCoordinator({ roomId, chatId, runId, status })
-      }
+    const status = await deps.loadRunStatus(runId)
+    const next = await settleLeftoverSteers(deps, request, target, {
+      runId,
+      status,
+    })
+    if (prepared.wakesCoordinator && status && isWakeStatus(status)) {
+      await deps.wakeCoordinator({ roomId, chatId, runId, status })
     }
+    await next?.()
   })
 
   return { kind: "started", runId }
+}
+
+/**
+ * Join the chat's running run as a pending Steer, when there is one (#1190).
+ * Null when the chat has no running run, so the message starts a turn.
+ *
+ * The run can end between the lookup and the insert, after it drained its
+ * leftovers. A Steer still pending once the run is over is taken back here and
+ * starts the turn itself; one already drained was started by the run's own
+ * leftover turn.
+ */
+async function steerRunningTurn(
+  deps: TurnLaunchDeps,
+  request: TurnRequest,
+  engine: Engine
+): Promise<TurnLaunchResult | null> {
+  const { roomId, chatId, message } = request
+  const active = await deps.findActiveRun(chatId)
+  if (active?.status !== "running") return null
+  if (!supportsSteering(engine)) return { kind: "not-steerable" }
+
+  const steer = await deps.steers.add({
+    runId: active.id,
+    chatId,
+    message,
+    userId: request.userId ?? null,
+  })
+  await deps.broadcastControl(roomId, chatId, {
+    kind: "steer_pending",
+    steer: { id: steer.id, message },
+  })
+  if (
+    !(await deps.isRunActive(active.id)) &&
+    (await deps.steers.reclaim(steer.id))
+  ) {
+    await deps.broadcastControl(roomId, chatId, {
+      kind: "steers_taken",
+      ids: [steer.id],
+    })
+    return null
+  }
+  return { kind: "steered", steerId: steer.id }
+}
+
+/** Run outcomes whose leftover Steers start the next turn right away. */
+const CONTINUES_WITH_LEFTOVERS: ReadonlySet<RunStatus> = new Set<RunStatus>([
+  "completed",
+  "failed",
+  "paused_for_plan",
+])
+
+/**
+ * Settle the Steers a finished run never took. After a completion, failure or
+ * plan pause they start the next turn, joined oldest first into one message;
+ * the returned task drives that turn, so the caller can wake the Coordinator
+ * about this one first. After a stop they go back to their sender's composer.
+ */
+async function settleLeftoverSteers(
+  deps: TurnLaunchDeps,
+  request: TurnRequest,
+  target: TurnTarget,
+  run: { runId: string; status: RunStatus | null }
+): Promise<(() => Promise<void>) | undefined> {
+  const { roomId, chatId } = request
+  const leftovers = await deps.steers.drain(run.runId)
+  if (leftovers.length === 0) return undefined
+
+  const followUp = target.followUp
+  if (!run.status || !CONTINUES_WITH_LEFTOVERS.has(run.status) || !followUp) {
+    await deps.broadcastControl(roomId, chatId, {
+      kind: "steers_returned",
+      steers: leftovers,
+    })
+    return undefined
+  }
+
+  await deps.broadcastControl(roomId, chatId, {
+    kind: "steers_taken",
+    ids: leftovers.map((s) => s.id),
+  })
+  const message = leftovers.map((s) => s.message).join("\n\n")
+  let drive: (() => Promise<void>) | undefined
+  await launchTurn(
+    {
+      ...deps,
+      // Held and handed back, so the next turn runs inside this one's
+      // after-response work rather than scheduling its own.
+      runAfterResponse: (task) => {
+        drive = task
+      },
+    },
+    {
+      roomId,
+      chatId,
+      message,
+      sandboxName: request.sandboxName,
+      model: request.model,
+      userId: leftovers[0]!.userId,
+    },
+    followUp(message)
+  )
+  return drive
 }
 
 /**

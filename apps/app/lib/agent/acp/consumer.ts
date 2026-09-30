@@ -14,7 +14,7 @@ import {
   type SessionUpdate,
   type StopReason,
 } from "./schema"
-import type { EngineUpdate } from "./engine-seam"
+import type { EngineUpdate, TakenSteer } from "./engine-seam"
 
 /**
  * The tool call halting a turn for human approval, derived by the consumer from
@@ -70,6 +70,13 @@ export interface AcpConsumerPorts {
    * the `chatId` the run-state machine needs.
    */
   pauseForPlan(planCall: ConsumerPlanCall): Promise<void>
+  /**
+   * Settle Steers the Engine just took (#1190) into the transcript as user
+   * messages: persist each as an ACP-native `user` record and tell every
+   * client they are no longer pending, each followed by its
+   * `user_message_chunk`.
+   */
+  settleSteers(steers: TakenSteer[]): Promise<void>
 }
 
 /**
@@ -132,6 +139,18 @@ export class AcpUpdateConsumer {
         await this.onError(update.message)
         break
     }
+  }
+
+  /**
+   * Settle Steers the Engine took at a step boundary (#1190). The narration
+   * block streaming before the boundary is flushed first, so each Steer lands
+   * in the log where the agent took it: after the step that preceded it and
+   * before the one it steers. Nothing settles once the turn has closed.
+   */
+  async acceptSteers(steers: TakenSteer[]): Promise<void> {
+    if (this.closed || steers.length === 0) return
+    await this.flushPending()
+    await this.ports.settleSteers(steers)
   }
 
   private async onSessionUpdate(update: SessionUpdate): Promise<void> {

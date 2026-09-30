@@ -1306,16 +1306,56 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "canvas-chat-queued",
-    description: "A message sent with Enter while the agent is still running.",
+    description:
+      "A message sent with Enter while an agent that can't be steered is still running: the Queued row.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, [
+        ...streamingRun(),
+        {
+          type: "chat-control",
+          control: { kind: "steerable", steerable: false },
+        },
+      ])
+      await typeInComposer(page, "Then do the same for the cart page")
+      await page.keyboard.press("Enter")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-steer-pending",
+    description:
+      "A message sent with Enter while the agent is running (#1190): it steers the turn, waiting at the end of the chat until the agent takes it.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await stubSteer(page, ids.chats.fresh)
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, streamingRun())
       await typeInComposer(page, "Then do the same for the cart page")
       await page.keyboard.press("Enter")
     },
     settleMs: 400,
+  },
+  {
+    name: "canvas-chat-steer-draft",
+    description:
+      "A draft typed while the agent is running in a chat that can steer: the button reads Send.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, streamingRun())
+      await typeInComposer(page, "Then do the same for the cart page")
+      await page
+        .locator('[aria-label="Send"]')
+        .last()
+        .hover({ timeout: 5_000 })
+        .catch(() => {})
+    },
+    settleMs: 600,
   },
   {
     name: "canvas-chat-image-paste",
@@ -4366,6 +4406,30 @@ export async function replayRun(
 
 const text = (t: string) => ({ type: "text", text: t })
 
+/**
+ * Answer a send to `chatId`'s running turn the way the server does when it
+ * steers (#1190): the message joins the run as a pending Steer, which the
+ * server announces to the Room. No agent runs here to take it.
+ */
+export async function stubSteer(page: Page, chatId: string): Promise<void> {
+  let n = 0
+  await page.route("**/api/agent/stream", async (route) => {
+    const { message } = route.request().postDataJSON() as { message: string }
+    const steerId = `fixture-steer-${++n}`
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ chatId, steered: true, steerId }),
+    })
+    await replayRun(page, chatId, [
+      {
+        type: "chat-control",
+        control: { kind: "steer_pending", steer: { id: steerId, message } },
+      },
+    ]).catch(() => {})
+  })
+}
+
 /** A run part-way through: the prompt, a finished tool call, and half a reply. */
 export function streamingRun(): RunEvent[] {
   return [
@@ -4377,6 +4441,7 @@ export function streamingRun(): RunEvent[] {
       },
     },
     { type: "chat-stream-start" },
+    { type: "chat-control", control: { kind: "steerable", steerable: true } },
     {
       type: "chat-acp-update",
       update: {

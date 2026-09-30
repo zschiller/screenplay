@@ -23,10 +23,49 @@ export type ChatState = {
    */
   failedSend: FailedSend | null
   /**
-   * Messages sent while a run was going. The head is sent when the run ends;
-   * each is cancellable until then.
+   * Messages sent while a run was going on an Engine that can't steer. The
+   * head is sent when the run ends; each is cancellable until then.
    */
   queued: QueuedMessage[]
+  /**
+   * Messages sent while a run was going that joined it as Steers (#1190),
+   * from anyone in the Room, oldest first. Each waits here until the agent
+   * takes it, when it moves into `messages` where the agent took it.
+   */
+  pendingSteers: PendingSteer[]
+  /**
+   * Whether the running turn can take Steers, as the server said when it
+   * started. Null until it says; a send then tries to steer.
+   */
+  steerable: boolean | null
+  /**
+   * Steers this client sent that a stop handed back, waiting to go into the
+   * composer (#1190).
+   */
+  returnedSteers: ReturnedSteer[]
+  /**
+   * Where the running turn began in `messages` (its `chat-stream-start`), so
+   * the part of the run before a Steer the agent took still reads as live.
+   * Null when no run is going.
+   */
+  runStart: number | null
+}
+
+/** A Steer the agent hasn't taken yet (#1190). */
+export interface PendingSteer {
+  /** Stable across the id arriving, for React keys and local lookups. */
+  key: string
+  /** The server's id, once known; a local send has none until it answers. */
+  id?: string
+  message: string
+  /** Set on a Steer this client sent: the composer document, for a stop to restore. */
+  local?: { draft?: unknown }
+}
+
+/** A stopped run's untaken Steer, back for the composer. */
+export interface ReturnedSteer {
+  message: string
+  draft?: unknown
 }
 
 /** A send the server didn't accept (#802). */
@@ -87,6 +126,19 @@ export type ChatControlEvent =
   // `chat-stream-end`, so every client drops the same "Stopped" marker into the
   // transcript that a reload rebuilds from the run's `aborted` status.
   | { kind: "stopped" }
+  // Whether the turn that just started can be steered (#1190). Sent after
+  // `chat-stream-start`, so a client joining mid-run learns it on replay.
+  | { kind: "steerable"; steerable: boolean }
+  // A message sent mid-run joined the run as a pending Steer (#1190).
+  | { kind: "steer_pending"; steer: { id: string; message: string } }
+  // These Steers are no longer pending: the Engine took them (their echoes
+  // follow) or they started the next turn (its echo follows).
+  | { kind: "steers_taken"; ids: string[] }
+  // A stopped run's Steers the Engine never took, handed back to the sender.
+  | {
+      kind: "steers_returned"
+      steers: Array<{ id: string; message: string; userId: string | null }>
+    }
 
 /**
  * Envelope broadcast via the room Y.Doc to all clients. `id` is generated at
@@ -132,6 +184,10 @@ const DEFAULT_STATE: ChatState = {
   error: null,
   failedSend: null,
   queued: [],
+  pendingSteers: [],
+  steerable: null,
+  returnedSteers: [],
+  runStart: null,
 }
 
 async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
@@ -183,6 +239,7 @@ function mergeHistoryWithLive(
 }
 
 let queueSeq = 0
+let steerSeq = 0
 
 class ChatStore {
   private states = new Map<string, ChatState>()
@@ -225,6 +282,60 @@ class ChatStore {
    * interleaving event.
    */
   private acpThoughtText = new Map<string, { text: string; active: boolean }>()
+
+  /**
+   * Steer ids per chat that are no longer pending (taken, started a turn, or
+   * returned), so a pending broadcast or a send's answer arriving after the
+   * fact can't bring one back.
+   */
+  private settledSteers = new Map<string, Set<string>>()
+
+  private steerSettled(chatId: string, id: string): boolean {
+    return this.settledSteers.get(chatId)?.has(id) ?? false
+  }
+
+  /** Show a Steer as pending, or name the local one it answers. */
+  private addPendingSteer(chatId: string, steer: PendingSteer) {
+    if (!steer.id || this.steerSettled(chatId, steer.id)) return
+    const { pendingSteers } = this.getOrCreate(chatId)
+    if (pendingSteers.some((p) => p.id === steer.id)) return
+    // This client's own send, whose answer hasn't come back yet.
+    const mine = pendingSteers.find(
+      (p) => p.local && !p.id && p.message === steer.message
+    )
+    this.update(chatId, {
+      pendingSteers: mine
+        ? pendingSteers.map((p) => (p === mine ? { ...p, id: steer.id } : p))
+        : [...pendingSteers, steer],
+    })
+  }
+
+  /**
+   * Settle Steers that are no longer pending. Returned ones this client sent
+   * go back to its composer; everywhere else they just disappear.
+   */
+  private settleSteers(chatId: string, ids: string[], returned: boolean) {
+    let settled = this.settledSteers.get(chatId)
+    if (!settled) {
+      settled = new Set()
+      this.settledSteers.set(chatId, settled)
+    }
+    for (const id of ids) settled.add(id)
+    const { pendingSteers, returnedSteers } = this.getOrCreate(chatId)
+    const gone = pendingSteers.filter((p) => p.id && ids.includes(p.id))
+    if (gone.length === 0) return
+    this.update(chatId, {
+      pendingSteers: pendingSteers.filter((p) => !gone.includes(p)),
+      returnedSteers: returned
+        ? [
+            ...returnedSteers,
+            ...gone.flatMap((p) =>
+              p.local ? [{ message: p.message, draft: p.local.draft }] : []
+            ),
+          ]
+        : returnedSteers,
+    })
+  }
 
   private getOrCreate(chatId: string): ChatState {
     let state = this.states.get(chatId)
@@ -291,7 +402,15 @@ class ChatStore {
         const messages = stale
           ? mergeHistoryWithLive(history, current.messages)
           : history
-        this.update(chatId, { messages, isLoadingHistory: false })
+        // Keep the running turn's start on the same message after the merge.
+        const runStart =
+          current.runStart === null
+            ? null
+            : Math.max(
+                0,
+                messages.length - (current.messages.length - current.runStart)
+              )
+        this.update(chatId, { messages, isLoadingHistory: false, runStart })
       })
       .catch(() => {
         // Release the once-per-chat lock on failure so the next mount (or an
@@ -305,27 +424,23 @@ class ChatStore {
   // --- Send message (fire-and-forget POST, server broadcasts via Liveblocks) ---
 
   /**
-   * Send a turn, or queue it when a run is already going. Resolves `true` once
-   * the server has accepted it (or it's queued), `false` when it was refused —
-   * the text is then held in `failedSend` for Retry or Edit, never dropped.
+   * Send a turn. While a run is going, the message steers it (#1190): it shows
+   * as a pending Steer at once, and the server joins it to the run. Where the
+   * run can't be steered it waits in the queue instead, until the run ends.
+   * Resolves `true` once the server has accepted it (or it's queued), `false`
+   * when it was refused — the text is then held in `failedSend` for Retry or
+   * Edit, never dropped.
    */
   async sendMessage(opts: SendMessageOptions): Promise<boolean> {
     const { chatId } = opts
     const state = this.getOrCreate(chatId)
     if (!opts.message.trim()) return false
     if (state.isStreaming) {
-      this.update(chatId, {
-        queued: [
-          ...state.queued,
-          {
-            id: `q_${++queueSeq}`,
-            message: opts.message,
-            draft: opts.draft,
-            options: opts,
-          },
-        ],
-      })
-      return true
+      if (state.steerable === false) {
+        this.enqueue(opts)
+        return true
+      }
+      return this.sendSteer(opts)
     }
 
     // Optimistically add the user message. Kept by reference so a refusal
@@ -336,44 +451,34 @@ class ChatStore {
       failedSend: null,
       messages: [...state.messages, optimistic],
     })
+    const dropOptimistic = () => ({
+      messages: this.getOrCreate(chatId).messages.filter(
+        (m) => m !== optimistic
+      ),
+    })
 
     try {
-      const res = await fetch(withBasePath("/api/agent/stream"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          roomId: opts.roomId,
-          chatId: opts.chatId,
-          sandboxName: opts.sandboxName,
-          markdownLayerId: opts.markdownLayerId,
-          target: opts.roomTarget ? "room" : undefined,
+      const answer = await this.post(opts)
+      // A run this client hadn't heard of yet was working: the message joined
+      // it (or waits for it) rather than starting a turn.
+      if (answer.kind === "steered") {
+        this.update(chatId, dropOptimistic())
+        this.addPendingSteer(chatId, {
+          key: answer.steerId,
+          id: answer.steerId,
           message: opts.message,
-          isFirstChat: opts.isFirstChat,
-          planMode: opts.planMode,
-          model: opts.model,
-          commentThreadIds: opts.commentThreadIds,
-        }),
-      })
-
-      if (!res.ok) {
-        if (res.status === 409) {
-          const body = await res.json().catch(() => null)
-          if (body?.error === "session_terminated") {
-            throw new Error(
-              "This chat's session has ended and can't be resumed. Please start a new chat to continue."
-            )
-          }
-        }
-        const errorText = await res.text()
-        throw new Error(errorText || `HTTP ${res.status}`)
+          local: { draft: opts.draft },
+        })
+      } else if (answer.kind === "not-steerable") {
+        this.update(chatId, { ...dropOptimistic(), steerable: false })
+        this.enqueue(opts)
       }
       return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      const current = this.getOrCreate(chatId)
       this.update(chatId, {
         error: msg,
-        messages: current.messages.filter((m) => m !== optimistic),
+        ...dropOptimistic(),
         failedSend: {
           message: opts.message,
           error: msg,
@@ -383,6 +488,125 @@ class ChatStore {
       })
       return false
     }
+  }
+
+  /**
+   * Send a message into the running turn as a Steer (#1190). It shows pending
+   * straight away; the server's answer gives it its id, or says the run ended
+   * meanwhile (the message started a turn, and its echo shows it) or can't be
+   * steered (it waits in the queue).
+   */
+  private async sendSteer(opts: SendMessageOptions): Promise<boolean> {
+    const { chatId } = opts
+    const key = `s_${++steerSeq}`
+    this.update(chatId, {
+      error: null,
+      failedSend: null,
+      pendingSteers: [
+        ...this.getOrCreate(chatId).pendingSteers,
+        { key, message: opts.message, local: { draft: opts.draft } },
+      ],
+    })
+    const without = () =>
+      this.getOrCreate(chatId).pendingSteers.filter((p) => p.key !== key)
+
+    try {
+      const answer = await this.post(opts)
+      if (answer.kind === "steered") {
+        // The pending broadcast may have named it already.
+        if (this.steerSettled(chatId, answer.steerId)) {
+          this.update(chatId, { pendingSteers: without() })
+        } else {
+          this.update(chatId, {
+            pendingSteers: this.getOrCreate(chatId).pendingSteers.map((p) =>
+              p.key === key ? { ...p, id: answer.steerId } : p
+            ),
+          })
+        }
+      } else if (answer.kind === "not-steerable") {
+        this.update(chatId, { pendingSteers: without(), steerable: false })
+        this.enqueue(opts)
+      } else {
+        this.update(chatId, { pendingSteers: without() })
+      }
+      return true
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      this.update(chatId, {
+        error: msg,
+        pendingSteers: without(),
+        failedSend: {
+          message: opts.message,
+          error: msg,
+          draft: opts.draft,
+          options: opts,
+        },
+      })
+      return false
+    }
+  }
+
+  /** POST a message to the stream route; throws when it's refused. */
+  private async post(
+    opts: SendMessageOptions
+  ): Promise<
+    | { kind: "started" }
+    | { kind: "steered"; steerId: string }
+    | { kind: "not-steerable" }
+  > {
+    const res = await fetch(withBasePath("/api/agent/stream"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId: opts.roomId,
+        chatId: opts.chatId,
+        sandboxName: opts.sandboxName,
+        markdownLayerId: opts.markdownLayerId,
+        target: opts.roomTarget ? "room" : undefined,
+        message: opts.message,
+        isFirstChat: opts.isFirstChat,
+        planMode: opts.planMode,
+        model: opts.model,
+        commentThreadIds: opts.commentThreadIds,
+      }),
+    })
+
+    if (!res.ok) {
+      if (res.status === 409) {
+        const body = await res
+          .clone()
+          .json()
+          .catch(() => null)
+        if (body?.error === "not_steerable") return { kind: "not-steerable" }
+        if (body?.error === "session_terminated") {
+          throw new Error(
+            "This chat's session has ended and can't be resumed. Please start a new chat to continue."
+          )
+        }
+      }
+      const errorText = await res.text()
+      throw new Error(errorText || `HTTP ${res.status}`)
+    }
+    const body = await res.json().catch(() => null)
+    return body?.steered && typeof body.steerId === "string"
+      ? { kind: "steered", steerId: body.steerId }
+      : { kind: "started" }
+  }
+
+  /** Hold a message until the running turn ends (a chat that can't steer). */
+  private enqueue(opts: SendMessageOptions) {
+    const { chatId } = opts
+    this.update(chatId, {
+      queued: [
+        ...this.getOrCreate(chatId).queued,
+        {
+          id: `q_${++queueSeq}`,
+          message: opts.message,
+          draft: opts.draft,
+          options: opts,
+        },
+      ],
+    })
   }
 
   /** Send the refused message again, exactly as it was. */
@@ -409,6 +633,13 @@ class ChatStore {
     const item = queued.find((q) => q.id === id) ?? null
     if (item) this.update(chatId, { queued: queued.filter((q) => q !== item) })
     return item
+  }
+
+  /** Hand the Steers a stop gave back to the composer, clearing them. */
+  takeReturnedSteers(chatId: string): ReturnedSteer[] {
+    const { returnedSteers } = this.getOrCreate(chatId)
+    if (returnedSteers.length > 0) this.update(chatId, { returnedSteers: [] })
+    return returnedSteers
   }
 
   /** Send the next queued message, once the run it waited on has ended. */
@@ -483,7 +714,14 @@ class ChatStore {
         // previous turn.
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
-        this.update(chatId, { isStreaming: true })
+        // The run begins at its user message: the sender already shows it,
+        // and everyone else gets its echo right after this.
+        const { messages } = this.getOrCreate(chatId)
+        const echoed = messages[messages.length - 1]?.role === "user"
+        this.update(chatId, {
+          isStreaming: true,
+          runStart: Math.max(0, messages.length - (echoed ? 1 : 0)),
+        })
         break
 
       case "chat-stream-end": {
@@ -494,7 +732,7 @@ class ChatStore {
         if (wasStreaming) this.unreadChats.add(chatId)
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
-        this.update(chatId, { isStreaming: false })
+        this.update(chatId, { isStreaming: false, runStart: null })
         this.drainQueue(chatId)
         break
       }
@@ -546,6 +784,25 @@ class ChatStore {
         })
         break
       }
+      case "steerable":
+        this.update(chatId, { steerable: control.steerable })
+        break
+      case "steer_pending":
+        this.addPendingSteer(chatId, {
+          key: control.steer.id,
+          ...control.steer,
+        })
+        break
+      case "steers_taken":
+        this.settleSteers(chatId, control.ids, false)
+        break
+      case "steers_returned":
+        this.settleSteers(
+          chatId,
+          control.steers.map((s) => s.id),
+          true
+        )
+        break
       case "error":
         this.update(chatId, {
           error: control.message,
@@ -809,6 +1066,7 @@ class ChatStore {
     this.appliedEventIds.delete(chatId)
     this.acpAgentText.delete(chatId)
     this.acpThoughtText.delete(chatId)
+    this.settledSteers.delete(chatId)
     this.notify(chatId)
     this.listeners.delete(chatId)
   }
