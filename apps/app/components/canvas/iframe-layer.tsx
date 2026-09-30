@@ -1092,7 +1092,7 @@ export function IframeLayer({
                       onSelect={() => onRemove(iframeLayer.id)}
                     >
                       <TrashIcon />
-                      Delete frame
+                      Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

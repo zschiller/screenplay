@@ -5,6 +5,7 @@ import { resultLine } from "@/lib/agent/room-arrange-tools"
 import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
 import { CHANGE_LOG_KEY, MAX_LOGGED_TURNS } from "@/lib/agent/room-change-log"
 import { getGroupMembers } from "@/lib/canvas/layout"
+import { createCanvasUndo } from "@/lib/canvas/undo"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -352,11 +353,11 @@ describe("a member's own ⌘Z", () => {
     const r = room()
     seedCanvas(r)
 
-    // A member's client: synced from the server, with the canvas's
-    // UndoManager (lib/yjs/react.ts) tracking local edits.
+    // A member's client: synced from the server, with the canvas's own
+    // undo (lib/canvas/undo.ts) tracking local edits.
     const client = new Y.Doc()
     Y.applyUpdate(client, Y.encodeStateAsUpdate(r.doc), "provider")
-    const undo = new Y.UndoManager(client.getMap(COLLECTION_KEYS.iframeLayers))
+    const undo = createCanvasUndo(client)
 
     const sv = Y.encodeStateVector(client)
     await r.turn()("remove", { ids: ["frame-1"] })

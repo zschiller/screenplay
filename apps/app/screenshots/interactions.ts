@@ -8,9 +8,11 @@ import {
 import { FIXTURE_IDS } from "./fixtures/world"
 import {
   canvasPanels,
+  chooseFromMenu,
   DEFAULT_VIEWPORT,
   fixtureCheckouts,
   fixtureGitHub,
+  freezeYjs,
   homeView,
   NARROW_HOME_VIEWPORT,
   narrowHome,
@@ -18,6 +20,7 @@ import {
   openChatTab,
   openTerminalTab,
   replayRun,
+  rowMenuTrigger,
   stubSteer,
   tabTo,
   typeInComposer,
@@ -129,6 +132,40 @@ export const INTERACTIONS: Interaction[] = [
         page.getByRole("button", { name: "Add document to group" }).first()
       )
       await page.waitForTimeout(1800)
+    },
+  },
+  {
+    name: "canvas-delete-undo",
+    description:
+      "Delete a frame from the layers list, then Undo in its toast; select a frame, press Delete, then ⌘Z.",
+    path: `/${ids.rooms.checkout}`,
+    run: async (page) => {
+      // Frozen so the deletes happen on screen only, never in the persisted
+      // world (a build that can't undo would otherwise lose the frame).
+      await step(() => freezeYjs(page))
+      await step(() =>
+        chooseFromMenu(page, rowMenuTrigger(page, "Empty cart"), ["Delete"])
+      )
+      // A build that still confirms: answer it, so the flow carries on.
+      await step(() =>
+        page
+          .getByRole("alertdialog")
+          .getByRole("button", { name: "Delete" })
+          .click({ timeout: 1500 })
+      )
+      await page.waitForTimeout(1800)
+      await step(() =>
+        page
+          .getByRole("button", { name: "Undo", exact: true })
+          .click({ timeout: 1500 })
+      )
+      await page.waitForTimeout(1800)
+      await click(page, page.getByText("Empty cart", { exact: true }).first())
+      await page.waitForTimeout(800)
+      await page.keyboard.press("Delete")
+      await page.waitForTimeout(1800)
+      await page.keyboard.press("Control+z")
+      await page.waitForTimeout(2200)
     },
   },
   {
