@@ -81,19 +81,26 @@ export function ArchitectureDiagram() {
 
 /** concepts.mdx: what a canvas holds. */
 export function ConceptsDiagram() {
-  const canvas = box(0, 0, 672, 240)
-  const repo = box(16, 44, 328, 180)
-  const workspace = box(32, 100, 288, SIZE.pair)
+  const canvas = box(0, 0, 672, 328)
+  const coordinator = box(16, 44, 640, SIZE.pair)
+  const repo = box(16, 132, 328, 180)
+  const workspace = box(32, 188, 288, SIZE.pair)
   const layersX = 360
-  const frame = box(layersX, 100, 296, SIZE.pair)
-  const doc = box(layersX, 168, 296, SIZE.pair)
+  const frame = box(layersX, 188, 296, SIZE.pair)
+  const doc = box(layersX, 256, 296, SIZE.pair)
+  const handoffX = 296
   return (
     <Diagram
       width={672}
-      height={240}
-      label="A canvas holds repositories, each with its workspaces, and layers: frames, which preview a workspace's dev server, and documents."
+      height={328}
+      label="A canvas has one Coordinator, which sends work to each workspace's agent. It also holds repositories, each with its workspaces, and layers: frames, which preview a workspace's dev server, and documents."
     >
       <Node b={canvas} title="Canvas" tone="group" heading />
+      <Node
+        b={coordinator}
+        title="Coordinator"
+        sub="the canvas's chat: sees everything, arranges the canvas"
+      />
       <Node
         b={repo}
         title="Repository"
@@ -103,12 +110,20 @@ export function ConceptsDiagram() {
       <Node
         b={workspace}
         title="Workspace"
-        sub="a branch + its environment + its agent chats"
+        sub="a branch + its environment + its agent"
         tone="stack"
       />
-      <Note x={workspace.x} y={188} text="A repository can have many." />
+      {/* Drawn after the repository region, whose fill would hide it. */}
+      <Edge
+        points={[
+          [handoffX, coordinator.y + coordinator.h],
+          [handoffX, workspace.y],
+        ]}
+      />
+      <Label x={handoffX + 8} y={124} text="sends work" />
+      <Note x={workspace.x} y={276} text="A repository can have many." />
 
-      <Label x={layersX} y={68} text="Layers on the canvas" />
+      <Label x={layersX} y={156} text="Layers on the canvas" />
       <Node
         b={frame}
         title="Frame"
