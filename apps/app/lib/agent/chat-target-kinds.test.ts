@@ -16,6 +16,10 @@ import {
 } from "@/lib/agent/chat-target-kinds"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
 import { addMemory } from "@/lib/canvas/memory"
+import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
+import { buildViewTools } from "@/lib/agent/room-view-tools"
+import { buildDocumentTools } from "@/lib/agent/document-tools"
+import { buildMockupTools } from "@/lib/agent/mockup-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import type { ToolContext } from "@/lib/agent/tools"
 import {
@@ -127,7 +131,6 @@ describe("room chat target", () => {
     expect(Object.keys(tools).sort()).toEqual([
       "arrange_groups",
       "ask_question",
-      "create_document",
       "create_frames",
       "create_workspaces",
       "list_changes",
@@ -152,6 +155,85 @@ describe("room chat target", () => {
       "view_frame",
       "write_memory",
     ])
+  })
+})
+
+/**
+ * The Coordinator only delegates (#1316): the Chat Target toolset seam gives
+ * it no tool that makes or edits a Document or Mockup, and gives a Workspace
+ * chat none that arranges the canvas or moves the view, so chats never fight
+ * over the layout.
+ */
+describe("the Coordinator only delegates", () => {
+  const room: RoomDoc = {
+    roomId: "room-1",
+    readDoc: async () => {
+      throw new Error("not read while building tools")
+    },
+    mutateDoc: async () => {
+      throw new Error("not written while building tools")
+    },
+  }
+  const names = (tools: object) => Object.keys(tools)
+  const documentAndMockupWrites = [
+    ...names(buildDocumentTools({ room, chatId: "chat-1" })),
+    ...names(buildMockupTools({ room, chatId: "chat-1" })),
+  ].filter((name) => name !== "read_document")
+  const arrangeAndCamera = [
+    ...names(buildArrangeTools(room.mutateDoc, "turn-1")),
+    ...names(buildViewTools(room.readDoc)),
+  ]
+
+  it("gives the Coordinator no tool that creates or edits a Document or Mockup", () => {
+    const tools = names(roomChatTarget.buildTools(room, { userId: "user-1" }))
+
+    expect(documentAndMockupWrites).toEqual(
+      expect.arrayContaining(["create_document", "create_mockup"])
+    )
+    for (const name of documentAndMockupWrites) {
+      expect(tools).not.toContain(name)
+    }
+    // It still arranges the canvas, moves the view and starts chats.
+    expect(tools).toEqual(
+      expect.arrayContaining([
+        ...arrangeAndCamera,
+        "send_to_workspace",
+        "create_workspaces",
+      ])
+    )
+  })
+
+  it("gives a Workspace chat no arrange or camera tools", () => {
+    const sandbox: ToolContext = { sandboxName: "sb-1", room, userId: "user-1" }
+    const tools = names(
+      agentChatTarget.buildTools(
+        room,
+        { sandboxName: "sb-1", branch: "main", chatId: "chat-1" },
+        sandbox
+      )
+    )
+
+    expect(arrangeAndCamera).toEqual(
+      expect.arrayContaining(["arrange_groups", "show_on_canvas"])
+    )
+    for (const name of arrangeAndCamera) {
+      expect(tools).not.toContain(name)
+    }
+    expect(tools).toEqual(expect.arrayContaining(documentAndMockupWrites))
+  })
+
+  it("tells the Coordinator to start a chat for a Document or Mockup", () => {
+    const prompt = roomChatTarget.buildSystemPrompt(
+      { canvasSummary: "", memory: [] },
+      {}
+    )
+
+    expect(prompt).toContain("You can't write or edit a document or a mockup.")
+    expect(prompt).toMatch(
+      /start a chat that makes it: send the ask to the Workspace it's about with `send_to_workspace`/
+    )
+    expect(prompt).not.toContain("create_document")
+    expect(prompt).not.toContain("create_mockup")
   })
 })
 

@@ -25,11 +25,14 @@ can ask "What did the sign-in workspace change, and how does it look?"
 />
 
 The Coordinator can also arrange the canvas. Ask it to add frames for a
-workspace's routes, add a document, move or rename frames, groups and
-documents, gather frames into a group, merge groups, or remove frames and
-documents. It can tidy the canvas too, or line groups up side by side, in a
-column or in a grid, spaced so nothing overlaps. It does these right away,
-without asking first. Removing a frame never removes its workspace.
+workspace's routes, move frames, documents and mockups between groups, rename
+frames and groups, gather things into a group, merge groups, or remove frames
+and documents. It can tidy the canvas too, or line groups up side by side, in
+a column or in a grid, spaced so nothing overlaps. It does these right away,
+without asking first. Removing a frame never removes its workspace. Only the
+Coordinator arranges the canvas and moves the view, so workspace chats never
+fight over the layout; it places what they make by judgment, usually beside
+the frames it relates to.
 
 It can move your view as well. Ask it to "zoom to the cart", "take me to the
 split screen variant" or "show me everything", and your canvas moves to fit
@@ -41,10 +44,11 @@ changed, so a frame or document it removed comes back exactly as it was, and
 you can undo an undo the same way. Your own ⌘Z still undoes only your own
 edits, never the Coordinator's.
 
-The Coordinator never works inside a sandbox and never edits a workspace's
-files. When you ask for work in a workspace, it sends that workspace's agent a
-message, and the agent does the work. When no workspace fits, it starts new
-ones.
+The Coordinator makes nothing itself. It never works inside a sandbox, never
+edits a workspace's files, and never writes a [document](/guides/documents) or
+a [mockup](/guides/mockups). When you ask it for any of these, it sends the
+ask to the workspace it's about, and that workspace's agent does the work and
+owns what it makes. When no workspace fits, it starts a new one for the ask.
 
 On a new canvas, the workspace that adding a repository started hasn't been
 asked anything yet. The Coordinator sends your next ask for that repository
@@ -175,13 +179,13 @@ Its tool calls show as compact rows, like a workspace agent's. Once a change
 to the canvas finishes, its row says what changed, such as **Renamed Group
 "Hero" to "Sign-in"**.
 
-| Kind       | Rows                                                                                                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read       | **Read canvas**, **Read document**, **Read Workspace chat**, **Read Workspace diff**, **Read Workspace file**, **View frame**, **Read frame HTML**, **Read skill**          |
-| Arrange    | **Create frames**, **Create document**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes** |
-| View       | **Show on canvas**                                                                                                                                                          |
-| Workspaces | **Create Workspaces**, **Stop Workspace**, **Open pull request**, **Remove Workspace**                                                                                      |
-| Memory     | **Save to memory**                                                                                                                                                          |
+| Kind       | Rows                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read       | **Read canvas**, **Read document**, **Read Workspace chat**, **Read Workspace diff**, **Read Workspace file**, **View frame**, **Read frame HTML**, **Read skill** |
+| Arrange    | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**             |
+| View       | **Show on canvas**                                                                                                                                                 |
+| Workspaces | **Create Workspaces**, **Stop Workspace**, **Open pull request**, **Remove Workspace**                                                                             |
+| Memory     | **Save to memory**                                                                                                                                                 |
 
 A message to a workspace shows as its [card](#messages-to-workspaces) rather
 than a row, and a [question](/guides/agent#questions) it

@@ -9,7 +9,6 @@ import { createCanvasUndo } from "@/lib/canvas/undo"
 import {
   documentFragment,
   fragmentBodyToPlainText,
-  getFragmentTitle,
   replaceFragmentBodyPreservingTitle,
   seedDocumentFragment,
   setFragmentTitle,
@@ -218,17 +217,12 @@ describe("arrange tools", () => {
       workspace_id: "ws-1",
       routes: ["/", "/checkout"],
     })
-    await call("create_document", { title: "Notes" })
     await call("rename", { id: "frame-1", name: "Billing" })
     await call("rename", { id: "group-1", name: "Payments" })
-    await call("rename", { id: "doc-1", name: "Launch plan" })
+    await call("move_to_group", { ids: ["doc-1"] })
     await call("move_group", { group_id: "group-1", x: 900, y: 300 })
 
     expect(r.collections.iframeLayers.toArray()).toHaveLength(3)
-    expect(r.collections.markdownLayers.toArray()).toHaveLength(2)
-    expect(getFragmentTitle(documentFragment(r.doc, "doc-1"))).toBe(
-      "Launch plan"
-    )
 
     await r.turn()("undo_changes")
     expect(canvasState(r.doc).iframeLayers).toEqual(original.iframeLayers)
@@ -237,10 +231,6 @@ describe("arrange tools", () => {
     )
     expect(canvasState(r.doc).markdownLayers).toEqual(original.markdownLayers)
     expect(canvasState(r.doc).chatSessions).toEqual(original.chatSessions)
-    // The document's heading follows its title back.
-    expect(getFragmentTitle(documentFragment(r.doc, "doc-1"))).toBe(
-      "Launch spec"
-    )
   })
 
   it("creates frames for routes in one new Group", async () => {
@@ -264,12 +254,10 @@ describe("arrange tools", () => {
     ])
   })
 
-  it("adds blank frames and documents to an existing Group", async () => {
+  it("adds blank frames to an existing Group", async () => {
     const r = room()
     seedCanvas(r)
-    const call = r.turn()
-    await call("create_frames", { group_id: "group-1" })
-    await call("create_document", { group_id: "group-1", title: "Notes" })
+    await r.turn()("create_frames", { group_id: "group-1" })
     const members = getGroupMembers(
       r.collections.iframeLayerGroups.get("group-1")!
     )
@@ -277,10 +265,17 @@ describe("arrange tools", () => {
       "iframe-layer",
       "markdown-layer",
       "iframe-layer",
-      "markdown-layer",
     ])
-    const notes = r.collections.markdownLayers.get(members[3]!.id)!
-    expect(notes.title).toBe("Notes")
+  })
+
+  it("renames frames and Groups but leaves a document's title to its chat (#1316)", async () => {
+    const r = room()
+    seedCanvas(r)
+    expect(await r.turn()("rename", { id: "doc-1", name: "Launch plan" })).toBe(
+      "Error: no frame or Group doc-1."
+    )
+    expect(r.collections.markdownLayers.get("doc-1")?.title).toBe("Launch spec")
+    expect(r.doc.getMap(CHANGE_LOG_KEY).size).toBe(0)
   })
 
   it("groups, moves between and merges Groups, pruning emptied ones", async () => {
@@ -325,7 +320,7 @@ describe("arrange tools", () => {
     const r = room()
     seedCanvas(r)
     expect(await r.turn()("rename", { id: "nope", name: "X" })).toBe(
-      "Error: no frame, Group or document nope."
+      "Error: no frame or Group nope."
     )
     expect(r.doc.getMap(CHANGE_LOG_KEY).size).toBe(0)
   })
