@@ -16,7 +16,7 @@ import {
   useWorkspaceAgentWorking,
 } from "@/components/workspace-mention"
 import type { BranchData } from "@/lib/types"
-import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
+import { workspaceLabel } from "@/lib/workspace-label"
 import type { FrameWorkspace } from "./frame-nav"
 
 /**
@@ -30,8 +30,8 @@ export function pickableWorkspaces(branches: BranchData[]): BranchData[] {
 }
 
 /**
- * A Workspace's plain name, as the sidebar row draws it: its title, or its
- * branch in mono when untitled. Lists and labels carry no Workspace colour.
+ * A Workspace's plain name, as the sidebar row draws it: its title, or "New
+ * Workspace" when untitled. Lists and labels carry no Workspace colour.
  */
 export function WorkspaceName({
   workspace,
@@ -41,13 +41,7 @@ export function WorkspaceName({
   className?: string
 }) {
   return (
-    <span
-      className={cn(
-        "min-w-0 truncate",
-        !hasWorkspaceTitle(workspace) && "font-mono text-xs",
-        className
-      )}
-    >
+    <span className={cn("min-w-0 truncate", className)}>
       {workspaceLabel(workspace)}
     </span>
   )

@@ -18,6 +18,8 @@ import {
 } from "@workspace/ui/components/empty"
 import { Kbd } from "@workspace/ui/components/kbd"
 
+import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
+
 import type { ToolModeController } from "./use-tool-mode"
 
 /**
@@ -36,8 +38,8 @@ const ON_PLANE = "bg-foreground/[0.06] dark:bg-muted"
  *
  * Frame and Document arm the same Tool Mode the toolbar and `F` / `D` do; the
  * guidance then steps aside for a one-line placement hint, so the next click
- * lands on the canvas rather than on a button. Project opens the sidebar's
- * add-project flow, which owns the picker.
+ * lands on the canvas rather than on a button. Add a repository goes straight
+ * to the picker (#1182).
  *
  * Floats over the canvas in screen space and is pointer-transparent except for
  * its buttons, so panning and marquee still work around it. The Canvas stops
@@ -45,11 +47,8 @@ const ON_PLANE = "bg-foreground/[0.06] dark:bg-muted"
  */
 export function CanvasEmptyState({
   toolMode,
-  onAddProject,
 }: {
   toolMode: ToolModeController
-  /** Open the sidebar's add-project flow (expanding the sidebar if needed). */
-  onAddProject: () => void
 }) {
   const { frameMode, documentMode } = toolMode
 
@@ -98,11 +97,9 @@ export function CanvasEmptyState({
             shortcut="D"
             onClick={() => toolMode.set("document")}
           />
-          <EmptyAction
-            icon={<FolderPlusIcon />}
-            label="Add a repository"
-            onClick={onAddProject}
-          />
+          <AddRepositoryTrigger>
+            <EmptyAction icon={<FolderPlusIcon />} label="Add a repository" />
+          </AddRepositoryTrigger>
         </EmptyContent>
       </Empty>
     </div>
@@ -114,24 +111,31 @@ function EmptyAction({
   label,
   shortcut,
   onClick,
+  ...props
 }: {
   icon: React.ReactNode
   label: string
   shortcut?: string
-  onClick: () => void
-}) {
+  onClick?: React.MouseEventHandler<HTMLButtonElement>
+} & Omit<React.ComponentProps<typeof Button>, "onClick">) {
+  // Props an `AddRepositoryTrigger` passes in (a menu trigger's handlers and
+  // state) ride through to the button.
   return (
     <Button
       variant="ghost"
       size="sm"
       className="w-full justify-start text-muted-foreground hover:text-foreground"
+      {...props}
       onClick={(e) => {
         // The canvas wrapper treats a click as "clear the selection / place a
         // comment"; this button is chrome, not canvas.
         e.stopPropagation()
-        onClick()
+        onClick?.(e)
       }}
-      onPointerDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        props.onPointerDown?.(e)
+      }}
     >
       {icon}
       <span className="flex-1 text-left">{label}</span>

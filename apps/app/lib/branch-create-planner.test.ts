@@ -16,14 +16,14 @@ const spec = (overrides: Partial<ComposerSpec> = {}): ComposerSpec => ({
 })
 
 describe("planBranchCreations", () => {
-  it("resolves an empty prompt to a bare, random-named, no-model Branch", () => {
+  it("resolves an empty prompt to a bare, random-named, no-model Branch its first turn names", () => {
     const [plan] = planBranchCreations(repo, [spec({ prompt: "" })])
 
     expect(plan).toEqual({
       nameSource: "random",
       flow: "new",
       seedChat: false,
-      autoNamedBranch: false,
+      autoNamedBranch: true,
       firePromptOnRunning: false,
     })
     expect(plan!.model).toBeUndefined()
@@ -126,7 +126,7 @@ describe("planBranchCreations", () => {
         nameSource: "random",
         flow: "new",
         seedChat: false,
-        autoNamedBranch: false,
+        autoNamedBranch: true,
         firePromptOnRunning: false,
       },
       {

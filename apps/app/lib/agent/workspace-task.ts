@@ -118,6 +118,18 @@ export function sentToWorkspaceResult(title: string, chatId: string): string {
   return `Sent to "${title}" [chat ${chatId}]. Its agent is working on it now; you'll hear back when its turn ends.`
 }
 
+/**
+ * The line `send_to_workspace` returns when a fresh Workspace still starting
+ * holds the message until its sandbox runs (#1182). Named like
+ * {@link sentToWorkspaceResult}, so its task row finds the chat the same way.
+ */
+export function queuedForWorkspaceResult(
+  title: string,
+  chatId: string
+): string {
+  return `Queued for "${title}" [chat ${chatId}]. Its sandbox is still starting; the message is sent as soon as it runs, and you'll hear back when its turn ends.`
+}
+
 /** The link scheme a Coordinator reply names a Workspace with (#897). */
 export const WORKSPACE_LINK_SCHEME = "workspace:"
 

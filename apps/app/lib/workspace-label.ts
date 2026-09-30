@@ -1,20 +1,16 @@
 import type { BranchData } from "@/lib/types"
 
-/**
- * The one label rule for a Workspace (#881): its title, falling back to its
- * branch name when it has none. Workspaces created before titles existed have
- * no `title`; an empty or blank one counts as missing.
- */
-export function workspaceLabel(
-  workspace: Pick<BranchData, "title" | "ref">
-): string {
-  const title = workspace.title?.trim()
-  return title ? title : workspace.ref
-}
+/** What a Workspace without a title reads as (#1182): never its branch. */
+export const UNTITLED_WORKSPACE_LABEL = "New Workspace"
 
-/** Whether {@link workspaceLabel} resolves to a title rather than the branch. */
-export function hasWorkspaceTitle(
-  workspace: Pick<BranchData, "title">
-): boolean {
-  return !!workspace.title?.trim()
+/**
+ * The one label rule for a Workspace (#881): its title, falling back to "New
+ * Workspace" when it has none (#1182), so the UI never shows a branch as a
+ * Workspace's name. A Workspace takes its title from its first turn; one
+ * created before titles existed has none. An empty or blank title counts as
+ * missing.
+ */
+export function workspaceLabel(workspace: Pick<BranchData, "title">): string {
+  const title = workspace.title?.trim()
+  return title ? title : UNTITLED_WORKSPACE_LABEL
 }

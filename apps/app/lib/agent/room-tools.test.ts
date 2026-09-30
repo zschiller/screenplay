@@ -126,9 +126,9 @@ describe("read_canvas", () => {
     expect(summary).toContain(
       '- [ws-1] "Fix sign-in redirect" · branch fix-sign-in · acme/web · working · +18 −3 · PR #12 open'
     )
-    // No title: the Workspace label rule falls back to the branch.
+    // No title: "New Workspace", never the branch; no turns yet: fresh (#1182).
     expect(summary).toContain(
-      '- [ws-2] "dark-mode" · branch dark-mode · acme/web · starting'
+      '- [ws-2] "New Workspace" · branch dark-mode · acme/web · starting · fresh (no turns yet)'
     )
     expect(summary).toContain(
       '- [frame-1] "Frame" · /settings · 1280×800 · Workspace ws-1'
@@ -315,6 +315,29 @@ describe("send_to_workspace", () => {
     return { collections, launched, ports, send }
   }
 
+  it("holds the first ask for a fresh Workspace that is still starting (#1182)", async () => {
+    const { collections, launched, send } = sendHarness()
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { status: "starting", ref: "brave-otter" })
+    )
+    collections.chatSessions.set(
+      "chat-1",
+      baseChat("chat-1", { branchId: "ws-1" })
+    )
+
+    const result = await send({ workspace_id: "ws-1", message: "Make it pink" })
+
+    expect(result).toContain('Queued for "New Workspace" [chat chat-1]')
+    // Sent by provisioning once the sandbox runs, not now.
+    expect(launched).toEqual([])
+    expect(collections.branches.get("ws-1")?.pendingSeed).toEqual({
+      chatId: "chat-1",
+      message: "Make it pink",
+      coordinatorChatId: expect.any(String),
+    })
+  })
+
   it("queues the message in the Workspace's newest open chat and returns", async () => {
     const { collections, launched, send } = sendHarness()
     collections.branches.set(
@@ -387,8 +410,33 @@ describe("send_to_workspace", () => {
     [
       "a Workspace whose sandbox isn't running",
       (c: RoomCollections) =>
-        c.branches.set("ws-1", baseBranch("ws-1", { status: "starting" })),
+        c.branches.set(
+          "ws-1",
+          baseBranch("ws-1", { status: "starting", lastActivityAt: 1 })
+        ),
       /isn't running/,
+    ],
+    [
+      "a stopped fresh Workspace",
+      (c: RoomCollections) =>
+        c.branches.set("ws-1", baseBranch("ws-1", { status: "stopped" })),
+      /isn't running/,
+    ],
+    [
+      "a starting Workspace that already has a message waiting",
+      (c: RoomCollections) =>
+        c.branches.set(
+          "ws-1",
+          baseBranch("ws-1", {
+            status: "starting",
+            pendingSeed: {
+              chatId: "chat-0",
+              message: "First",
+              coordinatorChatId: "room-chat",
+            },
+          })
+        ),
+      /already has a message waiting/,
     ],
     [
       "a Workspace whose agent is working",

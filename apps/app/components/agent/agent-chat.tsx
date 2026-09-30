@@ -26,6 +26,7 @@ import {
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
 import { parseUserMessage } from "@/lib/agent/message-markers"
 import type { AgentMessage } from "@/lib/agent/types"
+import type { CoordinatorStart } from "@/lib/fresh-workspace"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceTasks } from "./workspace-task-row"
 import {
@@ -60,11 +61,12 @@ interface AgentChatProps {
    *  chat can't reach the agent yet, so we show the same provisioning spinner
    *  the terminal does rather than a live input that would error on send. */
   sandboxStatus?: SandboxStatus
-  branch?: string
   /** Document-layer target. */
   markdownLayerId?: string
   /** The Room's Coordinator chat: the whole canvas, no sandbox or document. */
   roomTarget?: boolean
+  /** How the Coordinator's empty chat reads (#1182): a fresh canvas or not. */
+  roomStart?: CoordinatorStart
   isFirstChat?: boolean
   planMode?: boolean
   onPlanModeChange?: (planMode: boolean) => void
@@ -81,9 +83,9 @@ export function AgentChat({
   sandboxId,
   sandboxName,
   sandboxStatus,
-  branch,
   markdownLayerId,
   roomTarget,
+  roomStart,
   isFirstChat,
   planMode,
   onPlanModeChange,
@@ -433,7 +435,7 @@ export function AgentChat({
           ) : messages.length === 0 && !failedSend ? (
             <ChatEmptyState
               kind={chatKind}
-              branch={branch}
+              roomStart={roomStart}
               onPickStarter={(text) => composerRef.current?.insertText(text)}
             />
           ) : (
@@ -565,20 +567,24 @@ type ChatKind = "agent" | "document" | "room"
 /**
  * The empty chat, worded for its Chat Target in the UI's own nouns: a frame
  * chat changes the Workspace's code (and so what its frames show), a Document
- * chat edits the Document, the Coordinator sees the whole canvas. A starter
- * fills the composer rather than sending, so it can be edited first.
+ * chat edits the Document, the Coordinator sees the whole canvas. On a fresh
+ * canvas (#1182) the Coordinator asks what should change instead, and says
+ * where the first ask runs. A starter fills the composer rather than sending,
+ * so it can be edited first.
  */
 function ChatEmptyState({
   kind,
-  branch,
+  roomStart,
   onPickStarter,
 }: {
   kind: ChatKind
-  branch?: string
+  roomStart?: CoordinatorStart
   onPickStarter: (text: string) => void
 }) {
-  const starters =
-    kind === "agent"
+  const fresh = kind === "room" && roomStart?.kind === "fresh"
+  const starters = fresh
+    ? []
+    : kind === "agent"
       ? FRAME_STARTERS
       : kind === "room"
         ? ROOM_STARTERS
@@ -587,46 +593,42 @@ function ChatEmptyState({
     <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">
-          {kind === "agent"
-            ? "Change what your frames show"
-            : kind === "room"
-              ? "Ask about this canvas"
-              : "Edit this Document"}
+          {fresh
+            ? roomStart.repoName
+              ? `What should change in ${roomStart.repoName}?`
+              : "What should change?"
+            : kind === "agent"
+              ? "Change what your frames show"
+              : kind === "room"
+                ? "Ask about this canvas"
+                : "Edit this Document"}
         </p>
         <p className="text-xs text-muted-foreground">
-          {kind === "room" ? (
-            "The Coordinator sees every Workspace, frame and Document on this canvas."
-          ) : kind === "agent" ? (
-            <>
-              The agent edits the code in{" "}
-              {branch ? (
-                <span className="font-mono whitespace-nowrap text-foreground">
-                  {branch}
-                </span>
-              ) : (
-                "this Workspace"
-              )}{" "}
-              and can run commands, and your frames update as it works.
-            </>
-          ) : (
-            "The agent can rewrite and retitle it, and read any Document you @ mention."
-          )}
+          {fresh
+            ? "Your first ask runs in the Workspace on the canvas."
+            : kind === "room"
+              ? "The Coordinator sees every Workspace, frame and Document on this canvas."
+              : kind === "agent"
+                ? "The agent edits this Workspace's code and can run commands, and your frames update as it works."
+                : "The agent can rewrite and retitle it, and read any Document you @ mention."}
         </p>
       </div>
-      <div className="flex flex-wrap justify-center gap-1.5">
-        {starters.map((text) => (
-          <Button
-            key={text}
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onPickStarter(text)}
-            className="font-normal text-muted-foreground hover:text-foreground"
-          >
-            {text}
-          </Button>
-        ))}
-      </div>
+      {starters.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-1.5">
+          {starters.map((text) => (
+            <Button
+              key={text}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onPickStarter(text)}
+              className="font-normal text-muted-foreground hover:text-foreground"
+            >
+              {text}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

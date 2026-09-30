@@ -28,6 +28,7 @@ const WORKSPACES: DeleteRepoWorkspace[] = [
   {
     id: "a",
     ref: "checkout-polish",
+    title: "Checkout polish",
     status: "running",
     prNumber: 482,
     prState: "open",
@@ -37,6 +38,7 @@ const WORKSPACES: DeleteRepoWorkspace[] = [
   {
     id: "b",
     ref: "empty-cart-state",
+    title: "Empty cart state",
     status: "running",
     work: { onOrigin: true, unpushedCommits: 2, uncommittedFiles: 0 },
   },
@@ -68,9 +70,10 @@ describe("DeleteRepoDialog", () => {
 
     const rows = screen.getAllByRole("listitem").map((li) => li.textContent)
     expect(rows).toEqual([
-      "checkout-polishPR #482, open",
-      "empty-cart-state2 unpushed",
-      "apple-pay-buttonClean",
+      "Checkout polishPR #482, open",
+      "Empty cart state2 unpushed",
+      // Untitled: never its branch (#1182).
+      "New WorkspaceClean",
     ])
     expect(
       screen.getAllByRole("img").map((i) => i.getAttribute("aria-label"))

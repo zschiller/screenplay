@@ -49,7 +49,8 @@ function mountIntake(
   collections.branches.set(branch.id, branch)
 
   const clearIfSelected = vi.fn()
-  const chatTarget = { clearIfSelected, addPending: vi.fn() }
+  const addPending = vi.fn()
+  const chatTarget = { clearIfSelected, addPending }
 
   const { result } = renderHook(() =>
     useBranchIntake({
@@ -67,7 +68,7 @@ function mountIntake(
     })
   )
 
-  return { collections, result, clearIfSelected }
+  return { collections, result, clearIfSelected, addPending }
 }
 
 describe("removeBranch — local teardown vs. the remote branch", () => {
@@ -234,5 +235,52 @@ describe("create requests the server refuses (#791)", () => {
       roomId: "room-1",
       retry: true,
     })
+  })
+})
+
+describe("adding a repository (#1182)", () => {
+  const fetchMock = vi.fn()
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock)
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("starts a Workspace with its frame but leaves the panel on the Coordinator", async () => {
+    const { collections, result, addPending } = mountIntake()
+
+    await act(async () => {
+      result.current.createRepo({
+        kind: "source",
+        source: {
+          name: "widget",
+          repoFullName: "acme/widget",
+          repoOwner: "acme",
+          repoName: "widget",
+          defaultBranch: "main",
+          cloneUrl: "",
+          localPath: "/Users/me/widget",
+        },
+      })
+    })
+
+    const repo = collections.repos
+      .toArray()
+      .find((r) => r.repoFullName === "acme/widget")
+    expect(repo).toBeDefined()
+    const workspace = collections.branches
+      .toArray()
+      .find((b) => b.repoId === repo!.id)
+    expect(workspace).toMatchObject({ status: "creating", createFlow: "new" })
+    expect(workspace!.autoNamedBranch).not.toBe(false)
+    expect(
+      collections.iframeLayers
+        .toArray()
+        .some((l) => l.branchId === workspace!.id)
+    ).toBe(true)
+    // Nothing waits to select it once its sandbox runs.
+    expect(addPending).not.toHaveBeenCalled()
   })
 })

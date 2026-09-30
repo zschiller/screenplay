@@ -27,9 +27,11 @@ import {
   type WorkspaceListView,
 } from "@/lib/workspace-list-view"
 import { roomChatId } from "@/lib/chat/room-chat"
+import type { BranchData } from "@/lib/types"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
 import {
   createdWorkspacesResult,
+  queuedForWorkspaceResult,
   sentToWorkspaceResult,
   workspaceLink,
   workspacePlanMarkdown,
@@ -40,7 +42,8 @@ import type { ConfirmCard } from "@/lib/agent/confirm-card"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
-import { COLD_WORKSPACE_PREFIX } from "./lib/preview-url"
+import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "./lib/preview-url"
+import { resolveCaptureProfile } from "./profile"
 import { FIXTURE_IDS } from "./fixtures/world"
 import { settle } from "./lib/browser"
 
@@ -2159,67 +2162,72 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-getting-started",
     description:
-      "The first Canvas after setup: the getting-started checklist on Add a project.",
+      "The first Canvas after setup: the chat panel open on Add a repository, and the getting-started checklist on its first step (#1182).",
     path: `/${ids.rooms.empty}`,
     beforeNavigate: (page) => markGettingStarted(page, ids.rooms.empty),
     settleMs: 400,
   },
   {
-    name: "canvas-getting-started-workspace",
+    name: "canvas-add-repository",
     description:
-      "The getting-started checklist once a Project is added with no Workspace.",
+      "Add a repository on the empty canvas goes straight to Open folder / Open GitHub repository, not Canvas settings (#1182).",
     path: `/${ids.rooms.empty}`,
-    beforeNavigate: async (page) => {
-      await markGettingStarted(page, ids.rooms.empty)
-      await serveYjsDoc(page, (c) =>
-        c.repos.set(gettingStartedRepo.id, gettingStartedRepo)
-      )
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "Add a repository" })
+        .first()
+        .click()
+      await page.waitForTimeout(600)
     },
-    settleMs: 400,
+    settleMs: 300,
   },
   {
-    name: "canvas-getting-started-frame",
+    name: "canvas-getting-started-ask",
     description:
-      "The getting-started checklist in the corner while the first Workspace starts.",
+      "Just after adding a repository: its fresh Workspace running in a frame, the Coordinator asking what should change, and the checklist on Ask the Coordinator (#1182).",
     path: `/${ids.rooms.empty}`,
     beforeNavigate: async (page) => {
       await markGettingStarted(page, ids.rooms.empty)
-      await serveYjsDoc(page, (c) => {
-        c.repos.set(gettingStartedRepo.id, gettingStartedRepo)
-        c.branches.set("branch-first", {
-          id: "branch-first",
-          repoId: gettingStartedRepo.id,
-          sandboxName: `${COLD_WORKSPACE_PREFIX}first`,
-          gitUrl: gettingStartedRepo.cloneUrl,
-          ref: "quiet-harbor",
-          previewDomain: "",
-          port: 3000,
-          status: "starting",
-          statusMessage: "Installing dependencies…",
-          createdAt: Date.now() - 40_000,
-          colorIndex: 0,
-          sidebarOrder: 0,
-        })
-        c.iframeLayers.set("layer-first", {
-          id: "layer-first",
-          branchId: "branch-first",
-          width: 1280,
-          height: 800,
-          label: "storefront",
-          iframeState: {},
-          route: "/",
-        })
-        c.iframeLayerGroups.set("grp-first", {
-          id: "grp-first",
-          x: 0,
-          y: 0,
-          members: [{ kind: "iframe-layer", id: "layer-first" }],
-          sidebarOrder: 0,
-        })
-        c.savedViewport.set({ x: 180, y: 140, zoom: 0.55 })
+      await serveFreshWorkspace(page, { status: "running" })
+    },
+    prepare: async (page) => {
+      await page
+        .getByText(/What should change|Ask about this canvas/)
+        .first()
+        .waitFor({ timeout: 30_000 })
+    },
+    settleMs: 800,
+  },
+  {
+    name: "canvas-getting-started-open",
+    description:
+      "The first ask sent while the Workspace is still starting: the checklist on Open the Workspace (#1182).",
+    path: `/${ids.rooms.empty}`,
+    beforeNavigate: async (page) => {
+      await markGettingStarted(page, ids.rooms.empty)
+      await serveFreshWorkspace(page, {
+        status: "starting",
+        statusMessage: "Installing dependencies…",
+        pendingSeed: {
+          chatId: "chat-first",
+          message: "Make the header sticky",
+          coordinatorChatId: roomChatId(ids.rooms.empty),
+        },
       })
     },
-    settleMs: 400,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText(/What should change|Ask about this canvas/)
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.empty), firstAskRun())
+      await page
+        .getByTestId("workspace-task")
+        .first()
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 600,
   },
   {
     name: "canvas-getting-started-done",
@@ -3674,6 +3682,62 @@ const gettingStartedRepo = {
 }
 
 /**
+ * A Canvas just after its first repository was added (#1182): the fresh
+ * Workspace adding it started, untitled, with its frame in a Group.
+ */
+function serveFreshWorkspace(
+  page: Page,
+  branch: Partial<BranchData>
+): Promise<void> {
+  const running = branch.status === "running"
+  const sandboxName = running
+    ? "storefront"
+    : `${COLD_WORKSPACE_PREFIX}storefront`
+  return serveYjsDoc(page, (c) => {
+    c.repos.set(gettingStartedRepo.id, gettingStartedRepo)
+    c.branches.set("branch-first", {
+      id: "branch-first",
+      repoId: gettingStartedRepo.id,
+      sandboxName,
+      gitUrl: gettingStartedRepo.cloneUrl,
+      ref: "quiet-harbor",
+      previewDomain: running
+        ? previewDomainFor(resolveCaptureProfile().previewOrigin, sandboxName)
+        : "",
+      port: 3000,
+      status: "running",
+      createdAt: Date.now() - 40_000,
+      createFlow: "new",
+      sidebarOrder: 0,
+      ...branch,
+    })
+    c.chatSessions.set("chat-first", {
+      id: "chat-first",
+      branchId: "branch-first",
+      label: "Untitled",
+      createdAt: Date.now() - 40_000,
+    })
+    c.iframeLayers.set("layer-first", {
+      id: "layer-first",
+      branchId: "branch-first",
+      width: 1280,
+      height: 800,
+      label: "storefront",
+      iframeState: {},
+      route: "/",
+    })
+    c.iframeLayerGroups.set("grp-first", {
+      id: "grp-first",
+      x: 0,
+      y: 0,
+      members: [{ kind: "iframe-layer", id: "layer-first" }],
+      sidebarOrder: 0,
+    })
+    c.savedViewport.set({ x: 120, y: 140, zoom: 0.5 })
+  })
+}
+
+/**
  * A Canvas with two ready Workspaces and one Group ("Checkout") of two frames,
  * neither on a Workspace yet (#871).
  */
@@ -4350,6 +4414,54 @@ const DELEGATED_STICKY = "Make the order summary sticky on mobile, below 768px."
  * canvas: its reply, one `send_to_workspace` call per Workspace (task rows),
  * and a closing line.
  */
+/**
+ * The first ask on a fresh canvas (#1182): the Coordinator hands it to the
+ * Workspace adding the repository started, which gets it once it runs.
+ */
+export function firstAskRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Make the header sticky"),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-send-first",
+        title: "send_to_workspace",
+        status: "completed",
+        rawInput: {
+          workspace_id: "branch-first",
+          message: "Make the header sticky",
+        },
+        content: [
+          {
+            type: "content",
+            content: text(
+              queuedForWorkspaceResult("New Workspace", "chat-first")
+            ),
+          },
+        ],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "Sent to the Workspace on the canvas. It starts as soon as the app is running."
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
 export function delegationRun(): RunEvent[] {
   const send = (
     toolCallId: string,

@@ -21,7 +21,7 @@ import {
 } from "@/lib/branch/status-line"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type { BranchData } from "@/lib/types"
-import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
+import { workspaceLabel } from "@/lib/workspace-label"
 import { useChatSessions } from "@/lib/yjs/react"
 
 /**
@@ -224,12 +224,7 @@ export function WorkspaceMention({
         )}
       >
         {name ?? (
-          <span
-            className={cn(
-              "max-w-full min-w-0 truncate",
-              !hasWorkspaceTitle(branch) && "font-mono text-xs"
-            )}
-          >
+          <span className="max-w-full min-w-0 truncate">
             {workspaceLabel(branch)}
           </span>
         )}

@@ -340,7 +340,9 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           },
         }).branchId
       })
-      chatTarget.addPending([agentId])
+      // The panel stays on the Coordinator (#1182): the Workspace shows up as
+      // its frame, and the first ask to the Coordinator goes to it. So it
+      // isn't added to the pending set that selects a Workspace once it runs.
       const seedChat = seedDefaultTabForNewBranch(agentId)
       seedEagerFrameForBranch(agentId)
 
@@ -358,7 +360,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       requestCreate,
       seedDefaultTabForNewBranch,
       seedEagerFrameForBranch,
-      chatTarget,
     ]
   )
 

@@ -92,6 +92,7 @@ import {
 
 import { cn } from "@workspace/ui/lib/utils"
 
+import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
@@ -149,7 +150,7 @@ import {
   workspaceHoverStore,
 } from "@/lib/workspace-hover-store"
 
-import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
+import { workspaceLabel } from "@/lib/workspace-label"
 
 import {
   WORKSPACE_SECTION_LABELS,
@@ -202,8 +203,6 @@ export interface WorkspacesMenuProviderProps {
   /** Open a Workspace's chat; `expandPanel` defaults to true. */
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
   onSelectLayer: (layerKind: string, id: string) => void
-  /** Canvas settings on Repositories: where Add repository goes (#884). */
-  onOpenCanvasSettings: () => void
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRebaseOnDefault: (branchId: string) => void
@@ -224,17 +223,12 @@ export interface WorkspacesMenuProviderProps {
   onRenameBranch: (branchId: string, newBranch: string) => void
   /** Persist the room-shared order of one repo's Workspaces. */
   onReorderBranches: (repoId: string, orderedIds: string[]) => void
-  /**
-   * Set by the Canvas to open New workspace on a Repository (the
-   * getting-started checklist, #780). Each new `seq` opens it once.
-   */
-  newWorkspaceRequest?: { repoId: string; seq: number } | null
   children: React.ReactNode
 }
 
 type WorkspacesMenuValue = Omit<
   WorkspacesMenuProviderProps,
-  "children" | "newWorkspaceRequest" | "iframeLayers" | "onCreateWorkspace"
+  "children" | "iframeLayers" | "onCreateWorkspace"
 > & {
   open: boolean
   setOpen: (open: boolean) => void
@@ -270,7 +264,6 @@ const isolate = {
 
 export function WorkspacesMenuProvider({
   children,
-  newWorkspaceRequest = null,
   iframeLayers,
   onCreateWorkspace,
   ...props
@@ -299,16 +292,6 @@ export function WorkspacesMenuProvider({
   const [newWorkspaceBaseBranch, setNewWorkspaceBaseBranch] = useState<
     string | null
   >(null)
-  // The getting-started checklist's New workspace, adjusted during render.
-  const [seenNewWorkspaceRequest, setSeenNewWorkspaceRequest] =
-    useState(newWorkspaceRequest)
-  if (newWorkspaceRequest !== seenNewWorkspaceRequest) {
-    setSeenNewWorkspaceRequest(newWorkspaceRequest)
-    if (newWorkspaceRequest) {
-      setNewWorkspaceBaseBranch(null)
-      setNewWorkspaceRepoId(newWorkspaceRequest.repoId)
-    }
-  }
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
     string | null
   >(null)
@@ -781,20 +764,17 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
         </CommandGroup>
 
         {sortedRepos.length === 0 ? (
-          // A canvas with no repository says why, and where to add one:
-          // Canvas settings, the one place repositories live.
+          // A canvas with no repository says why, and adds one straight
+          // from the picker (#1182).
           <div className="flex flex-col items-center gap-3 px-4 py-6">
             <p className="text-center text-xs text-balance text-muted-foreground">
               Workspaces need a repository to run.
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => pick(menu.onOpenCanvasSettings)}
-            >
-              Add repository
-            </Button>
+            <AddRepositoryTrigger align="center" onPick={() => setOpen(false)}>
+              <Button type="button" variant="outline" size="sm">
+                Add repository
+              </Button>
+            </AddRepositoryTrigger>
           </div>
         ) : searching ? (
           <CommandGroup heading="Workspaces">
@@ -1087,10 +1067,7 @@ function WorkspaceMenuRow({
         name={
           branch.ref ? (
             <span
-              className={cn(
-                "flex max-w-full min-w-0 has-[[data-editable-text=editing]]:overflow-visible",
-                !hasWorkspaceTitle(branch) && "font-mono text-xs"
-              )}
+              className="flex max-w-full min-w-0 has-[[data-editable-text=editing]]:overflow-visible"
               // Typing in the rename field stays in it.
               onKeyDown={(e) => {
                 if ((e.target as HTMLElement).isContentEditable)
@@ -1373,14 +1350,7 @@ function SortableWorkspaces({
                 <span className="flex size-4 shrink-0 items-center justify-center">
                   <GitBranchIcon className="size-3.5 opacity-70" />
                 </span>
-                <span
-                  className={cn(
-                    "truncate",
-                    !hasWorkspaceTitle(dragging) && "font-mono text-xs"
-                  )}
-                >
-                  {workspaceLabel(dragging)}
-                </span>
+                <span className="truncate">{workspaceLabel(dragging)}</span>
               </div>
             ) : null}
           </DragOverlay>,

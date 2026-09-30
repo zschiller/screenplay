@@ -18,7 +18,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { isBranchBusy } from "@/lib/branch-busy"
 import { workspaceDetails } from "@/lib/branch/workspace-details"
 import { formatElapsed, workspaceStatusLine } from "@/lib/branch/status-line"
-import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
+import { workspaceLabel } from "@/lib/workspace-label"
 import { useBranches, useChatSessions, useRepos } from "@/lib/yjs/react"
 
 // The card portals out of sidebar rows and canvas labels while React events
@@ -122,19 +122,12 @@ function WorkspaceHoverDetail({ branchId }: { branchId: string }) {
     agentWorking: isBranchBusy(branch.id, chats),
   })
   const details = workspaceDetails(branch, repo)
-  const label = branch.ref ? workspaceLabel(branch) : "New workspace"
+  const label = workspaceLabel(branch)
 
   return (
     <>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <p
-          className={cn(
-            "font-medium break-words",
-            branch.ref && !hasWorkspaceTitle(branch) && "font-mono text-xs"
-          )}
-        >
-          {label}
-        </p>
+        <p className="font-medium break-words">{label}</p>
         <p
           className={cn(
             "text-xs",

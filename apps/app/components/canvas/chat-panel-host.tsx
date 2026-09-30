@@ -9,6 +9,7 @@ import { type PanelImperativeHandle } from "react-resizable-panels"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 
+import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { ChatPanel } from "@/components/agent/chat-panel"
 import { RoomChatPanel } from "@/components/agent/room-chat-panel"
 import { WorkspacesMenuButton } from "@/components/agent/workspaces-menu"
@@ -47,7 +48,6 @@ export function ChatPanelHost({
   onSetBranchPr,
   onLogsReady,
   logsRequest,
-  onAddProject,
 }: {
   chatTarget: ChatTarget
   tabPool: TabPool
@@ -63,8 +63,6 @@ export function ChatPanelHost({
   onSetBranchPr: (branchId: string, pr: BranchPrInfo) => void
   onLogsReady: () => void
   logsRequest: { agentId: string; nonce: number } | null
-  /** Open the sidebar's add-project flow, from the no-projects state. */
-  onAddProject: () => void
 }) {
   return (
     (() => {
@@ -189,15 +187,12 @@ export function ChatPanelHost({
           <p className="max-w-xs text-center text-sm text-balance text-muted-foreground">
             Add a repository to get started
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onAddProject}
-          >
-            <FolderPlusIcon />
-            Add repository
-          </Button>
+          <AddRepositoryTrigger align="center">
+            <Button type="button" variant="outline" size="sm">
+              <FolderPlusIcon />
+              Add repository
+            </Button>
+          </AddRepositoryTrigger>
         </div>
       </div>
     )

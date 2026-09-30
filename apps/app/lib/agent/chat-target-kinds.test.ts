@@ -103,6 +103,17 @@ describe("room chat target", () => {
     expect(prompt).toContain("read_canvas")
   })
 
+  it("sends the next ask to a fresh Workspace instead of planning one (#1182)", () => {
+    const prompt = roomChatTarget.buildSystemPrompt(
+      { canvasSummary: "", memory: [] },
+      {}
+    )
+
+    expect(prompt).toContain(
+      "Send the next ask that fits its repository to it with `send_to_workspace` rather than planning a new Workspace with `create_workspaces`."
+    )
+  })
+
   it("lists the Coordinator's Skills, and only those, in its prompt (#905)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
       { canvasSummary: "", memory: [] },

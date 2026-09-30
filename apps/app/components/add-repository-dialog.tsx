@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import {
+  cloneElement,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 import { FolderOpenIcon, GlobeIcon } from "@workspace/ui/components/icons"
@@ -11,7 +18,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
-import { DropdownMenuItem } from "@workspace/ui/components/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
 import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
@@ -152,18 +164,88 @@ export type AddRepositoryFlow = ReturnType<typeof useAddRepositoryFlow>
  * pick from GitHub. The web build has no folder source, so its Add repository
  * opens the GitHub picker straight away (`flow.openGitHub`), no menu (#604).
  */
-export function AddRepositoryMenuItems({ flow }: { flow: AddRepositoryFlow }) {
+export function AddRepositoryMenuItems({
+  flow,
+  onPick,
+}: {
+  flow: AddRepositoryFlow
+  /** Runs as the picker opens. */
+  onPick?: () => void
+}) {
   return (
     <>
-      <DropdownMenuItem onSelect={flow.openLocalFolder}>
+      <DropdownMenuItem
+        onSelect={() => {
+          void flow.openLocalFolder()
+          onPick?.()
+        }}
+      >
         <FolderOpenIcon />
         Open folder
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={flow.openGitHub}>
+      <DropdownMenuItem
+        onSelect={() => {
+          flow.openGitHub()
+          onPick?.()
+        }}
+      >
         <GlobeIcon />
         Open GitHub repository
       </DropdownMenuItem>
     </>
+  )
+}
+
+/**
+ * The canvas's own add-repository flow (#1182), for every Add repository
+ * outside Canvas settings: the empty canvas, the chat panel, the
+ * getting-started checklist and the Workspaces menu. The canvas renders its
+ * {@link AddRepositoryDialog}; Canvas settings keeps a flow of its own.
+ */
+const AddRepositoryFlowContext = createContext<AddRepositoryFlow | null>(null)
+
+export const AddRepositoryFlowProvider = AddRepositoryFlowContext.Provider
+
+/**
+ * Turns its child button into an Add repository that goes straight to the
+ * picker, no Canvas settings in between (#1182): on desktop the Open folder /
+ * Open GitHub repository menu, on the web the GitHub picker. `onPick` runs as
+ * the picker opens, for a surface that should close then (a popover).
+ */
+export function AddRepositoryTrigger({
+  children,
+  align = "start",
+  onPick,
+}: {
+  children: React.ReactElement<{
+    onClick?: React.MouseEventHandler<HTMLButtonElement>
+  }>
+  align?: "start" | "center" | "end"
+  onPick?: () => void
+}) {
+  const flow = useContext(AddRepositoryFlowContext)
+  if (!flow) return children
+  if (!isLocalBuild) {
+    return cloneElement(children, {
+      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+        children.props.onClick?.(event)
+        flow.openGitHub()
+        onPick?.()
+      },
+    })
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent
+        align={align}
+        // Both items open a dialog (or the native folder picker); handing
+        // focus back to the trigger would pull it out of that dialog.
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
+        <AddRepositoryMenuItems flow={flow} onPick={onPick} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
