@@ -13,6 +13,7 @@ import { withBasePath } from "@/lib/base-path"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
 import { isFixtureWorld } from "@/lib/fixture-world"
+import { userTurnMessage } from "@/lib/agent/user-turn"
 
 export type ChatState = {
   messages: AgentMessage[]
@@ -478,7 +479,7 @@ class ChatStore {
     // removes exactly this entry, even if the log moved on meanwhile.
     const optimistic: AgentMessage | null = retry
       ? null
-      : { role: "user", content: opts.message }
+      : userTurnMessage(opts.message)
     this.update(chatId, {
       error: null,
       failedSend: null,
@@ -930,18 +931,19 @@ class ChatStore {
    * `user_message_chunk` the route broadcasts so the client transitions into
    * streaming. Dedups against the optimistic add the sending client already
    * made (its trailing message is the identical user turn); other browsers and
-   * late joiners append it fresh. The echo closes any in-flight agent/thought
-   * block so the next agent delta starts a new message.
+   * late joiners append it fresh. The echo goes through the user-turn
+   * projection, as a reload does, so both show the same message. It closes
+   * any in-flight agent/thought block so the next agent delta starts a new
+   * message.
    */
   private appendUserEcho(chatId: string, text: string) {
     this.acpAgentText.delete(chatId)
     this.acpThoughtText.delete(chatId)
     const prev = this.getOrCreate(chatId).messages
     const last = prev[prev.length - 1]
-    if (last?.role === "user" && last.content === text) return
-    this.update(chatId, {
-      messages: [...prev, { role: "user" as const, content: text }],
-    })
+    const message = userTurnMessage(text)
+    if (last?.role === "user" && last.content === message.content) return
+    this.update(chatId, { messages: [...prev, message] })
   }
 
   /**
@@ -1136,7 +1138,9 @@ class ChatStore {
     const lastAsk = this.getOrCreate(chatId)
       .messages.filter((m) => m.role === "user")
       .at(-1)
-    if (lastAsk?.content !== opts.message) return undefined
+    if (lastAsk?.content !== userTurnMessage(opts.message).content) {
+      return undefined
+    }
     return () => this.sendMessage({ ...opts }, true)
   }
 

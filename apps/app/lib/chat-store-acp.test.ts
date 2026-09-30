@@ -7,9 +7,20 @@ import {
   toolCallUpdate,
   type SessionUpdate,
   type ToolCallContent,
+  userMessageChunk,
 } from "./agent/acp/schema"
 import { applyToolCallUpdate } from "./agent/acp/record"
 import { renderHistory } from "./agent/history-render"
+import { wireToContentBlocks } from "./agent/acp/markers"
+import {
+  buildReferencedDocsFooter,
+  buildTargetedElementsFooter,
+  prependTurnMarkers,
+  serializeElement,
+  serializeMention,
+  serializeSkill,
+  type TargetedElement,
+} from "./agent/message-markers"
 
 /** Attach a subagent parent id to a `tool_call(_update)` (issue #639). */
 const withParent = (
@@ -322,6 +333,70 @@ describe("chat-store — ACP tool-call lifecycle (in place, keyed by id)", () =>
       doneUpdate
     )
     const [reloaded] = renderHistory([{ kind: "record", record }])
+    expect(reloaded).toEqual(live)
+    chatStore.cleanup(chatId)
+  })
+})
+
+describe("chat-store — user turns, reload == live (#1252)", () => {
+  const element: TargetedElement = {
+    ref: "el1",
+    route: "/login",
+    selector: "button#submit",
+    frameLabel: "Sign in",
+    iframeLayerId: "layer-1",
+  }
+
+  it.each([
+    { kind: "plain", wire: "Fix the redirect" },
+    {
+      kind: "wake",
+      wire: prependTurnMarkers("Workspace finished its turn.", {
+        wakeFrom: "ws-1",
+      }),
+    },
+    {
+      kind: "delegated",
+      wire: prependTurnMarkers("Keep the next param.", {
+        delegatedFrom: "room-chat-r1",
+        branch: "fix-sign-in",
+      }),
+    },
+    {
+      kind: "plan mode",
+      wire: prependTurnMarkers("Plan it", { planMode: true }),
+    },
+    {
+      kind: "mentions and skills",
+      wire:
+        `${serializeSkill("review")} ${serializeMention("Spec", "doc-1")}` +
+        buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }]),
+    },
+    {
+      kind: "targeted elements",
+      wire:
+        `Make ${serializeElement("button#submit", "el1")} blue` +
+        buildTargetedElementsFooter([element]),
+    },
+  ])("echoes a $kind turn the way a reload renders it", ({ wire }) => {
+    const chatId = `chat_${++seq}`
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: userMessageChunk(wire),
+      },
+    ])
+
+    const live = chatStore.getSnapshot(chatId).messages
+    const reloaded = renderHistory([
+      {
+        kind: "record",
+        record: { role: "user", content: wireToContentBlocks(wire) },
+      },
+    ])
     expect(reloaded).toEqual(live)
     chatStore.cleanup(chatId)
   })

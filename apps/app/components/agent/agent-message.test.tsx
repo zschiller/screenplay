@@ -6,6 +6,7 @@ import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import { inputStore } from "@/lib/input-store"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
 import { renderHistory } from "@/lib/agent/history-render"
+import { userTurnMessage } from "@/lib/agent/user-turn"
 import { wireToContentBlocks } from "@/lib/agent/acp/markers"
 import { sentToWorkspaceResult } from "@/lib/agent/workspace-task"
 import type { BranchData } from "@/lib/types"
@@ -831,13 +832,12 @@ describe("AgentMessageItem — a Coordinator tool's refusal (#1231)", () => {
 })
 
 describe("AgentMessageItem — Delegated Message (#896)", () => {
-  const delegated: AgentMessage = {
-    role: "user",
-    content: prependTurnMarkers("Keep the next param.", {
+  const delegated: AgentMessage = userTurnMessage(
+    prependTurnMarkers("Keep the next param.", {
       delegatedFrom: "room-chat-r1",
       branch: "fix-sign-in",
-    }),
-  }
+    })
+  )
 
   it("collapses to one line that opens to the message", () => {
     render(<AgentMessageItem message={delegated} />)
@@ -977,12 +977,11 @@ describe("AgentMessageItem — Coordinator wakes (#897)", () => {
   it("never shows the wake message itself", () => {
     const { container } = render(
       <AgentMessageItem
-        message={{
-          role: "user",
-          content: prependTurnMarkers("Workspace finished its turn.", {
+        message={userTurnMessage(
+          prependTurnMarkers("Workspace finished its turn.", {
             wakeFrom: "ws-1",
-          }),
-        }}
+          })
+        )}
       />
     )
     expect(container.textContent).toBe("")

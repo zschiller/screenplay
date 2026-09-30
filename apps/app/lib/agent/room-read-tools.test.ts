@@ -8,6 +8,13 @@ import {
 import { imageModelOutput } from "@/lib/agent/image-output"
 import { toolOutputToContent } from "@/lib/agent/acp/adapter"
 import type { AgentMessage } from "@/lib/agent/types"
+import { renderHistory } from "@/lib/agent/history-render"
+import { wireToContentBlocks } from "@/lib/agent/acp/markers"
+import {
+  buildTargetedElementsFooter,
+  prependTurnMarkers,
+  serializeElement,
+} from "@/lib/agent/message-markers"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import {
   baseBranch,
@@ -155,6 +162,49 @@ describe("read_workspace_chat", () => {
     expect(out).toContain("Tool: run_command (failed)")
     expect(out).toContain("Agent: The redirect now keeps `?next=`.")
     expect(out).not.toContain("secret thoughts")
+  })
+
+  it("reads a reloaded user turn as it did before the projection (#1252)", async () => {
+    const element = {
+      ref: "el1",
+      route: "/login",
+      selector: "button#submit",
+      frameLabel: "Sign in",
+    }
+    const body = `Make ${serializeElement("button#submit", "el1")} blue`
+    const footer = buildTargetedElementsFooter([element])
+    const { collections, ports } = setup({
+      readChatTranscript: vi.fn(async () =>
+        renderHistory([
+          {
+            kind: "record",
+            record: {
+              role: "user",
+              content: wireToContentBlocks(
+                prependTurnMarkers(body, {
+                  delegatedFrom: "room-chat-1",
+                  branch: "fix-sign-in",
+                }) + footer
+              ),
+            },
+          },
+        ])
+      ),
+    })
+    addChat(collections, "chat-1")
+
+    const full = (await run(ports, "read_workspace_chat", {
+      workspaceId: "ws-1",
+      full: true,
+    })) as string
+    const last = (await run(ports, "read_workspace_chat", {
+      workspaceId: "ws-1",
+    })) as string
+
+    // The human's text and the element detail, without the server markers.
+    expect(full).toContain(`User: ${body}${footer}`)
+    expect(last).toContain(`Last ask: ${body}${footer}`)
+    expect(full).not.toContain("from coordinator")
   })
 
   it("keeps the newest messages when the transcript runs long", async () => {

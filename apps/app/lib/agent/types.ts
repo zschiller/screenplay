@@ -1,4 +1,5 @@
 import type { ConfirmCard } from "@/lib/agent/confirm-card"
+import type { TargetedElement } from "@/lib/agent/message-markers"
 // Tool names are derived from the builders, not hand-maintained: each builder's
 // return type is its `{ name: Tool }` map, so the keys *are* the tool names.
 // Add a tool to a builder and it shows up here automatically; there's no second
@@ -20,7 +21,18 @@ type AllTools = ReturnType<typeof buildSandboxTools> &
 export type CustomToolName = keyof AllTools
 
 export type AgentMessage =
-  | { role: "user"; content: string }
+  // `content` is the text the user message view draws; the typed fields come
+  // from the user-turn projection (`user-turn.ts`), never from `content`.
+  | {
+      role: "user"
+      content: string
+      /** The Workspace whose turn ended, when this is a Coordinator wake. */
+      wakeFrom?: string
+      /** The sending Coordinator chat, when this is a Delegated Message. */
+      delegatedFrom?: string
+      /** Hover detail for the body's `element:` tokens, keyed by ref. */
+      targetedElements?: TargetedElement[]
+    }
   | { role: "assistant"; content: string }
   // The agent's reasoning (ACP `agent_thought_chunk`), rendered in a collapsible
   // block distinct from the assistant message body so streamed thinking isn't

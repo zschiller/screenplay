@@ -37,7 +37,11 @@ function shape(messages: AgentMessage[], streaming = false): string[] {
 
 describe("foldFinishedTurns (issue #800)", () => {
   it("shows only a Coordinator wake's reply and task rows, never its message or steps, keeping its task rows (#897)", () => {
-    const wake = user("[workspace update: ws-a] Workspace finished its turn.")
+    const wake: AgentMessage = {
+      role: "user",
+      content: "Workspace finished its turn.",
+      wakeFrom: "ws-a",
+    }
     const send = call("s", {
       title: "send_to_workspace",
       rawInput: { workspace_id: "ws-b", message: "Go" },
@@ -81,7 +85,11 @@ describe("foldFinishedTurns (issue #800)", () => {
   })
 
   it("hides a wake's stored no-reply line, but not a user turn's (#1224)", () => {
-    const wake = user("[workspace update: ws-a] Workspace finished its turn.")
+    const wake: AgentMessage = {
+      role: "user",
+      content: "Workspace finished its turn.",
+      wakeFrom: "ws-a",
+    }
     expect(
       shape([
         user("hi"),
