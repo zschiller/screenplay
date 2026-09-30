@@ -23,7 +23,9 @@ import {
   type TurnTarget,
 } from "../turn-launch"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
-import { steppedDriver } from "./engine-contract"
+import { acpSessionFactoryFromDriver, steppedDriver } from "./engine-contract"
+import { ExternalEngine } from "./acp-engine"
+import type { Engine } from "./engine-seam"
 import {
   createRunState,
   type PendingPlanCall,
@@ -62,7 +64,10 @@ const RUN_ID = "run_1"
  * and the Room broadcast captured as an ordered envelope log — exactly the
  * shape `broadcastChatEventViaDoc` appends and every browser subscriber renders.
  */
-function liveHarness() {
+function liveHarness(
+  makeEngine: (driver: StreamDriver) => Engine = (driver) =>
+    new InProcessEngine(driver)
+) {
   const records: AcpMessageRecord[] = []
   const toolCalls = new Map<string, AcpToolCallRecord>()
   const planRows = new Map<
@@ -250,7 +255,7 @@ function liveHarness() {
   ) => {
     const afterResponse: Array<() => Promise<void>> = []
     const deps: TurnLaunchDeps = {
-      resolveEngine: async () => new InProcessEngine(driver),
+      resolveEngine: async () => makeEngine(driver),
       async findPendingPlan() {
         const pending = [...planRows].find(([, r]) => r.status === "pending")
         return pending ? { id: pending[0] } : null
@@ -301,6 +306,12 @@ function liveHarness() {
                 id: steer.id,
                 content: wireToContentBlocks(steer.message),
               })),
+            // What the live route does when the Engine declines.
+            declineSteers: () =>
+              deps.broadcastControl(ROOM_ID, CHAT_ID, {
+                kind: "steerable",
+                steerable: false,
+              }),
           }
         ),
       loadRunStatus: (id) => runState.runStatus(id),
@@ -1012,6 +1023,141 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
           steers: [{ id: "steer_1", message: "actually, wait" }],
         },
       })
+    })
+  })
+
+  describe("steering a Harness turn (#1191)", () => {
+    const harness = (promptQueueing: boolean) =>
+      liveHarness(
+        (driver) =>
+          new ExternalEngine({
+            sessionFactory: acpSessionFactoryFromDriver(driver, {
+              promptQueueing,
+            }),
+          })
+      )
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const read = {
+      start: { type: "tool-input-start", id: "call_1", toolName: "read" },
+      call: { type: "tool-call", toolCallId: "call_1", toolName: "read" },
+      result: {
+        type: "tool-result",
+        toolCallId: "call_1",
+        toolName: "read",
+        output: "x",
+      },
+    } as Record<string, any>
+    const say = (text: string) => ({
+      chunks: [{ type: "text-delta", id: "t", text } as any],
+      response: [{ role: "assistant" as const, content: text }],
+    })
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    const controls = (h: ReturnType<typeof liveHarness>) =>
+      h.broadcasts.flatMap((e) =>
+        e.type === "chat-control" ? [e.control] : []
+      )
+
+    it("a message sent mid-turn joins the Harness's live turn, and the run ends once", async () => {
+      const h = harness(true)
+      let steered: unknown
+      const driver = steppedDriver(
+        [
+          [
+            {
+              chunks: [
+                read.start,
+                read.call,
+                async () => {
+                  steered = (await h.launch("run the tests too", driver)).result
+                },
+                read.result,
+              ],
+              response: [],
+            },
+            say("Tests pass."),
+          ],
+        ],
+        []
+      )
+      await h.run("fix the bug", driver)
+
+      expect(steered).toEqual({ kind: "steered", steerId: "steer_1" })
+      expect([...h.rows]).toEqual([["run_1", "completed"]])
+      expect(h.steerRows.map((r) => r.taken)).toEqual([true])
+      expect(h.records.map((r) => r.role)).toEqual(["user", "user", "agent"])
+      expect(
+        h.broadcasts.filter((e) => e.type === "chat-stream-end")
+      ).toHaveLength(1)
+      expect(controls(h)).not.toContainEqual({
+        kind: "steerable",
+        steerable: false,
+      })
+    })
+
+    it("a stop cancels the Harness's turn and hands pending Steers back", async () => {
+      const h = harness(true)
+      const driver = steppedDriver(
+        [
+          [
+            {
+              chunks: [
+                ...say("Working").chunks,
+                async () => {
+                  await h.launch("actually, wait", driver)
+                  await h.stop()
+                },
+              ],
+              response: [],
+            },
+            say("never"),
+          ],
+        ],
+        []
+      )
+      await h.run("migrate everything", driver)
+
+      expect(h.rows.get("run_1")).toBe(STOPPED_RUN_STATUS)
+      expect(h.steerRows).toEqual([])
+      expect(controls(h)).toContainEqual({
+        kind: "steers_returned",
+        steers: [{ id: "steer_1", message: "actually, wait", userId: null }],
+      })
+      expect(
+        h.records.some((r) =>
+          r.content.some((b) => "text" in b && b.text === "actually, wait")
+        )
+      ).toBe(false)
+    })
+
+    it("a Harness that doesn't queue prompts tells clients to queue, and a message that joined first starts the next turn", async () => {
+      const h = harness(false)
+      let calls = 0
+      const driver: StreamDriver = (config) => {
+        calls++
+        if (calls > 1) return replyDriver("Docs too.")(config)
+        return {
+          consumeStream: async () => {
+            await h.launch("update the docs too", driver)
+            await replyDriver("Renamed it.")(config).consumeStream()
+          },
+        }
+      }
+      await h.run("rename the flag", driver)
+
+      expect(controls(h)).toContainEqual({
+        kind: "steerable",
+        steerable: false,
+      })
+      expect(h.rows.get("run_1")).toBe("completed")
+      expect(h.rows.get("run_2")).toBe("completed")
+      expect(h.steerRows).toEqual([])
+      expect(
+        h.records.flatMap((r) =>
+          r.role === "user"
+            ? r.content.flatMap((b) => ("text" in b ? [b.text] : []))
+            : []
+        )
+      ).toEqual(["rename the flag", "update the docs too"])
     })
   })
 })

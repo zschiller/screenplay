@@ -268,8 +268,21 @@ The in-process engine calls it in `prepareStep` and, before a turn would
 finish, once more, continuing with a further `streamText` pass when some are
 waiting. Turn Launch answers "steered" or "not steerable" by the guard, and
 starts the next turn with any Steers a completed, failed or plan-paused run
-left behind (a stopped run hands them back). The external engine gains the
-capability with the Harness's prompt queueing (#1191).
+left behind (a stopped run hands them back).
+
+The external engine has the capability too (#1191), but only a Harness whose
+adapter advertises prompt queueing at initialize (the Claude adapter's
+`_meta.claudeCode.promptQueueing`) can use it, and the engine only learns that
+once the session is open. So the turn carries a second port, `declineSteers`:
+on any other Harness the engine calls it and the route broadcasts
+`steerable: false`, so clients queue; a Steer that joined before then starts
+the next turn. On a queueing Harness the engine takes Steers when a tool call
+finishes and when its newest prompt resolves, and sends each as a further
+`session/prompt` on the live session. The adapter resolves the earlier prompt
+`end_turn` when it hands over to the next, so that is not the end of the turn:
+the engine reports `done` once the newest prompt resolves with no Steer
+waiting. It also hands `session/update`s to the sink one at a time, since the
+connection doesn't wait for one before delivering the next.
 
 ## Consequences
 

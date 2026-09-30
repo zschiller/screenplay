@@ -1,7 +1,18 @@
-import type { Engine, EngineTurn, EngineUpdateSink } from "./engine-seam"
 import type { AcpMessageRecord } from "./record"
 import type { AcpSession, AcpSessionPorts, OpenSessionOptions } from "./session"
-import { blockText, textBlock, type ContentBlock } from "./schema"
+import type {
+  EngineTurn,
+  EngineUpdateSink,
+  SteeringEngine,
+  TakeSteers,
+} from "./engine-seam"
+import {
+  blockText,
+  textBlock,
+  type ContentBlock,
+  type SessionUpdate,
+  type StopReason,
+} from "./schema"
 
 /**
  * How the {@link ExternalEngine} obtains a live ACP session for a turn. Production
@@ -106,9 +117,16 @@ export interface ExternalEngineConfig {
  * consumer closes the turn with no `completed`/`failed` transition and no
  * error, the run lifecycle's watchdog having already recorded the terminal
  * stop; Turn Launch owns what the stop shows.
+ *
+ * **Steering (#1191).** When the Harness queues prompts (the Claude adapter's
+ * `promptQueueing`, read at initialize), a Steer joins the running turn the way
+ * a message typed while Claude Code works does in its own terminal: see
+ * {@link PromptSteering}. A Harness that doesn't (codex) declines, and the chat
+ * queues instead.
  */
-export class ExternalEngine implements Engine {
+export class ExternalEngine implements SteeringEngine {
   readonly id = "external"
+  readonly steers = true
 
   constructor(private readonly config: ExternalEngineConfig) {}
 
@@ -123,8 +141,19 @@ export class ExternalEngine implements Engine {
     // ends the turn) and wind the live ACP turn down via this controller — the
     // resume arrives as a new run, exactly like the in-process engine.
     const planPause = new AbortController()
+    const turnSignal = anySignal(signal, planPause.signal)
+    // The connection hands `session/update`s over without waiting for the
+    // last one, so they go to the sink one at a time, in arrival order. The
+    // turn ends only after the last of them.
+    const inOrder = serially()
+    let steering: PromptSteering | null = null
     const ports: AcpSessionPorts = {
-      onUpdate: (update) => sink({ kind: "session_update", update }),
+      onUpdate: (update) =>
+        inOrder(async () => {
+          await sink({ kind: "session_update", update })
+          // A finished tool call is the step boundary a Steer can join at.
+          if (steering && endsToolCall(update)) await steering.take()
+        }),
       requestPlanApproval: async (request) => {
         // A real ACP adapter (`claude-agent-acp`) raises a permission request for
         // *every* tool operation it wants to run — file edits, command
@@ -143,7 +172,9 @@ export class ExternalEngine implements Engine {
         // its tools with no permission gate at all.
         if (!turn.planMode) return { approved: true }
 
-        await sink({ kind: "permission_request", request })
+        await inOrder(async () => {
+          await sink({ kind: "permission_request", request })
+        })
         planPause.abort()
         // Not used as a decision: the aborted turn signal makes the session
         // answer the outstanding permission `cancelled` (per spec) rather than
@@ -152,7 +183,6 @@ export class ExternalEngine implements Engine {
       },
     }
 
-    const turnSignal = anySignal(signal, planPause.signal)
     try {
       const { session, resumed } = await this.openSession(ports, turn)
       // A resumed session already holds the prior conversation, so send only the
@@ -163,7 +193,17 @@ export class ExternalEngine implements Engine {
       const blocks = resumed
         ? promptBlocks(turn.history)
         : withSystemPrompt(turn.systemPrompt, replayBlocks(turn.history))
-      const stopReason = await session.prompt(blocks, turnSignal)
+      let stopReason: StopReason
+      if (turn.takeSteers && session.promptQueueing) {
+        steering = new PromptSteering(session, turn.takeSteers, turnSignal)
+        stopReason = await steering.run(blocks, () => inOrder(async () => {}))
+      } else {
+        // Only a Harness that queues prompts can be steered; the route tells
+        // clients to queue instead (#1191).
+        if (turn.takeSteers) await turn.declineSteers?.()
+        stopReason = await session.prompt(blocks, turnSignal)
+      }
+      await inOrder(async () => {})
 
       // The plan gate already closed the turn through the consumer; emitting a
       // terminal update now would be a no-op (the consumer guards a double
@@ -179,6 +219,7 @@ export class ExternalEngine implements Engine {
       }
       await sink({ kind: "done", stopReason })
     } catch (e) {
+      await inOrder(async () => {}).catch(() => {})
       if (signal.aborted) {
         // The run is no longer live (user `/stop` or supersession) and the abort
         // surfaced as a thrown transport/stream error rather than a clean
@@ -359,6 +400,87 @@ function lastUserContent(history: AcpMessageRecord[]): ContentBlock[] | null {
   // The index is a `user` record by construction; narrow to its `ContentBlock[]`.
   const record = history[index]!
   return record.role === "user" ? record.content : null
+}
+
+/**
+ * One steered turn on a Harness that queues prompts (#1191). The first prompt
+ * starts the turn; each Steer taken while a prompt is outstanding goes to the
+ * agent as a further `session/prompt` on the live session, which the adapter
+ * pushes into the running turn. An earlier prompt resolves `end_turn` when the
+ * agent hands over to the next (a handoff, not the end of the turn), so the
+ * turn is over only once the newest prompt resolves and no Steer is waiting.
+ *
+ * Steers are taken at step boundaries: when a tool call finishes, and once
+ * more when the newest prompt resolves, which starts another prompt when some
+ * are waiting. A stop cancels the live session, which resolves every prompt
+ * `cancelled`; nothing more is taken, so pending Steers stay in the inbox for
+ * Turn Launch to hand back.
+ */
+class PromptSteering {
+  private readonly prompts: Promise<StopReason>[] = []
+  private readonly inOrder = serially()
+
+  constructor(
+    private readonly session: AcpSession,
+    private readonly takeSteers: TakeSteers,
+    private readonly signal: AbortSignal
+  ) {}
+
+  /**
+   * Send the turn's prompt and resolve with the newest prompt's `stopReason`
+   * once the turn is over. `settleUpdates` resolves after the updates that
+   * arrived so far are handled, so a Steer one of them took is sent first.
+   */
+  async run(
+    blocks: ContentBlock[],
+    settleUpdates: () => Promise<void>
+  ): Promise<StopReason> {
+    this.send(blocks)
+    for (;;) {
+      const sent = this.prompts.length
+      const stopReasons = await Promise.all(this.prompts)
+      await settleUpdates()
+      await this.take()
+      if (this.prompts.length === sent) return stopReasons.at(-1)!
+    }
+  }
+
+  /** Take every waiting Steer and send each as a further prompt, oldest first. */
+  take(): Promise<void> {
+    return this.inOrder(async () => {
+      if (this.signal.aborted) return
+      for (const steer of await this.takeSteers()) this.send(steer.content)
+    })
+  }
+
+  private send(blocks: ContentBlock[]): void {
+    const prompt = this.session.prompt(blocks, this.signal)
+    // Awaited together in `run`; a rejection before then isn't unhandled.
+    prompt.catch(() => {})
+    this.prompts.push(prompt)
+  }
+}
+
+/** Whether an update reports a tool call finishing, a step boundary. */
+function endsToolCall(update: SessionUpdate): boolean {
+  return (
+    (update.sessionUpdate === "tool_call" ||
+      update.sessionUpdate === "tool_call_update") &&
+    (update.status === "completed" || update.status === "failed")
+  )
+}
+
+/**
+ * Run tasks one at a time, in the order they were given. Each call resolves
+ * with its own task's outcome; a failed task doesn't stop the ones after it.
+ */
+function serially(): (task: () => Promise<void>) => Promise<void> {
+  let tail: Promise<void> = Promise.resolve()
+  return (task) => {
+    const next = tail.then(task)
+    tail = next.catch(() => {})
+    return next
+  }
 }
 
 /** Merge two abort signals: the result aborts when either input does. */

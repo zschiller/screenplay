@@ -465,17 +465,148 @@ function inMemoryStreams(): { client: Stream; agent: Stream } {
  * genuine ACP `session/update`s and raises a real permission request for
  * `submit_plan`, exactly as a conforming agent would — so a single scenario
  * drives both engines to the same observable outcome.
+ *
+ * With `promptQueueing` the agent also does what the Claude adapter does
+ * (#1191): it advertises `_meta.claudeCode.promptQueueing`, and a prompt sent
+ * while one runs joins the running turn at its next step, where the model reads
+ * it as the newest user message. The earlier prompt resolves `end_turn` at that
+ * handoff; a prompt the turn finished before reading starts another pass.
  */
 export function acpSessionFactoryFromDriver(
-  driver: StreamDriver
+  driver: StreamDriver,
+  options: { promptQueueing?: boolean } = {}
 ): AcpSessionFactory {
-  const behavior = async (
-    conn: AgentSideConnection,
-    params: PromptRequest
-  ): Promise<StopReason> => {
+  return {
+    async open(ports, openOptions) {
+      const { client, agent: agentStream } = inMemoryStreams()
+      const agentConn = new AgentSideConnection(
+        (conn) =>
+          new DriverAgent(conn, driver, options.promptQueueing ?? false),
+        agentStream
+      )
+      // `agentConn` keeps the agent's receive loop alive for the session.
+      void agentConn
+      return AcpSession.open(client, ports, openOptions)
+    },
+  }
+}
+
+/** A prompt the {@link DriverAgent} was sent, until it resolves. */
+interface DriverPrompt {
+  text: string
+  resolve(stopReason: StopReason): void
+}
+
+/**
+ * A minimal ACP-conforming agent whose turns the scripted {@link StreamDriver}
+ * plays, one `streamText`-like pass per turn over the conversation so far.
+ */
+class DriverAgent implements Agent {
+  private readonly conversation: ModelMessage[] = []
+  /** Prompts sent while a pass runs, waiting for its next step. */
+  private queued: DriverPrompt[] = []
+  private active: DriverPrompt | null = null
+  private abort = new AbortController()
+
+  constructor(
+    private readonly conn: AgentSideConnection,
+    private readonly driver: StreamDriver,
+    private readonly promptQueueing: boolean
+  ) {}
+  async initialize(): Promise<InitializeResponse> {
+    return {
+      protocolVersion: PROTOCOL_VERSION,
+      agentCapabilities: {
+        loadSession: true,
+        ...(this.promptQueueing
+          ? { _meta: { claudeCode: { promptQueueing: true } } }
+          : {}),
+      },
+    }
+  }
+  async newSession(): Promise<{ sessionId: string }> {
+    return { sessionId: CONTRACT_SESSION_ID }
+  }
+  async authenticate(): Promise<void> {}
+  async loadSession(): Promise<Record<string, never>> {
+    return {}
+  }
+  prompt(params: PromptRequest): Promise<PromptResponse> {
+    return new Promise((resolve) => {
+      const prompt: DriverPrompt = {
+        text: params.prompt.map((b) => ("text" in b ? b.text : "")).join(""),
+        resolve: (stopReason) => resolve({ stopReason }),
+      }
+      if (this.active && this.promptQueueing) {
+        this.queued.push(prompt)
+        return
+      }
+      this.active = prompt
+      this.conversation.push({ role: "user", content: prompt.text })
+      void this.play(params.sessionId)
+    })
+  }
+  async cancel(): Promise<void> {
+    this.abort.abort()
+  }
+
+  /**
+   * Play passes until the turn is over: the active prompt's pass, then one per
+   * batch of prompts that arrived after its last step.
+   */
+  private async play(sessionId: string): Promise<void> {
+    for (;;) {
+      this.abort = new AbortController()
+      const outcome = await this.pass(sessionId)
+      if (outcome === "cancelled") {
+        for (const prompt of [this.active!, ...this.queued]) {
+          prompt.resolve("cancelled")
+        }
+        this.queued = []
+        this.active = null
+        return
+      }
+      if (this.queued.length === 0) {
+        this.active!.resolve(outcome)
+        this.active = null
+        return
+      }
+      this.conversation.push(this.handOff())
+    }
+  }
+
+  /**
+   * Hand the turn over to the queued prompts, oldest first: each earlier
+   * prompt resolves `end_turn`, and they reach the model together as one user
+   * message.
+   */
+  private handOff(): ModelMessage {
+    const next = this.queued
+    this.queued = []
+    this.active!.resolve("end_turn")
+    for (const prompt of next.slice(0, -1)) prompt.resolve("end_turn")
+    this.active = next.at(-1)!
+    return { role: "user", content: next.map((p) => p.text).join("\n\n") }
+  }
+
+  /** One pass of the driver over the conversation, with steps that read queued prompts. */
+  private async pass(sessionId: string): Promise<StopReason> {
     let finishReason: string | undefined
-    let cancelled = false
-    const result = driver({
+    let responses: ModelMessage[] = []
+    let gateCancelled = false
+    // Prompts read at a step, each at the index of the step input it follows.
+    const read: Array<{ at: number; message: ModelMessage }> = []
+    const result = this.driver({
+      messages: [...this.conversation],
+      abortSignal: this.abort.signal,
+      prepareStep: async ({ messages }: { messages: ModelMessage[] }) => {
+        // Let prompts the client sent after the last update arrive first.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        if (this.queued.length > 0) {
+          read.push({ at: messages.length, message: this.handOff() })
+        }
+        return read.length > 0 ? { messages: withRead(messages, read) } : {}
+      },
       onChunk: async ({
         chunk,
       }: {
@@ -494,25 +625,30 @@ export function acpSessionFactoryFromDriver(
         // A `submit_plan` tool-call is screenplay's plan gate — a real ACP agent
         // raises it as an ACP *permission request*, not a `session/update`.
         if (chunk.type === "tool-call" && chunk.toolName === SUBMIT_PLAN_TOOL) {
-          const { outcome } = await conn.requestPermission(
+          const { outcome } = await this.conn.requestPermission(
             planPermissionRequest({
-              sessionId: params.sessionId,
+              sessionId,
               toolCallId: chunk.toolCallId,
               plan: String(
                 (chunk.input as { plan?: unknown } | undefined)?.plan ?? ""
               ),
             })
           )
-          if (outcome.outcome === "cancelled") cancelled = true
+          if (outcome.outcome === "cancelled") gateCancelled = true
           return
         }
         const update = aiSdkChunkToAcpUpdate(chunk)
-        if (update) {
-          await conn.sessionUpdate({ sessionId: params.sessionId, update })
-        }
+        if (update) await this.conn.sessionUpdate({ sessionId, update })
       },
-      onFinish: async ({ finishReason: fr }: { finishReason?: string }) => {
+      onFinish: async ({
+        finishReason: fr,
+        response,
+      }: {
+        finishReason?: string
+        response?: { messages: ModelMessage[] }
+      }) => {
         finishReason = fr
+        responses = response?.messages ?? []
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
@@ -525,50 +661,23 @@ export function acpSessionFactoryFromDriver(
       return "cancelled"
     }
     // The plan gate was cancelled out from under the agent — it stands down.
-    if (cancelled) return "cancelled"
+    if (gateCancelled) return "cancelled"
+    const conversation = withRead([...this.conversation, ...responses], read)
+    this.conversation.splice(0, this.conversation.length, ...conversation)
     return finishToStopReason(finishReason)
-  }
-
-  return {
-    async open(ports, options) {
-      const { client, agent: agentStream } = inMemoryStreams()
-      const agentConn = new AgentSideConnection(
-        (conn) => new DriverAgent(conn, behavior),
-        agentStream
-      )
-      // `agentConn` keeps the agent's receive loop alive for the session.
-      void agentConn
-      return AcpSession.open(client, ports, options)
-    },
   }
 }
 
-/** A minimal ACP-conforming agent whose `prompt` defers to a scripted behavior. */
-class DriverAgent implements Agent {
-  constructor(
-    private readonly conn: AgentSideConnection,
-    private readonly behavior: (
-      conn: AgentSideConnection,
-      params: PromptRequest
-    ) => Promise<StopReason>
-  ) {}
-  async initialize(): Promise<InitializeResponse> {
-    return {
-      protocolVersion: PROTOCOL_VERSION,
-      agentCapabilities: { loadSession: true },
-    }
+/** Put the prompts a pass read back into its messages where it read them. */
+function withRead(
+  messages: ModelMessage[],
+  read: Array<{ at: number; message: ModelMessage }>
+): ModelMessage[] {
+  const out = [...messages]
+  for (const { at, message } of [...read].reverse()) {
+    out.splice(at, 0, message)
   }
-  async newSession(): Promise<{ sessionId: string }> {
-    return { sessionId: CONTRACT_SESSION_ID }
-  }
-  async authenticate(): Promise<void> {}
-  async loadSession(): Promise<Record<string, never>> {
-    return {}
-  }
-  async prompt(params: PromptRequest): Promise<PromptResponse> {
-    return { stopReason: await this.behavior(this.conn, params) }
-  }
-  async cancel(): Promise<void> {}
+  return out
 }
 
 /**
@@ -883,6 +992,7 @@ export function steeringContractFor(
       ])
       expect(t.inbox).toEqual([])
       expect(t.transitions).toEqual(["completed"])
+      expect(t.updates.filter((u) => u.kind === "done")).toHaveLength(1)
     })
 
     it("takes several waiting Steers together, oldest first, as one message", async () => {

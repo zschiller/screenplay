@@ -288,6 +288,10 @@ export class AcpSession {
   private modelRetried = false
   /** Models the agent advertised for this session (see {@link availableModels}). */
   private modelChoices: AvailableModel[] = []
+  /** Whether the agent advertised prompt queueing (see {@link promptQueueing}). */
+  private queuesPrompts = false
+  /** Prompts sent and not yet resolved; the turn signal is cleared at zero. */
+  private outstanding = 0
 
   private constructor(
     transport: AcpTransport,
@@ -316,6 +320,18 @@ export class AcpSession {
   }
 
   /**
+   * Whether the agent takes a further `session/prompt` while one is running
+   * (#1191): the Claude adapter advertises `_meta.claudeCode.promptQueueing` at
+   * initialize and pushes the new prompt into the live turn, the way a message
+   * typed while Claude Code works joins it in its own terminal. The earlier
+   * prompt then resolves `end_turn` at the handoff, and the newest one resolves
+   * when the agent is done. False for any agent that doesn't advertise it.
+   */
+  get promptQueueing(): boolean {
+    return this.queuesPrompts
+  }
+
+  /**
    * Open a session over `transport`: the ACP handshake/initialize, then either
    * `session/new` or — when {@link OpenSessionOptions.loadSessionId} is given —
    * `session/load`. Resolves once a live session id is bound.
@@ -331,6 +347,7 @@ export class AcpSession {
       protocolVersion: PROTOCOL_VERSION,
       clientCapabilities: {},
     })
+    session.queuesPrompts = advertisesPromptQueueing(init.agentCapabilities)
     const mcpServers = supportedMcpServers(
       options.mcpServers ?? [],
       init.agentCapabilities?.mcpCapabilities
@@ -462,6 +479,7 @@ export class AcpSession {
   ): Promise<StopReason> {
     const sessionId = this.id
     this.activeSignal = signal
+    this.outstanding++
     // Queue the prompt first so the cancel notification (if the signal is
     // already aborted) is serialized *after* it on the connection's write
     // queue — otherwise a pre-aborted turn would cancel nothing and then run.
@@ -474,7 +492,9 @@ export class AcpSession {
       return stopReason
     } finally {
       signal.removeEventListener("abort", cancel)
-      this.activeSignal = null
+      // A queued prompt (#1191) shares the turn's signal; keep it until the
+      // last one is over.
+      if (--this.outstanding === 0) this.activeSignal = null
     }
   }
 
@@ -536,6 +556,22 @@ export class AcpSession {
       ? { outcome: "selected", optionId: option.optionId }
       : { outcome: "cancelled" }
   }
+}
+
+/**
+ * Whether initialize advertised prompt queueing: the Claude adapter's
+ * `_meta.claudeCode.promptQueueing` (claude-agent-acp 0.54.1). ACP has no
+ * standard capability for it yet, so it is read from the adapter's own `_meta`.
+ */
+function advertisesPromptQueueing(
+  capabilities: { _meta?: { [key: string]: unknown } | null } | null | undefined
+): boolean {
+  const claudeCode = capabilities?._meta?.claudeCode
+  return (
+    typeof claudeCode === "object" &&
+    claudeCode !== null &&
+    (claudeCode as { promptQueueing?: unknown }).promptQueueing === true
+  )
 }
 
 /**

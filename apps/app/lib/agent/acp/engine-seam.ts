@@ -62,6 +62,14 @@ export interface EngineTurn {
    * never calls it.
    */
   takeSteers?: TakeSteers
+  /**
+   * Called by a {@link SteeringEngine} that finds, once the turn is under way,
+   * that it can't take Steers after all (#1191): the external engine only
+   * learns at initialize whether the Harness queues prompts. The route then
+   * tells clients to queue; a Steer that joined before this starts the next
+   * turn instead. Present only alongside {@link takeSteers}.
+   */
+  declineSteers?: () => Promise<void>
 }
 
 /** A Steer the Engine took, as the content its user message carries. */
@@ -134,8 +142,10 @@ export function supportsUsageReporting(
  * calls {@link EngineTurn.takeSteers} at each step boundary, hands whatever it
  * took to the model before its next step, and checks once more before a turn
  * would finish, running another step when there are some. An engine that
- * can't (a Harness that hasn't been checked) isn't narrowed, and Turn Launch
- * answers "not steerable" so the client queues instead.
+ * can't isn't narrowed, and Turn Launch answers "not steerable" so the client
+ * queues instead. One that can only on some turns (the external engine, whose
+ * Harness may not queue prompts) calls {@link EngineTurn.declineSteers} on the
+ * others.
  */
 export interface SteeringEngine extends Engine {
   readonly steers: true
