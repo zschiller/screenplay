@@ -952,7 +952,8 @@ export function summarizeCanvas(
       [
         `- [${m.id}] "${clip(m.title || "Untitled")}"`,
         `${Math.round(m.width)}×${Math.round(m.height)}`,
-        m.branchId ? `for Workspace ${m.branchId}` : "standalone",
+        m.ownerChatId &&
+          `by chat "${clip(chats.find((c) => c.id === m.ownerChatId)?.label || m.ownerChatId)}"`,
         groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]
         .filter(Boolean)

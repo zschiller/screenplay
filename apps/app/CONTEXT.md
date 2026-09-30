@@ -396,16 +396,19 @@ _Avoid_: note, text layer; "document chat" (Documents are not Chat Targets
 since #1314).
 
 **Mockup Layer** (Mockup):
-A static HTML page an agent wrote, shown on the canvas with no Sandbox
-(#1267). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
-(`MockupLayerData`: size, title, and the `branchId` of the Workspace it was
-made for, unset on a standalone mockup). It renders in an
-`<iframe srcdoc sandbox="allow-scripts">` with no `allow-same-origin`, so the
-page can never reach the app, its cookies or the canvas, and it is
-self-contained (no network assumed). It sits in a Group beside the frames it
-explores, or alone in its own Group. Not a Chat Target, and only agents
-create one. Canvas selection carries it in the Markdown Layer Set: selection
-only tells frames apart from the other kinds.
+A static HTML page a chat wrote, shown on the canvas with no Sandbox
+(#1309). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
+(`MockupLayerData`: size, title, and the `ownerChatId` of the chat that made
+it).
+It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no
+`allow-same-origin` and a Content Security Policy that blocks the network, so
+the page can never reach the app, its cookies or the canvas, and has no
+browser chrome. A Workspace chat creates one with `create_mockup` and rewrites
+its own with `update_mockup`; a new one joins the Group of the chat's latest
+Mockup, else of its Workspace's frames. Like a chat-made Document, it names
+its chat's Workspace by the Group label rule. Not a Chat Target. Canvas selection carries it
+in the Markdown Layer Set: selection only tells frames apart from the other
+kinds.
 _Avoid_: prototype (that's a running Workspace), wireframe, design layer;
 "artifact".
 

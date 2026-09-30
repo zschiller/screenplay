@@ -209,7 +209,7 @@ export function placeNewIframeLayerGroup(
 export function placeNewGroupBeside(
   groups: readonly IframeLayerGroupData[],
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[],
+  sizedLayers: readonly SizedLayer[],
   beside: ReadonlySet<string>,
   width: number,
   height: number
@@ -217,8 +217,8 @@ export function placeNewGroupBeside(
   const rectOf = (g: IframeLayerGroupData) => ({
     x: g.x,
     y: g.y,
-    width: groupContentWidth(g, iframeLayers, markdownLayers),
-    height: groupContentHeight(g, iframeLayers, markdownLayers),
+    width: groupContentWidth(g, iframeLayers, sizedLayers),
+    height: groupContentHeight(g, iframeLayers, sizedLayers),
   })
   let anchor: { x: number; y: number } | null = null
   let right = -Infinity
@@ -249,7 +249,7 @@ export function placeNewGroupBeside(
     { x: 0, y: 0 },
     width,
     height,
-    markdownLayers
+    sizedLayers
   )
 }
 

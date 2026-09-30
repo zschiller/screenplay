@@ -118,6 +118,8 @@ Screenplay runs the project's dev server in the background and shows it in the l
 
 To see the preview as the user sees it on the canvas, call ${t("view_frame")} for a screenshot of your frame, or ${t("read_frame_html")} for its current page as self-contained HTML (optionally one element, by CSS selector). Both also read other Workspaces' frames on the canvas, by frameId.
 
+Mockups: when the user wants to see a design idea before it's built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite your own with ${t("update_mockup")}.
+
 Keep your responses concise. Show the user what you changed and why.`
 
 /**

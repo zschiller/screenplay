@@ -213,7 +213,7 @@ describe("createMockup", () => {
     expect(mockupHtml(doc, mockupId).toString()).toBe("<h1>Receipt</h1>")
   })
 
-  it("joins the end of a Group beside its frame, remembering the Workspace", () => {
+  it("joins the end of a Group beside its frame, remembering its chat", () => {
     const { ops, collections } = makeHarness()
     collections.iframeLayers.set(
       "layer-1",
@@ -226,7 +226,7 @@ describe("createMockup", () => {
       title: "Option A",
       width: 400,
       height: 300,
-      branchId: "agent-1",
+      ownerChatId: "chat-1",
       groupId: "group-1",
     })
 
@@ -235,8 +235,8 @@ describe("createMockup", () => {
       { kind: "iframe-layer", id: "layer-1" },
       { kind: "mockup-layer", id: result!.mockupId },
     ])
-    expect(collections.mockupLayers.get(result!.mockupId)?.branchId).toBe(
-      "agent-1"
+    expect(collections.mockupLayers.get(result!.mockupId)?.ownerChatId).toBe(
+      "chat-1"
     )
   })
 
@@ -253,6 +253,51 @@ describe("createMockup", () => {
 
     expect(result).toBeUndefined()
     expect(collections.mockupLayers.toArray()).toEqual([])
+  })
+})
+
+describe("updateMockup", () => {
+  it("replaces the page and the title together", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { mockupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-1",
+    })!
+
+    expect(
+      ops.updateMockup(mockupId, { html: "<p>B</p>", title: "Option B" })
+    ).toBe(true)
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
+    expect(collections.mockupLayers.get(mockupId)).toMatchObject({
+      title: "Option B",
+      ownerChatId: "chat-1",
+    })
+  })
+
+  it("keeps the title when only the page changes", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { mockupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+    })!
+
+    ops.updateMockup(mockupId, { html: "" })
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("")
+    expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A")
+  })
+
+  it("reports a missing mockup and writes nothing", () => {
+    const { doc, ops } = makeHarness()
+
+    expect(ops.updateMockup("gone", { html: "<p>B</p>" })).toBe(false)
+    expect(mockupHtml(doc, "gone").toString()).toBe("")
   })
 })
 
@@ -275,20 +320,27 @@ describe("removeMockups", () => {
 })
 
 describe("removeBranch", () => {
-  it("keeps a mockup made for the removed Workspace, now standalone", () => {
+  it("keeps a mockup its removed chat made on the canvas", () => {
     const { ops, collections } = makeHarness()
     collections.branches.set("agent-1", baseBranch("agent-1"))
+    collections.chatSessions.set("chat-1", {
+      id: "chat-1",
+      branchId: "agent-1",
+      label: "Empty cart",
+      createdAt: 0,
+    })
     const { mockupId, groupId } = ops.createMockup({
       html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
-      branchId: "agent-1",
+      ownerChatId: "chat-1",
     })!
 
     ops.removeBranch("agent-1")
 
-    expect(collections.mockupLayers.get(mockupId)?.branchId).toBeUndefined()
+    expect(collections.chatSessions.has("chat-1")).toBe(false)
+    expect(collections.mockupLayers.has(mockupId)).toBe(true)
     expect(collections.iframeLayerGroups.has(groupId)).toBe(true)
   })
 

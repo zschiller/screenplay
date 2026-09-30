@@ -708,25 +708,26 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
     },
   ]
 
-  // Mockup Layers (#1267): two options beside the live empty cart, made for
-  // its Workspace, and a standalone receipt that started from no frame.
+  // Mockup Layers (#1309): two options the Empty cart chat drew beside its
+  // live page, and a receipt the Checkout polish chat started from no frame.
   const mockupLayers: MockupLayerData[] = [
     {
       id: "mockup-cart-illustrated",
-      branchId: b.emptyCart,
+      ownerChatId: EMPTY_CART_CHAT_ID,
       width: 1280,
       height: 800,
       title: "Option A · Illustrated",
     },
     {
       id: "mockup-cart-suggestions",
-      branchId: b.emptyCart,
+      ownerChatId: EMPTY_CART_CHAT_ID,
       width: 1280,
       height: 800,
       title: "Option B · Suggestions",
     },
     {
       id: "mockup-receipt",
+      ownerChatId: FIXTURE_IDS.chats.checkoutPolish,
       width: 720,
       height: 800,
       title: "Order receipt email",

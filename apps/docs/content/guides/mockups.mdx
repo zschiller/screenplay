@@ -1,14 +1,18 @@
 ---
 title: Mockups
-description: Static design options an agent draws on the canvas, next to the running app or on their own.
+description: Static design options a chat draws on the canvas, next to the running app or on their own.
 ---
 
 # Mockups
 
-A mockup is a single static page an agent draws on the canvas to show a
-design idea. It needs no workspace or dev server, so it appears the moment
-it's written. Mockups let you compare a few options side by side with the
-running app before anything is built.
+A mockup is a single static page a chat draws on the canvas to show a
+design idea. It needs no dev server, so it appears the moment it's written.
+Mockups let you compare a few options side by side with the running app
+before anything is built.
+
+Ask a workspace chat for it in your own words, for example "sketch three
+takes on the empty cart as mockups". The chat writes each take as its own
+mockup, and when you ask for changes it rewrites them in place.
 
 <Screenshot
   name="canvas-mockups"
@@ -17,12 +21,21 @@ running app before anything is built.
 
 ## Where mockups sit
 
-- **Beside a frame.** When an exploration starts from a page that's already
-  running, its mockups join that frame's group, so the live page and the
-  options read left to right in one row. Each of these mockups remembers the
-  workspace it was made for.
-- **On their own.** When an exploration starts from nothing on the canvas
-  yet, its mockups get a group of their own.
+- **Beside a frame.** A chat's first mockup joins the group of its
+  workspace's frames, so the live page and the options read left to right in
+  one row.
+- **Beside each other.** Every later mockup from the same chat joins the
+  group of its previous one.
+- **On their own.** When the chat's workspace has no frame on the canvas yet,
+  its mockups get a group of their own.
+
+## Which chat made it
+
+Every mockup remembers the chat that made it, and shows that chat's
+workspace next to its title, as a chat's documents do. When everything in a
+group comes from the same workspace, the group's label names it once instead.
+Only the chat that made a mockup can change it; ask that chat to continue the
+work.
 
 ## Working with mockups
 
@@ -33,8 +46,8 @@ layers list with their own icon. Delete them with <kbd>Delete</kbd>, and
 <kbd>⌘Z</kbd> brings a deleted mockup back.
 
 A mockup is a picture of an idea, so clicking it selects it rather than
-using the page. Mockups aren't chat targets, and there's no toolbar tool for
-them: agents create them.
+using the page. It has no address bar, reload or Interact. Mockups aren't
+chat targets, and there's no toolbar tool for them: chats create them.
 
 ## Safety
 

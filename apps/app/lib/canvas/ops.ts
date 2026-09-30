@@ -302,12 +302,11 @@ export type CanvasOps = {
    */
   removeDocuments(ids: string[]): { removedChatIds: string[] }
   /**
-   * Create a Mockup Layer (#1267) showing `spec.html`. With `groupId` it joins
-   * the end of that Group's row, beside the frames it explores; otherwise it
+   * Create a Mockup Layer (#1309) showing `spec.html`. With `groupId` it joins
+   * the end of that Group's row, beside the layers it sits with; otherwise it
    * starts a fresh Group at `anchor` (canvas-space top-left), or beside the
-   * existing Groups when no anchor is given. `branchId` names
-   * the Workspace it was made for; leave it out for a standalone mockup. The
-   * record and its HTML text commit together. Returns `undefined` when
+   * existing Groups when no anchor is given. `chatId` names the chat that made
+   * it. The record and its HTML text commit together. Returns `undefined` when
    * `groupId` names a missing Group.
    */
   createMockup(spec: {
@@ -315,10 +314,15 @@ export type CanvasOps = {
     title: string
     width: number
     height: number
-    branchId?: string
+    ownerChatId?: string
     groupId?: string
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined
+  /**
+   * Replace a Mockup Layer's page and/or title. The record and its HTML text
+   * commit together. Returns false when the mockup is gone.
+   */
+  updateMockup(id: string, patch: { html?: string; title?: string }): boolean
   /**
    * Remove the given Mockup Layers, dropping them from any Group (pruning a
    * Group emptied by the removal). Their HTML texts stay in the doc, like a
@@ -486,12 +490,6 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     for (const group of collections.iframeLayerGroups.toArray()) {
       if (group.branchId && branchIds.has(group.branchId)) {
         collections.iframeLayerGroups.update(group.id, { branchId: undefined })
-      }
-    }
-    // A mockup made for a removed Workspace stays on the canvas, standalone.
-    for (const mockup of collections.mockupLayers.toArray()) {
-      if (mockup.branchId && branchIds.has(mockup.branchId)) {
-        collections.mockupLayers.update(mockup.id, { branchId: undefined })
       }
     }
   }
@@ -966,7 +964,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     title: string
     width: number
     height: number
-    branchId?: string
+    ownerChatId?: string
     groupId?: string
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined {
@@ -985,7 +983,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         width: Math.max(MOCKUP_MIN_WIDTH, spec.width),
         height: Math.max(MOCKUP_MIN_HEIGHT, spec.height),
         title: spec.title,
-        ...(spec.branchId ? { branchId: spec.branchId } : {}),
+        ...(spec.ownerChatId ? { ownerChatId: spec.ownerChatId } : {}),
       })
       writeMockupHtml(mockupHtml(doc, mockupId), spec.html)
       const member = { kind: "mockup-layer" as const, id: mockupId }
@@ -1015,6 +1013,22 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       })
     })
     return groupId ? { mockupId, groupId } : undefined
+  }
+
+  function updateMockup(
+    id: string,
+    patch: { html?: string; title?: string }
+  ): boolean {
+    if (!collections.mockupLayers.get(id)) return false
+    batch(() => {
+      if (patch.title !== undefined) {
+        collections.mockupLayers.update(id, { title: patch.title })
+      }
+      if (patch.html !== undefined) {
+        writeMockupHtml(mockupHtml(doc, id), patch.html)
+      }
+    })
+    return true
   }
 
   function removeMockups(ids: string[]): { removedChatIds: string[] } {
@@ -1277,6 +1291,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     removeLayers,
     removeDocuments,
     createMockup,
+    updateMockup,
     removeMockups,
     removeBranch,
     removeRepo,

@@ -907,10 +907,11 @@ export function Canvas({
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
-  // Each chat-made Document's Workspace (#1314), for its label and the Group's.
+  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
+  // label and the Group's.
   const documentWorkspaces = useMemo(
-    () => documentWorkspaceIds(markdownLayers, chatSessions),
-    [markdownLayers, chatSessions]
+    () => documentWorkspaceIds(sizedLayers, chatSessions),
+    [sizedLayers, chatSessions]
   )
   // Where Reply in chat and Send to agent on a chat-made Document go.
   const documentOwnerChat = useCallback(

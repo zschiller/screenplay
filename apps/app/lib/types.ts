@@ -315,10 +315,10 @@ export type MarkdownLayerData = {
 }
 
 /**
- * A static HTML page an agent wrote, shown on the canvas without a Sandbox
- * (issue #1267). Lives in a Group like the other layers. The page itself is a
+ * A static HTML page a chat wrote, shown on the canvas without a Sandbox
+ * (issue #1309). Lives in a Group like the other layers. The page itself is a
  * `Y.Text` keyed `mockup-layer-${id}` (resolved through `mockupHtml`), so it
- * syncs like a document body; the record carries only size and title.
+ * syncs like a document body; the record carries size, title and owner.
  */
 export type MockupLayerData = {
   id: string
@@ -326,10 +326,11 @@ export type MockupLayerData = {
   height: number
   title: string
   /**
-   * The Workspace (Branch) the mockup was made for, when there is one: what
-   * building it (a later ticket) works in. Unset on a standalone mockup.
+   * The chat that made the mockup (#1309), which alone updates it with its
+   * tools, and whose Workspace its label names, as a Document's owner does.
+   * Once that chat is gone the mockup stays and names none.
    */
-  branchId?: string
+  ownerChatId?: string
 }
 
 export type ViewportData = {

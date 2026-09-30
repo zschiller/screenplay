@@ -21,6 +21,10 @@ import {
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
 import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
 import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
+import {
+  buildMockupTools,
+  MOCKUP_TOOL_ANNOTATIONS,
+} from "@/lib/agent/mockup-tools"
 import { withRedactedOutput } from "@/lib/agent/toolset"
 import {
   buildQuestionTools,
@@ -68,7 +72,7 @@ export async function POST(req: Request) {
 
   // A Workspace chat's harness gets its own dev server's tools and the frame
   // reads, bound to the Sandbox its token was minted for, and its Document
-  // tools, bound to its chat, and Question Cards (#1312).
+  // and Mockup (#1309) tools, bound to its chat, and Question Cards (#1312).
   if (binding.sandboxName) {
     const response = await handleMcpMessage(
       {
@@ -83,6 +87,7 @@ export async function POST(req: Request) {
             room,
           }),
           ...buildDocumentTools({ room, chatId: binding.chatId }),
+          ...buildMockupTools({ room, chatId: binding.chatId }),
           ...buildLayerReadTools({ room }),
           ...buildQuestionTools(),
         }),
@@ -90,6 +95,7 @@ export async function POST(req: Request) {
           ...DEV_SERVER_TOOL_ANNOTATIONS,
           ...FRAME_READ_TOOL_ANNOTATIONS,
           ...DOCUMENT_TOOL_ANNOTATIONS,
+          ...MOCKUP_TOOL_ANNOTATIONS,
           ...QUESTION_TOOL_ANNOTATIONS,
         },
         onInitialize: (client) =>

@@ -507,7 +507,7 @@ function simpleRoom(spec: {
   origin: (sandboxName: string) => string
   group: string
   frames: Array<[label: string, route: string, width: number, height: number]>
-  /** Mockup Layers after the frames in the Group, made for its Workspace. */
+  /** Mockup Layers after the frames in the Group, drawn by its Workspace's chat. */
   mockups?: Array<[title: string, html: string, width: number, height: number]>
 }): FixtureRoom {
   // Added from the saved "web" preset, whose name the sidebar shows.
@@ -530,10 +530,21 @@ function simpleRoom(spec: {
       iframeState: {},
     })
   )
+  // The Workspace's chat, which drew the mockups (#1309).
+  const chats: ChatSessionData[] = spec.mockups
+    ? [
+        {
+          id: `chat-${spec.sandboxName}`,
+          branchId,
+          label: spec.group,
+          createdAt: spec.createdAt,
+        },
+      ]
+    : []
   const mockups: MockupLayerData[] = (spec.mockups ?? []).map(
     ([title, , width, height], i) => ({
       id: `mockup-${spec.sandboxName}-${i}`,
-      branchId,
+      ownerChatId: `chat-${spec.sandboxName}`,
       title,
       width,
       height,
@@ -564,6 +575,7 @@ function simpleRoom(spec: {
         },
       ],
       iframeLayers: layers,
+      chatSessions: chats,
       mockupLayers: mockups,
       mockupHtml: Object.fromEntries(
         mockups.map((m, i) => [m.id, spec.mockups![i]![1]])

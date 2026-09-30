@@ -117,7 +117,7 @@ function CanvasMemberLayerImpl({
   iframeLayerGroups: IframeLayerGroupData[]
   iframeLayers: IframeLayerData[]
   markdownLayers: MarkdownLayerData[]
-  /** The Workspace of each Document's owning chat (#1314), by Document id. */
+  /** The Workspace of each Document's and Mockup's owning chat (#1314, #1309), by layer id. */
   documentWorkspaces: ReadonlyMap<string, string>
   mockupLayers: MockupLayerData[]
   selection: CanvasSelection
@@ -224,6 +224,7 @@ function CanvasMemberLayerImpl({
 
         // Each Group's Workspace (#868), as its label and its frames name it.
         const framesById = new Map(iframeLayers.map((l) => [l.id, l]))
+        const mockupsById = new Map(mockupLayers.map((l) => [l.id, l]))
         const workspaceOf = (branchId: string | undefined) =>
           frameWorkspaceOf(
             branchId ? agents.find((a) => a.id === branchId) : undefined
@@ -396,12 +397,19 @@ function CanvasMemberLayerImpl({
           }
 
           if (member.kind === "mockup-layer") {
-            const mockup = mockupLayers.find((d) => d.id === member.id)
+            const mockup = mockupsById.get(member.id)
             if (!mockup) return null
             return (
               <MockupLayer
                 key={mockup.id}
                 layer={mockup}
+                // The chat that made it, unless the group label names it
+                // (#1309), as a chat-made Document does.
+                ownerWorkspace={
+                  groupNamesWorkspace
+                    ? undefined
+                    : workspaceOf(documentWorkspaces.get(mockup.id))
+                }
                 zoom={zoom}
                 // Mockups share the Document selection Set.
                 selected={selectedDocumentLayerIds.has(mockup.id)}

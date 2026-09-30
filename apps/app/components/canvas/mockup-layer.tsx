@@ -3,6 +3,7 @@
 import { useCallback } from "react"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupHtml } from "@/lib/yjs/react"
+import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   LayerShell,
@@ -10,6 +11,9 @@ import {
 } from "@/components/canvas/layer-shell"
 import type { MockupLayerData } from "@/lib/types"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
+import type { FrameWorkspace } from "@/components/canvas/frame-nav"
+import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
+import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 
 type Mover = (
   dx: number,
@@ -21,6 +25,11 @@ type Mover = (
 
 interface MockupLayerProps {
   layer: MockupLayerData
+  /**
+   * The Workspace of the chat that made it (#1309), named after its title
+   * unless the group label names it.
+   */
+  ownerWorkspace?: FrameWorkspace
   zoom: number
   selected: boolean
   multiSelected: boolean
@@ -52,15 +61,18 @@ interface MockupLayerProps {
 }
 
 /**
- * The Mockup Layer (#1267) — a static HTML page an agent wrote, plugged into
+ * The Mockup Layer (#1309) — a static HTML page a chat wrote, plugged into
  * the shared {@link LayerShell} as its third content adapter. The page renders
  * in an `<iframe srcdoc>` sandboxed to `allow-scripts` only: without
  * `allow-same-origin` it runs in an opaque origin, so it can never reach the
- * app, its cookies or the canvas. A transparent overlay sits over the page so
+ * app, its cookies or the canvas, and its Content Security Policy
+ * (`mockupSrcDoc`) keeps it from loading anything from the network. There is
+ * no address bar, reload or Interact: it is a picture, not a running app. A transparent overlay sits over the page so
  * a press selects and drags the mockup like any other layer.
  */
 export function MockupLayer({
   layer,
+  ownerWorkspace,
   zoom,
   selected,
   multiSelected,
@@ -146,6 +158,20 @@ export function MockupLayer({
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
           onRename={(next) => onRename(layer.id, next)}
+          trailing={
+            ownerWorkspace && (
+              <MaybeWorkspaceHoverCard
+                branchId={ownerWorkspace.branchId}
+                side="bottom"
+              >
+                {/* The mention doesn't take the trigger's props; this span
+                    does. Names win: the Workspace gives up its width first. */}
+                <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
+                  <CompactWorkspaceMention workspace={ownerWorkspace} />
+                </span>
+              </MaybeWorkspaceHoverCard>
+            )
+          }
         />
       )}
     >
@@ -153,7 +179,7 @@ export function MockupLayer({
         <div className="relative flex-1 overflow-hidden rounded-[inherit]">
           <iframe
             title={layer.title || "Mockup"}
-            srcDoc={html}
+            srcDoc={mockupSrcDoc(html)}
             // Scripts only: no same-origin, forms, popups or top navigation.
             sandbox="allow-scripts"
             className="pointer-events-none absolute inset-0 size-full border-0 bg-white"

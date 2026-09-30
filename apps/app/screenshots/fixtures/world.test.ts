@@ -160,9 +160,9 @@ describe("fixture world — referential integrity", () => {
       const mockupIds = (doc.mockupLayers ?? []).map((l) => l.id).sort()
       expect(Object.keys(doc.mockupHtml ?? {}).sort()).toEqual(mockupIds)
       for (const mockup of doc.mockupLayers ?? []) {
-        if (mockup.branchId)
-          expect((doc.branches ?? []).map((b) => b.id)).toContain(
-            mockup.branchId
+        if (mockup.ownerChatId)
+          expect((doc.chatSessions ?? []).map((c) => c.id)).toContain(
+            mockup.ownerChatId
           )
       }
     }

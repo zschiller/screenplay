@@ -8,6 +8,4 @@ export const mockupLayerKind: LayerKindDescriptor<MockupLayerData> = {
   singularLabel: "mockup",
   Icon: PaletteIcon,
   getLabel: (d) => d.title || "Untitled",
-  // A mockup is a picture of an idea; building it goes through its Workspace.
-  canBeChatTarget: false,
 }
