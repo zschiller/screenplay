@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -110,6 +110,7 @@ function InputDialogForm({
   onCancel: () => void
 }) {
   const [value, setValue] = useState(initialValue)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [failed, setFailed] = useState(false)
   const trimmed = value.trim()
   const canSubmit =
@@ -119,6 +120,10 @@ function InputDialogForm({
     e.preventDefault()
     // Enter submits the form even while the button is disabled.
     if (!canSubmit) return
+    // Park focus on the dialog before Save disables itself; otherwise the
+    // focus trap lands it on the field and selects the whole name.
+    const dialog = e.currentTarget.closest<HTMLElement>('[role="dialog"]')
+    dialog?.focus()
     onSubmittingChange(true)
     setFailed(false)
     try {
@@ -129,6 +134,7 @@ function InputDialogForm({
       console.error(err)
       setFailed(true)
       onSubmittingChange(false)
+      inputRef.current?.focus()
     }
   }
 
@@ -140,12 +146,11 @@ function InputDialogForm({
       </DialogHeader>
       <div className="my-4 space-y-2">
         <Input
+          ref={inputRef}
           autoFocus
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
-          // Read-only, not disabled, so the field keeps its look and focus.
-          readOnly={submitting}
         />
         {failed && (
           <p role="alert" className="text-sm text-destructive">
