@@ -14,8 +14,7 @@ vi.mock("@/lib/db", () => ({ db: {} }))
 
 import { jsonSchema, tool } from "ai"
 import type { EngineUpdate } from "./engine-seam"
-import { planFromPermissionRequest, textBlock } from "./schema"
-import { withPlanGate } from "../plan-gate"
+import { textBlock } from "./schema"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import { ExternalEngine } from "./acp-engine"
 import type { AcpSessionPorts } from "./session"
@@ -326,26 +325,29 @@ describe("InProcessEngine — capability + cancellation", () => {
   })
 })
 
-describe("InProcessEngine — plan-gated tools (#898)", () => {
-  it("halts a plan-gated tool's call on the plan gate, with its plan and input", async () => {
+describe("InProcessEngine — Coordinator tools (#1217, #1231)", () => {
+  // A Coordinator tool runs as soon as it's called: its result, a refusal
+  // included, completes the call, and a throw fails it.
+  it("completes a Coordinator tool's call with what it returned", async () => {
     const updates: EngineUpdate[] = []
-    const gated = withPlanGate(
-      tool({ inputSchema: jsonSchema<{ n: number }>({ type: "object" }) }),
-      async (input) => ({
-        plan: `Create ${(input as { n: number }).n}`,
-        input: { gate: "create_things", n: (input as { n: number }).n },
-      })
-    )
+    const refusal =
+      "\"Page title\" isn't in a GitHub repository, so it can't have a pull request."
     const driver: StreamDriver = (config) => ({
       consumeStream: async () => {
         const chunk = (c: unknown) =>
           config.onChunk?.({ chunk: c } as never) as Promise<void>
-        await chunk({ type: "tool-input-start", id: "t1", toolName: "gated" })
         await chunk({
           type: "tool-call",
           toolCallId: "t1",
-          toolName: "gated",
-          input: { n: 2 },
+          toolName: "open_pull_request",
+          input: { workspace_id: "w1" },
+        })
+        await chunk({
+          type: "tool-result",
+          toolCallId: "t1",
+          toolName: "open_pull_request",
+          input: { workspace_id: "w1" },
+          output: refusal,
         })
       },
     })
@@ -357,76 +359,33 @@ describe("InProcessEngine — plan-gated tools (#898)", () => {
         systemPrompt: "s",
         model: "anthropic:test",
         history: [],
-        tools: { gated },
+        tools: {
+          open_pull_request: tool({
+            inputSchema: jsonSchema<{ workspace_id: string }>({
+              type: "object",
+            }),
+            execute: async () => refusal,
+          }),
+        },
       },
       (u) => {
         updates.push(u)
       },
       new AbortController().signal
     )
-    // No tool row for the call: only the gate, which the consumer pauses on.
-    expect(updates).toHaveLength(1)
-    const [update] = updates
-    if (update?.kind !== "permission_request") throw new Error("no gate")
-    expect(planFromPermissionRequest(update.request)).toEqual({
-      toolCallId: "t1",
-      plan: "Create 2",
-      input: { gate: "create_things", n: 2, plan: "Create 2" },
+    // No card: the call runs and completes in the turn.
+    expect(updates.some((u) => u.kind === "permission_request")).toBe(false)
+    expect(updates).toContainEqual({
+      kind: "session_update",
+      update: expect.objectContaining({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "t1",
+        status: "completed",
+        content: [
+          { type: "content", content: { type: "text", text: refusal } },
+        ],
+      }),
     })
-  })
-
-  it("records a refused gate's call as completed, with the reason, and raises no card (#901, #1231)", async () => {
-    const updates: EngineUpdate[] = []
-    const gated = withPlanGate(
-      tool({ inputSchema: jsonSchema<{ id: string }>({ type: "object" }) }),
-      async () => ({ refusal: "No Workspace has the id w9." })
-    )
-    const driver: StreamDriver = (config) => ({
-      consumeStream: async () => {
-        const chunk = (c: unknown) =>
-          config.onChunk?.({ chunk: c } as never) as Promise<void>
-        await chunk({ type: "tool-input-start", id: "t1", toolName: "gated" })
-        await chunk({
-          type: "tool-call",
-          toolCallId: "t1",
-          toolName: "gated",
-          input: { id: "w9" },
-        })
-      },
-    })
-    await new InProcessEngine(driver).run(
-      {
-        chatId: "c",
-        runId: "r",
-        roomId: "rm",
-        systemPrompt: "s",
-        model: "anthropic:test",
-        history: [],
-        tools: { gated },
-      },
-      (u) => {
-        updates.push(u)
-      },
-      new AbortController().signal
-    )
-    expect(updates).toEqual([
-      {
-        kind: "session_update",
-        update: expect.objectContaining({
-          sessionUpdate: "tool_call",
-          toolCallId: "t1",
-          title: "gated",
-          status: "completed",
-          rawInput: { id: "w9" },
-          content: [
-            {
-              type: "content",
-              content: { type: "text", text: "No Workspace has the id w9." },
-            },
-          ],
-        }),
-      },
-    ])
   })
 
   it("still fails a Coordinator tool's call that throws (#1231)", async () => {

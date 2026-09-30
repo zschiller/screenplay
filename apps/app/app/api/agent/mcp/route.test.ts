@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { baseBranch, makeHarness } from "@/test/canvas/harness"
+import { baseBranch, baseRepo, makeHarness } from "@/test/canvas/harness"
 import type { RoomCollections } from "@/lib/yjs/schema"
 
 /**
@@ -18,12 +18,33 @@ const openRoomForRoute = vi.fn(async (roomId: string, _chatId?: string) => ({
   userId: "local-user",
   role: "owner",
   readDoc: async <T>(fn: (c: RoomCollections) => T) => fn(collections),
+  mutateDoc: async <T>(fn: (c: RoomCollections) => T) => fn(collections),
 }))
 vi.mock("@/lib/room-access", () => ({
   openRoomForRoute: (roomId: string, chatId?: string) =>
     openRoomForRoute(roomId, chatId),
 }))
 vi.mock("@/lib/terminal-tabs", () => ({ listTerminalTabs: async () => [] }))
+// What the Coordinator's Workspace tools drive, standing in for GitHub and
+// the Sandboxes.
+const live = vi.hoisted(() => ({
+  startBranchProvisioning: vi.fn(async () => {}),
+  createGitHubPr: vi.fn(async () => ({
+    url: "https://github.com/acme/web/pull/7",
+    number: 7,
+  })),
+  deleteSandboxes: vi.fn(async () => {}),
+}))
+vi.mock("@/lib/branch/provisioning-live", () => ({
+  startBranchProvisioning: live.startBranchProvisioning,
+}))
+vi.mock("@/lib/github-pr", () => ({ createGitHubPr: live.createGitHubPr }))
+vi.mock("@/lib/sandbox/lifecycle", () => ({
+  deleteSandboxes: live.deleteSandboxes,
+}))
+vi.mock("@/lib/auth-helpers", () => ({
+  getGitHubTokenForUser: async () => null,
+}))
 // A Workspace token's dev server, standing in for the Sandbox.
 const devServerPorts = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/agent/dev-server-ports", () => ({
@@ -61,10 +82,6 @@ vi.mock("@/lib/sandbox", async (importOriginal) => ({
 
 import { DELETE, GET, POST } from "./route"
 import { coordinatorToken } from "@/lib/agent/coordinator-mcp"
-import {
-  registerHarnessGate,
-  type HarnessGateCall,
-} from "@/lib/agent/acp/harness-gate"
 
 const PORT = process.env.PORT || "3000"
 const binding = { roomId: "room-1", chatId: "room-chat-room-1" }
@@ -93,6 +110,7 @@ beforeEach(() => {
 afterEach(() => {
   localMode.isLocalBuild = true
   openRoomForRoute.mockClear()
+  vi.clearAllMocks()
 })
 
 describe("the Coordinator's MCP route", () => {
@@ -163,97 +181,86 @@ describe("the Coordinator's MCP route", () => {
     expect(openRoomForRoute).toHaveBeenCalledWith("room-1", "room-chat-room-1")
   })
 
-  const createCall = {
-    jsonrpc: "2.0",
-    id: 6,
-    method: "tools/call",
-    params: {
-      name: "create_workspaces",
-      arguments: {
-        workspaces: [
-          {
-            title: "Fix",
-            repository: "acme/web",
-            brief: "Fix it.",
-            prompt: "Fix it.",
-          },
-        ],
-      },
-    },
-  }
-
-  it("hands a plan-gated call's card to the Coordinator's running turn", async () => {
-    const raised: HarnessGateCall[] = []
-    const unregister = registerHarnessGate(binding.chatId, async (call) => {
-      raised.push(call)
-      return true
-    })
-    try {
-      const { result } = await (await POST(rpc(createCall))).json()
-      expect(result.isError).toBe(false)
-      expect(result.content[0].text).toMatch(/End your turn now/)
-    } finally {
-      unregister()
-    }
-    expect(raised).toHaveLength(1)
-    expect(raised[0]).toMatchObject({
-      toolName: "create_workspaces",
-      input: {
-        gate: "create_workspaces",
-        workspaces: [{ title: "Fix", repository: "acme/web" }],
-      },
-    })
-    expect(raised[0]!.plan).toContain("Fix")
-  })
-
-  it("fails a plan-gated call when no turn can show its card", async () => {
-    const { result } = await (await POST(rpc(createCall))).json()
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toMatch(/approval/)
-  })
-
-  const toolCall = (id: number, name: string, workspace_id: string) =>
+  const toolCall = (id: number, name: string, args: Record<string, unknown>) =>
     rpc({
       jsonrpc: "2.0",
       id,
       method: "tools/call",
-      params: { name, arguments: { workspace_id } },
+      params: { name, arguments: args },
     })
+
+  // No Coordinator tool asks first (#1217): each runs when the harness calls
+  // it and returns its result in the same turn.
+  it("creates Workspaces right away", async () => {
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    const { result } = await (
+      await POST(
+        toolCall(6, "create_workspaces", {
+          workspaces: [
+            { title: "Fix", repository: "owner/repo", prompt: "Fix it." },
+          ],
+        })
+      )
+    ).json()
+    expect(result.isError).toBe(false)
+    expect(result.content[0].text).toMatch(/^Started 1 of 1 Workspace/)
+    const created = collections.branches
+      .toArray()
+      .find((b) => b.title === "Fix")
+    expect(created).toMatchObject({ status: "creating" })
+    expect(live.startBranchProvisioning).toHaveBeenCalledTimes(1)
+  })
+
+  it("opens a Workspace's pull request right away", async () => {
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    const { result } = await (
+      await POST(toolCall(7, "open_pull_request", { workspace_id: "ws-1" }))
+    ).json()
+    expect(result.isError).toBe(false)
+    expect(result.content[0].text).toBe(
+      'Opened PR #7 for "Fix sign-in redirect": https://github.com/acme/web/pull/7'
+    )
+    expect(live.createGitHubPr).toHaveBeenCalledWith(
+      expect.objectContaining({ sandboxName: "sandbox-ws-1" })
+    )
+    expect(collections.branches.get("ws-1")).toMatchObject({ prNumber: 7 })
+  })
+
+  it("removes a Workspace right away", async () => {
+    const { result } = await (
+      await POST(toolCall(8, "remove_workspace", { workspace_id: "ws-1" }))
+    ).json()
+    expect(result.isError).toBe(false)
+    expect(result.content[0].text).toMatch(/^Removed "Fix sign-in redirect"/)
+    expect(collections.branches.get("ws-1")).toBeUndefined()
+    expect(live.deleteSandboxes).toHaveBeenCalledWith(["sandbox-ws-1"])
+  })
 
   // A refusal is the call's result, not an error, so the harness shows it as
   // a finished step (#1231).
-  it("returns a call its gate refuses as a result, without raising a card", async () => {
-    const raised: HarnessGateCall[] = []
-    const unregister = registerHarnessGate(binding.chatId, async (call) => {
-      raised.push(call)
-      return true
-    })
-    try {
-      const removal = await (
-        await POST(toolCall(7, "remove_workspace", "no-such"))
-      ).json()
-      expect(removal.result.isError).toBe(false)
-      expect(removal.result.content[0].text).toMatch(
-        /No Workspace has the id no-such/
-      )
+  it("returns a refusal as the call's result", async () => {
+    const removal = await (
+      await POST(toolCall(9, "remove_workspace", { workspace_id: "no-such" }))
+    ).json()
+    expect(removal.result.isError).toBe(false)
+    expect(removal.result.content[0].text).toMatch(
+      /No Workspace has the id no-such/
+    )
 
-      // ws-1's repository isn't on GitHub.
-      const pr = await (
-        await POST(toolCall(8, "open_pull_request", "ws-1"))
-      ).json()
-      expect(pr.result.isError).toBe(false)
-      expect(pr.result.content[0].text).toBe(
-        "\"Fix sign-in redirect\" isn't in a GitHub repository, so it can't have a pull request."
-      )
-    } finally {
-      unregister()
-    }
-    expect(raised).toEqual([])
+    // ws-1's repository isn't on the canvas, so it isn't on GitHub.
+    const pr = await (
+      await POST(toolCall(10, "open_pull_request", { workspace_id: "ws-1" }))
+    ).json()
+    expect(pr.result.isError).toBe(false)
+    expect(pr.result.content[0].text).toBe(
+      "\"Fix sign-in redirect\" isn't in a GitHub repository, so it can't have a pull request."
+    )
+    expect(live.createGitHubPr).not.toHaveBeenCalled()
   })
 
   it("still fails a call whose tool throws", async () => {
     const { result } = await (
-      await POST(toolCall(9, "stop_workspace", "no-such"))
+      await POST(toolCall(11, "stop_workspace", { workspace_id: "no-such" }))
     ).json()
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toMatch(/No Workspace has the id no-such/)

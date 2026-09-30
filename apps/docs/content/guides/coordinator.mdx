@@ -43,8 +43,8 @@ edits, never the Coordinator's.
 
 The Coordinator never works inside a sandbox and never edits a workspace's
 files. When you ask for work in a workspace, it sends that workspace's agent a
-message, and the agent does the work. When no workspace fits, it can start new
-ones, after you approve its plan.
+message, and the agent does the work. When no workspace fits, it starts new
+ones.
 
 On a new canvas, the workspace that adding a repository started hasn't been
 asked anything yet. The Coordinator sends your next ask for that repository
@@ -82,14 +82,13 @@ instead, and only you approve plans.
 
 ## Starting workspaces
 
-When an ask needs work no workspace covers, the Coordinator proposes new
-workspaces as a plan: one row per workspace with its title, its repository and
-a one-line brief. Nothing is created until you click **Approve**. Click
-**Request changes**, or just reply, to have it revise the list.
+When an ask needs work no workspace covers, the Coordinator starts new
+workspaces right away, without asking first, and names them in its reply. If
+it started one you didn't want, ask it to remove it.
 
-Once you approve, each workspace starts its sandbox, and its agent begins on
-the Coordinator's first message as soon as the sandbox is running. The new
-workspaces show up as rows in the Coordinator's reply, **Starting** at first.
+Each workspace starts its sandbox, and its agent begins on the Coordinator's
+first message as soon as the sandbox is running. The new workspaces show up as
+rows in the Coordinator's reply, **Starting** at first.
 They belong to whoever asked for them. If one fails to start, the others carry
 on: its row shows **Failed**, the Coordinator tells you, and **Retry** on the
 workspace brings it up and sends that first message then.
@@ -100,9 +99,11 @@ away. The workspace's chat keeps everything so far.
 ## Pull requests and removing workspaces
 
 Ask the Coordinator to open a workspace's pull request or to remove a
-workspace, and it asks you first with a card in its chat. Nothing happens until
-you click **Open PR** or **Remove**; **Cancel** drops it, and the Coordinator
-is told you said no.
+workspace, and it does it right away, without asking first. Its reply shows
+one line saying what happened, with the pull request's link when one opened. If
+it can't, because the workspace already has a pull request open or isn't in a
+GitHub repository, that line says why. A pull request you didn't want can be
+closed on GitHub.
 
 The pull request goes from the workspace's git branch into the repository's
 default branch, with its title and description taken from the branch's
@@ -112,17 +113,17 @@ the Coordinator followed up on its own.
 
 Removing a workspace works like **Delete** in the Workspaces menu: its chats and
 frames go and its sandbox is torn down. The git branch and any pull request
-stay on GitHub.
+stay on GitHub. Removing can't be undone.
 
 ## Trying something several ways
 
 Ask the Coordinator to try one thing several ways, like "try the sign-in page
-three ways", and it plans one workspace per variant, all from the same
-repository and branch. Each row's brief says how that variant differs. Name
-the directions yourself or let the Coordinator pick them; with no number, it
-proposes three. Once you approve, the variants' frames sit side by side in one
-group, so you can compare them on the canvas. When every variant has
-finished, the Coordinator sums them up in one reply and leaves the pick to you.
+three ways", and it starts one workspace per variant, all from the same
+repository and branch, and says how each differs. Name the directions yourself
+or let the Coordinator pick them; with no number, it starts three. The
+variants' frames sit side by side in one group, so you can compare them on the
+canvas. When every variant has finished, the Coordinator sums them up in one
+reply and leaves the pick to you.
 
 ## When a workspace finishes
 

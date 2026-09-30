@@ -40,7 +40,9 @@ describe("chat-store — plan gate (ACP)", () => {
     chatStore.cleanup(chatId)
   })
 
-  it("carries a Coordinator confirm's card on the plan message (#901)", () => {
+  // The Coordinator no longer asks first (#1217); a confirm card an older
+  // turn raised shows as a plain plan card.
+  it("shows an old Coordinator confirm as a plain plan card", () => {
     const chatId = `chat_${++seq}`
     const confirm = {
       action: "remove_workspace",
@@ -69,7 +71,6 @@ describe("chat-store — plan gate (ACP)", () => {
         content: "**Remove Dark mode toggle?**",
         status: "pending",
         planId: "toolu_confirm_1",
-        confirm,
       },
     ])
     chatStore.cleanup(chatId)

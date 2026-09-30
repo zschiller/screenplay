@@ -11,7 +11,6 @@ import {
   aiSdkChunkToAcpUpdate,
   cachedSystem,
   recordText,
-  toolKindFor,
   withConversationCacheBreakpoint,
 } from "./adapter"
 import type {
@@ -26,11 +25,8 @@ import type {
 import {
   planPermissionRequest,
   SUBMIT_PLAN_TOOL,
-  textBlock,
-  toolCallStart,
   type StopReason,
 } from "./schema"
-import { planGateOf } from "../plan-gate"
 
 const MAX_STEPS = 20
 
@@ -204,12 +200,9 @@ export class InProcessEngine implements UsageReportingEngine, SteeringEngine {
         // forever (and reads "Submit Plan" off the title-case fallback). The
         // `tool-input-delta`s carry no ACP signal already, so suppressing the
         // start is enough; the gate surfaces solely as the permission request.
-        // A plan-gated tool (#898) is a gate the same way.
-        const gate =
-          "toolName" in chunk ? planGateOf(turn.tools?.[chunk.toolName]) : null
         if (
           chunk.type === "tool-input-start" &&
-          (chunk.toolName === SUBMIT_PLAN_TOOL || gate)
+          chunk.toolName === SUBMIT_PLAN_TOOL
         ) {
           return
         }
@@ -228,43 +221,6 @@ export class InProcessEngine implements UsageReportingEngine, SteeringEngine {
               plan: String(
                 (chunk.input as { plan?: unknown } | undefined)?.plan ?? ""
               ),
-            }),
-          })
-          return
-        }
-        // A plan-gated tool's call becomes the same gate, with the plan its
-        // gate renders from the call; the tool runs only once approved.
-        if (chunk.type === "tool-call" && gate) {
-          const request = await gate(chunk.input)
-          // A gate that can't raise its card for this call (#901) records
-          // the call with the reason, so the user sees why and the next
-          // turn's history carries it; nothing waits on the user. The call
-          // did what it should, so it's completed, not failed (#1231).
-          if ("refusal" in request) {
-            await sink({
-              kind: "session_update",
-              update: toolCallStart({
-                toolCallId: chunk.toolCallId,
-                title: chunk.toolName,
-                kind: toolKindFor(chunk.toolName),
-                status: "completed",
-                rawInput: chunk.input as Record<string, unknown>,
-                content: [
-                  { type: "content", content: textBlock(request.refusal) },
-                ],
-              }),
-            })
-            return
-          }
-          const { plan, input } = request
-          end.gated = true
-          await sink({
-            kind: "permission_request",
-            request: planPermissionRequest({
-              sessionId: turn.chatId,
-              toolCallId: chunk.toolCallId,
-              plan,
-              input,
             }),
           })
           return

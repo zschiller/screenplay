@@ -1,5 +1,4 @@
 import type { AgentMessage } from "@/lib/agent/types"
-import type { ConfirmCard } from "@/lib/agent/confirm-card"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { blockText } from "@/lib/agent/acp/schema"
 import { contentBlocksToWire } from "@/lib/agent/acp/markers"
@@ -19,8 +18,6 @@ export type HistoryEntry =
       planId: string
       plan: string
       status: "pending" | "approved" | "rejected"
-      /** A Coordinator confirm's card (#901), from the pending row's input. */
-      confirm?: ConfirmCard
     }
   // A run the user stopped, placed at the run's `endedAt`.
   | { kind: "stopped" }
@@ -44,7 +41,6 @@ export function renderHistory(entries: HistoryEntry[]): AgentMessage[] {
         content: entry.plan,
         status: entry.status,
         planId: entry.planId,
-        ...(entry.confirm ? { confirm: entry.confirm } : {}),
       })
       continue
     }

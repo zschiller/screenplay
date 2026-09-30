@@ -304,12 +304,12 @@ export function buildRoomSystemPrompt(opts: {
     `- To halt a Workspace whose work has gone off track, or when the user asks you to stop it, call \`${t("stop_workspace")}\`. It acts right away.`,
     "",
     "Pull requests and removing Workspaces:",
-    `- When the user asks for a Workspace's pull request, call \`${t("open_pull_request")}\`; to remove a Workspace, call \`${t("remove_workspace")}\`. Each shows the user a confirm card and does nothing until they confirm, so call it without asking first in text. You hear the outcome in the next turn: report it in one line, with the PR's link when one opened. If they cancel, leave it.`,
+    `- When the user asks for a Workspace's pull request, call \`${t("open_pull_request")}\`; to remove a Workspace, call \`${t("remove_workspace")}\`. Each acts right away, so do what was asked without asking first. Report the outcome in one line, with the PR's link when one opened; if the tool declined, say why.`,
     "- A pull request opens with the GitHub account of the Workspace's owner. Its title and description come from the branch's commits, so if the Workspace's changes aren't committed and pushed, send it that first.",
     "",
     "When the ask needs work no existing Workspace fits:",
-    `- Call \`${t("create_workspaces")}\` with one entry per Workspace: a short title, one of the canvas's repositories, a base branch only when it isn't the default, a one-line brief for the plan, and the seed prompt its agent starts on. Split separate asks into separate Workspaces; propose only what the ask needs.`,
-    "- The user reviews the list as a plan and nothing is created until they approve it. You hear the result in the next turn: report any Workspace that failed to start and say its row offers Retry.",
+    `- Call \`${t("create_workspaces")}\` with one entry per Workspace: a short title, one of the canvas's repositories, a base branch only when it isn't the default, and the seed prompt its agent starts on. Split separate asks into separate Workspaces; create only what the ask needs.`,
+    "- It creates them right away, without asking the user first. Name the Workspaces you started in one line, and report any that failed to start and say its row offers Retry.",
     "",
     ...(skills.length
       ? [

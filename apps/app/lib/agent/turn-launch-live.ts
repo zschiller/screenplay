@@ -11,7 +11,6 @@ import {
   loadCanvasMemory,
   loadLayerDirectory,
   markdownLayerChatTarget,
-  liveRoomToolPorts,
   prepareChatTarget,
   roomChatTarget,
 } from "./chat-target-kinds"
@@ -26,7 +25,6 @@ import {
   latestRunStatus,
   loadAcpHistory,
   recordRunSteering,
-  upsertAcpToolCall,
   upsertChat,
 } from "./persistence"
 import {
@@ -67,27 +65,12 @@ import {
   type TurnTarget,
 } from "./turn-launch"
 import { prependTurnMarkers } from "./message-markers"
-import {
-  createWorkspaces,
-  settleConfirm,
-  wakeRequesterId,
-  type WorkspacePlanInput,
-  type WorkspaceTurnRequest,
-} from "./room-tools"
-import {
-  CREATE_WORKSPACES_TOOL,
-  workspacePlanRejectedResult,
-} from "./workspace-task"
-import type { AcpToolCallRecord } from "./acp/record"
-import { textBlock, toolCallStart } from "./acp/schema"
-import { toolKindFor } from "./acp/adapter"
+import { wakeRequesterId, type WorkspaceTurnRequest } from "./room-tools"
 import type { RoomTarget } from "./chat-target-kinds"
 import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
 import { isLocalBuild } from "@/lib/local-mode"
 import { createGitHubPr } from "@/lib/github-pr"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
-import { redactSensitiveInfo } from "./redact"
-import type { ConfirmGateInput } from "./confirm-card"
 import {
   createKeyedQueue,
   wakeMessage,
@@ -380,91 +363,11 @@ export function coordinatorTarget(
     },
     stopWorkspaceTurn: (chatId) =>
       stopTurn(liveTurnStopDeps, { roomId: room.roomId, chatId }),
-    // As the Workspace's owner, whoever confirmed (#901).
+    // As the Workspace's owner, whoever asked (#901).
     openPullRequest: ({ sandboxName, ownerId }) =>
       createGitHubPr({ userId: ownerId, room, sandboxName }),
     deleteSandbox: (sandboxName) => deleteSandboxes([sandboxName]),
   }
-}
-
-/**
- * Settle a `create_workspaces` plan the user just decided (#898), once its
- * resume turn has started: on approval create the Workspaces, then record the
- * call with its outcome in the Coordinator chat, where it shows as task rows,
- * ahead of the resumed turn reading it. A rejection records the call as not
- * created, so the Coordinator sees what it proposed beside the feedback.
- */
-export async function settleWorkspacePlan(
-  room: RoomAccess,
-  input: {
-    chatId: string
-    runId: string
-    planId: string
-    plan: WorkspacePlanInput
-    approved: boolean
-    feedback?: string
-  }
-): Promise<void> {
-  const { chatId, runId, planId, plan, approved, feedback } = input
-  const text = approved
-    ? await createWorkspaces(
-        liveRoomToolPorts(room, coordinatorTarget(room, chatId)),
-        plan
-      )
-    : workspacePlanRejectedResult(feedback)
-  const call = {
-    toolCallId: planId,
-    title: CREATE_WORKSPACES_TOOL,
-    kind: toolKindFor(CREATE_WORKSPACES_TOOL),
-    status: approved ? ("completed" as const) : ("failed" as const),
-    rawInput: { workspaces: plan.workspaces },
-    content: [{ type: "content" as const, content: textBlock(text) }],
-  }
-  const record: AcpToolCallRecord = { role: "tool_call", ...call }
-  await upsertAcpToolCall(chatId, runId, record)
-  await broadcastAcpUpdate(room.roomId, chatId, toolCallStart(call))
-}
-
-/**
- * Settle a confirm the user just decided (#901), once its resume turn has
- * started: on Open PR or Remove, act; then record the call with its outcome in
- * the Coordinator chat ahead of the resumed turn reading it. Cancel records
- * the call as not done. A failure records the call as failed with the reason.
- */
-export async function settleConfirmGate(
-  room: RoomAccess,
-  input: {
-    chatId: string
-    runId: string
-    planId: string
-    gate: ConfirmGateInput
-    approved: boolean
-  }
-): Promise<void> {
-  const { chatId, runId, planId, gate, approved } = input
-  let status: "completed" | "failed" = approved ? "completed" : "failed"
-  let text: string
-  try {
-    text = await settleConfirm(
-      liveRoomToolPorts(room, coordinatorTarget(room, chatId)),
-      gate,
-      approved
-    )
-  } catch (e) {
-    status = "failed"
-    text = redactSensitiveInfo(e instanceof Error ? e.message : String(e))
-  }
-  const call = {
-    toolCallId: planId,
-    title: gate.gate,
-    kind: toolKindFor(gate.gate),
-    status,
-    rawInput: { workspace_id: gate.workspaceId },
-    content: [{ type: "content" as const, content: textBlock(text) }],
-  }
-  const record: AcpToolCallRecord = { role: "tool_call", ...call }
-  await upsertAcpToolCall(chatId, runId, record)
-  await broadcastAcpUpdate(room.roomId, chatId, toolCallStart(call))
 }
 
 /**
