@@ -42,7 +42,19 @@ interface UnassignedGroupWorkspace {
   switcher: GroupWorkspaceSwitch
 }
 
-export type GroupWorkspace = AssignedGroupWorkspace | UnassignedGroupWorkspace
+/** A Group whose frames show different Workspaces (#1276): its label names
+ *  none, and offers "Set workspace" only while hovered, to put every frame on
+ *  one. */
+interface MixedGroupWorkspace {
+  branchId?: undefined
+  mixed: true
+  switcher: GroupWorkspaceSwitch
+}
+
+export type GroupWorkspace =
+  | AssignedGroupWorkspace
+  | UnassignedGroupWorkspace
+  | MixedGroupWorkspace
 
 interface GroupLabelProps {
   label: string
@@ -80,9 +92,17 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
   const hoverProps = useWorkspaceHoverProps(workspace?.branchId, "group")
   if (!workspace) return <GroupName {...props} className="mb-0.5" />
   return (
-    <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
+    <div className="group/group-label mb-0.5 flex max-w-full min-w-0 items-center gap-2">
       <GroupName {...props} />
-      {workspace.branchId === undefined ? (
+      {"mixed" in workspace ? (
+        <GroupWorkspaceChooser
+          switcher={workspace.switcher}
+          title="Set workspace"
+          placeholder={`Show ${props.label} from…`}
+          // Only on hover, so a Group of explorations stays quiet.
+          className="hidden group-hover/group-label:flex data-[state=open]:flex"
+        />
+      ) : workspace.branchId === undefined ? (
         <GroupWorkspaceChooser switcher={workspace.switcher} />
       ) : workspace.switcher ? (
         <GroupWorkspaceSwitcher
@@ -179,13 +199,20 @@ function GroupWorkspaceSwitcher({
 
 /**
  * "Choose a workspace" on the label of a Group whose frames have none yet
- * (#871), styled like the unassigned frame label it replaces. Picking one
- * sets the Group and every frame in it.
+ * (#871), styled like the unassigned frame label it replaces, and "Set
+ * workspace" on a hovered Group whose frames differ. Picking one sets the
+ * Group and every frame in it.
  */
 function GroupWorkspaceChooser({
   switcher,
+  title = "Choose a workspace",
+  placeholder,
+  className,
 }: {
   switcher: GroupWorkspaceSwitch
+  title?: string
+  placeholder?: string
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -193,14 +220,17 @@ function GroupWorkspaceChooser({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Choose a workspace"
+          aria-label={title}
           // Names win: the chooser gives up its width first.
-          className="flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"
+          className={cn(
+            "flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none",
+            className
+          )}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           <span className="truncate text-xs text-muted-foreground">
-            Choose a workspace
+            {title}
           </span>
           <CaretUpDownIcon
             aria-hidden
@@ -216,6 +246,7 @@ function GroupWorkspaceChooser({
       >
         <WorkspaceCommandList
           branches={switcher.branches}
+          placeholder={placeholder}
           footer={switcher.summary}
           onPick={(id) => {
             switcher.onPick(id)
