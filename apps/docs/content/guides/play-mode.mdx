@@ -6,8 +6,7 @@ description: Open a workspace full screen as a clickable prototype, at any devic
 # Play mode
 
 Play mode (the **prototype player**) opens a workspace's app full screen, with
-no canvas around it. Use it to test a flow properly, present a prototype, or
-pass a link to someone to try.
+no canvas around it. Use it to test a flow properly or present a prototype.
 
 <Screenshot name="play-desktop" alt="The prototype player showing the Northwind homepage full screen, with the player controls in the corner" />
 
@@ -17,8 +16,11 @@ Open it from:
 - a frame's **More → Workspace → Open prototype player**. The player opens on that
   frame's route and with its knob values.
 
-The page title is **▶ *canvas name***, and the URL carries the route and knob
-values, so a copied link opens exactly what you're looking at.
+The player opens in a new browser tab (on desktop, in your default browser),
+titled **▶ *canvas name***. Its link opens the player on the route and knob
+values the frame had when you opened it; it doesn't follow you as you click
+around. On the hosted app, anyone with access to the canvas can open the
+link.
 
 ## The player controls
 
@@ -48,7 +50,8 @@ touch, so tap targets and scrolling behave like the real device.
 ## Knobs and the agent
 
 **Knobs** opens the same controls as the frame's knobs popover, with a
-**Reset** button. Values stay in sync with the canvas.
+**Reset** button. Knob changes in the player apply to the player only; the
+frame on the canvas keeps its own values.
 
 <Screenshot name="play-knobs" alt="The player's Knobs panel" />
 

@@ -12,6 +12,13 @@ frame and document, and your terminal tabs, so you can ask things like
 "What's on this canvas?" or "Which workspaces have a PR?" without opening
 each one. It reads documents too, including ones you @ mention.
 
+<Callout type="info">
+  On the desktop app, the Coordinator can read, arrange and message the
+  workspaces you have, but it can't start new ones, open pull requests or
+  remove workspaces. Start a workspace with **+** in the Workspaces menu, and
+  open a PR or delete a workspace from its **…** menu.
+</Callout>
+
 It can also look inside a workspace: what its agent was last asked, a summary
 of what it did and its last reply (or the whole chat when it needs it), the
 workspace's changes and its files. And it can look at a frame, taking a
@@ -38,7 +45,7 @@ edits, never the Coordinator's.
 The Coordinator never works inside a sandbox and never edits a workspace's
 files. When you ask for work in a workspace, it sends that workspace's agent a
 message, and the agent does the work. When no workspace fits, it can start new
-ones, after you approve its plan.
+ones on the hosted app, after you approve its plan.
 
 On a new canvas, the workspace that adding a repository started hasn't been
 asked anything yet. The Coordinator sends your next ask for that repository
@@ -76,7 +83,7 @@ instead, and only you approve plans.
 
 ## Starting workspaces
 
-When an ask needs work no workspace covers, the Coordinator proposes new
+_Hosted only._ When an ask needs work no workspace covers, the Coordinator proposes new
 workspaces as a plan: one row per workspace with its title, its repository and
 a one-line brief. Nothing is created until you click **Approve**. Click
 **Request changes**, or just reply, to have it revise the list.
@@ -93,7 +100,7 @@ away. The workspace's chat keeps everything so far.
 
 ## Pull requests and removing workspaces
 
-Ask the Coordinator to open a workspace's pull request or to remove a
+_Hosted only._ Ask the Coordinator to open a workspace's pull request or to remove a
 workspace, and it asks you first with a card in its chat. Nothing happens until
 you click **Open PR** or **Remove**; **Cancel** drops it, and the Coordinator
 is told you said no.
@@ -108,13 +115,9 @@ Removing a workspace works like **Delete** in the Workspaces menu: its chats and
 frames go and its sandbox is torn down. The git branch and any pull request
 stay on GitHub.
 
-When the Coordinator runs on a desktop harness (Claude Code or Codex), it can't
-show you a plan or a confirm card yet, so it can't start workspaces, open pull
-requests or remove workspaces there.
-
 ## Trying something several ways
 
-Ask the Coordinator to try one thing several ways, like "try the sign-in page
+_Hosted only._ Ask the Coordinator to try one thing several ways, like "try the sign-in page
 three ways", and it plans one workspace per variant, all from the same
 repository and branch. Each row's brief says how that variant differs. Name
 the directions yourself or let the Coordinator pick them; with no number, it
