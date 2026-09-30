@@ -228,13 +228,11 @@ export function AgentChat({
   // it back here with the chosen model; the chat just relays it to the engine.
   // A chat still following the default is pinned to the model it first sends
   // with, so changing the default later never relabels a running session.
-  // A Document passage quoted by Reply in chat (#1243) rides the next send,
-  // ahead of the typed text.
   const handleSubmit = useCallback(
     ({ text, turn, model: submitted, draft }: ComposerSubmitPayload) => {
       if (!model && submitted) onModelChange?.(submitted)
-      // The quote leads both the wire body and the body the chat draws, the
-      // way a reload projects it back from the wire.
+      // A passage quoted by Reply in chat (#1243) leads both the wire body and
+      // the body the chat draws, the way a reload projects it from the wire.
       const quote = chatQuoteStore.take(chatId)
       void sendMessage(quote ? withChatQuote(quote, text) : text, {
         model: submitted,
