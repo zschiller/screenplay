@@ -1,18 +1,15 @@
 "use client"
 
-import {
-  FolderPlusIcon,
-  SidebarSimpleIcon,
-} from "@workspace/ui/components/icons"
+import { FolderPlusIcon } from "@workspace/ui/components/icons"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
 import { Button } from "@workspace/ui/components/button"
-import { IconButton } from "@workspace/ui/components/icon-button"
 
 import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { ChatPanel } from "@/components/agent/chat-panel"
-import { RoomChatPanel } from "@/components/agent/room-chat-panel"
+import { ChatPanelHeader } from "@/components/agent/chat-panel-header"
 import { WorkspacesMenuButton } from "@/components/agent/workspaces-menu"
+import type { ChatPanelTarget } from "@/lib/chat/chat-target"
 import { roomChatId } from "@/lib/chat/room-chat"
 import type { ChatSessionData, RepoData, TerminalTabData } from "@/lib/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
@@ -24,8 +21,9 @@ import type { TabPool } from "./use-tab-pool"
 /**
  * The right chat panel host (PRD #571) — consumes the resolved `ChatPanelTarget`
  * from the Chat-Target controller (#569) and renders the `ChatPanel`. With
- * nothing targeted it shows the panel's home, the Room's Coordinator chat
- * (#893), or the add-a-repository empty state on a canvas with no repositories.
+ * nothing targeted it shows the panel's home, `ChatPanel` with the Room target
+ * (the Coordinator chat, #893), or the add-a-repository empty state on a canvas
+ * with no repositories.
  *
  * The target-resolution decision lives in the controller; this component only
  * derives the per-target view of the synced collections — the target's chat
@@ -34,6 +32,8 @@ import type { TabPool } from "./use-tab-pool"
  * Terminal tabs are passed as a separate collection (never merged into
  * `chatSessions`) so a terminal can't structurally reach the conversation model.
  */
+const ROOM_TARGET: ChatPanelTarget = { kind: "room" }
+
 export function ChatPanelHost({
   chatTarget,
   tabPool,
@@ -69,36 +69,13 @@ export function ChatPanelHost({
       // The panel's current target is resolved by the Chat-Target
       // controller (#569): an agent (sandbox-backed) when one is selected
       // and ready, otherwise the doc-chat target when one was picked from
-      // the dropdown. Falls through to the empty-state below when neither
-      // is set.
-      const target = chatTarget.target
-      if (!target) {
-        if (repos.length === 0) return null
-        const chatId = roomChatId(roomId)
-        return (
-          <RoomChatPanel
-            roomId={roomId}
-            chatSession={chatSessions.find((c) => c.id === chatId)}
-            onModelChange={(id, model) => onUpdateChatSession(id, { model })}
-            onCollapse={() => chatPanelRef.current?.collapse()}
-            onOpenWorkspace={({ branchId, chatId: taskChatId }) => {
-              const chat = chatSessions.find(
-                (c) =>
-                  c.id === taskChatId && c.branchId === branchId && !c.closedAt
-              )
-              if (chat) {
-                chatTarget.selectAgentChat(branchId, chat.id, {
-                  clearDocument: true,
-                  remember: true,
-                })
-              } else {
-                chatTarget.selectAgent(branchId, { clearDocument: true })
-              }
-            }}
-          />
-        )
-      }
+      // the dropdown. With neither set it is the Room (the Coordinator),
+      // or, on a canvas with no repositories, the empty state below.
+      const target: ChatPanelTarget | null =
+        chatTarget.target ?? (repos.length > 0 ? ROOM_TARGET : null)
+      if (!target) return null
       const filteredSessions = chatSessions.filter((c) => {
+        if (target.kind === "room") return c.id === roomChatId(roomId)
         if (target.kind === "agent") return c.branchId === target.agent.id
         // Layer targets: per-kind state lives on the chat session
         // under different fields.
@@ -123,9 +100,13 @@ export function ChatPanelHost({
           onSelectChat={chatTarget.selectChat}
           onShowRoomChat={chatTarget.showRoomChat}
           onCreateChat={() => {
+            // The Room has one chat, and no "+" to make another.
             if (target.kind === "agent")
               tabPool.open({ kind: "chat", branchId: target.agent.id })
-            else if (target.layerKind === "markdown-layer")
+            else if (
+              target.kind === "layer" &&
+              target.layerKind === "markdown-layer"
+            )
               tabPool.open({
                 kind: "doc-chat",
                 markdownLayerId: target.layer.id,
@@ -161,27 +142,32 @@ export function ChatPanelHost({
           }
           onPrCreated={onSetBranchPr}
           onCollapse={() => chatPanelRef.current?.collapse()}
+          onOpenWorkspace={({ branchId, chatId: taskChatId }) => {
+            const chat = chatSessions.find(
+              (c) =>
+                c.id === taskChatId && c.branchId === branchId && !c.closedAt
+            )
+            if (chat) {
+              chatTarget.selectAgentChat(branchId, chat.id, {
+                clearDocument: true,
+                remember: true,
+              })
+            } else {
+              chatTarget.selectAgent(branchId, { clearDocument: true })
+            }
+          }}
           onLogsReady={onLogsReady}
           logsRequest={logsRequest}
         />
       )
     })() || (
       <div className="flex h-full flex-col bg-background">
-        <div className="flex h-12 items-center bg-background px-3">
-          <IconButton
-            label="Collapse chat"
-            shortcut="⌘I"
-            tooltipSide="left"
-            className="mr-1.5 text-muted-foreground"
-            onClick={() => chatPanelRef.current?.collapse()}
-          >
-            <SidebarSimpleIcon mirrored />
-          </IconButton>
+        <ChatPanelHeader onCollapse={() => chatPanelRef.current?.collapse()}>
           <span className="text-xs text-muted-foreground">No repositories</span>
           <div className="ml-auto flex items-center">
             <WorkspacesMenuButton />
           </div>
-        </div>
+        </ChatPanelHeader>
         <div className="border-b border-border" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
           <p className="max-w-xs text-center text-sm text-balance text-muted-foreground">

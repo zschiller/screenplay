@@ -43,12 +43,14 @@ export type ChatTarget =
   | { kind: "room" }
 
 /**
- * The chat panel can target one of two top-level kinds:
+ * The chat panel can target one of three top-level kinds:
  *  - an *agent* (sandbox-backed flow): file editing, git, PR creation, logs.
  *  - a *layer* of any kind whose `LayerKindDescriptor.canBeChatTarget` is
  *    true (currently just markdownLayers). The `layerKind` discriminator
  *    determines which descriptor's icon/label drives the chrome and which
  *    server-side toolset runs.
+ *  - the *room*: the canvas's one Coordinator chat, the panel's home when
+ *    nothing else is selected (#893).
  *
  * New layer kinds become valid chat targets by setting
  * `canBeChatTarget: true` on their descriptor and registering a server-side
@@ -61,16 +63,22 @@ export type ChatPanelTarget =
       layerKind: string
       layer: { id: string } & Record<string, unknown>
     }
+  | { kind: "room" }
 
 /** The {@link ChatTarget} of a chat shown in the panel for `target`. */
 export function chatTargetOf(target: ChatPanelTarget): ChatTarget {
-  return target.kind === "agent"
-    ? {
+  switch (target.kind) {
+    case "agent":
+      return {
         kind: "agent",
         branchId: target.agent.id,
         sandboxName: target.agent.sandboxName,
       }
-    : { kind: "document", layerId: target.layer.id }
+    case "layer":
+      return { kind: "document", layerId: target.layer.id }
+    case "room":
+      return { kind: "room" }
+  }
 }
 
 /**

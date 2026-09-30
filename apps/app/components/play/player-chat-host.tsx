@@ -1,10 +1,9 @@
 "use client"
 
 import { memo, useCallback, useMemo, useState } from "react"
-import { SidebarSimpleIcon } from "@workspace/ui/components/icons"
-import { IconButton } from "@workspace/ui/components/icon-button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { ChatPanel } from "@/components/agent/chat-panel"
+import { ChatPanelHeader } from "@/components/agent/chat-panel-header"
 import {
   useBranches,
   useChatSessions,
@@ -126,9 +125,8 @@ function PlayerChatHostImpl({
 }
 
 /**
- * The chat slot before there's a chat to show. Keeps the same 48px header row
- * and collapse button as `ChatPanel`, so the panel can always be closed and
- * doesn't jump when the chat mounts.
+ * The chat slot before there's a chat to show. Draws `ChatPanel`'s header row,
+ * so the panel can always be closed and doesn't jump when the chat mounts.
  */
 function PlayerChatPlaceholder({
   onCollapse,
@@ -139,19 +137,7 @@ function PlayerChatPlaceholder({
 }) {
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center px-3">
-        <IconButton
-          label="Collapse chat"
-          shortcut="⌘I"
-          tooltipSide="left"
-          // Same button as ChatPanel's collapse, so it sits in the same spot
-          // when the chat mounts.
-          className="text-muted-foreground"
-          onClick={onCollapse}
-        >
-          <SidebarSimpleIcon mirrored />
-        </IconButton>
-      </div>
+      <ChatPanelHeader onCollapse={onCollapse} />
       {/* Same type and copy as AgentChat's provisioning state, so the panel
        *  reads the same whether the chat has mounted yet or not. pb-12 offsets
        *  the header so the message sits at the panel's true centre. */}
