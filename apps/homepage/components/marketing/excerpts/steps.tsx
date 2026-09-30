@@ -1,20 +1,22 @@
 import {
   ArrowSquareOutIcon,
   BookBookmarkIcon,
-  CaretDownIcon,
-  ClipboardTextIcon,
-  GitBranchIcon,
   GitPullRequestIcon,
   MagnifyingGlassIcon,
   PathIcon,
   PlayIcon,
-  TrashIcon,
-  XIcon,
 } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { Frame, WorkspaceRow } from "./canvas"
+import {
+  Frame,
+  UserBubble,
+  WorkspacePlan,
+  WorkspaceRow,
+  ask,
+  versions,
+} from "./canvas"
 import { Fit } from "./fit"
 import { Northwind } from "./northwind"
 
@@ -60,7 +62,7 @@ const repos = [
 /** Step 1: picking the repository, and its first Workspace starting up. */
 export function AddRepoExcerpt() {
   return (
-    <Card label="Picking a repository to add; its Main Workspace installs dependencies.">
+    <Card label="Picking a repository to add; its first Workspace installs dependencies.">
       <div
         className={cn(
           surface,
@@ -90,107 +92,64 @@ export function AddRepoExcerpt() {
       <div
         className={cn(
           surface,
-          "absolute top-[180px] left-5 flex w-[280px] items-center gap-2 px-3 py-2 text-[13px]"
+          "absolute top-[180px] left-5 flex w-[280px] items-center gap-2 px-3 py-2 text-xs"
         )}
       >
         <Spinner className="size-3" aria-hidden />
-        <span className="font-medium">Main</span>
+        <span className="shrink-0 font-medium">New Workspace</span>
         <span className="truncate text-muted-foreground">
-          Installing dependencies · 12s
+          Installing dependencies
         </span>
       </div>
     </Card>
   )
 }
 
-function PromptBox({ prompt }: { prompt: string }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between text-muted-foreground">
-        <span className="flex items-center gap-1 font-mono text-[11px] text-foreground">
-          <GitBranchIcon className="size-3" />
-          main
-          <CaretDownIcon className="size-2.5 text-muted-foreground" />
-        </span>
-        <TrashIcon className="size-3" />
-      </div>
-      <div className="flex flex-col gap-1.5 rounded-md border border-border bg-background px-2.5 py-2">
-        <span className="line-clamp-1">{prompt}</span>
-        <span className="flex items-center gap-3 text-[11px] whitespace-nowrap">
-          <span className="flex items-center gap-1">
-            Opus 5.5
-            <CaretDownIcon className="size-2.5 text-muted-foreground" />
-          </span>
-          <span className="flex items-center gap-1">
-            <ClipboardTextIcon className="size-3" />
-            Plan
-          </span>
-        </span>
-      </div>
-    </div>
-  )
-}
-
-/** Step 2: the Create workspaces dialog, two prompts at once. */
+/** Step 2: the Coordinator's plan for the ask, one Workspace per version. */
 export function CreateWorkspacesExcerpt() {
   return (
-    <Card label="The Create workspaces dialog, with a prompt for each of two new Workspaces.">
-      <div
-        className={cn(
-          surface,
-          "absolute top-3 left-4 flex w-[288px] flex-col gap-2 p-3 text-xs"
-        )}
-      >
-        <div className="flex items-start justify-between">
-          <span className="font-heading text-xl leading-none">
-            Create workspaces
-          </span>
-          <XIcon className="size-3.5 text-muted-foreground" />
-        </div>
-        <PromptBox prompt="Add a monthly/annual toggle with 20% off annual plans" />
-        <PromptBox prompt="Redesign the customer quotes as a carousel" />
-        <div className="flex justify-end">
-          <span className="flex h-7 items-center rounded-md bg-primary px-3 text-primary-foreground">
-            Create 2 workspaces
-          </span>
-        </div>
+    <Card label="The Coordinator's plan for the ask: three Workspaces, one per version, waiting for approval.">
+      <div className="absolute inset-x-4 top-4 flex flex-col gap-3 text-[13px] leading-normal">
+        <UserBubble className="ml-0 text-xs">{ask}</UserBubble>
+        <WorkspacePlan pending compact />
       </div>
     </Card>
   )
 }
 
-/** Step 3: two Workspaces' builds of the same page, side by side. */
+/** Step 3: two of the versions of the same page, side by side. */
 export function CompareExcerpt() {
+  const [split, dark] = [versions[1], versions[2]]
   return (
-    <Card label="Two Workspaces' versions of the Northwind homepage running side by side, desktop and mobile.">
+    <Card label="Two versions of the Northwind homepage hero running side by side, desktop and mobile.">
       <Frame
         label="Home"
-        group={["Homepage", "Hero gradient"]}
+        group={["Homepage", split.title]}
         selected
         style={{ left: 16, top: 46, width: 180 }}
       >
-        <Northwind version="gradient" />
+        <Northwind version={split.version} />
       </Frame>
       <Frame
         label="Mobile"
         device="mobile"
         style={{ left: 208, top: 46, width: 52 }}
       >
-        <Northwind device="mobile" version="gradient" />
+        <Northwind device="mobile" version={split.version} />
       </Frame>
       <Frame
         label="Home"
-        group={["Homepage", "Main"]}
+        group={["Homepage", dark.title]}
         style={{ left: 16, top: 212, width: 180 }}
       >
-        <Northwind />
+        <Northwind version={dark.version} />
       </Frame>
       <Frame
         label="Mobile"
         device="mobile"
         style={{ left: 208, top: 212, width: 52 }}
       >
-        <Northwind device="mobile" />
+        <Northwind device="mobile" version={dark.version} />
       </Frame>
     </Card>
   )
@@ -207,17 +166,23 @@ const menu: (
   { icon: <PathIcon />, label: "Show all routes" },
 ]
 
-/** Step 4: a Workspace's menu, with Create pull request on top. */
+/** Step 4: the picked version's menu, with Create pull request on top. */
 export function PullRequestExcerpt() {
   return (
     <Card
-      label="A Workspace's menu in the Workspaces list, with Create pull request at the top."
+      label="The three versions in the Workspaces list, with the picked one's menu open on Create pull request."
       className="bg-sidebar"
     >
       <div className="absolute top-5 left-3 flex w-[232px] flex-col gap-0.5">
-        <WorkspaceRow name="Customer stories" />
-        <WorkspaceRow name="Hero gradient & trust line" selected menu />
-        <WorkspaceRow name="Pricing FAQ" diff={[11, 0]} />
+        {versions.map((v) => (
+          <WorkspaceRow
+            key={v.title}
+            name={v.title}
+            diff={v.version === "split" ? undefined : [...v.diff]}
+            selected={v.version === "split"}
+            menu={v.version === "split"}
+          />
+        ))}
       </div>
       <div
         className={cn(

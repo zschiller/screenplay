@@ -182,6 +182,82 @@
     color-mix(in srgb, var(--accent) 30%, #fff)
   );
 }
+/* The split version: copy on the left, the chart beside it. */
+.nw-split .nw-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 3em;
+  padding: 7.5em 3em;
+  text-align: left;
+}
+.nw-split .nw-h1 {
+  font-size: 3.5em;
+  margin: 0.3em 0;
+}
+.nw-split .nw-lede {
+  margin-left: 0;
+}
+.nw-split .nw-row {
+  justify-content: flex-start;
+}
+.nw-split .nw-chart {
+  height: 20em;
+  margin: 0;
+}
+.nw-split.nw-mobile .nw-hero {
+  display: block;
+  padding: 2.5em 1.25em 2em;
+}
+.nw-split.nw-mobile .nw-h1 {
+  font-size: 2.25em;
+}
+.nw-split.nw-mobile .nw-chart {
+  height: 8em;
+  margin-top: 2em;
+}
+/* The dark version: the same page on a night background. */
+.nw-dark {
+  color: #f8fafc;
+  background: #0b1020;
+}
+.nw-dark .nw-nav {
+  border-color: #1e2538;
+}
+.nw-dark .nw-links,
+.nw-dark .nw-ctas,
+.nw-dark .nw-lede {
+  color: #94a3b8;
+}
+.nw-dark .nw-hero {
+  background: radial-gradient(
+    60% 80% at 50% 0%,
+    color-mix(in srgb, var(--accent) 38%, #0b1020),
+    #0b1020 70%
+  );
+}
+.nw-dark .nw-pill {
+  color: #c7d2fe;
+  background: color-mix(in srgb, var(--accent) 22%, #0b1020);
+  border-color: color-mix(in srgb, var(--accent) 45%, #0b1020);
+}
+.nw-dark .nw-btn.nw-outline {
+  background: transparent;
+  color: #f8fafc;
+  border-color: #334155;
+}
+.nw-dark .nw-chart {
+  background: #111729;
+  border-color: #1e2538;
+  box-shadow: none;
+}
+.nw-dark .nw-bar {
+  background: linear-gradient(
+    180deg,
+    #818cf8,
+    color-mix(in srgb, var(--accent) 35%, #0b1020)
+  );
+}
 /* Pricing */
 .nw-hero.nw-compact {
   padding: 4em 3em 2em;

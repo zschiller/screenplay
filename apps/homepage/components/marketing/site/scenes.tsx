@@ -18,13 +18,13 @@ const scenes: {
   {
     slug: "Step 1",
     title: "Add a repository",
-    body: "Screenplay starts its dev server in a sandbox. That becomes your main Workspace, running on the canvas.",
+    body: "Screenplay works out how to run it and starts the dev server on a new branch. Your first Workspace appears on the canvas.",
     Excerpt: AddRepoExcerpt,
   },
   {
     slug: "Step 2",
     title: "Ask for versions",
-    body: "Ask your agent for several approaches. Each one gets its own Workspace: a git branch with its own running sandbox.",
+    body: "Ask the Coordinator for a few versions of one change. It plans a Workspace for each, a git branch with its own running sandbox, and starts them when you approve.",
     Excerpt: CreateWorkspacesExcerpt,
   },
   {
@@ -58,8 +58,8 @@ export function Scenes() {
             key={slug}
             className={cn(
               "relative flex min-w-0 flex-col gap-3 pt-4.5 pb-8",
-              // One row per part across the columns, so a title that wraps
-              // doesn't push its excerpt below the others'.
+              // One row per part across the columns, so the pictures lead
+              // and a title that wraps doesn't push the others' text down.
               "lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:content-start",
               // At two columns, a hairline over the second row, carried
               // across the gutter like the Features grid's.
@@ -74,13 +74,13 @@ export function Scenes() {
               i !== 0 && "lg:before:block"
             )}
           >
-            <span className={cn(monoLabel, "text-muted-foreground")}>
+            <Excerpt />
+            <span className={cn(monoLabel, "mt-2 text-muted-foreground")}>
               {slug}
             </span>
             <h3 className="font-heading text-[22px] leading-[1.2] font-normal tracking-[-0.03em]">
               {title}
             </h3>
-            <Excerpt />
             <p className="text-[15px] leading-normal text-muted-foreground">
               {body}
             </p>
