@@ -49,7 +49,7 @@ async function launchBrowser(): Promise<Browser> {
 
   const executablePath =
     process.env.CHROMIUM_PATH ??
-    (await import("puppeteer")).default.executablePath()
+    (await (await import("puppeteer")).default.executablePath())
 
   return puppeteer.launch({
     headless: true,
