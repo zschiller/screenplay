@@ -2150,6 +2150,9 @@ export const SCREENS: Screen[] = [
       "Renaming a frame in the layer list, mid-typing: spaces reach the field and it takes the theme's colours.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
+      // A rename started before the Canvas settles loses focus to it.
+      await checkoutDesktopFrame(page).waitFor({ timeout: 15_000 })
+      await page.waitForTimeout(500)
       await page
         .locator(".group\\/frame-row [data-editable-text=idle]")
         .first()
