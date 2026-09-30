@@ -2127,19 +2127,25 @@ export function Canvas({
                           followingId={followingConnectionId}
                           onFollow={camera.follow}
                         />
-                        <Button
-                          size="xs"
-                          className="ml-1"
-                          onClick={() => setShareDialogOpen(true)}
-                        >
-                          Share
-                        </Button>
-                        <ShareRoomDialog
-                          open={shareDialogOpen}
-                          onOpenChange={setShareDialogOpen}
-                          roomId={roomId}
-                          roomName={currentRoomName}
-                        />
+                        {/* Only the owner can invite; a collaborator's
+                            invite would be refused server-side. */}
+                        {isOwner && (
+                          <>
+                            <Button
+                              size="xs"
+                              className="ml-1"
+                              onClick={() => setShareDialogOpen(true)}
+                            >
+                              Share
+                            </Button>
+                            <ShareRoomDialog
+                              open={shareDialogOpen}
+                              onOpenChange={setShareDialogOpen}
+                              roomId={roomId}
+                              roomName={currentRoomName}
+                            />
+                          </>
+                        )}
                       </>
                     )}
                     {chatCollapsed && (

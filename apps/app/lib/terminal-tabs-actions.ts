@@ -2,7 +2,10 @@
 
 import { requireUserId } from "@/lib/auth-helpers"
 import { requireMember } from "@/lib/rooms"
-import { killTerminalSession } from "@/lib/sandbox/terminal"
+import {
+  killTerminalSession,
+  terminalSessionActivity,
+} from "@/lib/sandbox/terminal"
 import {
   deleteTerminalTab as deleteTerminalTabFn,
   insertTerminalTab,
@@ -72,4 +75,25 @@ export async function killTerminalSessionAction(opts: {
   const userId = await requireUserId()
   await requireMember(opts.roomId, userId)
   await killTerminalSession(opts.sandboxName, opts.terminalSessionId)
+}
+
+/**
+ * What a tab's session is running, read before closing it: the process name
+ * (`claude`, `node`) when something other than a shell is running, `null` for
+ * an idle shell or a session that's gone. Throws when the sandbox can't be
+ * read, so the caller can fall back to asking.
+ */
+export async function terminalSessionActivityAction(opts: {
+  roomId: string
+  sandboxName: string
+  terminalSessionId: string
+}): Promise<string | null> {
+  const userId = await requireUserId()
+  await requireMember(opts.roomId, userId)
+  const result = await terminalSessionActivity(
+    opts.sandboxName,
+    opts.terminalSessionId
+  )
+  if (!result.success) throw new Error(result.error)
+  return result.value
 }

@@ -13,6 +13,10 @@ import type {
   HarnessSetupRow,
   HarnessSetupRun,
 } from "@/lib/agent/harnesses/setup"
+import {
+  setupRunError,
+  setupStartError,
+} from "@/lib/agent/harnesses/setup-error"
 import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
 import { LoadErrorRow } from "@/components/home/load-error"
 import { CollapsedSetupStep, CurrentSetupStep, SetupChip } from "./setup-step"
@@ -44,6 +48,8 @@ export function AgentStep({
   const [choosing, setChoosing] = useState(false)
   const [run, setRun] = useState<HarnessSetupRun | null>(null)
   const [preparing, setPreparing] = useState(false)
+  // Why the last Install or Sign in didn't work, shown under its button.
+  const [error, setError] = useState<string | null>(null)
 
   // Read the rows on mount, and again when the gate's poll sees the step change
   // (a sign-in finished in a terminal outside the app), so the collapsed row
@@ -92,22 +98,41 @@ export function AgentStep({
 
   const start = async (row: HarnessSetupRow) => {
     if (!row.action) return
+    const kind = row.action.kind
     setPreparing(true)
+    setError(null)
     try {
-      const plan = await resolveHarnessSetupRun(row.key, row.action.kind)
+      const plan = await resolveHarnessSetupRun(row.key, kind)
       if (plan) setRun(plan)
+      else setError(setupStartError(kind))
+    } catch (err) {
+      console.error("Failed to start coding agent setup", err)
+      setError(setupStartError(kind))
     } finally {
       setPreparing(false)
     }
   }
 
-  // The run finished: bust the availability memo and read fresh rows.
+  // The run finished: bust the availability memo and read fresh rows, then
+  // say so if the agent still isn't signed in.
   const finishRun = async () => {
     setRun(null)
+    const kind = selected?.action?.kind
+    let next: HarnessSetupRow[] | undefined
     try {
-      setRows(await noteHarnessConnected())
+      next = await noteHarnessConnected()
+      setRows(next)
     } catch (err) {
       console.error("Failed to re-check coding agents", err)
+    }
+    if (kind && selected) {
+      setError(
+        setupRunError(
+          kind,
+          selected.label,
+          next?.find((r) => r.key === selected.key)
+        )
+      )
     }
   }
 
@@ -142,6 +167,7 @@ export function AgentStep({
               onPick={(key) => {
                 setSelectedKey(key)
                 setChoosing(false)
+                setError(null)
               }}
             />
           ) : (
@@ -197,6 +223,11 @@ export function AgentStep({
               </Button>
             )}
           </div>
+          {error && !selected.connected && (
+            <p role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          )}
         </>
       )}
     </CurrentSetupStep>

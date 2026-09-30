@@ -57,6 +57,7 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
+import { useTerminalCloseGuard } from "./use-terminal-close-guard"
 import { ChatHistoryMenu } from "./chat-history-menu"
 import {
   WorkspaceMention,
@@ -790,6 +791,13 @@ export function ChatPanel({
     [orderedTabs]
   )
 
+  // A terminal's × asks first when the session is running something.
+  const terminalClose = useTerminalCloseGuard({
+    roomId,
+    agent,
+    onClose: onCloseChat,
+  })
+
   // Imperative horizontal scrolling of the tab strip. `tabBarRef` wraps the
   // ScrollArea; we look up its viewport on demand rather than holding a ref the
   // shared wrapper doesn't expose. `pinnedRightRef` tracks whether the operator
@@ -1169,7 +1177,12 @@ export function ChatPanel({
                             // Keep the press from starting a tab drag.
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={() =>
-                              onCloseChat(tab.id, neighbourTabId(tab.id))
+                              tab.kind === "terminal"
+                                ? void terminalClose.requestClose(
+                                    tab.terminal,
+                                    neighbourTabId(tab.id)
+                                  )
+                                : onCloseChat(tab.id, neighbourTabId(tab.id))
                             }
                           >
                             <XIcon />
@@ -1375,6 +1388,7 @@ export function ChatPanel({
           </TabsContent>
         )
       })}
+      {terminalClose.dialog}
     </Tabs>
   )
 }

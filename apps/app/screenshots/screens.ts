@@ -427,6 +427,22 @@ export const SCREENS: Screen[] = [
     fullPage: true,
   },
   {
+    name: "settings-coding-agents-start-failed",
+    description:
+      "Settings → Coding agents after an Install fails to start: the inline error (PR 6).",
+    path: "/settings?section=coding-agents",
+    fullPage: true,
+    prepare: async (page) => {
+      const install = page
+        .getByRole("button", { name: /^(Install|Sign in)/ })
+        .first()
+      await install.waitFor({ timeout: 15_000 })
+      await failServerActions(page)
+      await install.click()
+      await page.getByRole("alert").first().waitFor({ timeout: 10_000 })
+    },
+  },
+  {
     name: "settings-github",
     description: "Settings → GitHub, connected.",
     path: "/settings?section=github",
@@ -1023,6 +1039,31 @@ export const SCREENS: Screen[] = [
         .dblclick({ timeout: 15_000 })
     },
     settleMs: 600,
+  },
+  {
+    name: "terminal-close-confirm",
+    description:
+      "× on a terminal tab that's running Claude Code: Close asks first (I12).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: stubTerminal,
+    prepare: async (page) => {
+      await unfreeze(page)
+      await openTerminalTab(page)
+      // The fixture has no live session to read, so answer the close's
+      // session check as a running harness would.
+      await answerTerminalActivity(page, "claude")
+      const tab = page
+        .locator("[data-tab-id]")
+        .filter({ has: page.getByRole("button", { name: "Close terminal" }) })
+        .last()
+      await tab.hover({ timeout: 15_000 })
+      await tab
+        .getByRole("button", { name: "Close terminal" })
+        .click({ timeout: 5_000 })
+      await page.getByRole("alertdialog").waitFor({ timeout: 10_000 })
+    },
+    settleMs: 400,
   },
   {
     name: "chat-tabs-unread",
@@ -2995,6 +3036,21 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "setup-agent-start-failed",
+    description:
+      "The setup gate's agent step after Install fails to start: the inline error (PR 6).",
+    path: "/",
+    cookies: entryState("setup-pending"),
+    fullPage: true,
+    prepare: async (page) => {
+      const install = page.getByRole("button", { name: /^Install .* sign in$/ })
+      await install.waitFor({ timeout: 15_000 })
+      await failServerActions(page)
+      await install.click()
+      await page.getByRole("alert").first().waitFor({ timeout: 10_000 })
+    },
+  },
+  {
     name: "setup-agent-ready",
     description:
       "The setup gate with a coding agent ready and GitHub still open.",
@@ -3163,6 +3219,41 @@ export const SCREENS: Screen[] = [
       await page.getByRole("dialog").getByRole("textbox").fill("Checkout v2")
       await page.getByRole("button", { name: "Save" }).click()
       await page.waitForTimeout(800)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-rename-unchanged",
+    description:
+      "The Rename dialog as it opens: Save waits for a new name (PR 6).",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await openCanvasMenu(page, "Checkout flow")
+      await page.getByRole("menuitem", { name: "Rename" }).click()
+      await page.getByRole("dialog").getByRole("textbox").waitFor()
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-rename-saving",
+    description:
+      "The Rename dialog while the rename is in flight: spinner, no dismissing (PR 6).",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await openCanvasMenu(page, "Checkout flow")
+      await page.getByRole("menuitem", { name: "Rename" }).click()
+      await page.getByRole("dialog").getByRole("textbox").fill("Checkout v2")
+      // Hold every server action so the dialog is caught mid-save.
+      await page.route("**/*", (route) =>
+        route.request().method() === "POST" &&
+        route.request().headers()["next-action"]
+          ? undefined
+          : route.fallback()
+      )
+      await page.getByRole("button", { name: "Save" }).click()
+      await page.waitForTimeout(500)
     },
     settleMs: 300,
   },
@@ -4001,6 +4092,35 @@ export async function failServerActions(page: Page): Promise<void> {
     const request = route.request()
     if (request.method() === "POST" && request.headers()["next-action"]) {
       return route.fulfill({ status: 500, body: "simulated failure" })
+    }
+    return route.fallback()
+  })
+}
+
+/**
+ * Answer a terminal close's session check (`terminalSessionActivityAction`)
+ * with `command`, as a sandbox running it would. Matched on the action's
+ * arguments, so every other action still reaches the server.
+ */
+export async function answerTerminalActivity(
+  page: Page,
+  command: string
+): Promise<void> {
+  await page.route("**/*", (route) => {
+    const request = route.request()
+    const body = request.postData() ?? ""
+    if (
+      request.method() === "POST" &&
+      request.headers()["next-action"] &&
+      body.includes("terminalSessionId") &&
+      body.includes("sandboxName") &&
+      !body.includes("label")
+    ) {
+      return route.fulfill({
+        status: 200,
+        contentType: "text/x-component",
+        body: `0:{"a":"$@1","f":"","b":"fixture"}\n1:${JSON.stringify(command)}\n`,
+      })
     }
     return route.fallback()
   })

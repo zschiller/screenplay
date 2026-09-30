@@ -14,6 +14,7 @@ import {
 } from "@/lib/sandbox/terminal-access"
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import { tmuxSessionName } from "@/lib/terminal/session"
+import { parseProcStat, parsePs, runningCommand } from "@/lib/terminal/busy"
 
 // Pin a known-good static ttyd build (the spike validated 1.7.7's prebuilt
 // binaries in the @vercel/sandbox image). The binary lives under
@@ -167,6 +168,54 @@ export async function killTerminalSession(
       "-c",
       `${TMUX_BIN} kill-session -t ${session} 2>/dev/null || true`,
     ])
+  })
+}
+
+/**
+ * What a terminal tab is running, so closing it can ask first (#I12): the
+ * name of the first non-shell process under the tab's session (`claude`,
+ * `node`), or `null` for an idle shell or a session that no longer exists.
+ * Read-only; see `lib/terminal/busy.ts` for the rule.
+ */
+export async function terminalSessionActivity(
+  sandboxName: string,
+  terminalSessionId: string
+): Promise<SandboxActionResult<string | null>> {
+  const session = tmuxSessionName(terminalSessionId)
+  // Desktop build: the PTY is a child of this sidecar; read the host's
+  // process table with `ps`, which macOS always ships.
+  if (isLocalSandboxBackend()) {
+    const { getTerminalSessions } = await import("@/lib/terminal/local/pty")
+    const pid = getTerminalSessions().pid(session)
+    if (pid === null) return { success: true, value: null }
+    try {
+      const { execFile } = await import("node:child_process")
+      const { promisify } = await import("node:util")
+      const { stdout } = await promisify(execFile)("ps", [
+        "-A",
+        "-o",
+        "pid=,ppid=,comm=",
+      ])
+      return { success: true, value: runningCommand(parsePs(stdout), pid) }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
+    }
+  }
+
+  return runSandboxAction(sandboxName, async (sandbox) => {
+    // The pane's root pid on the first line (empty when the session is gone),
+    // then the whole process table from /proc, which needs no `ps` in the
+    // image. `|| true` keeps a missing session from failing the step.
+    const probe = await step(sandbox, "sh", [
+      "-c",
+      `${TMUX_BIN} display-message -p -t ${session} '#{pane_pid}' 2>/dev/null || echo; ` +
+        `cat /proc/[0-9]*/stat 2>/dev/null || true`,
+    ])
+    const [first = "", ...rest] = (await probe.stdout()).split("\n")
+    const pid = Number(first.trim())
+    if (!first.trim() || !Number.isInteger(pid)) return null
+    return runningCommand(parseProcStat(rest.join("\n")), pid)
   })
 }
 

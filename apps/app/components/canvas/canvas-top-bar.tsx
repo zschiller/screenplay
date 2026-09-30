@@ -150,6 +150,9 @@ export function CanvasTopBar({
                 as="span"
                 value={currentRoomName}
                 onCommit={onRoomRename}
+                // Only the owner can rename; a collaborator's edit would be
+                // refused server-side and snap back.
+                disabled={!isOwner}
                 placeholder="Untitled"
                 className="min-w-0 px-1.5 py-1 text-xs font-medium text-foreground"
                 viewClassName="truncate"

@@ -13,6 +13,10 @@ import type {
   HarnessSetupRow,
   HarnessSetupRun,
 } from "@/lib/agent/harnesses/setup"
+import {
+  setupRunError,
+  setupStartError,
+} from "@/lib/agent/harnesses/setup-error"
 import { initialSetupState, setupReducer } from "@/lib/host-tool/setup-step"
 import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
 import { LoadErrorRow } from "@/components/home/load-error"
@@ -83,7 +87,10 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
   const [state, dispatch] = useReducer(setupReducer, initialSetupState)
   const [row, setRow] = useState<HarnessSetupRow>(initial)
   const [run, setRun] = useState<HarnessSetupRun | null>(null)
+  const [runKind, setRunKind] = useState<HarnessSetupActionKind | null>(null)
   const [preparing, setPreparing] = useState(false)
+  // Why the last Install or Sign in didn't work, shown under the row.
+  const [error, setError] = useState<string | null>(null)
 
   // Seed the setup step from the row the parent already fetched, so it renders
   // its real state on first paint without a second round-trip.
@@ -96,25 +103,46 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
 
   // A setup run finished: one call busts the availability memo and hands back
   // freshly probed rows; pick this row's out by its (stable) host binary.
-  const redetect = useCallback(async () => {
-    const next = (await noteHarnessConnected()).find(
-      (r) => r.hostBinary === initial.hostBinary
-    )
-    if (!next) return
-    setRow(next)
-    dispatch({ type: "detected", result: next.detection })
-  }, [initial.hostBinary])
+  const redetect = useCallback(
+    async (kind: HarnessSetupActionKind | null) => {
+      let next: HarnessSetupRow | undefined
+      try {
+        next = (await noteHarnessConnected()).find(
+          (r) => r.hostBinary === initial.hostBinary
+        )
+      } catch (err) {
+        console.error("Failed to re-check coding agent", err)
+      }
+      if (kind) setError(setupRunError(kind, initial.label, next))
+      if (!next) {
+        // Leave `working` so the row's action is offered again.
+        dispatch({ type: "detected", result: row.detection })
+        return
+      }
+      setRow(next)
+      dispatch({ type: "detected", result: next.detection })
+    },
+    [initial.hostBinary, initial.label, row.detection]
+  )
 
   // Start the row's action: resolve what it runs server-side (the descriptors'
   // command builders never ship to the client), then flip to `working`.
   const start = useCallback(
     async (kind: HarnessSetupActionKind) => {
       setPreparing(true)
+      setError(null)
       try {
         const plan = await resolveHarnessSetupRun(row.key, kind)
-        if (!plan) return
+        if (!plan) {
+          setError(setupStartError(kind))
+          return
+        }
         setRun(plan)
+        setRunKind(kind)
         dispatch({ type: "run-started" })
+      } catch (err) {
+        console.error("Failed to start coding agent setup", err)
+        setError(setupStartError(kind))
       } finally {
         setPreparing(false)
       }
@@ -133,7 +161,7 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
           command={run.command}
           onExit={() => {
             dispatch({ type: "terminal-exited" })
-            redetect()
+            void redetect(runKind)
           }}
         />
       </div>
@@ -148,9 +176,17 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
       state={row.state}
       status={row.connected ? "on" : "off"}
       detail={
-        [row.version && `v${row.version}`, row.path]
-          .filter(Boolean)
-          .join(" · ") || undefined
+        // A failed Install or Sign in says so in the facts line, where the
+        // row already reads its details.
+        error ? (
+          <span role="alert" className="text-destructive">
+            {error}
+          </span>
+        ) : (
+          [row.version && `v${row.version}`, row.path]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        )
       }
       action={
         action && (
