@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest"
-import type { TextStreamPart, Tool } from "ai"
+import type { ModelMessage, TextStreamPart, Tool } from "ai"
 
 import {
   AcpUpdateConsumer,
   type AcpConsumerPorts,
   type ConsumerPlanCall,
 } from "./consumer"
-import type { EngineUpdate, Engine } from "./engine-seam"
+import {
+  supportsSteering,
+  type EngineUpdate,
+  type Engine,
+  type TakenSteer,
+} from "./engine-seam"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import {
   AgentSideConnection,
@@ -73,6 +78,7 @@ export function contractFor(
         },
         async broadcastPermissionRequest() {},
         async pauseForPlan() {},
+        async settleSteers() {},
       }
       const consumer = new AcpUpdateConsumer(ports)
 
@@ -158,6 +164,7 @@ export function contractFor(
         async pauseForPlan(c) {
           pausedCalls.push(c)
         },
+        async settleSteers() {},
       }
       const consumer = new AcpUpdateConsumer(ports)
 
@@ -261,6 +268,7 @@ export function contractFor(
         async transition() {},
         async broadcastPermissionRequest() {},
         async pauseForPlan() {},
+        async settleSteers() {},
       }
       const consumer = new AcpUpdateConsumer(ports)
 
@@ -387,6 +395,7 @@ export function contractFor(
         },
         async broadcastPermissionRequest() {},
         async pauseForPlan() {},
+        async settleSteers() {},
       }
       const consumer = new AcpUpdateConsumer(ports)
 
@@ -634,4 +643,361 @@ export async function captureAcpScript(
   }
 
   return { instructions, stopReason: finishToStopReason(finishReason), threw }
+}
+
+/**
+ * One model step a {@link steppedDriver} plays: its stream chunks, with test
+ * hooks run between them (a Steer arriving mid-tool-call), and the response
+ * messages the step adds to the conversation.
+ */
+export interface ScriptedStep {
+  chunks: Array<
+    TextStreamPart<Record<string, Tool>> | (() => void | Promise<void>)
+  >
+  response: ModelMessage[]
+}
+
+/**
+ * A {@link StreamDriver} that plays the AI SDK's multi-step loop faithfully
+ * enough for steering: before each step it calls `prepareStep` with the pass's
+ * messages plus every earlier step's responses, and records what the model
+ * was sent (the override, when `prepareStep` returns one). Each `streamText`
+ * call plays the next pass. A step that finds the signal aborted throws, as
+ * the SDK does.
+ */
+export function steppedDriver(
+  passes: ScriptedStep[][],
+  sent: ModelMessage[][]
+): StreamDriver {
+  let pass = 0
+  return (config) => ({
+    consumeStream: async () => {
+      const steps = passes[pass++] ?? []
+      const responses: ModelMessage[] = []
+      for (const [stepNumber, step] of steps.entries()) {
+        const input = [...(config.messages ?? []), ...responses]
+        const prepared = await config.prepareStep?.({
+          stepNumber,
+          steps: [],
+          messages: input,
+          model: config.model,
+          experimental_context: undefined,
+        })
+        if (config.abortSignal?.aborted) throw new Error("aborted")
+        sent.push(prepared?.messages ?? input)
+        for (const chunk of step.chunks) {
+          if (typeof chunk === "function") await chunk()
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          else await config.onChunk?.({ chunk: chunk as any })
+        }
+        if (config.abortSignal?.aborted) throw new Error("aborted")
+        responses.push(...step.response)
+      }
+      await config.onFinish?.({
+        finishReason: "stop",
+        totalUsage: {},
+        response: { messages: responses },
+        steps: steps.map(() => ({})),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+    },
+  })
+}
+
+// Scripted pieces of a step, loosely typed like the scenarios above.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const toolCallChunks = (id: string, name: string) => ({
+  start: { type: "tool-input-start", id, toolName: name } as any,
+  call: {
+    type: "tool-call",
+    toolCallId: id,
+    toolName: name,
+    input: { path: "a.ts" },
+  } as any,
+  result: {
+    type: "tool-result",
+    toolCallId: id,
+    toolName: name,
+    output: "file contents",
+  } as any,
+})
+const textChunk = (text: string) =>
+  ({ type: "text-delta", id: "t", text }) as any
+/* eslint-enable @typescript-eslint/no-explicit-any */
+const toolResponse = (id: string): ModelMessage[] => [
+  {
+    role: "assistant",
+    content: [
+      { type: "tool-call", toolCallId: id, toolName: "read_file", input: {} },
+    ],
+  },
+  {
+    role: "tool",
+    content: [
+      {
+        type: "tool-result",
+        toolCallId: id,
+        toolName: "read_file",
+        output: { type: "text", value: "file contents" },
+      },
+    ],
+  },
+]
+const textResponse = (text: string): ModelMessage[] => [
+  { role: "assistant", content: text },
+]
+
+/**
+ * The steering contract (#1190), run against every Engine that can steer. It
+ * drives a turn while Steers arrive, through the same consumer the live route
+ * uses, and asserts what a client and a reload observe: the Steers are taken
+ * at the next step boundary, oldest first and together, land in the log where
+ * they were taken, reach the model before its next step, and never after a
+ * stop.
+ */
+export function steeringContractFor(
+  name: string,
+  makeEngine: (driver: StreamDriver) => Engine
+) {
+  describe(`Engine steering contract: ${name}`, () => {
+    /** One turn over an in-memory inbox, the consumer and a scripted model. */
+    function steeringTurn(passes: ScriptedStep[][]) {
+      // The durable log in order: records as appended, tool calls where they
+      // were first seen, the way the history route orders them.
+      const log: string[] = []
+      const seenCalls = new Set<string>()
+      const updates: EngineUpdate[] = []
+      const transitions: RunStatus[] = []
+      const inbox: Array<{ id: string; text: string }> = []
+      const taken: string[][] = []
+      const sent: ModelMessage[][] = []
+      const controller = new AbortController()
+      const ports: AcpConsumerPorts = {
+        async broadcastUpdate() {},
+        async broadcastError() {},
+        async broadcastEnd() {},
+        async appendRecord(r) {
+          if (r.role !== "tool_call")
+            log.push(
+              `${r.role}: ${r.content.map((b) => ("text" in b ? b.text : "")).join("")}`
+            )
+        },
+        async upsertToolCall(r) {
+          if (seenCalls.has(r.toolCallId)) return
+          seenCalls.add(r.toolCallId)
+          log.push(`tool_call: ${r.toolCallId}`)
+        },
+        async transition(to) {
+          transitions.push(to)
+        },
+        async broadcastPermissionRequest() {},
+        async pauseForPlan() {},
+        async settleSteers(steers) {
+          for (const steer of steers) {
+            log.push(
+              `user: ${steer.content.map((b) => ("text" in b ? b.text : "")).join("")}`
+            )
+          }
+        },
+      }
+      const consumer = new AcpUpdateConsumer(ports)
+      const engine = makeEngine(steppedDriver(passes, sent))
+      const run = () =>
+        engine.run(
+          {
+            chatId: "chat_1",
+            runId: "run_1",
+            roomId: "room_1",
+            systemPrompt: "sys",
+            model: "anthropic:test",
+            history: [{ role: "user", content: [textBlock("fix the bug")] }],
+            // What the live route does: take, settle, hand over.
+            takeSteers: async () => {
+              const steers: TakenSteer[] = inbox
+                .splice(0)
+                .map((s) => ({ id: s.id, content: [textBlock(s.text)] }))
+              if (steers.length > 0) taken.push(steers.map((s) => s.id))
+              await consumer.acceptSteers(steers)
+              return steers
+            },
+          },
+          (u) => {
+            updates.push(u)
+            return consumer.handle(u)
+          },
+          controller.signal
+        )
+      let seq = 0
+      const steer = (text: string) => () => {
+        inbox.push({ id: `steer_${++seq}`, text })
+      }
+      return {
+        engine,
+        run,
+        steer,
+        log,
+        inbox,
+        taken,
+        sent,
+        updates,
+        transitions,
+        controller,
+      }
+    }
+
+    const lastUserText = (messages: ModelMessage[]) => {
+      const last = messages[messages.length - 1]
+      return last?.role === "user" ? last.content : undefined
+    }
+
+    it("is a steering Engine", () => {
+      expect(supportsSteering(makeEngine(steppedDriver([], [])))).toBe(true)
+    })
+
+    it("takes a Steer sent mid-tool-call at the next step boundary, logs it after that call, and carries on with it", async () => {
+      const read = toolCallChunks("call_1", "read_file")
+      let steer = () => {}
+      const t = steeringTurn([
+        [
+          {
+            chunks: [read.start, read.call, () => steer(), read.result],
+            response: toolResponse("call_1"),
+          },
+          {
+            chunks: [textChunk("Done, tests too.")],
+            response: textResponse("Done, tests too."),
+          },
+        ],
+      ])
+      steer = t.steer("also run the tests")
+      await t.run()
+
+      // The model's next step read it, as the conversation's newest message.
+      expect(lastUserText(t.sent[1]!)).toBe("also run the tests")
+      // It sits where the agent took it: after the tool call, before the
+      // reply it steered.
+      expect(t.log).toEqual([
+        "tool_call: call_1",
+        "user: also run the tests",
+        "agent: Done, tests too.",
+      ])
+      expect(t.inbox).toEqual([])
+      expect(t.transitions).toEqual(["completed"])
+    })
+
+    it("takes several waiting Steers together, oldest first, as one message", async () => {
+      const read = toolCallChunks("call_1", "read_file")
+      let first = () => {}
+      let second = () => {}
+      const t = steeringTurn([
+        [
+          {
+            chunks: [
+              read.start,
+              read.call,
+              () => first(),
+              () => second(),
+              read.result,
+            ],
+            response: toolResponse("call_1"),
+          },
+          { chunks: [textChunk("Ok.")], response: textResponse("Ok.") },
+        ],
+      ])
+      first = t.steer("use the v2 API")
+      second = t.steer("and keep the old one working")
+      await t.run()
+
+      expect(t.taken).toEqual([["steer_1", "steer_2"]])
+      expect(lastUserText(t.sent[1]!)).toBe(
+        "use the v2 API\n\nand keep the old one working"
+      )
+      expect(t.log).toEqual([
+        "tool_call: call_1",
+        "user: use the v2 API",
+        "user: and keep the old one working",
+        "agent: Ok.",
+      ])
+    })
+
+    it("keeps a turn that would finish going when a Steer is waiting", async () => {
+      let steer = () => {}
+      const t = steeringTurn([
+        [
+          {
+            chunks: [textChunk("Renamed it."), () => steer()],
+            response: textResponse("Renamed it."),
+          },
+        ],
+        [
+          {
+            chunks: [textChunk("Updated the docs.")],
+            response: textResponse("Updated the docs."),
+          },
+        ],
+      ])
+      steer = t.steer("update the docs too")
+      await t.run()
+
+      // The next pass continues the same conversation with the Steer last.
+      expect(t.sent).toHaveLength(2)
+      expect(t.sent[1]!.slice(-2)).toEqual([
+        { role: "assistant", content: "Renamed it." },
+        { role: "user", content: "update the docs too" },
+      ])
+      expect(t.log).toEqual([
+        "agent: Renamed it.",
+        "user: update the docs too",
+        "agent: Updated the docs.",
+      ])
+      // Still one turn: one completion, one end.
+      expect(t.transitions).toEqual(["completed"])
+      expect(t.updates.filter((u) => u.kind === "done")).toHaveLength(1)
+    })
+
+    it("a Steer that arrives after the last step starts nothing inside the run", async () => {
+      const t = steeringTurn([
+        [
+          {
+            chunks: [textChunk("All done.")],
+            response: textResponse("All done."),
+          },
+        ],
+      ])
+      await t.run()
+      t.steer("one more thing")()
+
+      expect(t.inbox).toHaveLength(1)
+      expect(t.taken).toEqual([])
+      expect(t.sent).toHaveLength(1)
+      expect(t.log).toEqual(["agent: All done."])
+    })
+
+    it("/stop with a pending Steer leaves it untaken", async () => {
+      const read = toolCallChunks("call_1", "read_file")
+      let stopWithSteer = () => {}
+      const t = steeringTurn([
+        [
+          {
+            chunks: [read.start, read.call, () => stopWithSteer(), read.result],
+            response: toolResponse("call_1"),
+          },
+          { chunks: [textChunk("never")], response: textResponse("never") },
+        ],
+      ])
+      stopWithSteer = () => {
+        t.steer("actually, wait")()
+        t.controller.abort()
+      }
+      await t.run()
+
+      expect(t.inbox).toEqual([{ id: "steer_1", text: "actually, wait" }])
+      expect(t.taken).toEqual([])
+      expect(t.log).toEqual(["tool_call: call_1"])
+      expect(t.updates.at(-1)).toEqual({
+        kind: "done",
+        stopReason: "cancelled",
+      })
+    })
+  })
 }

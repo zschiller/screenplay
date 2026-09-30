@@ -102,18 +102,28 @@ export function useAgentChat({
     (id: string) => chatStore.takeQueued(chatId, id),
     [chatId]
   )
+  const takeReturnedSteers = useCallback(
+    () => chatStore.takeReturnedSteers(chatId),
+    [chatId]
+  )
 
   return {
     messages: state.messages,
     isStreaming: state.isStreaming,
+    runStart: state.runStart,
     isLoadingHistory: state.isLoadingHistory,
     error: state.error,
     failedSend: state.failedSend,
     queued: state.queued,
+    pendingSteers: state.pendingSteers,
+    // A chat steers unless its running turn said it can't.
+    steerable: state.steerable !== false,
+    returnedSteers: state.returnedSteers,
     sendMessage,
     stopMessage,
     retryFailedSend,
     takeFailedSend,
     takeQueued,
+    takeReturnedSteers,
   }
 }

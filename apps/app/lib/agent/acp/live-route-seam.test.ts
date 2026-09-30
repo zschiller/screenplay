@@ -20,8 +20,10 @@ import {
   type PreparedTurn,
   type TurnLaunchDeps,
   type TurnRequest,
+  type TurnTarget,
 } from "../turn-launch"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
+import { steppedDriver } from "./engine-contract"
 import {
   createRunState,
   type PendingPlanCall,
@@ -29,7 +31,9 @@ import {
   type RunStatus,
 } from "../run-state"
 import { renderHistory, type HistoryEntry } from "@/lib/agent/history-render"
-import { wireToContentBlocks } from "./markers"
+import { contentBlocksToWire, wireToContentBlocks } from "./markers"
+import { userMessageChunk } from "./schema"
+import type { Steer, SteerInbox } from "../steer-inbox"
 import { planResolutionText } from "./resolution"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
@@ -112,6 +116,60 @@ function liveHarness() {
   }
   const planRuns = new Map<string, string>()
   const runState = createRunState(repo)
+
+  // The Steer inbox (#1190) over in-memory rows, with the live inbox's
+  // guards: a take only happens while the run is `running`, and every write
+  // that ends a Steer's pending life happens once.
+  const steerRows: Array<Steer & { runId: string; taken: boolean }> = []
+  let steerSeq = 0
+  const pendingOn = (runId: string) =>
+    steerRows.filter((r) => r.runId === runId && !r.taken)
+  const removeRows = (gone: Steer[]) => {
+    for (const row of gone) steerRows.splice(steerRows.indexOf(row as never), 1)
+  }
+  const toSteer = ({ id, message, userId }: Steer): Steer => ({
+    id,
+    message,
+    userId,
+  })
+  const inbox: SteerInbox = {
+    async add({ runId, message, userId }) {
+      const row = {
+        id: `steer_${++steerSeq}`,
+        runId,
+        message,
+        userId,
+        taken: false,
+      }
+      steerRows.push(row)
+      return toSteer(row)
+    },
+    async take(runId) {
+      if (rows.get(runId) !== "running") return []
+      const taken = pendingOn(runId)
+      for (const row of taken) row.taken = true
+      return taken.map(toSteer)
+    },
+    async drain(runId) {
+      const left = pendingOn(runId)
+      removeRows(left)
+      return left.map(toSteer)
+    },
+    async reclaim(id) {
+      const row = steerRows.find((r) => r.id === id && !r.taken)
+      if (row) removeRows([row])
+      return !!row
+    },
+  }
+  const latestActiveRun = () => {
+    let active: { id: string; status: "running" | "paused_for_plan" } | null =
+      null
+    for (const [id, status] of rows) {
+      if (status === "running" || status === "paused_for_plan")
+        active = { id, status }
+    }
+    return active
+  }
   // Every Coordinator wake Turn Launch asked for, in order.
   const wakes: WorkspaceTurnEnd[] = []
 
@@ -158,6 +216,24 @@ function liveHarness() {
     },
     async pauseForPlan(planCall) {
       await runState.pauseForPlan(runId, { ...planCall, chatId: CHAT_ID })
+    },
+    // What the live port does: each taken Steer joins the log as a user
+    // record, then clients drop it from pending and draw its echo.
+    async settleSteers(steers) {
+      for (const steer of steers) {
+        records.push({ role: "user", content: steer.content })
+      }
+      broadcasts.push({
+        type: "chat-control",
+        chatId: CHAT_ID,
+        id: mintId(),
+        control: { kind: "steers_taken", ids: steers.map((s) => s.id) },
+      })
+      for (const steer of steers) {
+        await this.broadcastUpdate(
+          userMessageChunk(contentBlocksToWire(steer.content))
+        )
+      }
     },
   })
 
@@ -218,7 +294,14 @@ function liveHarness() {
             history: records.slice(),
           },
           new AcpUpdateConsumer(portsFor(turn.runId)),
-          { isRunActive: (id) => runState.isRunActive(id) }
+          {
+            isRunActive: (id) => runState.isRunActive(id),
+            takeSteers: async (id) =>
+              (await inbox.take(id)).map((steer) => ({
+                id: steer.id,
+                content: wireToContentBlocks(steer.message),
+              })),
+          }
         ),
       loadRunStatus: (id) => runState.runStatus(id),
       async wakeCoordinator(end) {
@@ -227,19 +310,25 @@ function liveHarness() {
       runAfterResponse: (task) => {
         afterResponse.push(task)
       },
+      findActiveRun: async () => latestActiveRun(),
+      isRunActive: (id) => runState.isRunActive(id),
+      steers: inbox,
     }
+    // Leftover Steers start the chat's next turn through the same target.
+    const target = (message: string): TurnTarget => ({
+      prepare: async () => ({
+        systemPrompt: "sys",
+        model: "anthropic:test",
+        tools: {},
+        userText: message,
+        ...prepared,
+      }),
+      followUp: target,
+    })
     const result = await launchTurn(
       deps,
       { roomId: ROOM_ID, chatId: CHAT_ID, message: text, ...request },
-      {
-        prepare: async () => ({
-          systemPrompt: "sys",
-          model: "anthropic:test",
-          tools: {},
-          userText: text,
-          ...prepared,
-        }),
-      }
+      target(text)
     )
     return {
       result,
@@ -300,6 +389,7 @@ function liveHarness() {
     rows,
     runState,
     wakes,
+    steerRows,
     launch,
     run,
     stop,
@@ -422,6 +512,7 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
     // never the retired `chat-stream` channel.
     expect(h.broadcasts.map((e) => e.type)).toEqual([
       "chat-stream-start",
+      "chat-control", // steerable
       "chat-acp-update", // user echo
       "chat-acp-update", // "Hel"
       "chat-acp-update", // "lo"
@@ -629,12 +720,13 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
         const resumed = h.broadcasts.slice(before)
         expect(resumed.map((e) => e.type)).toEqual([
           "chat-stream-start",
+          "chat-control", // steerable
           "chat-control", // plan_resolved
           "chat-acp-update", // user echo
           "chat-acp-update", // "On it."
           "chat-stream-end",
         ])
-        expect(resumed[1]).toMatchObject({
+        expect(resumed[2]).toMatchObject({
           control: {
             kind: "plan_resolved",
             planId: "toolu_plan_1",
@@ -780,6 +872,146 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
       const h = liveHarness()
       await h.run("hi", replyDriver("Hello"))
       expect(h.wakes).toEqual([])
+    })
+  })
+
+  describe("steering (#1190)", () => {
+    const say = (text: string) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chunks: [{ type: "text-delta", id: "t", text } as any],
+      response: [{ role: "assistant" as const, content: text }],
+    })
+    const userTexts = (messages: AgentMessage[]) =>
+      messages.flatMap((m) => (m.role === "user" ? [m.content] : []))
+
+    it("a message sent mid-turn joins the running turn where the agent takes it, live and after reload", async () => {
+      const h = liveHarness()
+      let steered: unknown
+      const driver = steppedDriver(
+        [
+          [
+            {
+              ...say("Renamed it."),
+              chunks: [
+                ...say("Renamed it.").chunks,
+                async () => {
+                  steered = (await h.launch("update the docs too", driver))
+                    .result
+                },
+              ],
+            },
+          ],
+          [say("Docs updated.")],
+        ],
+        []
+      )
+      await h.run("rename the flag", driver)
+
+      // The send steered the run rather than superseding it.
+      expect(steered).toEqual({ kind: "steered", steerId: "steer_1" })
+      expect([...h.rows]).toEqual([["run_1", "completed"]])
+      expect(h.records.map((r) => r.role)).toEqual([
+        "user",
+        "agent",
+        "user",
+        "agent",
+      ])
+
+      // Every client showed it pending, then settled it where the agent took
+      // it, and a reload rebuilds exactly that.
+      const pendingAt = h.broadcasts.findIndex(
+        (e) => e.type === "chat-control" && e.control.kind === "steer_pending"
+      )
+      const takenAt = h.broadcasts.findIndex(
+        (e) => e.type === "chat-control" && e.control.kind === "steers_taken"
+      )
+      expect(pendingAt).toBeGreaterThan(-1)
+      expect(takenAt).toBeGreaterThan(pendingAt)
+      const live = liveMessages(h.broadcasts)
+      expect(live).toEqual(reloadMessages(h.records, h.planRows))
+      expect(live.map((m) => m.role)).toEqual([
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+      ])
+      expect(userTexts(live)).toEqual([
+        "rename the flag",
+        "update the docs too",
+      ])
+    })
+
+    it("Steers left when the run pauses for a plan start the next turn, which rejects the plan with them", async () => {
+      const h = liveHarness()
+      let calls = 0
+      const driver: StreamDriver = (config) => {
+        calls++
+        if (calls === 1) {
+          return {
+            consumeStream: async () => {
+              await h.launch("keep the old endpoint", driver)
+              await planDriver(config).consumeStream()
+            },
+          }
+        }
+        return replyDriver("Revised.")(config)
+      }
+      await h.run("plan the migration", driver)
+
+      expect(h.rows.get("run_1")).toBe("superseded")
+      expect(h.rows.get("run_2")).toBe("completed")
+      expect(h.planRows.get("toolu_plan_1")?.status).toBe("rejected")
+      expect(h.steerRows).toEqual([])
+      const live = liveMessages(h.broadcasts)
+      expect(userTexts(live)).toEqual([
+        "plan the migration",
+        "keep the old endpoint",
+      ])
+      expect(live).toEqual(
+        reloadMessages(h.records, h.planRows, h.planAt, h.rows)
+      )
+    })
+
+    it("a stop hands pending Steers back instead of taking them", async () => {
+      const h = liveHarness()
+      const driver = steppedDriver(
+        [
+          [
+            {
+              ...say("Working"),
+              chunks: [
+                ...say("Working").chunks,
+                async () => {
+                  await h.launch("actually, wait", driver)
+                  await h.stop()
+                },
+              ],
+            },
+            say("never"),
+          ],
+        ],
+        []
+      )
+      await h.run("migrate everything", driver)
+
+      expect(h.rows.get("run_1")).toBe(STOPPED_RUN_STATUS)
+      expect(h.steerRows).toEqual([])
+      expect(
+        h.records.some((r) =>
+          r.content.some((b) => "text" in b && b.text === "actually, wait")
+        )
+      ).toBe(false)
+      expect(
+        h.broadcasts.find(
+          (e) =>
+            e.type === "chat-control" && e.control.kind === "steers_returned"
+        )
+      ).toMatchObject({
+        control: {
+          kind: "steers_returned",
+          steers: [{ id: "steer_1", message: "actually, wait" }],
+        },
+      })
     })
   })
 })

@@ -311,3 +311,38 @@ describe("summarizeSteps", () => {
     ).toBe("Read 1 file, used 1 other tool")
   })
 })
+
+describe("foldFinishedTurns — a run with a Steer (#1190)", () => {
+  const steered: AgentMessage[] = [
+    { role: "user", content: "Make it sticky" },
+    { role: "assistant", content: "Pinning it." },
+    {
+      role: "tool_call",
+      toolCallId: "t1",
+      title: "Edit summary.tsx",
+      kind: "edit",
+      status: "completed",
+      content: [],
+    },
+    { role: "user", content: "Keep the pay button in it" },
+    { role: "assistant", content: "Moving it" },
+  ]
+  const kinds = (streaming: boolean, liveFrom?: number | null) =>
+    foldFinishedTurns(groupToolCalls(steered), { streaming, liveFrom }).map(
+      (i) => i.kind
+    )
+
+  it("keeps the part of the running turn before the Steer unfolded", () => {
+    expect(kinds(true, 0)).toEqual([
+      "message",
+      "message",
+      "message",
+      "message",
+      "message",
+    ])
+  })
+
+  it("folds it once the run is over", () => {
+    expect(kinds(false, null)).toContain("turn-summary")
+  })
+})

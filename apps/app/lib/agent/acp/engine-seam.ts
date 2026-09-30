@@ -2,6 +2,7 @@ import type { Tool } from "ai"
 import type { ToolContext } from "../tools"
 import type { AcpMessageRecord } from "./record"
 import type {
+  ContentBlock,
   RequestPermissionRequest,
   SessionUpdate,
   StopReason,
@@ -53,7 +54,24 @@ export interface EngineTurn {
    * real adapter raises the approval-gate permission request (spike #408).
    */
   planMode?: boolean
+  /**
+   * The pull port a {@link SteeringEngine} calls at each step boundary (#1190):
+   * it takes every pending Steer for this run, oldest first, and has already
+   * settled them into the transcript as user messages by the time it resolves.
+   * Absent when the turn can't be steered; an Engine without the capability
+   * never calls it.
+   */
+  takeSteers?: TakeSteers
 }
+
+/** A Steer the Engine took, as the content its user message carries. */
+export interface TakenSteer {
+  id: string
+  content: ContentBlock[]
+}
+
+/** Take every pending Steer for the run now (empty when there are none). */
+export type TakeSteers = () => Promise<TakenSteer[]>
 
 /**
  * The honest Engine seam (ADR 0006), modelled on the sandbox-provider split of
@@ -109,4 +127,21 @@ export function supportsUsageReporting(
   engine: Engine
 ): engine is UsageReportingEngine {
   return (engine as Partial<UsageReportingEngine>).reportsUsage === true
+}
+
+/**
+ * Capability sub-interface (#1190): an engine that takes Steers mid-turn. It
+ * calls {@link EngineTurn.takeSteers} at each step boundary, hands whatever it
+ * took to the model before its next step, and checks once more before a turn
+ * would finish, running another step when there are some. An engine that
+ * can't (a Harness that hasn't been checked) isn't narrowed, and Turn Launch
+ * answers "not steerable" so the client queues instead.
+ */
+export interface SteeringEngine extends Engine {
+  readonly steers: true
+}
+
+/** The steering capability check, gated like {@link supportsUsageReporting}. */
+export function supportsSteering(engine: Engine): engine is SteeringEngine {
+  return (engine as Partial<SteeringEngine>).steers === true
 }

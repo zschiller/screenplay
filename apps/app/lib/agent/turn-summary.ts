@@ -52,7 +52,10 @@ function isPinned(message: AgentMessage): boolean {
  * rows stay visible too, and a turn whose only calls are task rows stays flat.
  *
  * A turn still streaming renders flat, so a run in progress shows its live
- * steps.
+ * steps. With `liveFrom`, the index where the running turn began, that is
+ * every turn from there on: a message the agent took mid-run (a Steer, #1190)
+ * starts a turn of its own, but its run hasn't finished, so nothing before it
+ * folds until the run ends.
  *
  * A Coordinator wake's message (#897) is left out, and so is the work its
  * turn did, live or finished: like a project chat, the Coordinator's panel
@@ -61,7 +64,7 @@ function isPinned(message: AgentMessage): boolean {
  */
 export function foldFinishedTurns(
   entries: GroupedMessage[],
-  { streaming }: { streaming: boolean }
+  { streaming, liveFrom }: { streaming: boolean; liveFrom?: number | null }
 ): TranscriptItem[] {
   const turns: GroupedMessage[][] = [[]]
   // The turns that answer a Coordinator wake, by index.
@@ -78,7 +81,10 @@ export function foldFinishedTurns(
 
   const items: TranscriptItem[] = []
   turns.forEach((turn, t) => {
-    const live = streaming && t === lastTurn
+    const live =
+      streaming &&
+      (t === lastTurn ||
+        (liveFrom != null && turn.some((e) => e.index >= liveFrom)))
     const isUserTurn = turn.length === 1 && turn[0].message.role === "user"
     // The wake message is the server's, never drawn.
     if (isUserTurn && wakeTurns.has(t + 1)) return

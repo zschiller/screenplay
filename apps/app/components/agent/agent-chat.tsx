@@ -97,14 +97,19 @@ export function AgentChat({
   const {
     messages,
     isStreaming,
+    runStart,
     isLoadingHistory,
     failedSend,
     queued,
+    pendingSteers,
+    steerable,
+    returnedSteers,
     sendMessage,
     stopMessage,
     retryFailedSend,
     takeFailedSend,
     takeQueued,
+    takeReturnedSteers,
   } = useAgentChat({
     chatId,
     roomId,
@@ -345,6 +350,13 @@ export function AgentChat({
     []
   )
 
+  // Steers a stop handed back go into the composer to send again or drop
+  // (#1190), the way an edited queued message does.
+  useEffect(() => {
+    if (returnedSteers.length === 0) return
+    for (const steer of takeReturnedSteers()) restoreToComposer(steer)
+  }, [returnedSteers, takeReturnedSteers, restoreToComposer])
+
   // Element targeting (PRD #616): agent chats in a room can target this branch's
   // own preview frames. The Composer's target icon / ⌘E calls this, which asks
   // the Canvas (through the targeting store) to run a one-shot crosshair pick
@@ -452,6 +464,7 @@ export function AgentChat({
                   ),
                   {
                     streaming: isStreaming,
+                    liveFrom: runStart,
                   }
                 ),
                 workspaceTasks != null
@@ -498,6 +511,14 @@ export function AgentChat({
                   )}
                 </div>
               )}
+              {pendingSteers.map((steer) => (
+                <PendingSteerNotice
+                  key={steer.key}
+                  message={steer.message}
+                  roomId={roomId}
+                  chatId={chatId}
+                />
+              ))}
               {failedSend && (
                 <FailedSendNotice
                   message={failedSend.message}
@@ -531,6 +552,7 @@ export function AgentChat({
         isStreaming={isStreaming}
         onStop={stopMessage}
         queueWhileStreaming
+        steersWhileStreaming={steerable}
         draftKey={chatId}
         placeholder={composerPlaceholder}
         aboveInput={
@@ -681,6 +703,37 @@ function FailedSendNotice({
         <Button variant="ghost" size="xs" onClick={onEdit}>
           Edit
         </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A message sent while the agent works, waiting for it to take it at its next
+ * step (#1190). Drawn like the user message it becomes, dimmed, at the end of
+ * the log; once taken it moves to where the agent took it.
+ */
+function PendingSteerNotice({
+  message,
+  roomId,
+  chatId,
+}: {
+  message: string
+  roomId: string
+  chatId: string
+}) {
+  return (
+    <div className="flex flex-col items-end gap-1" data-testid="pending-steer">
+      <div className="w-full opacity-60">
+        <AgentMessageItem
+          message={{ role: "user", content: message }}
+          roomId={roomId}
+          chatId={chatId}
+        />
+      </div>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <ClockIcon className="size-3.5 shrink-0" />
+        Waiting for the agent
       </div>
     </div>
   )

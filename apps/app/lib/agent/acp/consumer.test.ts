@@ -105,6 +105,7 @@ function harness(seedStatus: RunStatus = "running") {
       // The live port adds the chat id; the in-memory run-state needs it too.
       await runState.pauseForPlan("run_1", { ...planCall, chatId: "chat_1" })
     },
+    async settleSteers() {},
   }
 
   return {

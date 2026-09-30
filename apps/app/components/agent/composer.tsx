@@ -408,6 +408,12 @@ export interface ComposerProps {
    */
   queueWhileStreaming?: boolean
   /**
+   * With {@link queueWhileStreaming}: the caller hands a commit made while
+   * streaming to the running agent now (a Steer, #1190) rather than holding it
+   * for the run's end, so the button reads Send, not Queue message.
+   */
+  steersWhileStreaming?: boolean
+  /**
    * Keeps the draft in the per-chat draft store under this key, so it survives
    * the Composer unmounting (switching Workspace) and reloads. Omit it and the
    * draft lives only as long as the Composer.
@@ -475,6 +481,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       isStreaming = false,
       onStop,
       queueWhileStreaming = false,
+      steersWhileStreaming = false,
       draftKey,
       aboveInput,
       hideSend = false,
@@ -755,6 +762,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
 
     // Streaming blocks a commit unless the caller queues it.
     const sendBlocked = isStreaming && !queueWhileStreaming
+    // A commit made now waits for the run's end, rather than steering it.
+    const queuesMessage = isStreaming && !steersWhileStreaming
 
     const handleSubmit = useCallback(() => {
       if (!editor || sendBlocked) return
@@ -1023,12 +1032,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   </IconButton>
                 ) : (
                   <IconButton
-                    label={isStreaming ? "Queue message" : "Send"}
+                    label={queuesMessage ? "Queue message" : "Send"}
                     shortcut={submitMode === "enter" ? "↵" : "⌘↵"}
                     hint={
                       noAgents ? (
                         "No coding agent detected"
-                      ) : isStreaming ? (
+                      ) : queuesMessage ? (
                         "Sends when the agent finishes"
                       ) : (
                         <span className="flex items-center gap-1.5">

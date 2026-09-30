@@ -27,7 +27,14 @@ import {
   upsertAcpToolCall,
   upsertChat,
 } from "./persistence"
-import { resolvePlan, runStatus, startRun, transition } from "./run-state"
+import {
+  isRunActive,
+  resolvePlan,
+  runStatus,
+  startRun,
+  transition,
+} from "./run-state"
+import { steerInbox } from "./steer-inbox"
 import {
   broadcastAcpUpdate,
   broadcastControl,
@@ -138,6 +145,9 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
       console.error("coordinator wake failed:", e)
     }),
   runAfterResponse: (task) => after(task),
+  findActiveRun,
+  isRunActive,
+  steers: steerInbox,
 })
 
 /** Coordinator wakes, one at a time per Room, in the order turns ended. */
@@ -274,6 +284,7 @@ export function markdownLayerTurn(input: {
         }),
       }
     },
+    followUp: (message) => markdownLayerTurn({ ...input, message }),
   }
 }
 
@@ -321,6 +332,7 @@ export function roomTurn(input: {
         }),
       }
     },
+    followUp: (message) => roomTurn({ ...input, message }),
   }
 }
 
@@ -525,6 +537,9 @@ async function launchDelegatedTurn(
   if (result.kind === "plan-already-resolved") {
     throw new Error("The Workspace's plan changed while sending. Try again.")
   }
+  if (result.kind === "not-steerable") {
+    throw new Error("The Workspace is busy. Try again once its turn ends.")
+  }
 }
 
 /** A chat on a Branch's sandbox. */
@@ -647,6 +662,16 @@ export function sandboxTurn(input: {
         wakesCoordinator: true,
       }
     },
+    // Leftover Steers go out as the chat's next message: same plan mode and
+    // model, no longer the Workspace's first chat, and no comment threads.
+    followUp: (next) =>
+      sandboxTurn({
+        ...input,
+        message: next,
+        isFirstChat: false,
+        commentThreadIds: undefined,
+        delegatedFrom: undefined,
+      }),
   }
 }
 
@@ -682,5 +707,6 @@ export function planResumeTurn(input: {
         wakesCoordinator: true,
       }
     },
+    followUp: (next) => planResumeTurn({ ...input, message: next }),
   }
 }

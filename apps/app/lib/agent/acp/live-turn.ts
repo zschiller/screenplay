@@ -1,5 +1,10 @@
 import type { AcpUpdateConsumer } from "./consumer"
-import type { Engine, EngineTurn } from "./engine-seam"
+import {
+  supportsSteering,
+  type Engine,
+  type EngineTurn,
+  type TakenSteer,
+} from "./engine-seam"
 
 /** How often the abort watchdog polls the run's liveness. */
 const ABORT_POLL_INTERVAL_MS = 250
@@ -14,6 +19,12 @@ export interface DriveTurnDeps {
   isRunActive(runId: string): Promise<boolean>
   /** Overridable poll interval — tests pass a small value; production uses the default. */
   pollIntervalMs?: number
+  /**
+   * Take the run's pending Steers (#1190), oldest first. Present where the
+   * route keeps a Steer inbox; a steering Engine calls it at each step
+   * boundary.
+   */
+  takeSteers?(runId: string): Promise<TakenSteer[]>
 }
 
 /**
@@ -60,9 +71,26 @@ export async function driveEngineTurn(
     )
   }, deps.pollIntervalMs ?? ABORT_POLL_INTERVAL_MS)
 
+  // A steering Engine pulls the run's pending Steers at each step boundary;
+  // they are settled into the transcript before the Engine hands them to the
+  // model, so the log and every client put them where the agent took them.
+  const { takeSteers } = deps
+  const steerable =
+    takeSteers && supportsSteering(engine)
+      ? {
+          ...turn,
+          takeSteers: async () => {
+            if (controller.signal.aborted) return []
+            const steers = await takeSteers(turn.runId)
+            await consumer.acceptSteers(steers)
+            return steers
+          },
+        }
+      : turn
+
   try {
     await engine.run(
-      turn,
+      steerable,
       (update) => consumer.handle(update),
       controller.signal
     )

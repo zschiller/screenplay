@@ -169,6 +169,13 @@
       "when": 1790568886701,
       "tag": "0023_stormy_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790741207502,
+      "tag": "0024_shallow_ben_parker",
+      "breakpoints": true
     }
   ]
 }

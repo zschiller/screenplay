@@ -143,6 +143,7 @@ async function runConsumerToBus(
     // Plan-gate ports — unused by the text-only fan-out streams here.
     async broadcastPermissionRequest() {},
     async pauseForPlan() {},
+    async settleSteers() {},
   }
 
   const consumer = new AcpUpdateConsumer(ports)

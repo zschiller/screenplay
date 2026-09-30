@@ -7,6 +7,8 @@ import { driveEngineTurn } from "./acp/live-turn"
 import type { Engine } from "./acp/engine-seam"
 import { loadAcpHistoryForModel } from "./persistence"
 import { isRunActive, transition } from "./run-state"
+import { steerInbox } from "./steer-inbox"
+import { wireToContentBlocks } from "./acp/markers"
 import { broadcastControl, broadcastSignal } from "./broadcast"
 
 /**
@@ -49,7 +51,14 @@ export async function launchEngineTurn(params: {
       engine,
       { chatId, runId, roomId, systemPrompt, model, history, tools, planMode },
       consumer,
-      { isRunActive }
+      {
+        isRunActive,
+        takeSteers: async (id) =>
+          (await steerInbox.take(id)).map((steer) => ({
+            id: steer.id,
+            content: wireToContentBlocks(steer.message),
+          })),
+      }
     )
   } catch (e) {
     console.error("engine turn failed:", e)

@@ -18,9 +18,15 @@ import { planFromPermissionRequest } from "./schema"
 import { withPlanGate } from "../plan-gate"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import { ExternalEngine } from "./acp-engine"
-import { acpSessionFactoryFromDriver, contractFor } from "./engine-contract"
+import {
+  acpSessionFactoryFromDriver,
+  contractFor,
+  steeringContractFor,
+} from "./engine-contract"
+import { supportsSteering } from "./engine-seam"
 
 contractFor("in-process", (driver) => new InProcessEngine(driver))
+steeringContractFor("in-process", (driver) => new InProcessEngine(driver))
 
 // The ACP engine plugs into the *same* contract, driven by the *same* scenario:
 // a generic ACP agent scripted by the `StreamDriver` runs the turn over a real
@@ -34,6 +40,19 @@ contractFor(
   (driver) =>
     new ExternalEngine({ sessionFactory: acpSessionFactoryFromDriver(driver) })
 )
+
+// The external Engine can't steer until the Harness's prompt queueing is wired
+// (#1191), so Turn Launch answers "not steerable" and the client queues.
+describe("ExternalEngine — steering", () => {
+  it("is not a steering Engine yet", () => {
+    const engine = new ExternalEngine({
+      sessionFactory: acpSessionFactoryFromDriver(() => ({
+        consumeStream: async () => {},
+      })),
+    })
+    expect(supportsSteering(engine)).toBe(false)
+  })
+})
 
 describe("InProcessEngine — capability + cancellation", () => {
   it("captures prompt-cache usage from onFinish", async () => {

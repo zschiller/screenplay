@@ -54,7 +54,8 @@ export async function POST(req: Request) {
   const { userId } = room
 
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,
-  // drive after the response); this route only picks the Chat Target.
+  // drive after the response) and whether a message sent while the chat's
+  // agent is working steers it; this route only picks the Chat Target.
   const target = isRoomTarget
     ? roomTurn({ room, chatId, message, model })
     : markdownLayerId
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
 
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
-    { roomId, chatId, message, sandboxName, model },
+    { roomId, chatId, message, sandboxName, model, userId },
     target
   )
   if (result.kind === "target-not-found") {
@@ -82,6 +83,14 @@ export async function POST(req: Request) {
   // Only a plan decision can find its plan resolved; this route sends none.
   if (result.kind === "plan-already-resolved") {
     return new Response("Plan already resolved", { status: 409 })
+  }
+  // The agent is working: the message joined its turn as a Steer (#1190), or,
+  // on an Engine that can't take one, waits in the client's queue.
+  if (result.kind === "steered") {
+    return Response.json({ chatId, steered: true, steerId: result.steerId })
+  }
+  if (result.kind === "not-steerable") {
+    return Response.json({ error: "not_steerable" }, { status: 409 })
   }
   return Response.json({ chatId, runId: result.runId })
 }

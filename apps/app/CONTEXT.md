@@ -483,6 +483,20 @@ Coordinator", that expands to the message and links back to the sending chat
 _Avoid_: forwarding, relay; hidden subagent work (delegation is always visible
 in the Branch's own chat).
 
+**Steer**:
+A user message sent into a Chat Session while its run is `running`. It joins
+that run instead of starting a new one: it is **pending** until the Engine takes
+it at a step boundary, and **taken** from then on, when it becomes an ordinary
+user message where the Engine took it. A Steer the run never took starts the
+next turn, or, when the user stopped the run, goes back to its sender. Only an
+Engine with the steering capability takes Steers; elsewhere a mid-run message
+waits in the client's queue.
+_Shown to users as_: a dimmed user message, "Waiting for the agent", at the end
+of the chat.
+_Avoid_: queued message (the fallback where a chat can't steer), interrupt;
+calling it a Delegated Message or a supersession (a Steer never supersedes the
+run).
+
 **Chat-Target selection**:
 _Which_ Chat Target the agent panel shows — the other half of the panel model
 from the Tab Pool, which owns the tabs _within_ a target. Owned by the

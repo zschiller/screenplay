@@ -255,6 +255,22 @@ the legacy machinery is **deleted**, not parallel.
   mappings, and a reload that rebuilds the same conversation the live broadcast
   produced.
 
+### Steering capability (#1190)
+
+A message sent while a run is `running` joins it as a **Steer** instead of
+superseding it. Steering is a capability sub-interface, `SteeringEngine`, behind
+the `supportsSteering` guard, not an optional method on the core. The Engine
+turn carries a pull port, `takeSteers`, which takes the run's pending Steers
+from a database inbox (`agent_steer`: the send and the Engine run in different
+server invocations), settles them through the consumer as ordinary ACP `user`
+records and `user_message_chunk` broadcasts, and returns them oldest first.
+The in-process engine calls it in `prepareStep` and, before a turn would
+finish, once more, continuing with a further `streamText` pass when some are
+waiting. Turn Launch answers "steered" or "not steerable" by the guard, and
+starts the next turn with any Steers a completed, failed or plan-paused run
+left behind (a stopped run hands them back). The external engine gains the
+capability with the Harness's prompt queueing (#1191).
+
 ## Consequences
 
 - The seam, the consumer, the AI-SDK ⟷ ACP adapter, the in-process engine, and

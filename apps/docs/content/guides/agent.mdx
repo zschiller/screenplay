@@ -213,10 +213,28 @@ button.
 Type a message and press <kbd>↵</kbd> to send. <kbd>⇧</kbd> <kbd>↵</kbd> adds a
 new line. While the agent is working, the send button becomes **Stop**.
 Stopping ends the turn with a **Stopped** line in the chat, which looks the
-same after a reload. If you type while it works, the button becomes **Queue
-message**, and the message sends when the agent finishes. Each chat keeps its
-own draft, and a message that couldn't be sent stays in the chat with **Retry**
-and **Edit**.
+same after a reload. Each chat keeps its own draft, and a message that
+couldn't be sent stays in the chat with **Retry** and **Edit**.
+
+### Sending while the agent works
+
+You don't have to wait for the agent to finish, or stop it, to correct it.
+Type while it works and press **Send**: the message shows at the end of the
+chat, dimmed and marked **Waiting for the agent**, for everyone on the canvas.
+The agent reads it as soon as it finishes the step it's on (the model reply or
+tool call in progress), and the message moves to that point in the chat. The
+turn carries on with it; nothing is cancelled. Several messages sent before the
+agent gets to them reach it together, in the order you sent them.
+
+If the turn ends before the agent reads a message, the message starts the next
+turn straight away. If you press **Stop** instead, messages still waiting go
+back into your composer, so you can decide whether to send them.
+
+The built-in agent works this way in every chat, including the Coordinator.
+Workspace chats running Claude Code, Codex or OpenCode on desktop don't yet:
+there the button reads **Queue message**, and the message waits in a
+**Queued** row above the composer, where you can **Edit** or remove it, and
+sends when the agent finishes.
 
 ### Choosing a model
 

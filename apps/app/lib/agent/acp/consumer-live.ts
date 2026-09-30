@@ -9,6 +9,8 @@ import {
 import { appendAcpMessage, upsertAcpToolCall } from "../persistence"
 import { pauseForPlan, transition, type RunStatus } from "../run-state"
 import type { AcpConsumerPorts } from "./consumer"
+import { contentBlocksToWire } from "./markers"
+import { userMessageChunk } from "./schema"
 
 /**
  * The live {@link AcpConsumerPorts} bound to the real Y.Doc broadcast, the
@@ -36,5 +38,24 @@ export function liveAcpConsumerPorts(
     // The consumer derives the plan-gate tool-call; the run-state machine needs
     // the chat id, which this live port owns.
     pauseForPlan: (planCall) => pauseForPlan(runId, { ...planCall, chatId }),
+    // A taken Steer becomes an ordinary user message: in the log where the
+    // agent took it, and on every client as the same echo a turn's first
+    // message gets.
+    async settleSteers(steers) {
+      for (const steer of steers) {
+        await appendAcpMessage(chatId, { role: "user", content: steer.content })
+      }
+      await broadcastControl(roomId, chatId, {
+        kind: "steers_taken",
+        ids: steers.map((s) => s.id),
+      })
+      for (const steer of steers) {
+        await broadcastAcpUpdate(
+          roomId,
+          chatId,
+          userMessageChunk(contentBlocksToWire(steer.content))
+        )
+      }
+    },
   }
 }

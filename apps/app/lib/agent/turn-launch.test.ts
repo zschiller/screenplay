@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Engine } from "./acp/engine-seam"
+import type { RunStatus } from "./run-state"
+import type { Steer } from "./steer-inbox"
 import type { RepoData } from "@/lib/types"
 import {
   launchTurn,
@@ -10,6 +12,10 @@ import {
 } from "./turn-launch"
 
 const ENGINE = { run: async () => {} } as unknown as Engine
+const STEERING_ENGINE = {
+  run: async () => {},
+  steers: true,
+} as unknown as Engine
 
 /** Turn Launch deps that record every side effect, in order, as one line each. */
 function recordingDeps(
@@ -19,15 +25,28 @@ function recordingDeps(
     pendingPlan?: string
     /** Whether resolving a plan finds it still pending (default true). */
     planStillPending?: boolean
+    /** Whether the resolved Engine can steer. */
+    steering?: boolean
+    /** The chat's run that hasn't finished, by id and status. */
+    activeRun?: { id: string; status: "running" | "paused_for_plan" }
+    /** The active run ends just as a Steer is recorded on it. */
+    runEndsWhileSteering?: boolean
+    /** Whether a Steer is still pending when taken back (default true). */
+    steerReclaimable?: boolean
+    /** Steers the run never took, drained once it's over. */
+    leftovers?: Steer[]
+    /** How the driven run ended (default completed). */
+    runStatus?: RunStatus
   } = {}
 ) {
   const log: string[] = []
   const afterResponse: Array<() => Promise<void>> = []
+  const leftovers = [...(opts.leftovers ?? [])]
   const deps: TurnLaunchDeps = {
     async resolveEngine() {
       log.push("resolve engine")
       if (opts.engineFails) throw new Error("AGENT_ENGINE misconfigured")
-      return ENGINE
+      return opts.steering ? STEERING_ENGINE : ENGINE
     },
     async findPendingPlan() {
       return opts.pendingPlan ? { id: opts.pendingPlan } : null
@@ -56,7 +75,11 @@ function recordingDeps(
       log.push(
         control.kind === "plan_resolved"
           ? `broadcast plan_resolved ${control.approved ? "approved" : "rejected"}`
-          : `broadcast ${control.kind}`
+          : control.kind === "steerable"
+            ? `broadcast steerable${control.steerable ? "" : " (no)"}`
+            : control.kind === "steers_returned"
+              ? `broadcast steers_returned ${control.steers.map((s) => s.message).join(" + ")}`
+              : `broadcast ${control.kind}`
       )
     },
     async renameBranch(claim) {
@@ -75,7 +98,7 @@ function recordingDeps(
       log.push(`drive ${turn.runId} planMode=${turn.planMode ?? false}`)
     },
     async loadRunStatus() {
-      return "completed"
+      return opts.runStatus ?? "completed"
     },
     async wakeCoordinator({ runId, status }) {
       log.push(`wake coordinator ${runId} ${status}`)
@@ -83,6 +106,28 @@ function recordingDeps(
     runAfterResponse(task) {
       log.push("response sent")
       afterResponse.push(task)
+    },
+    async findActiveRun() {
+      return opts.activeRun ?? null
+    },
+    async isRunActive() {
+      return !opts.runEndsWhileSteering
+    },
+    steers: {
+      async add({ runId, message, userId }) {
+        log.push(`add steer to ${runId}: ${message}`)
+        return { id: "steer_1", message, userId }
+      },
+      async drain(runId) {
+        const left = leftovers.splice(0)
+        if (left.length > 0) log.push(`drain ${left.length} from ${runId}`)
+        return left
+      },
+      async reclaim(id) {
+        const reclaimed = opts.steerReclaimable !== false
+        log.push(`reclaim ${id}: ${reclaimed ? "taken back" : "already gone"}`)
+        return reclaimed
+      },
     },
   }
   const flush = async () => {
@@ -145,6 +190,7 @@ describe("Turn Launch", () => {
       // a client that joins mid-stream. Names are never broadcast: the target
       // wrote them to the room doc.
       "broadcast chat-stream-start",
+      "broadcast steerable (no)",
       "broadcast user_message_chunk",
       "queue comments t1",
       "response sent",
@@ -191,6 +237,7 @@ describe("Turn Launch", () => {
       "persist fix it",
       "start run",
       "broadcast chat-stream-start",
+      "broadcast steerable (no)",
       "broadcast user_message_chunk",
       "response sent",
       "drive run_1 planMode=false",
@@ -230,6 +277,7 @@ describe("Turn Launch", () => {
         "persist fix it",
         "start run",
         "broadcast chat-stream-start",
+        "broadcast steerable (no)",
         "broadcast plan_resolved rejected",
         "broadcast user_message_chunk",
         "response sent",
@@ -252,13 +300,14 @@ describe("Turn Launch", () => {
       )
 
       expect(result).toEqual({ kind: "started", runId: "run_1" })
-      expect(log.slice(0, 7)).toEqual([
+      expect(log.slice(0, 8)).toEqual([
         "resolve engine",
         "prepare target",
         "resolve plan plan_1 approved",
         "persist Approved the plan. Proceed with the implementation.",
         "start run",
         "broadcast chat-stream-start",
+        "broadcast steerable (no)",
         "broadcast plan_resolved approved",
       ])
     })
@@ -314,6 +363,175 @@ function recordingStopDeps(activeRunId: string | null) {
   }
   return { deps, log }
 }
+
+describe("Turn Launch — steering (#1190)", () => {
+  const running = { id: "run_9", status: "running" as const }
+  const steerRequest = { ...request, message: "use the v2 API", userId: "u_1" }
+
+  it("an idle chat starts an ordinary turn", async () => {
+    const { deps, log } = recordingDeps({ steering: true })
+    const result = await launchTurn(deps, steerRequest, target(log))
+    expect(result).toEqual({ kind: "started", runId: "run_1" })
+    expect(log).toContain("start run")
+  })
+
+  it("a running, steerable chat takes the message as a pending Steer, never superseding the run", async () => {
+    const { deps, log } = recordingDeps({ steering: true, activeRun: running })
+    const result = await launchTurn(deps, steerRequest, target(log))
+
+    expect(result).toEqual({ kind: "steered", steerId: "steer_1" })
+    expect(log).toEqual([
+      "resolve engine",
+      "add steer to run_9: use the v2 API",
+      "broadcast steer_pending",
+    ])
+  })
+
+  it("a running chat on an Engine that can't steer is refused as not steerable, with nothing written", async () => {
+    const { deps, log } = recordingDeps({ activeRun: running })
+    const result = await launchTurn(deps, steerRequest, target(log))
+
+    expect(result).toEqual({ kind: "not-steerable" })
+    expect(log).toEqual(["resolve engine"])
+  })
+
+  it("a chat paused on a plan still implicitly rejects it with a new turn", async () => {
+    const { deps, log } = recordingDeps({
+      steering: true,
+      activeRun: { id: "run_9", status: "paused_for_plan" },
+      pendingPlan: "plan_1",
+    })
+    const result = await launchTurn(deps, steerRequest, target(log))
+
+    expect(result).toEqual({ kind: "started", runId: "run_1" })
+    expect(log).toContain("resolve plan plan_1 rejected (use the v2 API)")
+    expect(log.some((l) => l.startsWith("add steer"))).toBe(false)
+  })
+
+  it("the ordinary turn's start says whether it can be steered", async () => {
+    const steerable = recordingDeps({ steering: true })
+    await launchTurn(steerable.deps, request, target(steerable.log))
+    expect(steerable.log).toContain("broadcast steerable")
+
+    const queues = recordingDeps()
+    await launchTurn(queues.deps, request, target(queues.log))
+    expect(queues.log).toContain("broadcast steerable (no)")
+  })
+
+  it("a run that ends while its Steer is recorded gives it back to start the turn itself", async () => {
+    const { deps, log } = recordingDeps({
+      steering: true,
+      activeRun: running,
+      runEndsWhileSteering: true,
+    })
+    const result = await launchTurn(deps, steerRequest, target(log))
+
+    expect(result).toEqual({ kind: "started", runId: "run_1" })
+    expect(log.slice(0, 6)).toEqual([
+      "resolve engine",
+      "add steer to run_9: use the v2 API",
+      "broadcast steer_pending",
+      "reclaim steer_1: taken back",
+      "broadcast steers_taken",
+      "prepare target",
+    ])
+  })
+
+  it("a Steer the ending run already drained stays with that run's next turn", async () => {
+    const { deps, log } = recordingDeps({
+      steering: true,
+      activeRun: running,
+      runEndsWhileSteering: true,
+      steerReclaimable: false,
+    })
+    const result = await launchTurn(deps, steerRequest, target(log))
+
+    expect(result).toEqual({ kind: "steered", steerId: "steer_1" })
+    expect(log).not.toContain("start run")
+  })
+
+  describe("leftovers", () => {
+    const leftovers: Steer[] = [
+      { id: "s1", message: "use the v2 API", userId: "u_1" },
+      { id: "s2", message: "and keep v1", userId: "u_2" },
+    ]
+    /** A target whose follow-up turns log the message they carry. */
+    const followingTarget = (log: string[]) => ({
+      ...target(log),
+      followUp: (message: string) => {
+        log.push(`follow up: ${message.replace("\n\n", " / ")}`)
+        return target(log, { userText: message })
+      },
+    })
+
+    for (const status of ["completed", "failed", "paused_for_plan"] as const) {
+      it(`start the next turn at once, joined oldest first, when the run ${status === "paused_for_plan" ? "paused for a plan" : status}`, async () => {
+        const { deps, log, flush } = recordingDeps({
+          leftovers,
+          runStatus: status,
+        })
+        await launchTurn(deps, request, followingTarget(log))
+        const before = log.length
+        await flush()
+
+        expect(log.slice(before)).toEqual([
+          "drive run_1 planMode=false",
+          "drain 2 from run_1",
+          "broadcast steers_taken",
+          "follow up: use the v2 API / and keep v1",
+          "resolve engine",
+          "prepare target",
+          "persist use the v2 API\n\nand keep v1",
+          "start run",
+          "broadcast chat-stream-start",
+          "broadcast steerable (no)",
+          "broadcast user_message_chunk",
+          "drive run_1 planMode=false",
+        ])
+      })
+    }
+
+    it("wake the Coordinator about the ended turn before the next one runs", async () => {
+      const { deps, log, flush } = recordingDeps({ leftovers })
+      await launchTurn(deps, request, {
+        ...followingTarget(log),
+        prepare: async () => ({
+          systemPrompt: "sys",
+          model: "m",
+          tools: {},
+          userText: "fix it",
+          wakesCoordinator: true,
+        }),
+      })
+      await flush()
+
+      const wake = log.indexOf("wake coordinator run_1 completed")
+      const nextDrive = log.lastIndexOf("drive run_1 planMode=false")
+      expect(wake).toBeGreaterThan(
+        log.indexOf(
+          "start run",
+          log.indexOf("follow up: use the v2 API / and keep v1")
+        )
+      )
+      expect(wake).toBeLessThan(nextDrive)
+    })
+
+    it("go back to their senders when the run was stopped", async () => {
+      const { deps, log, flush } = recordingDeps({
+        leftovers,
+        runStatus: "aborted",
+      })
+      await launchTurn(deps, request, followingTarget(log))
+      await flush()
+
+      expect(log.slice(-2)).toEqual([
+        "drain 2 from run_1",
+        "broadcast steers_returned use the v2 API + and keep v1",
+      ])
+      expect(log.some((l) => l.startsWith("follow up"))).toBe(false)
+    })
+  })
+})
 
 describe("stopTurn (#909)", () => {
   it("records the stop, marks the transcript, then ends the stream", async () => {
