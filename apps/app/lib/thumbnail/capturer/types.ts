@@ -29,3 +29,22 @@ export interface ThumbnailCapturer {
    */
   capture(previewUrl: string, viewport: CaptureViewport): Promise<Buffer>
 }
+
+/**
+ * The same render, read instead of screenshot: `read_frame_html` (#1268) loads
+ * a frame's preview in the capturer's browser and asks the Sandbox Bridge on
+ * the page for its markup and styles. Each capturer backend implements both
+ * seams, so a build that can screenshot a frame can also read it.
+ */
+export interface FramePageReader {
+  /**
+   * Render the page at `previewUrl`, sized to `viewport`, let it settle, then
+   * run `script` (the body of an async function) in it and return the string
+   * it resolves to.
+   */
+  evaluate(
+    previewUrl: string,
+    viewport: CaptureViewport,
+    script: string
+  ): Promise<string>
+}

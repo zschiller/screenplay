@@ -205,6 +205,7 @@ export function toolKindFor(toolName: string): ToolKind {
     case "search_code":
     case "find_code_files":
     case "view_frame":
+    case "read_frame_html":
     case "read_skill":
     case "list_files":
       return "read"

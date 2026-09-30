@@ -84,6 +84,7 @@ function ports(doc: Y.Doc): RoomToolPorts {
     readWorkspaceFile: async () => null,
     captureFrame: no("Frame screenshots"),
     readFrameCapture: async () => null,
+    readFramePage: no("Frame page reads"),
     launchWorkspaceTurn: no("Messaging Workspaces"),
   } as RoomToolPorts
 }

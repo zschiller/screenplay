@@ -148,6 +148,7 @@ describe("room chat target", () => {
       "open_pull_request",
       "read_canvas",
       "read_document",
+      "read_frame_html",
       "read_skill",
       "read_workspace_chat",
       "read_workspace_diff",

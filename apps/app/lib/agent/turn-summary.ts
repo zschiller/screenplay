@@ -190,6 +190,7 @@ const TITLE_CATEGORY: Record<string, Category> = {
   read_workspace_chat: "readWorkspace",
   read_workspace_diff: "readWorkspace",
   view_frame: "viewFrame",
+  read_frame_html: "viewFrame",
   list_changes: "listChanges",
   show_on_canvas: "view",
   write_memory: "memory",

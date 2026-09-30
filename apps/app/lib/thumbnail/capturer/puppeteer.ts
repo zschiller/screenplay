@@ -1,12 +1,21 @@
 import "server-only"
 
-import type { CaptureViewport, ThumbnailCapturer } from "./types"
+import type {
+  CaptureViewport,
+  FramePageReader,
+  ThumbnailCapturer,
+} from "./types"
 
 // Fallback viewport for a frame with no usable size (defensive — every real
 // frame carries its own width/height).
 const DEFAULT_VIEWPORT_W = 1280
 const DEFAULT_VIEWPORT_H = 960
 const NAV_TIMEOUT_MS = 15_000
+/**
+ * Settle after `load` before reading a page, as the Tauri shell does before its
+ * snapshot: a client-rendered app often paints its content just after `load`.
+ */
+const READ_SETTLE_MS = 1_500
 
 type Browser = import("puppeteer-core").Browser
 
@@ -63,13 +72,19 @@ async function launchBrowser(): Promise<Browser> {
  * and screenshots whatever has rendered, so an arbitrary preview still yields a
  * frame at the frame's aspect ratio.
  */
-class PuppeteerCapturer implements ThumbnailCapturer {
-  async capture(previewUrl: string, viewport: CaptureViewport): Promise<Buffer> {
+class PuppeteerCapturer implements ThumbnailCapturer, FramePageReader {
+  async capture(
+    previewUrl: string,
+    viewport: CaptureViewport
+  ): Promise<Buffer> {
     const browser = await launchBrowser()
     try {
       const page = await browser.newPage()
       await page.setViewport(resolveViewport(viewport))
-      await page.goto(previewUrl, { waitUntil: "load", timeout: NAV_TIMEOUT_MS })
+      await page.goto(previewUrl, {
+        waitUntil: "load",
+        timeout: NAV_TIMEOUT_MS,
+      })
 
       const screenshot = await page.screenshot({ type: "png" })
       return Buffer.from(screenshot)
@@ -77,8 +92,31 @@ class PuppeteerCapturer implements ThumbnailCapturer {
       await browser.close().catch(() => {})
     }
   }
+
+  async evaluate(
+    previewUrl: string,
+    viewport: CaptureViewport,
+    script: string
+  ): Promise<string> {
+    const browser = await launchBrowser()
+    try {
+      const page = await browser.newPage()
+      await page.setViewport(resolveViewport(viewport))
+      await page.goto(previewUrl, {
+        waitUntil: "load",
+        timeout: NAV_TIMEOUT_MS,
+      })
+      await new Promise((resolve) => setTimeout(resolve, READ_SETTLE_MS))
+      const result: unknown = await page.evaluate(
+        `(async () => {\n${script}\n})()`
+      )
+      return String(result)
+    } finally {
+      await browser.close().catch(() => {})
+    }
+  }
 }
 
-export function getPuppeteerCapturer(): ThumbnailCapturer {
+export function getPuppeteerCapturer(): ThumbnailCapturer & FramePageReader {
   return new PuppeteerCapturer()
 }

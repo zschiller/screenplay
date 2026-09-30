@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { beforeAll, beforeEach, describe, expect, it } from "vitest"
 
+import { pageSnapshotScript } from "./page-snapshot"
+
 // The bridge is a plain script injected into every frame; run it in jsdom and
 // talk to it over postMessage the way the canvas does.
 const BRIDGE = readFileSync(
@@ -155,5 +157,88 @@ describe("bridge navigate", () => {
   it("does nothing for the route the page is already on", async () => {
     await expect(navigate("/start")).resolves.toBe(true)
     expect(location.pathname).toBe("/start")
+  })
+})
+
+type Snapshot = {
+  url: string
+  title: string
+  htmlAttributes: string
+  bodyAttributes: string
+  markup: string
+  css: string
+  stylesheetLinks: string[]
+}
+
+describe("bridge getPageSnapshot", () => {
+  function addStyle(css: string) {
+    const style = document.createElement("style")
+    style.textContent = css
+    document.head.appendChild(style)
+    return style
+  }
+
+  it("returns the markup without scripts and the CSS that styles it", async () => {
+    const style = addStyle(`
+      .card { color: red; }
+      .unused { color: blue; }
+      button:hover { color: green; }
+      @media (min-width: 1px) { .card { padding: 4px; } .gone { margin: 0; } }
+      @media (min-width: 2px) { .gone { margin: 0; } }
+      .hero { background: url(/img/hero.png); }
+    `)
+    document.documentElement.className = "dark"
+    document.body.innerHTML = `
+      <div class="card hero">Hi<script>alert(1)</script></div>
+      <button>Go</button>`
+    try {
+      const snap = (await query("getPageSnapshot", {})) as Snapshot
+      expect(snap.htmlAttributes).toBe('class="dark"')
+      expect(snap.markup).toContain('<div class="card hero">Hi</div>')
+      expect(snap.markup).not.toContain("<script")
+      expect(snap.markup).not.toContain("<style")
+      expect(snap.css).toContain(".card")
+      expect(snap.css).toContain("button:hover")
+      expect(snap.css).not.toContain(".unused")
+      expect(snap.css).not.toContain(".gone")
+      expect(snap.css).toMatch(/@media \(min-width: 1px\)/)
+      expect(snap.css).not.toMatch(/@media \(min-width: 2px\)/)
+      expect(snap.css).toContain(`url("${location.origin}/img/hero.png")`)
+    } finally {
+      style.remove()
+      document.documentElement.className = ""
+    }
+  })
+
+  it("scopes to one element, keeping only the rules under it", async () => {
+    const style = addStyle(
+      `#pay { color: red; } main li { color: blue; } body { font-family: serif; }`
+    )
+    try {
+      const snap = (await query("getPageSnapshot", {
+        selector: "#pay",
+      })) as Snapshot
+      expect(snap.markup).toBe('<button id="pay">Pay now</button>')
+      expect(snap.css).toContain("#pay")
+      expect(snap.css).not.toContain("li")
+      // The body's rules still reach the element through inheritance.
+      expect(snap.css).toContain("font-family: serif")
+    } finally {
+      style.remove()
+    }
+  })
+
+  it("returns null when the selector matches nothing", async () => {
+    await expect(
+      query("getPageSnapshot", { selector: "#nope" })
+    ).resolves.toBeNull()
+  })
+
+  it("answers the headless read script, where the page is its own parent", async () => {
+    const run = new Function(
+      `return (async () => {${pageSnapshotScript("#pay")}})()`
+    ) as () => Promise<string>
+    const snap = JSON.parse(await run()) as Snapshot
+    expect(snap.markup).toBe('<button id="pay">Pay now</button>')
   })
 })

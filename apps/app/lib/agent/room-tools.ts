@@ -154,6 +154,7 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   read_workspace_diff: { readOnlyHint: true, openWorldHint: false },
   read_workspace_file: { readOnlyHint: true, openWorldHint: false },
   view_frame: { readOnlyHint: true, openWorldHint: false },
+  read_frame_html: { readOnlyHint: true, openWorldHint: false },
   // Writes only canvas memory (#902), which the spec lets act right away.
   write_memory: {
     readOnlyHint: false,
