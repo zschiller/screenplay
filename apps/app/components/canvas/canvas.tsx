@@ -62,6 +62,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 
 import { renameRoom } from "@/lib/rooms-actions"
 
+import { showDeleteToast } from "./delete-toast"
 import { SelectionOverlay } from "./selection-overlay"
 
 import { Comments } from "./comments"
@@ -365,7 +366,7 @@ export function Canvas({
   const others = useOtherPresences()
   const { data: session } = useAppSession()
   const userId = session?.user.id
-  const history = useYjsHistory()
+  const history = useYjsHistory(showDeleteToast)
   const collections = useRoomCollections()
   // Canvas Operations seam (#157): the single transaction entry point + the
   // generic single-field `patch`. Trivial single-field writes below go through
@@ -438,6 +439,7 @@ export function Canvas({
     groups: iframeLayerGroups,
     removeIframeLayers,
     removeDocumentLayers,
+    batch: ops.batch,
   })
   const selectedIframeLayerIds = selection.iframeLayerIds
   const selectedGroupIds = selection.groupIds

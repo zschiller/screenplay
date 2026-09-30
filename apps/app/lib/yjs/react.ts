@@ -9,7 +9,11 @@ import {
   useSyncExternalStore,
 } from "react"
 import * as Y from "yjs"
-import { UndoManager } from "yjs"
+import {
+  createCanvasUndo,
+  type CanvasUndo,
+  type DeleteStep,
+} from "@/lib/canvas/undo"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import {
   useYjs,
@@ -17,7 +21,6 @@ import {
   type AwarenessLike,
 } from "@/lib/yjs/context"
 import {
-  COLLECTION_KEYS,
   getRoomCollections,
   type RoomCollections,
   type YjsCollection,
@@ -100,38 +103,35 @@ export function useSavedViewport(): ViewportData | null {
 }
 
 /**
- * Yjs undo/redo scoped to room storage. Tracks the top-level domain Y.Maps
- * — text fragments (`text-{layerId}`) have their own UndoManager owned by
- * the TipTap editor, so they're not double-tracked here.
+ * ⌘Z / ⌘⇧Z for the canvas: this member's own edits to frames, documents,
+ * Groups and memory (see `lib/canvas/undo.ts` for exactly what's tracked).
+ * Text fragments (`text-{layerId}`) have their own UndoManager owned by the
+ * TipTap editor, so they're not double-tracked here. `onDelete` fires for each
+ * delete step, so the caller can offer Undo in a toast.
  */
-export function useYjsHistory() {
+export function useYjsHistory(onDelete?: (step: DeleteStep) => void) {
   const { doc } = useYjs()
-  const undoMgrRef = useRef<UndoManager | null>(null)
+  const undoRef = useRef<CanvasUndo | null>(null)
+  const onDeleteRef = useRef(onDelete)
+  useEffect(() => {
+    onDeleteRef.current = onDelete
+  })
 
   useEffect(() => {
-    const mgr = new UndoManager(
-      [
-        doc.getMap(COLLECTION_KEYS.repos),
-        doc.getMap(COLLECTION_KEYS.branches),
-        doc.getMap(COLLECTION_KEYS.iframeLayers),
-        doc.getMap(COLLECTION_KEYS.iframeLayerGroups),
-        doc.getMap(COLLECTION_KEYS.markdownLayers),
-        doc.getMap(COLLECTION_KEYS.chatSessions),
-        doc.getMap(COLLECTION_KEYS.plans),
-      ],
-      { captureTimeout: 500 }
-    )
-    undoMgrRef.current = mgr
+    const undo = createCanvasUndo(doc, {
+      onDelete: (step) => onDeleteRef.current?.(step),
+    })
+    undoRef.current = undo
     return () => {
-      mgr.destroy()
-      undoMgrRef.current = null
+      undo.destroy()
+      undoRef.current = null
     }
   }, [doc])
 
   return useMemo(
     () => ({
-      undo: () => undoMgrRef.current?.undo(),
-      redo: () => undoMgrRef.current?.redo(),
+      undo: () => undoRef.current?.undo(),
+      redo: () => undoRef.current?.redo(),
     }),
     []
   )

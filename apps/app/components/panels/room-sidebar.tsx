@@ -107,8 +107,6 @@ import {
   DocumentRowMenu,
 } from "@/components/panels/layer-rows/markdown-layer-row"
 
-import { ConfirmDialog } from "@/components/confirm-dialog"
-
 import {
   useIsFrameHighlighted,
   useWorkspaceHoverProps,
@@ -347,12 +345,6 @@ interface RoomSidebarProps {
   footer?: React.ReactNode
 }
 
-/** A sidebar Layer awaiting its delete confirm. */
-type PendingRemoveLayer = {
-  kind: "iframe-layer" | "markdown-layer"
-  id: string
-}
-
 /**
  * The canvas's left sidebar: its layers, the groups, frames and documents on
  * it, and nothing else. The Workspaces list lives in the chat panel's
@@ -383,13 +375,6 @@ export function RoomSidebar({
   onCollapseSidebar,
   footer,
 }: RoomSidebarProps) {
-  // Sidebar Layer / Group deletes have no undo, so they go through a confirm
-  // (issue #724). The canvas's own Delete key is unchanged.
-  const [pendingRemoveLayer, setPendingRemoveLayer] =
-    useState<PendingRemoveLayer | null>(null)
-  const [pendingRemoveGroupId, setPendingRemoveGroupId] = useState<
-    string | null
-  >(null)
   const iframeLayersById = useMemo(() => {
     const m = new Map<string, RoomSidebarProps["iframeLayers"][number]>()
     for (const a of iframeLayers) m.set(a.id, a)
@@ -455,7 +440,7 @@ export function RoomSidebar({
       onSelect: onSelectIframeLayer,
       onActivate: onZoomToIframeLayer,
       onRename: onRenameIframeLayer,
-      onRemove: (id) => setPendingRemoveLayer({ kind: "iframe-layer", id }),
+      onRemove: onRemoveIframeLayer,
     },
     "markdown-layer": {
       Row: DocumentRow as AnyRowDispatcher["Row"],
@@ -464,7 +449,7 @@ export function RoomSidebar({
       onSelect: onSelectDocument,
       onActivate: onZoomToDocument,
       onRename: onRenameDocument,
-      onRemove: (id) => setPendingRemoveLayer({ kind: "markdown-layer", id }),
+      onRemove: onRemoveDocument,
     },
   }
 
@@ -818,7 +803,7 @@ export function RoomSidebar({
                                             <DropdownMenuItem
                                               variant="destructive"
                                               onClick={() =>
-                                                setPendingRemoveGroupId(
+                                                onRemoveIframeLayerGroup(
                                                   group.id
                                                 )
                                               }
@@ -893,73 +878,6 @@ export function RoomSidebar({
           </DndContext>
         </div>
         {footer && <div className="shrink-0 p-2">{footer}</div>}
-        {(() => {
-          const pending = pendingRemoveLayer
-          const iframeLayer =
-            pending?.kind === "iframe-layer"
-              ? iframeLayersById.get(pending.id)
-              : undefined
-          const document =
-            pending?.kind === "markdown-layer"
-              ? documentsById.get(pending.id)
-              : undefined
-          const noun = pending?.kind === "markdown-layer" ? "document" : "frame"
-          // An unnamed Layer reads "Delete frame?" rather than quoting nothing.
-          const name = iframeLayer?.label ?? document?.title
-          return (
-            <ConfirmDialog
-              open={!!(iframeLayer || document)}
-              onOpenChange={(open) => {
-                if (!open) setPendingRemoveLayer(null)
-              }}
-              verb="Delete"
-              itemName={name}
-              itemNoun={noun}
-              description={`This ${noun} will be removed from the canvas for everyone. This cannot be undone.`}
-              onConfirm={() => {
-                if (iframeLayer) onRemoveIframeLayer(iframeLayer.id)
-                if (document) onRemoveDocument(document.id)
-                setPendingRemoveLayer(null)
-              }}
-            />
-          )
-        })()}
-        {(() => {
-          const group = pendingRemoveGroupId
-            ? iframeLayerGroups.find((g) => g.id === pendingRemoveGroupId)
-            : undefined
-          const members = group ? getGroupMembers(group) : []
-          const frames = members.filter((m) => m.kind === "iframe-layer").length
-          const documents = members.filter(
-            (m) => m.kind === "markdown-layer"
-          ).length
-          const contents = [
-            frames > 0 && (frames === 1 ? "1 frame" : `${frames} frames`),
-            documents > 0 &&
-              (documents === 1 ? "1 document" : `${documents} documents`),
-          ]
-            .filter(Boolean)
-            .join(" and ")
-          return (
-            <ConfirmDialog
-              open={!!group}
-              onOpenChange={(open) => {
-                if (!open) setPendingRemoveGroupId(null)
-              }}
-              verb="Delete"
-              itemName={group?.name}
-              itemNoun="group"
-              description={
-                `This group${contents ? ` and its ${contents}` : ""} will be ` +
-                "removed from the canvas for everyone. This cannot be undone."
-              }
-              onConfirm={() => {
-                if (group) onRemoveIframeLayerGroup(group.id)
-                setPendingRemoveGroupId(null)
-              }}
-            />
-          )
-        })()}
       </SidebarProvider>
     </TooltipProvider>
   )

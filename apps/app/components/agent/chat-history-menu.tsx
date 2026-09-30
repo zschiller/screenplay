@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { ArchiveIcon, TrashIcon } from "@workspace/ui/components/icons"
 
-import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Popover,
@@ -11,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { GripSpinner } from "@/components/grip-spinner"
 import { formatRelative } from "@/components/canvas/comments"
 import { chatStore } from "@/lib/chat-store"
@@ -53,7 +53,6 @@ function HistoryRow({
 }) {
   const firstLine = useFirstLine(chat.id)
   const isStreaming = useIsStreaming(chat.id)
-  const [confirming, setConfirming] = useState(false)
   return (
     <div className="group/row relative flex items-start rounded-md hover:bg-accent has-[button:focus-visible]:bg-accent">
       <button
@@ -80,28 +79,14 @@ function HistoryRow({
           {firstLine ?? "No messages"}
         </span>
       </button>
-      {/* Delete is permanent, so the first press only arms it. */}
-      {confirming ? (
-        <Button
-          variant="destructive"
-          size="xs"
-          autoFocus
+      {!isStreaming && (
+        <IconButton
+          label="Delete chat"
           onClick={onDelete}
-          onBlur={() => setConfirming(false)}
-          className="absolute top-1 right-1"
+          className="absolute top-1 right-1 text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
         >
-          Delete
-        </Button>
-      ) : (
-        !isStreaming && (
-          <IconButton
-            label="Delete chat"
-            onClick={() => setConfirming(true)}
-            className="absolute top-1 right-1 text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
-          >
-            <TrashIcon />
-          </IconButton>
-        )
+          <TrashIcon />
+        </IconButton>
       )}
     </div>
   )
@@ -124,6 +109,11 @@ export function ChatHistoryMenu({
   onDelete: (chatId: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  // Deleting a chat can't be undone, so it asks first. The confirm lives
+  // outside the popover, which closes as it opens.
+  const [pendingDelete, setPendingDelete] = useState<ChatSessionData | null>(
+    null
+  )
   const history = closedChats.slice(0, HISTORY_LIMIT)
 
   // Load each row's log for its first line. Cached per chat, so reopening the
@@ -154,11 +144,28 @@ export function ChatHistoryMenu({
                 onReopen(chat.id)
                 setOpen(false)
               }}
-              onDelete={() => onDelete(chat.id)}
+              onDelete={() => {
+                setPendingDelete(chat)
+                setOpen(false)
+              }}
             />
           ))}
         </div>
       </PopoverContent>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDelete(null)
+        }}
+        verb="Delete"
+        itemName={pendingDelete?.label}
+        itemNoun="chat"
+        description="This chat will be removed from the history for everyone. This cannot be undone."
+        onConfirm={() => {
+          if (pendingDelete) onDelete(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
     </Popover>
   )
 }

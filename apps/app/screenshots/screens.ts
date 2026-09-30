@@ -2996,26 +2996,31 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
-    name: "confirm-delete-frame",
-    description: "Canvas sidebar → a frame's … menu → Delete.",
+    name: "delete-frame-toast",
+    description:
+      "Canvas sidebar → a frame's … menu → Delete: it goes at once, with Undo.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      // Frozen so a build without the confirm (the "before" half) deletes on
-      // screen only, never in the persisted world.
+      // Frozen so the delete happens on screen only, never in the persisted
+      // world.
       await freezeYjs(page)
       await chooseFromMenu(page, rowMenuTrigger(page, "Empty cart"), ["Delete"])
+      await page.getByText("Frame deleted").waitFor()
     },
     settleMs: 300,
   },
   {
-    name: "confirm-delete-group",
-    description: "Canvas sidebar → a Group's … menu → Delete.",
+    name: "delete-group-toast",
+    description:
+      "Canvas sidebar → a Group's … menu → Delete: its frames go at once, with Undo.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      // Frozen so a build without the confirm (the "before" half) deletes on
-      // screen only, never in the persisted world.
       await freezeYjs(page)
       await chooseFromMenu(page, rowMenuTrigger(page, "Checkout"), ["Delete"])
+      await page
+        .getByText(/deleted$/)
+        .first()
+        .waitFor()
     },
     settleMs: 300,
   },

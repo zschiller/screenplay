@@ -140,12 +140,21 @@ workspace.
 - Double-click to zoom to it.
 - Drag rows to reorder, move a layer into another group, or drop it between
   groups to start a new one.
-- **…** → **Rename** or **Delete**. Deleting from here asks you to confirm.
+- **…** → **Rename** or **Delete**. A delete happens at once, with **Undo** in a
+  toast.
 
 ## Undo
 
 <kbd>⌘</kbd> <kbd>Z</kbd> and <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> undo and
-redo canvas changes: moves, resizes, adds, deletes, and renames.
+redo your own canvas changes: moving, resizing, adding, deleting and renaming
+frames, documents and groups. A frame's page, its route and scroll, isn't part
+of undo. Your ⌘Z never undoes someone else's changes or the Coordinator's.
+
+Deleting a frame, document or group happens at once, whether from the layers
+list, the frame toolbar or the <kbd>Delete</kbd> key, and a toast offers
+**Undo**. Everyone on the canvas sees the delete, and the undo. Deleting a
+workspace or a repository still asks first, because undo can't bring those
+back.
 
 <Callout type="info">
   Undo covers the canvas layout only. It doesn't touch code: to reverse

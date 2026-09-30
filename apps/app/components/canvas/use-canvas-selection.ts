@@ -41,6 +41,8 @@ export interface CanvasSelectionDeps {
   removeIframeLayers: (ids: string[]) => void
   /** Remove Markdown Layers (and clean up their chats) through the seam. */
   removeDocumentLayers: (ids: string[]) => void
+  /** Runs both removals as one transaction, so one Undo brings both back. */
+  batch: (fn: () => void) => void
 }
 
 export interface CanvasSelection {
@@ -88,10 +90,8 @@ export interface CanvasSelection {
   setDocumentLayerIds: React.Dispatch<React.SetStateAction<Set<string>>>
 }
 
-export function useCanvasSelection(
-  deps: CanvasSelectionDeps
-): CanvasSelection {
-  const { groups, removeIframeLayers, removeDocumentLayers } = deps
+export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
+  const { groups, removeIframeLayers, removeDocumentLayers, batch } = deps
 
   const [iframeLayerIds, setIframeLayerIds] = useState<Set<string>>(new Set())
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set())
@@ -236,15 +236,17 @@ export function useCanvasSelection(
   const deleteSelected = useCallback((): boolean => {
     const result = resolveSelectionDelete(current(), groupSnapshotsRef.current)
     if (!result.hasRemovals) return false
-    if (result.removeIframeLayerIds.length > 0)
-      removeIframeLayers(result.removeIframeLayerIds)
-    if (result.removeMarkdownLayerIds.length > 0)
-      removeDocumentLayers(result.removeMarkdownLayerIds)
+    batch(() => {
+      if (result.removeIframeLayerIds.length > 0)
+        removeIframeLayers(result.removeIframeLayerIds)
+      if (result.removeMarkdownLayerIds.length > 0)
+        removeDocumentLayers(result.removeMarkdownLayerIds)
+    })
     setIframeLayerIds(new Set(result.nextSelection.iframeLayerIds))
     setGroupIds(new Set(result.nextSelection.groupIds))
     setDocumentLayerIds(new Set(result.nextSelection.markdownLayerIds))
     return true
-  }, [current, removeIframeLayers, removeDocumentLayers])
+  }, [current, removeIframeLayers, removeDocumentLayers, batch])
 
   const removeIframeLayerAndReselect = useCallback(
     (id: string) => {
