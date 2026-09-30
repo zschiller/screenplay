@@ -14,13 +14,16 @@
   --font-wordmark: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --color-selection: var(--selection);
   --color-plane: var(--plane);
+  --color-comment: var(--comment);
 }
 
 /* The canvas's selection magenta (apps/app `--canvas-selection`), used only
    where something on the page is "selected", and the canvas plane behind
-   frames (`--canvas-plane`), for the product excerpts. */
+   frames (`--canvas-plane`), for the product excerpts, and the comment pin's
+   yellow (`--canvas-comment`). */
 :root {
   --selection: oklch(0.667 0.295 322.15);
+  --comment: oklch(0.88 0.179 95);
   --plane: oklch(0.975 0 0);
 }
 .dark {
