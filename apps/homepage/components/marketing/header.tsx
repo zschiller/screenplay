@@ -40,7 +40,18 @@ export function Header() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center justify-end gap-5 text-[14.5px]">
+        <div className="flex items-center justify-end gap-4 text-[14.5px] sm:gap-5">
+          {/* Docs sits in the nav from md up; below that it joins GitHub here,
+              and the narrowest phones keep only the wordmark and Download. */}
+          <Link
+            href={docsUrl}
+            className={cn(
+              focusRing,
+              "text-muted-foreground transition-colors hover:text-foreground max-[359px]:hidden md:hidden"
+            )}
+          >
+            Docs
+          </Link>
           <a
             href={githubUrl}
             target="_blank"
@@ -48,7 +59,7 @@ export function Header() {
             // Muted like the nav, so Download is the one filled action.
             className={cn(
               focusRing,
-              "hidden text-muted-foreground transition-colors hover:text-foreground sm:block"
+              "text-muted-foreground transition-colors hover:text-foreground max-[419px]:hidden"
             )}
           >
             GitHub

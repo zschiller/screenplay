@@ -1,6 +1,6 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-import { focusRing, measure } from "./editorial"
+import { focusRing, measure, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const faqs = [
@@ -36,8 +36,12 @@ const faqs = [
 
 export function Faq() {
   return (
-    <section className={cn(measure, "pt-[clamp(72px,10vw,140px)]")}>
-      <SectionHeading slug="FAQ" title="Before you download." />
+    <section className={cn(measure, sectionTop)}>
+      <SectionHeading
+        slug="FAQ"
+        title="Before you download."
+        tier="reference"
+      />
       <div className="mt-12 border-t border-foreground">
         {faqs.map((f) => (
           <details

@@ -6,7 +6,7 @@ import {
   CreateWorkspacesExcerpt,
   PullRequestExcerpt,
 } from "../excerpts/steps"
-import { measure, monoLabel } from "./editorial"
+import { measure, monoLabel, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const scenes: {
@@ -43,10 +43,7 @@ const scenes: {
 
 export function Scenes() {
   return (
-    <section
-      id="how"
-      className={cn(measure, "scroll-mt-20 pt-[clamp(72px,10vw,140px)]")}
-    >
+    <section id="how" className={cn(measure, sectionTop)}>
       <SectionHeading
         slug="How it works"
         title="From one prompt to several running versions."
@@ -78,7 +75,7 @@ export function Scenes() {
             <span className={cn(monoLabel, "mt-2 text-muted-foreground")}>
               {slug}
             </span>
-            <h3 className="font-heading text-[22px] leading-[1.2] font-normal tracking-[-0.03em]">
+            <h3 className="font-heading text-[20px] leading-[1.2] font-normal tracking-[-0.03em]">
               {title}
             </h3>
             <p className="text-[15px] leading-normal text-muted-foreground">

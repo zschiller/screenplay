@@ -2,7 +2,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { docsUrl } from "@/lib/app-url"
 import { TeamExcerpt } from "../excerpts/team"
-import { buttonClass, measure } from "./editorial"
+import { buttonClass, measure, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const perks = [
@@ -22,12 +22,10 @@ const perks = [
 
 export function SelfHosting() {
   return (
-    <section
-      id="self-hosting"
-      className={cn(measure, "scroll-mt-20 pt-[clamp(72px,10vw,140px)]")}
-    >
+    <section id="self-hosting" className={cn(measure, sectionTop)}>
       <SectionHeading
         slug="Self-hosting"
+        tier="reference"
         title="Host it and review together."
       />
       <div className="mt-12 grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -46,9 +44,9 @@ export function SelfHosting() {
             {perks.map((p) => (
               <div
                 key={p.title}
-                className="flex flex-col gap-1.5 border-t border-border py-4.5 last:border-b"
+                className="flex flex-col gap-1.5 border-t border-border py-4.5 first:border-foreground last:border-b"
               >
-                <h3 className="font-heading text-[17px] leading-[1.25] font-normal tracking-[-0.03em]">
+                <h3 className="font-heading text-[20px] leading-[1.2] font-normal tracking-[-0.03em]">
                   {p.title}
                 </h3>
                 <p className="text-pretty text-muted-foreground">{p.body}</p>

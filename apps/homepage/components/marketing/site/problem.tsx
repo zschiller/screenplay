@@ -1,7 +1,7 @@
 import { cn } from "@workspace/ui/lib/utils"
 
 import { FrameExcerpt } from "../excerpts/canvas"
-import { measure, monoLabel } from "./editorial"
+import { measure, monoLabel, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
 const dance = [
@@ -16,7 +16,7 @@ const dance = [
 
 export function Problem() {
   return (
-    <section className={cn(measure, "pt-[clamp(72px,10vw,140px)]")}>
+    <section className={cn(measure, sectionTop)}>
       <SectionHeading
         slug="The problem"
         title="Three versions means three setups and three tabs."
