@@ -6,12 +6,7 @@ import {
   type AcpConsumerPorts,
   type ConsumerPlanCall,
 } from "./consumer"
-import {
-  supportsSteering,
-  type EngineUpdate,
-  type Engine,
-  type TakenSteer,
-} from "./engine-seam"
+import { type EngineUpdate, type Engine, type TakenSteer } from "./engine-seam"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import {
   AgentSideConnection,
@@ -892,6 +887,7 @@ export function steeringContractFor(
       const transitions: RunStatus[] = []
       const inbox: Array<{ id: string; text: string }> = []
       const taken: string[][] = []
+      const reports: boolean[] = []
       const sent: ModelMessage[][] = []
       const controller = new AbortController()
       const ports: AcpConsumerPorts = {
@@ -942,6 +938,9 @@ export function steeringContractFor(
               await consumer.acceptSteers(steers)
               return steers
             },
+            reportSteering: async (steers) => {
+              reports.push(steers)
+            },
           },
           (u) => {
             updates.push(u)
@@ -960,6 +959,7 @@ export function steeringContractFor(
         log,
         inbox,
         taken,
+        reports,
         sent,
         updates,
         transitions,
@@ -972,8 +972,12 @@ export function steeringContractFor(
       return last?.role === "user" ? last.content : undefined
     }
 
-    it("is a steering Engine", () => {
-      expect(supportsSteering(makeEngine(steppedDriver([], [])))).toBe(true)
+    it("says once, as its session opens, that the run takes Steers", async () => {
+      const t = steeringTurn([
+        [{ chunks: [textChunk("Hi.")], response: textResponse("Hi.") }],
+      ])
+      await t.run()
+      expect(t.reports).toEqual([true])
     })
 
     it("takes a Steer sent mid-tool-call at the next step boundary, logs it after that call, and carries on with it", async () => {

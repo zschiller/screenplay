@@ -18,7 +18,6 @@ import type {
   EngineTurn,
   EngineUpdateSink,
   PromptCacheUsage,
-  SteeringEngine,
   TakenSteer,
   UsageReportingEngine,
 } from "./engine-seam"
@@ -60,10 +59,9 @@ export type StreamDriver = (
  * ACP's informational `plan` update and handled ahead of the generic tool path.
  * At this point this engine can replace the legacy `runAgentLoop` outright.
  */
-export class InProcessEngine implements UsageReportingEngine, SteeringEngine {
+export class InProcessEngine implements UsageReportingEngine {
   readonly id = "in-process"
   readonly reportsUsage = true
-  readonly steers = true
 
   private usage: PromptCacheUsage | null = null
 

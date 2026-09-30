@@ -471,7 +471,11 @@ What a Chat Session talks to — a Branch's **sandbox**, a Markdown Layer (a
 document), or the whole **Room** (see **Room Target**). The target decides the
 system prompt and which Tools the model is given. On the client it is one
 value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `document`,
-`room`), which the chat store maps to the wire target in one place.
+`room`), which the chat store maps to the wire target in one place. What the
+Composer offers for each kind (skills, plan mode, element picking, placeholder,
+empty state and starters) is one row of the capability table in
+`lib/chat/chat-capabilities`; only the `agent` kind has a sandbox, so only it
+turns on skills, plan mode and element picking.
 _Avoid_: subject, destination.
 
 **Room Target** (planned, wayfinder #856):
@@ -512,10 +516,11 @@ A user message sent into a Chat Session while its run is `running`. It joins
 that run instead of starting a new one: it is **pending** until the Engine takes
 it at a step boundary, and **taken** from then on, when it becomes an ordinary
 user message where the Engine took it. A Steer the run never took starts the
-next turn, or, when the user stopped the run, goes back to its sender. Only an
-Engine with the steering capability takes Steers: the in-process engine, and
-the external engine on a Harness that queues prompts (Claude Code); elsewhere a
-mid-run message waits in the client's queue.
+next turn, or, when the user stopped the run, goes back to its sender. Whether a
+run takes Steers is a fact about the run, recorded once its Engine's session
+opens: yes on the in-process engine and on a Harness that queues prompts
+(Claude Code), no elsewhere. Until the run says yes, a mid-run message waits in
+the client's queue.
 _Shown to users as_: a dimmed user message, "Waiting for the agent", at the end
 of the chat.
 _Avoid_: queued message (the fallback where a chat can't steer), interrupt;

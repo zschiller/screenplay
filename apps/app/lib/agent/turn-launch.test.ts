@@ -11,7 +11,7 @@ import {
   type TurnStopDeps,
 } from "./turn-launch"
 
-const ENGINE = { run: async () => {} } as unknown as Engine
+const ENGINE: Engine = { id: "scripted", async run() {} }
 
 /** Turn Launch deps that record every side effect, in order, as one line each. */
 function recordingDeps(
@@ -322,7 +322,7 @@ describe("Turn Launch", () => {
         "persist fix it",
         "start run",
         "broadcast chat-stream-start",
-          "broadcast plan_resolved rejected",
+        "broadcast plan_resolved rejected",
         "broadcast user_message_chunk",
         "response sent",
         "drive run_1 planMode=false",
@@ -351,7 +351,7 @@ describe("Turn Launch", () => {
         "persist Approved the plan. Proceed with the implementation.",
         "start run",
         "broadcast chat-stream-start",
-          "broadcast plan_resolved approved",
+        "broadcast plan_resolved approved",
       ])
     })
 
@@ -631,7 +631,7 @@ describe("Turn Launch — steering (#1190)", () => {
           "persist use the v2 API\n\nand keep v1",
           "start run",
           "broadcast chat-stream-start",
-              "broadcast user_message_chunk",
+          "broadcast user_message_chunk",
           "drive run_1 planMode=false",
         ])
       })

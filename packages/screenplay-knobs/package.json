@@ -44,9 +44,9 @@
     "access": "public"
   },
   "devDependencies": {
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.3.0",
     "@workspace/typescript-config": "workspace:*",
-    "react": "^19.2.7",
+    "react": "^19.3.0",
     "typescript": "^5.9.3"
   },
   "scripts": {

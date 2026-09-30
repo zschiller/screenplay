@@ -145,7 +145,8 @@ describe("chat-store — steering a running turn (#1190)", () => {
     expect(state.queued).toMatchObject([
       { message: "then the cart", draft: { type: "doc" } },
     ])
-    expect(state.steerable).toBe(false)
+    // Whether the run steers is still what the run said, never guessed here.
+    expect(state.steerable).toBe(true)
     chatStore.cleanup(chatId)
   })
 

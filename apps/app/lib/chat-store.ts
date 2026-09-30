@@ -521,7 +521,7 @@ class ChatStore {
           local: { draft: opts.draft },
         })
       } else if (answer.kind === "not-steerable") {
-        this.update(chatId, { ...dropOptimistic(), steerable: false })
+        this.update(chatId, dropOptimistic())
         this.enqueue(opts)
       } else {
         this.lastTurn.set(chatId, opts)
@@ -584,7 +584,7 @@ class ChatStore {
           })
         }
       } else if (answer.kind === "not-steerable") {
-        this.update(chatId, { pendingSteers: without(), steerable: false })
+        this.update(chatId, { pendingSteers: without() })
         this.enqueue(opts)
       } else {
         this.update(chatId, { pendingSteers: without() })
