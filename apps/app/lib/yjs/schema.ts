@@ -7,6 +7,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   MemoryData,
+  MockupLayerData,
   PlanData,
   ViewportData,
   RepoData,
@@ -26,6 +27,8 @@ export const COLLECTION_KEYS = {
   iframeLayers: "iframeLayers",
   iframeLayerGroups: "iframeLayerGroups",
   markdownLayers: "markdownLayers",
+  /** Mockup Layers (#1267); their HTML lives in `mockup-layer-{id}` texts. */
+  mockupLayers: "mockupLayers",
   chatSessions: "chatSessions",
   plans: "plans",
   /** Canvas memory entries (#902), `lib/canvas/memory.ts`. */
@@ -227,6 +230,7 @@ export type RoomCollections = {
   iframeLayers: YjsCollection<IframeLayerData>
   iframeLayerGroups: YjsCollection<IframeLayerGroupData>
   markdownLayers: YjsCollection<MarkdownLayerData>
+  mockupLayers: YjsCollection<MockupLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   memories: YjsCollection<MemoryData>
@@ -277,6 +281,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     markdownLayers: new YjsCollection<MarkdownLayerData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.markdownLayers)
+    ),
+    mockupLayers: new YjsCollection<MockupLayerData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.mockupLayers)
     ),
     chatSessions: new YjsCollection<ChatSessionData>(
       doc,

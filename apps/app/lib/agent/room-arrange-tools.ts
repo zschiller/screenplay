@@ -7,6 +7,7 @@ import {
   groupContentWidth,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import {
   DEFAULT_IFRAME_LAYER_HEIGHT,
   DEFAULT_IFRAME_LAYER_WIDTH,
@@ -468,7 +469,7 @@ function newGroupAnchor(
     ORIGIN,
     size.width,
     size.height,
-    c.markdownLayers.toArray()
+    sizedLayersOf(c)
   )
 }
 
@@ -480,15 +481,15 @@ type GroupRect = { x: number; y: number; width: number; height: number }
 /** Every Group's canvas rect: its top-left corner and its row's extent. */
 function groupRects(c: RoomCollections): Map<string, GroupRect> {
   const frames = c.iframeLayers.toArray()
-  const documents = c.markdownLayers.toArray()
+  const sized = sizedLayersOf(c)
   return new Map(
     c.iframeLayerGroups.toArray().map((g) => [
       g.id,
       {
         x: g.x,
         y: g.y,
-        width: groupContentWidth(g, frames, documents),
-        height: groupContentHeight(g, frames, documents),
+        width: groupContentWidth(g, frames, sized),
+        height: groupContentHeight(g, frames, sized),
       },
     ])
   )

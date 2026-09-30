@@ -192,6 +192,7 @@ describe("deletedMessage", () => {
     iframeLayers: 0,
     iframeLayerGroups: 0,
     markdownLayers: 0,
+    mockupLayers: 0,
     memories: 0,
     ...c,
   })
@@ -206,6 +207,10 @@ describe("deletedMessage", () => {
         counts({ iframeLayers: 2, markdownLayers: 1, iframeLayerGroups: 1 })
       )
     ).toBe("3 items deleted")
+    expect(deletedMessage(counts({ mockupLayers: 1 }))).toBe("Mockup deleted")
+    expect(deletedMessage(counts({ markdownLayers: 1, mockupLayers: 2 }))).toBe(
+      "3 items deleted"
+    )
     expect(deletedMessage(counts({ iframeLayerGroups: 1 }))).toBe(
       "Group deleted"
     )

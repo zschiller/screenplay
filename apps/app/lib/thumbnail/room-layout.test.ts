@@ -5,6 +5,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
 } from "@/lib/types"
 
 // `readRoomCaptureLayout` reads the room Y.Doc through the Room's reader; stub
@@ -21,6 +22,7 @@ function withDoc(snapshot: {
   branches?: Map<string, BranchData>
   iframeLayers?: IframeLayerData[]
   markdownLayers?: MarkdownLayerData[]
+  mockupLayers?: MockupLayerData[]
   groups?: IframeLayerGroupData[]
 }) {
   readDoc.mockImplementation((fn: (c: unknown) => unknown) =>
@@ -29,6 +31,7 @@ function withDoc(snapshot: {
         branches: { toMap: () => snapshot.branches ?? new Map() },
         iframeLayers: { toArray: () => snapshot.iframeLayers ?? [] },
         markdownLayers: { toArray: () => snapshot.markdownLayers ?? [] },
+        mockupLayers: { toArray: () => snapshot.mockupLayers ?? [] },
         iframeLayerGroups: { toArray: () => snapshot.groups ?? [] },
       })
     )
@@ -76,6 +79,20 @@ describe("readRoomCaptureLayout", () => {
       label: "Spec",
       previewUrl: null,
     })
+  })
+
+  it("places a mockup layer as a captureless placeholder labeled by its title", async () => {
+    withDoc({
+      mockupLayers: [{ id: "m1", width: 300, height: 200, title: "Option A" }],
+      groups: [
+        { id: "g1", x: 0, y: 0, members: [{ kind: "mockup-layer", id: "m1" }] },
+      ],
+    })
+
+    const { frames, layouts } = await readRoomCaptureLayout(ROOM)
+
+    expect(layouts.get("m1")).toMatchObject({ width: 300, height: 200 })
+    expect(frames).toEqual([{ id: "m1", label: "Option A", previewUrl: null }])
   })
 
   it("keeps iframe-layer frames bound to their Branch's preview URL", async () => {

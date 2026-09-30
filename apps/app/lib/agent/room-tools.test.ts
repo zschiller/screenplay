@@ -130,6 +130,41 @@ describe("read_canvas", () => {
     expect(summary).toContain('- [term-1] "Claude Code" · Workspace ws-1')
   })
 
+  it("lists mockups, naming the Workspace each was made for", async () => {
+    const { collections } = makeHarness()
+    collections.mockupLayers.set("mock-1", {
+      id: "mock-1",
+      width: 1280,
+      height: 800,
+      title: "Option A",
+      branchId: "ws-1",
+    })
+    collections.mockupLayers.set("mock-2", {
+      id: "mock-2",
+      width: 720,
+      height: 800,
+      title: "Receipt",
+    })
+    collections.iframeLayerGroups.set("grp-1", {
+      id: "grp-1",
+      name: "Receipt",
+      x: 0,
+      y: 0,
+      members: [{ kind: "mockup-layer", id: "mock-2" }],
+    })
+
+    const summary = await readCanvas(portsOver(collections))
+
+    expect(summary).toContain(
+      '- [mock-1] "Option A" · 1280×800 · for Workspace ws-1'
+    )
+    expect(summary).toContain(
+      '- [mock-2] "Receipt" · 720×800 · standalone · Group grp-1'
+    )
+    // The Group's extent counts the mockup's box.
+    expect(summary).toContain('- [grp-1] "Receipt" · at 0, 0 · 720×800')
+  })
+
   it("reads records written after an earlier read", async () => {
     const { collections } = makeHarness()
     const ports = portsOver(collections)

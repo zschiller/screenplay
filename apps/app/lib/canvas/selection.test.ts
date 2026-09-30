@@ -16,7 +16,9 @@ import {
 // group projections) against plain Sets and member lists, the same way the
 // other lib/canvas pure cores (layout, snap, escape) are tested.
 
-function snapshot(overrides: Partial<SelectionSnapshot> = {}): SelectionSnapshot {
+function snapshot(
+  overrides: Partial<SelectionSnapshot> = {}
+): SelectionSnapshot {
   return {
     iframeLayerIds: new Set(),
     groupIds: new Set(),
@@ -47,6 +49,23 @@ function groups(): SelectionGroupSnapshot[] {
 }
 
 describe("expandSelectedGroups — cascade across kinds", () => {
+  it("cascades a selected group's Mockup Layers into the non-frame Set", () => {
+    const { iframeLayerIds, markdownLayerIds } = expandSelectedGroups(
+      snapshot({ groupIds: new Set(["g3"]) }),
+      [
+        {
+          id: "g3",
+          members: [
+            { kind: "iframe-layer", id: "c1" },
+            { kind: "mockup-layer", id: "m1" },
+          ],
+        },
+      ]
+    )
+    expect([...iframeLayerIds]).toEqual(["c1"])
+    expect([...markdownLayerIds]).toEqual(["m1"])
+  })
+
   it("includes both kinds of a selected group's members alongside direct selections", () => {
     const { iframeLayerIds, markdownLayerIds } = expandSelectedGroups(
       snapshot({

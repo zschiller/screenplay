@@ -644,6 +644,15 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: (page) => camera(page, VIEW.overview),
   }),
   screen({
+    name: "canvas-mockups",
+    description:
+      "A pricing mockup beside the live mobile page, on the Pricing experiments canvas.",
+    path: `/${ids.rooms.pricingExperiments}`,
+    cookies: SIDEBAR_ONLY,
+    // The mobile frame, then the first mockup after it in the Group.
+    prepare: (page) => camera(page, { x: -378, y: 130, zoom: 0.3 }),
+  }),
+  screen({
     name: "canvas-menu",
     description: "The Canvas breadcrumb's ⋯ menu.",
     path: ROOM,

@@ -1,6 +1,6 @@
 ---
 title: Core concepts
-description: Canvases, the Coordinator, repositories, workspaces, frames, groups, documents and their agents, and how they fit together.
+description: Canvases, the Coordinator, repositories, workspaces, frames, groups, documents, mockups and their agents, and how they fit together.
 ---
 
 # Core concepts
@@ -81,11 +81,17 @@ and plans. Documents are edited collaboratively, and you can chat with the
 agent about a document directly: it rewrites or appends to the page for you.
 → [Documents](/guides/documents)
 
+## Mockup
+
+A **mockup** is a static page an agent draws on the canvas to show a design
+option. It needs no dev server, so it shows up at once, beside the frame it
+explores or in a group of its own. → [Mockups](/guides/mockups)
+
 ## Group
 
-A **group** is a row of frames and documents laid out left to right, so the
+A **group** is a row of frames, documents and mockups laid out left to right, so the
 desktop and mobile versions of a page, or the steps of a flow, stay together.
-Every frame and document lives in one. When all of a group's frames show the
+Every frame, document and mockup lives in one. When all of a group's frames show the
 same workspace, as the screens of one flow do, the group names it once;
 otherwise each frame names its own.
 → [Groups](/guides/canvas#groups)
@@ -129,4 +135,5 @@ the source or the self-hosting docs:
 | Frame           | Iframe Layer       |
 | Group           | Iframe Layer Group |
 | Document        | Markdown Layer     |
+| Mockup          | Mockup Layer       |
 | Workspace agent | Engine             |

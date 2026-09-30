@@ -97,6 +97,7 @@ describe("fixture world — referential integrity", () => {
       const layerIds = [
         ...(doc.iframeLayers ?? []).map((l) => l.id),
         ...(doc.markdownLayers ?? []).map((l) => l.id),
+        ...(doc.mockupLayers ?? []).map((l) => l.id),
       ]
       // A Layer no Group references gets wrapped in a synthetic single-member
       // Group by the on-load migration — which silently rewrites the canvas the
@@ -112,10 +113,15 @@ describe("fixture world — referential integrity", () => {
     for (const { doc } of allRoomDocs()) {
       const iframeIds = new Set((doc.iframeLayers ?? []).map((l) => l.id))
       const markdownIds = new Set((doc.markdownLayers ?? []).map((l) => l.id))
+      const mockupIds = new Set((doc.mockupLayers ?? []).map((l) => l.id))
+      const pools = {
+        "iframe-layer": iframeIds,
+        "markdown-layer": markdownIds,
+        "mockup-layer": mockupIds,
+      }
       for (const group of doc.iframeLayerGroups ?? []) {
         for (const member of group.members) {
-          const pool = member.kind === "iframe-layer" ? iframeIds : markdownIds
-          expect(pool).toContain(member.id)
+          expect(pools[member.kind]).toContain(member.id)
         }
       }
     }
@@ -147,6 +153,19 @@ describe("fixture world — referential integrity", () => {
       const markdownIds = new Set((doc.markdownLayers ?? []).map((l) => l.id))
       for (const id of Object.keys(doc.markdownBodies ?? {})) {
         expect(markdownIds).toContain(id)
+      }
+    }
+  })
+
+  it("gives every Mockup Layer a page, and only Mockup Layers", () => {
+    for (const { doc } of allRoomDocs()) {
+      const mockupIds = (doc.mockupLayers ?? []).map((l) => l.id).sort()
+      expect(Object.keys(doc.mockupHtml ?? {}).sort()).toEqual(mockupIds)
+      for (const mockup of doc.mockupLayers ?? []) {
+        if (mockup.branchId)
+          expect((doc.branches ?? []).map((b) => b.id)).toContain(
+            mockup.branchId
+          )
       }
     }
   })

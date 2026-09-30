@@ -20,6 +20,7 @@ import {
   type AwarenessChange,
   type AwarenessLike,
 } from "@/lib/yjs/context"
+import { mockupHtml } from "@/lib/yjs/mockup-html"
 import {
   getRoomCollections,
   type RoomCollections,
@@ -33,6 +34,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   MemoryData,
+  MockupLayerData,
   PlanData,
   ViewportData,
   RepoData,
@@ -75,6 +77,25 @@ export function useIframeLayerGroups(): Array<IframeLayerGroupData> {
 
 export function useMarkdownLayers(): Array<MarkdownLayerData> {
   return useCollectionArray(useRoomCollections().markdownLayers)
+}
+
+export function useMockupLayers(): Array<MockupLayerData> {
+  return useCollectionArray(useRoomCollections().mockupLayers)
+}
+
+/** A Mockup Layer's page, kept current as the shared `Y.Text` changes. */
+export function useMockupHtml(layerId: string): string {
+  const { doc } = useYjs()
+  const text = useMemo(() => mockupHtml(doc, layerId), [doc, layerId])
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      text.observe(cb)
+      return () => text.unobserve(cb)
+    },
+    [text]
+  )
+  const getSnapshot = useCallback(() => text.toString(), [text])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 export function useRepos(): Array<RepoData> {

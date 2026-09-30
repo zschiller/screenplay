@@ -8,6 +8,7 @@ import {
   getGroupMembers,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import { memberBox, sizedLayersOf } from "@/lib/canvas/sized-layers"
 import type { GroupMember } from "@/lib/types"
 import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
 
@@ -105,7 +106,7 @@ export interface GroupActions {
   reorderIframeLayerGroups: (orderedIds: string[]) => void
   /** Rename a group. */
   renameIframeLayerGroup: (groupId: string, name: string) => void
-  /** Delete an entire group + all its members (iframeLayers, markdownLayers). */
+  /** Delete an entire group + all its members (frames, documents, mockups). */
   removeIframeLayerGroup: (groupId: string) => void
 }
 
@@ -234,10 +235,7 @@ export function useGroupActions({
       const members = getGroupMembers(group)
       if (members.length === 0) return
       const lastMember = members[members.length - 1]!
-      const lastSize =
-        lastMember.kind === "iframe-layer"
-          ? collections.iframeLayers.get(lastMember.id)
-          : collections.markdownLayers.get(lastMember.id)
+      const lastSize = memberBox(collections, lastMember)
       if (!lastSize) return
       const result = ops.addDocumentToGroup(groupId, {
         width: lastSize.width,
@@ -322,17 +320,7 @@ export function useGroupActions({
       // renumber sidebar order so it slots in at the requested index. Placement
       // (canvas-space) is the caller's job; the verb owns the member move,
       // group creation/naming, and source pruning.
-      const memberSize = (() => {
-        if (member.kind === "iframe-layer") {
-          const ab = collections.iframeLayers.get(member.id)
-          return ab ? { width: ab.width, height: ab.height } : null
-        }
-        if (member.kind === "markdown-layer") {
-          const d = collections.markdownLayers.get(member.id)
-          return d ? { width: d.width, height: d.height } : null
-        }
-        return null
-      })()
+      const memberSize = memberBox(collections, member)
       if (!memberSize) return
 
       const sourceWillEmpty =
@@ -348,7 +336,8 @@ export function useGroupActions({
         collections.iframeLayers.toArray(),
         { x: cx, y: cy },
         memberSize.width,
-        memberSize.height
+        memberSize.height,
+        sizedLayersOf(collections)
       )
 
       // One batch so the split + sidebar renumber land as a single undo step.
@@ -398,12 +387,16 @@ export function useGroupActions({
       const documentIds = members
         .filter((m) => m.kind === "markdown-layer")
         .map((m) => m.id)
+      const mockupIds = members
+        .filter((m) => m.kind === "mockup-layer")
+        .map((m) => m.id)
       // Compose both removal verbs under one batch so the group teardown is a
       // single transaction (one undo step). Each verb prunes the group as its
       // last member of that kind leaves.
       let removedChatIds: string[] = []
       ops.batch(() => {
         if (iframeLayerIds.length > 0) ops.removeLayers(iframeLayerIds)
+        if (mockupIds.length > 0) ops.removeMockups(mockupIds)
         if (documentIds.length > 0) {
           removedChatIds = ops.removeDocuments(documentIds).removedChatIds
         }

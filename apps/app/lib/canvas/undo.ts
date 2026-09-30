@@ -13,7 +13,7 @@ import { COLLECTION_KEYS } from "@/lib/yjs/schema"
  *   Everything that arrives from sync carries the provider as its origin, so
  *   another member's edits and the Coordinator's (it edits the server's copy,
  *   `lib/agent/room-arrange-tools.ts`) are never undone by someone's ⌘Z.
- * - Only edits to frames, documents, Groups and memory entries. A transaction
+ * - Only edits to frames, documents, mockups, Groups and memory entries. A transaction
  *   that only writes chat sessions or plans (run status, titles) is skipped,
  *   and so is one that touches repositories or Workspaces: those have
  *   server-side effects Undo can't reverse, so they keep their confirms.
@@ -40,6 +40,7 @@ const EDITABLE_KEYS = [
   COLLECTION_KEYS.iframeLayers,
   COLLECTION_KEYS.iframeLayerGroups,
   COLLECTION_KEYS.markdownLayers,
+  COLLECTION_KEYS.mockupLayers,
   COLLECTION_KEYS.memories,
 ] as const
 
@@ -215,12 +216,15 @@ export function createCanvasUndo(
 export function deletedMessage(counts: DeletedCounts): string {
   const frames = counts[COLLECTION_KEYS.iframeLayers]
   const documents = counts[COLLECTION_KEYS.markdownLayers]
+  const mockups = counts[COLLECTION_KEYS.mockupLayers]
   const memories = counts[COLLECTION_KEYS.memories]
   const count = (n: number, one: string, many: string) =>
     n === 1 ? `${one} deleted` : `${n} ${many} deleted`
-  if (frames > 0 && documents > 0) return `${frames + documents} items deleted`
+  const kinds = [frames, documents, mockups].filter((n) => n > 0)
+  if (kinds.length > 1) return `${frames + documents + mockups} items deleted`
   if (frames > 0) return count(frames, "Frame", "frames")
   if (documents > 0) return count(documents, "Document", "documents")
+  if (mockups > 0) return count(mockups, "Mockup", "mockups")
   if (memories > 0) return count(memories, "Memory", "memories")
   return "Group deleted"
 }

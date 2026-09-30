@@ -258,7 +258,7 @@ export type IframeLayerData = {
  * each new kind just adds its case here and registers a sizer in
  * `lib/canvas/layout.ts`.
  */
-export type GroupMemberKind = "iframe-layer" | "markdown-layer"
+export type GroupMemberKind = "iframe-layer" | "markdown-layer" | "mockup-layer"
 export type GroupMember = {
   kind: GroupMemberKind
   id: string
@@ -315,6 +315,24 @@ export type MarkdownLayerData = {
   width: number
   height: number
   title: string
+}
+
+/**
+ * A static HTML page an agent wrote, shown on the canvas without a Sandbox
+ * (issue #1267). Lives in a Group like the other layers. The page itself is a
+ * `Y.Text` keyed `mockup-layer-${id}` (resolved through `mockupHtml`), so it
+ * syncs like a document body; the record carries only size and title.
+ */
+export type MockupLayerData = {
+  id: string
+  width: number
+  height: number
+  title: string
+  /**
+   * The Workspace (Branch) the mockup was made for, when there is one: what
+   * building it (a later ticket) works in. Unset on a standalone mockup.
+   */
+  branchId?: string
 }
 
 export type ViewportData = {

@@ -5,6 +5,7 @@ const meta = {
   workspaces: "Workspaces",
   frames: "Frames",
   documents: "Documents",
+  mockups: "Mockups",
   coordinator: "The Coordinator",
   agent: "Workspace chats",
   terminals: "Terminal tabs",
