@@ -1,11 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useSyncExternalStore,
-} from "react"
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react"
 import { ClockIcon, XIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
@@ -29,6 +24,10 @@ import { userTurnMessage } from "@/lib/agent/user-turn"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { CoordinatorStart } from "@/lib/fresh-workspace"
 import type { ChatTarget } from "@/lib/chat/chat-target"
+import {
+  chatCapabilitiesOf,
+  type ChatCapabilities,
+} from "@/lib/chat/chat-capabilities"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceTasks } from "./workspace-task-row"
 import { isHarnessPlumbing } from "@/lib/agent/tool-name"
@@ -120,25 +119,9 @@ export function AgentChat({
 
   const markdownLayers = useMarkdownLayers()
 
-  // Sandbox-backed Agent chat vs. a Document (Markdown-Layer) or Coordinator
-  // (Room) chat. Neither of those has a sandbox, so three composer affordances
-  // that only make sense against a sandbox are switched off for them:
-  //
-  //   - the `/` skill menu — nothing to enumerate, no `read_skill` tool, so `/`
-  //     stays a literal slash;
-  //   - the Plan toggle — the Document toolset has no `submit_plan` gate, so a
-  //     plan-mode turn would change nothing (#743);
-  //   - element picking — there's no preview to pick from.
-  //
-  // The empty-state copy below splits on the same kind.
-  const chatKind = target.kind
-  const isAgentChat = chatKind === "agent"
-  const sandboxName = target.kind === "agent" ? target.sandboxName : undefined
-  const composerPlaceholder = isAgentChat
-    ? "Ask the agent… (@ document, / skill)"
-    : chatKind === "room"
-      ? "Ask the Coordinator… (@ to mention a document)"
-      : "Ask the agent… (@ to mention a document)"
+  // What the Composer offers and how the empty chat reads, for this chat's
+  // Chat Target kind (skills, plan mode and element picking need a sandbox).
+  const capabilities = chatCapabilitiesOf(target)
 
   // Keep the message list pinned to the bottom as content resolves —
   // react-markdown / code blocks / streaming tokens all change the height
@@ -270,7 +253,7 @@ export function AgentChat({
   //
   // The pick key is a **Branch id**: Element Targeting's eligibility rule
   // matches it against each frame's `branchId`.
-  const pickBranchId = target.kind === "agent" ? target.branchId : undefined
+  const { pickBranchId } = capabilities
   const handlePickElement = useCallback(() => {
     if (!pickBranchId) return Promise.resolve(null)
     return targetingStore.requestPick(pickBranchId)
@@ -366,7 +349,7 @@ export function AgentChat({
             <ChatLoadError onRetry={retryHistory} />
           ) : messages.length === 0 && !failedSend ? (
             <ChatEmptyState
-              kind={chatKind}
+              capabilities={capabilities}
               roomStart={roomStart}
               onPickStarter={(text) => composerRef.current?.insertText(text)}
             />
@@ -460,18 +443,22 @@ export function AgentChat({
         // The `/` menu lists this Branch's merged App ∪ Repo Skills, fetched
         // when the chat opens (so reopening after editing a Repo Skill
         // refreshes it); Document and Coordinator chats have no Skills.
-        skillSource={isAgentChat ? { sandboxName } : undefined}
+        skillSource={
+          capabilities.skills
+            ? { sandboxName: capabilities.skillSandboxName }
+            : undefined
+        }
         model={model}
         onModelChange={handleModelChange}
         planMode={planMode}
-        onPlanModeChange={isAgentChat ? onPlanModeChange : undefined}
+        onPlanModeChange={capabilities.planMode ? onPlanModeChange : undefined}
         onSubmit={handleSubmit}
         isStreaming={isStreaming}
         onStop={stopMessage}
         queueWhileStreaming
         steersWhileStreaming={steerable}
         draftKey={chatId}
-        placeholder={composerPlaceholder}
+        placeholder={capabilities.placeholder}
         aboveInput={
           queued.length > 0 ? (
             <ul aria-label="Queued messages" className="mb-2 space-y-1">
@@ -493,48 +480,24 @@ export function AgentChat({
   )
 }
 
-/** Starter prompts per Chat Target: a nudge at the kind of ask that works. */
-const FRAME_STARTERS = [
-  "Explain how this page is built",
-  "Tighten the spacing on mobile",
-  "Add a loading state",
-]
-const DOCUMENT_STARTERS = [
-  "Tighten the wording",
-  "Add a summary at the top",
-  "Turn this into a checklist",
-]
-const ROOM_STARTERS = [
-  "What's on this canvas?",
-  "Which Workspaces have a PR?",
-  "What changed in each Workspace?",
-]
-
 /**
- * The empty chat, worded for its Chat Target in the UI's own nouns: a frame
- * chat changes the Workspace's code (and so what its frames show), a Document
- * chat edits the Document, the Coordinator sees the whole canvas. On a fresh
- * canvas (#1182) the Coordinator asks what should change instead, and says
- * where the first ask runs. A starter fills the composer rather than sending,
- * so it can be edited first.
+ * The empty chat, worded for its Chat Target (see `lib/chat/chat-capabilities`).
+ * On a fresh canvas (#1182) the Coordinator asks what should change instead,
+ * and says where the first ask runs. A starter fills the composer rather than
+ * sending, so it can be edited first.
  */
 function ChatEmptyState({
-  kind,
+  capabilities,
   roomStart,
   onPickStarter,
 }: {
-  kind: ChatTarget["kind"]
+  capabilities: ChatCapabilities
+  /** Given only to the Coordinator's chat. */
   roomStart?: CoordinatorStart
   onPickStarter: (text: string) => void
 }) {
-  const fresh = kind === "room" && roomStart?.kind === "fresh"
-  const starters = fresh
-    ? []
-    : kind === "agent"
-      ? FRAME_STARTERS
-      : kind === "room"
-        ? ROOM_STARTERS
-        : DOCUMENT_STARTERS
+  const fresh = roomStart?.kind === "fresh"
+  const starters = fresh ? [] : capabilities.starters
   return (
     <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
       <div className="space-y-1">
@@ -543,20 +506,12 @@ function ChatEmptyState({
             ? roomStart.repoName
               ? `What should change in ${roomStart.repoName}?`
               : "What should change?"
-            : kind === "agent"
-              ? "Change what your frames show"
-              : kind === "room"
-                ? "Ask about this canvas"
-                : "Edit this Document"}
+            : capabilities.emptyTitle}
         </p>
         <p className="text-xs text-muted-foreground">
           {fresh
             ? "Your first ask runs in the Workspace on the canvas."
-            : kind === "room"
-              ? "The Coordinator sees every Workspace, frame and Document on this canvas."
-              : kind === "agent"
-                ? "The agent edits this Workspace's code and can run commands, and your frames update as it works."
-                : "The agent can rewrite and retitle it, and read any Document you @ mention."}
+            : capabilities.emptyBody}
         </p>
       </div>
       {starters.length > 0 && (
