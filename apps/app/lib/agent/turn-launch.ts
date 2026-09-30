@@ -75,6 +75,12 @@ export interface TurnRequest {
    * implicitly rejected, with this message as the feedback.
    */
   planDecision?: PlanDecision
+  /**
+   * Retry of the chat's failed turn (#1228). Its ask is already the last user
+   * message in the transcript, so the new turn runs on it rather than storing
+   * and echoing it again. Honoured only while the chat's latest run failed.
+   */
+  retry?: boolean
 }
 
 export interface PlanDecision extends PlanResolution {
@@ -162,6 +168,8 @@ export interface TurnLaunchDeps {
   ): Promise<{ id: string; status: "running" | "paused_for_plan" } | null>
   /** Whether a run is still `running`. */
   isRunActive(runId: string): Promise<boolean>
+  /** The status of the chat's most recent run, if it has one. */
+  latestRunStatus(chatId: string): Promise<RunStatus | null>
   /** The Steer inbox (#1190). */
   steers: Pick<SteerInbox, "add" | "drain" | "reclaim">
 }
@@ -192,7 +200,8 @@ export type TurnLaunchResult =
  *    explicit decision when resuming, otherwise an implicit rejection of any
  *    plan still pending (the message is the revision instruction). A decision
  *    on a plan that is no longer pending stops here.
- * 5. Persist the user message before starting the run.
+ * 5. Persist the user message before starting the run. A retry of a failed
+ *    turn persists and echoes nothing: its ask is already the chat's last.
  * 6. Broadcast `chat-stream-start` before whether the turn is steerable, the
  *    plan card flip and the user echo. Clients replay back to the latest start marker and the event log
  *    is trimmed on each start, so anything emitted earlier is lost to a
@@ -224,7 +233,12 @@ export async function launchTurn(
     roomId,
   })
 
-  if (!request.planDecision) {
+  // A retry that finds some other turn after the failed one sends its ask as
+  // new, like any message.
+  const retry =
+    request.retry === true && (await deps.latestRunStatus(chatId)) === "failed"
+
+  if (!request.planDecision && !retry) {
     const steered = await steerRunningTurn(deps, request, engine)
     if (steered) return steered
   }
@@ -237,7 +251,7 @@ export async function launchTurn(
     return { kind: "plan-already-resolved" }
   }
 
-  await deps.persistUserTurn(chatId, prepared.userText)
+  if (!retry) await deps.persistUserTurn(chatId, prepared.userText)
   const runId = await deps.startRun(chatId)
 
   await deps.broadcastStreamStart(roomId, chatId)
@@ -251,7 +265,9 @@ export async function launchTurn(
       ...resolvedPlan,
     })
   }
-  await deps.broadcastUpdate(roomId, chatId, userMessageChunk(message))
+  if (!retry) {
+    await deps.broadcastUpdate(roomId, chatId, userMessageChunk(message))
+  }
   const { branchRename, commentRequest } = prepared
 
   // Comments sent to the agent show as queued from here on.

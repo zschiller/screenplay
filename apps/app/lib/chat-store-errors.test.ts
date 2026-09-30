@@ -71,10 +71,68 @@ describe("chat-store — errors in plain words, with Retry", () => {
       detail: raw,
     })
 
-    // Retry sends the same ask again.
+    // Retry runs the same ask again, as a retry of the one already shown.
     const fetchMock = respond({ status: 200 })
     await chatStore.retryError(chatId, error)
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).message).toBe("Go")
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      message: "Go",
+      retry: true,
+    })
+    chatStore.cleanup(chatId)
+  })
+
+  it("Retry keeps one copy of the ask, however often the turn fails (#1228)", async () => {
+    const chatId = newChat()
+    respond({ status: 200 })
+    await chatStore.sendMessage({ roomId: "room", chatId, message: "Go" })
+    const fail = () =>
+      chatStore.handleBroadcastEvent({
+        type: "chat-control",
+        chatId,
+        id: nextId(),
+        control: { kind: "error", message: "model overloaded" },
+      })
+    const lastError = () => chatStore.getSnapshot(chatId).messages.at(-1)!
+
+    fail()
+    respond({ status: 200 })
+    await chatStore.retryError(chatId, lastError())
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      { role: "user", content: "Go" },
+    ])
+
+    // The retried turn fails too: Retry is offered again, on the same one copy.
+    fail()
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      { role: "user", content: "Go" },
+      expect.objectContaining({ role: "error" }),
+    ])
+    expect(chatStore.canRetryError(lastError())).toBe(true)
+    chatStore.cleanup(chatId)
+  })
+
+  it("a refused Retry puts the error back with Retry, not a second copy", async () => {
+    const chatId = newChat()
+    respond({ status: 200 })
+    await chatStore.sendMessage({ roomId: "room", chatId, message: "Go" })
+    chatStore.handleBroadcastEvent({
+      type: "chat-control",
+      chatId,
+      id: nextId(),
+      control: { kind: "error", message: "model overloaded" },
+    })
+
+    respond({ status: 503 })
+    const [, error] = chatStore.getSnapshot(chatId).messages
+    await chatStore.retryError(chatId, error)
+
+    const messages = chatStore.getSnapshot(chatId).messages
+    expect(messages).toEqual([
+      { role: "user", content: "Go" },
+      expect.objectContaining({ role: "error" }),
+    ])
+    expect(chatStore.getSnapshot(chatId).failedSend).toBeNull()
+    expect(chatStore.canRetryError(messages[1])).toBe(true)
     chatStore.cleanup(chatId)
   })
 

@@ -14,6 +14,7 @@ import {
   type AcpMessageRecord,
   type AcpToolCallRecord,
 } from "@/lib/agent/acp/record"
+import type { RunStatus } from "@/lib/agent/run-state"
 
 export async function upsertChat(params: {
   chatId: string
@@ -221,6 +222,22 @@ export async function findActiveRun(
     .limit(1)
   if (!row) return null
   return { id: row.id, status: row.status as "running" | "paused_for_plan" }
+}
+
+/**
+ * The status of the chat's most recent run, if it has one. A retry of a failed
+ * turn only runs as one while that run is still the chat's last (#1228).
+ */
+export async function latestRunStatus(
+  chatId: string
+): Promise<RunStatus | null> {
+  const [row] = await db
+    .select({ status: agentRun.status })
+    .from(agentRun)
+    .where(eq(agentRun.chatId, chatId))
+    .orderBy(desc(agentRun.startedAt))
+    .limit(1)
+  return (row?.status as RunStatus | undefined) ?? null
 }
 
 export async function findPendingToolCall(pendingId: string): Promise<{
