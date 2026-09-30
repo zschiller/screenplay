@@ -10,6 +10,8 @@ import { applyToolCallUpdate } from "@/lib/agent/acp/record"
 import { describeSendError, describeTurnError } from "@/lib/agent/chat-errors"
 import { confirmCardOf } from "@/lib/agent/confirm-card"
 import { withBasePath } from "@/lib/base-path"
+import { bareToolName } from "@/lib/agent/tool-name"
+import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
 import { isFixtureWorld } from "@/lib/fixture-world"
 
 export type ChatState = {
@@ -282,6 +284,13 @@ class ChatStore {
   private appliedEventIds = new Map<string, Set<string>>()
 
   /**
+   * Chats whose running (or about to start) turn this client asked for: set
+   * on each send or Steer, cleared when the run ends. Only the asker's view
+   * follows the Coordinator's `show_on_canvas`.
+   */
+  private askedHere = new Set<string>()
+
+  /**
    * Per-chat accumulator for the ACP text path (ADR 0006). ACP
    * `agent_message_chunk`s carry *deltas*, so we accumulate them here and keep
    * the trailing assistant message in sync. `active` tells us whether the
@@ -456,6 +465,7 @@ class ChatStore {
     const { chatId } = opts
     const state = this.getOrCreate(chatId)
     if (!opts.message.trim()) return false
+    this.askedHere.add(chatId)
     if (state.isStreaming) {
       if (state.steerable === false) {
         this.enqueue(opts)
@@ -501,6 +511,7 @@ class ChatStore {
       return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
+      if (!this.getOrCreate(chatId).isStreaming) this.askedHere.delete(chatId)
       if (retry) {
         this.appendError(chatId, describeSendError(msg), msg, () =>
           this.sendMessage(opts, true)
@@ -761,6 +772,7 @@ class ChatStore {
         if (wasStreaming) this.unreadChats.add(chatId)
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
+        this.askedHere.delete(chatId)
         this.update(chatId, { isStreaming: false, runStart: null })
         this.drainQueue(chatId)
         break
@@ -993,6 +1005,14 @@ class ChatStore {
         ? (prev[idx] as Extract<AgentMessage, { role: "tool_call" }>)
         : undefined
     const merged = applyToolCallUpdate(existing, update)
+    if (
+      merged.status === "completed" &&
+      existing?.status !== "completed" &&
+      this.askedHere.has(chatId) &&
+      bareToolName(merged.title) === "show_on_canvas"
+    ) {
+      viewRequests.emit({ chatId, ids: viewRequestIds(merged.rawInput) })
+    }
     const message: AgentMessage = {
       role: "tool_call",
       toolCallId: merged.toolCallId,

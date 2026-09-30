@@ -335,12 +335,139 @@ describe("arrange tools", () => {
   })
 })
 
+describe("arrange_groups", () => {
+  /** Three one-frame Groups piled on top of each other, 400×300 each. */
+  function pile(r: ReturnType<typeof room>) {
+    for (const [i, id] of ["a", "b", "c"].entries()) {
+      r.collections.iframeLayers.set(`f-${id}`, baseLayer(`f-${id}`))
+      seedGroup(r.collections, id, [{ kind: "iframe-layer", id: `f-${id}` }])
+      r.collections.iframeLayerGroups.update(id, { x: 100 + i * 10, y: 50 })
+    }
+  }
+  const corners = (r: ReturnType<typeof room>) =>
+    ["a", "b", "c"].map((id) => {
+      const g = r.collections.iframeLayerGroups.get(id)!
+      return [g.x, g.y]
+    })
+
+  it("lays Groups out in a row, a column or a grid from their corner", async () => {
+    const r = room()
+    pile(r)
+    const row = await r.turn()("arrange_groups", {
+      group_ids: ["c", "a", "b"],
+      layout: "row",
+    })
+    expect(row).toBe('Laid out Groups "c", "a", "b" in a row.')
+    expect(corners(r)).toEqual([
+      [700, 50],
+      [1300, 50],
+      [100, 50],
+    ])
+
+    await r.turn()("arrange_groups", {
+      group_ids: ["a", "b", "c"],
+      layout: "column",
+    })
+    expect(corners(r)).toEqual([
+      [100, 50],
+      [100, 550],
+      [100, 1050],
+    ])
+
+    await r.turn()("arrange_groups", {
+      group_ids: ["a", "b", "c"],
+      layout: "grid",
+    })
+    expect(corners(r)).toEqual([
+      [100, 50],
+      [700, 50],
+      [100, 550],
+    ])
+  })
+
+  it("starts below the rest of the canvas rather than overlap it, and undoes in one step", async () => {
+    const r = room()
+    pile(r)
+    const before = canvasState(r.doc).iframeLayerGroups
+    const result = await r.turn()("arrange_groups", {
+      group_ids: ["a", "b"],
+      layout: "row",
+    })
+    expect(result).toBe(
+      'Laid out Groups "a", "b" in a row, below the rest of the canvas.'
+    )
+    expect(corners(r)).toEqual([
+      [100, 550],
+      [700, 550],
+      [120, 50],
+    ])
+    await r.turn()("undo_changes")
+    expect(canvasState(r.doc).iframeLayerGroups).toEqual(before)
+  })
+
+  it("says when a move leaves Groups overlapping", async () => {
+    const r = room()
+    pile(r)
+    expect(await r.turn()("move_group", { group_id: "a", x: 2000, y: 0 })).toBe(
+      'Moved Group "a" to 2000, 0.'
+    )
+    expect(
+      await r.turn()("move_group", { group_id: "a", x: 300, y: 100 })
+    ).toBe('Moved Group "a" to 300, 100. It now overlaps "b", "c".')
+  })
+
+  it("lines a grid's columns up with the widest Group in each", async () => {
+    const r = room()
+    pile(r)
+    r.collections.iframeLayers.update("f-a", { width: 1000 })
+    await r.turn()("arrange_groups", {
+      group_ids: ["b", "a", "c"],
+      layout: "grid",
+      columns: 2,
+    })
+    // "c" starts row two under "b", and "a" sits right of the wide column.
+    expect(corners(r)).toEqual([
+      [700, 50],
+      [100, 50],
+      [100, 550],
+    ])
+  })
+
+  it("refuses a Group it doesn't know", async () => {
+    const r = room()
+    pile(r)
+    expect(
+      await r.turn()("arrange_groups", { group_ids: ["a", "x"], layout: "row" })
+    ).toBe("Error: no Group x.")
+  })
+})
+
+describe("show_on_canvas", () => {
+  it("names what it shows, and refuses ids it doesn't know", async () => {
+    const r = room()
+    seedCanvas(r)
+    const show = (ids?: string[]) =>
+      r.turn()("show_on_canvas", ids ? { ids } : {})
+    expect(await show(["frame-1", "group-1"])).toBe(
+      'Showed frame "Settings", Group "Checkout".'
+    )
+    expect(await show()).toBe("Showed the whole canvas.")
+    expect(await show(["nope"])).toBe(
+      "Error: no frame, document or Group nope."
+    )
+    // It moves a view, never the canvas.
+    expect(r.doc.getMap(CHANGE_LOG_KEY).size).toBe(0)
+  })
+})
+
 describe("read_canvas", () => {
   it("lists Groups, and the Group each frame and document is in", async () => {
     const r = room()
     seedCanvas(r)
     const summary = await r.turn()("read_canvas")
-    expect(summary).toContain('- [group-1] "Checkout" · at 40, 0 · 2 items')
+    expect(summary).toContain(
+      '- [group-1] "Checkout" · at 40, 0 · 750×300 · 2 items'
+    )
     expect(summary).toContain(
       '- [frame-1] "Settings" · /settings · 400×300 · Workspace ws-1 · Group group-1'
     )
