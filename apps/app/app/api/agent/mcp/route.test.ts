@@ -346,13 +346,16 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists only its dev server's tools", async () => {
+  it("lists only its dev server's tools and its own frame reads", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
       "restart_dev_server",
+      "view_frame",
+      "read_frame_html",
     ])
     expect(result.tools[0].annotations).toMatchObject({ readOnlyHint: true })
+    expect(result.tools[3].annotations).toMatchObject({ readOnlyHint: true })
   })
 
   it("reads the log of the Sandbox its token is bound to", async () => {

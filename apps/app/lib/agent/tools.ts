@@ -26,6 +26,7 @@ import {
 import { applyTextEdit } from "@/lib/agent/edit"
 import { buildDevServerTools } from "@/lib/agent/dev-server-tools"
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
+import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
 import {
   findCodeFiles,
   readCodeFile,
@@ -265,6 +266,10 @@ export function buildSandboxTools(ctx: ToolContext) {
     ...buildDevServerTools(
       liveDevServerPorts({ sandboxName: ctx.sandboxName, room: ctx.room })
     ),
+
+    // Any frame on the canvas, its own by default: a screenshot and the
+    // page's HTML (#1311).
+    ...chatFrameReadTools(ctx),
 
     // Human-in-the-loop: no execute. The loop halts on this tool call and
     // /api/agent/plan supplies the result after the user decides.

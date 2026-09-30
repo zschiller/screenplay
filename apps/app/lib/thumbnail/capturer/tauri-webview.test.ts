@@ -110,4 +110,52 @@ describe("TauriWebviewCapturer", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
   })
+
+  it("POSTs the preview, size and script to /evaluate and returns the text, or the shell's error", async () => {
+    let body = ""
+    let path = ""
+    let fail = false
+    const server = createServer((req, res) => {
+      path = req.url ?? ""
+      req.on("data", (c) => (body += c))
+      req.on("end", () => {
+        if (fail) {
+          res.writeHead(500)
+          res.end("the page has no Sandbox Bridge")
+        } else {
+          res.writeHead(200, { "content-type": "text/plain" })
+          res.end('{"markup":"<p>hi</p>"}')
+        }
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+    const { port } = server.address() as AddressInfo
+    process.env[TAURI_CONTROL_URL_ENV_VAR] = `http://127.0.0.1:${port}`
+    try {
+      const text = await getTauriWebviewCapturer().evaluate(
+        "http://feat-x.myapp.localhost:1355/",
+        { width: 375.4, height: 812 },
+        "return 1"
+      )
+      expect(path).toBe("/evaluate")
+      expect(JSON.parse(body)).toEqual({
+        renderUrl: "http://feat-x.myapp.localhost:1355/",
+        width: 375,
+        height: 812,
+        script: "return 1",
+      })
+      expect(text).toBe('{"markup":"<p>hi</p>"}')
+
+      fail = true
+      await expect(
+        getTauriWebviewCapturer().evaluate(
+          "http://feat-x.myapp.localhost:1355/",
+          { width: 375, height: 812 },
+          "return 1"
+        )
+      ).rejects.toThrow("the page has no Sandbox Bridge")
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
 })

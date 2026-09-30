@@ -2,7 +2,9 @@
 //!
 //! The sidecar can't run a headless Chromium, so its `TauriWebviewCapturer`
 //! POSTs `{ renderUrl }` to `/thumbnail` and expects PNG bytes back; the shell
-//! renders the page in a webview and screenshots it. It also can't open OS
+//! renders the page in a webview and screenshots it. `/evaluate` renders the
+//! same way but runs a script in the page instead and answers with the string
+//! it resolves to (an agent reading a frame's HTML, #1268). It also can't open OS
 //! dialogs, so `/pick-directory` opens a native folder picker (see `dialog`).
 //! The server binds its own ephemeral port (passed to the sidecar as
 //! `TAURI_CONTROL_URL`) so it never collides with the app's port.
@@ -28,12 +30,14 @@ const CAPTURE_LABEL: &str = "thumbnail-capture";
 /// an already-dropped — receiver.
 static CAPTURE_GEN: AtomicU64 = AtomicU64::new(0);
 
-/// The in-flight capture's result channel, keyed by its generation. The control
+/// The in-flight capture's result channel, keyed by its generation, and the
+/// script to run instead of snapshotting, for an `/evaluate`. The control
 /// server handles requests serially, so at most one capture is ever registered;
 /// the generation guards only against a stray page-load event outliving it.
 struct PendingCapture {
     generation: u64,
     tx: mpsc::Sender<Result<Vec<u8>, String>>,
+    script: Option<String>,
 }
 static PENDING: Mutex<Option<PendingCapture>> = Mutex::new(None);
 /// Fallback viewport, used only when the sidecar sends no usable width/height
@@ -61,6 +65,9 @@ struct ThumbnailRequest {
     width: Option<f64>,
     #[serde(default)]
     height: Option<f64>,
+    /// For `/evaluate`: the body of an async function to run in the page.
+    #[serde(default)]
+    script: Option<String>,
 }
 
 impl ThumbnailRequest {
@@ -77,7 +84,7 @@ impl ThumbnailRequest {
 }
 
 /// A tiny HTTP server bound to a localhost ephemeral port, serving `POST
-/// /thumbnail` and `POST /pick-directory`. Its lifetime is tied to the
+/// /thumbnail`, `POST /evaluate` and `POST /pick-directory`. Its lifetime is tied to the
 /// sidecar's (started in `sidecar::launch`, stopped in `Sidecar::shutdown`).
 pub struct ControlServer {
     port: u16,
@@ -133,7 +140,8 @@ fn serve(server: &Server, app: &AppHandle) {
             continue;
         }
 
-        if !request.url().starts_with("/thumbnail") {
+        let evaluate = request.url().starts_with("/evaluate");
+        if !evaluate && !request.url().starts_with("/thumbnail") {
             let _ = request.respond(Response::from_string("not found").with_status_code(404));
             continue;
         }
@@ -153,22 +161,39 @@ fn serve(server: &Server, app: &AppHandle) {
             }
         };
         let (width, height) = parsed.capture_size();
+        let script = if evaluate {
+            match parsed.script {
+                Some(script) => Some(script),
+                None => {
+                    let _ = request
+                        .respond(Response::from_string("missing script").with_status_code(400));
+                    continue;
+                }
+            }
+        } else {
+            None
+        };
 
-        match capture(app, &parsed.render_url, width, height) {
-            Ok(png) => {
-                let header =
-                    Header::from_bytes(&b"Content-Type"[..], &b"image/png"[..]).unwrap();
-                let _ = request.respond(Response::from_data(png).with_header(header));
+        match capture(app, &parsed.render_url, width, height, script) {
+            Ok(bytes) => {
+                let content_type: &[u8] = if evaluate {
+                    b"text/plain; charset=utf-8"
+                } else {
+                    b"image/png"
+                };
+                let header = Header::from_bytes(&b"Content-Type"[..], content_type).unwrap();
+                let _ = request.respond(Response::from_data(bytes).with_header(header));
             }
             Err(e) => {
-                eprintln!("[thumbnail] capture failed: {e}");
+                eprintln!("[thumbnail] {} failed: {e}", if evaluate { "evaluate" } else { "capture" });
                 let _ = request.respond(Response::from_string(e).with_status_code(500));
             }
         }
     }
 }
 
-/// Render `render_url` in the off-screen capture webview and return a PNG.
+/// Render `render_url` in the off-screen capture webview and return a PNG, or,
+/// with a `script`, the UTF-8 string that script resolved to in the page.
 ///
 /// Tauri v2 has no portable screenshot API (the one piece spike #407 left open),
 /// so this drives the underlying WKWebView's `takeSnapshot` on macOS.
@@ -183,13 +208,23 @@ fn serve(server: &Server, app: &AppHandle) {
 ///
 /// On any failure the capturer surfaces it and `captureRoomThumbnail`'s caller
 /// swallows it — a Room just shows no thumbnail.
-fn capture(app: &AppHandle, render_url: &str, width: f64, height: f64) -> Result<Vec<u8>, String> {
+fn capture(
+    app: &AppHandle,
+    render_url: &str,
+    width: f64,
+    height: f64,
+    script: Option<String>,
+) -> Result<Vec<u8>, String> {
     let (tx, rx) = mpsc::channel::<Result<Vec<u8>, String>>();
     let generation = CAPTURE_GEN.fetch_add(1, Ordering::Relaxed);
 
     // Register before navigating so the window's page-load handler can route
     // the resulting snapshot back to us.
-    *PENDING.lock().unwrap() = Some(PendingCapture { generation, tx });
+    *PENDING.lock().unwrap() = Some(PendingCapture {
+        generation,
+        tx,
+        script,
+    });
 
     // Window + webview work must run on the UI thread.
     let app_main = app.clone();
@@ -350,14 +385,14 @@ fn build_capture_window(
 /// newer capture superseded this one, so the stale load is dropped. Runs on the
 /// UI thread; `takeSnapshot`'s completion handler fires later on the same loop.
 fn snapshot_if_current(app: &AppHandle, generation: u64) {
-    let tx = {
+    let claimed = {
         let mut pending = PENDING.lock().unwrap();
         match pending.as_ref() {
-            Some(p) if p.generation == generation => pending.take().map(|p| p.tx),
+            Some(p) if p.generation == generation => pending.take(),
             _ => None,
         }
     };
-    let Some(tx) = tx else { return };
+    let Some(PendingCapture { tx, script, .. }) = claimed else { return };
 
     let Some(window) = app.get_webview_window(CAPTURE_LABEL) else {
         let _ = tx.send(Err("capture window vanished before snapshot".into()));
@@ -368,7 +403,11 @@ fn snapshot_if_current(app: &AppHandle, generation: u64) {
     {
         let tx_inner = tx.clone();
         let dispatched = window.with_webview(move |webview| unsafe {
-            macos::take_snapshot(webview.inner() as *mut objc2::runtime::AnyObject, tx_inner);
+            let wk = webview.inner() as *mut objc2::runtime::AnyObject;
+            match script {
+                Some(script) => macos::run_script(wk, &script, tx_inner),
+                None => macos::take_snapshot(wk, tx_inner),
+            }
         });
         if let Err(e) = dispatched {
             let _ = tx.send(Err(format!("with_webview failed: {e}")));
@@ -377,13 +416,14 @@ fn snapshot_if_current(app: &AppHandle, generation: u64) {
 
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = window;
+        let _ = (window, script);
         let _ = tx.send(Err("thumbnail capture is only implemented on macOS".into()));
     }
 }
 
 #[cfg(target_os = "macos")]
 mod macos {
+    use std::ffi::{c_char, CStr, CString};
     use std::sync::mpsc;
 
     use block2::RcBlock;
@@ -543,6 +583,72 @@ mod macos {
 
         let config: *mut AnyObject = std::ptr::null_mut();
         let _: () = msg_send![wk, takeSnapshotWithConfiguration: config, completionHandler: &*handler];
+    }
+
+    /// `wk` is the `WKWebView`. Runs `script` as the body of an async function
+    /// in the page's own world via `callAsyncJavaScript` (which, unlike
+    /// `evaluateJavaScript`, waits for a returned promise), and sends the
+    /// string it resolves to.
+    pub unsafe fn run_script(
+        wk: *mut AnyObject,
+        script: &str,
+        tx: mpsc::Sender<Result<Vec<u8>, String>>,
+    ) {
+        if wk.is_null() {
+            let _ = tx.send(Err("null WKWebView".into()));
+            return;
+        }
+        let Ok(body) = CString::new(script) else {
+            let _ = tx.send(Err("script contains a NUL byte".into()));
+            return;
+        };
+        let body: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: body.as_ptr()];
+        let arguments: *mut AnyObject = msg_send![class!(NSDictionary), dictionary];
+        let world: *mut AnyObject = msg_send![class!(WKContentWorld), pageWorld];
+        let main_frame: *mut AnyObject = std::ptr::null_mut();
+
+        let handler = RcBlock::new(move |result: *mut AnyObject, error: *mut AnyObject| {
+            if !error.is_null() {
+                let description: *mut AnyObject = msg_send![error, localizedDescription];
+                let message = ns_string(description)
+                    .unwrap_or_else(|| "the script failed in the page".into());
+                let _ = tx.send(Err(message));
+                return;
+            }
+            match ns_string(result) {
+                Some(text) => {
+                    let _ = tx.send(Ok(text.into_bytes()));
+                }
+                None => {
+                    let _ = tx.send(Err("the script didn't resolve to a string".into()));
+                }
+            }
+        });
+
+        let _: () = msg_send![
+            wk,
+            callAsyncJavaScript: body,
+            arguments: arguments,
+            inFrame: main_frame,
+            inContentWorld: world,
+            completionHandler: &*handler
+        ];
+    }
+
+    /// An `NSString`'s text, or `None` for nil or any other kind of object.
+    unsafe fn ns_string(obj: *mut AnyObject) -> Option<String> {
+        if obj.is_null() {
+            return None;
+        }
+        let is_string: bool = msg_send![obj, isKindOfClass: class!(NSString)];
+        if !is_string {
+            return None;
+        }
+        let utf8: *const c_char = msg_send![obj, UTF8String];
+        if utf8.is_null() {
+            return None;
+        }
+        Some(CStr::from_ptr(utf8).to_string_lossy().into_owned())
     }
 
     /// `NSImage` → TIFF → `NSBitmapImageRep` → PNG `NSData` → `Vec<u8>`.

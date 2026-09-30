@@ -18,6 +18,8 @@ import {
   DEV_SERVER_TOOL_ANNOTATIONS,
 } from "@/lib/agent/dev-server-tools"
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
+import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
+import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
 import { withRedactedOutput } from "@/lib/agent/toolset"
 import {
   handleMcpMessage,
@@ -59,19 +61,26 @@ export async function POST(req: Request) {
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
 
-  // A Workspace chat's harness gets its own dev server's tools, bound to the
-  // Sandbox its token was minted for.
+  // A Workspace chat's harness gets its own dev server's tools and the frame
+  // reads, bound to the Sandbox its token was minted for.
   if (binding.sandboxName) {
     const response = await handleMcpMessage(
       {
         name: COORDINATOR_MCP_SERVER_NAME,
         version: "1",
-        tools: withRedactedOutput(
-          buildDevServerTools(
+        tools: withRedactedOutput({
+          ...buildDevServerTools(
             liveDevServerPorts({ sandboxName: binding.sandboxName, room })
-          )
-        ),
-        annotations: DEV_SERVER_TOOL_ANNOTATIONS,
+          ),
+          ...chatFrameReadTools({
+            sandboxName: binding.sandboxName,
+            room,
+          }),
+        }),
+        annotations: {
+          ...DEV_SERVER_TOOL_ANNOTATIONS,
+          ...FRAME_READ_TOOL_ANNOTATIONS,
+        },
         onInitialize: (client) =>
           console.info(
             `[workspace-mcp] ${client.name ?? "client"} connected for ${binding.sandboxName}`

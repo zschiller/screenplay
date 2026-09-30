@@ -1,6 +1,10 @@
 import "server-only"
 
-import type { CaptureViewport, ThumbnailCapturer } from "./types"
+import type {
+  CaptureViewport,
+  FramePageReader,
+  ThumbnailCapturer,
+} from "./types"
 
 /**
  * The base URL of the Tauri shell's localhost control server, handed to the
@@ -12,6 +16,9 @@ export const TAURI_CONTROL_URL_ENV_VAR = "TAURI_CONTROL_URL"
 
 /** The control-server route that renders a URL in a webview and screenshots it. */
 const THUMBNAIL_CONTROL_PATH = "/thumbnail"
+
+/** The control-server route that renders a URL in a webview and runs a script. */
+const EVALUATE_CONTROL_PATH = "/evaluate"
 
 /**
  * Capturing in the desktop build can't spin up a headless Chromium — the whole
@@ -30,21 +37,12 @@ const CAPTURE_TIMEOUT_MS = 20_000
  * and Thumbnail Manifest write in `captureRoomThumbnail` — is unchanged, so this
  * is a drop-in sibling of the puppeteer capturer behind the same seam.
  */
-class TauriWebviewCapturer implements ThumbnailCapturer {
+class TauriWebviewCapturer implements ThumbnailCapturer, FramePageReader {
   async capture(
     previewUrl: string,
     viewport: CaptureViewport
   ): Promise<Buffer> {
-    const controlUrl = process.env[TAURI_CONTROL_URL_ENV_VAR]
-    if (!controlUrl) {
-      throw new Error(
-        `${TAURI_CONTROL_URL_ENV_VAR} is not set — the Tauri-webview capturer ` +
-          `can only run inside the desktop shell, which injects the control ` +
-          `server's URL at sidecar spawn time.`
-      )
-    }
-
-    const endpoint = new URL(THUMBNAIL_CONTROL_PATH, controlUrl)
+    const endpoint = controlEndpoint(THUMBNAIL_CONTROL_PATH)
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -69,8 +67,52 @@ class TauriWebviewCapturer implements ThumbnailCapturer {
 
     return Buffer.from(await response.arrayBuffer())
   }
+
+  /**
+   * The shell loads the page in the same background webview and settles it as
+   * for a snapshot, then runs `script` with WKWebView's
+   * `callAsyncJavaScript` and answers with the string it resolved to.
+   */
+  async evaluate(
+    previewUrl: string,
+    viewport: CaptureViewport,
+    script: string
+  ): Promise<string> {
+    const response = await fetch(controlEndpoint(EVALUATE_CONTROL_PATH), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        renderUrl: previewUrl,
+        width: Math.max(1, Math.round(viewport.width)),
+        height: Math.max(1, Math.round(viewport.height)),
+        script,
+      }),
+      signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).trim()
+      throw new Error(
+        detail ||
+          `Tauri control server returned ${response.status} ${response.statusText} ` +
+            `reading ${previewUrl}`
+      )
+    }
+    return response.text()
+  }
 }
 
-export function getTauriWebviewCapturer(): ThumbnailCapturer {
+function controlEndpoint(path: string): URL {
+  const controlUrl = process.env[TAURI_CONTROL_URL_ENV_VAR]
+  if (!controlUrl) {
+    throw new Error(
+      `${TAURI_CONTROL_URL_ENV_VAR} is not set — the Tauri-webview capturer ` +
+        `can only run inside the desktop shell, which injects the control ` +
+        `server's URL at sidecar spawn time.`
+    )
+  }
+  return new URL(path, controlUrl)
+}
+
+export function getTauriWebviewCapturer(): ThumbnailCapturer & FramePageReader {
   return new TauriWebviewCapturer()
 }
