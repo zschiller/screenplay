@@ -204,6 +204,7 @@ describe("createMockup", () => {
       width: 720,
       height: 800,
       title: "Receipt",
+      status: "current",
     })
     expect(collections.iframeLayerGroups.get(groupId)).toMatchObject({
       x: 40,
@@ -291,6 +292,24 @@ describe("updateMockup", () => {
 
     expect(mockupHtml(doc, mockupId).toString()).toBe("")
     expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A")
+  })
+
+  it("sets the status alone, keeping the title and page (#1310)", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { mockupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+    })!
+
+    ops.updateMockup(mockupId, { status: "built" })
+
+    expect(collections.mockupLayers.get(mockupId)).toMatchObject({
+      title: "Option A",
+      status: "built",
+    })
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A</p>")
   })
 
   it("reports a missing mockup and writes nothing", () => {

@@ -10,6 +10,8 @@ import {
   DEFAULT_IFRAME_LAYER_WIDTH,
 } from "@/lib/constants"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
+import { MOCKUP_STATUSES } from "@/lib/types"
+import { MOCKUP_STATUS_LABELS } from "@/lib/mockup-status"
 
 /**
  * A chat's Mockup tools (#1309): write a static HTML page onto the canvas as a
@@ -89,29 +91,41 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     update_mockup: tool({
       description:
-        "Rewrite a Mockup this chat made: replace its whole page, its title, or both. The canvas re-renders it in place. Only the chat that made a Mockup can change it.",
+        "Change a Mockup this chat made: replace its whole page, its title, its status, or any of them. The canvas re-renders it in place. Only the chat that made a Mockup can change it.",
       inputSchema: z.object({
         mockup_id: z.string().describe("The id create_mockup returned"),
         html: htmlSchema.optional(),
         title: z.string().min(1).max(120).optional(),
+        status: z
+          .enum(MOCKUP_STATUSES)
+          .optional()
+          .describe(
+            "Where this take stands, shown on its label: set-aside, current (every new Mockup starts here) or built. People on the canvas can change it too; use it however helps them follow the takes."
+          ),
       }),
-      execute: async ({ mockup_id, html, title }) => {
-        if (html === undefined && title === undefined) {
-          return "Nothing to change: pass html, title or both."
+      execute: async ({ mockup_id, html, title, status }) => {
+        if (html === undefined && title === undefined && status === undefined) {
+          return "Nothing to change: pass html, title or status."
         }
         const outcome = await ctx.room.mutateDoc(({ doc }) => {
           const collections = createRoomCollections(doc)
           const mockup = collections.mockupLayers.get(mockup_id)
           if (!mockup) return "missing" as const
           if (mockup.ownerChatId !== ctx.chatId) return "not-owner" as const
-          createCanvasOps(collections).updateMockup(mockup_id, { html, title })
+          createCanvasOps(collections).updateMockup(mockup_id, {
+            html,
+            title,
+            status,
+          })
           return "updated" as const
         })
         if (outcome === "missing") return `There's no Mockup ${mockup_id}.`
         if (outcome === "not-owner") {
           return `Mockup ${mockup_id} was made by another chat, and only the chat that made a Mockup can change it. Create your own with create_mockup.`
         }
-        return `Updated Mockup ${mockup_id}.`
+        return status
+          ? `Updated Mockup ${mockup_id}; its status is ${MOCKUP_STATUS_LABELS[status]}.`
+          : `Updated Mockup ${mockup_id}.`
       },
     }),
   }

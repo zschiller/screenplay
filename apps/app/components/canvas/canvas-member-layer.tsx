@@ -453,6 +453,7 @@ function CanvasMemberLayerImpl({
                 onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
                 onResize={layerMutations.resizeMockup}
                 onRename={layerMutations.renameMockup}
+                onSetStatus={layerMutations.setMockupStatus}
               />
             )
           }

@@ -399,13 +399,15 @@ since #1314).
 **Mockup Layer** (Mockup):
 A static HTML page a chat wrote, shown on the canvas with no Sandbox
 (#1309). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
-(`MockupLayerData`: size, title, and the `ownerChatId` of the chat that made
-it).
+(`MockupLayerData`: size, title, the `ownerChatId` of the chat that made
+it, and a **Mockup Status** of `set-aside`, `current` or `built` (#1310),
+which anyone on the canvas or its owning chat sets; nothing else reads it, and
+an unset status reads as `current`).
 It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no
 `allow-same-origin` and a Content Security Policy that blocks the network, so
 the page can never reach the app, its cookies or the canvas, and has no
 browser chrome. A Workspace chat creates one with `create_mockup` and rewrites
-its own with `update_mockup`; a new one joins the Group of the chat's latest
+its own (page, title or status) with `update_mockup`; a new one joins the Group of the chat's latest
 Mockup, else of its Workspace's frames. Like a chat-made Document, it names
 its chat's Workspace by the Group label rule. Not a Chat Target. Canvas selection carries it
 in the Markdown Layer Set: selection only tells frames apart from the other

@@ -333,7 +333,17 @@ export type MockupLayerData = {
    * Once that chat is gone the mockup stays and names none.
    */
   ownerChatId?: string
+  /**
+   * Where this take stands (#1310), set by anyone on the canvas or by its
+   * owning chat. Nothing else reads it: the chat decides what it means. Unset
+   * on a mockup made before statuses, which reads as `current`.
+   */
+  status?: MockupStatus
 }
+
+/** A Mockup's status (#1310), in menu order. */
+export const MOCKUP_STATUSES = ["set-aside", "current", "built"] as const
+export type MockupStatus = (typeof MOCKUP_STATUSES)[number]
 
 export type ViewportData = {
   x: number

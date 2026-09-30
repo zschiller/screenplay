@@ -119,6 +119,41 @@ describe("update_mockup", () => {
     expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A2")
   })
 
+  it("sets the status of the chat's own Mockup, which starts Current (#1310)", async () => {
+    const { run, collections } = chatTools()
+    const mockupId = idIn(
+      await run("create_mockup", { title: "Option A", html: "<p>A</p>" })
+    )
+    expect(collections.mockupLayers.get(mockupId)?.status).toBe("current")
+
+    const out = await run("update_mockup", {
+      mockup_id: mockupId,
+      status: "set-aside",
+    })
+
+    expect(out).toBe(`Updated Mockup ${mockupId}; its status is Set aside.`)
+    expect(collections.mockupLayers.get(mockupId)?.status).toBe("set-aside")
+  })
+
+  it("refuses the status of a Mockup another chat made", async () => {
+    const { run, ops, collections } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-2",
+    })!
+
+    const out = await run("update_mockup", {
+      mockup_id: mockupId,
+      status: "built",
+    })
+
+    expect(out).toContain("made by another chat")
+    expect(collections.mockupLayers.get(mockupId)?.status).toBe("current")
+  })
+
   it("refuses a Mockup another chat made", async () => {
     const { run, doc, ops } = chatTools()
     const { mockupId } = ops.createMockup({
