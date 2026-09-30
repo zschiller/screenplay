@@ -743,11 +743,13 @@ export function TurnSummaryRow({
         />
         <span className="min-w-0">
           {summary.text}
+          {/* A space, not a margin, so the chip starts flush when it wraps. */}
+          {failures.length > 0 && " "}
           {failures.length > 0 && (
             // Inline, so it follows the text onto a wrapped line.
             <span
               data-testid="turn-summary-failure"
-              className="mt-px ml-1.5 inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-top text-xs font-medium whitespace-nowrap text-foreground"
+              className="mt-px inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-top text-xs font-medium whitespace-nowrap text-foreground"
             >
               <WarningCircleIcon
                 aria-hidden
