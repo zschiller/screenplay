@@ -1,7 +1,6 @@
 import type { AgentMessage } from "@/lib/agent/types"
 import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
-import { parseUserMessage } from "@/lib/agent/message-markers"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { isNoReply } from "@/lib/agent/coordinator-wake"
 
@@ -73,7 +72,7 @@ export function foldFinishedTurns(
   for (const entry of entries) {
     if (entry.message.role === "user") {
       turns.push([entry], [])
-      if (parseUserMessage(entry.message.content).wakeFrom) {
+      if (entry.message.wakeFrom) {
         wakeTurns.add(turns.length - 1)
       }
     } else turns[turns.length - 1].push(entry)

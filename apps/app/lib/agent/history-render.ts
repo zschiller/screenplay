@@ -3,11 +3,7 @@ import type { ConfirmCard } from "@/lib/agent/confirm-card"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { blockText } from "@/lib/agent/acp/schema"
 import { contentBlocksToWire } from "@/lib/agent/acp/markers"
-import {
-  buildTargetedElementsFooter,
-  parseTargetedElementsFooter,
-  parseUserMessage,
-} from "@/lib/agent/message-markers"
+import { userTurnMessage } from "@/lib/agent/user-turn"
 
 /**
  * One entry in a chat's reload timeline (ADR 0006). Either an ACP-native
@@ -65,20 +61,11 @@ function renderRecord(record: AcpMessageRecord, out: AgentMessage[]): void {
   switch (record.role) {
     case "user": {
       // The durable record stores the decorated wire text (markers + mention
-      // `resource_link`s); recover the wire string losslessly, then strip the
-      // server prefixes so the UI shows the human's text — the one decoder for
-      // this format. Inline `[@…](mention:…)` / `[skill: …]` tokens are retained
-      // for the renderer's pills.
-      const wire = contentBlocksToWire(record.content)
-      const { body } = parseUserMessage(wire)
-      if (!body) break
-      // Re-attach the `Targeted elements:` footer (canonical + round-trippable)
-      // so the renderer can recover per-token hover detail on reload; the server
-      // prefixes and the referenced-docs footer stay stripped. `build([])` is
-      // "", so a turn with no targeted elements is unchanged.
-      const content =
-        body + buildTargetedElementsFooter(parseTargetedElementsFooter(wire))
-      out.push({ role: "user", content })
+      // `resource_link`s); recover the wire string losslessly, then project
+      // it the way the live echo is, so a reload shows what the live chat did
+      // (a wake stays hidden, a Delegated Message stays collapsed).
+      const message = userTurnMessage(contentBlocksToWire(record.content))
+      if (message.content) out.push(message)
       break
     }
     case "agent": {

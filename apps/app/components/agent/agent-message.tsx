@@ -67,8 +67,6 @@ import type { TurnSummary } from "@/lib/agent/turn-summary"
 import { bareToolName } from "@/lib/agent/tool-name"
 import {
   elementMarkersToPills,
-  parseTargetedElementsFooter,
-  parseUserMessage,
   skillMarkersToPills,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
@@ -1088,8 +1086,8 @@ function ElementHistoryToken({
 
 /**
  * The sent user-message bubble. Split into its own component so it can memoize
- * the markdown `components` map and the parsed footer detail against
- * `message.content`: the element-token highlight re-renders the Canvas subtree
+ * the markdown `components` map and the targeted-element detail against the
+ * message: the element-token highlight re-renders the Canvas subtree
  * this lives in, and a fresh `components` object each render would remount every
  * token (see `ElementHistoryToken`). Memoizing keeps the token instances stable
  * so an open HoverCard survives those re-renders.
@@ -1099,14 +1097,10 @@ function UserMessage({
 }: {
   message: AgentMessage & { role: "user" }
 }) {
-  const { delegatedFrom, wakeFrom } = useMemo(
-    () => parseUserMessage(message.content),
-    [message.content]
-  )
   // A Coordinator wake is the server's report on a Workspace turn, not
   // something anyone said (#897).
-  if (wakeFrom) return null
-  return delegatedFrom ? (
+  if (message.wakeFrom) return null
+  return message.delegatedFrom ? (
     <DelegatedMessage message={message} />
   ) : (
     <UserBubble message={message} />
@@ -1152,28 +1146,21 @@ function UserBubble({
   message: AgentMessage & { role: "user" }
   align?: "start" | "end"
 }) {
-  // Strip the server turn prefixes and the referenced-documents / targeted-
-  // elements footers via the Message Markers codec, then recover the inline
-  // chips: `skillMarkersToPills` for the `/`-skill marker and
-  // `elementMarkersToPills` for each `[element: …]` element token — the same
-  // markers the composer's `serializeSkill` / `serializeElement` emit, rendered
-  // back as inline references below.
+  // The user-turn projection already stripped the server prefixes and the
+  // footers; recover the inline chips: `skillMarkersToPills` for the
+  // `/`-skill marker and `elementMarkersToPills` for each `[element: …]`
+  // element token — the same markers the composer's `serializeSkill` /
+  // `serializeElement` emit, rendered back as inline references below.
   const displayContent = useMemo(
-    () =>
-      elementMarkersToPills(
-        skillMarkersToPills(parseUserMessage(message.content).body)
-      ),
+    () => elementMarkersToPills(skillMarkersToPills(message.content)),
     [message.content]
   )
-  // The terse inline label hides the messy detail; recover it from the
-  // `Targeted elements:` footer, keyed by the same `ref` the inline `element:`
-  // link carries, so each history token can hang a hover card off it.
+  // The terse inline label hides the messy detail; the projection carries it,
+  // keyed by the same `ref` the inline `element:` link carries, so each
+  // history token can hang a hover card off it.
   const targetedElements = useMemo(
-    () =>
-      new Map(
-        parseTargetedElementsFooter(message.content).map((e) => [e.ref, e])
-      ),
-    [message.content]
+    () => new Map((message.targetedElements ?? []).map((e) => [e.ref, e])),
+    [message.targetedElements]
   )
   const components = useMemo<Components>(
     () => ({

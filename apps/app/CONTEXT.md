@@ -483,6 +483,15 @@ Coordinator", that expands to the message and links back to the sending chat
 _Avoid_: forwarding, relay; hidden subagent work (delegation is always visible
 in the Branch's own chat).
 
+**User-turn projection**:
+The one mapping from a user turn's wire text (persisted, or echoed live) to the
+message the chat draws: the human's text without server markers or footers,
+plus typed fields saying whether it is a Coordinator wake or a Delegated
+Message and which preview elements it targets (`lib/agent/user-turn.ts`). The
+UI reads those fields, never the markers, so a chat looks the same live and
+after a reload.
+_Avoid_: parsing markers in the UI.
+
 **Steer**:
 A user message sent into a Chat Session while its run is `running`. It joins
 that run instead of starting a new one: it is **pending** until the Engine takes

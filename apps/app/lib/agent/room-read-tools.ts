@@ -12,6 +12,7 @@ import { renderFileWindow } from "@/lib/agent/render"
 import { truncateOutput } from "@/lib/agent/search"
 import { summarizeSteps } from "@/lib/agent/turn-summary"
 import type { AgentMessage } from "@/lib/agent/types"
+import { buildTargetedElementsFooter } from "@/lib/agent/message-markers"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
 import type { ChatSessionData } from "@/lib/types"
@@ -279,7 +280,7 @@ export function renderLastTurn(messages: readonly AgentMessage[]): string {
   })
   if (start === -1) return "No messages yet."
 
-  const ask = (messages[start] as { content: string }).content
+  const ask = userTurnText(messages[start] as UserMessage)
   const steps = messages.slice(start + 1)
   const { text, failures } = summarizeSteps(groupToolCalls([...steps]))
   const didWork = steps.some((m) => m.role === "tool_call")
@@ -318,7 +319,7 @@ export function renderTranscript(messages: readonly AgentMessage[]): string {
   const lines = messages.flatMap((m): string[] => {
     switch (m.role) {
       case "user":
-        return [`User: ${m.content}`]
+        return [`User: ${userTurnText(m)}`]
       case "assistant":
         return [`Agent: ${m.content}`]
       case "tool_call":
@@ -352,6 +353,17 @@ function imageOutput(caption: string, image: FrameImage): ImageToolOutput {
 /** A collection's current records, read from the raw Y.Map (see room-tools). */
 function records<T>(collections: RoomCollections, key: string): T[] {
   return Object.values(collections.doc.getMap(key).toJSON()) as T[]
+}
+
+type UserMessage = Extract<AgentMessage, { role: "user" }>
+
+/**
+ * A user turn as an agent reads it: the human's text with the
+ * `Targeted elements:` footer the projection lifted into a field put back,
+ * since the route and selector are what an agent acts on.
+ */
+function userTurnText(m: UserMessage): string {
+  return m.content + buildTargetedElementsFooter(m.targetedElements ?? [])
 }
 
 function clip(text: string, max: number): string {

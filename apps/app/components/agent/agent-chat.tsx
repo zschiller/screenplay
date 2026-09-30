@@ -27,7 +27,7 @@ import {
   type TranscriptItem,
 } from "@/lib/agent/turn-summary"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
-import { parseUserMessage } from "@/lib/agent/message-markers"
+import { userTurnMessage } from "@/lib/agent/user-turn"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { CoordinatorStart } from "@/lib/fresh-workspace"
 import { workspaceLabel } from "@/lib/workspace-label"
@@ -738,7 +738,7 @@ function FailedSendNotice({
     <div className="flex flex-col items-end gap-1" data-testid="failed-send">
       <div className="w-full">
         <AgentMessageItem
-          message={{ role: "user", content: message }}
+          message={userTurnMessage(message)}
           roomId={roomId}
           chatId={chatId}
         />
@@ -776,7 +776,7 @@ function PendingSteerNotice({
     <div className="flex flex-col items-end gap-1" data-testid="pending-steer">
       <div className="w-full opacity-60">
         <AgentMessageItem
-          message={{ role: "user", content: message }}
+          message={userTurnMessage(message)}
           roomId={roomId}
           chatId={chatId}
         />
@@ -818,14 +818,12 @@ function QueuedRow({
 
 /**
  * The Workspace a running Coordinator turn is catching up on, when the turn
- * answers a wake (#897): read from the last user message's marker.
+ * answers a wake (#897): the last user message's wake.
  */
 function runningWakeFrom(messages: AgentMessage[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
-    if (message.role === "user") {
-      return parseUserMessage(message.content).wakeFrom
-    }
+    if (message.role === "user") return message.wakeFrom
   }
   return undefined
 }
