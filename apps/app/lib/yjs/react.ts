@@ -9,11 +9,7 @@ import {
   useSyncExternalStore,
 } from "react"
 import * as Y from "yjs"
-import {
-  createCanvasUndo,
-  type CanvasUndo,
-  type DeleteStep,
-} from "@/lib/canvas/undo"
+import { createCanvasUndo, type CanvasUndo } from "@/lib/canvas/undo"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import {
   useYjs,
@@ -106,21 +102,14 @@ export function useSavedViewport(): ViewportData | null {
  * ⌘Z / ⌘⇧Z for the canvas: this member's own edits to frames, documents,
  * Groups and memory (see `lib/canvas/undo.ts` for exactly what's tracked).
  * Text fragments (`text-{layerId}`) have their own UndoManager owned by the
- * TipTap editor, so they're not double-tracked here. `onDelete` fires for each
- * delete step, so the caller can offer Undo in a toast.
+ * TipTap editor, so they're not double-tracked here.
  */
-export function useYjsHistory(onDelete?: (step: DeleteStep) => void) {
+export function useYjsHistory() {
   const { doc } = useYjs()
   const undoRef = useRef<CanvasUndo | null>(null)
-  const onDeleteRef = useRef(onDelete)
-  useEffect(() => {
-    onDeleteRef.current = onDelete
-  })
 
   useEffect(() => {
-    const undo = createCanvasUndo(doc, {
-      onDelete: (step) => onDeleteRef.current?.(step),
-    })
+    const undo = createCanvasUndo(doc)
     undoRef.current = undo
     return () => {
       undo.destroy()

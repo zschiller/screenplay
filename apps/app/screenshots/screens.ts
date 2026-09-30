@@ -2992,31 +2992,32 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
-    name: "delete-frame-toast",
+    name: "delete-frame",
     description:
-      "Canvas sidebar → a frame's … menu → Delete: it goes at once, with Undo.",
+      "Canvas sidebar → a frame's … menu → Delete: it goes at once, with no toast (⌘Z brings it back).",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       // Frozen so the delete happens on screen only, never in the persisted
       // world.
       await freezeYjs(page)
       await chooseFromMenu(page, rowMenuTrigger(page, "Empty cart"), ["Delete"])
-      await page.getByText("Frame deleted").waitFor()
+      await page
+        .getByText("Empty cart", { exact: true })
+        .waitFor({ state: "detached" })
     },
     settleMs: 300,
   },
   {
-    name: "delete-group-toast",
+    name: "delete-group",
     description:
-      "Canvas sidebar → a Group's … menu → Delete: its frames go at once, with Undo.",
+      "Canvas sidebar → a Group's … menu → Delete: its frames go at once, with no toast (⌘Z brings them back).",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await freezeYjs(page)
       await chooseFromMenu(page, rowMenuTrigger(page, "Checkout"), ["Delete"])
       await page
-        .getByText(/deleted$/)
-        .first()
-        .waitFor()
+        .getByText("Empty cart", { exact: true })
+        .waitFor({ state: "detached" })
     },
     settleMs: 300,
   },

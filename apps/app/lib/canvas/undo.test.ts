@@ -1,12 +1,7 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { addMemory, removeMemory } from "@/lib/canvas/memory"
-import {
-  createCanvasUndo,
-  deletedMessage,
-  type DeletedCounts,
-  type DeleteStep,
-} from "@/lib/canvas/undo"
+import { createCanvasUndo } from "@/lib/canvas/undo"
 import { COLLECTION_KEYS } from "@/lib/yjs/schema"
 import {
   baseBranch,
@@ -34,10 +29,9 @@ function canvas() {
     { kind: "iframe-layer", id: "frame-2" },
     { kind: "markdown-layer", id: "doc-1" },
   ])
-  const steps: DeleteStep[] = []
   // Created after seeding, as the canvas mounts after the room loads.
-  const undo = createCanvasUndo(h.doc, { onDelete: (s) => steps.push(s) })
-  return { ...h, undo, steps }
+  const undo = createCanvasUndo(h.doc)
+  return { ...h, undo }
 }
 
 describe("⌘Z", () => {
@@ -125,89 +119,39 @@ describe("⌘Z", () => {
   })
 })
 
-describe("a delete step", () => {
-  it("reports what went and undoes exactly that", () => {
-    const { ops, collections, steps } = canvas()
+describe("a delete", () => {
+  it("is its own undo step, apart from the edit just before it", () => {
+    const { ops, collections, undo } = canvas()
     ops.patch("iframeLayerGroups", "group-1", { x: 200 })
     // Straight after the move: it must not join the move's step.
     ops.removeLayers(["frame-1", "frame-2"])
 
-    expect(steps).toHaveLength(1)
-    expect(deletedMessage(steps[0]!.counts)).toBe("2 frames deleted")
-
-    steps[0]!.undo()
+    undo.undo()
     expect(collections.iframeLayers.has("frame-1")).toBe(true)
     expect(collections.iframeLayers.has("frame-2")).toBe(true)
     expect(collections.iframeLayerGroups.get("group-1")?.x).toBe(200)
   })
 
-  it("settles when ⌘Z undoes it", () => {
-    const { ops, undo, steps } = canvas()
+  it("doesn't take in the edit just after it", () => {
+    const { ops, collections, undo } = canvas()
     ops.removeLayers(["frame-1"])
-    const settled = vi.fn()
-    steps[0]!.onSettled(settled)
-
-    undo.undo()
-    expect(settled).toHaveBeenCalledOnce()
-  })
-
-  it("stops undoing once a newer edit is on the stack", () => {
-    const { ops, collections, steps } = canvas()
-    ops.removeLayers(["frame-1"])
-    const settled = vi.fn()
-    steps[0]!.onSettled(settled)
     ops.patch("iframeLayerGroups", "group-1", { x: 200 })
-    expect(settled).toHaveBeenCalledOnce()
 
-    steps[0]!.undo()
+    undo.undo()
     expect(collections.iframeLayers.has("frame-1")).toBe(false)
-    expect(collections.iframeLayerGroups.get("group-1")?.x).toBe(200)
-  })
-
-  it("isn't reported for a redo or for undoing a creation", () => {
-    const { ops, undo, steps } = canvas()
-    ops.removeLayers(["frame-1"])
+    expect(collections.iframeLayerGroups.get("group-1")?.x).toBe(0)
     undo.undo()
-    undo.redo()
-    ops.createDocument({ x: 0, y: 0 }, { width: 300, height: 200 })
-    undo.undo()
-    expect(steps).toHaveLength(1)
+    expect(collections.iframeLayers.has("frame-1")).toBe(true)
   })
 
   it("covers a canvas memory entry", () => {
-    const { collections, steps, undo } = canvas()
+    const { collections, undo } = canvas()
     const entry = addMemory(collections, { text: "Use pnpm", source: "member" })
     removeMemory(collections, entry!.id)
 
-    expect(deletedMessage(steps[0]!.counts)).toBe("Memory deleted")
-    steps[0]!.undo()
+    undo.undo()
     expect(collections.memories.get(entry!.id)?.text).toBe("Use pnpm")
     undo.undo()
     expect(collections.memories.has(entry!.id)).toBe(false)
-  })
-})
-
-describe("deletedMessage", () => {
-  const counts = (c: Partial<DeletedCounts>): DeletedCounts => ({
-    iframeLayers: 0,
-    iframeLayerGroups: 0,
-    markdownLayers: 0,
-    memories: 0,
-    ...c,
-  })
-
-  it("names what went", () => {
-    expect(deletedMessage(counts({ iframeLayers: 1 }))).toBe("Frame deleted")
-    expect(deletedMessage(counts({ markdownLayers: 2 }))).toBe(
-      "2 documents deleted"
-    )
-    expect(
-      deletedMessage(
-        counts({ iframeLayers: 2, markdownLayers: 1, iframeLayerGroups: 1 })
-      )
-    ).toBe("3 items deleted")
-    expect(deletedMessage(counts({ iframeLayerGroups: 1 }))).toBe(
-      "Group deleted"
-    )
   })
 })
