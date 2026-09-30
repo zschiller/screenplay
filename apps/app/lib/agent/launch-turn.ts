@@ -33,6 +33,8 @@ export async function launchEngineTurn(params: {
   planMode?: boolean
   /** The turn answers a Coordinator wake; its no-reply line never shows. */
   wake?: boolean
+  /** Where the Engine says whether this run takes Steers (#1250). */
+  reportSteering(steers: boolean): Promise<void>
 }): Promise<void> {
   const {
     engine,
@@ -44,6 +46,7 @@ export async function launchEngineTurn(params: {
     tools,
     planMode,
     wake,
+    reportSteering,
   } = params
   const consumer = new AcpUpdateConsumer(
     liveAcpConsumerPorts(roomId, chatId, runId),
@@ -62,11 +65,7 @@ export async function launchEngineTurn(params: {
             id: steer.id,
             content: wireToContentBlocks(steer.message),
           })),
-        declineSteers: () =>
-          broadcastControl(roomId, chatId, {
-            kind: "steerable",
-            steerable: false,
-          }),
+        reportSteering,
       }
     )
   } catch (e) {

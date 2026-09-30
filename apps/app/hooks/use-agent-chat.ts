@@ -126,8 +126,8 @@ export function useAgentChat({
     failedSend: state.failedSend,
     queued: state.queued,
     pendingSteers: state.pendingSteers,
-    // A chat steers unless its running turn said it can't.
-    steerable: state.steerable !== false,
+    // A chat steers only once its running turn said it can (#1250).
+    steerable: state.steerable === true,
     returnedSteers: state.returnedSteers,
     sendMessage,
     stopMessage,

@@ -26,10 +26,11 @@ export interface DriveTurnDeps {
    */
   takeSteers?(runId: string): Promise<TakenSteer[]>
   /**
-   * The Engine can't take Steers on this turn after all (#1191); clients
-   * should queue mid-run messages instead.
+   * Where the run's answer to "does it take Steers?" goes (#1250). A steering
+   * Engine reports once its session is open; for any other the answer is no,
+   * given before the Engine runs.
    */
-  declineSteers?(runId: string): Promise<void>
+  reportSteering?(steers: boolean): Promise<void>
 }
 
 /**
@@ -79,9 +80,11 @@ export async function driveEngineTurn(
   // A steering Engine pulls the run's pending Steers at each step boundary;
   // they are settled into the transcript before the Engine hands them to the
   // model, so the log and every client put them where the agent took them.
-  const { takeSteers } = deps
+  const { takeSteers, reportSteering } = deps
+  const canSteer = Boolean(takeSteers) && supportsSteering(engine)
+  if (!canSteer) await reportSteering?.(false)
   const steerable =
-    takeSteers && supportsSteering(engine)
+    takeSteers && canSteer
       ? {
           ...turn,
           takeSteers: async () => {
@@ -90,8 +93,8 @@ export async function driveEngineTurn(
             await consumer.acceptSteers(steers)
             return steers
           },
-          declineSteers: async () => {
-            await deps.declineSteers?.(turn.runId)
+          reportSteering: async (steers: boolean) => {
+            await reportSteering?.(steers)
           },
         }
       : turn

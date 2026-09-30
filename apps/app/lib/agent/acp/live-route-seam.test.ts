@@ -166,12 +166,17 @@ function liveHarness(
       return !!row
     },
   }
+  // Whether each run takes Steers, as its Engine reported (#1250).
+  const runSteers = new Map<string, boolean>()
   const latestActiveRun = () => {
-    let active: { id: string; status: "running" | "paused_for_plan" } | null =
-      null
+    let active: {
+      id: string
+      status: "running" | "paused_for_plan"
+      steers: boolean | null
+    } | null = null
     for (const [id, status] of rows) {
       if (status === "running" || status === "paused_for_plan")
-        active = { id, status }
+        active = { id, status, steers: runSteers.get(id) ?? null }
     }
     return active
   }
@@ -306,12 +311,7 @@ function liveHarness(
                 id: steer.id,
                 content: wireToContentBlocks(steer.message),
               })),
-            // What the live route does when the Engine declines.
-            declineSteers: () =>
-              deps.broadcastControl(ROOM_ID, CHAT_ID, {
-                kind: "steerable",
-                steerable: false,
-              }),
+            reportSteering: turn.reportSteering,
           }
         ),
       loadRunStatus: (id) => runState.runStatus(id),
@@ -322,6 +322,9 @@ function liveHarness(
         afterResponse.push(task)
       },
       findActiveRun: async () => latestActiveRun(),
+      async recordSteering(runId, steers) {
+        if (!runSteers.has(runId)) runSteers.set(runId, steers)
+      },
       isRunActive: (id) => runState.isRunActive(id),
       latestRunStatus: async () => [...rows.values()].at(-1) ?? null,
       steers: inbox,
@@ -524,8 +527,8 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
     // never the retired `chat-stream` channel.
     expect(h.broadcasts.map((e) => e.type)).toEqual([
       "chat-stream-start",
-      "chat-control", // steerable
       "chat-acp-update", // user echo
+      "chat-control", // steerable, once the Engine runs (#1250)
       "chat-acp-update", // "Hel"
       "chat-acp-update", // "lo"
       "chat-stream-end",
@@ -732,13 +735,13 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
         const resumed = h.broadcasts.slice(before)
         expect(resumed.map((e) => e.type)).toEqual([
           "chat-stream-start",
-          "chat-control", // steerable
           "chat-control", // plan_resolved
           "chat-acp-update", // user echo
+          "chat-control", // steerable, once the Engine runs (#1250)
           "chat-acp-update", // "On it."
           "chat-stream-end",
         ])
-        expect(resumed[2]).toMatchObject({
+        expect(resumed[1]).toMatchObject({
           control: {
             kind: "plan_resolved",
             planId: "toolu_plan_1",
@@ -1188,27 +1191,25 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
       ).toBe(false)
     })
 
-    it("a Harness that doesn't queue prompts tells clients to queue, and a message that joined first starts the next turn", async () => {
+    it("a Harness that doesn't queue prompts says so once its session opens, and a later send is refused, never taken (#1250)", async () => {
       const h = harness(false)
-      let calls = 0
-      const driver: StreamDriver = (config) => {
-        calls++
-        if (calls > 1) return replyDriver("Docs too.")(config)
-        return {
-          consumeStream: async () => {
-            await h.launch("update the docs too", driver)
-            await replyDriver("Renamed it.")(config).consumeStream()
-          },
-        }
-      }
+      let midTurn: unknown
+      const driver: StreamDriver = (config) => ({
+        consumeStream: async () => {
+          midTurn = (await h.launch("update the docs too", driver)).result
+          await replyDriver("Renamed it.")(config).consumeStream()
+        },
+      })
       await h.run("rename the flag", driver)
 
+      expect(midTurn).toEqual({ kind: "not-steerable" })
       expect(controls(h)).toContainEqual({
         kind: "steerable",
         steerable: false,
       })
+      expect(controls(h).some((c) => c.kind === "steer_pending")).toBe(false)
       expect(h.rows.get("run_1")).toBe("completed")
-      expect(h.rows.get("run_2")).toBe("completed")
+      expect(h.rows.has("run_2")).toBe(false)
       expect(h.steerRows).toEqual([])
       expect(
         h.records.flatMap((r) =>
@@ -1216,7 +1217,7 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
             ? r.content.flatMap((b) => ("text" in b ? [b.text] : []))
             : []
         )
-      ).toEqual(["rename the flag", "update the docs too"])
+      ).toEqual(["rename the flag"])
     })
   })
 })

@@ -136,8 +136,8 @@ export interface ExternalEngineConfig {
  * **Steering (#1191).** When the Harness queues prompts (the Claude adapter's
  * `promptQueueing`, read at initialize), a Steer joins the running turn the way
  * a message typed while Claude Code works does in its own terminal: see
- * {@link PromptSteering}. A Harness that doesn't (codex) declines, and the chat
- * queues instead.
+ * {@link PromptSteering}. The engine reports whether it does once the session
+ * is open; on a Harness that doesn't (codex) the chat queues instead.
  */
 export class ExternalEngine implements SteeringEngine {
   readonly id = "external"
@@ -254,14 +254,15 @@ export class ExternalEngine implements SteeringEngine {
       const blocks = resumed
         ? promptBlocks(turn.history)
         : withSystemPrompt(turn.systemPrompt, replayBlocks(turn.history))
+      // Only a Harness that queues prompts can be steered (#1191); the run
+      // records the answer now its session is open (#1250).
+      const steers = Boolean(turn.takeSteers) && session.promptQueueing
+      await turn.reportSteering?.(steers)
       let stopReason: StopReason
-      if (turn.takeSteers && session.promptQueueing) {
+      if (turn.takeSteers && steers) {
         steering = new PromptSteering(session, turn.takeSteers, turnSignal)
         stopReason = await steering.run(blocks, () => inOrder(async () => {}))
       } else {
-        // Only a Harness that queues prompts can be steered; the route tells
-        // clients to queue instead (#1191).
-        if (turn.takeSteers) await turn.declineSteers?.()
         stopReason = await session.prompt(blocks, turnSignal)
       }
       await inOrder(async () => {})
