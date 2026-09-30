@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUUpLeftIcon, CheckIcon } from "@workspace/ui/components/icons"
+import { CheckIcon } from "@workspace/ui/components/icons"
 import {
   Command,
   CommandEmpty,
@@ -8,7 +8,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@workspace/ui/components/command"
 import { cn } from "@workspace/ui/lib/utils"
 import { WorkspaceMention } from "@/components/workspace-mention"
@@ -73,33 +72,23 @@ export function CompactWorkspaceMention({
   )
 }
 
-/** An exception frame's way back to its Group's Workspace (#868). */
-export interface FollowGroup {
-  /** The Group's name. */
-  name: string
-  workspace: FrameWorkspace
-}
-
 /**
  * The searchable Workspace list a frame's Workspace switchers open (the label
  * picker and the address bar's host, issue #867): each row the shared Workspace
  * mention (#974: state icon, plain name, PR badge or line count) and a check on
- * the current one. For a frame on another Workspace than its Group (#868), it
- * leads with "Follow <Group>", which picks the Group's. The Group switcher
- * (#869) opens it too, with a footer saying what the pick moves.
+ * the current one. The Group switcher (#869) opens it too, with a footer
+ * saying what the pick moves.
  */
 export function WorkspaceCommandList({
   branches,
   currentBranchId,
   onPick,
-  followGroup,
   placeholder = "Search workspaces…",
   footer,
 }: {
   branches: BranchData[]
   currentBranchId?: string
   onPick: (branchId: string) => void
-  followGroup?: FollowGroup
   /** The search field's prompt; the Group switcher asks "Show <Group> from…". */
   placeholder?: string
   /** Muted lines under the list, read before picking (#869). */
@@ -111,25 +100,7 @@ export function WorkspaceCommandList({
       <CommandInput placeholder={placeholder} />
       <CommandList>
         <CommandEmpty>No workspaces found.</CommandEmpty>
-        {followGroup && (
-          <>
-            <CommandGroup heading="Group">
-              <CommandItem
-                value={`Follow ${followGroup.name}`}
-                onSelect={() => onPick(followGroup.workspace.branchId)}
-              >
-                <ArrowUUpLeftIcon />
-                <span className="truncate">Follow {followGroup.name}</span>
-                <WorkspaceName
-                  workspace={followGroup.workspace}
-                  className="ml-auto text-muted-foreground"
-                />
-              </CommandItem>
-            </CommandGroup>
-            <CommandSeparator />
-          </>
-        )}
-        <CommandGroup heading={followGroup ? "This frame only" : undefined}>
+        <CommandGroup>
           {pickableWorkspaces(branches).map((a) => {
             const hasDiff =
               a.status === "running" &&

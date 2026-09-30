@@ -24,7 +24,7 @@ import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 interface GroupWorkspaceSwitch {
   /** Workspaces to offer, filtered like every Workspace list. */
   branches: BranchData[]
-  /** Footer lines: what the pick moves and which exceptions stay. */
+  /** Footer lines: what the pick moves. */
   summary: string[]
   /** Show the whole Group from `branchId`. */
   onPick: (branchId: string) => void
@@ -46,8 +46,8 @@ export type GroupWorkspace = AssignedGroupWorkspace | UnassignedGroupWorkspace
 
 interface GroupLabelProps {
   label: string
-  /** The Group's Workspace, named once after its name (#868). Its frames
-   *  leave it off their own labels unless they differ. */
+  /** The Workspace every frame in the Group shows, named once after its
+   *  name (#1276). Unset when the frames differ: each names its own. */
   workspace?: GroupWorkspace
   /** True when the parent group is selected — colors the label fuchsia. */
   groupSelected?: boolean

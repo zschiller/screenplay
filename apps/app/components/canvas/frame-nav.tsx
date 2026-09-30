@@ -35,11 +35,7 @@ import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
 import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { WorkspaceMentionBranch } from "@/components/workspace-mention"
-import {
-  CompactWorkspaceMention,
-  WorkspaceCommandList,
-  type FollowGroup,
-} from "./workspace-list"
+import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
 /**
  * The address field in a selected frame's floating toolbar (issue #795), like
@@ -114,8 +110,6 @@ interface FrameAddressBarProps {
   workspace?: FrameWorkspace
   /** Workspaces the frame can switch to. */
   workspaces: BranchData[]
-  /** Set on an exception: the list leads with "Follow <Group>" (#868). */
-  followGroup?: FollowGroup
   /** Unset while the frame can't switch (a read-only viewer). */
   onAssignWorkspace?: (branchId: string) => void
   route?: string
@@ -134,7 +128,6 @@ interface FrameAddressBarProps {
 export function FrameAddressBar({
   workspace,
   workspaces,
-  followGroup,
   onAssignWorkspace,
   route,
   discoveredRoutes,
@@ -209,7 +202,6 @@ export function FrameAddressBar({
         <FrameWorkspaceHost
           workspace={workspace}
           workspaces={workspaces}
-          followGroup={followGroup}
           onAssignWorkspace={onAssignWorkspace}
           anchorRef={barRef}
         />
@@ -283,13 +275,11 @@ export function frameWorkspaceOf(
 function FrameWorkspaceHost({
   workspace,
   workspaces,
-  followGroup,
   onAssignWorkspace,
   anchorRef,
 }: {
   workspace?: FrameWorkspace
   workspaces: BranchData[]
-  followGroup?: FollowGroup
   onAssignWorkspace?: (branchId: string) => void
   /** The address bar, whose left edge the menu drops from. */
   anchorRef: React.RefObject<HTMLElement | null>
@@ -357,7 +347,6 @@ function FrameWorkspaceHost({
         <WorkspaceCommandList
           branches={workspaces}
           currentBranchId={workspace?.branchId}
-          followGroup={followGroup}
           onPick={(id) => {
             if (id !== workspace?.branchId) onAssignWorkspace(id)
             setOpen(false)

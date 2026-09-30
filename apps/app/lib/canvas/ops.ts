@@ -14,7 +14,6 @@ import {
   keepHiddenMembers,
   shownIndexToMemberIndex,
 } from "@/lib/canvas/done-workspaces"
-import { groupSwitchFrames } from "@/lib/canvas/group-workspace"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
 import {
@@ -209,17 +208,17 @@ export type CanvasOps = {
   ): { layerId: string; groupId: string }
   /**
    * Show the Workspace `branchId` in the Iframe Layer with `layerId`, keeping
-   * its route and state. A frame picking a Workspace other than its Group's
-   * becomes an exception (#868); picking the Group's makes it follow again.
-   * The Group's own Workspace moves with it only when the frame is the
-   * Group's one frame, or the Group has none yet.
+   * its route and state. The Group's own Workspace moves with it only when
+   * the frame is the Group's one frame, or the Group has none yet. Whether the
+   * Group's label names a Workspace comes from its frames (`groupWorkspace`).
    */
   assignBranch(layerId: string, branchId: string): void
   /**
    * Show the Workspace `branchId` in the whole Group `groupId` (#869): the
-   * Group takes it, and so does every frame that follows the Group, each
-   * keeping its route, state and size. Exceptions stay on their own
-   * Workspace, and Documents are untouched. One transaction, so one undo step.
+   * Group takes it, and so does every frame in it, each keeping its route,
+   * state and size. Documents, and frames a Done Workspace hides, are
+   * untouched. One transaction, so one undo
+   * step.
    */
   assignGroupBranch(groupId: string, branchId: string): void
   /**
@@ -454,8 +453,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         (m) => m.kind === "iframe-layer"
       )
       // The Group's Workspace follows its only frame, and an unassigned Group
-      // takes the first Workspace a frame picks. Otherwise the frame becomes
-      // (or stops being) an exception and the Group keeps its own.
+      // takes the first Workspace a frame picks. Otherwise the Group keeps
+      // its own.
       if (!group.branchId || frames.length === 1) {
         collections.iframeLayerGroups.update(group.id, { branchId })
       }
@@ -466,14 +465,16 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     batch(() => {
       const group = collections.iframeLayerGroups.get(groupId)
       if (!group) return
-      const framesById = new Map(
-        getGroupMembers(group)
-          .filter((m) => m.kind === "iframe-layer")
-          .map((m) => [m.id, collections.iframeLayers.get(m.id)] as const)
-          .filter((e): e is [string, IframeLayerData] => !!e[1])
-      )
-      for (const id of groupSwitchFrames(group, framesById).following) {
-        collections.iframeLayers.update(id, { branchId })
+      // The Group label offers its switcher only while every frame it shows
+      // is on one Workspace (#1276), so a pick moves them all. Frames a Done
+      // Workspace hides stay put, so Reopen brings them back as they were.
+      for (const m of getGroupMembers(group)) {
+        if (m.kind !== "iframe-layer") continue
+        const frame = collections.iframeLayers.get(m.id)
+        if (!frame) continue
+        if (frame.branchId && collections.branches.get(frame.branchId)?.doneAt)
+          continue
+        collections.iframeLayers.update(m.id, { branchId })
       }
       collections.iframeLayerGroups.update(groupId, { branchId })
     })

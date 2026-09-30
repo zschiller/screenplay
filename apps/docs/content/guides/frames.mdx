@@ -27,16 +27,15 @@ view, so hot reload, client-side routing, and app state all work as normal.
 Above each frame:
 
 - **Name**: double-click to rename.
-- **Workspace**, with its state icon, only when the frame shows a different
-  workspace from its [group](/guides/canvas#a-groups-workspace), or is the
-  only frame in its group. Click it to switch the frame's workspace. For a frame that differs
-  from its group, the list starts with **Follow _group_**, which puts it back
-  on the group's workspace.
+- **Workspace**, with its state icon, unless its
+  [group](/guides/canvas#a-groups-workspace) names it because every frame in
+  the group shows the same one. Click it to switch the frame's workspace.
 
 Under the selected frame, an address bar shows its workspace and route. Click
 the workspace to point this frame at another one, keeping its route and
 state; this is how you compare workspaces on the same screen. Picking one
-other than the group's makes the frame an exception. Click the route to edit
+that differs from the other frames in its group moves the workspace from the
+group's title onto each frame's. Click the route to edit
 it in place, like a browser's address bar: type any path and press **Enter**, or
 pick a route the workspace has visited from the list under the bar. **Esc**
 puts the route back. Routes you visit while interacting

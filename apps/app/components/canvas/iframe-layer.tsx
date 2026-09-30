@@ -60,7 +60,6 @@ import {
 } from "./frame-nav"
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
-import type { FollowGroup } from "./workspace-list"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -276,11 +275,9 @@ interface IframeLayerProps {
   groupLabel?: string
   /** The Group's Workspace, named after the group label (#868). */
   groupWorkspace?: GroupWorkspace
-  /** The frame names its own Workspace on its label: it differs from its
-   *  Group's, or the frame is a Group of one with no group label (#868). */
+  /** The frame names its own Workspace on its label: its Group's frames
+   *  differ, or it is a Group of one with no group label (#1276). */
   showWorkspace?: boolean
-  /** Set on an exception: its Workspace lists lead with "Follow <Group>". */
-  followGroup?: FollowGroup
   /** True when the parent group is selected. Drives label color + group-pink frame. */
   groupSelected?: boolean
   /** Color of a remote user who has this frame selected — tints the name to
@@ -371,7 +368,6 @@ export function IframeLayer({
   groupLabel,
   groupWorkspace,
   showWorkspace,
-  followGroup,
   groupSelected,
   remoteSelectedColor,
   remoteGroupSelectedColor,
@@ -927,7 +923,6 @@ export function IframeLayer({
           label={iframeLayer.label}
           branchId={iframeLayer.branchId}
           showWorkspace={showWorkspace}
-          followGroup={followGroup}
           assignableBranches={assignableBranches}
           onAssignBranch={
             onAssignBranch
@@ -979,7 +974,6 @@ export function IframeLayer({
                     )
                   )}
                   workspaces={assignableBranches ?? []}
-                  followGroup={followGroup}
                   onAssignWorkspace={
                     onAssignBranch
                       ? (branchId) => onAssignBranch(iframeLayer.id, branchId)

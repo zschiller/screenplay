@@ -23,70 +23,41 @@ export function groupBranchId(
 }
 
 /**
- * True when a frame shows a different Workspace from its Group's. Such a
- * frame (an *exception*) names its Workspace on its own label; every other
- * frame leaves that to the Group.
+ * The Workspace a Group's label names (#1276): the one every frame in it
+ * shows. A Group of one flow names it once and its frames leave it off; a
+ * Group of parallel explorations (frames on different Workspaces, or some with
+ * none yet) names none, and every frame names its own.
+ *
+ * `null` when the label names no Workspace: its frames differ, or it has none.
+ * `branchId` is unset when no frame has a Workspace yet, and the label offers
+ * "Choose a workspace" for all of them (#871). `frames` are the Group's frame
+ * ids, which a pick from the label moves.
  */
-export function isWorkspaceException(
-  frame: FrameBranch,
-  groupBranch: string | undefined
-): boolean {
-  return !!frame.branchId && !!groupBranch && frame.branchId !== groupBranch
-}
-
-/**
- * Which of a Group's frames a Group Workspace switch moves (#869): every frame
- * that follows the Group, including one with no Workspace yet. Exceptions stay
- * where they are. Documents are never part of a switch.
- */
-export function groupSwitchFrames(
-  group: Pick<IframeLayerGroupData, "branchId" | "members" | "iframeLayerIds">,
-  framesById: ReadonlyMap<string, FrameBranch>
-): { following: string[]; exceptions: string[] } {
-  const groupBranch = groupBranchId(group, framesById)
-  const following: string[] = []
-  const exceptions: string[] = []
+export function groupWorkspace(
+  group: Pick<IframeLayerGroupData, "members" | "iframeLayerIds">,
+  framesById: Pick<ReadonlyMap<string, FrameBranch>, "get">
+): { branchId: string | undefined; frames: string[] } | null {
+  const frames: string[] = []
+  const branchIds = new Set<string | undefined>()
   for (const m of getGroupMembers(group as IframeLayerGroupData)) {
     if (m.kind !== "iframe-layer") continue
     const frame = framesById.get(m.id)
     if (!frame) continue
-    if (isWorkspaceException(frame, groupBranch)) exceptions.push(m.id)
-    else following.push(m.id)
+    frames.push(m.id)
+    branchIds.add(frame.branchId || undefined)
   }
-  return { following, exceptions }
+  if (frames.length === 0 || branchIds.size > 1) return null
+  return { branchId: [...branchIds][0], frames }
 }
 
 /**
  * The Group switcher's footer (#869), read before picking: how many frames
- * move, and which exceptions stay where they are.
+ * move.
  */
-export function groupSwitchSummary(
-  moving: number,
-  exceptions: ReadonlyArray<{ name: string; workspace?: string }>
-): string[] {
-  const lines = [
-    moving === 0
-      ? "No frames follow this group."
-      : moving === 1
-        ? "Moves 1 frame. It keeps its route and state."
-        : `Moves ${moving} frames. Each keeps its route and state.`,
-  ]
-  if (exceptions.length === 1) {
-    const [only] = exceptions
-    lines.push(
-      only.workspace
-        ? `${only.name} stays on ${only.workspace}.`
-        : `${only.name} stays where it is.`
-    )
-  } else if (exceptions.length > 1) {
-    const names = exceptions.map((e) => e.name)
-    const listed =
-      names.length <= 3
-        ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
-        : `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`
-    lines.push(`${listed} stay on their own workspaces.`)
-  }
-  return lines
+export function groupSwitchSummary(moving: number): string {
+  return moving === 1
+    ? "Moves 1 frame. It keeps its route and state."
+    : `Moves ${moving} frames. Each keeps its route and state.`
 }
 
 /**

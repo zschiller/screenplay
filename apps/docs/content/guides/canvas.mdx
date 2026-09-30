@@ -107,34 +107,37 @@ A group disappears when its last member is removed.
 
 ### A group's workspace
 
-Each group shows one workspace, named after the group's name: its state icon
-(a spinner while it sets up, moving dots while its agent works), its title,
-and its pull request when there's room. Its frames leave the workspace off
-their own titles. A frame switched to a different workspace is an exception:
-its title ends with its own workspace, so you can see at a glance which
-screens differ. A group with a single frame has no group label, so that
-frame's title names the workspace instead.
+When every frame in a group shows the same workspace, as the screens of one
+flow do, the group names it after the group's name: its state icon (a spinner
+while it sets up, moving dots while its agent works), its title, and its pull
+request when there's room. Its frames leave the workspace off their own titles.
 
-To show the whole group from another workspace, click the group's workspace and
-pick one from the list (for a group named Checkout, it reads **Show Checkout
-from…**). Every frame that follows the group moves, each keeping its route,
-state and size. Exceptions stay where they are, and the list's footer names
-them before you pick. Documents in the group are unaffected. The switch is one
-undo step, and everyone on the canvas sees it at once.
+When the frames show different workspaces, as parallel explorations do, the
+group names none, and each frame's title ends with its own workspace. Switching
+one frame to another workspace turns a flow into such a group; switching it back
+turns it into a flow again. A group with a single frame has no group label, so
+that frame's title names the workspace instead.
+
+To show a flow from another workspace, click the group's workspace and pick one
+from the list (for a group named Checkout, it reads **Show Checkout from…**).
+Every frame in the group moves, each keeping its route, state and size.
+Documents in the group are unaffected. The switch is one undo step, and
+everyone on the canvas sees it at once.
 
 A group whose frames have no workspace yet shows **Choose a workspace** after
 its name instead, and its frames show No Workspace until you pick. Picking one
-sets the group and all of its frames. A group of documents only has no
+sets the group and all of its frames. Once some frames have a workspace and
+others don't, each frame offers its own list. A group of documents only has no
 workspace: when its last frame is moved out, split off or deleted, the group
 drops its workspace, and the next frame to join sets it.
 
 ## The layers list
 
 The sidebar's layer list mirrors the canvas. Groups with several
-members appear as folders, and a group's row ends with its workspace (state
-icon and title, with its pull request at the row's end). Frame rows show just
-their names, except exceptions and single-frame groups, which end with their
-workspace.
+members appear as folders. A flow's row ends with its workspace (state icon
+and title, with its pull request at the row's end), and its frame rows show
+just their names. In a group whose frames differ, and in single-frame groups,
+each frame row ends with its own workspace instead.
 
 - Click to select; <kbd>Shift</kbd>-click to add to the selection.
 - Double-click to zoom to it.
