@@ -543,7 +543,12 @@ class PromptSteering {
     }
   }
 
-  /** Hand one Steer to the agent's steering request; false when it failed. */
+  /**
+   * Hand one Steer to the agent's steering request; false when it failed.
+   * Codex reports the started turn `active` in the same instant it answers;
+   * this runs inside a step boundary that holds the update queue, so that
+   * update is handled only after the turn below is registered.
+   */
   private async steer(steer: TakenSteer): Promise<boolean> {
     const outcome = await this.session.steer(steer.content)
     if (outcome === "startedNewTurn") this.turns.push(this.startedTurn())

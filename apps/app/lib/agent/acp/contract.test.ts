@@ -460,6 +460,48 @@ describe("ExternalEngine — Codex steering request (#1192)", () => {
     })
   })
 
+  // Codex sends the new turn's `active` in the same instant as its answer
+  // (Mac probe); an update that beats the answer waits behind the step
+  // boundary taking the Steer, so it still counts.
+  it("counts the new turn's active status even when it arrives before the answer", async () => {
+    const inbox = inboxOf(["one more thing"])
+    let early: Promise<void> | undefined
+    const codex = codexSession({
+      outcomes: ["startedNewTurn"],
+      async onPrompt(ports) {
+        await ports.onUpdate(toolDone("call_1"))
+        return "end_turn"
+      },
+    })
+    const open = codex.factory.open.bind(codex.factory)
+    codex.factory.open = async (ports, options) => {
+      const session = await open(ports, options)
+      const steer = session.steer.bind(session)
+      session.steer = async (blocks) => {
+        early = Promise.resolve(ports.onUpdate(status("active")))
+        return steer(blocks)
+      }
+      setTimeout(() => {
+        void early?.then(async () => {
+          await ports.onUpdate(say("Done that too."))
+          await ports.onUpdate(status("idle"))
+        })
+      }, 10)
+      return session
+    }
+    const updates: EngineUpdate[] = []
+    await new ExternalEngine({ sessionFactory: codex.factory }).run(
+      { ...turn, takeSteers: inbox.takeSteers },
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+    expect(updates.at(-2)).toEqual({
+      kind: "session_update",
+      update: status("idle"),
+    })
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
   it("a stop during a turn a Steer started cancels it", async () => {
     const inbox = inboxOf(["one more thing"])
     const controller = new AbortController()
