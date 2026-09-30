@@ -26,13 +26,13 @@ Keep captures **targeted**: only the handful of screens where the thing appears.
 
 ## 3. Build the page
 
-One Artifact per exploration. Load `artifact-design` first.
+One Artifact per exploration, built from `exploration-template.html` next to this file. Load `artifact-design` first, then fill in the template's `QUESTION`, `TODAY` and `ROUNDS` data and swap its `:root` tokens for the repo's brand. The template draws the round toggle, Today, each option's captures and badges, and a reaction form with Copy reaction.
 
 - **Today** first, then 3 or 4 options. Each option gets its letter and a short name ("B: Panel's home"), its captures or wireframe, a few sentences of rationale, and what it costs or breaks.
 - Options are **distinct**: a different answer to the question, not a spacing tweak of another option. When the owner says a round looks samey, the next round goes further apart.
 - Stay inside the product's system: its component library and existing variants, its tokens, and the conventions of the tools the owner names. When an option needs a new variant or a one-off component, list that as its cost.
 - Mark one **recommended** option and give the reason in one sentence. Prefer the small fix inside today's UX over the redesign when both answer the question.
-- Later rounds go on the same Artifact, newest round at the top behind a round toggle, so the link never changes. An Artifact version holds at most 511 files: delete captures from rejected rounds (`null` in `files`) before adding more.
+- Later rounds go on the same Artifact so the link never changes: add each new round at the front of `ROUNDS` with the owner's feedback, and mark earlier options `picked` or `rejected`. An Artifact version holds at most 511 files: delete captures from rejected rounds (`null` in `files`) before adding more.
 
 ## 4. Critique before showing
 
@@ -42,7 +42,7 @@ Done when every capture has been looked at in every theme and nothing visibly of
 
 ## 5. Ask for the pick
 
-Reply with the link and one line on the recommendation. Ask each open question on its own, with 2 to 4 options and the recommendation marked. Use a decision card when the chat surface has one.
+Reply with the link and one line on the recommendation. The owner can react on the page and paste back its copied text. Ask each open question on its own, with 2 to 4 options and the recommendation marked. Use a decision card when the chat surface has one.
 
 When the owner reacts:
 
