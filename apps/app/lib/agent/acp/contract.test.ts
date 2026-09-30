@@ -18,6 +18,7 @@ import { planFromPermissionRequest, textBlock } from "./schema"
 import { withPlanGate } from "../plan-gate"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import { ExternalEngine } from "./acp-engine"
+import type { AcpSessionPorts } from "./session"
 import {
   acpSessionFactoryFromDriver,
   contractFor,
@@ -155,6 +156,93 @@ describe("ExternalEngine — steering", () => {
       update: { sessionUpdate: "agent_message_chunk" },
     })
     expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
+  it("a stop ends the agent, and nothing it streams afterwards reaches the chat", async () => {
+    const close = vi.fn()
+    let ports: AcpSessionPorts | undefined
+    const inner = acpSessionFactoryFromDriver(
+      () => ({
+        consumeStream: async () => {
+          throw new Error("aborted")
+        },
+      }),
+      { promptQueueing: true }
+    )
+    const updates: EngineUpdate[] = []
+    const controller = new AbortController()
+    controller.abort()
+    await new ExternalEngine({
+      sessionFactory: {
+        async open(p, options) {
+          ports = p
+          const session = await inner.open(p, options)
+          session.onClose(close)
+          return session
+        },
+      },
+    }).run(
+      { ...turn, takeSteers: async () => [] },
+      (u) => {
+        updates.push(u)
+      },
+      controller.signal
+    )
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(updates).toEqual([{ kind: "done", stopReason: "cancelled" }])
+
+    // A Steer the agent had already taken keeps it working past the cancel.
+    await ports!.onUpdate({
+      sessionUpdate: "agent_message_chunk",
+      content: textBlock("still going"),
+    })
+    expect(updates).toHaveLength(1)
+  })
+
+  it("a stop ends an agent that keeps working past the cancel, showing none of it", async () => {
+    const updates: EngineUpdate[] = []
+    const controller = new AbortController()
+    const run = new ExternalEngine({
+      // An agent that never answers the cancel and keeps talking, like one
+      // still working a Steer it had taken.
+      sessionFactory: acpSessionFactoryFromDriver(
+        (config) => ({
+          consumeStream: async () => {
+            controller.abort()
+            await config.onChunk?.({
+              chunk: { type: "text-delta", id: "t", text: "Noted." },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any)
+            return new Promise<void>(() => {})
+          },
+        }),
+        { promptQueueing: true }
+      ),
+      stopGraceMs: 10,
+    }).run(
+      { ...turn, takeSteers: async () => [] },
+      (u) => {
+        updates.push(u)
+      },
+      controller.signal
+    )
+    await run
+    expect(updates).toEqual([{ kind: "done", stopReason: "cancelled" }])
+  })
+
+  it("a turn that ends on its own leaves the agent be", async () => {
+    const close = vi.fn()
+    const inner = acpSessionFactoryFromDriver(reply(), { promptQueueing: true })
+    await new ExternalEngine({
+      sessionFactory: {
+        async open(p, options) {
+          const session = await inner.open(p, options)
+          session.onClose(close)
+          return session
+        },
+      },
+    }).run(turn, () => {}, new AbortController().signal)
+    expect(close).not.toHaveBeenCalled()
   })
 
   it("keeps Steers on a Harness that queues prompts, checking once before it finishes", async () => {

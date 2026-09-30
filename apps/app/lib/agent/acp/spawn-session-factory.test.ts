@@ -165,4 +165,38 @@ describe("SpawnAcpSessionFactory — resolution and lifecycle", () => {
 
     await vi.waitFor(() => expect(killed).toBe(true))
   })
+
+  it("closing a session kills its child", async () => {
+    let killed = false
+    const factory = new SpawnAcpSessionFactory({
+      harnessKey: "claude-code",
+      env: { PATH: process.env.PATH },
+      spawn: (_command, _args, options) => {
+        const child = nodeSpawn(process.execPath, [FAKE_AGENT], {
+          cwd: options.cwd,
+          env: {
+            ...options.env,
+            FAKE_ACP_SCRIPT: "{}",
+          } as unknown as NodeJS.ProcessEnv,
+          stdio: ["pipe", "pipe", "inherit"],
+        })
+        child.on("exit", () => {
+          killed = true
+        })
+        return child
+      },
+    })
+    spawnedFactories.push(factory)
+
+    const session = await factory.open(
+      {
+        onUpdate: () => {},
+        requestPlanApproval: async () => ({ approved: false }),
+      },
+      { cwd: "/" }
+    )
+    session.close()
+
+    await vi.waitFor(() => expect(killed).toBe(true))
+  })
 })

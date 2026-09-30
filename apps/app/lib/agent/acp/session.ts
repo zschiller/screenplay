@@ -288,6 +288,8 @@ export class AcpSession {
   private modelRetried = false
   /** Models the agent advertised for this session (see {@link availableModels}). */
   private modelChoices: AvailableModel[] = []
+  /** Ends the agent behind the transport (see {@link close}). */
+  private closer: (() => void) | null = null
   /** Whether the agent advertised prompt queueing (see {@link promptQueueing}). */
   private queuesPrompts = false
   /** Prompts sent and not yet resolved; the turn signal is cleared at zero. */
@@ -329,6 +331,25 @@ export class AcpSession {
    */
   get promptQueueing(): boolean {
     return this.queuesPrompts
+  }
+
+  /**
+   * Set how {@link close} ends the agent: the factory that spawned it kills
+   * its process. A session with none (an in-memory test agent) closes as a
+   * no-op.
+   */
+  onClose(closer: () => void): void {
+    this.closer = closer
+  }
+
+  /**
+   * End the agent behind this session, whatever it is still doing. Used when
+   * a stopped turn's agent may not have wound down (#1191).
+   */
+  close(): void {
+    const closer = this.closer
+    this.closer = null
+    closer?.()
   }
 
   /**
