@@ -26,6 +26,8 @@ interface RequestBody {
   model?: string
   /** Comment threads this turn asks the agent to address (#788). */
   commentThreadIds?: string[]
+  /** Retry of the chat's failed turn: its ask is already in the transcript. */
+  retry?: boolean
 }
 
 export async function POST(req: Request) {
@@ -74,7 +76,15 @@ export async function POST(req: Request) {
 
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
-    { roomId, chatId, message, sandboxName, model, userId },
+    {
+      roomId,
+      chatId,
+      message,
+      sandboxName,
+      model,
+      userId,
+      retry: body.retry === true,
+    },
     target
   )
   if (result.kind === "target-not-found") {

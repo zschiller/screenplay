@@ -7,7 +7,7 @@ import {
   type SessionUpdate,
 } from "@/lib/agent/acp/schema"
 import { applyToolCallUpdate } from "@/lib/agent/acp/record"
-import { describeTurnError } from "@/lib/agent/chat-errors"
+import { describeSendError, describeTurnError } from "@/lib/agent/chat-errors"
 import { confirmCardOf } from "@/lib/agent/confirm-card"
 import { withBasePath } from "@/lib/base-path"
 import { isFixtureWorld } from "@/lib/fixture-world"
@@ -447,8 +447,12 @@ class ChatStore {
    * Resolves `true` once the server has accepted it (or it's queued), `false`
    * when it was refused — the text is then held in `failedSend` for Retry or
    * Edit, never dropped.
+   *
+   * `retry` runs a failed turn again on its ask, which is still the chat's
+   * last user message (#1228): nothing is added to the transcript, and a
+   * refusal puts the error back with Retry rather than holding a new send.
    */
-  async sendMessage(opts: SendMessageOptions): Promise<boolean> {
+  async sendMessage(opts: SendMessageOptions, retry = false): Promise<boolean> {
     const { chatId } = opts
     const state = this.getOrCreate(chatId)
     if (!opts.message.trim()) return false
@@ -462,11 +466,13 @@ class ChatStore {
 
     // Optimistically add the user message. Kept by reference so a refusal
     // removes exactly this entry, even if the log moved on meanwhile.
-    const optimistic: AgentMessage = { role: "user", content: opts.message }
+    const optimistic: AgentMessage | null = retry
+      ? null
+      : { role: "user", content: opts.message }
     this.update(chatId, {
       error: null,
       failedSend: null,
-      messages: [...state.messages, optimistic],
+      messages: optimistic ? [...state.messages, optimistic] : state.messages,
     })
     const dropOptimistic = () => ({
       messages: this.getOrCreate(chatId).messages.filter(
@@ -475,7 +481,7 @@ class ChatStore {
     })
 
     try {
-      const answer = await this.post(opts)
+      const answer = await this.post(opts, retry)
       // A run this client hadn't heard of yet was working: the message joined
       // it (or waits for it) rather than starting a turn.
       if (answer.kind === "steered") {
@@ -495,6 +501,12 @@ class ChatStore {
       return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
+      if (retry) {
+        this.appendError(chatId, describeSendError(msg), msg, () =>
+          this.sendMessage(opts, true)
+        )
+        return false
+      }
       this.update(chatId, {
         error: msg,
         ...dropOptimistic(),
@@ -567,7 +579,8 @@ class ChatStore {
 
   /** POST a message to the stream route; throws when it's refused. */
   private async post(
-    opts: SendMessageOptions
+    opts: SendMessageOptions,
+    retry = false
   ): Promise<
     | { kind: "started" }
     | { kind: "steered"; steerId: string }
@@ -587,6 +600,7 @@ class ChatStore {
         planMode: opts.planMode,
         model: opts.model,
         commentThreadIds: opts.commentThreadIds,
+        retry: retry || undefined,
       }),
     })
 
@@ -1091,9 +1105,10 @@ class ChatStore {
   }
 
   /**
-   * Retry for a failed turn: send its message again, when this client sent it
-   * and it's still the last thing asked. A turn someone else started (or a
-   * Workspace's wake) has nothing here to resend.
+   * Retry for a failed turn: run it again on its message, when this client
+   * sent it and it's still the last thing asked. The message stays the one
+   * copy in the transcript (#1228). A turn someone else started (or a
+   * Workspace's wake) has nothing here to retry.
    */
   private turnRetry(chatId: string): (() => Promise<unknown>) | undefined {
     const opts = this.lastTurn.get(chatId)
@@ -1102,7 +1117,7 @@ class ChatStore {
       .messages.filter((m) => m.role === "user")
       .at(-1)
     if (lastAsk?.content !== opts.message) return undefined
-    return () => this.sendMessage({ ...opts })
+    return () => this.sendMessage({ ...opts }, true)
   }
 
   /** Whether an error in the transcript offers Retry. */

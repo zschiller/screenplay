@@ -323,6 +323,7 @@ function liveHarness(
       },
       findActiveRun: async () => latestActiveRun(),
       isRunActive: (id) => runState.isRunActive(id),
+      latestRunStatus: async () => [...rows.values()].at(-1) ?? null,
       steers: inbox,
     }
     // Leftover Steers start the chat's next turn through the same target.
@@ -797,6 +798,64 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
   })
 
   // #897: a Workspace turn wakes the Coordinator once, however it ends.
+  describe("Retry on a failed turn (#1228)", () => {
+    const failing: StreamDriver = (config) => ({
+      consumeStream: async () => {
+        await config.onError?.({ error: new Error("model overloaded") })
+      },
+    })
+    /** A driver that records the model input it was handed, then replies. */
+    const recording = (sent: unknown[][]): StreamDriver => {
+      const reply = replyDriver("Done.")
+      return (config) => {
+        sent.push(config.messages ?? [])
+        return reply(config)
+      }
+    }
+
+    it("runs the turn again on the one copy of the ask, live, after reload and in the model input", async () => {
+      const h = liveHarness()
+      await h.run("fix it", failing)
+      // A second failure still leaves one copy.
+      await h.run("fix it", failing, { retry: true })
+      const sent: unknown[][] = []
+      await h.run("fix it", recording(sent), { retry: true })
+
+      expect(h.records).toEqual<AcpMessageRecord[]>([
+        { role: "user", content: [{ type: "text", text: "fix it" }] },
+        { role: "agent", content: [{ type: "text", text: "Done." }] },
+      ])
+      expect(sent).toHaveLength(1)
+      expect(sent[0]).toEqual([
+        expect.objectContaining({ role: "user", content: "fix it" }),
+      ])
+
+      const asks = (messages: AgentMessage[]) =>
+        messages.filter((m) => m.role === "user")
+      expect(asks(liveMessages(h.broadcasts))).toEqual([
+        { role: "user", content: "fix it" },
+      ])
+      expect(reloadMessages(h.records, h.planRows)).toEqual<AgentMessage[]>([
+        { role: "user", content: "fix it" },
+        { role: "assistant", content: "Done." },
+      ])
+    })
+
+    it("a retry after the chat moved on is a new message", async () => {
+      const h = liveHarness()
+      await h.run("fix it", failing)
+      await h.run("something else", replyDriver("Sure."))
+      await h.run("fix it", replyDriver("Done."), { retry: true })
+      expect(
+        h.records.filter((r) => r.role === "user").map((r) => r.content)
+      ).toEqual([
+        [{ type: "text", text: "fix it" }],
+        [{ type: "text", text: "something else" }],
+        [{ type: "text", text: "fix it" }],
+      ])
+    })
+  })
+
   describe("Coordinator wakes", () => {
     const workspaceTurn = { wakesCoordinator: true }
     const woke = (runId: string, status: WorkspaceTurnEnd["status"]) => [

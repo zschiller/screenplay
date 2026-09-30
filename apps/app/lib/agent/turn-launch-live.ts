@@ -23,6 +23,7 @@ import {
   findActiveRun,
   findPendingPlanForChat,
   getChatModel,
+  latestRunStatus,
   loadAcpHistory,
   upsertAcpToolCall,
   upsertChat,
@@ -147,6 +148,7 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
   runAfterResponse: (task) => after(task),
   findActiveRun,
   isRunActive,
+  latestRunStatus,
   steers: steerInbox,
 })
 

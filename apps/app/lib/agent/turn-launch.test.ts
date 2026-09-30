@@ -37,6 +37,8 @@ function recordingDeps(
     leftovers?: Steer[]
     /** How the driven run ended (default completed). */
     runStatus?: RunStatus
+    /** The status of the chat's most recent run (default none). */
+    latestRun?: RunStatus
   } = {}
 ) {
   const log: string[] = []
@@ -112,6 +114,9 @@ function recordingDeps(
     },
     async isRunActive() {
       return !opts.runEndsWhileSteering
+    },
+    async latestRunStatus() {
+      return opts.latestRun ?? null
     },
     steers: {
       async add({ runId, message, userId }) {
@@ -363,6 +368,35 @@ function recordingStopDeps(activeRunId: string | null) {
   }
   return { deps, log }
 }
+
+describe("Turn Launch — retrying a failed turn (#1228)", () => {
+  it("runs the turn on the ask already stored, without storing or echoing it again", async () => {
+    const { deps, log, flush } = recordingDeps({ latestRun: "failed" })
+    const result = await launchTurn(
+      deps,
+      { ...request, retry: true },
+      target(log)
+    )
+    expect(result).toEqual({ kind: "started", runId: "run_1" })
+    await flush()
+    expect(log).toEqual([
+      "resolve engine",
+      "prepare target",
+      "start run",
+      "broadcast chat-stream-start",
+      "broadcast steerable (no)",
+      "response sent",
+      "drive run_1 planMode=false",
+    ])
+  })
+
+  it("sends the ask as new when another turn followed the failed one", async () => {
+    const { deps, log } = recordingDeps({ latestRun: "completed" })
+    await launchTurn(deps, { ...request, retry: true }, target(log))
+    expect(log).toContain("persist fix it")
+    expect(log).toContain("broadcast user_message_chunk")
+  })
+})
 
 describe("Turn Launch — steering (#1190)", () => {
   const running = { id: "run_9", status: "running" as const }
