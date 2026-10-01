@@ -46,9 +46,6 @@ vi.mock("./terminal-tab", () => ({
 vi.mock("@/lib/auth-client", () => ({
   useAppSession: () => ({ data: { user: { id: "user-1" } } }),
 }))
-vi.mock("@/hooks/use-installed-harnesses", () => ({
-  useInstalledHarnesses: () => [],
-}))
 vi.mock("@/hooks/use-workspace-states", () => ({
   useWorkspaceStates: () => () => "idle",
 }))
@@ -270,6 +267,37 @@ describe("ChatPanel with a Workspace target", () => {
     expect(
       screen.getByRole("tab", { name: "Shell 2" }).getAttribute("aria-selected")
     ).toBe("true")
+  })
+
+  it("+ opens a plain shell and selects it, with no harness to pick", () => {
+    const onCreateTerminal = vi.fn(() => "s3")
+    const { rerender, props } = renderWorkspacePanel()
+    rerender(<ChatPanel {...props} onCreateTerminal={onCreateTerminal} />)
+    fireEvent.click(terminalName("Dev server"))
+    expect(
+      screen.queryByRole("button", { name: /New terminal with/ })
+    ).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "New terminal" }))
+    expect(onCreateTerminal).toHaveBeenCalledWith()
+    rerender(
+      <ChatPanel
+        {...props}
+        onCreateTerminal={onCreateTerminal}
+        terminalTabs={[...props.terminalTabs, shell("s3", "Terminal", 3)]}
+      />
+    )
+    expect(
+      screen
+        .getByRole("tab", { name: "Terminal" })
+        .getAttribute("aria-selected")
+    ).toBe("true")
+    fireEvent.click(screen.getByRole("button", { name: /Hide terminal/ }))
+    expect(paneState()).toBe("closed")
+    expect(
+      within(screen.getByRole("tablist", { name: "Terminals" }))
+        .getAllByRole("tab")
+        .map((b) => b.textContent)
+    ).toEqual(["Dev server", "Shell", "Shell 2", "Terminal"])
   })
 
   it("opens the pane on Dev server for a frame's Open logs", () => {

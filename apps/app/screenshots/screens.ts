@@ -2353,7 +2353,7 @@ export const SCREENS: Screen[] = [
   {
     name: "terminal-pane-new-shell-hover",
     description:
-      "Hovering + in the open Terminal Pane's tab strip, which opens a terminal (#1341).",
+      "Hovering + in the open Terminal Pane's tab strip, which opens a plain shell (#1341, #1343).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: (page) => stubLogs(page, "reconnecting"),
@@ -4564,8 +4564,8 @@ export async function pasteImageInComposer(page: Page): Promise<void> {
 }
 
 /**
- * Open a fresh terminal tab with the tab strip's "+" (New terminal): a
- * Workspace has one chat (#1315), so "+" only ever opens terminals.
+ * Open a fresh shell with the tab strip's "+" (New terminal): a Workspace has
+ * one chat (#1315), so "+" only ever opens shells (#1343).
  *
  * Opened rather than restored: the fixture world does seed two terminal tabs,
  * but a cold room load currently prunes them as orphans before its Workspaces

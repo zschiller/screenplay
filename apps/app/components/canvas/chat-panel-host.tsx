@@ -99,12 +99,8 @@ export function ChatPanelHost({
           }}
           onCreateTerminal={
             target.kind === "agent"
-              ? (harnessKey) =>
-                  tabPool.open({
-                    kind: "terminal",
-                    branchId: target.agent.id,
-                    harnessKey,
-                  })
+              ? () =>
+                  tabPool.open({ kind: "terminal", branchId: target.agent.id })
               : undefined
           }
           onRenameTerminal={tabPool.rename}

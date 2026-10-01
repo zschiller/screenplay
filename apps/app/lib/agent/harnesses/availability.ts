@@ -163,9 +163,9 @@ export function harnessDefaultModelId(
   return encodeHarnessModelId(harness.key, modelId)
 }
 
-/** A terminal tab's launch payload: the new-tab menu + the picked key's argv. */
+/** A terminal tab's launch payload: the available harnesses + the tab's argv. */
 export interface TerminalLaunch {
-  /** The new-tab picker menu — one `{ key, label }` per available harness. */
+  /** One `{ key, label }` per available harness. */
   harnesses: { key: string; label: string }[]
   /**
    * Launch argv for the tab's stored `harnessKey`, resolved against the available
@@ -177,13 +177,13 @@ export interface TerminalLaunch {
 
 /**
  * Fold an availability list (the Harness Availability seam's answer for this
- * backend) + a tab's picked `harnessKey` → its terminal launch payload: the menu
- * the new-tab picker draws and the launch argv that drops the tab into the chosen
- * CLI. Both `/api/terminal/url` backend branches call this, so the desktop tab
- * resolves its argv from the picked key exactly as the hosted tab does — the only
- * per-backend difference is which resolver produced `available`, and the
- * empty-state banner the caller layers on when nothing is available. Pure;
- * preserves the list's order.
+ * backend) + a tab's stored `harnessKey` → its terminal launch payload: the
+ * available harnesses and the launch argv that drops the tab into its CLI (only
+ * tabs saved before shells became plain, #1343, have a key). Both
+ * `/api/terminal/url` backend branches call this, so the desktop tab resolves
+ * its argv from its key exactly as the hosted tab does — the only per-backend
+ * difference is which resolver produced `available`. Pure; preserves the
+ * list's order.
  */
 export function resolveTerminalLaunch(
   harnessKey: string | null | undefined,

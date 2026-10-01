@@ -1263,7 +1263,6 @@ export function Canvas({
     updateChatSession,
     removeChatSession,
     roomId,
-    userId,
     chatSessions,
     terminalTabs,
     chatTarget,

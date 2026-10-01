@@ -131,10 +131,9 @@ interface ChatPanelProps {
   /** Start the chat of a Workspace that has none (one made terminal-first
    *  before #1315). */
   onCreateChat: () => void
-  /** Open a new terminal against the Workspace's sandbox, launching the given
-   *  harness (by `Harness.key`), and return its id. Absent where shells can't
-   *  be opened (the player). */
-  onCreateTerminal?: (harnessKey: string) => string
+  /** Open a new plain shell against the Workspace's sandbox and return its
+   *  id. Absent where shells can't be opened (the player). */
+  onCreateTerminal?: () => string
   onRenameTerminal?: (id: string, label: string) => void
   /** Close a terminal: drop the tab and kill its session. */
   onCloseTerminal?: (id: string) => void

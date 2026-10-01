@@ -80,29 +80,15 @@ describe("planBranchTeardown", () => {
 })
 
 describe("planBranchSeed", () => {
-  it("seeds the operator's default tab kind for a bare Branch", () => {
-    const plan = planBranchSeed({
-      branchId: "b1",
-      hasSeededChat: false,
-      defaultTabKind: "chat",
-    })
-    expect(plan.tab).toEqual({ branchId: "b1", kind: "chat" })
-  })
-
-  it("honours a terminal default tab kind", () => {
-    const plan = planBranchSeed({
-      branchId: "b1",
-      hasSeededChat: false,
-      defaultTabKind: "terminal",
-    })
-    expect(plan.tab).toEqual({ branchId: "b1", kind: "terminal" })
+  it("seeds the Workspace's chat for a bare Branch", () => {
+    const plan = planBranchSeed({ branchId: "b1", hasSeededChat: false })
+    expect(plan.tab).toEqual({ branchId: "b1" })
   })
 
   it("skips the default tab when a Chat Session was already seeded", () => {
     const plan = planBranchSeed({
       branchId: "b1",
       hasSeededChat: true,
-      defaultTabKind: "chat",
     })
     expect(plan.tab).toBeNull()
   })
@@ -112,7 +98,6 @@ describe("planBranchSeed", () => {
       branchId: "b1",
       label: "Add login",
       hasSeededChat: true,
-      defaultTabKind: "chat",
     })
     expect(plan.frame).toEqual({ agentId: "b1", label: "Add login" })
   })
@@ -121,7 +106,6 @@ describe("planBranchSeed", () => {
     const plan = planBranchSeed({
       branchId: "b1",
       hasSeededChat: false,
-      defaultTabKind: "chat",
     })
     expect(plan.frame).toEqual({ agentId: "b1", label: undefined })
   })
