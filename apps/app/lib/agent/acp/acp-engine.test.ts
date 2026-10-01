@@ -331,6 +331,16 @@ describe("ExternalEngine — Codex plan turn (#1337)", () => {
           status: "completed",
         })
         await ports.onUpdate(reply("plan-1", PLAN))
+        // Codex reports usage and goes idle before it asks.
+        await ports.onUpdate({
+          sessionUpdate: "usage_update",
+          used: 1200,
+          size: 200000,
+        })
+        await ports.onUpdate({
+          sessionUpdate: "session_info_update",
+          _meta: { codex: { threadStatus: { type: "idle" } } },
+        })
         decision = await ports.requestPlanApproval(implementPlan())
         turnAbortedByGate = signal.aborted
         return "cancelled"
@@ -344,6 +354,17 @@ describe("ExternalEngine — Codex plan turn (#1337)", () => {
     )
 
     expect(sentTexts(updates)).toEqual(["Let me look ", "around."])
+    expect(
+      updates.flatMap((u) =>
+        u.kind === "session_update" ? [u.update.sessionUpdate] : []
+      )
+    ).toEqual([
+      "agent_message_chunk",
+      "agent_message_chunk",
+      "tool_call",
+      "usage_update",
+      "session_info_update",
+    ])
     const gate = updates.find((u) => u.kind === "permission_request")
     expect(gate).toBeDefined()
     if (gate?.kind !== "permission_request") return

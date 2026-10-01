@@ -523,8 +523,10 @@ function planGate(
  * collaboration mode (#1337), held until something else arrives. Codex's
  * adapter sends the finished plan as a reply of its own just before asking to
  * carry it out; the gate shows the plan, so that reply is dropped rather than
- * shown twice. Any other reply goes out as soon as the next update arrives, or
- * when the turn ends.
+ * shown twice. Codex reports usage and its thread going idle in between, so
+ * status updates like those pass straight through and keep the reply held. Any
+ * other reply goes out as soon as the next message, reasoning or tool call
+ * arrives, or when the turn ends.
  */
 class HeldReply {
   private chunks: SessionUpdate[] = []
@@ -532,6 +534,7 @@ class HeldReply {
 
   /** The updates to send now that `update` arrived. */
   take(update: SessionUpdate): SessionUpdate[] {
+    if (STATUS_UPDATES.has(update.sessionUpdate)) return [update]
     if (update.sessionUpdate !== "agent_message_chunk") {
       return [...this.release(), update]
     }
@@ -561,6 +564,15 @@ class HeldReply {
     return held
   }
 }
+
+/** Updates about the session rather than the conversation, which a held reply lets by. */
+const STATUS_UPDATES = new Set<SessionUpdate["sessionUpdate"]>([
+  "usage_update",
+  "session_info_update",
+  "available_commands_update",
+  "current_mode_update",
+  "config_option_update",
+])
 
 /** How long a stopped turn's agent gets to wind down before it is ended. */
 const STOP_GRACE_MS = 2000
