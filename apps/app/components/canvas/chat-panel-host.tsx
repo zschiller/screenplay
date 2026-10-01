@@ -46,7 +46,6 @@ export function ChatPanelHost({
   chatPanelRef,
   onUpdateChatSession,
   onSetBranchPr,
-  onLogsReady,
   logsRequest,
 }: {
   chatTarget: ChatTarget
@@ -61,7 +60,6 @@ export function ChatPanelHost({
   chatPanelRef: React.RefObject<PanelImperativeHandle | null>
   onUpdateChatSession: (id: string, data: Partial<ChatSessionData>) => void
   onSetBranchPr: (branchId: string, pr: BranchPrInfo) => void
-  onLogsReady: () => void
   logsRequest: { agentId: string; nonce: number } | null
 }) {
   return (
@@ -109,10 +107,9 @@ export function ChatPanelHost({
                   })
               : undefined
           }
-          onRenameChat={tabPool.rename}
+          onRenameTerminal={tabPool.rename}
+          onCloseTerminal={tabPool.close}
           onRemoveChat={tabPool.remove}
-          onCloseChat={tabPool.close}
-          onReopenChat={tabPool.reopen}
           onPlanModeChange={(chatId, pm) =>
             onUpdateChatSession(chatId, { planMode: pm })
           }
@@ -142,7 +139,6 @@ export function ChatPanelHost({
               chatTarget.selectAgent(branchId)
             }
           }}
-          onLogsReady={onLogsReady}
           logsRequest={logsRequest}
         />
       )

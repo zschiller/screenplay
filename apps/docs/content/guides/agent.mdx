@@ -12,7 +12,7 @@ workspace's agent instead, and everything the agent does happens inside that
 workspace's sandbox.
 
 The Coordinator uses the same composer, with less in it. It is one chat with
-no tabs, and has no **Plan** toggle, <kbd>/</kbd> skills menu or crosshair.
+no terminals, and has no **Plan** toggle, <kbd>/</kbd> skills menu or crosshair.
 
 Every workspace has exactly one chat, from the moment it starts, and that chat
 is the only one that changes the workspace's code. More work in parallel means
@@ -37,38 +37,42 @@ says where you are; hover it for the workspace's
 workspace's **+/−** diff and a **Create PR** button (see
 [Pull requests](/guides/workspaces#pull-requests)).
 
-## Tabs
+## Terminals
 
-Each workspace has its own set of tabs:
-
-- **Sandbox logs** (the first icon) streams the setup script and dev server
-  output. It opens automatically while a workspace is starting, and stays put
-  at the left when the other tabs overflow and scroll.
-- **The chat tab**: the workspace's one chat, named from its first message. A
-  spinner means the agent is working; a pink dot means there's a reply you
-  haven't seen. It has no close button.
-- **Terminal tabs**: see [Terminal tabs](/guides/terminals).
+The workspace's chat fills the panel. Under the composer, a quiet line names
+the workspace's terminals: **Dev server** first, with a dot that's green
+while the sandbox runs, then your own [terminals](/guides/terminals).
 
 <Screenshot
-  name="new-tab-menu"
-  alt="The + button at the end of the tab strip, which opens a new terminal"
+  name="terminal-footnote"
+  alt="The line under the composer naming Dev server and the workspace's terminals"
 />
 
-**+** opens a new terminal tab; there's no second chat to open. Double-click a
-tab to rename it, drag to reorder, and hover a terminal to close it.
+Click a name to open the terminal pane under the chat on it. The open pane
+has its terminals as tabs, **+** to open another terminal, and a caret at the
+right to hide it. Drag the line between the chat and the pane to give either
+more room; drag it all the way down to close the pane. <kbd>⌃</kbd> <kbd>`</kbd>
+opens and closes it from anywhere in a workspace. The pane remembers its
+height and whether it's open, the same in every workspace, and never opens by
+itself.
 
-A canvas from before workspaces had one chat can hold several chats on one
-workspace. The newest is the workspace's chat. The others are **earlier
-chats**: you can still open and read them, and close them, but they can't
-send. In place of the composer they point you to the workspace's chat. Closed
-earlier chats stay in the **Chat history** menu at the end of the strip, with
-their date and first message, where you can reopen them or delete them for
-good.
+**Dev server** shows the setup script's and dev server's output. It's read
+only, and it can't be closed or renamed, so the pane always has something to
+show. A frame's **Open logs** opens the pane on it.
 
 <Screenshot
   name="logs"
-  alt="The Sandbox logs tab streaming the dev server's output"
+  alt="The terminal pane open under the chat on Dev server, streaming the dev server's output"
 />
+
+## Earlier chats
+
+A canvas from before workspaces had one chat can hold several chats on one
+workspace. The newest is the workspace's chat. The others are **earlier
+chats**, in the **Chat history** menu at the right of the panel's header,
+with their date and first message. Open one to read it; it can't send, and in
+place of the composer it points you back to the workspace's chat. You can
+also delete an earlier chat for good from the menu.
 
 ## The composer
 
@@ -216,7 +220,7 @@ A few defaults are worth knowing:
   your identity, which matters on shared canvases.
 - **The workspace preview updates on its own.** The dev server hot-reloads as
   files change. The agent can read the dev server's output (the same as the
-  **Sandbox logs** tab) to debug a broken preview, and restart the dev server
+  **Dev server** terminal) to debug a broken preview, and restart the dev server
   when a change needs it.
 - **The agent can see the frames.** It can take a screenshot of a frame, or
   read the page in it as HTML with the styles included, for example to start a

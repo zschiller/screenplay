@@ -44,11 +44,11 @@ function useFirstLine(chatId: string): string | null {
 
 function HistoryRow({
   chat,
-  onReopen,
+  onOpen,
   onDelete,
 }: {
   chat: ChatSessionData
-  onReopen: () => void
+  onOpen: () => void
   onDelete: () => void
 }) {
   const firstLine = useFirstLine(chat.id)
@@ -57,7 +57,7 @@ function HistoryRow({
     <div className="group/row relative flex items-start rounded-md hover:bg-accent has-[button:focus-visible]:bg-accent">
       <button
         type="button"
-        onClick={onReopen}
+        onClick={onOpen}
         className="flex min-w-0 flex-1 flex-col gap-0.5 px-2 py-1.5 text-left outline-none"
       >
         <span className="flex items-center gap-2 text-sm">
@@ -93,19 +93,20 @@ function HistoryRow({
 }
 
 /**
- * The chat history: the closed chats behind the tab strip's history button.
- * Each row shows the chat's name, when it was closed, its first message, and
- * whether it's still running; pressing a row reopens the chat, and a row can be
+ * The chat history: a Workspace's earlier chats (from before it had one chat,
+ * #1315) behind the panel header's Chat history button. Each row shows the
+ * chat's name, when it was closed (or started), its first message, and whether
+ * it's still running; pressing a row opens the chat read-only, and a row can be
  * deleted.
  */
 export function ChatHistoryMenu({
-  closedChats,
-  onReopen,
+  chats,
+  onOpen,
   onDelete,
 }: {
-  /** Closed chats, newest first. */
-  closedChats: ChatSessionData[]
-  onReopen: (chatId: string) => void
+  /** Earlier chats, newest first. */
+  chats: ChatSessionData[]
+  onOpen: (chatId: string) => void
   onDelete: (chatId: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -114,7 +115,7 @@ export function ChatHistoryMenu({
   const [pendingDelete, setPendingDelete] = useState<ChatSessionData | null>(
     null
   )
-  const history = closedChats.slice(0, HISTORY_LIMIT)
+  const history = chats.slice(0, HISTORY_LIMIT)
 
   // Load each row's log for its first line. Cached per chat, so reopening the
   // menu doesn't fetch again.
@@ -140,8 +141,8 @@ export function ChatHistoryMenu({
             <HistoryRow
               key={chat.id}
               chat={chat}
-              onReopen={() => {
-                onReopen(chat.id)
+              onOpen={() => {
+                onOpen(chat.id)
                 setOpen(false)
               }}
               onDelete={() => {

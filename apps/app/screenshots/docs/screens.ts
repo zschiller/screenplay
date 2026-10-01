@@ -979,20 +979,16 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
-    name: "new-tab-menu",
+    name: "terminal-footnote",
     description:
-      "The tab strip's + button, which opens a terminal: a Workspace has one chat (#1315).",
+      "A Workspace's chat with its terminals named in the footnote under the composer.",
     path: ROOM,
     cookies: WITH_CHAT,
-    crop: [820, 0, 460, 260],
+    crop: [820, 560, 460, 340],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")
-      await page
-        .getByRole("button", { name: "New terminal", exact: true })
-        .first()
-        .hover()
-      await showTooltip(page)
+      await page.mouse.move(0, 0)
     },
   }),
   screen({
@@ -1069,14 +1065,18 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "logs",
-    description: "A Workspace's sandbox logs.",
+    description:
+      "The Terminal Pane open on Dev server, the dev server's output.",
     path: ROOM,
     cookies: WITH_CHAT,
     beforeNavigate: (page) => stubLogs(page, "reconnecting", LOGS_SAMPLE),
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")
-      await page.getByRole("tab", { name: "Sandbox logs" }).first().click()
+      await page
+        .getByRole("navigation", { name: "Terminals" })
+        .getByRole("button", { name: "Dev server" })
+        .click()
       await sleep(page, 2500)
     },
   }),
@@ -1142,7 +1142,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "terminal",
-    description: "A terminal tab in a Workspace.",
+    description: "A terminal open in a Workspace's Terminal Pane.",
     path: ROOM,
     cookies: WITH_CHAT,
     beforeNavigate: (page) => stubTerminal(page, TERMINAL_SAMPLE),
@@ -1150,12 +1150,11 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Customer stories")
       await page
-        .getByRole("button", { name: "New chat or terminal" })
-        .first()
+        .getByRole("navigation", { name: "Terminals" })
+        .getByRole("button", { name: "Dev server" })
         .click()
       await page
-        .getByRole("menuitem")
-        .filter({ hasNotText: "New chat" })
+        .getByRole("button", { name: "New terminal", exact: true })
         .first()
         .click()
       await page.mouse.move(0, 0)

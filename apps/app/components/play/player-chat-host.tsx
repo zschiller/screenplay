@@ -107,10 +107,7 @@ function PlayerChatHostImpl({
       roomId={roomId}
       onSelectChat={setSelectedChatId}
       onCreateChat={() => chatTabs.open({ kind: "agent", branchId: agent.id })}
-      onRenameChat={chatTabs.rename}
       onRemoveChat={chatTabs.remove}
-      onCloseChat={chatTabs.close}
-      onReopenChat={chatTabs.reopen}
       onPlanModeChange={(chatId, planMode) =>
         updateChatSession(chatId, { planMode })
       }
@@ -153,8 +150,7 @@ function PlayerChatPlaceholder({
  * reach the chat subtree. `PrototypePlayer` runs a ResizeObserver on the preview
  * stage that `setStageSize`s on every resize frame; while dragging the chat
  * panel's handle the stage shrinks each frame, so without this every frame
- * re-renders the tab strip and its `layout="position"` tabs re-measure and
- * trail the handle. The canvas host doesn't hit this — its zoom lib resizes the
+ * re-renders the whole chat subtree with it. The canvas host doesn't hit this — its zoom lib resizes the
  * stage imperatively, with no React state update. Requires `onCollapse` to be a
  * stable reference (the parent wraps it in `useCallback`).
  */

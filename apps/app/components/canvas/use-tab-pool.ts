@@ -3,11 +3,7 @@ import { nanoid } from "nanoid"
 
 import { useChatTabs } from "@/hooks/use-chat-tabs"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
-import {
-  buildTabPool,
-  resolveTabClose,
-  type TabPoolTarget,
-} from "@/lib/chat/tab-pool"
+import type { TabPoolTarget } from "@/lib/chat/tab-pool"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { TerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import {
@@ -19,17 +15,17 @@ import type { ChatSessionData, TabKind } from "@/lib/types"
 
 /**
  * Tab Pool controller (PRD #563) — the apply-side of a Chat Target's tab pool,
- * lifted out of `components/canvas/canvas.tsx`. The component renders the tab
- * strip and calls the verbs this hook returns (`open`, `close`, `remove`,
+ * lifted out of `components/canvas/canvas.tsx`. The panel calls the verbs this
+ * hook returns (`open`, `close`, `remove`,
  * `rename`, `reopen`, `seed`); the effects — the chat-store and Y.Doc tab
  * writes and the Terminal Tabs verbs — live here, in one place, rather than smeared across the Canvas surface. The
  * selection side effects each verb performs are delegated to the Chat-Target
  * controller (`useChatTarget`, #569), which owns *which* target is shown;
  * selecting a tab itself is now a Chat-Target verb (`selectChat`).
  *
- * The pure decision core stays in `lib/chat/tab-pool.ts`: {@link buildTabPool}
- * scopes the room-wide lists down to one Branch's pool and {@link resolveTabClose} decides what
- * survives, where selection lands, and whether to respawn. This controller is
+ * The pure decision core stays in `lib/chat/tab-pool.ts`: `buildTabPool`
+ * scopes the room-wide chats down to one Branch's pool and `resolveTabClose`
+ * decides what survives, where selection lands, and whether to respawn. This controller is
  * the adapter that applies that outcome — "decide purely, apply at the call
  * site", with the call site now the controller rather than the component.
  *
@@ -40,8 +36,9 @@ import type { ChatSessionData, TabKind } from "@/lib/types"
  * The Chat Session half (open, close, remove, reopen, rename, the chat respawn)
  * and Chat Sync live in {@link useChatTabs}, which the player shares (#1261).
  * This controller composes it and adds what only the Canvas needs: Terminal
- * Tabs, the per-user default tab kind on an agent respawn, and Chat-Target
- * selection.
+ * Tabs (opened, renamed and closed here, but outside the pool since #1341:
+ * the Terminal Pane owns their selection), the per-user default tab kind on
+ * an agent respawn, and Chat-Target selection.
  *
  * Modelled on the Branch Intake controller (#562): plain injected seams, no
  * inline JSX handlers.
@@ -57,9 +54,8 @@ export interface TabPoolDeps {
   chatSessions: ChatSessionData[]
   /**
    * Terminal Tabs (#1265) — the one owner of this client's Terminal Tab list.
-   * The Tab Pool reads the list for its pool decisions and changes it only
-   * through its verbs (`open`, `close`, `rename`), the same way it composes
-   * Chat-Target for selection. Terminal Tabs are a distinct type, never in
+   * The Tab Pool changes it only through its verbs (`open`, `close`,
+   * `rename`), the same way it composes Chat-Target for selection. Terminal Tabs are a distinct type, never in
    * `chatSessions`.
    */
   terminalTabs: TerminalTabs
@@ -82,12 +78,16 @@ export type OpenTabSpec =
   | { kind: "terminal"; branchId: string; harnessKey: string }
 
 export interface TabPool {
-  /** Create a new tab on a target and select it. */
-  open: (spec: OpenTabSpec) => void
+  /**
+   * Create a new tab on a target and return its id. A chat is selected; a
+   * terminal is left for the Terminal Pane to select.
+   */
+  open: (spec: OpenTabSpec) => string
   /**
    * Close a tab. A Chat Session is archived (`closedAt` stamped, reopenable); a
    * Terminal Tab is dropped and its backing tmux / PTY session killed. The
-   * never-empty invariant respawns the target's default when the last tab goes.
+   * never-empty invariant respawns the target's default when its last chat
+   * goes.
    */
   close: (chatId: string, nextSelectedId?: string) => void
   /** Permanently delete a Chat Session (or close a Terminal Tab). */
@@ -119,7 +119,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     terminalTabs,
     chatTarget,
   } = deps
-  const { tabs: terminals, isTerminal } = terminalTabs
+  const { isTerminal } = terminalTabs
 
   /**
    * Create the user's preferred default tab (chat or terminal) for an agent
@@ -145,16 +145,16 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         })
       }
       if (kind === "terminal") {
-        // A terminal-default tab launches the same harness as the "+" button:
-        // the operator's last-selected harness (#290), falling back to the
-        // catalog default. If it's since been uninstalled the server resolves
-        // it to a plain shell, so a stale pref degrades gracefully.
-        const tab = terminalTabs.open(
+        // A terminal-default Workspace also gets a terminal in its Terminal
+        // Pane, launching the same harness as the "+" button: the operator's
+        // last-selected harness (#290), falling back to the catalog default.
+        // If it's since been uninstalled the server resolves it to a plain
+        // shell, so a stale pref degrades gracefully. The pane doesn't open
+        // for it (#1341): the footnote lists it.
+        terminalTabs.open(
           branchId,
           (userId ? readLastHarnessKey(userId) : null) ?? DEFAULT_HARNESS_KEY
         )
-        if (select) chatTarget.selectChatId(tab.id)
-        return tab.id
       }
       if (select) chatTarget.selectChatId(chatId)
       return chatId
@@ -188,7 +188,6 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     remove: removeChat,
     rename: renameChat,
     reopen,
-    applyCloseOutcome,
   } = useChatTabs({
     roomId,
     chatSessions,
@@ -197,59 +196,37 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     removeChatSession,
     selectedChatId: chatTarget.selectedChatId,
     selectChat,
-    terminals,
     respawnAgent,
   })
 
   // Close a Terminal Tab: it's ephemeral, so closing drops it (no closed-chats
   // archive), deletes its row and kills its session — all in Terminal Tabs.
-  // The Tab Pool decision keeps the never-empty invariant — if this terminal is
-  // the last tab on its branch (no sibling terminal and no open chat) it
-  // returns a respawn for the user's preferred default kind (which may be a
-  // chat); otherwise, if it was selected, it picks the fallback selection.
+  // Terminals aren't in the Tab Pool (#1341): the Terminal Pane moves its own
+  // selection to the neighbour, and Dev server keeps it from ever emptying.
   const closeTerminal = useCallback(
-    (id: string, nextSelectedId?: string) => {
-      const closing = terminalTabs.close(id)
-      if (closing) {
-        const pool = buildTabPool(
-          { kind: "agent", branchId: closing.branchId },
-          chatSessions,
-          terminals
-        )
-        const outcome = resolveTabClose(
-          pool,
-          id,
-          chatTarget.selectedChatId,
-          nextSelectedId
-        )
-        applyCloseOutcome(outcome)
-      } else if (chatTarget.selectedChatId === id) {
-        // No tab to form a pool around; just clear the selection if it was the
-        // selected tab.
-        chatTarget.selectChatId(nextSelectedId ?? null)
-      }
+    (id: string) => {
+      terminalTabs.close(id)
     },
-    [terminalTabs, terminals, chatSessions, chatTarget, applyCloseOutcome]
+    [terminalTabs]
   )
 
   const open = useCallback(
     (spec: OpenTabSpec) => {
       if (spec.kind === "chat") {
-        openChat({ kind: "agent", branchId: spec.branchId })
-        return
+        return openChat({ kind: "agent", branchId: spec.branchId })
       }
       // A Terminal Tab lives in Terminal Tabs — never in `chatSessions` — so
-      // the panel mounts a terminal body instead of the Engine chat and the
-      // conversation model can never, by type, see it.
-      const tab = terminalTabs.open(spec.branchId, spec.harnessKey)
-      chatTarget.selectAgentChat(spec.branchId, tab.id)
+      // the Terminal Pane mounts a terminal body instead of the Engine chat and
+      // the conversation model can never, by type, see it. The pane selects
+      // it; the chat selection stays on the chat.
+      return terminalTabs.open(spec.branchId, spec.harnessKey).id
     },
-    [openChat, terminalTabs, chatTarget]
+    [openChat, terminalTabs]
   )
 
   const close = useCallback(
     (chatId: string, nextSelectedId?: string) => {
-      if (isTerminal(chatId)) closeTerminal(chatId, nextSelectedId)
+      if (isTerminal(chatId)) closeTerminal(chatId)
       else closeChat(chatId, nextSelectedId)
     },
     [closeChat, isTerminal, closeTerminal]
