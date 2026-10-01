@@ -6,12 +6,7 @@ import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import type { TabPoolTarget } from "@/lib/chat/tab-pool"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { TerminalTabs } from "@/components/canvas/use-terminal-tabs"
-import {
-  DEFAULT_HARNESS_KEY,
-  readLastHarnessKey,
-  readLastTabKind,
-} from "@/lib/canvas/tab-kind"
-import type { ChatSessionData, TabKind } from "@/lib/types"
+import type { ChatSessionData } from "@/lib/types"
 
 /**
  * Tab Pool controller (PRD #563) — the apply-side of a Chat Target's tab pool,
@@ -31,14 +26,13 @@ import type { ChatSessionData, TabKind } from "@/lib/types"
  *
  * The never-empty invariant ("while the target lives, its pool is never empty")
  * lives here too, with the writes that uphold it: a respawn recreates the
- * target's preferred default tab so the panel is never left blank.
+ * Workspace's chat so the panel is never left blank.
  *
  * The Chat Session half (open, close, remove, reopen, rename, the chat respawn)
  * and Chat Sync live in {@link useChatTabs}, which the player shares (#1261).
  * This controller composes it and adds what only the Canvas needs: Terminal
  * Tabs (opened, renamed and closed here, but outside the pool since #1341:
- * the Terminal Pane owns their selection), the per-user default tab kind on
- * an agent respawn, and Chat-Target selection.
+ * the Terminal Pane owns their selection), and Chat-Target selection.
  *
  * Modelled on the Branch Intake controller (#562): plain injected seams, no
  * inline JSX handlers.
@@ -49,8 +43,6 @@ export interface TabPoolDeps {
   updateChatSession: (id: string, patch: Partial<ChatSessionData>) => void
   removeChatSession: (id: string) => void
   roomId: string
-  /** The signed-in User's id, used to resolve the sticky harness pref (#290). */
-  userId: string | undefined
   chatSessions: ChatSessionData[]
   /**
    * Terminal Tabs (#1265) — the one owner of this client's Terminal Tab list.
@@ -74,8 +66,7 @@ export interface TabPoolDeps {
  * requires.
  */
 export type OpenTabSpec =
-  | { kind: "chat"; branchId: string }
-  | { kind: "terminal"; branchId: string; harnessKey: string }
+  { kind: "chat"; branchId: string } | { kind: "terminal"; branchId: string }
 
 export interface TabPool {
   /**
@@ -97,15 +88,11 @@ export interface TabPool {
   /** Restore a previously-closed Chat Session into its pool. */
   reopen: (chatId: string) => void
   /**
-   * Seed a Branch's preferred default tab (chat or terminal). The handoff Branch
-   * Intake (#562) calls so intake and the Tab Pool agree on "the default tab".
-   * Selects the new tab unless `select` is false. Returns the new tab id.
+   * Seed a Branch's chat. The handoff Branch Intake (#562) calls so intake and
+   * the Tab Pool agree on "the default tab". Selects the chat unless `select`
+   * is false. Returns its id.
    */
-  seed: (
-    branchId: string,
-    kind: TabKind,
-    options?: { select?: boolean }
-  ) => string
+  seed: (branchId: string, options?: { select?: boolean }) => string
 }
 
 export function useTabPool(deps: TabPoolDeps): TabPool {
@@ -114,7 +101,6 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     updateChatSession,
     removeChatSession,
     roomId,
-    userId,
     chatSessions,
     terminalTabs,
     chatTarget,
@@ -122,18 +108,16 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
   const { isTerminal } = terminalTabs
 
   /**
-   * Create the user's preferred default tab (chat or terminal) for an agent
-   * branch. This is the one place the "open a fresh branch" and "the last tab
-   * was just closed" flows share, so the auto-created tab always follows the
-   * per-user pref ({@link readLastTabKind}) rather than whatever kind happened
-   * to be closed. Selects the new tab unless `select` is false (branch-create
-   * defers selection to when the sandbox is ready). Returns the new tab id.
+   * Make sure an agent branch has its chat. This is the one place the "open a
+   * fresh branch" and "the last tab was just closed" flows share. Selects the
+   * chat unless `select` is false (branch-create defers selection to when the
+   * sandbox is ready). Returns the chat's id.
    */
   const seed = useCallback(
-    (branchId: string, kind: TabKind, options?: { select?: boolean }) => {
+    (branchId: string, options?: { select?: boolean }) => {
       const select = options?.select !== false
-      // Every Workspace has its one chat from the start (#1315), whatever the
-      // default tab kind: a terminal default adds a terminal beside it.
+      // Every Workspace has its one chat from the start (#1315). Terminals
+      // only open from the Terminal Pane's + (#1343).
       let chatId = workspaceChatId(chatSessions, branchId)
       if (!chatId) {
         chatId = nanoid()
@@ -144,22 +128,10 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
           createdAt: Date.now(),
         })
       }
-      if (kind === "terminal") {
-        // A terminal-default Workspace also gets a terminal in its Terminal
-        // Pane, launching the same harness as the "+" button: the operator's
-        // last-selected harness (#290), falling back to the catalog default.
-        // If it's since been uninstalled the server resolves it to a plain
-        // shell, so a stale pref degrades gracefully. The pane doesn't open
-        // for it (#1341): the footnote lists it.
-        terminalTabs.open(
-          branchId,
-          (userId ? readLastHarnessKey(userId) : null) ?? DEFAULT_HARNESS_KEY
-        )
-      }
       if (select) chatTarget.selectChatId(chatId)
       return chatId
     },
-    [chatSessions, addChatSession, userId, terminalTabs, chatTarget]
+    [chatSessions, addChatSession, chatTarget]
   )
 
   const selectChat = useCallback(
@@ -173,11 +145,10 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     [chatTarget]
   )
 
-  // An agent's respawn follows the per-user default tab kind (chat or
-  // terminal).
+  // An agent's respawn brings its chat back.
   const respawnAgent = useCallback(
     (branchId: string) => {
-      seed(branchId, readLastTabKind())
+      seed(branchId)
     },
     [seed]
   )
@@ -217,9 +188,9 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
       }
       // A Terminal Tab lives in Terminal Tabs — never in `chatSessions` — so
       // the Terminal Pane mounts a terminal body instead of the Engine chat and
-      // the conversation model can never, by type, see it. The pane selects
-      // it; the chat selection stays on the chat.
-      return terminalTabs.open(spec.branchId, spec.harnessKey).id
+      // the conversation model can never, by type, see it. It's a plain shell
+      // (#1343). The pane selects it; the chat selection stays on the chat.
+      return terminalTabs.open(spec.branchId).id
     },
     [openChat, terminalTabs]
   )

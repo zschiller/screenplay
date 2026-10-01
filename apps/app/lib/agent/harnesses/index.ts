@@ -161,9 +161,10 @@ export function buildBrokeredEnv(harnesses: Harness[]): Record<string, string> {
  * killing the tab.
  *
  * Returns `[]` (a plain login shell — ttyd's base `tmux new -A -s <session>`
- * with no command) when the tab has no `harnessKey` (a row created before
- * harness auto-launch, #285) or when its key isn't installed (an operator
- * dropped it from `SANDBOX_HARNESSES`, or its broker provider is unconfigured).
+ * with no command) when the tab has no `harnessKey` (every new tab since
+ * shells became plain, #1343, and rows from before #285) or when its key isn't
+ * installed (an operator dropped it from `SANDBOX_HARNESSES`, or its broker
+ * provider is unconfigured).
  * That graceful fall-through, not an error, is the tracer-bullet's safety net.
  */
 export function resolveLaunchArgv(
@@ -174,34 +175,4 @@ export function resolveLaunchArgv(
   const harness = installable.find((h) => h.key === harnessKey)
   if (!harness) return []
   return ["sh", "-c", `${harness.launchCommand}; exec $SHELL`]
-}
-
-/**
- * Launch argv for a terminal tab when the backend offers no harness at all: a
- * bare login shell preceded by a banner telling the operator how to make one
- * available, so the empty state explains itself instead of presenting a silent
- * blank shell. Wrapped like the harness launch (`exec $SHELL`) so the operator
- * lands in a normal shell after the banner prints. Used only when the tab would
- * otherwise open a plain shell *and* nothing is available — a tab whose harness
- * launches never shows it.
- *
- * The guidance is backend-specific: the **hosted** backend installs harnesses
- * from `SANDBOX_HARNESSES`, so its banner points there; the **desktop** backend
- * detects a CLI on the host PATH (no env, no install), so its banner points at
- * installing one (managed from the deferred homescreen Settings surface).
- */
-export function unconfiguredBannerArgv(
-  backend: "hosted" | "desktop" = "hosted"
-): string[] {
-  const banner =
-    backend === "desktop"
-      ? "No coding harness was detected. " +
-        "Open Settings → Coding agents to install and sign in to a coding CLI " +
-        "(e.g. Claude Code), then launch it in this terminal."
-      : "No coding harness is configured. " +
-        "Set SANDBOX_HARNESSES (e.g. SANDBOX_HARNESSES=claude-code) and reprovision " +
-        "to launch a CLI in this terminal."
-  // The banner is a fixed literal with no single quotes, so a single-quoted
-  // shell arg is safe; printf interprets the `\n`s in the format string.
-  return ["sh", "-c", `printf '\\n%s\\n\\n' '${banner}'; exec $SHELL`]
 }

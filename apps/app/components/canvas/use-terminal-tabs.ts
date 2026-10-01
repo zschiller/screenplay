@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { nanoid } from "nanoid"
 
-import { createTerminalTab } from "@/lib/canvas/tab-kind"
+import { createTerminalTab, nextShellLabel } from "@/lib/canvas/tab-kind"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import {
@@ -30,7 +30,7 @@ import type { BranchData, TerminalTabData } from "@/lib/types"
  * and optimistic — the list changes first, a failed call is logged.
  *
  * Terminal tabs are deliberately kept out of the shared `chatSessions` Y.Doc
- * collection: they're per-user, BYO-harness shells that must never appear in
+ * collection: they're per-user shells that must never appear in
  * collaborators' tab strips or enter the conversation model. Only the tab
  * identity is stored, never scrollback. Co-view across clients is still a
  * deliberate non-goal — see ADR 0002 / follow-up.
@@ -48,8 +48,11 @@ export interface TerminalTabs {
   tabs: TerminalTabData[]
   /** True when `id` names one of this client's Terminal Tabs (never a chat). */
   isTerminal: (id: string | null) => boolean
-  /** Open a tab on a Branch, launching `harnessKey`, and save its row. */
-  open: (branchId: string, harnessKey: string) => TerminalTabData
+  /**
+   * Open a plain shell on a Branch (#1343), named "Shell", "Shell 2"…, and
+   * save its row.
+   */
+  open: (branchId: string) => TerminalTabData
   /**
    * Close a tab: drop it, delete its row, kill its session. Returns the tab as
    * it was, or `undefined` when `id` isn't open.
@@ -79,20 +82,22 @@ export function useTerminalTabs(deps: TerminalTabsDeps): TerminalTabs {
   )
 
   const open = useCallback(
-    (branchId: string, harnessKey: string) => {
-      // The tab id doubles as the live-view `terminalSessionId`.
+    (branchId: string) => {
+      // The tab id doubles as the live-view `terminalSessionId`. No harness:
+      // shells are plain shells, and harnesses run as the chat (#1343).
       const tab = createTerminalTab({
         id: nanoid(),
         branchId,
         createdAt: Date.now(),
-        // Stored on the row so it survives reload and rebuild (#290).
-        harnessKey,
+        label: nextShellLabel(
+          tabs.filter((t) => t.branchId === branchId).map((t) => t.label)
+        ),
       })
       setTabs((prev) => [...prev, tab])
       store.save(roomId, tab).catch(logFailure("persist terminal tab"))
       return tab
     },
-    [roomId, store]
+    [tabs, roomId, store]
   )
 
   const close = useCallback(

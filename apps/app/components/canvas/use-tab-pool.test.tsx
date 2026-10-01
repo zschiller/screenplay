@@ -13,13 +13,6 @@ vi.mock("@/lib/chat-store", () => ({
   chatStore: { cleanup: vi.fn() },
 }))
 
-// The respawn follows the per-user default tab kind; pin it to a chat so the
-// respawn is a plain `addChatSession`.
-vi.mock("@/lib/canvas/tab-kind", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/canvas/tab-kind")>()),
-  readLastTabKind: () => "chat",
-}))
-
 import { useTabPool } from "./use-tab-pool"
 
 function chat(
@@ -52,7 +45,6 @@ function setup(chatSessions: ChatSessionData[], selectedChatId: string) {
     useTabPool({
       ...deps,
       roomId: "room-1",
-      userId: "user-1",
       chatSessions,
     })
   )

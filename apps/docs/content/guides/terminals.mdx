@@ -1,6 +1,6 @@
 ---
 title: Terminal tabs
-description: A real shell in the workspace's sandbox, with your coding CLI already running.
+description: A plain shell in the workspace's sandbox, beside its dev server.
 ---
 
 # Terminal tabs
@@ -8,36 +8,29 @@ description: A real shell in the workspace's sandbox, with your coding CLI alrea
 A terminal tab is an interactive shell inside a workspace's sandbox, in the
 same directory the agent works in. It opens in the terminal pane under the
 workspace's chat, beside **Dev server** (see
-[Terminals](/guides/agent#terminals)). Use one to run a CLI yourself, poke at
-the repository, or drive a coding CLI in its own interactive interface.
+[Terminals](/guides/agent#terminals)). Use one to run tests, poke at git, or
+try a command yourself while the chat works.
 
-<Screenshot name="terminal" alt="A terminal tab running Claude Code inside the customer-stories workspace" />
+<Screenshot name="terminal" alt="A shell in the customer-stories workspace's terminal pane, after a build" />
 
-## Opening a terminal
+## Opening a shell
 
 Open the terminal pane (click a name under the composer, or press
-<kbd>⌃</kbd> <kbd>`</kbd>) and click **+** after its tabs: it opens a terminal
-with the coding CLI you used last, and the pane switches to it. If several
-coding CLIs are available, the caret next to **+** lists them; pick one to
-launch it straight away:
+<kbd>⌃</kbd> <kbd>`</kbd>) and click **+** after its tabs. It opens a plain
+shell in the workspace and the pane switches to it. Shells are named
+**Shell**, **Shell 2** and so on; double-click a name to rename it. Open as
+many as you like.
 
-| CLI | Notes |
-| --- | --- |
-| **Claude Code** | Anthropic's coding CLI |
-| **Codex** | OpenAI's coding CLI |
-| **opencode (Vercel AI Gateway)** / **opencode (OpenAI‑compatible)** | opencode against the gateway or a compatible endpoint (terminal only) |
+On desktop, to work with Claude Code or Codex, pick it as the chat's model
+rather than running it in a shell, so it's the workspace's one agent and the
+Coordinator can see what it does (see
+[Choosing a model](/guides/agent#choosing-a-model)). A coding CLI installed in
+the sandbox still runs if you type its command in a shell.
 
-The CLI starts in the workspace. Quitting it (for example with
-<kbd>Ctrl</kbd> <kbd>D</kbd>) drops you into a normal shell rather than closing
-the tab.
-
-Which CLIs are offered depends on how you run Screenplay:
-
-- **Desktop**: any supported CLI installed on your machine, on its own login.
-  Install and sign in from **Settings → Coding agents**.
-- **Hosted**: the CLIs the operator enabled with `SANDBOX_HARNESSES`. The CLI
-  never sees the real API key; the sandbox injects it on the way out. See
-  [Coding CLIs](/self-hosting/configuration/byo-harnesses).
+<Callout type="info">
+  A terminal that an earlier version opened with a coding CLI keeps running
+  it until you close it.
+</Callout>
 
 ## Persistence
 
@@ -47,11 +40,11 @@ Which CLIs are offered depends on how you run Screenplay:
 - **Scrollback** isn't saved, and it ends with the sandbox.
 - **Closing** a terminal tab ends its session for good. Closed terminals
   aren't archived the way chats are. If something is still running in it,
-  such as a coding CLI or a dev server, Screenplay asks before closing; an
+  such as a test run or a dev server, Screenplay asks before closing; an
   idle shell closes at once. The pane then shows the tab next to it, or
   **Dev server**.
 
 <Callout type="info">
-  A terminal and a chat can run in the same workspace at the same time, and
-  they share the same files. Commit from one and the other sees it.
+  A shell and the chat work in the same files. Commit from one and the other
+  sees it.
 </Callout>

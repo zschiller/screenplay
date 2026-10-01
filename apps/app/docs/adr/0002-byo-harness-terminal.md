@@ -487,3 +487,21 @@ is unchanged.
   it. (When it is built it is a companion service, since Vercel cannot hold the
   socket — a decision for that day, not this one. Multi-tenant metering / key
   isolation are unrelated and remain out of scope everywhere in this ADR.)
+
+## Addendum (2026-10-01): terminals are plain shells (#1343, spec #1340)
+
+Terminal Tabs no longer launch a harness. Harnesses run as the Workspace's chat
+(the model menu picks Claude Code or Codex as its backing), so a harness in a
+terminal was a second agent editing a Workspace its chat owns, out of the
+Coordinator's sight.
+
+- **+ opens a plain shell.** The new-tab harness picker, the per-user
+  last-tab-kind and last-harness preferences, and the `/api/terminal/harnesses`
+  list behind the picker are gone. New rows store no `harnessKey`.
+- **Existing harness tabs keep working.** A row saved with a `harnessKey` still
+  resolves to its wrapped launch argv on reattach, exactly as in the #285
+  addendum, until it's closed.
+- **The configure banner (#289) is gone.** It told the operator how to launch a
+  CLI in the terminal; with plain shells it would greet every shell on a
+  deployment without `SANDBOX_HARNESSES`. The CLIs `SANDBOX_HARNESSES` installs
+  stay on the sandbox's PATH, brokered as before, for anyone who types them.

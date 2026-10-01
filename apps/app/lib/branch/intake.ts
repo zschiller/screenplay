@@ -1,5 +1,3 @@
-import type { TabKind } from "@/lib/types"
-
 /**
  * Branch Intake — the order-independent decisions behind the Repo → Branch →
  * Sandbox lifecycle, lifted out of `components/canvas/canvas.tsx` (PRD #562).
@@ -118,8 +116,6 @@ export interface BranchSeedInput {
    * is not seeded on top.
    */
   hasSeededChat: boolean
-  /** The operator's preferred default tab kind (chat | terminal). */
-  defaultTabKind: TabKind
 }
 
 /**
@@ -133,7 +129,7 @@ export interface BranchSeedPlan {
    * Chat Session (a prompted row) — so the Tab Pool is never empty when the
    * Branch opens, and a prompted row is never double-seeded.
    */
-  tab: { branchId: string; kind: TabKind } | null
+  tab: { branchId: string } | null
   /**
    * The eager Frame to seed: a positioned, identifiable placeholder the canvas
    * shows before the dev server is ready.
@@ -147,9 +143,7 @@ export interface BranchSeedPlan {
  */
 export function planBranchSeed(input: BranchSeedInput): BranchSeedPlan {
   return {
-    tab: input.hasSeededChat
-      ? null
-      : { branchId: input.branchId, kind: input.defaultTabKind },
+    tab: input.hasSeededChat ? null : { branchId: input.branchId },
     frame: { agentId: input.branchId, label: input.label },
   }
 }

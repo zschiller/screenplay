@@ -47,25 +47,61 @@ const ids = (tabs: { id: string }[]) => tabs.map((t) => t.id)
 afterEach(cleanup)
 
 describe("useTerminalTabs", () => {
-  it("opens a tab and saves its row", () => {
+  it("opens a plain shell and saves its row", () => {
     const { store, result } = setup({})
 
     let id = ""
     act(() => {
-      id = result.current.open("ws-1", "claude-code").id
+      id = result.current.open("ws-1").id
     })
 
     expect(ids(result.current.tabs)).toEqual([id])
     expect(result.current.tabs[0]).toMatchObject({
       branchId: "ws-1",
-      harnessKey: "claude-code",
+      label: "Shell",
       terminalSessionId: id,
     })
+    expect(result.current.tabs[0].harnessKey).toBeUndefined()
     expect(result.current.isTerminal(id)).toBe(true)
     expect(store.rows.get(id)).toMatchObject({
       branch: "ws-1",
-      harnessKey: "claude-code",
+      label: "Shell",
+      harnessKey: null,
     })
+  })
+
+  it("numbers a Workspace's shells", async () => {
+    const { result } = setup({
+      saved: [record("other", "ws-2")],
+      agents: [branch("ws-1"), branch("ws-2")],
+    })
+    await waitFor(() => expect(ids(result.current.tabs)).toEqual(["other"]))
+
+    act(() => {
+      result.current.open("ws-1")
+    })
+    act(() => {
+      result.current.open("ws-1")
+    })
+    act(() => {
+      result.current.open("ws-2")
+    })
+
+    expect(result.current.tabs.map((t) => [t.branchId, t.label])).toEqual([
+      ["ws-2", "other"],
+      ["ws-1", "Shell"],
+      ["ws-1", "Shell 2"],
+      ["ws-2", "Shell"],
+    ])
+  })
+
+  it("keeps a restored harness tab's harness, so it reattaches to its CLI", async () => {
+    const { result } = setup({
+      saved: [{ ...record("claude", "ws-1"), harnessKey: "claude-code" }],
+    })
+
+    await waitFor(() => expect(ids(result.current.tabs)).toEqual(["claude"]))
+    expect(result.current.tabs[0].harnessKey).toBe("claude-code")
   })
 
   it("closes a tab: row gone, session killed", async () => {
@@ -109,7 +145,7 @@ describe("useTerminalTabs", () => {
 
     let local = ""
     act(() => {
-      local = result.current.open("ws-1", "shell").id
+      local = result.current.open("ws-1").id
     })
 
     await waitFor(() =>
