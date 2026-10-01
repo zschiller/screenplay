@@ -1061,15 +1061,17 @@ export const SCREENS: Screen[] = [
   {
     name: "terminal-tab-rename",
     description:
-      "A restored terminal tab's label in rename mode, in the Terminal Pane's tab strip (#918, #1341).",
+      "A terminal tab's label in rename mode, in the Terminal Pane's tab strip (#918, #1341).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: stubTerminal,
     prepare: async (page) => {
-      await openTerminalPane(page, "claude", "checkout-polish")
+      // Opened rather than restored (see `openTerminalTab`).
+      await openTerminalTab(page)
       await page
         .getByRole("tab")
-        .getByText("claude", { exact: true })
+        .getByText("Terminal", { exact: true })
+        .last()
         .dblclick({ timeout: 15_000 })
     },
     settleMs: 600,

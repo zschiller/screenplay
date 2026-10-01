@@ -351,7 +351,15 @@ function PaneTab({
       data-tab-id={terminal.id}
       className="group/tab relative flex h-full shrink-0 items-stretch"
     >
-      <TabsTrigger value={terminal.id} className="px-2 py-1 text-sm">
+      {/* A shell keeps room for its hover close, so the × never covers a
+          short label. */}
+      <TabsTrigger
+        value={terminal.id}
+        className={cn(
+          "px-2 py-1 text-sm",
+          terminal.kind === "shell" && "min-w-[100px]"
+        )}
+      >
         {terminal.kind === "dev-server" ? (
           <span className="flex items-center gap-1.5">
             <DevServerDot status={agent.status} />
