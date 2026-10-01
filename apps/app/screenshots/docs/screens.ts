@@ -1074,8 +1074,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")
       await page
-        .getByRole("navigation", { name: "Terminals" })
-        .getByRole("button", { name: "Dev server" })
+        .getByRole("tablist", { name: "Terminals" })
+        .getByRole("tab", { name: "Dev server" })
         .click()
       await sleep(page, 2500)
     },
@@ -1150,8 +1150,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Customer stories")
       await page
-        .getByRole("navigation", { name: "Terminals" })
-        .getByRole("button", { name: "Dev server" })
+        .getByRole("tablist", { name: "Terminals" })
+        .getByRole("tab", { name: "Dev server" })
         .click()
       await page
         .getByRole("button", { name: "New terminal", exact: true })

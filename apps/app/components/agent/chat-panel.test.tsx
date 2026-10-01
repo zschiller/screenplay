@@ -180,28 +180,34 @@ function renderWorkspacePanel(
   return { ...view, props, onSelectChat, onCloseTerminal }
 }
 
-const footnote = () => screen.queryByRole("navigation", { name: "Terminals" })
+// Closed, the pane's tab strip rests as the footnote under the composer.
+const paneState = () =>
+  screen
+    .getByRole("tablist", { name: "Terminals" })
+    .closest<HTMLElement>("[data-pane]")!.dataset.pane
+const terminalName = (name: string) => screen.getByRole("tab", { name })
 
 describe("ChatPanel with a Workspace target", () => {
   it("shows the chat with no tab strip, and a footnote naming its terminals", () => {
     renderWorkspacePanel()
     expect(screen.getByTestId("agent-chat").dataset.chatId).toBe("chat-1")
     expect(screen.queryByRole("tab", { name: /Sandbox logs/ })).toBeNull()
-    const names = within(footnote()!)
-      .getAllByRole("button")
+    expect(paneState()).toBe("closed")
+    const names = within(screen.getByRole("tablist", { name: "Terminals" }))
+      .getAllByRole("tab")
       .map((b) => b.textContent)
     expect(names).toEqual(["Dev server", "Shell", "Shell 2"])
   })
 
   it("opens the pane on the clicked terminal, and the caret closes it", () => {
     renderWorkspacePanel()
-    fireEvent.click(within(footnote()!).getByRole("button", { name: "Shell" }))
-    expect(footnote()).toBeNull()
+    fireEvent.click(terminalName("Shell"))
+    expect(paneState()).toBe("open")
     expect(
       screen.getByRole("tab", { name: "Shell" }).getAttribute("aria-selected")
     ).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: /Hide terminal/ }))
-    expect(footnote()).not.toBeNull()
+    expect(paneState()).toBe("closed")
   })
 
   it("toggles with ⌃`", () => {
@@ -209,7 +215,7 @@ describe("ChatPanel with a Workspace target", () => {
     act(() => {
       fireEvent.keyDown(window, { key: "`", code: "Backquote", ctrlKey: true })
     })
-    expect(footnote()).toBeNull()
+    expect(paneState()).toBe("open")
     expect(
       screen
         .getByRole("tab", { name: "Dev server" })
@@ -218,25 +224,21 @@ describe("ChatPanel with a Workspace target", () => {
     act(() => {
       fireEvent.keyDown(window, { key: "`", code: "Backquote", ctrlKey: true })
     })
-    expect(footnote()).not.toBeNull()
+    expect(paneState()).toBe("closed")
   })
 
   it("remembers that the pane is open, across Workspaces and reloads", () => {
     const first = renderWorkspacePanel()
-    fireEvent.click(
-      within(footnote()!).getByRole("button", { name: "Dev server" })
-    )
+    fireEvent.click(terminalName("Dev server"))
     first.unmount()
     renderWorkspacePanel({ terminalTabs: [] })
-    expect(footnote()).toBeNull()
+    expect(paneState()).toBe("open")
     expect(screen.getByRole("tab", { name: "Dev server" })).toBeTruthy()
   })
 
   it("never offers to close Dev server", () => {
     renderWorkspacePanel()
-    fireEvent.click(
-      within(footnote()!).getByRole("button", { name: "Dev server" })
-    )
+    fireEvent.click(terminalName("Dev server"))
     expect(
       screen.getAllByRole("button", { name: "Close terminal" })
     ).toHaveLength(2)
@@ -244,7 +246,7 @@ describe("ChatPanel with a Workspace target", () => {
 
   it("lands on the neighbour when the shown shell closes", () => {
     const { onCloseTerminal, rerender, props } = renderWorkspacePanel()
-    fireEvent.click(within(footnote()!).getByRole("button", { name: "Shell" }))
+    fireEvent.click(terminalName("Shell"))
     // An idle sandbox is still "running" here, so the close asks the server
     // what's running first; a non-running one closes at once.
     const stopped = { ...workspace, status: "stopped" } as BranchData
@@ -271,9 +273,7 @@ describe("ChatPanel with a Workspace target", () => {
     const onCreateTerminal = vi.fn(() => "s3")
     const { rerender, props } = renderWorkspacePanel()
     rerender(<ChatPanel {...props} onCreateTerminal={onCreateTerminal} />)
-    fireEvent.click(
-      within(footnote()!).getByRole("button", { name: "Dev server" })
-    )
+    fireEvent.click(terminalName("Dev server"))
     expect(
       screen.queryByRole("button", { name: /New terminal with/ })
     ).toBeNull()
@@ -292,20 +292,21 @@ describe("ChatPanel with a Workspace target", () => {
         .getAttribute("aria-selected")
     ).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: /Hide terminal/ }))
+    expect(paneState()).toBe("closed")
     expect(
-      within(footnote()!)
-        .getAllByRole("button")
+      within(screen.getByRole("tablist", { name: "Terminals" }))
+        .getAllByRole("tab")
         .map((b) => b.textContent)
     ).toEqual(["Dev server", "Shell", "Shell 2", "Terminal"])
   })
 
   it("opens the pane on Dev server for a frame's Open logs", () => {
     const { rerender, props } = renderWorkspacePanel()
-    expect(footnote()).not.toBeNull()
+    expect(paneState()).toBe("closed")
     rerender(
       <ChatPanel {...props} logsRequest={{ agentId: "ws-1", nonce: 1 }} />
     )
-    expect(footnote()).toBeNull()
+    expect(paneState()).toBe("open")
     expect(
       screen
         .getByRole("tab", { name: "Dev server" })

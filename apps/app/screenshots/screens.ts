@@ -4591,8 +4591,8 @@ export async function openTerminalPane(
 ): Promise<void> {
   await selectWorkspace(page, workspace)
   await page
-    .getByRole("navigation", { name: "Terminals" })
-    .getByRole("button", { name, exact: true })
+    .getByRole("tablist", { name: "Terminals" })
+    .getByRole("tab", { name, exact: true })
     .first()
     .click({ timeout: 15_000 })
 }

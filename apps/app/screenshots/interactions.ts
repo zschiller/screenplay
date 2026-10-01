@@ -1,6 +1,6 @@
 import type { Page } from "playwright-core"
 
-import { stubTerminal } from "./fixtures/streams"
+import { stubLogs, stubTerminal } from "./fixtures/streams"
 import {
   connectWorkspaceLifecycle,
   livePreviewDomain,
@@ -20,6 +20,7 @@ import {
   openChatTab,
   openTerminalTab,
   replayRun,
+  selectWorkspace,
   rowMenuTrigger,
   stubSteer,
   tabTo,
@@ -468,6 +469,36 @@ export const INTERACTIONS: Interaction[] = [
           window.dispatchEvent(new StorageEvent("storage", { key: "theme", newValue: "${theme}" }))
         })()`)
         await page.waitForTimeout(1800)
+      }
+    },
+  },
+  {
+    name: "terminal-pane-open-close",
+    description:
+      "The Terminal Pane growing from the footnote into its tab strip and back, by a name, the caret and ⌃` (#1344).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: (page) => stubLogs(page, "reconnecting"),
+    run: async (page) => {
+      await selectWorkspace(page, "Checkout polish").catch(() =>
+        console.warn("  ! skipped a step: could not select the Workspace")
+      )
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1000)
+      await click(
+        page,
+        page
+          .getByRole("tablist", { name: "Terminals" })
+          .getByRole("tab", { name: "Dev server" })
+      )
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1400)
+      await click(page, page.getByRole("button", { name: "Hide terminal" }))
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1400)
+      for (let i = 0; i < 2; i++) {
+        await page.keyboard.press("Control+Backquote")
+        await page.waitForTimeout(1400)
       }
     },
   },
