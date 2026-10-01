@@ -109,6 +109,11 @@ export interface OpenSessionOptions {
    * a matching mode, {@link AcpSession.open} switches into it; agents that don't
    * advertise modes are left untouched (the in-process engine drives plan mode
    * through the prompt instead).
+   *
+   * An agent with no plan mode may plan through a `collaboration_mode` config
+   * option instead (Codex's adapter, #1337): a plan turn sets it to `plan`, and
+   * any other turn sets it back to its default, since the setting carries over
+   * to later turns of the session. See {@link AcpSession.plansByCollaborationMode}.
    */
   planMode?: boolean
   /**
@@ -194,6 +199,17 @@ interface ModelConfig {
   currentValue: string
   available: AvailableModel[]
 }
+
+/**
+ * The config option an agent with no plan mode plans through (Codex's adapter,
+ * #1337): a `select` in this category, or with this id, offering
+ * {@link PLAN_COLLABORATION_MODE}.
+ */
+const COLLABORATION_MODE = "collaboration_mode"
+/** The collaboration-mode value that plans before making changes. */
+const PLAN_COLLABORATION_MODE = "plan"
+/** The value a non-plan turn sets it back to, when the agent offers it. */
+const DEFAULT_COLLABORATION_MODE = "default"
 
 /** ACP config-option category the spec reserves for the model selector. */
 const MODEL_CATEGORY = "model"
@@ -317,6 +333,8 @@ export class AcpSession {
   private takesSteering = false
   /** Prompts sent and not yet resolved; the turn signal is cleared at zero. */
   private outstanding = 0
+  /** Whether this turn plans through the collaboration mode (see the getter). */
+  private collaborationPlan = false
 
   private constructor(
     transport: AcpTransport,
@@ -363,6 +381,18 @@ export class AcpSession {
    */
   get steering(): boolean {
     return this.takesSteering
+  }
+
+  /**
+   * Whether this session was opened for a plan turn on an agent that plans
+   * through its `collaboration_mode` option rather than a plan mode (Codex's
+   * adapter, #1337). Such an agent asks to carry out its finished plan with a
+   * permission request whose `rawInput.plan` holds the plan, and that request
+   * alone is the plan gate; it may raise ordinary permission requests on the
+   * same turn too.
+   */
+  get plansByCollaborationMode(): boolean {
+    return this.collaborationPlan
   }
 
   /**
@@ -417,7 +447,11 @@ export class AcpSession {
         ...meta,
       })
       session.sessionId = options.loadSessionId
-      await session.maybeEnterPlanMode(options.planMode, loaded?.modes)
+      await session.applyPlanMode(
+        options.planMode,
+        loaded?.modes,
+        loaded?.configOptions
+      )
       await session.maybeSetModel(
         options.modelId,
         readModelConfig(loaded?.configOptions, options.adapter?.modelOption)
@@ -429,7 +463,11 @@ export class AcpSession {
         ...meta,
       })
       session.sessionId = created.sessionId
-      await session.maybeEnterPlanMode(options.planMode, created.modes)
+      await session.applyPlanMode(
+        options.planMode,
+        created.modes,
+        created.configOptions
+      )
       await session.maybeSetModel(
         options.modelId,
         readModelConfig(created.configOptions, options.adapter?.modelOption)
@@ -439,25 +477,43 @@ export class AcpSession {
   }
 
   /**
-   * Switch the agent into plan mode when the turn asked for it *and* the agent
-   * advertised a plan-like mode (spike #408). A no-op otherwise — agents that
-   * don't advertise modes, or that are already in the plan mode, are left as
-   * they are, so a non-plan turn and a mode-less agent both pass through
-   * untouched.
+   * Put the agent in or out of planning for this turn.
+   *
+   * An agent that advertises a plan-like mode (spike #408) is switched into it
+   * on a plan turn, and left as it is otherwise. One that advertises none but
+   * offers a `plan` collaboration mode (Codex's adapter, #1337) has that option
+   * set to `plan` on a plan turn and back to its default on any other turn
+   * when a resumed session is still planning, since the option carries over to
+   * later turns. An agent with neither passes through untouched.
    */
-  private async maybeEnterPlanMode(
+  private async applyPlanMode(
     planMode: boolean | undefined,
-    modes: SessionModes | null | undefined
+    modes: SessionModes | null | undefined,
+    configOptions: ConfigOptionLike[] | null | undefined
   ): Promise<void> {
-    if (!planMode || !modes) return
-    const mode = modes.availableModes.find(isPlanMode)
-    if (!mode || mode.id === modes.currentModeId) return
-    await this.conn.setSessionMode({ sessionId: this.id, modeId: mode.id })
+    const mode = modes?.availableModes.find(isPlanMode)
+    if (mode) {
+      if (!planMode || mode.id === modes!.currentModeId) return
+      await this.conn.setSessionMode({ sessionId: this.id, modeId: mode.id })
+      return
+    }
+    const collaboration = readCollaborationMode(configOptions)
+    if (!collaboration) return
+    this.collaborationPlan = planMode === true
+    const value = planMode
+      ? PLAN_COLLABORATION_MODE
+      : collaboration.defaultValue
+    if (value === null || value === collaboration.currentValue) return
+    await this.conn.setSessionConfigOption({
+      sessionId: this.id,
+      configId: collaboration.configId,
+      value,
+    })
   }
 
   /**
    * Apply the chat's chosen model when the turn carries one (#522, #526) — the
-   * model counterpart of {@link maybeEnterPlanMode}. First captures the advertised
+   * model counterpart of {@link applyPlanMode}. First captures the advertised
    * model list (for {@link availableModels}) and the selector's `configId`, then:
    *
    *  - no model option advertised: no call, the Harness runs its own default;
@@ -695,6 +751,35 @@ function supportedMcpServers(
     if (server.type === "sse") return capabilities?.sse === true
     return false
   })
+}
+
+/**
+ * The `collaboration_mode` option an agent advertises, when it offers a `plan`
+ * value (#1337), or null. `defaultValue` is what a non-plan turn sets it back
+ * to: its `default` value, else the first value that isn't `plan`.
+ */
+function readCollaborationMode(
+  configOptions: ConfigOptionLike[] | null | undefined
+): {
+  configId: string
+  currentValue: string
+  defaultValue: string | null
+} | null {
+  const option = configOptions?.find(
+    (o) => o.category === COLLABORATION_MODE || o.id === COLLABORATION_MODE
+  )
+  if (!option || typeof option.currentValue !== "string") return null
+  if (!Array.isArray(option.options)) return null
+  const values = flattenModelOptions(option.options).map((v) => v.id)
+  if (!values.includes(PLAN_COLLABORATION_MODE)) return null
+  const defaultValue = values.includes(DEFAULT_COLLABORATION_MODE)
+    ? DEFAULT_COLLABORATION_MODE
+    : (values.find((v) => v !== PLAN_COLLABORATION_MODE) ?? null)
+  return {
+    configId: option.id,
+    currentValue: option.currentValue,
+    defaultValue,
+  }
 }
 
 /** Whether an advertised session mode is the agent's plan mode (id or name). */
