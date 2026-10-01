@@ -175,7 +175,6 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
   // undoable with `undo_changes`, so none is destructive.
   create_frames: { destructiveHint: false, openWorldHint: false },
-  create_document: { destructiveHint: false, openWorldHint: false },
   move_group: { destructiveHint: false, openWorldHint: false },
   arrange_groups: { destructiveHint: false, openWorldHint: false },
   move_to_group: { destructiveHint: false, openWorldHint: false },
