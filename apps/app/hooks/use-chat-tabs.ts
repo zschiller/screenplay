@@ -10,7 +10,7 @@ import {
 } from "@/lib/chat/tab-pool"
 import { useChatSync } from "@/hooks/use-chat-sync"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
-import type { ChatSessionData, TerminalTabData } from "@/lib/types"
+import type { ChatSessionData } from "@/lib/types"
 
 /**
  * Chat tabs (#1261, spec #1249) — the Chat Session half of the Tab Pool plus
@@ -23,10 +23,9 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
  *
  * The player hands it one Branch's Chat Sessions and its own selection state.
  * The Canvas hands it the whole room's list and composes it inside
- * `useTabPool`, which adds what only the Canvas needs: Terminal Tabs (passed
- * here as `terminals` so they count toward the pool), the per-user default tab
- * kind for an agent respawn (`respawnAgent`), and Chat-Target selection
- * (`selectChat`'s `target`).
+ * `useTabPool`, which adds what only the Canvas needs: Terminal Tabs (outside
+ * the pool since #1341), the per-user default tab kind for an agent respawn
+ * (`respawnAgent`), and Chat-Target selection (`selectChat`'s `target`).
  */
 export interface ChatTabsDeps {
   roomId: string
@@ -42,8 +41,6 @@ export interface ChatTabsDeps {
    * host that tracks the shown target (the Canvas's Chat-Target) can follow.
    */
   selectChat: (chatId: string | null, target?: TabPoolTarget) => void
-  /** Open non-chat tabs that share an agent's pool (the Canvas's Terminal Tabs). */
-  terminals?: TerminalTabData[]
   /**
    * Recreate an agent's default tab when its last one goes. Defaults to a fresh
    * chat; the Canvas passes its per-user default tab kind (chat or terminal).
@@ -65,15 +62,7 @@ export interface ChatTabs {
   /** Restore a closed chat into its pool and select it. */
   reopen: (chatId: string) => void
   rename: (chatId: string, label: string) => void
-  /**
-   * Apply a {@link resolveTabClose} outcome: respawn the target's default tab,
-   * or move selection. Exposed so the Canvas's Terminal Tab close lands on the
-   * same respawn and selection.
-   */
-  applyCloseOutcome: (outcome: TabCloseOutcome) => void
 }
-
-const NO_TERMINALS: TerminalTabData[] = []
 
 export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
   const {
@@ -84,7 +73,6 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     removeChatSession,
     selectedChatId,
     selectChat,
-    terminals = NO_TERMINALS,
     respawnAgent,
   } = deps
 
@@ -138,13 +126,13 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
       if (!chat || chat.closedAt) return false
       if (!chat.branchId) return false
       const target: TabPoolTarget = { kind: "agent", branchId: chat.branchId }
-      const pool = buildTabPool(target, chatSessions, terminals)
+      const pool = buildTabPool(target, chatSessions)
       applyCloseOutcome(
         resolveTabClose(pool, chatId, selectedChatId, nextSelectedId)
       )
       return true
     },
-    [chatSessions, terminals, selectedChatId, applyCloseOutcome]
+    [chatSessions, selectedChatId, applyCloseOutcome]
   )
 
   // A Workspace's own chat never closes or goes (#1315); only its earlier
@@ -192,7 +180,7 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     [updateChatSession]
   )
 
-  return { open, close, remove, reopen, rename, applyCloseOutcome }
+  return { open, close, remove, reopen, rename }
 }
 
 /** Whether `chatId` is its Workspace's one chat (#1315). */

@@ -1,21 +1,22 @@
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
-import type { ChatSessionData, TerminalTabData } from "@/lib/types"
+import type { ChatSessionData } from "@/lib/types"
 
 /**
- * Tab Pool — the pure decision behind closing a chat or terminal tab
- * (`apps/app/CONTEXT.md`, "Tab Pool"). Given a target's pool and the tab being
- * closed, it returns what survives, where selection should land, and whether
- * the panel must respawn a default tab. It performs no effects: the caller —
- * the Tab Pool controller (`useTabPool`, PRD #563) — applies the outcome
- * (`deleteTerminalTabAction`, `killTerminalSession`, the chat add / `seed`
- * respawn, and the selection write), mirroring the Gesture Intent / Canvas
- * Operations "decide purely, apply at the call site" shape. React-free and
- * tested against plain values.
+ * Tab Pool — the pure decision behind closing a chat (`apps/app/CONTEXT.md`,
+ * "Tab Pool"). Given a target's pool and the chat being closed, it returns
+ * what survives, where selection should land, and whether the panel must
+ * respawn a default tab. It performs no effects: the caller — the Tab Pool
+ * controller (`useTabPool`, PRD #563), or `useChatTabs` — applies the outcome
+ * (the chat add / `seed` respawn and the selection write), mirroring the
+ * Gesture Intent / Canvas Operations "decide purely, apply at the call site"
+ * shape. React-free and tested against plain values. Terminal Tabs left the
+ * pool with #1341: they live in the Terminal Pane, where Dev server keeps it
+ * from ever emptying.
  *
  * Two invariants live here so the two close handlers cannot drift apart:
  *
- * 1. **Separate pools by target.** Each Branch's chats and terminals (keyed by
- *    `branchId`) are isolated *by construction* in {@link buildTabPool}, so a
+ * 1. **Separate pools by target.** Each Branch's chats (keyed by `branchId`)
+ *    are isolated *by construction* in {@link buildTabPool}, so a
  *    respawned chat never lands on another Branch.
  * 2. **Never empty while the target lives.** Closing the last tab returns a
  *    {@link DefaultTabSpec} respawn rather than leaving the panel blank.
@@ -28,29 +29,26 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
 export type TabPoolTarget = { kind: "agent"; branchId: string }
 
 /**
- * A target's open tabs: its persisted Chat Sessions plus its ephemeral
- * Terminal Tabs. Built by {@link buildTabPool} from the room-wide lists so the
- * same-target filtering exists in exactly one place.
+ * A target's open chats. Built by {@link buildTabPool} from the room-wide list
+ * so the same-target filtering exists in exactly one place.
  */
 export type TabPool = {
   target: TabPoolTarget
   /** Open chat sessions for the target (closed ones already excluded). */
   chats: ChatSessionData[]
-  /** Terminal tabs for the target. */
-  terminals: TerminalTabData[]
 }
 
 /**
- * What to respawn when the last tab on a live target is closed. Names only the
- * target; the call site decides the agent's default *kind* (chat vs terminal,
- * from the per-user pref) and performs the create + select.
+ * What to respawn when the last chat on a live target is closed. Names only
+ * the target; the call site decides the agent's default *kind* (chat vs
+ * terminal, from the per-user pref) and performs the create + select.
  */
 export type DefaultTabSpec = { target: "agent"; branchId: string }
 
-/** A surviving tab, flattened across kinds for the caller's convenience. */
+/** A surviving chat. */
 export type SurvivingTab = {
   id: string
-  kind: "chat" | "terminal"
+  kind: "chat"
   createdAt: number
 }
 
@@ -71,16 +69,15 @@ export type TabCloseOutcome = {
 }
 
 /**
- * Scope the room-wide chat and terminal lists down to one target's pool: the
- * chats and terminals whose `branchId` matches. Closed chats are dropped,
+ * Scope the room-wide chat list down to one target's pool: the chats whose
+ * `branchId` matches. Closed chats are dropped,
  * except the Workspace's own chat (#1315), which is always open; the tab being
  * closed is left in (still open at decision time) and removed by
  * {@link resolveTabClose}.
  */
 export function buildTabPool(
   target: TabPoolTarget,
-  chats: readonly ChatSessionData[],
-  terminals: readonly TerminalTabData[]
+  chats: readonly ChatSessionData[]
 ): TabPool {
   const own = workspaceChatId(chats, target.branchId)
   return {
@@ -88,7 +85,6 @@ export function buildTabPool(
     chats: chats.filter(
       (c) => c.branchId === target.branchId && (!c.closedAt || c.id === own)
     ),
-    terminals: terminals.filter((t) => t.branchId === target.branchId),
   }
 }
 
@@ -100,9 +96,9 @@ export function buildTabPool(
  * @param preferredNextId an explicit next-selection hint from the caller (e.g.
  *                      the tab strip's neighbour); tried before the fallbacks.
  *
- * Fallback order when the selected tab is closed: explicit hint → first sibling
- * chat → first surviving terminal → none. The last tab on a live target instead
- * respawns the target's default.
+ * Fallback order when the selected chat is closed: explicit hint → first
+ * sibling chat → none. The last chat on a live target instead respawns the
+ * target's default.
  */
 export function resolveTabClose(
   pool: TabPool,
@@ -113,22 +109,12 @@ export function resolveTabClose(
   const survivingChats = pool.chats
     .filter((c) => c.id !== closingId)
     .sort((a, b) => a.createdAt - b.createdAt)
-  const survivingTerminals = pool.terminals
-    .filter((t) => t.id !== closingId)
-    .sort((a, b) => a.createdAt - b.createdAt)
 
-  const surviving: SurvivingTab[] = [
-    ...survivingChats.map((c): SurvivingTab => ({
-      id: c.id,
-      kind: "chat",
-      createdAt: c.createdAt,
-    })),
-    ...survivingTerminals.map((t): SurvivingTab => ({
-      id: t.id,
-      kind: "terminal",
-      createdAt: t.createdAt,
-    })),
-  ]
+  const surviving: SurvivingTab[] = survivingChats.map((c): SurvivingTab => ({
+    id: c.id,
+    kind: "chat",
+    createdAt: c.createdAt,
+  }))
 
   // Never-empty invariant: the last tab on a live target respawns its default.
   // Selection then follows the respawned tab at the call site, so no
@@ -145,11 +131,7 @@ export function resolveTabClose(
   if (selectedId === closingId) {
     return {
       surviving,
-      nextSelectedId:
-        preferredNextId ??
-        survivingChats[0]?.id ??
-        survivingTerminals[0]?.id ??
-        null,
+      nextSelectedId: preferredNextId ?? survivingChats[0]?.id ?? null,
     }
   }
 

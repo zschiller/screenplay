@@ -1010,7 +1010,7 @@ export const SCREENS: Screen[] = [
   {
     name: "terminal",
     description:
-      "A terminal tab running a test and printing all 16 ANSI colours.",
+      "The Terminal Pane open on a new shell running a test and printing all 16 ANSI colours (#1341).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: stubTerminal,
@@ -1018,9 +1018,40 @@ export const SCREENS: Screen[] = [
     settleMs: 600,
   },
   {
+    name: "terminal-pane-footnote",
+    description:
+      "A Workspace's chat at full height, its terminals named in the footnote under the composer (#1341).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: stubTerminal,
+    prepare: async (page) => {
+      await openTerminalTab(page)
+      await page.getByRole("button", { name: "Hide terminal" }).click()
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 600,
+  },
+  {
+    name: "terminal-pane-dev-server",
+    description:
+      "The Terminal Pane open under the chat on Dev server, the dev server's output (#1341).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: async (page) => {
+      await stubTerminal(page)
+      await stubLogs(page, "reconnecting")
+    },
+    prepare: async (page) => {
+      await openTerminalTab(page)
+      await page.getByRole("tab", { name: "Dev server" }).click()
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 600,
+  },
+  {
     name: "terminal-tabs-restored",
     description:
-      "A cold room load with the Workspace's two saved terminal tabs still in its tab strip.",
+      "A cold room load with the Workspace's two saved terminals named in its Terminal Pane footnote.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: stubTerminal,
@@ -1030,15 +1061,17 @@ export const SCREENS: Screen[] = [
   {
     name: "terminal-tab-rename",
     description:
-      "A restored terminal tab's label in rename mode, in the same sans as chat tabs (#918).",
+      "A terminal tab's label in rename mode, in the Terminal Pane's tab strip (#918, #1341).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: stubTerminal,
     prepare: async (page) => {
-      await selectWorkspace(page, "checkout-polish")
+      // Opened rather than restored (see `openTerminalTab`).
+      await openTerminalTab(page)
       await page
         .getByRole("tab")
-        .getByText("claude", { exact: true })
+        .getByText("Terminal", { exact: true })
+        .last()
         .dblclick({ timeout: 15_000 })
     },
     settleMs: 600,
@@ -1067,39 +1100,6 @@ export const SCREENS: Screen[] = [
       await page.getByRole("alertdialog").waitFor({ timeout: 10_000 })
     },
     settleMs: 400,
-  },
-  {
-    name: "chat-tabs-unread",
-    description:
-      "A background chat whose run just finished, marked unread in the tab strip.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await openChatTab(page, "Checkout polish")
-      await replayRun(page, ids.chats.markdown, [
-        { type: "chat-stream-start" },
-        { type: "chat-stream-end" },
-      ])
-    },
-    settleMs: 400,
-  },
-  {
-    name: "chat-tabs-overflow",
-    description:
-      "A narrow chat panel whose tabs overflow, scrolled to the last tab: the logs tab stays pinned at the left and the cut tab fades out (#1160).",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 20 }),
-    prepare: async (page) => {
-      await selectWorkspace(page, CHAT_WORKSPACE)
-      // Selecting the last tab scrolls the strip to its right end.
-      await page
-        .locator('[data-slot="tabs-list"] [data-tab-id]')
-        .last()
-        .getByRole("tab")
-        .click({ timeout: 15_000 })
-      await page.mouse.move(0, 0)
-    },
-    settleMs: 600,
   },
   {
     name: "chat-history",
@@ -2339,27 +2339,6 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
-    name: "chat-tab-close-focus",
-    description:
-      "The active chat tab's close button reached by keyboard (focus the tab, then Tab past its label).",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await openChatTab(page, "Checkout polish")
-      await page
-        .getByRole("tab", { name: /Checkout polish/i })
-        .first()
-        .focus()
-      // Park the pointer off the strip, so only focus can reveal the close.
-      await page.mouse.move(0, 0)
-      // The tab's rename label is the first stop after it, the close the next.
-      await page.keyboard.press("Tab")
-      await page.keyboard.press("Tab")
-      await showTooltip(page)
-    },
-    settleMs: 400,
-  },
-  {
     name: "chat-earlier-chat",
     description:
       "One of a Workspace's earlier chats from before #1315: readable, with a note and Open chat where the composer was.",
@@ -2372,30 +2351,16 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "chat-workspace-chat-hover",
+    name: "terminal-pane-new-shell-hover",
     description:
-      "Hovering the Workspace's own chat tab: it has no close button, since a Workspace keeps its one chat (#1315).",
+      "Hovering + in the open Terminal Pane's tab strip, which opens a terminal (#1341).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: (page) => stubLogs(page, "reconnecting"),
     prepare: async (page) => {
-      await openChatTab(page, "New chat")
+      await openTerminalPane(page)
       await page
-        .getByRole("tab", { name: /New chat/i })
-        .first()
-        .hover({ timeout: 15_000 })
-    },
-    settleMs: 400,
-  },
-  {
-    name: "chat-new-chat-hover",
-    description:
-      "Hovering the chat tab strip's + button, which opens a terminal: a Workspace has one chat (#1315).",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await selectWorkspace(page, CHAT_WORKSPACE)
-      await page
-        .locator('[data-slot="tabs-list"] button:has(svg.ph-plus)')
+        .getByRole("button", { name: "New terminal", exact: true })
         .first()
         .hover({ timeout: 15_000 })
       await showTooltip(page)
@@ -4534,22 +4499,31 @@ export async function openSetupError(page: Page): Promise<void> {
 }
 
 /**
- * Select a chat tab in the in-room tab strip by label. The panel itself is
- * opened by {@link canvasPanels}, not from here, so this only ever has to pick
- * between tabs that are already on screen.
+ * Show one of a Workspace's chats by label. Its own chat is already on show
+ * once the Workspace is selected; an earlier chat (#1315) opens from the
+ * header's Chat history (#1341). The panel itself is opened by
+ * {@link canvasPanels}, not from here.
  */
 export async function openChatTab(
   page: Page,
   label: string,
   workspace = CHAT_WORKSPACE
 ): Promise<void> {
-  // The panel opens on the Coordinator (#893); a chat tab lives in its
-  // Workspace's tab strip.
+  // The panel opens on the Coordinator (#893); a Workspace's chats live in
+  // its panel.
   await selectWorkspace(page, workspace)
-  await page
-    .getByRole("tab", { name: new RegExp(label, "i") })
-    .first()
-    .click({ timeout: 15_000 })
+  const history = page.getByRole("button", { name: "Chat history" }).first()
+  await history.waitFor({ timeout: 5_000 }).catch(() => {})
+  if (await history.isVisible()) {
+    await history.click({ timeout: 15_000 })
+    const row = page
+      .locator('[data-slot="popover-content"]')
+      .getByRole("button")
+      .filter({ hasText: new RegExp(label, "i") })
+      .first()
+    if (await row.count()) await row.click({ timeout: 15_000 })
+    else await page.keyboard.press("Escape")
+  }
   // A cold dev server can hold the history load past the settle delay.
   await page
     .getByText("Loading chat…")
@@ -4598,12 +4572,29 @@ export async function pasteImageInComposer(page: Page): Promise<void> {
  * arrive, so they can't be relied on to be there.
  */
 export async function openTerminalTab(page: Page): Promise<void> {
-  await selectWorkspace(page, CHAT_WORKSPACE)
+  await openTerminalPane(page)
   await page
     .getByRole("button", { name: "New terminal", exact: true })
     .first()
     .click({ timeout: 15_000 })
   await page.mouse.move(0, 0)
+}
+
+/**
+ * Open a Workspace's Terminal Pane (#1341) on one of its terminals, by its name
+ * in the footnote under the composer.
+ */
+export async function openTerminalPane(
+  page: Page,
+  name = "Dev server",
+  workspace = CHAT_WORKSPACE
+): Promise<void> {
+  await selectWorkspace(page, workspace)
+  await page
+    .getByRole("navigation", { name: "Terminals" })
+    .getByRole("button", { name, exact: true })
+    .first()
+    .click({ timeout: 15_000 })
 }
 
 /**
@@ -4617,18 +4608,14 @@ export async function openChatHistory(page: Page): Promise<void> {
     .click({ timeout: 15_000 })
 }
 
-/** Select the chat panel's sandbox logs tab (an icon-only tab, named by its label). */
 /** The prototype player's URL for one Workspace, opened from one of its frames. */
 function playPath(branchId: string, iframeLayerId: string): string {
   return `/play/${ids.rooms.frameStates}/${branchId}?iframe-layer=${iframeLayerId}`
 }
 
+/** Open the Terminal Pane on Dev server, the dev server's output (#1341). */
 export async function openLogsTab(page: Page): Promise<void> {
-  await selectWorkspace(page, CHAT_WORKSPACE)
-  await page
-    .getByRole("tab", { name: "Sandbox logs" })
-    .first()
-    .click({ timeout: 15_000 })
+  await openTerminalPane(page, "Dev server")
 }
 
 /**

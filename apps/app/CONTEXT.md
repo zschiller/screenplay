@@ -628,7 +628,7 @@ carries it ahead of the typed text as `formatQuoteForChat` writes it. A chat
 holds one quote, and a second Reply in chat replaces it. The bridge is the
 `chatQuoteStore` singleton (`lib/chat-quote-store`): a chat on screen claims the
 **foreground** (the newest claim wins), and a quote asked for while no chat is
-on screen (a terminal tab, the logs) waits for the next chat to claim it.
+on screen waits for the next chat to claim it.
 _Avoid_: opening a fresh chat for the quote; sending it without the person's
 own words; routing a hand-made Document's quote anywhere but the panel.
 
@@ -671,7 +671,7 @@ private Escape listener for the pick; calling it "inspect" or "comment" (those
 are the comment-mode placement in **Element Reference**); cross-Branch targeting.
 
 **Terminal Tab**:
-A BYO-harness shell surfaced as a tab in the agent panel, attached to one
+A BYO-harness shell surfaced as a tab in the **Terminal Pane**, attached to one
 Branch's sandbox and rendered with xterm.js in our own React, connecting to the
 backing terminal server's websocket directly (no iframe). Its identity — id,
 label, target Branch — is persisted **per User** in Postgres (the `terminalTab`
@@ -693,41 +693,63 @@ seed from the server-fetched rows, then a re-fetch-and-**merge** — pure
 `mergeRestoredTabs`, restored-first, never replace, so a tab opened mid-resolve
 isn't dropped) and **prune** (a tab whose Branch is gone, over the pure
 `partitionTerminalsByBranch`). **Close and prune guarantee the same three
-things**: the tab leaves the strip, its row is deleted (it never comes back on
+things**: the tab leaves the pane, its row is deleted (it never comes back on
 reload), and its session is killed (the shell and anything running in it stop).
 Prune kills with no Sandbox to name, since the Sandbox went with the Branch: the
 hosted tmux session died with it, and the desktop PTY, which lives in the
 sidecar, is killed there. The row and the session sit behind one
 `TerminalTabStore` adapter (`lib/terminal/tab-store.ts`): the server actions in
 production, in memory in tests. The Tab Pool controller **composes it** (the way
-it composes Chat-Target) for its pool decisions but never sets the list.
+it composes Chat-Target) for its verbs but never sets the list; Terminal Tabs
+are not in the Tab Pool (#1341).
 _Avoid_: chat tab; terminal session (reserve "tmux session" for the hosted
 backend's in-sandbox multiplexer, "Terminal Tab" for the UI surface); harness
 (that's the tool the operator runs _inside_ the tab — see Engine for why the
 app's own loop isn't one); calling the transport "ttyd" unqualified (it's ttyd on
 Vercel, node-pty on the desktop build).
 
+**Terminal Pane**:
+The resizable pane under a Workspace's chat (#1341, spec #1340): a stock
+vertical Resizable whose terminals are **Dev server** first, always, then the
+person's Terminal Tabs. Dev server is the Sandbox's log stream (the logs route,
+a follow of the dev server log) shown read-only: it owns no process, has no
+close or rename, and keeps the pane from ever emptying, so closing a shell
+lands on its neighbour, then Dev server. Closed, the pane is a borderless
+**footnote** under the composer naming the terminals; a name opens the pane on
+it. Open, that line is the pane's tab strip with + and a hide caret. ⌃`, the
+caret and dragging the divider to the bottom close it; a frame's Open logs
+opens it on Dev server; nothing opens it by itself. Open/closed and height are
+a **per-person pref** (localStorage, keyed by User), the same in every
+Workspace; which terminal each Workspace shows is session state. The pure rules
+live in `lib/chat/terminal-pane` (order, selection, the close fallback, the
+pref's shape); the **Terminal Pane controller** (`useTerminalPaneController`)
+holds the state; `TerminalPane` draws it. The Coordinator's panel has none.
+_Avoid_: calling Dev server "logs" in UI (the frame menu's "Open logs" opens
+it); a drawer (it's a split under the chat, not a sheet); putting the
+Workspace's chat in the pane's tabs.
+
 **Tab Pool**:
-The per-Chat-Target set of open tabs in the agent panel — a target's open Chat
-Sessions plus, for an agent (Branch) target, its Terminal Tabs — treated as one
-pool. **Invariant: while the target lives, its pool is never empty.** The
-**Workspace Chat** is always in its Branch's pool (closed or not) and never
-closes, so in practice the pool only empties on a Branch with no chat (one made
-terminal-first before #1315); closing its last tab respawns the user's
-**preferred default tab kind**, and seeding a Branch always makes its chat, with
-a terminal beside it when that is the default. "+" opens terminals only. A pool is filtered by `branchId`. The close decision is a
-**pure function** (`resolveTabClose`: pool + closing tab → what survives, the next
-selection, and whether to respawn); the **Tab Pool controller** (`useTabPool`,
-PRD #563) applies the effects (server actions, killing the tmux/PTY session, the
-selection write) and exposes the apply-side as plain verbs — `open`, `close`,
-`remove`, `select`, `rename`, `reopen`, and the `seed` entry Branch Intake calls.
-The controller owns the chat-store and Y.Doc tab writes and the never-empty
-invariant; the component renders the strip and calls intent. Mirrors the Gesture
-Intent shape: decide purely, apply at the call site (the call site is the
-controller, not the component). The pool is **per Branch and shared by the Canvas
-and the player**: the Chat Session half and Chat Sync live in `useChatTabs`, which
-the player's chat host uses directly and `useTabPool` composes (adding Terminal
-Tabs, the per-user default tab kind and Chat-Target selection).
+The per-Chat-Target set of open chats in the agent panel — a Branch's open
+Chat Sessions, filtered by `branchId`. **Invariant: while the target lives, its
+pool is never empty.** The **Workspace Chat** is always in its Branch's pool
+(closed or not) and never closes, so in practice the pool only empties on a
+Branch with no chat (one made terminal-first before #1315); closing its last
+chat respawns the user's **preferred default tab kind**, and seeding a Branch
+always makes its chat, with a terminal beside it when that is the default. The
+panel shows no tab strip (#1341): the Workspace's chat fills it, and its
+earlier chats open read-only from the header's Chat history. Terminal Tabs left
+the pool with #1341 and live in the **Terminal Pane**. The close decision is a
+**pure function** (`resolveTabClose`: pool + closing chat → what survives, the
+next selection, and whether to respawn); the **Tab Pool controller**
+(`useTabPool`, PRD #563) applies the effects (the chat writes, Terminal Tabs'
+open / close / rename, the selection write) and exposes the apply-side as plain
+verbs — `open`, `close`, `remove`, `rename`, `reopen`, and the `seed` entry
+Branch Intake calls. Mirrors the Gesture Intent shape: decide purely, apply at
+the call site (the call site is the controller, not the component). The pool is
+**per Branch and shared by the Canvas and the player**: the Chat Session half
+and Chat Sync live in `useChatTabs`, which the player's chat host uses directly
+and `useTabPool` composes (adding Terminal Tabs, the per-user default tab kind
+and Chat-Target selection).
 _Avoid_: tab bar / tab list (that's the rendered strip; the Pool is the model behind
 it); treating an empty pool as a valid resting state
 for a live target; folding the respawn effects into the decision (it returns whether

@@ -984,7 +984,6 @@ export function Canvas({
   const chatTarget = useChatTarget({
     agents,
     chatSessions,
-    localTerminals: terminalTabs.tabs,
     chatPanelRef,
   })
 
@@ -1616,18 +1615,6 @@ export function Canvas({
   // so the collapsed-sidebar pills must shift right to clear them.
   const trafficLightsPresent = useTrafficLightsPresent()
 
-  // Expand the collapsed chat panel when the logs stream actually starts,
-  // so the panel opens as the user sees live install/boot output — not
-  // earlier (when the sandbox doesn't exist yet and the stream would just
-  // show "Connecting…").
-  const handleLogsReady = useCallback(() => {
-    const panel = chatPanelRef.current
-    if (panel?.isCollapsed()) {
-      panel.expand()
-      const { inPixels } = panel.getSize()
-      if (inPixels < 480) panel.resize(480)
-    }
-  }, [])
   // A frame's "Open logs" (issue #731): point the chat panel at the frame's
   // Workspace, open it, and ask it for the sandbox logs tab.
   const [logsRequest, setLogsRequest] = useState<{
@@ -1656,7 +1643,13 @@ export function Canvas({
         <LogProbe
           key={agentId}
           sandboxName={sandboxName}
-          onReady={() => chatTarget.handlePendingReady(agentId)}
+          onReady={() => {
+            // Expand the collapsed chat panel once the new Workspace's
+            // sandbox streams logs, as it's selected — not earlier, when
+            // there's nothing to show yet.
+            chatTarget.handlePendingReady(agentId)
+            chatTarget.expandPanel()
+          }}
         />
       ))}
       <AddRepositoryFlowProvider value={addRepository}>
@@ -2265,7 +2258,6 @@ export function Canvas({
                 chatPanelRef={chatPanelRef}
                 onUpdateChatSession={updateChatSession}
                 onSetBranchPr={setBranchPr}
-                onLogsReady={handleLogsReady}
                 logsRequest={logsRequest}
               />
             </ResizablePanel>

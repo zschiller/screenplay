@@ -6,16 +6,20 @@ description: A real shell in the workspace's sandbox, with your coding CLI alrea
 # Terminal tabs
 
 A terminal tab is an interactive shell inside a workspace's sandbox, in the
-same directory the agent works in. Use one to run a CLI yourself, poke at the
-repository, or drive a coding CLI in its own interactive interface.
+same directory the agent works in. It opens in the terminal pane under the
+workspace's chat, beside **Dev server** (see
+[Terminals](/guides/agent#terminals)). Use one to run a CLI yourself, poke at
+the repository, or drive a coding CLI in its own interactive interface.
 
 <Screenshot name="terminal" alt="A terminal tab running Claude Code inside the customer-stories workspace" />
 
 ## Opening a terminal
 
-Click **+** in the agent panel's tab strip: it opens a terminal with the
-coding CLI you used last. If several coding CLIs are available, the caret next
-to **+** lists them; pick one to launch it straight away:
+Open the terminal pane (click a name under the composer, or press
+<kbd>⌃</kbd> <kbd>`</kbd>) and click **+** after its tabs: it opens a terminal
+with the coding CLI you used last, and the pane switches to it. If several
+coding CLIs are available, the caret next to **+** lists them; pick one to
+launch it straight away:
 
 | CLI | Notes |
 | --- | --- |
@@ -44,7 +48,8 @@ Which CLIs are offered depends on how you run Screenplay:
 - **Closing** a terminal tab ends its session for good. Closed terminals
   aren't archived the way chats are. If something is still running in it,
   such as a coding CLI or a dev server, Screenplay asks before closing; an
-  idle shell closes at once.
+  idle shell closes at once. The pane then shows the tab next to it, or
+  **Dev server**.
 
 <Callout type="info">
   A terminal and a chat can run in the same workspace at the same time, and

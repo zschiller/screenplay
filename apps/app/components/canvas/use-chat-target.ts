@@ -10,7 +10,7 @@ import {
   restoreAgentChatSelection,
   type PendingProbe,
 } from "@/lib/chat/chat-target"
-import type { BranchData, ChatSessionData, TerminalTabData } from "@/lib/types"
+import type { BranchData, ChatSessionData } from "@/lib/types"
 
 /**
  * Chat-Target selection controller (PRD #569) — the apply-side of *which* Chat
@@ -35,8 +35,6 @@ import type { BranchData, ChatSessionData, TerminalTabData } from "@/lib/types"
 export interface ChatTargetDeps {
   agents: BranchData[]
   chatSessions: ChatSessionData[]
-  /** This client's local Terminal Tabs — needed to resolve a selected tab's target. */
-  localTerminals: TerminalTabData[]
   chatPanelRef: RefObject<PanelImperativeHandle | null>
 }
 
@@ -64,9 +62,9 @@ export interface ChatTarget {
    * Workspace (the "Coordinator" crumb does this).
    */
   showRoomChat: () => void
-  /** Select a specific tab, tracking its agent and remembering it. */
+  /** Select a specific chat, tracking its agent and remembering it. */
   selectChat: (chatId: string | null) => void
-  /** Point the panel at an agent and a specific chat/terminal on it. */
+  /** Point the panel at an agent and a specific chat on it. */
   selectAgentChat: (
     branchId: string,
     chatId: string,
@@ -92,7 +90,7 @@ export interface ChatTarget {
 }
 
 export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
-  const { agents, chatSessions, localTerminals, chatPanelRef } = deps
+  const { agents, chatSessions, chatPanelRef } = deps
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
@@ -157,14 +155,6 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
       }
       setSelectedChatId(chatId)
       if (chatId) {
-        const terminal = localTerminals.find((t) => t.id === chatId)
-        if (terminal) {
-          // Local terminals aren't in the Y.Doc; just track their branch so the
-          // agent target stays selected. No per-target "remember" ref — they
-          // don't survive a remount anyway.
-          if (terminal.branchId) setSelectedAgentId(terminal.branchId)
-          return
-        }
         const chat = chatSessions.find((c) => c.id === chatId)
         if (!chat) return
         if (chat.branchId) {
@@ -173,7 +163,7 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
         }
       }
     },
-    [chatSessions, localTerminals, showRoomChat]
+    [chatSessions, showRoomChat]
   )
 
   const selectAgentChat = useCallback(
