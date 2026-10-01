@@ -44,6 +44,8 @@ export type ReconnectAction =
       sandboxName: string
       repo: RepoData
       ref: string
+      /** Someone stopped its dev server (#1342): reattach without relaunching. */
+      devServerStopped?: true
     }
   /**
    * A sandbox to reconnect, but its Repo is gone — there's no source to
@@ -93,5 +95,6 @@ export function resolveReconnect(
     sandboxName: agent.sandboxName,
     repo,
     ref: agent.ref,
+    ...(agent.devServerStoppedAt ? { devServerStopped: true as const } : {}),
   }
 }

@@ -72,6 +72,27 @@ export const LOGS_SAMPLE =
     ...swatchRows(),
   ].join("\n") + "\n"
 
+/** A dev server someone stopped (#1342): its output, then the stop line. */
+export const LOGS_STOPPED_SAMPLE =
+  [
+    `${sgr("90", "12:04:31")} ${sgr("36", "[dev]")} ${sgr("1", "next dev")} ${sgr("90", "--port 3000")}`,
+    `${sgr("90", "12:04:32")} ${sgr("36", "[dev]")} ${sgr("32", "✓")} Ready in ${sgr("33", "1.8s")}`,
+    `${sgr("90", "12:04:40")} ${sgr("36", "[dev]")} ${sgr("32", "GET")} /alerts ${sgr("32", "200")} ${sgr("90", "in 188ms")}`,
+    "",
+    "[Dev server stopped]",
+  ].join("\n") + "\n"
+
+/** A dev server crashing on start, over and over (#1342). */
+export const LOGS_CRASHED_SAMPLE =
+  [
+    `${sgr("90", "12:06:02")} ${sgr("36", "[dev]")} ${sgr("1", "next dev")} ${sgr("90", "--port 3000")}`,
+    `${sgr("90", "12:06:03")} ${sgr("36", "[dev]")} ${sgr("91", "Error")}: Cannot find module ${sgr("32", "'@acme/maps'")}`,
+    `${sgr("90", "12:06:03")} ${sgr("36", "[dev]")}     at ${sgr("96", "Module._resolveFilename")} ${sgr("90", "(node:internal/modules/cjs/loader:1145:15)")}`,
+    `${sgr("90", "12:06:04")} ${sgr("36", "[dev]")} ${sgr("1", "next dev")} ${sgr("90", "--port 3000")}`,
+    `${sgr("90", "12:06:05")} ${sgr("36", "[dev]")} ${sgr("91", "Error")}: Cannot find module ${sgr("32", "'@acme/maps'")}`,
+    `${sgr("90", "12:06:05")} ${sgr("36", "[dev]")}     at ${sgr("96", "Module._resolveFilename")} ${sgr("90", "(node:internal/modules/cjs/loader:1145:15)")}`,
+  ].join("\n") + "\n"
+
 /**
  * Stub the terminal transport: `/api/terminal/url` hands back a fake origin, and
  * a WebSocket to it answers the client's handshake with {@link TERMINAL_SAMPLE}
@@ -100,19 +121,59 @@ export async function stubTerminal(
 /**
  * How the logs stream behaves:
  *
+ * - `live` — streams the sample and stays open, as a healthy stream does, so
+ *   the panel shows the output with no connection notice. `page.route` can
+ *   only answer with a finished body, so this one stands in for the page's
+ *   own `fetch` of the logs route.
  * - `reconnecting` — the opening request streams {@link LOGS_SAMPLE} and ends;
  *   the reconnect (`?followOnly=1`) hangs, so the panel is caught mid-reconnect
  *   with its history on screen. Keyed on the query rather than a request count
  *   because a dev build's Strict Mode opens (and aborts) the stream twice.
  * - `error` — every request answers 502, so the panel exhausts its retries.
  */
-export type LogsStub = "reconnecting" | "error"
+export type LogsStub = "live" | "reconnecting" | "error"
 
 export async function stubLogs(
   page: Page,
   mode: LogsStub,
   sample: string = LOGS_SAMPLE
 ): Promise<void> {
+  if (mode === "live") {
+    await page.addInitScript((body: string) => {
+      const realFetch = window.fetch.bind(window)
+      window.fetch = (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url
+        if (!/\/api\/sandbox\/[^/]+\/logs/.test(url)) {
+          return realFetch(input, init)
+        }
+        const signal = init?.signal
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            // The reconnect's tail is empty; only the opening request
+            // replays the history. Never closed, unless aborted.
+            if (!url.includes("followOnly")) {
+              controller.enqueue(new TextEncoder().encode(body))
+            }
+            signal?.addEventListener("abort", () =>
+              controller.error(new DOMException("Aborted", "AbortError"))
+            )
+          },
+        })
+        return Promise.resolve(
+          new Response(stream, {
+            status: 200,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+          })
+        )
+      }
+    }, sample)
+    return
+  }
   await page.route("**/api/sandbox/*/logs**", (route) => {
     if (mode === "error") {
       return route.fulfill({ status: 502, body: "Bad Gateway" })

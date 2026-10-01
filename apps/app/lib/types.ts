@@ -71,6 +71,20 @@ export type BranchData = {
    */
   doneAt?: number
   /**
+   * When someone stopped the Workspace's dev server (#1342), from the Terminal
+   * Pane or the chat's `stop_dev_server`. Its Sandbox keeps running; a stopped
+   * dev server isn't relaunched by a reconnect until someone runs it again
+   * (Run, Restart, or `start_dev_server`), which clears this. Shared through
+   * the doc, so every member sees the same state.
+   */
+  devServerStoppedAt?: number
+  /**
+   * When someone last ran or restarted the dev server (#1342). The Terminal
+   * Pane's dot gives a fresh launch a grace period before a preview that
+   * isn't answering yet reads as crashed.
+   */
+  devServerLaunchedAt?: number
+  /**
    * When a chat turn last started on the Workspace, stamped by Turn Launch.
    * The sidebar's Recent activity sort reads it (#885); absent until the
    * first turn, when `createdAt` stands in.

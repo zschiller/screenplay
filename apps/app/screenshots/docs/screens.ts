@@ -1069,7 +1069,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       "The Terminal Pane open on Dev server, the dev server's output.",
     path: ROOM,
     cookies: WITH_CHAT,
-    beforeNavigate: (page) => stubLogs(page, "reconnecting", LOGS_SAMPLE),
+    beforeNavigate: (page) => stubLogs(page, "live", LOGS_SAMPLE),
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")

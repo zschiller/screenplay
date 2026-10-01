@@ -21,6 +21,7 @@ import {
   SNAPSHOT_EXPIRATION,
   TERMINAL_PORT,
   launchDevAndProxy,
+  sandboxLogPath,
   stopDevAndProxy,
 } from "@/lib/sandbox/provision-internals"
 import { lookupStableDevUrl } from "@/lib/sandbox/portless"
@@ -379,7 +380,8 @@ export async function keepAliveSandbox(
  */
 export async function reconnectSandbox(
   sandboxName: string,
-  repo: RepoData
+  repo: RepoData,
+  { devServerStopped = false }: { devServerStopped?: boolean } = {}
 ): Promise<
   SandboxActionResult<{ sandboxName: string; previewDomain: string }>
 > {
@@ -393,6 +395,18 @@ export async function reconnectSandbox(
     return {
       success: false,
       error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
+  }
+
+  if (isSandboxRunning(check) && devServerStopped) {
+    // Someone stopped the dev server (#1342): the VM stays as it is and nothing
+    // relaunches until they run it again.
+    return {
+      success: true,
+      value: {
+        sandboxName: check.name,
+        previewDomain: check.domain(port + PROXY_PORT_OFFSET),
+      },
     }
   }
 
@@ -427,6 +441,13 @@ export async function reconnectSandbox(
   // it) and redacts any failure on the way out.
   const safeEnv = await getEnvVars(sandboxName)
   return runSandboxAction(sandboxName, async (sandbox) => {
+    // Resumed with its dev server stopped (#1342): wake the VM only.
+    if (devServerStopped) {
+      return {
+        sandboxName: sandbox.name,
+        previewDomain: sandbox.domain(port + PROXY_PORT_OFFSET),
+      }
+    }
     const previewDomain = await launchDevAndProxy(
       sandbox,
       port,
@@ -621,6 +642,41 @@ export async function restartDevServer(
       safeEnv
     )
     return { success: true, value: { previewDomain } }
+  } catch (e) {
+    return {
+      success: false,
+      error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
+  }
+}
+
+/**
+ * Stop just the dev server and its bridge proxy inside a running Sandbox
+ * (#1342), leaving the VM, the working tree and the dev server's log as they
+ * are, so the Terminal Pane's Dev server keeps showing the output up to the
+ * stop. {@link restartDevServer} is the way back: it relaunches through the
+ * same path. A Sandbox that isn't running has no dev server to stop, so that
+ * counts as stopped. Never wakes a hibernated VM.
+ */
+export async function stopDevServer(
+  sandboxName: string
+): Promise<SandboxActionResult<void>> {
+  try {
+    const sandbox = await sandboxProvider.get({
+      name: sandboxName,
+      resume: false,
+    })
+    if (!isSandboxRunning(sandbox)) return { success: true, value: undefined }
+    await stopDevAndProxy(sandbox)
+    // The output stays; a closing line says why it ended.
+    await sandbox.runCommand({
+      cmd: "sh",
+      args: [
+        "-c",
+        `printf '\\n[Dev server stopped]\\n' >> ${sandboxLogPath(sandbox.name)} 2>/dev/null; true`,
+      ],
+    })
+    return { success: true, value: undefined }
   } catch (e) {
     return {
       success: false,

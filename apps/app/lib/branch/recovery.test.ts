@@ -12,7 +12,9 @@ import {
   reopen,
   restartDevServer,
   restartSandbox,
+  runDevServer,
   startWorkspace,
+  stopDevServer,
 } from "@/lib/branch/recovery"
 
 // The recovery verbs await the sandbox lifecycle actions through the module
@@ -20,6 +22,7 @@ import {
 // fn each verb invokes — no provider, no VM.
 const lifecycle = vi.hoisted(() => ({
   restartDevServer: vi.fn(),
+  stopDevServer: vi.fn(),
   restartSandbox: vi.fn(),
   recreateSandbox: vi.fn(),
   reconnectSandbox: vi.fn(),
@@ -84,6 +87,7 @@ const ok: SandboxResult = {
 
 beforeEach(() => {
   lifecycle.restartDevServer.mockReset()
+  lifecycle.stopDevServer.mockReset()
   lifecycle.restartSandbox.mockReset()
   lifecycle.recreateSandbox.mockReset()
   lifecycle.reconnectSandbox.mockReset()
@@ -212,7 +216,7 @@ describe("recreate (Recreate)", () => {
 })
 
 describe("restartDevServer (Dev Server Restart, thin path)", () => {
-  it("never flips status — only toasts — on success, invoking restartDevServer", async () => {
+  it("never flips status — only stamps the launch and toasts — on success", async () => {
     lifecycle.restartDevServer.mockResolvedValue({
       success: true,
       value: { previewDomain: "https://x" },
@@ -222,7 +226,16 @@ describe("restartDevServer (Dev Server Restart, thin path)", () => {
     await restartDevServer("branch-1", deps)
 
     expect(lifecycle.restartDevServer).toHaveBeenCalledWith("sandbox-1", REPO)
-    expect(deps.patches).toEqual([])
+    expect(deps.patches).toEqual([
+      {
+        id: "branch-1",
+        patch: {
+          devServerStoppedAt: undefined,
+          devServerLaunchedAt: expect.any(Number),
+        },
+      },
+    ])
+    expect(deps.patches.some((p) => "status" in p.patch)).toBe(false)
     expect(deps.toasts).toEqual([
       { kind: "success", message: "Dev server restarted" },
     ])
@@ -237,12 +250,91 @@ describe("restartDevServer (Dev Server Restart, thin path)", () => {
 
     await restartDevServer("branch-1", deps)
 
-    expect(deps.patches).toEqual([])
+    expect(deps.patches.some((p) => "status" in p.patch)).toBe(false)
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
       message: "Couldn't restart dev server",
       description: "not running",
     })
+  })
+})
+
+describe("stopDevServer (Dev Server Stop, #1342)", () => {
+  it("records the stop for everyone, then stops the dev server", async () => {
+    lifecycle.stopDevServer.mockResolvedValue({ success: true })
+    const deps = makeDeps()
+
+    await stopDevServer("branch-1", deps, 42)
+
+    expect(lifecycle.stopDevServer).toHaveBeenCalledWith("sandbox-1")
+    expect(deps.patches).toEqual([
+      { id: "branch-1", patch: { devServerStoppedAt: 42 } },
+    ])
+    expect(deps.toasts).toEqual([])
+  })
+
+  it("takes the stop back and says so when it fails", async () => {
+    lifecycle.stopDevServer.mockResolvedValue({
+      success: false,
+      error: "boom",
+    })
+    const deps = makeDeps()
+
+    await stopDevServer("branch-1", deps, 42)
+
+    expect(deps.patches.map((p) => p.patch)).toEqual([
+      { devServerStoppedAt: 42 },
+      { devServerStoppedAt: undefined },
+    ])
+    expect(deps.toasts).toEqual([
+      {
+        kind: "error",
+        message: "Couldn't stop dev server",
+        description: "boom",
+      },
+    ])
+  })
+})
+
+describe("runDevServer (Dev Server Run, #1342)", () => {
+  const stopped = { ...AGENT, devServerStoppedAt: 7 }
+
+  it("clears the stop and relaunches through the restart path, quietly", async () => {
+    lifecycle.restartDevServer.mockResolvedValue({
+      success: true,
+      value: { previewDomain: "https://x" },
+    })
+    const deps = makeDeps({ findAgent: () => stopped })
+
+    await runDevServer("branch-1", deps)
+
+    expect(lifecycle.restartDevServer).toHaveBeenCalledWith("sandbox-1", REPO)
+    expect(deps.patches.map((p) => p.patch)).toEqual([
+      {
+        devServerStoppedAt: undefined,
+        devServerLaunchedAt: expect.any(Number),
+      },
+    ])
+    expect(deps.toasts).toEqual([])
+  })
+
+  it("puts the stop back when the launch fails", async () => {
+    lifecycle.restartDevServer.mockResolvedValue({
+      success: false,
+      error: "Sandbox is not running",
+    })
+    const deps = makeDeps({ findAgent: () => stopped })
+
+    await runDevServer("branch-1", deps)
+
+    expect(deps.patches.at(-1)?.patch).toEqual({ devServerStoppedAt: 7 })
+    expect(deps.toasts).toEqual([
+      {
+        kind: "error",
+        message: "Couldn't run dev server",
+        description: "Sandbox is not running",
+      },
+    ])
   })
 })
 

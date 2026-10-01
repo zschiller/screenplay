@@ -7,6 +7,7 @@ import { Button } from "@workspace/ui/components/button"
 
 import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { ChatPanel } from "@/components/agent/chat-panel"
+import type { DevServerControls } from "@/components/agent/terminal-pane"
 import { ChatPanelHeader } from "@/components/agent/chat-panel-header"
 import { ChatsMenuButton } from "@/components/agent/chats-menu"
 import type { ChatPanelTarget } from "@/lib/chat/chat-target"
@@ -47,6 +48,7 @@ export function ChatPanelHost({
   onUpdateChatSession,
   onSetBranchPr,
   logsRequest,
+  devServerControls,
 }: {
   chatTarget: ChatTarget
   tabPool: TabPool
@@ -61,6 +63,7 @@ export function ChatPanelHost({
   onUpdateChatSession: (id: string, data: Partial<ChatSessionData>) => void
   onSetBranchPr: (branchId: string, pr: BranchPrInfo) => void
   logsRequest: { agentId: string; nonce: number } | null
+  devServerControls: DevServerControls
 }) {
   return (
     (() => {
@@ -136,6 +139,7 @@ export function ChatPanelHost({
             }
           }}
           logsRequest={logsRequest}
+          devServerControls={devServerControls}
         />
       )
     })() || (

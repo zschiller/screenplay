@@ -1314,6 +1314,14 @@ export function Canvas({
     updateAgentInStorage,
     setBranchPr,
   })
+  // The Terminal Pane's Run and Stop (#1342).
+  const devServerControls = useMemo(
+    () => ({
+      stop: branchActions.stopDevServer,
+      run: branchActions.runDevServer,
+    }),
+    [branchActions]
+  )
 
   // Sending comments to a Workspace's agent (#788), from the comments panel
   // or a thread card.
@@ -2258,6 +2266,7 @@ export function Canvas({
                 onUpdateChatSession={updateChatSession}
                 onSetBranchPr={setBranchPr}
                 logsRequest={logsRequest}
+                devServerControls={devServerControls}
               />
             </ResizablePanel>
           </ResizablePanelGroup>

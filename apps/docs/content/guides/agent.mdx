@@ -40,8 +40,10 @@ workspace's **+/−** diff and a **Create PR** button (see
 ## Terminals
 
 The workspace's chat fills the panel. Under the composer, a quiet line names
-the workspace's terminals: **Dev server** first, with a dot that's green
-while the sandbox runs, then your own [terminals](/guides/terminals).
+the workspace's terminals: **Dev server** first, with a dot showing what
+the dev server is doing, then your own [terminals](/guides/terminals). At
+the right edge, **Stop** stops the dev server and **Run** starts it again,
+without opening the pane.
 
 <Screenshot
   name="terminal-footnote"
@@ -59,6 +61,26 @@ itself.
 **Dev server** shows the setup script's and dev server's output. It's read
 only, and it can't be closed or renamed, so the pane always has something to
 show. A frame's **Open logs** opens the pane on it.
+
+### Running and stopping the dev server
+
+The footnote and the open pane's bar both have **Stop** while the dev server
+runs, and **Run** once it's stopped or has crashed. Stopping it leaves the
+sandbox running and its output on screen; **Run** starts it the same way
+**Restart dev server** in the workspace's menu does. <kbd>⌃</kbd> <kbd>C</kbd>
+in **Dev server** never stops it.
+
+The dot beside **Dev server** is the same for everyone on the canvas:
+
+| Dot   | Meaning                                                          |
+| ----- | ---------------------------------------------------------------- |
+| Green | The dev server is running.                                       |
+| Grey  | It's stopped, or the sandbox is still starting.                  |
+| Red   | It crashed: the preview stopped answering and nobody stopped it. |
+
+A stopped dev server stays stopped, even after a reload, until someone runs
+it again. The workspace's agent can stop and start it too, and the dot
+follows.
 
 <Screenshot
   name="logs"
@@ -205,6 +227,8 @@ you can expand for details:
 | **Read skill** `name`              | Loaded a skill's instructions                |
 | **Read dev server logs**           | Read the dev server's recent output          |
 | **Restart dev server**             | Restarted the workspace's dev server         |
+| **Stop dev server**                | Stopped the workspace's dev server           |
+| **Run dev server**                 | Started a stopped dev server again           |
 | **View frame**                     | Took a screenshot of a frame                 |
 | **Read frame HTML**                | Read the page in a frame as HTML             |
 | **Read document**                  | Read a document on the canvas                |
@@ -225,8 +249,8 @@ A few defaults are worth knowing:
   your identity, which matters on shared canvases.
 - **The workspace preview updates on its own.** The dev server hot-reloads as
   files change. The agent can read the dev server's output (the same as the
-  **Dev server** terminal) to debug a broken preview, and restart the dev server
-  when a change needs it.
+  **Dev server** terminal) to debug a broken preview, restart the dev server
+  when a change needs it, and stop or start it when you ask.
 - **The agent can see the frames.** It can take a screenshot of a frame, or
   read the page in it as HTML with the styles included, for example to start a
   mockup from how the app looks now. It reads its own workspace's frame unless

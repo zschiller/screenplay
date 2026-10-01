@@ -46,6 +46,11 @@ vi.mock("./terminal-tab", () => ({
 vi.mock("@/lib/auth-client", () => ({
   useAppSession: () => ({ data: { user: { id: "user-1" } } }),
 }))
+// The dev server's preview probe (#1342), scripted per test.
+const preview = vi.hoisted(() => ({ failing: false }))
+vi.mock("@/hooks/use-preview-failing", () => ({
+  usePreviewFailing: () => preview.failing,
+}))
 vi.mock("@/hooks/use-workspace-states", () => ({
   useWorkspaceStates: () => () => "idle",
 }))
@@ -59,6 +64,7 @@ vi.mock("@/components/workspace-mention", () => ({
 }))
 
 import { ChatPanel } from "./chat-panel"
+import type { DevServerControls } from "./terminal-pane"
 
 beforeAll(() => {
   // The Resizable measures its group; jsdom has no layout.
@@ -71,6 +77,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
+  preview.failing = false
   coordinatorChat.mockClear()
   window.localStorage.clear()
 })
@@ -146,12 +153,17 @@ function renderWorkspacePanel(
     terminalTabs?: TerminalTabData[]
     selectedChatId?: string | null
     logsRequest?: { agentId: string; nonce: number } | null
+    agent?: Partial<BranchData>
+    devServerControls?: DevServerControls
   } = {}
 ) {
   const onSelectChat = vi.fn()
   const onCloseTerminal = vi.fn()
   const props = {
-    target: { kind: "agent" as const, agent: workspace },
+    target: {
+      kind: "agent" as const,
+      agent: { ...workspace, ...options.agent } as BranchData,
+    },
     chatSessions: options.chatSessions ?? [
       {
         id: "chat-1",
@@ -175,6 +187,7 @@ function renderWorkspacePanel(
     onModelChange: noop,
     onCollapse: noop,
     logsRequest: options.logsRequest ?? null,
+    devServerControls: options.devServerControls,
   }
   const view = render(<ChatPanel {...props} />)
   return { ...view, props, onSelectChat, onCloseTerminal }
@@ -340,5 +353,103 @@ describe("ChatPanel with a Workspace target", () => {
   it("has no Chat history without earlier chats", () => {
     renderWorkspacePanel()
     expect(screen.queryByRole("button", { name: "Chat history" })).toBeNull()
+  })
+})
+
+describe("the dev server's Run and Stop (#1342)", () => {
+  function controls() {
+    return {
+      stop: vi.fn(async () => {}),
+      run: vi.fn(async () => {}),
+    } satisfies DevServerControls
+  }
+  const stateOf = (el: HTMLElement) =>
+    el
+      .querySelector("[data-dev-server-state]")
+      ?.getAttribute("data-dev-server-state")
+  const dot = () => stateOf(terminalName("Dev server"))
+  const openPane = () => fireEvent.click(terminalName("Dev server"))
+
+  it("stops a running dev server from the closed footnote, without opening the pane", async () => {
+    const devServerControls = controls()
+    renderWorkspacePanel({ devServerControls })
+    expect(dot()).toBe("running")
+    expect(screen.queryByRole("button", { name: "Run" })).toBeNull()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }))
+    })
+    expect(devServerControls.stop).toHaveBeenCalledWith("ws-1")
+    expect(paneState()).toBe("closed")
+  })
+
+  it("offers Run for a stopped dev server, with a quiet dot", async () => {
+    const devServerControls = controls()
+    renderWorkspacePanel({
+      devServerControls,
+      agent: { devServerStoppedAt: 1 },
+    })
+    expect(dot()).toBe("stopped")
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Run" }))
+    })
+    expect(devServerControls.run).toHaveBeenCalledWith("ws-1")
+  })
+
+  it("puts Stop in the open bar while it runs, and no Restart", () => {
+    renderWorkspacePanel({ devServerControls: controls() })
+    openPane()
+    expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Restart/ })).toBeNull()
+  })
+
+  it("puts Run in the open bar while it's stopped", () => {
+    renderWorkspacePanel({
+      devServerControls: controls(),
+      agent: { devServerStoppedAt: 1 },
+    })
+    openPane()
+    expect(screen.getByRole("button", { name: "Run" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+  })
+
+  it("shows a crash on the dots and offers Run to bring it back", async () => {
+    preview.failing = true
+    const devServerControls = controls()
+    renderWorkspacePanel({ devServerControls })
+    expect(dot()).toBe("crashed")
+    openPane()
+    expect(stateOf(screen.getByRole("tab", { name: "Dev server" }))).toBe(
+      "crashed"
+    )
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Run" }))
+    })
+    expect(devServerControls.run).toHaveBeenCalledWith("ws-1")
+  })
+
+  it("has no controls while the Sandbox itself isn't running", () => {
+    renderWorkspacePanel({
+      devServerControls: controls(),
+      agent: { status: "stopped" },
+    })
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Run" })).toBeNull()
+  })
+
+  it("has no controls where none are given (the player)", () => {
+    renderWorkspacePanel()
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+  })
+
+  it("never stops the server on Ctrl-C in Dev server", () => {
+    const devServerControls = controls()
+    renderWorkspacePanel({ devServerControls })
+    openPane()
+    const output = screen.getByTestId("dev-server-output")
+    fireEvent.keyDown(output, { key: "c", code: "KeyC", ctrlKey: true })
+    fireEvent.keyDown(window, { key: "c", code: "KeyC", ctrlKey: true })
+    expect(devServerControls.stop).not.toHaveBeenCalled()
   })
 })

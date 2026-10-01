@@ -15,6 +15,8 @@ import {
   reopen as reopenRecovery,
   restartDevServer as restartDevServerRecovery,
   restartSandbox as restartSandboxRecovery,
+  runDevServer as runDevServerRecovery,
+  stopDevServer as stopDevServerRecovery,
   startWorkspace as startWorkspaceRecovery,
   type RecoveryOutcome,
 } from "@/lib/branch/recovery"
@@ -84,6 +86,10 @@ export interface BranchActions {
   createPullRequest: (agentId: string) => void
   /** Bounce the dev server in place (the only recovery usable mid-turn). */
   restartDevServer: (agentId: string) => void
+  /** Stop the dev server, leaving the Sandbox running (#1342). */
+  stopDevServer: (agentId: string) => Promise<void>
+  /** Start a stopped dev server again (#1342). */
+  runDevServer: (agentId: string) => Promise<void>
   /** Snapshot-restore onto a fresh VM, preserving the working tree. */
   restartSandbox: (agentId: string) => void
   /** A frame's Retry / Start on a failed or stopped Workspace (issue #731). */
@@ -252,6 +258,8 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       createPullRequest: (agentId) => run("create-pr", agentId),
       restartDevServer: (agentId) => run("restart-dev-server", agentId),
       restartSandbox: (agentId) => run("restart-sandbox", agentId),
+      stopDevServer: (agentId) => stopDevServerRecovery(agentId, recoveryDeps),
+      runDevServer: (agentId) => runDevServerRecovery(agentId, recoveryDeps),
       startWorkspace: (agentId) =>
         void startWorkspaceRecovery(agentId, recoveryDeps, {
           local: isLocalBuild,

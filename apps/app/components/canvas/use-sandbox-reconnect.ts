@@ -117,7 +117,9 @@ export function useSandboxReconnect({
           // Covers normal reloads and restarts (status === "starting") that were
           // interrupted by a page reload. reconnectSandbox probes the existing
           // sandbox first, so it won't recreate one that's already running.
-          reconnectSandbox(action.sandboxName, action.repo).then((result) => {
+          reconnectSandbox(action.sandboxName, action.repo, {
+            devServerStopped: action.devServerStopped,
+          }).then((result) => {
             if (result.success) {
               updateAgentInStorage(agent.id, {
                 previewDomain: result.value.previewDomain,

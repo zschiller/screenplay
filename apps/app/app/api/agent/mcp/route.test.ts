@@ -58,6 +58,7 @@ vi.mock("@/lib/agent/dev-server-ports", () => ({
       }),
       readLog: async () => "Error: Cannot find module 'next'\n",
       restart: async () => ({ ok: true }),
+      stop: async () => ({ ok: true }),
       waitUntilAnswering: async () => true,
     }
   },
@@ -334,6 +335,8 @@ describe("a Workspace chat's MCP route", () => {
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
       "restart_dev_server",
+      "stop_dev_server",
+      "start_dev_server",
       "view_frame",
       "read_frame_html",
       "create_document",
@@ -349,12 +352,25 @@ describe("a Workspace chat's MCP route", () => {
       "read_document",
       "ask_question",
     ])
-    expect(result.tools[0].annotations).toMatchObject({ readOnlyHint: true })
-    expect(result.tools[3].annotations).toMatchObject({ readOnlyHint: true })
+    const annotations = (name: string) =>
+      result.tools.find((t: { name: string }) => t.name === name).annotations
+    expect(annotations("read_dev_server_logs")).toMatchObject({
+      readOnlyHint: true,
+    })
+    expect(annotations("read_frame_html")).toMatchObject({ readOnlyHint: true })
+    // Stopping and starting the dev server loses nothing: never destructive.
+    for (const name of ["stop_dev_server", "start_dev_server"]) {
+      expect(annotations(name)).toMatchObject({ destructiveHint: false })
+    }
     // read_document and the other Workspaces' code are read-only: a harness
     // never asks first.
-    for (const i of [10, 11, 12, 13]) {
-      expect(result.tools[i].annotations).toMatchObject({ readOnlyHint: true })
+    for (const name of [
+      "read_code_file",
+      "search_code",
+      "find_code_files",
+      "read_document",
+    ]) {
+      expect(annotations(name)).toMatchObject({ readOnlyHint: true })
     }
   })
 

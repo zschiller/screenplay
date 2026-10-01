@@ -159,6 +159,7 @@ import {
   removeSandboxEnv,
   restartDevServer,
   restartSandbox,
+  stopDevServer,
   stopDevServers,
 } from "@/lib/sandbox/lifecycle"
 
@@ -700,6 +701,50 @@ describe("restartDevServer", () => {
   })
 })
 
+describe("stopDevServer (#1342)", () => {
+  it("kills the dev server and proxy, keeps the VM, and notes the stop in the log", async () => {
+    const commands: string[] = []
+    fake.setGet(
+      fakeSandbox({
+        status: "running",
+        respond: (_cmd, args) => {
+          commands.push(args.join(" "))
+          return { exitCode: 0 }
+        },
+      })
+    )
+
+    const result = await stopDevServer("sandbox-a")
+
+    expect(result).toEqual({ success: true, value: undefined })
+    expect(fake.getCalls).toEqual([{ name: "sandbox-a", resume: false }])
+    expect(commands[0]).toContain("kill -KILL")
+    expect(commands[1]).toContain("[Dev server stopped]")
+    // The log is appended to, never truncated: the output stays visible.
+    expect(commands.join("\n")).not.toContain(": >")
+    expect(fake.createCalls).toHaveLength(0)
+  })
+
+  it("counts a Sandbox that isn't running as stopped, without waking it", async () => {
+    let ran = false
+    fake.setGet(
+      fakeSandbox({
+        status: "stopped",
+        respond: () => {
+          ran = true
+          return { exitCode: 0 }
+        },
+      })
+    )
+
+    expect(await stopDevServer("sandbox-a")).toEqual({
+      success: true,
+      value: undefined,
+    })
+    expect(ran).toBe(false)
+  })
+})
+
 describe("reconnectSandbox", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -787,6 +832,48 @@ describe("reconnectSandbox", () => {
     expect(fake.getCalls).toHaveLength(2)
     expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
     expect(fake.createCalls).toHaveLength(0)
+  })
+
+  it("leaves a stopped dev server stopped on a live VM (#1342)", async () => {
+    let relaunched = false
+    fake.setGet(
+      fakeSandbox({
+        status: "running",
+        onWriteFiles: () => (relaunched = true),
+      })
+    )
+    stubProbe(false)
+
+    const result = await reconnectSandbox("sandbox-a", repo, {
+      devServerStopped: true,
+    })
+
+    expect(result).toEqual({
+      success: true,
+      value: {
+        sandboxName: "fake-sandbox",
+        previewDomain: "https://fake-4000.example.com",
+      },
+    })
+    expect(relaunched).toBe(false)
+  })
+
+  it("resumes a hibernated VM without relaunching a stopped dev server (#1342)", async () => {
+    let relaunched = false
+    fake.setGet(
+      fakeSandbox({
+        status: "stopped",
+        onWriteFiles: () => (relaunched = true),
+      })
+    )
+
+    const result = await reconnectSandbox("sandbox-a", repo, {
+      devServerStopped: true,
+    })
+
+    expect(result.success).toBe(true)
+    expect(fake.getCalls).toHaveLength(2)
+    expect(relaunched).toBe(false)
   })
 
   it("reuses the live handle on a non-hibernating provider (live while the handle exists)", async () => {

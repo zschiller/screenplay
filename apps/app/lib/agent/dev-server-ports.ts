@@ -1,8 +1,8 @@
 import "server-only"
 
 import type { DevServerPorts } from "@/lib/agent/dev-server-tools"
-import type { RoomReader } from "@/lib/room-access"
-import type { RepoData } from "@/lib/types"
+import type { RoomDoc } from "@/lib/room-access"
+import type { BranchData, RepoData } from "@/lib/types"
 
 /** How long `restart_dev_server` waits for the new server to answer. */
 const ANSWER_TIMEOUT_MS = 30_000
@@ -12,18 +12,36 @@ const LOG_READ_LINES = 5_000
 
 /**
  * The live {@link DevServerPorts} for one Workspace's Sandbox: the same dev
- * server, log file and Dev Server Restart the Logs panel and the Workspace
- * menu use. The Repo (dev script and port) is read from the Room on each call,
- * so an edit in Canvas settings is picked up by the next restart.
+ * server, log file, Restart and Stop the Terminal Pane and the Workspace menu
+ * use. The Repo (dev script and port) is read from the Room on each call, so
+ * an edit in Canvas settings is picked up by the next restart. A stop or a
+ * launch is recorded on the Branch as the pane's are (#1342), so every
+ * member's dot follows the chat.
  *
  * The sandbox modules are imported lazily so the toolsets that include these
  * tools don't drag the provisioning graph into every importer.
  */
 export function liveDevServerPorts(opts: {
   sandboxName: string
-  room: RoomReader
+  room: RoomDoc
 }): DevServerPorts {
   const { sandboxName, room } = opts
+
+  const findBranchId = () =>
+    room.readDoc(
+      ({ branches }) =>
+        branches.toArray().find((b) => b.sandboxName === sandboxName)?.id
+    )
+
+  const markBranch = async (
+    patch: Pick<BranchData, "devServerStoppedAt" | "devServerLaunchedAt">
+  ) => {
+    const id = await findBranchId()
+    if (!id) return
+    await room.mutateDoc(({ branches }) => {
+      if (branches.get(id)) branches.update(id, patch)
+    })
+  }
 
   const findRepo = async (): Promise<RepoData> => {
     const repo = await room.readDoc(({ branches, repos }) => {
@@ -59,6 +77,13 @@ export function liveDevServerPorts(opts: {
         ])
       const repo = await findRepo()
       const command = repo.devScript?.trim() || "npm run dev"
+      const id = await findBranchId()
+      const stopped = await room.readDoc(({ branches }) =>
+        id ? Boolean(branches.get(id)?.devServerStoppedAt) : false
+      )
+      if (stopped) {
+        return { command, localUrl: null, answering: false, stopped: true }
+      }
       const sandbox = await sandboxProvider
         .get({ name: sandboxName, resume: false })
         .catch(() => null)
@@ -110,9 +135,28 @@ export function liveDevServerPorts(opts: {
       const { restartDevServer } = await import("@/lib/sandbox/lifecycle")
       try {
         const result = await restartDevServer(sandboxName, await findRepo())
-        return result.success
-          ? { ok: true }
-          : { ok: false, error: result.error || "unknown error" }
+        if (!result.success) {
+          return { ok: false, error: result.error || "unknown error" }
+        }
+        await markBranch({
+          devServerStoppedAt: undefined,
+          devServerLaunchedAt: Date.now(),
+        })
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+
+    async stop() {
+      const { stopDevServer } = await import("@/lib/sandbox/lifecycle")
+      try {
+        const result = await stopDevServer(sandboxName)
+        if (!result.success) {
+          return { ok: false, error: result.error || "unknown error" }
+        }
+        await markBranch({ devServerStoppedAt: Date.now() })
+        return { ok: true }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }

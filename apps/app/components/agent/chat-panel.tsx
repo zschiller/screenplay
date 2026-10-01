@@ -34,7 +34,7 @@ import { ChatHistoryMenu } from "./chat-history-menu"
 import { ChatPanelHeader } from "./chat-panel-header"
 import { CoordinatorChat } from "./coordinator-chat"
 import { ChatsMenuButton } from "./chats-menu"
-import { TerminalPane } from "./terminal-pane"
+import { TerminalPane, type DevServerControls } from "./terminal-pane"
 import { useTerminalPaneController } from "./use-terminal-pane-controller"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
@@ -166,6 +166,9 @@ interface ChatPanelProps {
    * alongside a target switch lands after it.
    */
   logsRequest?: { agentId: string; nonce: number } | null
+  /** Run and Stop for the Workspace's dev server (#1342). Absent
+   *  where it can't be controlled (the player), which hides the buttons. */
+  devServerControls?: DevServerControls
 }
 
 /**
@@ -223,6 +226,7 @@ function WorkspaceChatPanel({
   onPrCreated,
   onCollapse,
   logsRequest,
+  devServerControls,
 }: ChatPanelProps & { target: WorkspaceTarget }) {
   const agent = target.agent
   const chatTarget = chatTargetOf(target)
@@ -459,6 +463,7 @@ function WorkspaceChatPanel({
         onCreateShell={onCreateTerminal}
         onRenameShell={onRenameTerminal}
         onCloseShell={onCloseTerminal}
+        devServer={devServerControls}
       >
         {ownChat ? (
           renderChat(ownChat, !shownEarlierChat)
