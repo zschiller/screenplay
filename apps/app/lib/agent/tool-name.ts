@@ -59,15 +59,36 @@ export function harnessToolNaming(
 /**
  * Claude Code's own step for loading deferred tools (our MCP tools among
  * them) before it calls them. It says nothing about the work, so the
- * Coordinator's chat leaves it out unless it failed.
+ * Coordinator's chat leaves it out unless it failed. A Workspace's chat keeps
+ * it.
  */
-const HARNESS_PLUMBING = new Set(["ToolSearch"])
+const COORDINATOR_PLUMBING = new Set(["ToolSearch"])
 
-/** Whether a tool call is harness plumbing the Coordinator's chat hides. */
-export function isHarnessPlumbing(message: AgentMessage): boolean {
+/**
+ * Codex's automatic approval reviewer ("Guardian Review"), which codex-acp
+ * reports as a tool call next to the call it reviewed, with a
+ * `guardian_assessment:` id. Matched by id or title, never by its
+ * `kind: "think"` alone, which real thinking steps share.
+ */
+function isGuardianReview(message: AgentMessage & { role: "tool_call" }) {
   return (
-    message.role === "tool_call" &&
-    HARNESS_PLUMBING.has(message.title) &&
-    message.status !== "failed"
+    message.toolCallId.startsWith("guardian_assessment:") ||
+    message.title === "Guardian Review"
+  )
+}
+
+/**
+ * Whether a tool call is harness plumbing a chat hides: a Guardian Review in
+ * every chat, and Claude Code's tool loading in the Coordinator's. One that
+ * failed always shows, since it explains why something didn't run.
+ */
+export function isHarnessPlumbing(
+  message: AgentMessage,
+  { coordinator }: { coordinator: boolean }
+): boolean {
+  if (message.role !== "tool_call" || message.status === "failed") return false
+  return (
+    isGuardianReview(message) ||
+    (coordinator && COORDINATOR_PLUMBING.has(message.title))
   )
 }

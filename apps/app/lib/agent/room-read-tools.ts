@@ -8,6 +8,7 @@ import {
   type FrameReadPorts,
 } from "@/lib/agent/frame-read-tools"
 import { groupToolCalls } from "@/lib/agent/group-tool-calls"
+import { isHarnessPlumbing } from "@/lib/agent/tool-name"
 import { renderFileWindow } from "@/lib/agent/render"
 import { truncateOutput } from "@/lib/agent/search"
 import { summarizeSteps } from "@/lib/agent/turn-summary"
@@ -216,7 +217,10 @@ export function renderLastTurn(messages: readonly AgentMessage[]): string {
   if (start === -1) return "No messages yet."
 
   const ask = userTurnText(messages[start] as UserMessage)
-  const steps = messages.slice(start + 1)
+  // Guardian Reviews are harness plumbing no chat shows.
+  const steps = messages
+    .slice(start + 1)
+    .filter((m) => !isHarnessPlumbing(m, { coordinator: false }))
   const { text, failures } = summarizeSteps(groupToolCalls([...steps]))
   const didWork = steps.some((m) => m.role === "tool_call")
   const reply = [...steps].reverse().find((m) => m.role === "assistant")

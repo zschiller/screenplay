@@ -22,19 +22,60 @@ describe("bareToolName", () => {
 })
 
 describe("isHarnessPlumbing", () => {
-  const call = (title: string, status: "completed" | "failed") => ({
+  const call = (
+    title: string,
+    status: "in_progress" | "completed" | "failed",
+    toolCallId = "t"
+  ) => ({
     role: "tool_call" as const,
-    toolCallId: "t",
+    toolCallId,
     title,
     status,
     content: [],
   })
+  const coordinator = { coordinator: true }
+  const workspace = { coordinator: false }
 
-  it("is Claude Code's tool loading, unless it failed", () => {
-    expect(isHarnessPlumbing(call("ToolSearch", "completed"))).toBe(true)
-    expect(isHarnessPlumbing(call("ToolSearch", "failed"))).toBe(false)
+  it("is Claude Code's tool loading in the Coordinator's chat, unless it failed", () => {
     expect(
-      isHarnessPlumbing(call("mcp__screenplay__read_canvas", "completed"))
+      isHarnessPlumbing(call("ToolSearch", "completed"), coordinator)
+    ).toBe(true)
+    expect(isHarnessPlumbing(call("ToolSearch", "failed"), coordinator)).toBe(
+      false
+    )
+    expect(isHarnessPlumbing(call("ToolSearch", "completed"), workspace)).toBe(
+      false
+    )
+    expect(
+      isHarnessPlumbing(
+        call("mcp__screenplay__read_canvas", "completed"),
+        coordinator
+      )
+    ).toBe(false)
+  })
+
+  it("is Codex's Guardian Review in every chat, unless it failed", () => {
+    const byId = (status: "in_progress" | "completed" | "failed") =>
+      call("Reviewing approval request", status, "guardian_assessment:r1")
+    for (const where of [coordinator, workspace]) {
+      expect(isHarnessPlumbing(byId("completed"), where)).toBe(true)
+      expect(isHarnessPlumbing(byId("in_progress"), where)).toBe(true)
+      expect(
+        isHarnessPlumbing(call("Guardian Review", "completed"), where)
+      ).toBe(true)
+      expect(isHarnessPlumbing(byId("failed"), where)).toBe(false)
+      expect(isHarnessPlumbing(call("Guardian Review", "failed"), where)).toBe(
+        false
+      )
+    }
+  })
+
+  it("never hides a thinking step for its kind alone", () => {
+    expect(
+      isHarnessPlumbing(
+        { ...call("Thinking", "completed"), kind: "think" as const },
+        workspace
+      )
     ).toBe(false)
   })
 })
