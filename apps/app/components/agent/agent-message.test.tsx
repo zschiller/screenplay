@@ -111,22 +111,53 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     expect(diffEl.textContent).toContain("after")
   })
 
-  it("renders a terminal content block as its own structural element", () => {
-    const terminal: ToolCallContent = { type: "terminal", terminalId: "t_42" }
+  // codex-acp sends a `terminal` block for a running command although we never
+  // create ACP terminals, so its id resolves to nothing (#1300).
+  it("never renders a terminal content block's handle", () => {
+    const terminal: ToolCallContent = {
+      type: "terminal",
+      terminalId: "exec-42",
+    }
     render(
       <AgentMessageItem
         message={toolCall({
-          title: "run_command",
+          title: "pnpm test",
           kind: "execute",
-          status: "completed",
+          status: "in_progress",
           content: [terminal],
         })}
       />
     )
     fireEvent.click(screen.getByTestId("tool-call"))
-    expect(screen.getByTestId("tool-content-terminal").textContent).toContain(
-      "t_42"
+    expect(screen.queryByTestId("tool-content-text")).toBeNull()
+    expect(document.body.textContent).not.toContain("exec-42")
+    expect(document.body.textContent).not.toContain("terminal")
+  })
+
+  it("renders only the text beside a terminal content block", () => {
+    const terminal: ToolCallContent = {
+      type: "terminal",
+      terminalId: "exec-42",
+    }
+    const output: ToolCallContent = {
+      type: "content",
+      content: { type: "text", text: "12 tests passed" },
+    }
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "pnpm test",
+          kind: "execute",
+          status: "completed",
+          content: [terminal, output],
+        })}
+      />
     )
+    fireEvent.click(screen.getByTestId("tool-call"))
+    expect(screen.getByTestId("tool-content-text").textContent).toBe(
+      "12 tests passed"
+    )
+    expect(document.body.textContent).not.toContain("exec-42")
   })
 
   // claude-agent-acp forwards Claude Code's file-read decorations verbatim —

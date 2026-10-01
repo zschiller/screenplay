@@ -438,28 +438,18 @@ function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
 
 /**
  * Render one ACP {@link ToolCallContent} block *structurally* — a file `diff`
- * as a line diff, a `terminal` as its handle, a text `content` block as
- * preformatted text — rather than flattening it all to one `<pre>`.
+ * as a line diff, a text `content` block as preformatted text — rather than
+ * flattening it all to one `<pre>`. `terminal` blocks never get here: see
+ * {@link shownContent}.
  */
 function ToolContentBlock({
   block,
   failed,
 }: {
-  block: ToolCallContent
+  block: Exclude<ToolCallContent, { type: "terminal" }>
   failed?: boolean
 }) {
   if (block.type === "diff") return <DiffBlock block={block} />
-  if (block.type === "terminal") {
-    return (
-      <div
-        data-testid="tool-content-terminal"
-        className="flex items-center gap-1.5 px-2 py-1 font-mono text-xs text-muted-foreground"
-      >
-        <TerminalIcon className="size-3 shrink-0" />
-        terminal {block.terminalId}
-      </div>
-    )
-  }
   // A standard content block — render its text; non-text blocks (image, …) are
   // deferred polish.
   const text =
@@ -471,6 +461,19 @@ function ToolContentBlock({
     >
       {text}
     </pre>
+  )
+}
+
+/**
+ * A tool call's content without its `terminal` blocks. We never create ACP
+ * terminals, so a terminal id resolves to nothing; codex-acp sends one for a
+ * running command anyway and swaps in the output text when it finishes, so the
+ * row's title and status carry it until then.
+ */
+function shownContent(content: ToolCallContent[]) {
+  return content.filter(
+    (b): b is Exclude<ToolCallContent, { type: "terminal" }> =>
+      b.type !== "terminal"
   )
 }
 
@@ -583,7 +586,8 @@ function ToolCallRow({
   // Structure it when we have a real verb (our own raw tool, or a known kind we
   // could attach a detail to); otherwise fall back to the adapter's prose title.
   const structured = isRawToolName || (verb != null && detail != null)
-  const hasContent = message.content.length > 0 && !outcome
+  const content = shownContent(message.content)
+  const hasContent = content.length > 0 && !outcome
 
   const title = outcome ? (
     outcome
@@ -634,8 +638,8 @@ function ToolCallRow({
         title={<TruncatedTitle fullText={fullText}>{title}</TruncatedTitle>}
         headerProps={headerProps}
       >
-        {hasFailureText(message.content) ? (
-          message.content.map((block, i) => (
+        {hasFailureText(content) ? (
+          content.map((block, i) => (
             <ToolContentBlock key={i} block={block} failed />
           ))
         ) : (
@@ -661,7 +665,7 @@ function ToolCallRow({
     >
       {hasContent ? (
         <div className="divide-y divide-border">
-          {message.content.map((block, i) => (
+          {content.map((block, i) => (
             <ToolContentBlock key={i} block={block} />
           ))}
         </div>
