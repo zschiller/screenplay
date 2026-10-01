@@ -6,7 +6,6 @@ import {
   buildBrokeredEnv,
   resolveLaunchArgv,
   selectHarnesses,
-  unconfiguredBannerArgv,
   type Harness,
 } from "@/lib/agent/harnesses"
 import { createHostedResolver } from "@/lib/agent/harnesses/availability"
@@ -215,48 +214,6 @@ describe("resolveLaunchArgv", () => {
   })
 })
 
-describe("unconfiguredBannerArgv", () => {
-  it("wraps a SANDBOX_HARNESSES banner around a login shell (exec $SHELL) on the hosted backend", () => {
-    // Hosted is the default; an explicit "hosted" must read the same.
-    for (const argv of [
-      unconfiguredBannerArgv(),
-      unconfiguredBannerArgv("hosted"),
-    ]) {
-      // Wrapped like the harness launch so the operator lands in a normal shell
-      // after the banner prints.
-      expect(argv[0]).toBe("sh")
-      expect(argv[1]).toBe("-c")
-      const script = argv[2]!
-      expect(script).toContain("SANDBOX_HARNESSES")
-      expect(script).toMatch(/exec \$SHELL$/)
-    }
-  })
-
-  it("points the desktop banner at installing a CLI, not SANDBOX_HARNESSES", () => {
-    const argv = unconfiguredBannerArgv("desktop")
-
-    expect(argv[0]).toBe("sh")
-    expect(argv[1]).toBe("-c")
-    const script = argv[2]!
-    // Desktop detects a host CLI — no env, no install — so its guidance points at
-    // installing one (managed from Settings), never at SANDBOX_HARNESSES.
-    expect(script).not.toContain("SANDBOX_HARNESSES")
-    expect(script).toContain("Settings")
-    // Live re-probe retired the "restart Screenplay" requirement (ADR 0015): the
-    // banner points at the now-built setup surface, not a restart.
-    expect(script).not.toMatch(/restart/i)
-    expect(script).toMatch(/exec \$SHELL$/)
-  })
-})
-
-/**
- * The hosted Harness Availability resolver lifts the same selection fold above
- * into the backend-aware seam (#476): it must return exactly what `selectHarnesses`
- * would, each entry carrying an `installed` status, so routing the hosted terminal
- * picker through the seam doesn't change what it shows. Providers and the
- * `SANDBOX_HARNESSES` value are injected so the fold is exercised without the
- * provider graph or the ambient env.
- */
 describe("createHostedResolver (Harness Availability — hosted fold)", () => {
   it("lists the installable harnesses, each with installed status", async () => {
     const resolver = createHostedResolver({

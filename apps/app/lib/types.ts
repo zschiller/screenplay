@@ -133,14 +133,6 @@ export type BranchData = {
 }
 
 /**
- * Which kind of tab the "+" new-tab control creates. Purely a UI-level
- * selection — it is *not* a discriminant stored on any tab. The two kinds are
- * distinct domain types: a chat tab is a {@link ChatSessionData}, a terminal
- * tab is a {@link TerminalTabData}.
- */
-export type TabKind = "chat" | "terminal"
-
-/**
  * A chat tab: the durable Engine conversation. Targets exactly one of a
  * *Branch* (`branchId` set) or the whole *Room* (`target: "room"`), and its
  * scrollback is persisted + shared. A Branch has exactly one chat, the only one
@@ -188,8 +180,9 @@ export type TerminalTabData = {
   /** Shared live-view identity — the key collaborators co-view one PTY against. */
   terminalSessionId: string
   /** The harness this tab launches into (`Harness.key`, e.g. "claude-code"),
-   *  resolved server-side → the launch argv at connect time. Omitted on tabs
-   *  created before harness auto-launch (#285), which open a plain shell. */
+   *  resolved server-side → the launch argv at connect time. Only on tabs
+   *  saved while terminals could launch a harness (#285 to #1343); new tabs
+   *  omit it and open a plain shell. */
   harnessKey?: string
   label: string
   createdAt: number

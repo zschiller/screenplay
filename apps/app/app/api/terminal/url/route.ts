@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { getCurrentSession } from "@/lib/auth-helpers"
-import { parseHarnessKeys, unconfiguredBannerArgv } from "@/lib/agent/harnesses"
 import {
   filterByCapability,
   harnessAvailability,
@@ -84,20 +83,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  // The harnesses this deployment can launch, read through the backend-aware
-  // Harness Availability seam (#476) — the same fold the new-tab picker draws
-  // from (`/api/terminal/harnesses`), so the menu and the tab agree on both
-  // backends. The terminal surface needs only presence, so it filters on the
-  // `"terminal"` capability (every available harness, none dropped for lacking an
-  // ACP adapter). `harnesses` (key + label) is the menu payload returned
-  // alongside the URL; `launchArgv` is the resolved launch command for *this*
-  // tab's stored `harnessKey`, wrapped so Ctrl-D drops to a shell. An empty argv
+  // New tabs are plain shells (#1343): only a tab saved when terminals could
+  // launch a harness still has a `harnessKey`, and it keeps launching that CLI
+  // until it's closed. The harnesses this deployment can launch come from the
+  // backend-aware Harness Availability seam (#476), filtered on the
+  // `"terminal"` capability; `launchArgv` is the resolved launch command for
+  // *this* tab's stored key, wrapped so Ctrl-D drops to a shell. An empty argv
   // (no/unknown key, or a harness no longer available) means a plain shell.
   const available = filterByCapability(
     await harnessAvailability.list(),
     "terminal"
   )
-  const { harnesses, launchArgv } = resolveTerminalLaunch(harnessKey, available)
+  const { launchArgv } = resolveTerminalLaunch(harnessKey, available)
 
   const binding = { roomId, sessionId }
 
@@ -125,17 +122,8 @@ export async function POST(req: Request) {
         { status: 502 }
       )
     }
-    // Nothing detected on the host → a tab that would open a bare shell instead
-    // shows a banner pointing at installing a CLI (the deferred homescreen
-    // Settings surface), so an empty desktop explains itself rather than
-    // presenting a silent blank shell. A tab whose harness launches never shows
-    // it.
-    const desktopArgv =
-      launchArgv.length === 0 && available.length === 0
-        ? unconfiguredBannerArgv("desktop")
-        : launchArgv
     return NextResponse.json(
-      { url, ...credential, harnesses, launchArgv: desktopArgv },
+      { url, ...credential, launchArgv },
       { status: 200 }
     )
   }
@@ -151,18 +139,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
 
-  // When nothing is configured at all (SANDBOX_HARNESSES unset/empty), a tab that
-  // would open a bare shell instead shows a banner telling the operator to set
-  // SANDBOX_HARNESSES — so an empty config explains itself rather than presenting
-  // a silent blank shell. Gated on the *config* being empty (not the availability
-  // list) so a configured-but-unbrokerable harness still falls through to a plain
-  // shell exactly as before. A tab whose harness launches never shows it.
-  const hostedArgv =
-    launchArgv.length === 0 &&
-    parseHarnessKeys(process.env.SANDBOX_HARNESSES).length === 0
-      ? unconfiguredBannerArgv("hosted")
-      : launchArgv
-
   // `basicAuth` is spread in only when the strategy sets it (never under
   // `bearer`), so the `bearer` response stays byte-for-byte today's shape.
   const { url, basicAuth } = result.value
@@ -171,8 +147,7 @@ export async function POST(req: Request) {
       url,
       ...(basicAuth ? { basicAuth } : {}),
       ...credential,
-      harnesses,
-      launchArgv: hostedArgv,
+      launchArgv,
     },
     { status: 200 }
   )

@@ -1,21 +1,22 @@
 ---
 title: Coding CLIs (harnesses)
-description: Offer Claude Code, Codex and opencode in terminal tabs, without handing them your API keys.
+description: Install Claude Code, Codex and opencode in sandboxes, without handing them your API keys.
 ---
 
 # Coding CLIs (harnesses)
 
-Besides the built-in agent, Screenplay can run **bring-your-own coding CLIs**
-("harnesses") inside a workspace's [terminal tabs](/guides/terminals). On
-desktop, a harness also *is* the chat agent. Each CLI is a descriptor in
+Besides the built-in agent, Screenplay can install **bring-your-own coding
+CLIs** ("harnesses") in every sandbox, where anyone can run one from a
+workspace's [shells](/guides/terminals). On desktop, a harness *is* the chat
+agent. Each CLI is a descriptor in
 `apps/app/lib/agent/harnesses/`:
 
 | Key | CLI | Hosted: needs | Chat on desktop |
 | --- | --- | --- | --- |
 | `claude-code` | Claude Code | `ANTHROPIC_API_KEY` | Yes |
 | `codex` | Codex | `OPENAI_API_KEY` | Yes |
-| `opencode-gateway` | opencode via the Vercel AI Gateway | `AI_GATEWAY_API_KEY` | Terminal only |
-| `opencode-compat` | opencode via an OpenAI-compatible endpoint | `OPENAI_COMPATIBLE_BASE_URL` + `OPENAI_COMPATIBLE_API_KEY` | Terminal only |
+| `opencode-gateway` | opencode via the Vercel AI Gateway | `AI_GATEWAY_API_KEY` | No (shell only) |
+| `opencode-compat` | opencode via an OpenAI-compatible endpoint | `OPENAI_COMPATIBLE_BASE_URL` + `OPENAI_COMPATIBLE_API_KEY` | No (shell only) |
 
 ## Hosted: `SANDBOX_HARNESSES`
 
@@ -23,7 +24,7 @@ List the CLIs to install into every sandbox:
 
 ```bash
 SANDBOX_HARNESSES=claude-code          # just Claude Code
-SANDBOX_HARNESSES=claude-code,codex    # several, in menu order
+SANDBOX_HARNESSES=claude-code,codex    # several
 # unset → no CLI is installed
 ```
 

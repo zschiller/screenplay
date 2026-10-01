@@ -671,7 +671,7 @@ private Escape listener for the pick; calling it "inspect" or "comment" (those
 are the comment-mode placement in **Element Reference**); cross-Branch targeting.
 
 **Terminal Tab**:
-A BYO-harness shell surfaced as a tab in the **Terminal Pane**, attached to one
+A plain shell surfaced as a tab in the **Terminal Pane**, attached to one
 Branch's sandbox and rendered with xterm.js in our own React, connecting to the
 backing terminal server's websocket directly (no iframe). Its identity — id,
 label, target Branch — is persisted **per User** in Postgres (the `terminalTab`
@@ -686,6 +686,8 @@ backend runs a **node-pty** process in the sidecar over a localhost WebSocket
 socket — no tmux, no public URL. Explicitly **not** a Chat Session: nothing here
 enters the chat-store, the conversation tables, or the Y.Doc, and it is modeled
 by its own `TerminalTabData`, never `ChatSessionData`.
+New tabs never launch a **Harness** (#1343): harnesses run as the chat, and a
+row saved earlier with a harness key keeps launching it until it's closed.
 One module owns the list, **Terminal Tabs** (`useTerminalTabs`, #1265), and
 nothing else changes it: its verbs are **open** (create the tab, save its row),
 **close**, **rename**, and the two it runs itself, **restore** (the first-paint
@@ -851,10 +853,10 @@ An external, bring-your-own coding agent CLI — Claude Code, Codex, aider —
 someone else's tool we install (or detect) and step out of the way for, as
 opposed to screenplay's owned in-process Agent Loop. **One descriptor, one key per
 CLI** (`lib/agent/harnesses/`): the single catalog key (`claude-code`) is the
-`SANDBOX_HARNESSES` token, the Terminal Tab key, _and_ the `harness:<key>` model
+`SANDBOX_HARNESSES` token, the (legacy) Terminal Tab key, _and_ the `harness:<key>` model
 id — there is no separate adapter-key namespace. A Harness is consumed two ways
-off that one descriptor: run **interactively inside a Terminal Tab**, or spawned
-as the **ACP backing of the external Engine** to drive agent chat (its
+off that one descriptor: installed in the sandbox, where someone can type it in
+a Terminal Tab's shell, or spawned as the **ACP backing of the external Engine** to drive agent chat (its
 `acpAdapter` argv). Both read the same entry; the descriptor also carries the
 `hostBinary` the desktop detector probes and an optional **curated model list**
 (`models` + `defaultModelId`) — the per-Harness set of models the desktop chat

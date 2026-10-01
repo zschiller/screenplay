@@ -1,23 +1,10 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import {
-  CaretDownIcon,
-  PlusIcon,
-  TerminalWindowIcon,
-  XIcon,
-} from "@workspace/ui/components/icons"
+import { CaretDownIcon, PlusIcon, XIcon } from "@workspace/ui/components/icons"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { Button } from "@workspace/ui/components/button"
-import { ButtonGroup } from "@workspace/ui/components/button-group"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
 import {
   EditableText,
   editableTextFieldClass,
@@ -37,18 +24,10 @@ import {
 } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { useAppSession } from "@/lib/auth-client"
-import {
-  DEFAULT_HARNESS_KEY,
-  readLastHarnessKey,
-  writeLastHarnessKey,
-  writeLastTabKind,
-} from "@/lib/canvas/tab-kind"
 import {
   isTerminalPaneToggle,
   type PaneTerminal,
 } from "@/lib/chat/terminal-pane"
-import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { BranchData } from "@/lib/types"
 
 import { LogsPanel } from "./logs-panel"
@@ -100,9 +79,9 @@ export function TerminalPane({
   pane: TerminalPaneController
   agent: BranchData
   roomId: string
-  /** Open a Terminal Tab launching `harnessKey`; returns its id. Absent where
-   *  shells can't be opened (the player), which hides +. */
-  onCreateShell?: (harnessKey: string) => string
+  /** Open a shell; returns its id. Absent where shells can't be opened (the
+   *  player), which hides +. */
+  onCreateShell?: () => string
   onRenameShell?: (id: string, label: string) => void
   onCloseShell?: (id: string) => void
   /** The Workspace's chat, above the pane. */
@@ -230,9 +209,7 @@ export function TerminalPane({
                     {onCreateShell && (
                       <NewShellButton
                         disabled={isAgentBusy}
-                        onCreate={(harnessKey) =>
-                          pane.openOn(onCreateShell(harnessKey))
-                        }
+                        onCreate={() => pane.openOn(onCreateShell())}
                       />
                     )}
                   </div>
@@ -397,68 +374,23 @@ function PaneTab({
   )
 }
 
-/**
- * + opens a terminal with the person's last harness; the caret beside it picks
- * another when several are installed.
- */
+/** + opens a plain shell in the Workspace's sandbox (#1343). */
 function NewShellButton({
   disabled,
   onCreate,
 }: {
   disabled: boolean
-  onCreate: (harnessKey: string) => void
+  onCreate: () => void
 }) {
-  const { data: session } = useAppSession()
-  const userId = session?.user.id
-  const installedHarnesses = useInstalledHarnesses(true)
-  // The harness "+" repeats: the person's last pick if it's still installed,
-  // else the first installed, else the catalog default. A hint only; a tab's
-  // harness lives on its row.
-  const stored = userId ? readLastHarnessKey(userId) : null
-  const defaultHarnessKey =
-    stored && installedHarnesses.some((h) => h.key === stored)
-      ? stored
-      : (installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY)
-
-  const create = (harnessKey: string) => {
-    writeLastTabKind("terminal")
-    if (userId) writeLastHarnessKey(userId, harnessKey)
-    onCreate(harnessKey)
-  }
-
   return (
-    <ButtonGroup className={`${disabled ? "" : "group/newtab"} ml-1 shrink-0`}>
-      <IconButton
-        label="New terminal"
-        hint={disabled ? "Sandbox still starting…" : undefined}
-        className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-        onClick={() => create(defaultHarnessKey)}
-        disabled={disabled}
-      >
-        <PlusIcon />
-      </IconButton>
-      {installedHarnesses.length > 1 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              label="New terminal with…"
-              className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-              disabled={disabled}
-            >
-              <CaretDownIcon />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>New terminal</DropdownMenuLabel>
-            {installedHarnesses.map((h) => (
-              <DropdownMenuItem key={h.key} onSelect={() => create(h.key)}>
-                <TerminalWindowIcon className="size-3 shrink-0 text-muted-foreground" />
-                <span className="truncate">{h.label}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-    </ButtonGroup>
+    <IconButton
+      label="New terminal"
+      hint={disabled ? "Sandbox still starting…" : undefined}
+      className="ml-1 shrink-0"
+      onClick={onCreate}
+      disabled={disabled}
+    >
+      <PlusIcon />
+    </IconButton>
   )
 }
