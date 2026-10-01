@@ -79,6 +79,21 @@ describe("resolveReconnect — reconnect candidates", () => {
     })
   })
 
+  it("carries a stopped dev server so the reconnect doesn't relaunch it (#1342)", () => {
+    const action = resolveReconnect(
+      branch({ status: "running", devServerStoppedAt: 5 }),
+      repo
+    )
+
+    expect(action).toEqual<ReconnectAction>({
+      kind: "reconnect",
+      sandboxName: "sandbox-1",
+      repo,
+      ref: "feature/x",
+      devServerStopped: true,
+    })
+  })
+
   it("reconnects a starting Branch interrupted mid-restart", () => {
     const action = resolveReconnect(branch({ status: "starting" }), repo)
 

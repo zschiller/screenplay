@@ -279,6 +279,10 @@ export const FIXTURE_IDS = {
     framesReady: "branch-frames-ready",
     /** Frame states Canvas: the one the boot recording walks from `creating` to `running`. */
     framesLive: "branch-frames-live",
+    /** Frame states Canvas: `running`, its dev server stopped by a member (#1342). */
+    framesServerStopped: "branch-frames-server-stopped",
+    /** Frame states Canvas: `running`, its dev server crashed: the preview never answers (#1342). */
+    framesServerCrashed: "branch-frames-server-crashed",
   },
   chats: {
     checkoutPolish: "chat-checkout-polish",
@@ -1300,6 +1304,16 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
     branch(b.framesLive, `${cold}live`, "agent-profile", 5, {
       status: "creating",
       statusMessage: "Cloning repository…",
+    }),
+    // No frames: they're here for the Terminal Pane's dev server states.
+    branch(b.framesServerStopped, `${cold}server-stopped`, "price-alerts", 6, {
+      status: "running",
+      title: "Price alerts",
+      devServerStoppedAt: minutesAgo(now, 4),
+    }),
+    branch(b.framesServerCrashed, `${cold}server-crashed`, "open-houses", 7, {
+      status: "running",
+      title: "Open houses",
     }),
   ]
   const frame = (id: string, label: string, branchId?: string) => ({

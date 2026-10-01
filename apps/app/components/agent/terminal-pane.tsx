@@ -1,9 +1,16 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { CaretDownIcon, PlusIcon, XIcon } from "@workspace/ui/components/icons"
+import { useEffect, useRef, useState } from "react"
+import {
+  CaretDownIcon,
+  PlayIcon,
+  PlusIcon,
+  SquareIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
+import { Button } from "@workspace/ui/components/button"
 import {
   EditableText,
   editableTextFieldClass,
@@ -27,6 +34,12 @@ import {
   isTerminalPaneToggle,
   type PaneTerminal,
 } from "@/lib/chat/terminal-pane"
+import {
+  canControlDevServer,
+  resolveDevServerState,
+  type DevServerState,
+} from "@/lib/sandbox/dev-server-state"
+import { usePreviewFailing } from "@/hooks/use-preview-failing"
 import type { BranchData } from "@/lib/types"
 
 import { LogsPanel } from "./logs-panel"
@@ -61,22 +74,84 @@ function prefersReducedMotion() {
 }
 
 /**
- * The dev server's state dot. Green while the Workspace's Sandbox is running,
- * red when it failed, muted otherwise (booting, stopped).
+ * The dev server's state dot (#1342): green while it runs, red when it crashed
+ * (or the Workspace failed), muted while it's stopped or still starting.
  */
-function DevServerDot({ status }: { status: BranchData["status"] }) {
+function DevServerDot({ state }: { state: DevServerState }) {
   return (
     <span
       aria-hidden
+      data-dev-server-state={state}
       className={cn(
         "size-1.5 shrink-0 rounded-full",
-        status === "running"
+        state === "running"
           ? "bg-success-fill"
-          : status === "error"
+          : state === "crashed"
             ? "bg-destructive-fill"
             : "bg-muted-foreground/50"
       )}
     />
+  )
+}
+
+/** Run and Stop for a Workspace's dev server, by Branch id (#1342). */
+export interface DevServerControls {
+  stop: (branchId: string) => Promise<void>
+  run: (branchId: string) => Promise<void>
+}
+
+/**
+ * The dev server's state and its verbs for one Workspace. A click disables
+ * the buttons until its action settles, so a slow launch can't be doubled.
+ */
+function useDevServer(agent: BranchData, controls?: DevServerControls) {
+  const controllable = canControlDevServer(agent)
+  const failing = usePreviewFailing(
+    agent.previewDomain || undefined,
+    controllable && !agent.devServerStoppedAt,
+    agent.devServerLaunchedAt
+  )
+  const state = resolveDevServerState(agent, failing)
+  const [pending, setPending] = useState(false)
+  const act = (fn?: (branchId: string) => Promise<void>) =>
+    fn && controllable
+      ? () => {
+          setPending(true)
+          void fn(agent.id).finally(() => setPending(false))
+        }
+      : undefined
+  return {
+    state,
+    pending,
+    stop: act(controls?.stop),
+    run: act(controls?.run),
+  }
+}
+
+type DevServer = ReturnType<typeof useDevServer>
+
+/**
+ * Stop while the dev server runs, Run while it's stopped or crashed (Run
+ * relaunches it). Absent while the Sandbox itself isn't running, or where
+ * there are no controls.
+ */
+function StopOrRunButton({ devServer }: { devServer: DevServer }) {
+  const { state, pending, stop, run } = devServer
+  const running = state === "running"
+  const action = running ? stop : state === "starting" ? undefined : run
+  if (!action) return null
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      className="font-normal text-muted-foreground"
+      disabled={pending}
+      onClick={action}
+    >
+      {running ? <SquareIcon /> : <PlayIcon />}
+      {running ? "Stop" : "Run"}
+    </Button>
   )
 }
 
@@ -85,7 +160,8 @@ function DevServerDot({ status }: { status: BranchData["status"] }) {
  * Workspace's chat. Closed, it is a borderless footnote under the composer
  * naming the Workspace's terminals; clicking a name opens the pane on it.
  * Open, the footnote becomes a line tab strip — Dev server first, then this
- * person's shells and +, and a hide caret at the right. ⌃` toggles it, and
+ * person's shells and +, and a hide caret at the right. The dev server's Stop
+ * or Run (#1342) sits at the right in both. ⌃` toggles it, and
  * dragging the divider to the bottom closes it. Height and open/closed come
  * from the person's pref (`useTerminalPaneController`), the same in every
  * Workspace.
@@ -97,6 +173,7 @@ export function TerminalPane({
   onCreateShell,
   onRenameShell,
   onCloseShell,
+  devServer: devServerControls,
   children,
 }: {
   pane: TerminalPaneController
@@ -107,11 +184,15 @@ export function TerminalPane({
   onCreateShell?: () => string
   onRenameShell?: (id: string, label: string) => void
   onCloseShell?: (id: string) => void
+  /** Run and Stop (#1342). Absent where the dev server can't be
+   *  controlled (the player), which hides the buttons. */
+  devServer?: DevServerControls
   /** The Workspace's chat, above the pane. */
   children: React.ReactNode
 }) {
   const panelRef = useRef<PanelImperativeHandle | null>(null)
   const { open, size, selectedId, terminals } = pane
+  const devServer = useDevServer(agent, devServerControls)
 
   // The pref drives the panel: opening expands it to the remembered height,
   // closing collapses it. A drag that changes it lands back in the pref
@@ -260,7 +341,7 @@ export function TerminalPane({
                       <PaneTab
                         key={terminal.id}
                         terminal={terminal}
-                        agent={agent}
+                        devServerState={devServer.state}
                         open={open}
                         selected={terminal.id === selectedId}
                         title={
@@ -291,19 +372,36 @@ export function TerminalPane({
                   </div>
                 </ScrollArea>
               </TabsList>
-              <FadeUp
-                open={open}
-                className="flex shrink-0 items-center pr-3 pl-1"
+              {/* Closed, this row matches the footnote names' 24px line. */}
+              <div
+                className={cn(
+                  "flex shrink-0 items-center gap-0.5 self-start pr-3 pl-1 transition-[height]",
+                  MOTION,
+                  open ? "h-10" : "h-6"
+                )}
               >
-                <IconButton
-                  label="Hide terminal"
-                  shortcut={TOGGLE_SHORTCUT}
-                  className="text-muted-foreground"
-                  onClick={() => pane.setOpen(false)}
+                {/* Stop or Run shows in both modes (#1342); closed, it slides
+                    into the hidden caret's place at the right edge. */}
+                <div
+                  className={cn(
+                    "transition-[translate]",
+                    MOTION,
+                    open ? "translate-x-0" : "translate-x-[30px]"
+                  )}
                 >
-                  <CaretDownIcon />
-                </IconButton>
-              </FadeUp>
+                  <StopOrRunButton devServer={devServer} />
+                </div>
+                <FadeUp open={open}>
+                  <IconButton
+                    label="Hide terminal"
+                    shortcut={TOGGLE_SHORTCUT}
+                    className="text-muted-foreground"
+                    onClick={() => pane.setOpen(false)}
+                  >
+                    <CaretDownIcon />
+                  </IconButton>
+                </FadeUp>
+              </div>
             </div>
             {/* The output follows 80ms behind the bar on the way in, and
                 leaves first on the way out. */}
@@ -386,7 +484,7 @@ const TAB_LABEL_CLASS =
  */
 function PaneTab({
   terminal,
-  agent,
+  devServerState,
   open,
   selected,
   title,
@@ -395,7 +493,7 @@ function PaneTab({
   onClose,
 }: {
   terminal: PaneTerminal
-  agent: BranchData
+  devServerState: DevServerState
   open: boolean
   selected: boolean
   title?: string
@@ -425,7 +523,7 @@ function PaneTab({
       >
         {terminal.kind === "dev-server" ? (
           <span className="flex items-center gap-1.5">
-            <DevServerDot status={agent.status} />
+            <DevServerDot state={devServerState} />
             {terminal.label}
           </span>
         ) : (

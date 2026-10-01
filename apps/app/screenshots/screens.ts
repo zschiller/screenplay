@@ -39,7 +39,12 @@ import {
 import { wakeMessage } from "@/lib/agent/coordinator-wake"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
-import { stubLogs, stubTerminal } from "./fixtures/streams"
+import {
+  LOGS_CRASHED_SAMPLE,
+  LOGS_STOPPED_SAMPLE,
+  stubLogs,
+  stubTerminal,
+} from "./fixtures/streams"
 import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "./lib/preview-url"
 import { resolveCaptureProfile } from "./profile"
 import { FIXTURE_IDS } from "./fixtures/world"
@@ -1039,11 +1044,57 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     beforeNavigate: async (page) => {
       await stubTerminal(page)
-      await stubLogs(page, "reconnecting")
+      await stubLogs(page, "live")
     },
     prepare: async (page) => {
       await openTerminalTab(page)
       await page.getByRole("tab", { name: "Dev server" }).click()
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 600,
+  },
+  {
+    name: "terminal-pane-footnote-stopped",
+    description:
+      "A Workspace whose dev server was stopped: a quiet dot and Run at the footnote's right edge (#1342).",
+    path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "Price alerts")
+      await page
+        .getByRole("button", { name: "Run", exact: true })
+        .first()
+        .waitFor({ timeout: 15_000 })
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 600,
+  },
+  {
+    name: "terminal-pane-stopped",
+    description:
+      "The Terminal Pane open on a stopped Dev server: its output up to the stop, and Run in the bar (#1342).",
+    path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: (page) => stubLogs(page, "live", LOGS_STOPPED_SAMPLE),
+    prepare: async (page) => {
+      await openTerminalPane(page, "Dev server", "Price alerts")
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 600,
+  },
+  {
+    name: "terminal-pane-crashed",
+    description:
+      "The Terminal Pane open on a crashed Dev server: a red dot, with Run in the bar (#1342).",
+    path: `/${ids.rooms.frameStates}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: (page) => stubLogs(page, "live", LOGS_CRASHED_SAMPLE),
+    prepare: async (page) => {
+      await openTerminalPane(page, "Dev server", "Open houses")
+      // The preview fails its probe twice before the dot turns red.
+      await page
+        .locator('[role="tab"] [data-dev-server-state="crashed"]')
+        .waitFor({ timeout: 30_000 })
       await page.mouse.move(0, 0)
     },
     settleMs: 600,
