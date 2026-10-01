@@ -407,11 +407,14 @@ export function AgentChat({
               {stackTaskRows(
                 foldFinishedTurns(
                   groupToolCalls(
-                    // The Coordinator's chat leaves out a harness's own
-                    // plumbing (loading our MCP tools); a Workspace's keeps it.
-                    workspaceTasks
-                      ? messages.filter((m) => !isHarnessPlumbing(m))
-                      : messages
+                    // Every chat leaves out a harness's own plumbing; the
+                    // Coordinator's also leaves out loading our MCP tools.
+                    messages.filter(
+                      (m) =>
+                        !isHarnessPlumbing(m, {
+                          coordinator: workspaceTasks != null,
+                        })
+                    )
                   ),
                   {
                     streaming: isStreaming,

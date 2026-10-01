@@ -1571,6 +1571,27 @@ function checkoutChat(now: number): FixtureChat {
       },
     },
     {
+      id: "msg-7-guardian",
+      createdAt: at(34.5),
+      record: {
+        // Codex's approval reviewer, which no chat shows unless it denies (#1300).
+        role: "tool_call",
+        toolCallId: "guardian_assessment:review-checkout",
+        title: "Guardian Review",
+        kind: "think",
+        status: "completed",
+        content: [
+          {
+            type: "content",
+            content: {
+              type: "text",
+              text: "Action: pnpm lint\nVerdict: approved",
+            },
+          },
+        ],
+      },
+    },
+    {
       id: "msg-8",
       createdAt: at(34),
       record: {
