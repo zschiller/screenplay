@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  createTerminalTab,
-  nextShellLabel,
-  TERMINAL_TAB_LABEL,
-} from "@/lib/canvas/tab-kind"
+import { createTerminalTab, TERMINAL_TAB_LABEL } from "@/lib/canvas/tab-kind"
 
 describe("createTerminalTab", () => {
   it("produces a terminal tab bound to the agent's sandbox", () => {
@@ -42,7 +38,7 @@ describe("createTerminalTab", () => {
     expect(tab.harnessKey).toBe("claude-code")
   })
 
-  it("defaults to the shell label", () => {
+  it("defaults to the terminal label", () => {
     const tab = createTerminalTab({
       id: "t1",
       branchId: "agent-1",
@@ -61,25 +57,5 @@ describe("createTerminalTab", () => {
     })
 
     expect(tab.label).toBe("shell")
-  })
-})
-
-describe("nextShellLabel", () => {
-  it('names the first shell "Shell"', () => {
-    expect(nextShellLabel([])).toBe("Shell")
-  })
-
-  it("numbers later shells from 2", () => {
-    expect(nextShellLabel(["Shell"])).toBe("Shell 2")
-    expect(nextShellLabel(["Shell", "Shell 2"])).toBe("Shell 3")
-  })
-
-  it("reuses the lowest free name", () => {
-    expect(nextShellLabel(["Shell 2"])).toBe("Shell")
-    expect(nextShellLabel(["Shell", "Shell 3"])).toBe("Shell 2")
-  })
-
-  it("ignores renamed shells", () => {
-    expect(nextShellLabel(["tests", "git"])).toBe("Shell")
   })
 })

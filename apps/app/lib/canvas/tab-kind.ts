@@ -1,20 +1,7 @@
 import type { TerminalTabData } from "@/lib/types"
 
-/** Label for a new Terminal Tab: "Shell", then "Shell 2", "Shell 3"… */
-export const TERMINAL_TAB_LABEL = "Shell"
-
-/**
- * The label for a Workspace's next shell: "Shell" while no shell uses it,
- * else "Shell N" for the lowest free N from 2, so the footnote never lists
- * two shells under one name. Renamed shells don't take a number.
- */
-export function nextShellLabel(labels: readonly string[]): string {
-  const taken = new Set(labels)
-  if (!taken.has(TERMINAL_TAB_LABEL)) return TERMINAL_TAB_LABEL
-  let n = 2
-  while (taken.has(`${TERMINAL_TAB_LABEL} ${n}`)) n++
-  return `${TERMINAL_TAB_LABEL} ${n}`
-}
+/** Default label for a freshly-created terminal tab. */
+export const TERMINAL_TAB_LABEL = "Terminal"
 
 // Per-target tab ordering. The tab strip is drag-reorderable (motion's
 // `Reorder`), and the chosen order is a personal UI preference — it lives in

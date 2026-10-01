@@ -58,41 +58,16 @@ describe("useTerminalTabs", () => {
     expect(ids(result.current.tabs)).toEqual([id])
     expect(result.current.tabs[0]).toMatchObject({
       branchId: "ws-1",
-      label: "Shell",
+      label: "Terminal",
       terminalSessionId: id,
     })
     expect(result.current.tabs[0].harnessKey).toBeUndefined()
     expect(result.current.isTerminal(id)).toBe(true)
     expect(store.rows.get(id)).toMatchObject({
       branch: "ws-1",
-      label: "Shell",
+      label: "Terminal",
       harnessKey: null,
     })
-  })
-
-  it("numbers a Workspace's shells", async () => {
-    const { result } = setup({
-      saved: [record("other", "ws-2")],
-      agents: [branch("ws-1"), branch("ws-2")],
-    })
-    await waitFor(() => expect(ids(result.current.tabs)).toEqual(["other"]))
-
-    act(() => {
-      result.current.open("ws-1")
-    })
-    act(() => {
-      result.current.open("ws-1")
-    })
-    act(() => {
-      result.current.open("ws-2")
-    })
-
-    expect(result.current.tabs.map((t) => [t.branchId, t.label])).toEqual([
-      ["ws-2", "other"],
-      ["ws-1", "Shell"],
-      ["ws-1", "Shell 2"],
-      ["ws-2", "Shell"],
-    ])
   })
 
   it("keeps a restored harness tab's harness, so it reattaches to its CLI", async () => {

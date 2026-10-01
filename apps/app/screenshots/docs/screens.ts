@@ -1154,7 +1154,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
         .getByRole("button", { name: "Dev server" })
         .click()
       await page
-        .getByRole("button", { name: "New shell", exact: true })
+        .getByRole("button", { name: "New terminal", exact: true })
         .first()
         .click()
       await page.mouse.move(0, 0)

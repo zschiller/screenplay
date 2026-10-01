@@ -277,24 +277,26 @@ describe("ChatPanel with a Workspace target", () => {
     expect(
       screen.queryByRole("button", { name: /New terminal with/ })
     ).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "New shell" }))
+    fireEvent.click(screen.getByRole("button", { name: "New terminal" }))
     expect(onCreateTerminal).toHaveBeenCalledWith()
     rerender(
       <ChatPanel
         {...props}
         onCreateTerminal={onCreateTerminal}
-        terminalTabs={[...props.terminalTabs, shell("s3", "Shell 3", 3)]}
+        terminalTabs={[...props.terminalTabs, shell("s3", "Terminal", 3)]}
       />
     )
     expect(
-      screen.getByRole("tab", { name: "Shell 3" }).getAttribute("aria-selected")
+      screen
+        .getByRole("tab", { name: "Terminal" })
+        .getAttribute("aria-selected")
     ).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: /Hide terminal/ }))
     expect(
       within(footnote()!)
         .getAllByRole("button")
         .map((b) => b.textContent)
-    ).toEqual(["Dev server", "Shell", "Shell 2", "Shell 3"])
+    ).toEqual(["Dev server", "Shell", "Shell 2", "Terminal"])
   })
 
   it("opens the pane on Dev server for a frame's Open logs", () => {

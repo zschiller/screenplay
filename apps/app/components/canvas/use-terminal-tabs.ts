@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { nanoid } from "nanoid"
 
-import { createTerminalTab, nextShellLabel } from "@/lib/canvas/tab-kind"
+import { createTerminalTab } from "@/lib/canvas/tab-kind"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import {
@@ -49,8 +49,7 @@ export interface TerminalTabs {
   /** True when `id` names one of this client's Terminal Tabs (never a chat). */
   isTerminal: (id: string | null) => boolean
   /**
-   * Open a plain shell on a Branch (#1343), named "Shell", "Shell 2"…, and
-   * save its row.
+   * Open a plain shell on a Branch (#1343) and save its row.
    */
   open: (branchId: string) => TerminalTabData
   /**
@@ -89,15 +88,12 @@ export function useTerminalTabs(deps: TerminalTabsDeps): TerminalTabs {
         id: nanoid(),
         branchId,
         createdAt: Date.now(),
-        label: nextShellLabel(
-          tabs.filter((t) => t.branchId === branchId).map((t) => t.label)
-        ),
       })
       setTabs((prev) => [...prev, tab])
       store.save(roomId, tab).catch(logFailure("persist terminal tab"))
       return tab
     },
-    [tabs, roomId, store]
+    [roomId, store]
   )
 
   const close = useCallback(

@@ -1070,7 +1070,7 @@ export const SCREENS: Screen[] = [
       await openTerminalTab(page)
       await page
         .getByRole("tab")
-        .getByText("Shell", { exact: true })
+        .getByText("Terminal", { exact: true })
         .last()
         .dblclick({ timeout: 15_000 })
     },
@@ -2360,7 +2360,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await openTerminalPane(page)
       await page
-        .getByRole("button", { name: "New shell", exact: true })
+        .getByRole("button", { name: "New terminal", exact: true })
         .first()
         .hover({ timeout: 15_000 })
       await showTooltip(page)
@@ -4564,7 +4564,7 @@ export async function pasteImageInComposer(page: Page): Promise<void> {
 }
 
 /**
- * Open a fresh shell with the tab strip's "+" (New shell): a Workspace has
+ * Open a fresh shell with the tab strip's "+" (New terminal): a Workspace has
  * one chat (#1315), so "+" only ever opens shells (#1343).
  *
  * Opened rather than restored: the fixture world does seed two terminal tabs,
@@ -4574,7 +4574,7 @@ export async function pasteImageInComposer(page: Page): Promise<void> {
 export async function openTerminalTab(page: Page): Promise<void> {
   await openTerminalPane(page)
   await page
-    .getByRole("button", { name: "New shell", exact: true })
+    .getByRole("button", { name: "New terminal", exact: true })
     .first()
     .click({ timeout: 15_000 })
   await page.mouse.move(0, 0)
