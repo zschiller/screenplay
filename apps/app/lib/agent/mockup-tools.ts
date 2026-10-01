@@ -12,10 +12,12 @@ import {
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { MOCKUP_STATUSES } from "@/lib/types"
 import { MOCKUP_STATUS_LABELS } from "@/lib/mockup-status"
+import { mockupHtml } from "@/lib/yjs/mockup-html"
 
 /**
  * A chat's Mockup tools (#1309): write a static HTML page onto the canvas as a
- * Mockup Layer, and rewrite the ones this chat made. Every Mockup records the
+ * Mockup Layer, rewrite the ones this chat made, and read any Mockup's page
+ * back (#1313), e.g. to build a picked take. Every Mockup records the
  * chat that made it, which is the only chat its update tool accepts and the
  * name its label shows.
  *
@@ -128,6 +130,52 @@ export function buildMockupTools(ctx: MockupToolContext) {
           : `Updated Mockup ${mockup_id}.`
       },
     }),
+
+    read_mockup: tool({
+      description:
+        "Read Mockups back. Without an id, lists this chat's Mockups with their ids, titles and statuses. With an id, returns that Mockup's title, status and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
+      inputSchema: z.object({
+        mockup_id: z
+          .string()
+          .optional()
+          .describe("The Mockup to read; leave it out to list your Mockups"),
+      }),
+      execute: async ({ mockup_id }) => {
+        if (mockup_id === undefined) {
+          const own = await ctx.room.readDoc(({ mockupLayers }) =>
+            mockupLayers
+              .toArray()
+              .filter((m) => m.ownerChatId === ctx.chatId)
+              .map((m) => ({ id: m.id, title: m.title, status: m.status }))
+          )
+          if (own.length === 0) return "This chat hasn't made any Mockups."
+          return [
+            "Your Mockups:",
+            ...own.map(
+              (m) =>
+                `- ${m.id}: ${m.title} (${MOCKUP_STATUS_LABELS[m.status ?? "current"]})`
+            ),
+          ].join("\n")
+        }
+        const found = await ctx.room.readDoc(({ mockupLayers, doc }) => {
+          const mockup = mockupLayers.get(mockup_id)
+          if (!mockup) return null
+          return {
+            title: mockup.title,
+            status: mockup.status,
+            yours: mockup.ownerChatId === ctx.chatId,
+            html: mockupHtml(doc, mockup_id).toString(),
+          }
+        })
+        if (!found) return `There's no Mockup ${mockup_id}.`
+        return [
+          `# ${found.title}`,
+          `Status: ${MOCKUP_STATUS_LABELS[found.status ?? "current"]}${found.yours ? "" : " (made by another chat)"}`,
+          "",
+          found.html || "(empty page)",
+        ].join("\n")
+      },
+    }),
   }
 }
 
@@ -170,4 +218,5 @@ export const MOCKUP_TOOL_ANNOTATIONS: Readonly<
 > = {
   create_mockup: { destructiveHint: false, openWorldHint: false },
   update_mockup: { destructiveHint: false, openWorldHint: false },
+  read_mockup: { readOnlyHint: true, openWorldHint: false },
 }

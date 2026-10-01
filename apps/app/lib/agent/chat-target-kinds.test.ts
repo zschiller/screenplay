@@ -178,7 +178,7 @@ describe("the Coordinator only delegates", () => {
   const documentAndMockupWrites = [
     ...names(buildDocumentTools({ room, chatId: "chat-1" })),
     ...names(buildMockupTools({ room, chatId: "chat-1" })),
-  ].filter((name) => name !== "read_document")
+  ].filter((name) => name !== "read_document" && name !== "read_mockup")
   const arrangeAndCamera = [
     ...names(buildArrangeTools(room.mutateDoc, "turn-1")),
     ...names(buildViewTools(room.readDoc)),

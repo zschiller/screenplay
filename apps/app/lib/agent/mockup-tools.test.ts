@@ -180,3 +180,72 @@ describe("update_mockup", () => {
     ).toBe("There's no Mockup gone.")
   })
 })
+
+describe("read_mockup", () => {
+  it("lists the chat's own Mockups with their statuses", async () => {
+    const { run, ops } = chatTools()
+    const a = idIn(
+      await run("create_mockup", { title: "Take 1", html: "<p>1</p>" })
+    )
+    const b = idIn(
+      await run("create_mockup", { title: "Take 2", html: "<p>2</p>" })
+    )
+    await run("update_mockup", { mockup_id: a, status: "set-aside" })
+    ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-2",
+    })
+
+    expect(await run("read_mockup", {})).toBe(
+      [
+        "Your Mockups:",
+        `- ${a}: Take 1 (Set aside)`,
+        `- ${b}: Take 2 (Current)`,
+      ].join("\n")
+    )
+  })
+
+  it("says when the chat has no Mockups", async () => {
+    const { run } = chatTools()
+    expect(await run("read_mockup", {})).toBe(
+      "This chat hasn't made any Mockups."
+    )
+  })
+
+  it("returns a Mockup's title, status and whole page", async () => {
+    const { run } = chatTools()
+    const id = idIn(
+      await run("create_mockup", { title: "Take 2", html: "<h1>Two</h1>" })
+    )
+
+    expect(await run("read_mockup", { mockup_id: id })).toBe(
+      ["# Take 2", "Status: Current", "", "<h1>Two</h1>"].join("\n")
+    )
+  })
+
+  it("reads a Mockup another chat made, and says so", async () => {
+    const { run, ops } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-2",
+    })!
+
+    const out = await run("read_mockup", { mockup_id: mockupId })
+
+    expect(out).toContain("Status: Current (made by another chat)")
+    expect(out).toContain("<p>theirs</p>")
+  })
+
+  it("reports a missing Mockup", async () => {
+    const { run } = chatTools()
+    expect(await run("read_mockup", { mockup_id: "gone" })).toBe(
+      "There's no Mockup gone."
+    )
+  })
+})
