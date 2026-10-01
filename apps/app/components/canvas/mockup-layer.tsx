@@ -9,7 +9,9 @@ import {
   LayerShell,
   LAYER_SURFACE_CLASS,
 } from "@/components/canvas/layer-shell"
-import type { MockupLayerData } from "@/lib/types"
+import type { MockupLayerData, MockupStatus } from "@/lib/types"
+import { mockupStatusOf } from "@/lib/mockup-status"
+import { MockupStatusMenu } from "@/components/canvas/mockup-status-menu"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
 import type { FrameWorkspace } from "@/components/canvas/frame-nav"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
@@ -58,6 +60,7 @@ interface MockupLayerProps {
   /** Adjust the mockup's own box; the Group anchor shifts for left/top edges. */
   onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
   onRename: (id: string, title: string) => void
+  onSetStatus: (id: string, status: MockupStatus) => void
 }
 
 /**
@@ -98,6 +101,7 @@ export function MockupLayer({
   onGroupDragEnd,
   onResize,
   onRename,
+  onSetStatus,
 }: MockupLayerProps) {
   const html = useMockupHtml(layer.id)
 
@@ -159,18 +163,24 @@ export function MockupLayer({
           onSelectLayer={api.deferSelect}
           onRename={(next) => onRename(layer.id, next)}
           trailing={
-            ownerWorkspace && (
-              <MaybeWorkspaceHoverCard
-                branchId={ownerWorkspace.branchId}
-                side="bottom"
-              >
-                {/* The mention doesn't take the trigger's props; this span
+            <>
+              {ownerWorkspace && (
+                <MaybeWorkspaceHoverCard
+                  branchId={ownerWorkspace.branchId}
+                  side="bottom"
+                >
+                  {/* The mention doesn't take the trigger's props; this span
                     does. Names win: the Workspace gives up its width first. */}
-                <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
-                  <CompactWorkspaceMention workspace={ownerWorkspace} />
-                </span>
-              </MaybeWorkspaceHoverCard>
-            )
+                  <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
+                    <CompactWorkspaceMention workspace={ownerWorkspace} />
+                  </span>
+                </MaybeWorkspaceHoverCard>
+              )}
+              <MockupStatusMenu
+                status={mockupStatusOf(layer)}
+                onChange={(status) => onSetStatus(layer.id, status)}
+              />
+            </>
           }
         />
       )}

@@ -40,6 +40,7 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
+import { MOCKUP_STATUS_LABELS, mockupStatusOf } from "@/lib/mockup-status"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
@@ -947,6 +948,7 @@ export function summarizeCanvas(
       [
         `- [${m.id}] "${clip(m.title || "Untitled")}"`,
         `${Math.round(m.width)}×${Math.round(m.height)}`,
+        MOCKUP_STATUS_LABELS[mockupStatusOf(m)],
         m.ownerChatId &&
           `by chat "${clip(chats.find((c) => c.id === m.ownerChatId)?.label || m.ownerChatId)}"`,
         groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,

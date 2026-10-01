@@ -546,6 +546,21 @@ export const SCREENS: Screen[] = [
     settleMs: 800,
   },
   {
+    name: "canvas-mockup-status",
+    description:
+      "A Mockup's status menu (#1310) open on Option B · Suggestions: Set aside, Current (checked) and Built.",
+    path: `/${ids.rooms.checkout}`,
+    viewport: { width: 2100, height: 560 },
+    prepare: async (page) => {
+      await page.waitForFunction("!!window.__canvasCamera", undefined, {
+        timeout: 15_000,
+      })
+      await page.evaluate("window.__canvasCamera.setTransform(30, -472, 0.26)")
+      await page.getByRole("button", { name: "Status: Current" }).click()
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-agent-chat",
     description:
       "The agent chat panel: a finished turn's steps folded into one summary line, with a failure chip.",

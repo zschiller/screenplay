@@ -33,6 +33,7 @@ import type {
   IframeLayerGroupData,
   MarkdownLayerData,
   MockupLayerData,
+  MockupStatus,
   PlanData,
   ViewportData,
   RepoData,
@@ -319,10 +320,13 @@ export type CanvasOps = {
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined
   /**
-   * Replace a Mockup Layer's page and/or title. The record and its HTML text
-   * commit together. Returns false when the mockup is gone.
+   * Replace a Mockup Layer's page, title and/or status (#1310). The record and
+   * its HTML text commit together. Returns false when the mockup is gone.
    */
-  updateMockup(id: string, patch: { html?: string; title?: string }): boolean
+  updateMockup(
+    id: string,
+    patch: { html?: string; title?: string; status?: MockupStatus }
+  ): boolean
   /**
    * Remove the given Mockup Layers, dropping them from any Group (pruning a
    * Group emptied by the removal). Their HTML texts stay in the doc, like a
@@ -983,6 +987,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         width: Math.max(MOCKUP_MIN_WIDTH, spec.width),
         height: Math.max(MOCKUP_MIN_HEIGHT, spec.height),
         title: spec.title,
+        status: "current",
         ...(spec.ownerChatId ? { ownerChatId: spec.ownerChatId } : {}),
       })
       writeMockupHtml(mockupHtml(doc, mockupId), spec.html)
@@ -1017,12 +1022,15 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
 
   function updateMockup(
     id: string,
-    patch: { html?: string; title?: string }
+    patch: { html?: string; title?: string; status?: MockupStatus }
   ): boolean {
     if (!collections.mockupLayers.get(id)) return false
     batch(() => {
-      if (patch.title !== undefined) {
-        collections.mockupLayers.update(id, { title: patch.title })
+      if (patch.title !== undefined || patch.status !== undefined) {
+        collections.mockupLayers.update(id, {
+          ...(patch.title !== undefined ? { title: patch.title } : {}),
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+        })
       }
       if (patch.html !== undefined) {
         writeMockupHtml(mockupHtml(doc, id), patch.html)
