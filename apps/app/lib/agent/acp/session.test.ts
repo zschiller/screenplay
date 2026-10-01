@@ -75,6 +75,11 @@ type FakeAgentOpts = {
    */
   rejectUnlistedModels?: boolean
   /**
+   * Advertise Codex's `collaboration_mode` option (`default` / `plan`) with
+   * this current value, and no plan mode (#1337).
+   */
+  collaborationMode?: string
+  /**
    * Advertise Codex's steering request and answer `_session/steering` with
    * this (#1192); a thrown error answers with a JSON-RPC error.
    */
@@ -95,10 +100,27 @@ type FakeAgentOpts = {
  */
 function modelConfigOptions(
   models: FakeModels | undefined,
-  optionId?: string
+  optionId?: string,
+  collaborationMode?: string
 ): SessionConfigOption[] | undefined {
-  if (!models) return undefined
+  const collaboration: SessionConfigOption[] = collaborationMode
+    ? [
+        {
+          id: "collaboration_mode",
+          name: "Collaboration mode",
+          category: "collaboration_mode",
+          type: "select",
+          currentValue: collaborationMode,
+          options: [
+            { value: "default", name: "Default" },
+            { value: "plan", name: "Plan" },
+          ],
+        },
+      ]
+    : []
+  if (!models) return collaborationMode ? collaboration : undefined
   return [
+    ...collaboration,
     {
       id: optionId ?? "model",
       name: "Model",
@@ -125,6 +147,8 @@ class FakeAcpAgent implements Agent {
   setSessionModeCalls: string[] = []
   setSessionModelCalls: string[] = []
   steeringCalls: Record<string, unknown>[] = []
+  /** Every `set_config_option` and `prompt`, in the order the agent got them. */
+  calls: string[] = []
   private cancelled = false
   private cancelWaiters: Array<() => void> = []
 
@@ -171,7 +195,8 @@ class FakeAcpAgent implements Agent {
       modes: this.opts.modes,
       configOptions: modelConfigOptions(
         this.opts.models,
-        this.opts.modelOptionId
+        this.opts.modelOptionId,
+        this.opts.collaborationMode
       ),
     }
   }
@@ -189,7 +214,8 @@ class FakeAcpAgent implements Agent {
       modes: this.opts.modes,
       configOptions: modelConfigOptions(
         this.opts.models,
-        this.opts.modelOptionId
+        this.opts.modelOptionId,
+        this.opts.collaborationMode
       ),
     }
   }
@@ -204,6 +230,7 @@ class FakeAcpAgent implements Agent {
   async setSessionConfigOption(
     params: SetSessionConfigOptionRequest
   ): Promise<{ configOptions: SessionConfigOption[] }> {
+    this.calls.push(`set_config_option ${params.configId}=${params.value}`)
     const modelOption = this.opts.modelOptionId ?? "model"
     if (params.configId === modelOption && typeof params.value === "string") {
       this.setSessionModelCalls.push(params.value)
@@ -221,6 +248,7 @@ class FakeAcpAgent implements Agent {
   }
 
   async prompt(params: PromptRequest): Promise<PromptResponse> {
+    this.calls.push("prompt")
     this.cancelled = false
     const stopReason = await this.behavior({
       conn: this.conn,
@@ -592,6 +620,101 @@ describe("AcpSession — plan mode (session/set_mode)", () => {
     await AcpSession.open(transport, ports, { cwd: "/work", planMode: true })
 
     expect(agent.setSessionModeCalls).toEqual([])
+  })
+})
+
+describe("AcpSession — plan through the collaboration mode (#1337)", () => {
+  it("sets the collaboration mode to plan before a plan turn's prompt", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      collaborationMode: "default",
+    })
+    const { ports } = collectingPorts()
+
+    const session = await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      planMode: true,
+    })
+    await session.prompt([textBlock("plan it")], new AbortController().signal)
+
+    expect(agent.calls).toEqual([
+      "set_config_option collaboration_mode=plan",
+      "prompt",
+    ])
+    expect(agent.setSessionModeCalls).toEqual([])
+    expect(session.plansByCollaborationMode).toBe(true)
+  })
+
+  it("sets a resumed session that is still planning back to default", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      collaborationMode: "plan",
+    })
+    const { ports } = collectingPorts()
+
+    const session = await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      loadSessionId: SESSION_ID,
+      planMode: false,
+    })
+
+    expect(agent.calls).toEqual([
+      "set_config_option collaboration_mode=default",
+    ])
+    expect(session.plansByCollaborationMode).toBe(false)
+  })
+
+  it("sets a fresh session that starts in plan back to default", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      collaborationMode: "plan",
+    })
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, { cwd: "/work" })
+
+    expect(agent.calls).toEqual([
+      "set_config_option collaboration_mode=default",
+    ])
+  })
+
+  it("leaves the option alone when it already matches the turn", async () => {
+    const plan = connectFakeAgent(async () => "end_turn", {
+      collaborationMode: "plan",
+    })
+    await AcpSession.open(plan.transport, collectingPorts().ports, {
+      cwd: "/work",
+      loadSessionId: SESSION_ID,
+      planMode: true,
+    })
+    const other = connectFakeAgent(async () => "end_turn", {
+      collaborationMode: "default",
+    })
+    await AcpSession.open(other.transport, collectingPorts().ports, {
+      cwd: "/work",
+    })
+
+    expect(plan.agent.calls).toEqual([])
+    expect(other.agent.calls).toEqual([])
+  })
+
+  it("prefers a plan mode when the agent advertises both", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      modes: {
+        availableModes: [
+          { id: "default", name: "Default" },
+          { id: "plan", name: "Plan" },
+        ],
+        currentModeId: "default",
+      },
+      collaborationMode: "default",
+    })
+
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+      planMode: true,
+    })
+
+    expect(agent.setSessionModeCalls).toEqual(["plan"])
+    expect(agent.calls).toEqual([])
+    expect(session.plansByCollaborationMode).toBe(false)
   })
 })
 
