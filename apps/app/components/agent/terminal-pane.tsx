@@ -68,8 +68,11 @@ const MOTION_MS = 280
 const MOTION =
   "duration-280 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
 
-/** The closed pane's height: the footnote under the composer. */
-const FOOTNOTE_PX = 28
+/**
+ * The closed pane's height: the footnote, tucked up under the composer (whose
+ * bottom padding shrinks to 4px while the pane is closed) with room below it.
+ */
+const FOOTNOTE_PX = 36
 
 function prefersReducedMotion() {
   return (
@@ -216,7 +219,16 @@ export function TerminalPane({
         }}
       >
         <ResizablePanel id="chat" minSize="160px">
-          <div className="flex h-full flex-col">{children}</div>
+          {/* Closed, the composer gives up most of its bottom padding so the
+              footnote sits right under it, as in the mockup. */}
+          <div
+            className={cn(
+              "flex h-full flex-col [&_[data-slot=composer]]:transition-[padding] [&_[data-slot=composer]]:duration-280 [&_[data-slot=composer]]:ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:[&_[data-slot=composer]]:transition-none",
+              !open && "[&_[data-slot=composer]]:pb-1"
+            )}
+          >
+            {children}
+          </div>
         </ResizablePanel>
         <ResizableHandle
           disabled={!open}
@@ -244,7 +256,7 @@ export function TerminalPane({
               className={cn(
                 "flex shrink-0 items-stretch border-b transition-[height,border-color]",
                 MOTION,
-                open ? "h-10 border-border" : "h-7 border-transparent"
+                open ? "h-10 border-border" : "h-9 border-transparent"
               )}
             >
               <TabsList
@@ -258,9 +270,11 @@ export function TerminalPane({
                 >
                   <div
                     className={cn(
-                      "flex h-full w-max items-center pr-2 transition-[padding,gap]",
+                      "flex w-max items-center pr-2 transition-[height,padding,gap]",
                       MOTION,
-                      open ? "gap-1 py-[3px] pl-[11px]" : "gap-0.5 pl-1"
+                      open
+                        ? "h-10 gap-1 py-[3px] pl-[11px]"
+                        : "h-6 gap-0.5 pl-1"
                     )}
                   >
                     {terminals.map((terminal, i) => (
