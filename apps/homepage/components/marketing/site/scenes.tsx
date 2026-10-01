@@ -24,7 +24,7 @@ const scenes: {
   {
     slug: "Step 2",
     title: "Ask for versions",
-    body: "Ask the Coordinator for a few versions of one change. It plans a Workspace for each, a git branch with its own running sandbox, and starts them when you approve.",
+    body: "Ask the Coordinator for a few versions of one change. It starts a Workspace for each right away, a git branch with its own chat and running sandbox.",
     Excerpt: CreateWorkspacesExcerpt,
   },
   {
@@ -36,7 +36,7 @@ const scenes: {
   {
     slug: "Step 4",
     title: "Open a pull request",
-    body: "Keep iterating on the version you want, then open a pull request from the canvas.",
+    body: "Keep iterating in the chat of the version you want, then open its pull request from the Chats menu.",
     Excerpt: PullRequestExcerpt,
   },
 ]

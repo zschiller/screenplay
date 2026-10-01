@@ -6,15 +6,11 @@ import {
   CaretDownIcon,
   CaretRightIcon,
   CaretUpDownIcon,
-  CheckCircleIcon,
-  CheckIcon,
   CircleIcon,
-  ClipboardTextIcon,
   CursorIcon,
   DotsThreeIcon,
   FileTextIcon,
   FrameCornersIcon,
-  GitPullRequestIcon,
   SidebarSimpleIcon,
   SlidersHorizontalIcon,
 } from "@workspace/ui/components/icons"
@@ -91,8 +87,8 @@ export function WorkspaceGlyph({
 /** Lines added and removed, in the app's green and red. */
 export function Diff({ add, del }: { add: number; del: number }) {
   return (
-    <span className="shrink-0 font-mono text-[11px] whitespace-nowrap tabular-nums">
-      <span className="text-success">+{add}</span>{" "}
+    <span className="flex shrink-0 items-center gap-1 font-mono text-xs whitespace-nowrap tabular-nums">
+      <span className="text-success">+{add}</span>
       <span className="text-destructive">-{del}</span>
     </span>
   )
@@ -252,40 +248,31 @@ export function FrameBar({
   )
 }
 
-/** One row of the sidebar's Workspaces list. */
+/** One Workspace's row in the Chats menu. */
 export function WorkspaceRow({
   name,
-  state,
   selected,
   diff,
-  pr,
   menu,
 }: {
   name: string
-  state?: "ready" | "working"
   selected?: boolean
-  diff?: [number, number]
-  pr?: number
+  diff?: readonly [number, number]
   menu?: boolean
 }) {
   return (
     <div
       className={cn(
         "flex h-8 items-center gap-2 rounded-md px-2 text-sm",
-        selected && "bg-sidebar-accent"
+        selected && "bg-muted"
       )}
     >
-      <WorkspaceGlyph state={state} />
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <CircleIcon weight="bold" className="size-3 opacity-50" />
+      </span>
       <span className="min-w-0 flex-1 truncate">{name}</span>
       {diff ? <Diff add={diff[0]} del={diff[1]} /> : null}
-      {pr ? (
-        <span className="flex items-center gap-1 text-xs text-success">
-          <GitPullRequestIcon className="size-3" />#{pr}
-        </span>
-      ) : null}
-      {menu ? (
-        <DotsThreeIcon className="size-3.5 text-muted-foreground" />
-      ) : null}
+      {menu ? <DotsThreeIcon className="size-4 text-muted-foreground" /> : null}
     </div>
   )
 }
@@ -335,67 +322,11 @@ export function UserBubble({
 }
 
 /**
- * The plan the Coordinator raises before it creates Workspaces: one row per
- * Workspace with its repository and brief. Pending, it asks for approval;
- * `compact` leaves the briefs out where there's no room for them.
+ * A chat the Coordinator started, as a card in its transcript: the
+ * Workspace's state glyph, title, changed lines, the state in a word and a
+ * caret, then the message it was started on.
  */
-export function WorkspacePlan({
-  pending,
-  compact,
-}: {
-  pending?: boolean
-  compact?: boolean
-}) {
-  return (
-    <div className="rounded-md border border-border bg-muted/30">
-      <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground">
-        <ClipboardTextIcon className="size-3 shrink-0" />
-        <span className="font-medium">Plan</span>
-        {pending ? null : (
-          <span className="ml-1 flex h-4 items-center gap-1 rounded-full border border-border px-1.5 text-success-text">
-            <CheckCircleIcon className="size-3 text-success" />
-            Approved
-          </span>
-        )}
-      </div>
-      <div className="flex flex-col gap-2 border-t border-border px-3 py-2.5 text-xs">
-        <span>Create 3 Workspaces:</span>
-        <ul className="flex list-disc flex-col gap-1.5 pl-4">
-          {versions.map((v) => (
-            <li key={v.title}>
-              <span className="font-medium">{v.title}</span>
-              <span className="text-muted-foreground">
-                {" "}
-                · acme/northwind-web
-              </span>
-              {compact ? null : (
-                <span className="block truncate text-muted-foreground">
-                  {v.brief}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-        {pending ? (
-          <div className="mt-1 flex gap-2">
-            <span className="flex h-7 items-center rounded-md bg-primary px-2.5 text-primary-foreground">
-              Approve
-            </span>
-            <span className="flex h-7 items-center rounded-md border border-border bg-background px-2.5">
-              Request changes
-            </span>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
-/**
- * A Workspace the Coordinator started, as a task row in its chat: state,
- * title, changed lines and the state in a word, then what it was asked.
- */
-function TaskRow({
+export function ChatCard({
   title,
   prompt,
   diff,
@@ -409,19 +340,21 @@ function TaskRow({
   return (
     <div className="flex flex-col gap-0.5 rounded-lg bg-input/70 px-2.5 py-2">
       <span className="flex items-center gap-2">
-        {working ? (
-          <WorkspaceGlyph state="working" className="size-3.5" />
-        ) : (
-          <CheckIcon className="size-3.5 shrink-0 text-success" />
-        )}
-        <span className="min-w-0 flex-1 truncate">{title}</span>
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          {working ? (
+            <WorkspaceGlyph state="working" className="size-3.5 opacity-70" />
+          ) : (
+            <CircleIcon weight="bold" className="size-3 opacity-50" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm">{title}</span>
         <Diff add={diff[0]} del={diff[1]} />
         <span className="shrink-0 text-xs text-muted-foreground">
-          {working ? "Working" : "Finished"}
+          {working ? "Working" : "Ready"}
         </span>
         <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
       </span>
-      <span className="truncate pl-5.5 text-xs text-muted-foreground">
+      <span className="truncate pl-6 text-xs text-muted-foreground">
         {prompt}
       </span>
     </div>
@@ -429,29 +362,30 @@ function TaskRow({
 }
 
 /**
- * The chat panel at its home, the Coordinator: the ask, the approved plan and
- * the three Workspaces it started, each updating in place.
+ * The chat panel at its home, the Coordinator: the ask and the three
+ * Workspaces it started straight away, each a chat card updating in place.
  */
 function Coordinator() {
   return (
     <div className="flex w-[320px] shrink-0 flex-col border-l border-border bg-background max-lg:hidden">
-      <div className="flex h-11 items-center gap-1 border-b border-border pr-2 pl-1.5 text-sm whitespace-nowrap">
+      <div className="flex h-12 items-center border-b border-border px-3 text-sm whitespace-nowrap">
         <Tool>
-          <SidebarSimpleIcon />
+          <SidebarSimpleIcon mirrored className="text-muted-foreground" />
         </Tool>
-        <span className="min-w-0 flex-1 truncate">Coordinator</span>
-        <span className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground">
-          Workspaces
+        <span className="ml-1.5 min-w-0 flex-1 truncate font-medium">
+          Coordinator
+        </span>
+        <span className="flex h-6 items-center gap-1 rounded-md pr-1.5 pl-2 text-xs text-muted-foreground">
+          Chats
           <CaretDownIcon className="size-3" />
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 overflow-hidden px-3 py-4 text-[13px] leading-normal">
         <UserBubble>{ask}</UserBubble>
-        <WorkspacePlan />
-        <p>Started all three. Dark hero is still working.</p>
+        <p>Starting a Workspace for each version.</p>
         <div className="flex flex-col gap-1">
           {versions.map((v) => (
-            <TaskRow
+            <ChatCard
               key={v.title}
               title={v.title}
               prompt={v.prompt}
@@ -460,6 +394,10 @@ function Coordinator() {
             />
           ))}
         </div>
+        <p>
+          Gradient headline and Split layout are ready. Dark hero is still
+          working.
+        </p>
       </div>
       <div className="m-3 mt-0 flex flex-col gap-3 rounded-lg border border-border p-3 text-[13px]">
         <span className="truncate text-muted-foreground">
