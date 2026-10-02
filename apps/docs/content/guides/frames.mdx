@@ -150,6 +150,41 @@ leave Interact, Claude carries on if it asked to.
   alt="The More menu: Device size, Fit to content, Duplicate, Workspace, Delete frame"
 />
 
+## Claude driving a frame
+
+In the desktop app, a Workspace chat's Claude can use a frame you have open:
+click, type, press keys, scroll, pick options and drag, like you would. It
+reads the page's buttons, links and fields to find what to act on, and looks
+at the frame after each step to check it worked. Ask it to show you what it
+built, or to get a frame into a state for you.
+
+- **It drives your own frame.** The steps happen in the frame on your canvas,
+  and nothing is sent anywhere else.
+- **Screenplay has to be open.** Claude drives only while the canvas is open
+  in the desktop app. The window can be in the background while it works.
+  With the canvas closed, Claude tells you so in the chat instead.
+- **You can take over at any moment.** Click the driver button (or
+  double-click the frame) and Claude stops at once. It tells you where it got
+  to and asks before it carries on; when you leave Interact, the frame is
+  Claude's again.
+- **It hands the frame back.** When it's done, or after a minute without a
+  step, the frame stops showing Claude as its driver.
+
+Claude's clicks and keys are simulated inside the page, so they do what the
+page's own code listens for but not what the browser does for a real gesture.
+On the Mac it can't:
+
+- open the file picker, so it asks you to choose files yourself;
+- copy or paste with the clipboard (a **Copy** button doesn't copy);
+- type into rich-text editors, or move the keyboard focus (including with
+  <kbd>Tab</kbd>), so anything that reacts to focus won't;
+- open a native dropdown, date or colour picker, though it can still set the
+  value;
+- trigger hover styles made with CSS.
+
+When a step needs one of these, Claude says which and asks you to do it in the
+frame, then carries on.
+
 ## Sizes
 
 **More → Device size** sets exact device dimensions:

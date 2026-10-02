@@ -5,6 +5,7 @@ import type { RefObject } from "react"
 import type { DomOp, DomRect } from "@/lib/postmessage-protocol"
 import { isScreenplayMessage } from "@/lib/postmessage-protocol"
 import type { ElementAnchor } from "@/lib/comment-anchor"
+import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
 
 export type Handle = string
 
@@ -40,6 +41,8 @@ const REQUEST_TIMEOUT_MS = 5000
 // A remote route change waits on this before reloading the frame instead, so
 // it's short: an older bridge that doesn't know `navigate` never answers.
 const NAVIGATE_TIMEOUT_MS = 1500
+// A drag takes a few hundred ms; anything past this is a page that's stuck.
+const DRIVE_TIMEOUT_MS = 10_000
 
 export type WheelForward = {
   deltaX: number
@@ -115,7 +118,9 @@ export function useScreenplayDom(
           | "screenplay:pick-stop"
           | "screenplay:set-forward-input"
           | "screenplay:navigate"
-        op?: DomOp
+          | "screenplay:drive"
+          | "screenplay:drive-stop"
+        op?: DomOp | DriveOp
         selector?: string
         selectors?: string[]
         anchors?: ElementAnchor[]
@@ -260,6 +265,25 @@ export function useScreenplayDom(
           { type: "screenplay:navigate", path },
           NAVIGATE_TIMEOUT_MS
         ),
+      /** One Frame Drive op for the agent (#1389). A bridge that fails or
+       *  doesn't answer comes back as a result, never a throw. */
+      drive: (op: DriveOp): Promise<DriveResult> =>
+        request<DriveResult>(
+          { type: "screenplay:drive", op },
+          DRIVE_TIMEOUT_MS
+        ).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err)
+          return message === "screenplay bridge timeout" ||
+            message === "iframe not mounted"
+            ? {
+                status: "unavailable" as const,
+                reason:
+                  "The frame's page didn't answer. It may still be loading, or its dev server isn't running.",
+              }
+            : { status: "failed" as const, reason: message }
+        }),
+      stopDrive: () =>
+        void request<null>({ type: "screenplay:drive-stop" }).catch(() => {}),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),
       stopPick: () => request<null>({ type: "screenplay:pick-stop" }),
       setForwardInput: (enabled: boolean) =>

@@ -330,7 +330,7 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists its dev server's tools, its frame reads, its Document and Mockup tools, other Workspaces' code reads (#1315) and Question Cards", async () => {
+  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315) and Question Cards", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -339,6 +339,15 @@ describe("a Workspace chat's MCP route", () => {
       "start_dev_server",
       "view_frame",
       "read_frame_html",
+      "frame_elements",
+      "frame_screenshot",
+      "frame_click",
+      "frame_type",
+      "frame_key",
+      "frame_scroll",
+      "frame_select",
+      "frame_drag",
+      "frame_stop_driving",
       "create_document",
       "replace_document_body",
       "append_to_document_body",
@@ -358,6 +367,9 @@ describe("a Workspace chat's MCP route", () => {
       readOnlyHint: true,
     })
     expect(annotations("read_frame_html")).toMatchObject({ readOnlyHint: true })
+    // Driving a frame changes only the person's own page: never destructive.
+    expect(annotations("frame_elements")).toMatchObject({ readOnlyHint: true })
+    expect(annotations("frame_click")).toMatchObject({ destructiveHint: false })
     // Stopping and starting the dev server loses nothing: never destructive.
     for (const name of ["stop_dev_server", "start_dev_server"]) {
       expect(annotations(name)).toMatchObject({ destructiveHint: false })

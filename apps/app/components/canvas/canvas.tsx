@@ -138,6 +138,7 @@ import { useCanvasView } from "@/components/canvas/use-canvas-view"
 
 import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import { useFrameControl } from "@/components/canvas/use-frame-control"
+import { FrameDriveRelay } from "@/components/canvas/frame-drive-relay"
 import { frameDriverRingColor } from "@/components/canvas/frame-driver"
 import { drivenByOther } from "@/lib/canvas/frame-control"
 
@@ -2049,6 +2050,14 @@ export function Canvas({
 
   return (
     <>
+      {/* The agent drives this canvas's frames on the Mac (#1389). */}
+      {isLocalBuild && (
+        <FrameDriveRelay
+          roomId={roomId}
+          viewerId={userId ?? null}
+          frameControl={collections.frameControl}
+        />
+      )}
       {chatTarget.pendingProbes.map(({ agentId, sandboxName }) => (
         <LogProbe
           key={agentId}

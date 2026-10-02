@@ -17,6 +17,8 @@ import {
   localWsSecret,
   rejectUpgrade,
 } from "@/lib/local-ws-guard"
+import { acceptFrameDriveConnection } from "@/lib/frame-drive/mac/channel"
+import { FRAME_DRIVE_PATH } from "@/lib/frame-drive/mac/protocol"
 import { FileYjsPersistence } from "@/lib/yjs-host/file-persistence"
 import type { IssueTokenResult, YjsHost } from "@/lib/yjs-host/types"
 
@@ -161,7 +163,8 @@ export function getLocalYjsHost(): LocalYjsHost {
  * handle to read the bound port / shut down.
  *
  * It listens on loopback only and accepts an upgrade only from the app's own
- * origin carrying the per-launch secret (`lib/local-ws-guard.ts`, #997).
+ * origin carrying the per-launch secret (`lib/local-ws-guard.ts`, #997). The
+ * same gate covers the Mac drive channel on {@link FRAME_DRIVE_PATH}.
  */
 export interface YjsServerHandle {
   port: number
@@ -223,11 +226,16 @@ export async function startLocalYjsServer(
   })
   const wss = new WebSocketServer({ noServer: true })
   wss.on("connection", (conn, req) => void connectWhenLoaded(conn, req))
+  // The Mac drive channel (#1389) shares the port and the gate.
+  const driveWss = new WebSocketServer({ noServer: true })
+  driveWss.on("connection", acceptFrameDriveConnection)
   server.on("upgrade", (req, socket, head) => {
     const refused = checkLocalUpgrade(req, opts)
     if (refused) return rejectUpgrade(socket, refused)
-    wss.handleUpgrade(req, socket, head, (conn) => {
-      wss.emit("connection", conn, req)
+    const { pathname } = new URL(req.url ?? "/", "http://localhost")
+    const target = pathname === FRAME_DRIVE_PATH ? driveWss : wss
+    target.handleUpgrade(req, socket, head, (conn) => {
+      target.emit("connection", conn, req)
     })
   })
 
@@ -250,6 +258,7 @@ export async function startLocalYjsServer(
     close: () =>
       new Promise<void>((resolve, reject) => {
         wss.close()
+        driveWss.close()
         server.close((err) => (err ? reject(err) : resolve()))
         serverHandle = null
       }),

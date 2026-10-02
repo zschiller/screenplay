@@ -13,6 +13,8 @@ import {
 import { workspaceLink } from "@/lib/agent/workspace-task"
 import { layerLink } from "@/lib/agent/layer-link"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
+import { frameDrivePrompt } from "@/lib/frame-drive/prompt"
+import { isLocalBuild } from "@/lib/local-mode"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
@@ -129,7 +131,7 @@ const agentSystemPromptTail = (t: ToolNaming["name"]) => `
 Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches run_command: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. The user can stop it from the terminal pane; ${t("stop_dev_server")} and ${t("start_dev_server")} do the same. Never start another dev server with run_command.
 
 To see the preview as the user sees it on the canvas, call ${t("view_frame")} for a screenshot of your frame, or ${t("read_frame_html")} for its current page as self-contained HTML (optionally one element, by CSS selector). Both also read other Workspaces' frames on the canvas, by frameId.
-
+${isLocalBuild ? `\n${frameDrivePrompt(t)}\n` : ""}
 Mockups: when the user wants to see a design idea before it's built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite your own with ${t("update_mockup")}. Each Mockup shows a status, Set aside, Current or Built, that the user can change on the canvas and you can set with ${t("update_mockup")}; use it however helps them follow the takes. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with ${t("update_mockup")} instead of creating a new one.
 
 This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace's chat.

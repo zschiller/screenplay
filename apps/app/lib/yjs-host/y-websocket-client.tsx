@@ -23,7 +23,7 @@ import {
  * The sidecar holds the authoritative Y.Doc; this provider is a plain peer that
  * syncs against it. Mirrors `liveblocks-client.tsx`'s sync-gate behaviour.
  */
-function websocketUrl(): string {
+export function websocketUrl(): string {
   // `NEXT_PUBLIC_YJS_WS_PORT` is inlined at build; default matches the
   // server's default port. Use the page host so it works whether the webview
   // loads from `localhost` or `127.0.0.1`.
@@ -34,10 +34,12 @@ function websocketUrl(): string {
 }
 
 // The sidecar refuses a connection without its per-launch secret (#997), which
-// `/api/yjs/auth` hands out. Fetched once per page and shared by every room.
+// `/api/yjs/auth` hands out. Fetched once per page and shared by every room
+// and the Frame Drive channel.
 let tokenRequest: Promise<string> | null = null
 
-function fetchToken(): Promise<string> {
+export function fetchToken({ refresh = false } = {}): Promise<string> {
+  if (refresh) tokenRequest = null
   tokenRequest ??= fetch(withBasePath("/api/yjs/auth"), { method: "POST" })
     .then(async (res) => {
       if (!res.ok) throw new Error(`yjs auth failed: ${res.status}`)

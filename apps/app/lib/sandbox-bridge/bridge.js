@@ -530,6 +530,16 @@
         } else {
           reply(d.id, false, "unknown op: " + d.op)
         }
+      } else if (d.type === "screenplay:drive") {
+        // The agent driving this frame (Frame Drive, #1389).
+        drive(d.op).then(
+          (result) => reply(d.id, true, result),
+          (err) => reply(d.id, false, (err && err.message) || err)
+        )
+      } else if (d.type === "screenplay:drive-stop") {
+        // Someone took control from the agent: end a gesture still running.
+        driveStopped = true
+        reply(d.id, true, null)
       } else if (d.type === "screenplay:pick-start") {
         startPick()
         reply(d.id, true, null)
@@ -557,6 +567,557 @@
       reply(d.id, false, (err && err.message) || err)
     }
   })
+
+  // --- Frame Drive (#1389) -------------------------------------------------
+  // The agent's gestures and reads (`lib/frame-drive/contract.ts`). A fixed
+  // set of ops, never a script. They dispatch synthetic events, so they move
+  // whatever the page's own code listens for, and nothing the browser does
+  // itself for a real gesture: a gesture that needs that answers with the gap
+  // instead (focus, file pickers, native popups, the clipboard).
+
+  let driveStopped = false
+
+  const DRIVE_INTERACTIVE =
+    'a[href], button, input, select, textarea, summary, label, [role="button"], ' +
+    '[role="link"], [role="tab"], [role="menuitem"], [role="menuitemcheckbox"], ' +
+    '[role="menuitemradio"], [role="option"], [role="checkbox"], [role="radio"], ' +
+    '[role="switch"], [role="combobox"], [role="slider"], [role="treeitem"], ' +
+    '[contenteditable="true"], [contenteditable=""], [tabindex]:not([tabindex="-1"]), ' +
+    '[draggable="true"]'
+  const DRIVE_ELEMENTS_MAX = 300
+  const NATIVE_PICKER_TYPES = [
+    "date",
+    "time",
+    "datetime-local",
+    "month",
+    "week",
+    "color",
+  ]
+
+  function driveVisible(el) {
+    const r = el.getBoundingClientRect()
+    if (r.width === 0 && r.height === 0) return false
+    const cs = getComputedStyle(el)
+    return cs.visibility !== "hidden" && cs.display !== "none"
+  }
+
+  function driveLabel(el) {
+    return (
+      el.getAttribute("aria-label") ||
+      (el.labels && el.labels[0] && textKey(el.labels[0])) ||
+      el.getAttribute("placeholder") ||
+      textKey(el) ||
+      el.getAttribute("title") ||
+      el.getAttribute("name") ||
+      ""
+    ).slice(0, 80)
+  }
+
+  function driveDescribe(el) {
+    if (!el || !(el instanceof Element)) return null
+    return {
+      selector: cssPath(el),
+      tag: el.nodeName.toLowerCase(),
+      label: driveLabel(el),
+    }
+  }
+
+  function driveElements(selector) {
+    const elements = []
+    const all = document.querySelectorAll(DRIVE_INTERACTIVE)
+    for (let i = 0; i < all.length; i++) {
+      if (elements.length >= DRIVE_ELEMENTS_MAX) break
+      const el = all[i]
+      if (isBridgeUi(el) || !driveVisible(el)) continue
+      // A label wrapping a control it names is the control's, not a target.
+      if (el.nodeName === "LABEL" && el.control && el.contains(el.control))
+        continue
+      const r = el.getBoundingClientRect()
+      const entry = {
+        selector: cssPath(el),
+        tag: el.nodeName.toLowerCase(),
+        label: driveLabel(el),
+        inViewport:
+          r.bottom > 0 &&
+          r.top < innerHeight &&
+          r.right > 0 &&
+          r.left < innerWidth,
+      }
+      const role = el.getAttribute("role")
+      if (role) entry.role = role
+      const type = el.getAttribute("type")
+      if (type) entry.type = type
+      if ("value" in el && el.nodeName !== "BUTTON" && el.nodeName !== "LI")
+        entry.value = String(el.value).slice(0, 80)
+      if (el.type === "checkbox" || el.type === "radio")
+        entry.checked = !!el.checked
+      else if (el.hasAttribute("aria-checked"))
+        entry.checked = el.getAttribute("aria-checked") === "true"
+      if (el.disabled || el.getAttribute("aria-disabled") === "true")
+        entry.disabled = true
+      elements.push(entry)
+    }
+    const result = {
+      path: currentPath(),
+      title: document.title,
+      viewport: { width: innerWidth, height: innerHeight },
+      scroll: { x: scrollX, y: scrollY },
+      elements,
+    }
+    if (selector) {
+      const el = safeQuery(selector)
+      result.read = el
+        ? {
+            text: (el.innerText || el.textContent || "").slice(0, 4000),
+            value: "value" in el ? String(el.value) : undefined,
+            checked: "checked" in el ? !!el.checked : undefined,
+          }
+        : null
+    }
+    return result
+  }
+
+  function isPoint(t) {
+    return !!t && typeof t.x === "number" && typeof t.y === "number"
+  }
+
+  // A target is a selector, an element's visible label, or a point.
+  function driveTarget(t) {
+    if (!t || typeof t !== "object") return null
+    if (t.selector) return safeQuery(t.selector)
+    if (t.text) {
+      const want = String(t.text).replace(/\s+/g, " ").trim().toLowerCase()
+      const pool = document.querySelectorAll(DRIVE_INTERACTIVE)
+      let partial = null
+      for (let i = 0; i < pool.length; i++) {
+        const el = pool[i]
+        if (isBridgeUi(el) || !driveVisible(el)) continue
+        const label = driveLabel(el).trim().toLowerCase()
+        if (label === want) return el
+        if (!partial && label.includes(want)) partial = el
+      }
+      return partial
+    }
+    if (isPoint(t)) return document.elementFromPoint(t.x, t.y)
+    return null
+  }
+
+  function centerOf(el, t) {
+    if (isPoint(t) && !t.selector && !t.text) return { x: t.x, y: t.y }
+    const r = el.getBoundingClientRect()
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+  }
+
+  function mouseInit(p, extra) {
+    return Object.assign(
+      {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clientX: p.x,
+        clientY: p.y,
+        screenX: p.x,
+        screenY: p.y,
+        button: 0,
+        buttons: 1,
+        detail: 1,
+      },
+      extra || {}
+    )
+  }
+
+  function firePointer(el, type, p, extra) {
+    const init = mouseInit(
+      p,
+      Object.assign(
+        { pointerId: 1, pointerType: "mouse", isPrimary: true },
+        extra || {}
+      )
+    )
+    const Ctor = window.PointerEvent || MouseEvent
+    return el.dispatchEvent(new Ctor(type, init))
+  }
+
+  function fireMouse(el, type, p, extra) {
+    return el.dispatchEvent(new MouseEvent(type, mouseInit(p, extra)))
+  }
+
+  function fireHover(el, p) {
+    firePointer(el, "pointerover", p, { buttons: 0 })
+    firePointer(el, "pointerenter", p, { buttons: 0, bubbles: false })
+    fireMouse(el, "mouseover", p, { buttons: 0 })
+    fireMouse(el, "mouseenter", p, { buttons: 0, bubbles: false })
+    firePointer(el, "pointermove", p, { buttons: 0 })
+    fireMouse(el, "mousemove", p, { buttons: 0 })
+  }
+
+  function textFieldOf(el) {
+    if (!el) return null
+    const field =
+      el.closest("input, textarea, [contenteditable]") ||
+      (el.nodeName === "LABEL" && el.control) ||
+      el.querySelector("input, textarea, [contenteditable]")
+    return field || null
+  }
+
+  function isEditable(el) {
+    if (!el || !el.getAttribute) return false
+    const attr = el.getAttribute("contenteditable")
+    return !!el.isContentEditable || (attr !== null && attr !== "false")
+  }
+
+  function isTextField(el) {
+    if (!el) return false
+    if (el.nodeName === "TEXTAREA" || isEditable(el)) return true
+    return (
+      el.nodeName === "INPUT" &&
+      !/^(checkbox|radio|button|submit|reset|file|image|range|hidden)$/i.test(
+        el.type
+      )
+    )
+  }
+
+  // React tracks a field's value through its own setter on the instance;
+  // going through the prototype's setter makes the `input` event read as a
+  // real change.
+  function setNativeValue(el, value) {
+    const proto =
+      el.nodeName === "TEXTAREA"
+        ? HTMLTextAreaElement.prototype
+        : el.nodeName === "SELECT"
+          ? HTMLSelectElement.prototype
+          : HTMLInputElement.prototype
+    Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value)
+  }
+
+  function keyInit(key, mods) {
+    const named = {
+      Enter: 13,
+      Escape: 27,
+      Tab: 9,
+      Backspace: 8,
+      " ": 32,
+      ArrowLeft: 37,
+      ArrowUp: 38,
+      ArrowRight: 39,
+      ArrowDown: 40,
+      Delete: 46,
+      Home: 36,
+      End: 35,
+      PageUp: 33,
+      PageDown: 34,
+    }
+    const code =
+      key.length === 1
+        ? /[a-z]/i.test(key)
+          ? "Key" + key.toUpperCase()
+          : /[0-9]/.test(key)
+            ? "Digit" + key
+            : key === " "
+              ? "Space"
+              : ""
+        : key
+    const keyCode =
+      named[key] || (key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0)
+    const m = mods || {}
+    return {
+      key,
+      code,
+      keyCode,
+      which: keyCode,
+      shiftKey: !!m.shiftKey,
+      ctrlKey: !!m.ctrlKey,
+      altKey: !!m.altKey,
+      metaKey: !!m.metaKey,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    }
+  }
+
+  // Two frames after the gesture, so the answer describes what painted. A
+  // background window can throttle animation frames, so it never waits long.
+  function nextPaint() {
+    return new Promise((resolve) => {
+      const done = setTimeout(resolve, 120)
+      if (typeof requestAnimationFrame !== "function") return
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          clearTimeout(done)
+          resolve()
+        })
+      )
+    })
+  }
+
+  // Notes whether the page reached for the clipboard while a gesture ran:
+  // an untrusted gesture can't use it, so that part silently failed.
+  function watchClipboard() {
+    let used = false
+    const undo = []
+    // Shadow a method for the gesture, then put back exactly what was there.
+    const wrap = (obj, name, spy) => {
+      const orig = obj && obj[name]
+      if (typeof orig !== "function") return
+      const own = Object.prototype.hasOwnProperty.call(obj, name)
+      try {
+        obj[name] = function () {
+          spy(arguments)
+          return orig.apply(obj, arguments)
+        }
+        undo.push(() => {
+          if (own) obj[name] = orig
+          else delete obj[name]
+        })
+      } catch {}
+    }
+    const clip = navigator.clipboard
+    ;["writeText", "readText", "write", "read"].forEach((name) =>
+      wrap(clip, name, () => {
+        used = true
+      })
+    )
+    wrap(document, "execCommand", (args) => {
+      if (/^(copy|cut|paste)$/i.test(String(args[0]))) used = true
+    })
+    return {
+      used: () => used,
+      restore: () => undo.forEach((fn) => fn()),
+    }
+  }
+
+  async function drive(op) {
+    if (!op || typeof op !== "object") throw new Error("missing drive op")
+    if (op.op === "elements") {
+      return { status: "read", value: driveElements(op.selector) }
+    }
+    driveStopped = false
+    if (op.op === "click") return driveClick(op)
+    if (op.op === "type") return driveType(op)
+    if (op.op === "key") return driveKey(op)
+    if (op.op === "scroll") return driveScroll(op)
+    if (op.op === "select") return driveSelect(op)
+    if (op.op === "drag") return driveDrag(op)
+    throw new Error("unknown drive op: " + op.op)
+  }
+
+  async function done(op, el, extra) {
+    await nextPaint()
+    return {
+      status: "done",
+      value: Object.assign(
+        { op: op.op, target: driveDescribe(el), path: currentPath() },
+        extra || {}
+      ),
+    }
+  }
+
+  function gap(name, el) {
+    return { status: "gap", gap: name, target: driveDescribe(el) }
+  }
+
+  // The target, scrolled into view first as a real gesture would need.
+  function driveTargetInView(t) {
+    const el = driveTarget(t)
+    if (el && el.scrollIntoView)
+      el.scrollIntoView({ block: "nearest", inline: "nearest" })
+    return el
+  }
+
+  async function driveClick(op) {
+    const el = driveTargetInView(op.target)
+    if (!el) return { status: "not-found", target: op.target }
+    const control = el.nodeName === "LABEL" && el.control ? el.control : el
+    if (control.nodeName === "INPUT" && control.type === "file")
+      return gap("file-picker", control)
+    if (control.nodeName === "SELECT") return gap("native-select", control)
+    if (
+      control.nodeName === "INPUT" &&
+      NATIVE_PICKER_TYPES.indexOf(control.type) !== -1
+    )
+      return gap("native-picker", control)
+
+    const p = centerOf(el, op.target)
+    // What's really under the point takes the click, as a real click would,
+    // so an overlay covering the target gets it.
+    const hit = document.elementFromPoint(p.x, p.y)
+    const at = hit && (el.contains(hit) || hit.contains(el)) ? hit : el
+    const clipboard = watchClipboard()
+    try {
+      fireHover(at, p)
+      if (firePointer(at, "pointerdown", p)) fireMouse(at, "mousedown", p)
+      firePointer(at, "pointerup", p, { buttons: 0 })
+      fireMouse(at, "mouseup", p, { buttons: 0 })
+      // An untrusted `click` still runs activation behaviour: links follow,
+      // checkboxes toggle, forms submit.
+      fireMouse(at, "click", p, { buttons: 0 })
+      const result = await done(op, el)
+      return clipboard.used() ? gap("clipboard", el) : result
+    } finally {
+      clipboard.restore()
+    }
+  }
+
+  async function driveType(op) {
+    const el = driveTargetInView(op.target)
+    if (!el) return { status: "not-found", target: op.target }
+    const field = textFieldOf(el)
+    if (!field || !isTextField(field))
+      throw new Error("the target isn't a text field")
+    if (isEditable(field)) return gap("rich-text", field)
+    const text = String(op.text == null ? "" : op.text)
+    const next = op.replace ? text : (field.value || "") + text
+    field.dispatchEvent(
+      new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: text,
+      })
+    )
+    setNativeValue(field, next)
+    field.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        inputType: "insertText",
+        data: text,
+      })
+    )
+    field.dispatchEvent(new Event("change", { bubbles: true }))
+    return done(op, field, { value: String(field.value) })
+  }
+
+  async function driveKey(op) {
+    const key = String(op.key || "")
+    if (!key) throw new Error("missing key")
+    let el = null
+    if (op.target) {
+      el = driveTargetInView(op.target)
+      if (!el) return { status: "not-found", target: op.target }
+    }
+    if (key === "Tab") return gap("tab", el)
+    const target = el || document.activeElement || document.body
+    const init = keyInit(key, op.modifiers)
+    const typing =
+      key.length === 1 && !init.ctrlKey && !init.metaKey && !init.altKey
+    const down = target.dispatchEvent(new KeyboardEvent("keydown", init))
+    if (down && typing)
+      target.dispatchEvent(new KeyboardEvent("keypress", init))
+    let emulated
+    // The browser's default action never runs for an untrusted key, so the
+    // one that matters most is emulated: Enter in a field submits its form.
+    if (
+      down &&
+      key === "Enter" &&
+      target.form &&
+      target.nodeName !== "TEXTAREA" &&
+      typeof target.form.requestSubmit === "function"
+    ) {
+      target.form.requestSubmit()
+      emulated = "form submit"
+    }
+    target.dispatchEvent(new KeyboardEvent("keyup", init))
+    // The page heard the key, but a field didn't get its character.
+    if (typing && isTextField(target)) return gap("key-typing", target)
+    return done(op, el, emulated ? { emulated } : undefined)
+  }
+
+  async function driveScroll(op) {
+    let scroller = null
+    if (op.target) {
+      const el = driveTarget(op.target)
+      if (!el) return { status: "not-found", target: op.target }
+      scroller = el
+      while (scroller && scroller !== document.documentElement) {
+        const cs = getComputedStyle(scroller)
+        if (
+          /(auto|scroll)/.test(cs.overflowY + cs.overflowX) &&
+          (scroller.scrollHeight > scroller.clientHeight ||
+            scroller.scrollWidth > scroller.clientWidth)
+        )
+          break
+        scroller = scroller.parentElement
+      }
+      if (scroller === document.documentElement) scroller = null
+    }
+    const by = { left: Number(op.dx) || 0, top: Number(op.dy) || 0 }
+    if (scroller) scroller.scrollBy(by)
+    else window.scrollBy(by)
+    const scrolled = scroller
+      ? { x: scroller.scrollLeft, y: scroller.scrollTop }
+      : { x: scrollX, y: scrollY }
+    return done(op, scroller, { scrolled })
+  }
+
+  async function driveSelect(op) {
+    const el = driveTargetInView(op.target)
+    if (!el) return { status: "not-found", target: op.target }
+    const select =
+      el.nodeName === "SELECT"
+        ? el
+        : (el.nodeName === "LABEL" && el.control) || el.querySelector("select")
+    if (!select || select.nodeName !== "SELECT")
+      throw new Error(
+        "the target isn't a native select; click it, then click the option"
+      )
+    const want = String(op.value)
+    const option = Array.from(select.options).find(
+      (o) => o.value === want || o.textContent.trim() === want
+    )
+    if (!option) throw new Error("no option " + JSON.stringify(want))
+    setNativeValue(select, option.value)
+    select.dispatchEvent(new Event("input", { bubbles: true }))
+    select.dispatchEvent(new Event("change", { bubbles: true }))
+    return done(op, select, { value: String(select.value) })
+  }
+
+  async function driveDrag(op) {
+    const el = driveTargetInView(op.target)
+    if (!el) return { status: "not-found", target: op.target }
+    const toEl = driveTarget(op.to)
+    if (!toEl) return { status: "not-found", target: op.to }
+    const from = centerOf(el, op.target)
+    const to = centerOf(toEl, op.to)
+    const steps = 8
+    fireHover(el, from)
+    firePointer(el, "pointerdown", from)
+    fireMouse(el, "mousedown", from)
+    // A draggable element takes the HTML5 route; anything else (sliders,
+    // dnd-kit, canvases) moves on pointer events.
+    const transfer =
+      el.draggable && typeof DataTransfer === "function"
+        ? new DataTransfer()
+        : null
+    const dragEvent = (type, p) =>
+      new DragEvent(type, mouseInit(p, { dataTransfer: transfer }))
+    if (transfer) el.dispatchEvent(dragEvent("dragstart", from))
+    for (let i = 1; i <= steps; i++) {
+      if (driveStopped) break
+      const p = {
+        x: from.x + ((to.x - from.x) * i) / steps,
+        y: from.y + ((to.y - from.y) * i) / steps,
+      }
+      const over = document.elementFromPoint(p.x, p.y) || toEl
+      if (transfer) {
+        over.dispatchEvent(dragEvent("dragenter", p))
+        over.dispatchEvent(dragEvent("dragover", p))
+      } else {
+        firePointer(over, "pointermove", p)
+        fireMouse(over, "mousemove", p)
+      }
+      await new Promise((resolve) => setTimeout(resolve, 16))
+    }
+    const end = driveStopped ? from : to
+    const dropOn = document.elementFromPoint(end.x, end.y) || toEl
+    if (transfer) {
+      if (!driveStopped) dropOn.dispatchEvent(dragEvent("drop", end))
+      el.dispatchEvent(dragEvent("dragend", end))
+    }
+    firePointer(dropOn, "pointerup", end, { buttons: 0 })
+    fireMouse(dropOn, "mouseup", end, { buttons: 0 })
+    if (driveStopped) return { status: "taken" }
+    return done(op, el)
+  }
 
   // The page's rendered DOM and its styles, optionally for one element. Scripts
   // are dropped (the result is for reading, not running), and so are the
