@@ -10,10 +10,10 @@ import type {
 } from "@/lib/sandbox/types"
 
 // The image every hosted Workspace Sandbox boots from: Vercel's Ubuntu image
-// plus the browser stack shared frames need (`apps/app/sandbox-image/`, pushed
-// to the project's Vercel Container Registry by `sandbox-image.yml`). A bare
+// plus the browser stack shared frames need (`apps/app/vercel-sandbox-image/`, pushed
+// to the project's Vercel Container Registry by `vercel-sandbox-image.yml`). A bare
 // repository name resolves against the authenticated project.
-export const SANDBOX_IMAGE_ENV_VAR = "SANDBOX_IMAGE"
+export const VERCEL_SANDBOX_IMAGE_ENV_VAR = "VERCEL_SANDBOX_IMAGE"
 export const DEFAULT_SANDBOX_IMAGE = "screenplay-workspace"
 
 /**
@@ -51,9 +51,11 @@ export function vercelLayout(sandbox: { image?: string }): VercelLayout {
   return sandbox.image ? IMAGE_LAYOUT : LEGACY_RUNTIME_LAYOUT
 }
 
-/** The image new Sandboxes boot from: `SANDBOX_IMAGE`, else our own repository. */
+/** The image new Sandboxes boot from: `VERCEL_SANDBOX_IMAGE`, else our own repository. */
 export function sandboxImage(): string {
-  return process.env[SANDBOX_IMAGE_ENV_VAR]?.trim() || DEFAULT_SANDBOX_IMAGE
+  return (
+    process.env[VERCEL_SANDBOX_IMAGE_ENV_VAR]?.trim() || DEFAULT_SANDBOX_IMAGE
+  )
 }
 
 // An image-backed Sandbox clones a git source into a directory named after the
@@ -153,7 +155,7 @@ class VercelSandboxProvider implements SandboxProvider {
       const message = e instanceof Error ? e.message : String(e)
       if (image && /not_found|image_not_ready/.test(message)) {
         throw new Error(
-          `Sandbox image "${image}" isn't available in this project's Vercel Container Registry. Build and push apps/app/sandbox-image (see the Sandbox provider docs). ${message}`
+          `Sandbox image "${image}" isn't available in this project's Vercel Container Registry. Build and push apps/app/vercel-sandbox-image (see the Sandbox provider docs). ${message}`
         )
       }
       throw e

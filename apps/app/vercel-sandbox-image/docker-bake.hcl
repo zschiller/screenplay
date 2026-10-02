@@ -2,11 +2,11 @@
 # itself built here from Vercel's open Dockerfiles: the managed
 # `vcr.vercel.com/vercel/sandbox/universal` can't be pulled as a base outside a
 # Sandbox. The workflow checks out github.com/vercel/sandbox into
-# VERCEL_SANDBOX_IMAGES first.
+# VERCEL_BASE_DOCKERFILES first.
 #
-#   docker buildx bake -f apps/app/sandbox-image/docker-bake.hcl workspace
+#   docker buildx bake -f apps/app/vercel-sandbox-image/docker-bake.hcl workspace
 
-variable "VERCEL_SANDBOX_IMAGES" {
+variable "VERCEL_BASE_DOCKERFILES" {
   default = "vercel-sandbox/images"
 }
 
@@ -26,12 +26,12 @@ target "_common" {
 
 target "vercel-ubuntu" {
   inherits = ["_common"]
-  context  = "${VERCEL_SANDBOX_IMAGES}/ubuntu"
+  context  = "${VERCEL_BASE_DOCKERFILES}/ubuntu"
 }
 
 target "vercel-universal" {
   inherits = ["_common"]
-  context  = "${VERCEL_SANDBOX_IMAGES}/universal"
+  context  = "${VERCEL_BASE_DOCKERFILES}/universal"
   contexts = {
     base = "target:vercel-ubuntu"
   }
@@ -39,7 +39,7 @@ target "vercel-universal" {
 
 target "workspace" {
   inherits = ["_common"]
-  context  = "apps/app/sandbox-image"
+  context  = "apps/app/vercel-sandbox-image"
   contexts = {
     vercel-universal = "target:vercel-universal"
   }
