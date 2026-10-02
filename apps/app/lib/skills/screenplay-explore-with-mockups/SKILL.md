@@ -26,6 +26,15 @@ canvas places each new Mockup beside your others.
 - **Ask forks as question cards.** When the next step hangs on a choice only
   the user can make, ask it with `ask_question` and end your turn. Questions
   you can settle yourself, settle.
+- **Make takes people can try.** People can Interact with a Mockup and
+  click through it, so a take can have working tabs, toggles or steps. Give
+  it knobs (`screenplay.registerKnob`) for values worth tweaking live, and
+  `screenplay.shareState` for state everyone viewing should see the same,
+  like the open step (see the screenplay-add-knob and
+  screenplay-share-state skills).
+- **Pointed-at elements.** When a message targets an element in one of
+  your Mockups (`mockup <id>` in its Targeted elements footer), read that
+  page with `read_mockup` and rewrite it with `update_mockup`.
 - **Statuses are notes for the people following along.** Every Mockup starts
   Current. Use `update_mockup`'s `status` however helps them track the takes,
   e.g. Set aside for takes they passed on. They can change it too.
