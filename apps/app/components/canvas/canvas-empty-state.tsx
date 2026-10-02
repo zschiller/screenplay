@@ -5,7 +5,7 @@ import {
   FolderPlusIcon,
   FrameCornersIcon,
   LayoutIcon,
-  PaletteIcon,
+  ScribbleIcon,
 } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
@@ -97,7 +97,7 @@ export function CanvasEmptyState({
             onClick={() => toolMode.set("frame")}
           />
           <EmptyAction
-            icon={<PaletteIcon />}
+            icon={<ScribbleIcon />}
             label="Add a Mockup"
             shortcut="M"
             onClick={() => toolMode.set("mockup")}

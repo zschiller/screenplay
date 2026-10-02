@@ -5,7 +5,7 @@ import {
   FileTextIcon,
   FrameCornersIcon,
   NavigationArrowIcon,
-  PaletteIcon,
+  ScribbleIcon,
 } from "@workspace/ui/components/icons"
 
 import {
@@ -66,7 +66,7 @@ export function CanvasToolbar({
           <FrameCornersIcon />
         </FloatingToolbarButton>
         {/* Draw a box, then ask a chat to sketch a static page into it
-            (#1359). The sidebar shows Mockups with the same palette. */}
+            (#1359). The layers list shows Mockups with the same scribble. */}
         <FloatingToolbarButton
           label="Mockup"
           shortcut="M"
@@ -76,7 +76,7 @@ export function CanvasToolbar({
             onClearMode()
           }}
         >
-          <PaletteIcon />
+          <ScribbleIcon />
         </FloatingToolbarButton>
         <FloatingToolbarButton
           label="Document"
