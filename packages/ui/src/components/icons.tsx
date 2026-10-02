@@ -72,6 +72,7 @@ import { GlobeIcon as GlobeBase } from "@phosphor-icons/react/dist/ssr/Globe"
 import { InfoIcon as InfoBase } from "@phosphor-icons/react/dist/ssr/Info"
 import { FrameCornersIcon as FrameCornersBase } from "@phosphor-icons/react/dist/ssr/FrameCorners"
 import { LayoutIcon as LayoutBase } from "@phosphor-icons/react/dist/ssr/Layout"
+import { LightbulbIcon as LightbulbBase } from "@phosphor-icons/react/dist/ssr/Lightbulb"
 import { LinkSimpleHorizontalIcon as LinkSimpleHorizontalBase } from "@phosphor-icons/react/dist/ssr/LinkSimpleHorizontal"
 import { ListBulletsIcon as ListBulletsBase } from "@phosphor-icons/react/dist/ssr/ListBullets"
 import { ListDashesIcon as ListDashesBase } from "@phosphor-icons/react/dist/ssr/ListDashes"
@@ -289,6 +290,7 @@ export const GlobeIcon = phosphor(GlobeBase, "ph-globe")
 export const InfoIcon = phosphor(InfoBase, "ph-info")
 export const FrameCornersIcon = phosphor(FrameCornersBase, "ph-frame-corners")
 export const LayoutIcon = phosphor(LayoutBase, "ph-layout")
+export const LightbulbIcon = phosphor(LightbulbBase, "ph-lightbulb")
 export const LinkSimpleHorizontalIcon = phosphor(
   LinkSimpleHorizontalBase,
   "ph-link-simple-horizontal"

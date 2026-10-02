@@ -11,6 +11,7 @@ import {
   ArrowsOutCardinalIcon,
   BookBookmarkIcon,
   BrainIcon,
+  LightbulbIcon,
   ChatTextIcon,
   CaretRightIcon,
   CheckCircleIcon,
@@ -966,7 +967,7 @@ function ReasoningMessage({
     <ChatDisclosure
       open={expanded}
       onOpenChange={setExpanded}
-      icon={<BrainIcon aria-hidden className="size-3 shrink-0" />}
+      icon={<LightbulbIcon aria-hidden className="size-3 shrink-0" />}
       title="Reasoning"
     >
       <ChatMarkdown tone="muted" size="xs" className="px-2 py-1.5">
