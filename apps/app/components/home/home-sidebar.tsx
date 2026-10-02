@@ -36,14 +36,23 @@ type NavLink = { href: string; label: string; icon: Icon }
 /** Top group: the recently-edited canvases list. */
 const RECENTS: NavLink = { href: "/", label: "Recents", icon: ClockIcon }
 
-/** Lower group, below the divider. */
-const SECTIONS: NavLink[] = [
-  // The root of the folder tree (PRD #475): top-level folders above the files.
-  // Not the Canvas icon: this is every file, folders included, and a Canvas
-  // wears `CanvasIcon` alone.
-  { href: "/files", label: "All files", icon: FilesIcon },
-  { href: "/settings", label: "Settings", icon: GearIcon },
-]
+/**
+ * The root of the folder tree (PRD #475), below the divider: top-level folders
+ * above the files. Not the Canvas icon: this is every file, folders included,
+ * and a Canvas wears `CanvasIcon` alone.
+ */
+const ALL_FILES: NavLink = {
+  href: "/files",
+  label: "All files",
+  icon: FilesIcon,
+}
+
+/** At the foot of the nav, under Docs and above the account row. */
+const SETTINGS: NavLink = {
+  href: "/settings",
+  label: "Settings",
+  icon: GearIcon,
+}
 
 /** Opens the product docs in the browser, anchored at the bottom of the nav. */
 const DOCS: NavLink = { href: docsUrl, label: "Docs", icon: BookOpenIcon }
@@ -51,9 +60,7 @@ const DOCS: NavLink = { href: docsUrl, label: "Docs", icon: BookOpenIcon }
 export function HomeSidebar() {
   const pathname = usePathname()
   // On the desktop build the macOS traffic lights overlay the sidebar's
-  // top-left; reserve a draggable strip above the brand so they never collide.
-  // On the hosted (web) build this is false and the brand row hosts the
-  // account dropdown instead.
+  // top-left; reserve a draggable strip above Search so they never collide.
   const trafficLightsPresent = useTrafficLightsPresent()
 
   const isActive = (href: string) =>
@@ -64,20 +71,11 @@ export function HomeSidebar() {
   // mount the fixed-position <Sidebar> itself.
   return (
     <SidebarProvider className="flex h-full min-h-0 w-full flex-col bg-sidebar text-sidebar-foreground">
-      <SidebarHeader data-tauri-drag-region className="gap-0 p-0">
-        {trafficLightsPresent && (
+      {trafficLightsPresent && (
+        <SidebarHeader data-tauri-drag-region className="gap-0 p-0">
           <div data-tauri-drag-region className="h-9 shrink-0" />
-        )}
-        {/* Web: account dropdown at the top. Desktop has no login, so the
-            header is just the traffic-light spacer above. */}
-        {!isLocalBuild && (
-          <div data-tauri-drag-region className="flex items-center px-3 py-2">
-            <div className="ml-auto">
-              <AccountMenu />
-            </div>
-          </div>
-        )}
-      </SidebarHeader>
+        </SidebarHeader>
+      )}
 
       <SidebarContent>
         <SidebarSearch />
@@ -95,25 +93,14 @@ export function HomeSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {SECTIONS.map((link) =>
-                // "All files" is the folder-tree root, so it doubles as a drop
-                // zone: dragging a canvas/folder onto it files the item back at
-                // the top of the tree (the sidebar twin of the "Move to → All
-                // files" option).
-                link.href === "/files" ? (
-                  <FilesRootNavItem
-                    key={link.href}
-                    link={link}
-                    active={isActive(link.href)}
-                  />
-                ) : (
-                  <NavItem
-                    key={link.href}
-                    link={link}
-                    active={isActive(link.href)}
-                  />
-                )
-              )}
+              {/* "All files" is the folder-tree root, so it doubles as a drop
+                  zone: dragging a canvas/folder onto it files the item back at
+                  the top of the tree (the sidebar twin of the "Move to → All
+                  files" option). */}
+              <FilesRootNavItem
+                link={ALL_FILES}
+                active={isActive(ALL_FILES.href)}
+              />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -122,11 +109,15 @@ export function HomeSidebar() {
         <PinnedList />
       </SidebarContent>
 
-      {/* Docs sits at the foot of the nav, below any pins, like a help link. */}
+      {/* The foot of the nav, below any pins: Docs like a help link, then
+          Settings, then (web only) the signed-in account, as Claude does.
+          Desktop has no login (PRD #404), so it stops at Settings. */}
       <SidebarFooter>
         <SidebarMenu>
           <DocsNavItem link={DOCS} />
+          <NavItem link={SETTINGS} active={isActive(SETTINGS.href)} />
         </SidebarMenu>
+        {!isLocalBuild && <AccountMenu />}
       </SidebarFooter>
     </SidebarProvider>
   )
