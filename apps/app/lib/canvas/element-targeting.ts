@@ -5,7 +5,6 @@ import type {
   PickedElement,
   PickRequest,
 } from "@/lib/targeting-store"
-import type { IframeLayerData } from "@/lib/types"
 
 /**
  * Element Targeting core (PRD #616, #705) — the React-free half of a Composer's
@@ -26,10 +25,26 @@ import type { IframeLayerData } from "@/lib/types"
  * - **highlight sequencing**: a hovered token's selector resolves to a rect
  *   asynchronously, and a newer hover (or a reset) supersedes an in-flight one.
  *
+ * The layers a pick can hit are frames and Mockups (#1309), as
+ * {@link TargetLayer}s: a Mockup counts as its owning chat's Workspace's.
+ *
  * The pick key is the requesting Composer's **Branch id**. Agent chats pass it as
  * their `sandboxId` prop (a sandbox-backed agent's id *is* its Branch id), and
  * eligibility matches it against each Iframe Layer's `branchId`.
  */
+
+/**
+ * A layer a pick can hit: a frame, or a Mockup, whose `branchId` is the
+ * Workspace of the chat that made it (a Mockup has no route of its own). An
+ * `IframeLayerData` is one as it stands.
+ */
+export interface TargetLayer {
+  id: string
+  branchId?: string
+  route?: string
+  label: string
+  kind?: "mockup"
+}
 
 /**
  * The single eligibility rule: an Iframe Layer is targetable for a pick keyed by
@@ -39,7 +54,7 @@ import type { IframeLayerData } from "@/lib/types"
  * happens on a concrete id, never on `undefined === undefined`.
  */
 export function isTargetableFrame(
-  layer: IframeLayerData,
+  layer: TargetLayer,
   branchId: string | null | undefined
 ): boolean {
   return !!branchId && layer.branchId === branchId
@@ -57,10 +72,10 @@ const EMPTY_IDS: ReadonlySet<string> = new Set()
  */
 export function partitionTargetFrames(
   branchId: string | null,
-  iframeLayers: readonly IframeLayerData[]
-): { eligible: IframeLayerData[]; dimmedIds: ReadonlySet<string> } {
+  iframeLayers: readonly TargetLayer[]
+): { eligible: TargetLayer[]; dimmedIds: ReadonlySet<string> } {
   if (branchId === null) return { eligible: [], dimmedIds: EMPTY_IDS }
-  const eligible: IframeLayerData[] = []
+  const eligible: TargetLayer[] = []
   const dimmedIds = new Set<string>()
   for (const layer of iframeLayers) {
     if (isTargetableFrame(layer, branchId)) eligible.push(layer)
@@ -75,7 +90,7 @@ export function partitionTargetFrames(
  * disable its target affordance when its own Branch has no frame (#619).
  */
 export function targetableBranchIds(
-  iframeLayers: readonly IframeLayerData[]
+  iframeLayers: readonly TargetLayer[]
 ): Set<string> {
   const ids = new Set<string>()
   for (const layer of iframeLayers) {
@@ -93,9 +108,9 @@ export function targetableBranchIds(
  */
 export function hitTestTargetFrame(
   point: { x: number; y: number },
-  eligible: readonly IframeLayerData[],
+  eligible: readonly TargetLayer[],
   layouts: IframeLayerLayoutMap
-): { layer: IframeLayerData; localX: number; localY: number } | null {
+): { layer: TargetLayer; localX: number; localY: number } | null {
   const byId = new Map(eligible.map((layer) => [layer.id, layer]))
   for (const layout of layouts.values()) {
     const layer = byId.get(layout.id)
@@ -172,7 +187,7 @@ export interface TargetingSnapshot {
 /** What a click hands the core: the world-space point plus the room snapshot. */
 export interface TargetingClickInputs {
   point: { x: number; y: number }
-  iframeLayers: readonly IframeLayerData[]
+  iframeLayers: readonly TargetLayer[]
   layouts: IframeLayerLayoutMap
   getDom: GetTargetingFrameDom
 }
@@ -260,9 +275,14 @@ export class ElementTargeting {
           tagName: result.tagName,
           id: result.id,
           selector: result.selector,
-          route: layer.route ?? "/",
+          // A Mockup's page has no route; the agent finds it by id instead.
+          route:
+            layer.kind === "mockup"
+              ? `mockup ${layer.id}`
+              : (layer.route ?? "/"),
           iframeLayerId: layer.id,
           frameLabel: layer.label,
+          ...(layer.kind === "mockup" ? { layerKind: "mockup" as const } : {}),
         })
       })
       .catch(() => finish(null))

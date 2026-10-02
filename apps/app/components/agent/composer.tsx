@@ -119,6 +119,8 @@ const ElementToken = Node.create({
       tagName: { default: "" },
       id: { default: null },
       frameLabel: { default: "" },
+      // "mockup" when the element is in a Mockup rather than a frame.
+      layerKind: { default: null },
     }
   },
 
@@ -216,6 +218,9 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
         // Carried so a hovered *history* token can re-highlight the element on
         // the canvas (the composer's live token reads this from the same attr).
         iframeLayerId: node.attrs?.iframeLayerId as string | undefined,
+        ...(node.attrs?.layerKind === "mockup"
+          ? { layerKind: "mockup" as const }
+          : {}),
       })
       return
     }
@@ -860,6 +865,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               tagName: picked.tagName,
               id: picked.id ?? null,
               frameLabel: picked.frameLabel,
+              layerKind: picked.layerKind ?? null,
             },
           },
           // Trailing space so the caret leaves the atom and the next keystroke

@@ -106,6 +106,10 @@ export interface LayerMutations {
   /** Rename a mockup (its title lives on the record alone). */
   renameMockup: (id: string, title: string) => void
   setMockupStatus: (id: string, status: MockupStatus) => void
+  /** Persist the knob declarations a mockup's page exposed. */
+  updateMockupKnobs: (id: string, knobs: JsonValue[]) => void
+  /** Persist a mockup's current knob values. */
+  updateMockupKnobValues: (id: string, knobValues: JsonObject) => void
 }
 
 export function useLayerMutations({
@@ -307,6 +311,25 @@ export function useLayerMutations({
     [ops]
   )
 
+  // Every viewer's copy of a page posts its declarations as it loads, so
+  // write only a real change.
+  const updateMockupKnobs = useCallback(
+    (id: string, knobs: JsonValue[]) => {
+      const current = collections.mockupLayers.get(id)
+      if (!current) return
+      if (JSON.stringify(current.knobs ?? []) === JSON.stringify(knobs)) return
+      ops.patch("mockupLayers", id, { knobs })
+    },
+    [ops, collections]
+  )
+
+  const updateMockupKnobValues = useCallback(
+    (id: string, knobValues: JsonObject) => {
+      ops.patch("mockupLayers", id, { knobValues })
+    },
+    [ops]
+  )
+
   const setTitle = useCallback(
     (id: string, title: string) => {
       ops.renameDocument(id, title)
@@ -343,6 +366,8 @@ export function useLayerMutations({
       resizeMockup,
       renameMockup,
       setMockupStatus,
+      updateMockupKnobs,
+      updateMockupKnobValues,
     }),
     [
       rename,
@@ -361,6 +386,8 @@ export function useLayerMutations({
       resizeMockup,
       renameMockup,
       setMockupStatus,
+      updateMockupKnobs,
+      updateMockupKnobValues,
     ]
   )
 }

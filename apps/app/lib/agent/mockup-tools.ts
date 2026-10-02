@@ -40,7 +40,7 @@ const htmlSchema = z
   .string()
   .max(MAX_MOCKUP_HTML)
   .describe(
-    "The whole page: one self-contained HTML document with inline <style> and <script>. It renders in a sandboxed frame that loads nothing from the network, so inline every style, image (data: URLs or inline SVG) and font."
+    "The whole page: one self-contained HTML document with inline <style> and <script>. It renders in a sandboxed frame that loads nothing from the network, so inline every style, image (data: URLs or inline SVG) and font. To give people live controls on it, declare knobs from a script with `screenplay.registerKnob({ id, type, label, default, ... }, (value) => { ... })` (types: slider, number, boolean, string, select, color; see the screenplay-add-knob skill); each value is also set on :root as the CSS variable --knob-<id>."
   )
 
 export function buildMockupTools(ctx: MockupToolContext) {

@@ -28,6 +28,17 @@ describe("mockupSrcDoc", () => {
     expect(mockupSrcDoc("<div>A</div>")).toBe(`${META}<div>A</div>`)
   })
 
+  it("runs the runtime right after the policy, before the page's scripts", () => {
+    expect(
+      mockupSrcDoc(
+        "<html><head><script>page()</script></head></html>",
+        "bridge('</script>')"
+      )
+    ).toBe(
+      `<html><head>${META}<script>bridge('<\\/script>')</script><script>page()</script></head></html>`
+    )
+  })
+
   it("blocks every network load", () => {
     expect(MOCKUP_CSP).toContain("default-src 'none'")
     expect(MOCKUP_CSP).not.toMatch(/https?:|\*/)

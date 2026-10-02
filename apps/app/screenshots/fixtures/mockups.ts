@@ -69,7 +69,7 @@ ${HEADER}
 </body>
 </html>`
 
-/** Option B: fill the empty space with things to add. */
+/** Option B: fill the empty space with things to add, with two knobs. */
 export const EMPTY_CART_SUGGESTIONS = `<!doctype html>
 <html>
 <head>
@@ -80,10 +80,12 @@ export const EMPTY_CART_SUGGESTIONS = `<!doctype html>
   .lede { margin-top: 8px; font-size: 16px; color: #6b7280; }
   .grid {
     margin-top: 36px; display: grid; gap: 24px;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(var(--knob-columns, 4), 1fr);
   }
   .card { display: flex; flex-direction: column; gap: 10px; }
-  .photo { aspect-ratio: 4 / 5; border-radius: 16px; }
+  .photo {
+    aspect-ratio: 4 / 5; border-radius: calc(var(--knob-photo-radius, 16) * 1px);
+  }
   .name { font-size: 15px; font-weight: 600; }
   .price { font-size: 14px; color: #6b7280; }
   .add {
@@ -117,6 +119,16 @@ ${HEADER}
     <a class="button secondary" href="#">View saved items</a>
   </div>
 </main>
+<script>
+  screenplay.registerKnob({
+    id: "columns", type: "slider", label: "Columns",
+    min: 2, max: 4, step: 1, default: 4,
+  })
+  screenplay.registerKnob({
+    id: "photo-radius", type: "slider", label: "Photo radius",
+    min: 0, max: 32, step: 2, default: 16,
+  })
+</script>
 </body>
 </html>`
 

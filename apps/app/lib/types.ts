@@ -346,6 +346,10 @@ export type MockupLayerData = {
    * on a mockup made before statuses, which reads as `current`.
    */
   status?: MockupStatus
+  /** Knob declarations the page posted, replaced wholesale on each, as a frame's are. */
+  knobs?: JsonValue[]
+  /** Current knob values keyed by knob id, synced down into the page. */
+  knobValues?: JsonObject
 }
 
 /** A Mockup's status (#1310), in menu order. */

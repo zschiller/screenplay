@@ -140,6 +140,7 @@ import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction
 import { useCanvasKeyboard } from "@/components/canvas/use-canvas-keyboard"
 
 import { useElementTargeting } from "@/components/canvas/use-element-targeting"
+import type { TargetLayer } from "@/lib/canvas/element-targeting"
 
 import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 
@@ -655,8 +656,29 @@ export function Canvas({
   // dimmed frames), the hit-test and the highlight sequencing live in the
   // React-free core it wraps; Escape during a pick goes through the shared
   // precedence the keyboard controller applies.
+  const chatSessions = useChatSessions()
+  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
+  // label and the Group's.
+  const documentWorkspaces = useMemo(
+    () => documentWorkspaceIds(sizedLayers, chatSessions),
+    [sizedLayers, chatSessions]
+  )
+  // What a pick can hit: frames, and Mockups as their owning chat's Workspace's
+  // (#1309), so a chat can target an element in a Mockup it made.
+  const targetLayers = useMemo<TargetLayer[]>(
+    () => [
+      ...iframeLayers,
+      ...mockupLayers.map((m) => ({
+        id: m.id,
+        branchId: documentWorkspaces.get(m.id),
+        label: m.title || "Untitled",
+        kind: "mockup" as const,
+      })),
+    ],
+    [iframeLayers, mockupLayers, documentWorkspaces]
+  )
   const targeting = useElementTargeting({
-    iframeLayers,
+    targetLayers,
     iframeLayerLayouts,
     getIframeLayerDom: reference.getIframeLayerDom,
     transformRef,
@@ -919,13 +941,6 @@ export function Canvas({
   const diffStats = useDiffStats(agents, repos)
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
-  const chatSessions = useChatSessions()
-  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
-  // label and the Group's.
-  const documentWorkspaces = useMemo(
-    () => documentWorkspaceIds(sizedLayers, chatSessions),
-    [sizedLayers, chatSessions]
-  )
   // Where Reply in chat and Send to agent on a chat-made Document go.
   const documentOwnerChat = useCallback(
     (documentId: string) =>
@@ -1252,6 +1267,25 @@ export function Canvas({
       inputStore.prefill(chatId, ASK_FOR_KNOB_PROMPT)
     },
     [chatSessions, chatTarget, addChatSession]
+  )
+
+  // The same for a Mockup's empty Knobs popover, in the chat that made it: only
+  // that chat can rewrite the page (#1309).
+  const handleAskForMockupKnob = useCallback(
+    (mockupId: string) => {
+      const mockup = mockupLayers.find((m) => m.id === mockupId)
+      const chat = chatSessions.find((c) => c.id === mockup?.ownerChatId)
+      if (!mockup || !chat?.branchId) return
+      chatTarget.selectAgentChat(chat.branchId, chat.id, {
+        expandPanel: true,
+        remember: true,
+      })
+      inputStore.prefill(
+        chat.id,
+        `Add a knob to the Mockup "${mockup.title || "Untitled"}" that controls `
+      )
+    },
+    [mockupLayers, chatSessions, chatTarget]
   )
 
   // Repopulate the Element Reference controller's live inputs every render so
@@ -2143,6 +2177,7 @@ export function Canvas({
                         removeIframeLayer={removeIframeLayer}
                         handlePlayIframeLayer={handlePlayIframeLayer}
                         onAskForKnob={handleAskForKnob}
+                        onAskForMockupKnob={handleAskForMockupKnob}
                         handleCaptureReadyChange={handleCaptureReadyChange}
                         handleCaptureDirty={handleCaptureDirty}
                         layerMutations={layerMutations}

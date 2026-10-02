@@ -412,6 +412,22 @@ describe("elementMarkersToPills", () => {
 })
 
 describe("buildTargetedElementsFooter", () => {
+  it("names an element in a Mockup by the Mockup, and parses it back", () => {
+    const element = {
+      ref: "el-m1",
+      route: "mockup m1",
+      selector: "body > main > button",
+      frameLabel: "Option A (draft)",
+      iframeLayerId: "m1",
+      layerKind: "mockup" as const,
+    }
+    const footer = buildTargetedElementsFooter([element])
+    expect(footer).toContain(
+      "- el-m1: mockup m1 — body > main > button (mockup: Option A (draft)) [layer: m1]"
+    )
+    expect(parseTargetedElementsFooter(footer)).toEqual([element])
+  })
+
   it("returns an empty string when there are no elements", () => {
     expect(buildTargetedElementsFooter([])).toBe("")
   })

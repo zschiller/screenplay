@@ -178,6 +178,35 @@ describe("ElementTargeting — pick lifecycle", () => {
     expect(core.getSnapshot().phase).toBe("idle")
   })
 
+  it("picks in a Mockup of the pick's Workspace, naming the Mockup", async () => {
+    const core = new ElementTargeting()
+    const resolve = arm(core, "b1")
+    const mockup = {
+      id: "m",
+      branchId: "b1",
+      label: "Take A",
+      kind: "mockup" as const,
+    }
+    const { dom, element } = fakeDom()
+    core.click({
+      point: { x: 20, y: 10 },
+      iframeLayers: [frame("a", "b2"), mockup],
+      layouts: layoutsOf(layout("a", 200), layout("m", 0)),
+      getDom: () => dom,
+    })
+    element.resolve({ tagName: "h1", selector: "body > h1" })
+    await flush()
+    expect(resolve).toHaveBeenCalledExactlyOnceWith({
+      tagName: "h1",
+      id: undefined,
+      selector: "body > h1",
+      route: "mockup m",
+      iframeLayerId: "m",
+      frameLabel: "Take A",
+      layerKind: "mockup",
+    })
+  })
+
   it("supersede: a new request resolves the armed pick to null", () => {
     const core = new ElementTargeting()
     const first = arm(core, "b1")
