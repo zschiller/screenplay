@@ -77,7 +77,7 @@ when its variables are set. See [Model providers](/self-hosting/configuration/mo
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `TERMINAL_AUTH_SECRET` | Yes | HMAC key for the short-lived terminal credentials. A user gets one only after passing the canvas-membership check. |
+| `TERMINAL_AUTH_SECRET` | Yes | HMAC key for the short-lived terminal and shared-frame credentials. A user gets one only after passing the canvas-membership check. |
 | `TERMINAL_AUTH` | Optional | How terminal tabs authenticate to the sandbox: `bearer` (default) or `ttyd-credential`. An unknown value fails at startup. |
 
 Choose `TERMINAL_AUTH` based on who uses the deployment:
@@ -106,6 +106,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 | Variable | Required | Description |
 | --- | --- | --- |
 | `VERCEL_OIDC_TOKEN` | Local dev only | Authenticates the default Vercel Sandbox provider. It's injected automatically on Vercel; locally, `vercel env pull` fetches a ~12-hour token. See [Sandbox provider](/self-hosting/configuration/sandbox-provider). |
+| `SHARED_FRAMES` | Optional | `off` keeps every hosted frame a per-viewer preview instead of one browser in the sandbox streamed to everyone. Default: on. See [Shared frames](/self-hosting/configuration/sandbox-provider#shared-frames). |
 | `VERCEL_SANDBOX_IMAGE` | Optional | The Vercel Container Registry image workspace sandboxes boot from. Default: `screenplay-workspace`, the image built from `apps/app/vercel-sandbox-image` in the app's own Vercel project. See [Sandbox image](/self-hosting/configuration/sandbox-provider#sandbox-image). |
 
 ## Serving

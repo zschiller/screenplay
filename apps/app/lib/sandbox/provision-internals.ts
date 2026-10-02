@@ -27,6 +27,12 @@ export const PROXY_PORT_OFFSET = 1000
 // port.
 export const TERMINAL_PORT = 7681
 
+// Forwarded port the Frame Stream service (#1392) listens on: one WebSocket per
+// Workspace carrying every shared frame in it. Fixed, next to the terminal's,
+// and in the `ports` a sandbox is created with like it. Sandboxes created
+// before shared frames don't forward it, and keep per-viewer frames.
+export const STREAM_PORT = 7682
+
 // Shared host dir for screenplay tooling (the ttyd/tmux binaries, the bridge
 // proxy scripts) — content-identical across Sandboxes and deliberately shared
 // on the local backend's single host filesystem.

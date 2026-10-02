@@ -1336,13 +1336,30 @@ driver, requests[] }` in the Room's `frameControl` Yjs map: the driver lets
 people drive (grant / decline), requests queue, a driver who leaves keeps
 control for 5 seconds, the agent always yields and asks again, and a chat ask
 grants the agent control when the asker drives or nobody does. Records are
-keyed per **copy** of a frame (`frameControlKey`): until shared frames, every
-viewer runs their own copy, whose parties are that viewer and the agent.
+keyed per **copy** of a frame (`frameControlKey`): a viewer's own copy (the
+desktop app, a Workspace without a **Frame Stream**) has a record whose parties
+are that viewer and the agent; a **Shared Frame** has one `live` record, keyed
+by the layer, that every viewer reads and writes.
 `useFrameControl` is the React adapter: **Interact is the driver's seat**
 (entering asks to drive, leaving lets go). The Interact button is the driver
 button, and the Layer Shell draws the title-line tag.
 _Avoid_: a second affordance for control beside Interact; writing `driver`
 outside the reducer; one record per frame for copies that aren't shared.
+
+**Shared Frame** / **Frame Stream**:
+On a hosted canvas (#1392, spec #1386), an Iframe Layer is one Chromium page in
+its Workspace's Sandbox, loading the bridge proxy on localhost, rather than a
+per-viewer iframe. The Workspace's **Frame Stream** service
+(`lib/sandbox-bridge/frame-stream.mjs`, launched by `ensureFrameStream`) grabs
+each page's virtual display, encodes it once (H.264 at up to 2× the CSS size,
+30 fps) and fans it out over one WebSocket on the forwarded `STREAM_PORT`,
+carrying every frame of the Workspace; the canvas decodes it with WebCodecs
+(`FrameStreamView`). Input reaches the page over CDP only from the connection
+holding a **drive grant**, which `/api/frame-stream/drive` signs only for the
+driver Frame Control names. The wire protocol is `lib/frame-stream/protocol.ts`;
+the client connection, one per Workspace, is `lib/frame-stream/client.ts`.
+_Avoid_: "streamed iframe" (there is no iframe); trusting a viewer's claim to
+drive without a grant; WebRTC (it can't connect from a Vercel Sandbox, #1366).
 
 **Canvas Keyboard**:
 The global `keydown`/`keyup` listeners for the canvas (`useCanvasKeyboard`, PRD

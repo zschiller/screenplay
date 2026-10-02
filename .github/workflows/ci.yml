@@ -77,6 +77,16 @@ jobs:
           restore-keys: |
             tsbuildinfo-${{ runner.os }}-
 
+      # The Frame Stream integration test (#1392) runs a real Xvfb, Chrome and
+      # ffmpeg, as a Workspace Sandbox does. The runner ships Chrome; add the
+      # rest when the image doesn't have it.
+      - name: Install the shared-frame browser stack
+        run: |
+          command -v Xvfb >/dev/null && command -v ffmpeg >/dev/null || {
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends xvfb ffmpeg
+          }
+
       - name: Typecheck
         run: pnpm typecheck
 

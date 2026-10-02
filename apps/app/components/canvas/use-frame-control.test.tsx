@@ -150,4 +150,72 @@ describe("useFrameControl", () => {
     const { result } = renderFrameControl(c)
     expect(result.current.control.driverOf(FRAME)).toEqual({ kind: "none" })
   })
+
+  describe("on a shared frame (#1392)", () => {
+    const SHARED = new Set([FRAME])
+    const presenceOf = (id: string, color: string) => ({
+      presence: {
+        identity: { id, name: id === "ana" ? "Ana" : "Ben" },
+        pointer: null,
+        viewport: { x: 0, y: 0, zoom: 1 },
+        color,
+        selectedIframeLayerIds: [],
+      },
+    })
+
+    function renderViewer(c: RoomCollections, viewerId: string, other: string) {
+      return renderHook(() => {
+        const [focusedId, setFocusedId] = useState<string | null>(null)
+        const control = useFrameControl({
+          collection: c.frameControl,
+          viewerId,
+          others: [presenceOf(other, "#f60")],
+          frameIds: [FRAME],
+          sharedIds: SHARED,
+          focusedId,
+          setFocusedId,
+        })
+        return { control, focusedId }
+      })
+    }
+
+    it("keeps one live record that every viewer sees", () => {
+      const [a, b] = syncedPair()
+      const anaRoom = createRoomCollections(a)
+      const ana = renderViewer(anaRoom, "ana", "ben")
+      const ben = renderViewer(createRoomCollections(b), "ben", "ana")
+
+      act(() => ana.result.current.control.interact(FRAME))
+
+      expect(anaRoom.frameControl.get(FRAME)).toEqual({
+        live: true,
+        driver: "ana",
+        requests: [],
+      })
+      expect(ana.result.current.control.driverOf(FRAME)).toEqual({
+        kind: "you",
+      })
+      expect(ben.result.current.control.driverOf(FRAME)).toMatchObject({
+        kind: "person",
+        id: "ana",
+        name: "Ana",
+      })
+    })
+
+    it("asks the person driving instead of taking the frame", () => {
+      const [a, b] = syncedPair()
+      const anaRoom = createRoomCollections(a)
+      const ana = renderViewer(anaRoom, "ana", "ben")
+      const ben = renderViewer(createRoomCollections(b), "ben", "ana")
+      act(() => ana.result.current.control.interact(FRAME))
+
+      act(() => ben.result.current.control.interact(FRAME))
+
+      expect(ben.result.current.focusedId).toBeNull()
+      expect(anaRoom.frameControl.get(FRAME)).toMatchObject({
+        driver: "ana",
+        requests: [{ by: "ben" }],
+      })
+    })
+  })
 })

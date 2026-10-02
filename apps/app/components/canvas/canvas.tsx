@@ -138,6 +138,7 @@ import { useCanvasView } from "@/components/canvas/use-canvas-view"
 
 import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import { useFrameControl } from "@/components/canvas/use-frame-control"
+import { useSharedFrames } from "@/components/canvas/use-shared-frames"
 import { frameDriverRingColor } from "@/components/canvas/frame-driver"
 import { drivenByOther } from "@/lib/canvas/frame-control"
 
@@ -569,11 +570,20 @@ export function Canvas({
     () => iframeLayers.map((layer) => layer.id),
     [iframeLayers]
   )
+  // Shared frames (#1392): on hosted, each Workspace's frames are one browser
+  // in its Sandbox, streamed to everyone; the desktop app keeps its iframes.
+  const sharedFrames = useSharedFrames({
+    roomId,
+    enabled: !isLocalBuild,
+    agents,
+    iframeLayers,
+  })
   const frameControl = useFrameControl({
     collection: collections.frameControl,
     viewerId: userId ?? null,
     others,
     frameIds,
+    sharedIds: sharedFrames.sharedIds,
     focusedId: focusedIframeLayerId,
     setFocusedId: setFocusedIframeLayerId,
   })
@@ -2344,6 +2354,7 @@ export function Canvas({
                         focusedIframeLayerId={focusedIframeLayerId}
                         setFocusedIframeLayerId={setFocusedIframeLayerId}
                         frameControl={frameControl}
+                        sharedFrames={sharedFrames}
                         createFlowIframeLayerId={createFlowIframeLayerId}
                         setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
                         removeIframeLayer={removeIframeLayer}

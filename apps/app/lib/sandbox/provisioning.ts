@@ -24,6 +24,7 @@ import {
   SANDBOX_TIMEOUT,
   SANDBOX_VCPUS,
   SNAPSHOT_EXPIRATION,
+  STREAM_PORT,
   TERMINAL_PORT,
 } from "@/lib/sandbox/provision-internals"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
@@ -292,7 +293,7 @@ async function createSandbox(
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
       source,
-      ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
+      ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT, STREAM_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
       resources: { vcpus: SANDBOX_VCPUS },

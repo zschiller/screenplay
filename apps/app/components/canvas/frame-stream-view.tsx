@@ -1,0 +1,369 @@
+"use client"
+
+import { useEffect, useRef } from "react"
+
+import {
+  fetchDriveToken,
+  type FrameStreamConnection,
+} from "@/lib/frame-stream/client"
+import {
+  h264CodecOf,
+  modifiersOf,
+  mouseButtonOf,
+  type FrameStreamInput,
+  type FrameStreamServerMessage,
+  type FrameStreamVideo,
+} from "@/lib/frame-stream/protocol"
+
+// A drive grant lasts a minute; ask for the next one well before.
+const DRIVE_REFRESH_MS = 30_000
+// Frame Control's record can reach the server a moment after this viewer
+// wrote it, so a refused grant is asked for again a few times.
+const DRIVE_RETRY_MS = [0, 300, 800, 2000]
+const RESIZE_SETTLE_MS = 150
+// Watch frames a little before they scroll into view.
+const WATCH_MARGIN = "200px"
+
+interface FrameStreamViewProps {
+  stream: FrameStreamConnection
+  roomId: string
+  frameId: string
+  /** The frame's CSS size: the shared page's viewport. */
+  width: number
+  height: number
+  /** The room's route, where the shared browser starts. */
+  route: string
+  /** This viewer is in Interact on the frame: forward its input. */
+  interactive: boolean
+  /** Frame Control says this viewer drives the frame. */
+  drives: boolean
+  /** The shared page moved to `path`. `first` is the report on joining. */
+  onRoute: (path: string, first: boolean) => void
+  /** A picture is showing (or not, while the browser starts or restarts). */
+  onLive: (live: boolean) => void
+}
+
+/**
+ * A shared frame on a hosted canvas (#1392): the one browser running in the
+ * Workspace's Sandbox, decoded from its Frame Stream with WebCodecs and drawn
+ * into a canvas. Everyone watching sees the same picture. While this viewer
+ * drives and interacts, its pointer, wheel and keys go to the page over the
+ * stream; the service applies them only under a drive grant the app signed
+ * for the driver, so nobody else's input reaches it.
+ *
+ * Only frames on screen are watched.
+ */
+export function FrameStreamView({
+  stream,
+  roomId,
+  frameId,
+  width,
+  height,
+  route,
+  interactive,
+  drives,
+  onRoute,
+  onLive,
+}: FrameStreamViewProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const latest = useRef({ width, height, route, onRoute, onLive })
+  useEffect(() => {
+    latest.current = { width, height, route, onRoute, onLive }
+  })
+
+  // ---- watching and decoding ----
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    let decoder: VideoDecoder | null = null
+    let configured: string | null = null
+    let waitingForKey = true
+    let timestamp = 0
+    let live = false
+    let firstRoute = true
+    let videoSize = { width: 0, height: 0 }
+    let unwatch: (() => void) | null = null
+
+    const setLive = (next: boolean) => {
+      if (live === next) return
+      live = next
+      latest.current.onLive(next)
+    }
+
+    const resetDecoder = () => {
+      waitingForKey = true
+      configured = null
+      if (decoder && decoder.state !== "closed") decoder.close()
+      decoder = null
+    }
+
+    const draw = (picture: VideoFrame) => {
+      if (
+        canvas.width !== picture.displayWidth ||
+        canvas.height !== picture.displayHeight
+      ) {
+        canvas.width = picture.displayWidth
+        canvas.height = picture.displayHeight
+      }
+      canvas.getContext("2d")?.drawImage(picture, 0, 0)
+      picture.close()
+      setLive(true)
+    }
+
+    const onVideo = (video: FrameStreamVideo) => {
+      if (typeof VideoDecoder === "undefined") return
+      if (waitingForKey && !video.key) return
+      if (video.key) {
+        const codec = stream.codec === "h264" ? h264CodecOf(video.data) : "vp8"
+        if (!codec) return
+        if (!decoder || decoder.state === "closed") {
+          decoder = new VideoDecoder({
+            output: draw,
+            error: () => resetDecoder(),
+          })
+          configured = null
+        }
+        if (codec !== configured) {
+          decoder.configure({ codec, optimizeForLatency: true })
+          configured = codec
+        }
+        waitingForKey = false
+      }
+      if (!decoder || decoder.state !== "configured") return
+      // A viewer that can't keep up skips ahead to the next keyframe.
+      if (decoder.decodeQueueSize > 30) {
+        resetDecoder()
+        return
+      }
+      decoder.decode(
+        new EncodedVideoChunk({
+          type: video.key ? "key" : "delta",
+          timestamp: (timestamp += 1000),
+          data: video.data,
+        })
+      )
+    }
+
+    const onMessage = (msg: FrameStreamServerMessage) => {
+      if (msg.t === "frame") {
+        if (msg.status !== "live") {
+          setLive(false)
+          resetDecoder()
+        }
+        if (
+          msg.videoWidth !== videoSize.width ||
+          msg.videoHeight !== videoSize.height
+        ) {
+          videoSize = { width: msg.videoWidth, height: msg.videoHeight }
+          resetDecoder()
+        }
+      } else if (msg.t === "route") {
+        latest.current.onRoute(msg.path, firstRoute)
+        firstRoute = false
+      }
+    }
+
+    const watch = () => {
+      if (unwatch) return
+      const { route, width, height } = latest.current
+      firstRoute = true
+      unwatch = stream.watch(
+        frameId,
+        { route, width, height },
+        {
+          onMessage,
+          onVideo,
+          onConnection: (ready) => {
+            if (!ready) setLive(false)
+            resetDecoder()
+          },
+        }
+      )
+    }
+    const stop = () => {
+      unwatch?.()
+      unwatch = null
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => (entry?.isIntersecting ? watch() : stop()),
+      { rootMargin: WATCH_MARGIN }
+    )
+    observer.observe(canvas)
+    return () => {
+      observer.disconnect()
+      stop()
+      resetDecoder()
+    }
+  }, [stream, frameId])
+
+  // The frame's size and the room's route follow the layer. A resize drag
+  // settles first: each new size restarts the frame's encoder.
+  useEffect(() => {
+    const id = setTimeout(
+      () => stream.update(frameId, { width, height }),
+      RESIZE_SETTLE_MS
+    )
+    return () => clearTimeout(id)
+  }, [stream, frameId, width, height])
+  useEffect(() => {
+    stream.update(frameId, { route })
+  }, [stream, frameId, route])
+
+  // ---- driving ----
+
+  useEffect(() => {
+    if (!drives) return
+    let run = 0
+    let refresh: ReturnType<typeof setTimeout> | null = null
+    // Each run supersedes the one before (a reconnect starts a new one).
+    const grant = async () => {
+      const mine = ++run
+      if (refresh) clearTimeout(refresh)
+      const current = () => mine === run
+      // The grant rides the stream, so wait for it to be up.
+      while (!stream.isReady()) {
+        await new Promise((r) => setTimeout(r, 250))
+        if (!current()) return
+      }
+      for (const wait of DRIVE_RETRY_MS) {
+        if (wait) await new Promise((r) => setTimeout(r, wait))
+        if (!current()) return
+        const token = await fetchDriveToken(roomId, frameId).catch(() => null)
+        if (!current()) return
+        if (token && stream.send({ t: "drive", frame: frameId, token })) break
+      }
+      refresh = setTimeout(() => void grant(), DRIVE_REFRESH_MS)
+    }
+    void grant()
+    // A reconnect starts without the grant: ask again.
+    const unsubscribe = stream.subscribeConnection((ready) => {
+      if (ready) void grant()
+    })
+    return () => {
+      run++
+      unsubscribe()
+      if (refresh) clearTimeout(refresh)
+      stream.send({ t: "release", frame: frameId })
+    }
+  }, [drives, stream, roomId, frameId])
+
+  const active = interactive && drives
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !active) return
+    const send = (input: FrameStreamInput) =>
+      stream.send({ t: "input", frame: frameId, ...input })
+    // Client pixels to the page's CSS pixels: the canvas is drawn at the
+    // frame's size inside the zoomed world.
+    const at = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      return {
+        x: ((e.clientX - rect.left) * latest.current.width) / rect.width,
+        y: ((e.clientY - rect.top) * latest.current.height) / rect.height,
+      }
+    }
+    const mouse =
+      (type: "mousePressed" | "mouseReleased" | "mouseMoved") =>
+      (e: PointerEvent) => {
+        if (type === "mousePressed") {
+          canvas.focus({ preventScroll: true })
+          canvas.setPointerCapture(e.pointerId)
+        }
+        send({
+          kind: "mouse",
+          type,
+          ...at(e),
+          button: type === "mouseMoved" ? "none" : mouseButtonOf(e.button),
+          buttons: e.buttons,
+          clickCount: type === "mouseMoved" ? 0 : Math.max(1, e.detail),
+          modifiers: modifiersOf(e),
+        })
+      }
+    const onDown = mouse("mousePressed")
+    const onMove = mouse("mouseMoved")
+    const onUp = mouse("mouseReleased")
+    const onWheel = (e: WheelEvent) => {
+      // Cmd/Ctrl+wheel still zooms the canvas.
+      if (e.ctrlKey || e.metaKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      send({
+        kind: "wheel",
+        ...at(e),
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+        modifiers: modifiersOf(e),
+      })
+    }
+    const key = (type: "keyDown" | "keyUp") => (e: KeyboardEvent) => {
+      // Keys belong to the page, not the canvas's shortcuts. Esc goes to
+      // both: the page sees it, and the canvas leaves Interact.
+      if (e.key !== "Escape") {
+        e.stopPropagation()
+        e.preventDefault()
+      }
+      if (e.isComposing) return
+      const text =
+        type === "keyDown" && !e.metaKey && !e.ctrlKey
+          ? e.key === "Enter"
+            ? "\r"
+            : e.key.length === 1
+              ? e.key
+              : undefined
+          : undefined
+      send({
+        kind: "key",
+        type: type === "keyDown" && !text ? "rawKeyDown" : type,
+        key: e.key,
+        code: e.code,
+        text,
+        keyCode: e.keyCode,
+        repeat: e.repeat,
+        modifiers: modifiersOf(e),
+      })
+    }
+    const onKeyDown = key("keyDown")
+    const onKeyUp = key("keyUp")
+    const onPaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData("text/plain")
+      if (!text) return
+      e.preventDefault()
+      send({ kind: "text", text })
+    }
+    const onContextMenu = (e: Event) => e.preventDefault()
+
+    canvas.addEventListener("pointerdown", onDown)
+    canvas.addEventListener("pointermove", onMove)
+    canvas.addEventListener("pointerup", onUp)
+    canvas.addEventListener("wheel", onWheel, { passive: false })
+    canvas.addEventListener("keydown", onKeyDown)
+    canvas.addEventListener("keyup", onKeyUp)
+    canvas.addEventListener("paste", onPaste)
+    canvas.addEventListener("contextmenu", onContextMenu)
+    canvas.focus({ preventScroll: true })
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown)
+      canvas.removeEventListener("pointermove", onMove)
+      canvas.removeEventListener("pointerup", onUp)
+      canvas.removeEventListener("wheel", onWheel)
+      canvas.removeEventListener("keydown", onKeyDown)
+      canvas.removeEventListener("keyup", onKeyUp)
+      canvas.removeEventListener("paste", onPaste)
+      canvas.removeEventListener("contextmenu", onContextMenu)
+      if (document.activeElement === canvas) canvas.blur()
+    }
+  }, [active, stream, frameId])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      tabIndex={active ? 0 : -1}
+      data-frame-stream=""
+      className="absolute inset-0 h-full w-full bg-white outline-none dark:bg-neutral-900"
+      style={{ pointerEvents: interactive ? "auto" : "none" }}
+    />
+  )
+}

@@ -36,6 +36,7 @@ import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
 import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
+import type { SharedFrames } from "./use-shared-frames"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -108,6 +109,7 @@ function CanvasMemberLayerImpl({
   focusedIframeLayerId,
   setFocusedIframeLayerId,
   frameControl,
+  sharedFrames,
   createFlowIframeLayerId,
   setCreateFlowIframeLayerId,
   removeIframeLayer,
@@ -180,6 +182,8 @@ function CanvasMemberLayerImpl({
   setFocusedIframeLayerId: React.Dispatch<React.SetStateAction<string | null>>
   /** Who drives each frame (#1387); entering Interact goes through it. */
   frameControl: FrameControl
+  /** Which frames are one shared browser, and their streams (#1392). */
+  sharedFrames: SharedFrames
   createFlowIframeLayerId: string | null
   setCreateFlowIframeLayerId: React.Dispatch<
     React.SetStateAction<string | null>
@@ -527,13 +531,23 @@ function CanvasMemberLayerImpl({
                     route: iframeLayer.route ?? "",
                   })
               : undefined
+          const stream = sharedFrames.streamOf(iframeLayer.branchId)
           return (
             <IframeLayer
               key={iframeLayer.id}
               iframeLayer={{
                 ...iframeLayer,
-                iframeUrl: agentInfo?.previewDomain,
+                // Until the app says whether the Workspace's frames are
+                // shared, the frame waits rather than loading an iframe.
+                iframeUrl: sharedFrames.checking(iframeLayer.branchId)
+                  ? undefined
+                  : agentInfo?.previewDomain,
               }}
+              sharedStream={
+                stream
+                  ? { connection: stream, roomId: sharedFrames.roomId }
+                  : undefined
+              }
               zoom={zoom}
               labelHidden={labelsHidden.has(iframeLayer.id)}
               focused={focusedIframeLayerId === iframeLayer.id}
