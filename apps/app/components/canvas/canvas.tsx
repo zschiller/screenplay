@@ -507,9 +507,19 @@ export function Canvas({
   // awareness mirrors above. The locals below alias its state + verbs so the
   // camera, gesture seam, draw tool, keyboard, and render tree read them as
   // before.
+  // Mockups take Interact too (their pages run their own scripts), and share
+  // the Document selection Set.
+  const interactiveLayers = useMemo(
+    () => [...iframeLayers, ...mockupLayers],
+    [iframeLayers, mockupLayers]
+  )
+  const selectedInteractiveIds = useMemo(
+    () => new Set([...selectedIframeLayerIds, ...selectedDocumentLayerIds]),
+    [selectedIframeLayerIds, selectedDocumentLayerIds]
+  )
   const interaction = useCanvasInteraction({
-    iframeLayers,
-    selectedIframeLayerIds,
+    interactiveLayers,
+    selectedInteractiveIds,
     setPresence,
     selfPointerRef,
     selfMessageRef,

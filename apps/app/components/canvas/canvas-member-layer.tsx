@@ -469,6 +469,14 @@ function CanvasMemberLayerImpl({
                 onDomReady={reference.onIframeLayerDomReady}
                 onKnobsDeclared={layerMutations.updateMockupKnobs}
                 onKnobValuesChange={layerMutations.updateMockupKnobValues}
+                onSharedStateChanged={layerMutations.updateMockupSharedState}
+                focused={focusedIframeLayerId === mockup.id}
+                onFocus={(id) => {
+                  setFocusedIframeLayerId(id)
+                  if (id !== null) setCreateFlowIframeLayerId(null)
+                }}
+                commentMode={commentMode}
+                onWheel={onIframeWheel}
                 onAskForKnob={
                   documentWorkspaces.has(mockup.id)
                     ? () => onAskForMockupKnob(mockup.id)

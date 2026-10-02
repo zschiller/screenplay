@@ -149,3 +149,23 @@ unsubscribe()
   keep them both. `useSharedState("count", count, setCount)` is the
   whole bridge — don't refactor `count` out from under their other
   consumers.
+
+## Shared state on a Mockup
+
+A Mockup is a static page with no bundler, so it doesn't install the
+package. Its page already has
+`screenplay.shareState(key, initial, onChange)`, which returns
+`{ get, set }`. `onChange` runs at once with the current value and again on
+every change, local `set` included, so draw the page from it:
+
+```html
+<script>
+  const tab = screenplay.shareState("tab", "overview", (value) => {
+    document.body.dataset.tab = value
+  })
+  document.querySelector("#plans").onclick = () => tab.set("plans")
+</script>
+```
+
+The same rules hold: JSON values only, stable keys, and the room's value
+wins when the page loads. Add it by rewriting the page with `update_mockup`.

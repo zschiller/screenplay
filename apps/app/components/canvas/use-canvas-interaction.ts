@@ -10,7 +10,6 @@ import {
 
 import type { EscapeState } from "@/lib/canvas/escape"
 import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
-import type { IframeLayerData } from "@/lib/types"
 import type { CanvasPresence } from "@/lib/yjs/react"
 
 /**
@@ -37,10 +36,13 @@ import type { CanvasPresence } from "@/lib/yjs/react"
  * `setPresence` — exactly the seam the root used before the lift.
  */
 export interface CanvasInteractionDeps {
-  /** Live, synced Iframe Layers — reconciled against to drop a dead mode. */
-  iframeLayers: IframeLayerData[]
-  /** Selected Iframe Layers — a deselected frame drops its Focus/Flow mode. */
-  selectedIframeLayerIds: ReadonlySet<string>
+  /**
+   * Live, synced layers that can be interacted with (frames, and Mockups,
+   * whose pages take clicks too) — reconciled against to drop a dead mode.
+   */
+  interactiveLayers: readonly { id: string }[]
+  /** Selected ones of those — a deselected layer drops its Focus/Flow mode. */
+  selectedInteractiveIds: ReadonlySet<string>
   /** Awareness setter — cursor chat broadcasts its live message through it. */
   setPresence: (partial: Partial<CanvasPresence>) => void
   /** Latest self cursor position (canvas space), mirrored from awareness. */
@@ -102,8 +104,8 @@ export function useCanvasInteraction(
   deps: CanvasInteractionDeps
 ): CanvasInteraction {
   const {
-    iframeLayers,
-    selectedIframeLayerIds,
+    interactiveLayers,
+    selectedInteractiveIds,
     setPresence,
     selfPointerRef,
     selfMessageRef,
@@ -154,12 +156,12 @@ export function useCanvasInteraction(
   // when an id actually changed, so unrelated layer edits don't churn state or
   // fight the Escape handler.
   useEffect(() => {
-    const existingLayerIds = new Set(iframeLayers.map((layer) => layer.id))
+    const existingLayerIds = new Set(interactiveLayers.map((layer) => layer.id))
     const next = reconcileInteractionMode({
       focusedId: focusedIframeLayerId,
       createFlowId: createFlowIframeLayerId,
       existingLayerIds,
-      selectedLayerIds: selectedIframeLayerIds,
+      selectedLayerIds: selectedInteractiveIds,
     })
     if (next.focusedId !== focusedIframeLayerId) {
       // Syncing mode state down from the external Y.Doc layer set; the guard
@@ -171,10 +173,10 @@ export function useCanvasInteraction(
       setCreateFlowIframeLayerId(next.createFlowId)
     }
   }, [
-    iframeLayers,
+    interactiveLayers,
     focusedIframeLayerId,
     createFlowIframeLayerId,
-    selectedIframeLayerIds,
+    selectedInteractiveIds,
   ])
 
   const closeCursorChat = useCallback(() => {

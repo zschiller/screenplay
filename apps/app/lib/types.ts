@@ -350,6 +350,9 @@ export type MockupLayerData = {
   knobs?: JsonValue[]
   /** Current knob values keyed by knob id, synced down into the page. */
   knobValues?: JsonObject
+  /** State the page shares through `screenplay.shareState`, kept and synced
+   *  to every viewer like a frame's `sharedState`. */
+  sharedState?: JsonObject
 }
 
 /** A Mockup's status (#1310), in menu order. */

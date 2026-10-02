@@ -110,6 +110,8 @@ export interface LayerMutations {
   updateMockupKnobs: (id: string, knobs: JsonValue[]) => void
   /** Persist a mockup's current knob values. */
   updateMockupKnobValues: (id: string, knobValues: JsonObject) => void
+  /** Persist the state a mockup's page shares. */
+  updateMockupSharedState: (id: string, sharedState: JsonObject) => void
 }
 
 export function useLayerMutations({
@@ -330,6 +332,13 @@ export function useLayerMutations({
     [ops]
   )
 
+  const updateMockupSharedState = useCallback(
+    (id: string, sharedState: JsonObject) => {
+      ops.patch("mockupLayers", id, { sharedState })
+    },
+    [ops]
+  )
+
   const setTitle = useCallback(
     (id: string, title: string) => {
       ops.renameDocument(id, title)
@@ -368,6 +377,7 @@ export function useLayerMutations({
       setMockupStatus,
       updateMockupKnobs,
       updateMockupKnobValues,
+      updateMockupSharedState,
     }),
     [
       rename,
@@ -388,6 +398,7 @@ export function useLayerMutations({
       setMockupStatus,
       updateMockupKnobs,
       updateMockupKnobValues,
+      updateMockupSharedState,
     ]
   )
 }

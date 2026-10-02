@@ -20,8 +20,14 @@ export const BRIDGE_JS: string =
   BRIDGE_JS_RAW
 
 const MOCKUP_KNOBS_JS = readFileSync(join(dir, "mockup-knobs.js"), "utf8")
+const MOCKUP_STATE_JS = readFileSync(join(dir, "mockup-state.js"), "utf8")
 
 // What every Mockup page (#1309) runs ahead of its own scripts: the same DOM
 // bridge a frame's proxy injects, so a chat can target an element in it, and
-// the knobs runtime a static page uses in place of `@screenplay.space/knobs`.
-export const MOCKUP_RUNTIME_JS: string = BRIDGE_JS + "\n" + MOCKUP_KNOBS_JS
+// the knobs and shared-state runtimes a static page uses in place of
+// `@screenplay.space/knobs` and `@screenplay.space/state`.
+export const MOCKUP_RUNTIME_JS: string = [
+  BRIDGE_JS,
+  MOCKUP_KNOBS_JS,
+  MOCKUP_STATE_JS,
+].join("\n")

@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
+import {
+  FloatingToolbar,
+  FloatingToolbarButton,
+} from "@workspace/ui/components/floating-toolbar"
+import { CursorIcon } from "@workspace/ui/components/icons"
+import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import {
   useScreenplayDom,
   type ScreenplayDom,
+  type WheelForward,
 } from "@/hooks/use-screenplay-dom"
 import type { DomRect, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
@@ -95,6 +101,18 @@ interface MockupLayerProps {
   onKnobValuesChange?: (id: string, values: JsonObject) => void
   /** Start an "add a knob" request in the chat that made the mockup. */
   onAskForKnob?: () => void
+  /** State the page shares through `screenplay.shareState` changed. */
+  onSharedStateChanged?: (id: string, state: JsonObject) => void
+  /**
+   * The mockup takes clicks, scrolls and keys (Interact), as a frame does:
+   * the canvas stops panning over it and Esc returns.
+   */
+  focused?: boolean
+  onFocus?: (id: string | null) => void
+  /** Comment placement owns the pointer, so a double-click doesn't Interact. */
+  commentMode?: boolean
+  /** A pinch or ⌘-scroll over the interacting page, to zoom the canvas. */
+  onWheel?: (id: string, wheel: WheelForward) => void
 }
 
 // A mockup's page carries no app state; the bridge's handshake still sends one.
@@ -108,14 +126,15 @@ const ignoreState = () => {}
  * `allow-same-origin` it runs in an opaque origin, so it can never reach the
  * app, its cookies or the canvas, and its Content Security Policy
  * (`mockupSrcDoc`) keeps it from loading anything from the network. There is
- * no address bar, reload or Interact: it is a picture, not a running app. A
- * transparent overlay sits over the page so a press selects and drags the
- * mockup like any other layer.
+ * no address bar or reload. A transparent overlay sits over the page so a
+ * press selects and drags the mockup like any other layer; Interact (the
+ * toolbar button, or a double-click) lifts it so the page takes the pointer.
  *
- * Ahead of its own scripts the page runs the frames' DOM bridge and a knobs
- * runtime (`MOCKUP_RUNTIME_JS`), so its chat can target an element in it and
- * the page can declare knobs (`screenplay.registerKnob`), which the Knobs
- * button under the selected mockup edits like a frame's.
+ * Ahead of its own scripts the page runs the frames' DOM bridge and the knobs
+ * and shared-state runtimes (`MOCKUP_RUNTIME_JS`), so its chat can target an
+ * element in it, and the page can declare knobs (`screenplay.registerKnob`,
+ * edited from the Knobs button under the selected mockup) and share state
+ * with every viewer (`screenplay.shareState`), like a frame's app.
  *
  * An empty page is a Mockup someone drew and sent to a chat (#1359) that the
  * chat hasn't filled yet, so it shows the model at work (the 9-dot).
@@ -156,6 +175,11 @@ export function MockupLayer({
   onKnobsDeclared,
   onKnobValuesChange,
   onAskForKnob,
+  onSharedStateChanged,
+  focused = false,
+  onFocus,
+  commentMode = false,
+  onWheel,
 }: MockupLayerProps) {
   const html = useMockupHtml(layer.id)
   const runtime = useMockupRuntime()
@@ -168,11 +192,28 @@ export function MockupLayer({
     iframeLayerId: layer.id,
     iframeState: NO_STATE,
     knobValues: layer.knobValues,
+    sharedState: layer.sharedState,
     onStateChanged: ignoreState,
     onKnobsDeclared,
+    onSharedStateChanged,
   })
 
-  const dom = useScreenplayDom(iframeRef)
+  const dom = useScreenplayDom(iframeRef, {
+    onWheel: (wheel) => onWheel?.(layer.id, wheel),
+    // Esc the page didn't claim, forwarded by the bridge because keydowns
+    // never leave the iframe: replay it on the canvas so it leaves Interact.
+    onEscape: () => {
+      if (!focused) return
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    },
+  })
+
+  // Leaving Interact hands keyboard focus back to the canvas.
+  useEffect(() => {
+    if (focused) return
+    const iframe = iframeRef.current
+    if (iframe && document.activeElement === iframe) iframe.blur()
+  }, [focused])
   const onDomReadyRef = useRef(onDomReady)
   useEffect(() => {
     onDomReadyRef.current = onDomReady
@@ -249,7 +290,9 @@ export function MockupLayer({
       onGroupDragStart={onGroupDragStart}
       onGroupDragEnd={onGroupDragEnd}
       onRequestReorderDrag={onRequestReorderDrag}
-      titleDragDisabled={spaceHeld}
+      titleDragDisabled={spaceHeld || focused}
+      // An interacting mockup's edges belong to the page.
+      resizable={!focused}
       onResize={handleResize}
       groupLabel={groupLabel}
       groupWorkspace={groupWorkspace}
@@ -301,6 +344,20 @@ export function MockupLayer({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
+                <FloatingToolbarButton
+                  label="Interact"
+                  shortcut={focused ? ["Esc"] : undefined}
+                  pressed={focused}
+                  // The selection fill while interacting, as on a frame.
+                  className={
+                    focused
+                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
+                      : undefined
+                  }
+                  onClick={() => onFocus?.(focused ? null : layer.id)}
+                >
+                  <CursorIcon />
+                </FloatingToolbarButton>
                 <KnobsPopover
                   knobs={layer.knobs}
                   values={layer.knobValues}
@@ -321,8 +378,9 @@ export function MockupLayer({
               srcDoc={mockupSrcDoc(html, runtime)}
               // Scripts only: no same-origin, forms, popups or top navigation.
               sandbox="allow-scripts"
-              className="pointer-events-none absolute inset-0 size-full border-0 bg-white"
-              tabIndex={-1}
+              className="absolute inset-0 size-full border-0 bg-white"
+              style={{ pointerEvents: focused ? "auto" : "none" }}
+              tabIndex={focused ? 0 : -1}
             />
           )}
           {!html.trim() && (
@@ -346,25 +404,45 @@ export function MockupLayer({
           {dimmed && (
             <div className="pointer-events-none absolute inset-0 z-10 bg-background/60 transition-opacity" />
           )}
-          <div
-            className="absolute inset-0 touch-none"
-            style={{ cursor: "inherit" }}
-            {...api.bodyDragHandlers}
-            {...(pickActive && !spaceHeld && !dimmed
-              ? {
-                  // Hover-only: outline the element a click would target. The
-                  // click itself goes to the canvas's pick handler.
-                  onPointerMove: async (e: React.PointerEvent) => {
-                    onHover?.(
-                      layer.id,
-                      await elementRectAt(e.clientX, e.clientY)
-                    )
-                  },
-                  onPointerLeave: () => onHover?.(layer.id, null),
-                }
-              : {})}
-            onPointerDownCapture={api.onBodyPointerDownCapture}
-          />
+          {/* While interacting, the page takes the pointer instead. */}
+          {!focused && (
+            <div
+              className="absolute inset-0 touch-none"
+              style={{ cursor: "inherit" }}
+              {...api.bodyDragHandlers}
+              {...(pickActive && !spaceHeld && !dimmed
+                ? {
+                    // Hover-only: outline the element a click would target. The
+                    // click itself goes to the canvas's pick handler.
+                    onPointerMove: async (e: React.PointerEvent) => {
+                      onHover?.(
+                        layer.id,
+                        await elementRectAt(e.clientX, e.clientY)
+                      )
+                    },
+                    onPointerLeave: () => onHover?.(layer.id, null),
+                  }
+                : {})}
+              onPointerDownCapture={api.onBodyPointerDownCapture}
+              onDoubleClick={(e) => {
+                if (
+                  !onFocus ||
+                  !canInteractOnDoubleClick({
+                    hasPreview: !!html.trim(),
+                    commentMode,
+                    // A dimmed mockup is ineligible for an armed pick, but the
+                    // pick still owns the pointer.
+                    pickActive: !!pickActive || !!dimmed,
+                    spaceHeld,
+                  })
+                )
+                  return
+                e.stopPropagation()
+                onSelect(layer.id, false)
+                onFocus(layer.id)
+              }}
+            />
+          )}
         </div>
       )}
     </LayerShell>
