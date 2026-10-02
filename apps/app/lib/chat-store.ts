@@ -9,6 +9,10 @@ import {
 import { applyToolCallUpdate } from "@/lib/agent/acp/record"
 import { describeSendError, describeTurnError } from "@/lib/agent/chat-errors"
 import { withBasePath } from "@/lib/base-path"
+import {
+  buildCanvasViewFooter,
+  type CanvasView,
+} from "@/lib/agent/message-markers"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
 import { isFixtureWorld } from "@/lib/fixture-world"
@@ -141,6 +145,12 @@ export interface SendMessageOptions {
    * (mentions and element tokens included), not as flattened wire text.
    */
   draft?: unknown
+  /**
+   * What the sender had selected and on screen when they sent it, taken then.
+   * The model reads it in a `Canvas view:` footer added only on the way out,
+   * so a held, queued or pending message shows and edits without it.
+   */
+  canvasView?: CanvasView | null
 }
 
 /**
@@ -652,7 +662,7 @@ class ChatStore {
         roomId: opts.roomId,
         chatId: opts.chatId,
         ...wireTarget(opts.target),
-        message: opts.message,
+        message: opts.message + buildCanvasViewFooter(opts.canvasView ?? null),
         isFirstChat: opts.isFirstChat,
         planMode: opts.planMode,
         model: opts.model,

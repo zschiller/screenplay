@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react"
+import type { CanvasView } from "@/lib/agent/message-markers"
 import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore, type ChatState } from "@/lib/chat-store"
 import type { UserTurn } from "@/lib/agent/user-turn"
@@ -23,6 +24,8 @@ interface SendOptions {
   turn?: UserTurn
   /** The composer document, kept so a failed or queued send can be edited. */
   draft?: unknown
+  /** The sender's selection and screen as they sent it (`Canvas view:`). */
+  canvasView?: CanvasView | null
 }
 
 export function useAgentChat({
@@ -77,6 +80,7 @@ export function useAgentChat({
         model: options?.model,
         turn: options?.turn,
         draft: options?.draft,
+        canvasView: options?.canvasView,
       })
     },
     [chatId, roomId, stableTarget, isFirstChat, planMode]

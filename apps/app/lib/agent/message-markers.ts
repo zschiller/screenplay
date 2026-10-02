@@ -32,6 +32,10 @@
  * rides a `Targeted elements:` footer built by `buildTargetedElementsFooter`
  * and stripped by `parseUserMessage` (which sets `hadTargetedElements`).
  *
+ * The sender's selection and screen ride a `Canvas view:` footer built by
+ * `buildCanvasViewFooter` and stripped by `parseUserMessage`; only the model
+ * reads it.
+ *
  * The codec owns **format, not policy**: callers still decide *when* a
  * marker applies (e.g. branch only on the first message of a chat). This
  * module only knows how to render and parse the tokens.
@@ -321,6 +325,73 @@ export function buildTargetedElementsFooter(
 }
 
 /**
+ * The canonical token that opens the canvas-view footer, shared by the build
+ * side (`buildCanvasViewFooter`) and the strip side (`parseUserMessage`).
+ */
+export const CANVAS_VIEW_FOOTER_TOKEN = "Canvas view:"
+
+/** One layer named in a canvas-view footer. */
+export interface CanvasViewItem {
+  kind: "frame" | "document" | "mockup" | "group"
+  id: string
+  name: string
+  /** A frame's Workspace, by its title. */
+  workspace?: string
+}
+
+/**
+ * What the sender had selected and on screen when they sent a message. Each
+ * member's browser takes its own at send time, so on a shared canvas every
+ * message carries its sender's view, never anyone else's.
+ */
+export interface CanvasView {
+  /** The sender's display name. */
+  sender?: string
+  selected: CanvasViewItem[]
+  /** On screen, the largest share of the screen first. */
+  onScreen: CanvasViewItem[]
+}
+
+function canvasViewLine(item: CanvasViewItem): string {
+  // Quoted names keep every line ending in `"`, so no line ever reads as a
+  // targeted-element line when both footers ride one message.
+  return (
+    `- ${item.kind} [${item.id}] ${JSON.stringify(item.name)}` +
+    (item.workspace ? ` · Workspace ${JSON.stringify(item.workspace)}` : "")
+  )
+}
+
+/**
+ * Build the canvas-view footer: the sender's selection and what was on their
+ * screen, so "this" or "that frame" resolves to what they meant. Returns an
+ * empty string when there is neither, so callers can append unconditionally.
+ *
+ * Unlike the other footers it doesn't run to the end of the message: its
+ * lines stop at the first one that isn't a heading or an item, so leftover
+ * Steers joined into one message each keep their own footer and
+ * `parseUserMessage` strips every one of them.
+ */
+export function buildCanvasViewFooter(view: CanvasView | null): string {
+  if (!view || (view.selected.length === 0 && view.onScreen.length === 0)) {
+    return ""
+  }
+  const who = view.sender?.trim() || "The sender"
+  return [
+    "",
+    "",
+    "---",
+    "",
+    `${CANVAS_VIEW_FOOTER_TOKEN} what ${who} had selected and on screen when they sent this message`,
+    ...(view.selected.length > 0
+      ? ["Selected:", ...view.selected.map(canvasViewLine)]
+      : []),
+    ...(view.onScreen.length > 0
+      ? ["On screen:", ...view.onScreen.map(canvasViewLine)]
+      : []),
+  ].join("\n")
+}
+
+/**
  * Prepend the server turn prefixes to a user message body: wake, delegation,
  * then plan, then branch. Each prefix is emitted only when its input is
  * present, so a turn with no marker returns `body` unchanged.
@@ -401,6 +472,12 @@ const REFERENCED_DOCS_FOOTER_RE = new RegExp(
 const TARGETED_ELEMENTS_FOOTER_RE = new RegExp(
   `\\n\\n---\\n\\n${TARGETED_ELEMENTS_FOOTER_TOKEN}[\\s\\S]*$`
 )
+// The canvas-view footer stops at its last heading or item line rather than
+// running to the end, so every one in a joined message strips on its own.
+const CANVAS_VIEW_FOOTER_RE = new RegExp(
+  `\\n\\n---\\n\\n${CANVAS_VIEW_FOOTER_TOKEN}[^\\n]*(?:\\n(?:Selected:|On screen:|- )[^\\n]*)*`,
+  "g"
+)
 // One targeted-element detail line, exactly as `buildTargetedElementsFooter`
 // emits it: `- <ref>: <route> — <selector> (frame: <frameLabel>)` (or
 // `(mockup: …)` for an element in a Mockup) with an
@@ -445,6 +522,7 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   // one and hide its flag. The strips themselves are order-independent: each
   // regex anchors on its own token, so removing one leaves the other intact
   // until its own strip runs.
+  body = body.replace(CANVAS_VIEW_FOOTER_RE, "")
   const hadReferencedDocs = REFERENCED_DOCS_FOOTER_RE.test(body)
   const hadTargetedElements = TARGETED_ELEMENTS_FOOTER_RE.test(body)
   if (hadReferencedDocs) {

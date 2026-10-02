@@ -5,6 +5,7 @@ import { MEMORY_PROMPT_LIMIT } from "@/lib/canvas/memory"
 import {
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
+  CANVAS_VIEW_FOOTER_TOKEN,
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
   WAKE_MARKER_LABEL,
@@ -110,8 +111,18 @@ When the user asks to open, create, or submit a pull request (PR), call the crea
 Following \`${MENTION_MARKER_TOKEN}\` mentions:
 The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`${t("read_document")}(id)\` to fetch the contents. Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the message, pairing each id with its title. These reads are live — they always return the current state, not a snapshot.
 
+What "this" means:
+${canvasViewPrompt}
+
 Writing Documents:
 When the user asks for a plan, notes, a spec or any other write-up, put it in a Document on the canvas rather than a file in the project: call \`${t("create_document")}\` with a title and the body as markdown. The Document is yours and shows your name. You can edit only the Documents you made (marked "(yours)" in the layer directory): rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Anyone's Document can be read with \`${t("read_document")}\`; ask its owner, or the user, to change one that isn't yours. In a body, separate paragraphs with a blank line and don't repeat the title as a \`#\` heading.`
+
+/**
+ * How a chat reads the `Canvas view:` footer a member's message carries: their
+ * selection and screen at send time, so "this" resolves to what they meant.
+ * Shared by the Workspace and Coordinator prompts.
+ */
+const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer listing, with ids, what its sender had selected on the canvas and what was on their screen when they sent it. The user doesn't see it. When they say "this", "that", "these" or "here" without naming it, they mean their selection first, then what was on their screen, the first listed taking the most of it. Several people can share a chat and each sees their own canvas, so read the footer of the message you're answering, which names its sender; an earlier message's footer is what its sender saw back then. It is a snapshot from when they sent it. When neither the selection nor the screen settles what they mean, ask.`
 
 const agentSystemPromptTail = (t: ToolNaming["name"]) => `
 
@@ -262,6 +273,8 @@ export function buildRoomSystemPrompt(opts: {
     "- Edit an entry that has become wrong rather than adding a contradicting one, and remove one the user asks you to forget. Never save secrets or credentials.",
     "",
     `Mentions: the user's message may reference canvas documents as \`${MENTION_MARKER_TOKEN}\` markers, listed with their ids under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer; read them with \`${t("read_document")}\`.`,
+    "",
+    `What "this" means: ${canvasViewPrompt}`,
     "",
     "Keep replies short and lead with the answer.",
     "",

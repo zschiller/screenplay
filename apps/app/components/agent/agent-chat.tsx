@@ -44,6 +44,7 @@ import {
 } from "./composer"
 import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
+import { canvasViewSource } from "@/lib/canvas/canvas-view"
 import { questionAnswers } from "@/lib/agent/question"
 import { useChatSenders } from "@/hooks/use-chat-senders"
 import { targetingStore } from "@/lib/targeting-store"
@@ -249,6 +250,8 @@ export function AgentChat({
         model: submitted,
         turn: quote ? { ...turn, body: withChatQuote(quote, turn.body) } : turn,
         draft,
+        // What "this" means: the sender's selection and screen right now.
+        canvasView: canvasViewSource.read(),
       })
     },
     [sendMessage, model, onModelChange, chatId]

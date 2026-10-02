@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { chatStore } from "./chat-store"
+import { buildCanvasViewFooter } from "./agent/message-markers"
 import type { ChatTarget } from "./chat/chat-target"
 
 let seq = 0
@@ -177,5 +178,50 @@ describe("chat-store — the Chat Target on the wire", () => {
       target: "room",
       message: "Hi",
     })
+  })
+})
+
+describe("chat-store — the sender's Canvas view", () => {
+  const canvasView = {
+    sender: "Maya",
+    selected: [{ kind: "frame" as const, id: "f1", name: "Checkout" }],
+    onScreen: [],
+  }
+
+  it("rides the message to the server as a footer", async () => {
+    const chatId = newChat()
+    const fetchMock = stubFetch({ ok: true })
+    await chatStore.sendMessage({
+      roomId: "room",
+      chatId,
+      target: { kind: "room" },
+      message: "Make this sticky",
+      canvasView,
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.message).toBe(
+      "Make this sticky" + buildCanvasViewFooter(canvasView)
+    )
+    // What the chat shows never carries it.
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      { role: "user", content: "Make this sticky" },
+    ])
+    chatStore.cleanup(chatId)
+  })
+
+  it("stays out of a message held for Edit", async () => {
+    const chatId = newChat()
+    stubFetch({ ok: false, body: "down" })
+    await chatStore.sendMessage({
+      roomId: "room",
+      chatId,
+      target: { kind: "room" },
+      message: "Make this sticky",
+      canvasView,
+    })
+
+    expect(chatStore.takeFailedSend(chatId)?.message).toBe("Make this sticky")
+    chatStore.cleanup(chatId)
   })
 })

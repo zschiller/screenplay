@@ -7,6 +7,7 @@ import {
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
   TARGETED_ELEMENTS_FOOTER_TOKEN,
+  buildCanvasViewFooter,
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
   deriveElementLabel,
@@ -683,5 +684,84 @@ describe("parseTargetedElementsFooter", () => {
     ])
 
     expect(footer).not.toContain("[layer:")
+  })
+})
+
+describe("buildCanvasViewFooter", () => {
+  const view = {
+    sender: "Maya",
+    selected: [
+      {
+        kind: "frame" as const,
+        id: "f1",
+        name: "Checkout",
+        workspace: "Pay with Apple",
+      },
+    ],
+    onScreen: [
+      { kind: "frame" as const, id: "f1", name: "Checkout" },
+      { kind: "document" as const, id: "d1", name: "Plan" },
+    ],
+  }
+
+  it("names the sender, their selection and their screen", () => {
+    expect(buildCanvasViewFooter(view)).toBe(
+      [
+        "",
+        "",
+        "---",
+        "",
+        "Canvas view: what Maya had selected and on screen when they sent this message",
+        "Selected:",
+        '- frame [f1] "Checkout" · Workspace "Pay with Apple"',
+        "On screen:",
+        '- frame [f1] "Checkout"',
+        '- document [d1] "Plan"',
+      ].join("\n")
+    )
+  })
+
+  it("is empty with no canvas, or nothing selected or on screen", () => {
+    expect(buildCanvasViewFooter(null)).toBe("")
+    expect(buildCanvasViewFooter({ selected: [], onScreen: [] })).toBe("")
+  })
+
+  it("leaves out an empty section", () => {
+    const footer = buildCanvasViewFooter({ ...view, selected: [] })
+    expect(footer).not.toContain("Selected:")
+    expect(footer).toContain("On screen:")
+  })
+
+  it("strips back out of what the message shows", () => {
+    const body = "make this one blue"
+    expect(parseUserMessage(body + buildCanvasViewFooter(view)).body).toBe(body)
+  })
+
+  it("strips after the other footers, which keep their entries", () => {
+    const element = {
+      ref: "r1",
+      route: "/",
+      selector: "button",
+      frameLabel: "Checkout",
+    }
+    const wire =
+      "fix [element: button](element:r1)" +
+      buildTargetedElementsFooter([element]) +
+      buildCanvasViewFooter(view)
+    expect(parseUserMessage(wire).body).toBe(
+      "fix [element: button](element:r1)"
+    )
+    expect(parseTargetedElementsFooter(wire)).toEqual([element])
+  })
+
+  it("strips each footer in leftover Steers joined into one message", () => {
+    const wire = [
+      "make this blue" + buildCanvasViewFooter(view),
+      "- and this a list item" +
+        buildCanvasViewFooter({ ...view, sender: "Sam" }),
+    ].join("\n\n")
+    expect(parseUserMessage(wire).body).toBe(
+      "make this blue\n\n- and this a list item"
+    )
   })
 })

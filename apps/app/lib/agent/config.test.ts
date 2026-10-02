@@ -4,6 +4,7 @@ import {
   buildAgentSystemPrompt,
   buildRoomSystemPrompt,
 } from "@/lib/agent/config"
+import { CANVAS_VIEW_FOOTER_TOKEN } from "@/lib/agent/message-markers"
 import { harnessToolNaming } from "@/lib/agent/tool-name"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 
@@ -216,5 +217,19 @@ describe("buildAgentSystemPrompt — one chat per Workspace (#1315)", () => {
     })
     expect(prompt).toContain("mcp__screenplay__read_code_file")
     expect(prompt).toContain("mcp__screenplay__find_code_files")
+  })
+})
+
+describe("the Canvas view footer", () => {
+  it('tells both chat kinds what "this" means', () => {
+    for (const prompt of [
+      buildAgentSystemPrompt({ layerDirectory: EMPTY_DIRECTORY, skills: [] }),
+      buildRoomSystemPrompt({ canvasSummary: "" }),
+    ]) {
+      expect(prompt).toContain(`\`${CANVAS_VIEW_FOOTER_TOKEN}\` footer`)
+      expect(prompt).toContain(
+        "read the footer of the message you're answering"
+      )
+    }
   })
 })
