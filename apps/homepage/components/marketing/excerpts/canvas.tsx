@@ -104,6 +104,7 @@ export function Frame({
   label,
   group,
   workspace,
+  trailing,
   selected,
   device = "desktop",
   className,
@@ -116,6 +117,8 @@ export function Frame({
   group?: [name: string, workspace: string]
   /** The Workspace a frame on its own shows, after its name. */
   workspace?: string
+  /** What the label ends with, such as a Mockup's status. */
+  trailing?: React.ReactNode
   selected?: boolean
   device?: "desktop" | "mobile"
   className?: string
@@ -133,7 +136,14 @@ export function Frame({
           className="bottom-full left-0 mb-6 max-w-full"
         />
       ) : null}
-      <div className="absolute bottom-full left-0 mb-1.5 flex max-w-full items-center gap-2 overflow-hidden text-xs leading-none whitespace-nowrap text-muted-foreground">
+      <div
+        className={cn(
+          "absolute bottom-full left-0 flex max-w-full items-center gap-2 overflow-hidden text-xs leading-none whitespace-nowrap text-muted-foreground",
+          // A 20px badge makes the row taller: sit it lower so its text lines
+          // up with the plain labels beside it.
+          trailing ? "mb-0.5" : "mb-1.5"
+        )}
+      >
         {/* The figures' names are short: kept whole, as a rounding error would
             otherwise clip them to an ellipsis. */}
         <span className={cn("shrink-0", selected && "text-selection")}>
@@ -146,6 +156,7 @@ export function Frame({
             <span className="truncate">{workspace}</span>
           </span>
         ) : null}
+        {trailing}
       </div>
       <div
         className={cn(
