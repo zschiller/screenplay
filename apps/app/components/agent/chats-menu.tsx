@@ -38,6 +38,8 @@ import {
   CaretDownIcon,
   CaretRightIcon,
   ChatCircleIcon,
+  PencilSimpleIcon,
+  TrashIcon,
   ChatsIcon,
   CheckIcon,
   DotsThreeIcon,
@@ -94,7 +96,6 @@ import {
 
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 
 import {
@@ -102,6 +103,7 @@ import {
   NO_REPOSITORY_ID,
 } from "@/components/create-branch-dialog"
 
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 
 import { InputDialog } from "@/components/home/input-dialog"
@@ -219,6 +221,10 @@ export interface ChatsMenuProviderProps {
    * first message when there is one.
    */
   onCreateSketchChat: (spec?: { prompt?: string; model?: string }) => void
+  /** Rename a chat with no repository. */
+  onRenameSketchChat: (chatId: string, label: string) => void
+  /** Delete a chat with no repository; what it made stays on the canvas. */
+  onDeleteSketchChat: (chatId: string) => void
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRebaseOnDefault: (branchId: string) => void
@@ -267,6 +273,7 @@ type ChatsMenuValue = Omit<
   askDelete: (branchId: string) => void
   askRecreate: (branchId: string) => void
   askRenameBranch: (branchId: string) => void
+  askDeleteSketchChat: (chatId: string) => void
 }
 
 const ChatsMenuContext = createContext<ChatsMenuValue | null>(null)
@@ -467,6 +474,13 @@ export function ChatsMenuProvider({
     setOpen(false)
     setPendingRenameBranchId(id)
   }, [])
+  const [pendingDeleteSketchId, setPendingDeleteSketchId] = useState<
+    string | null
+  >(null)
+  const askDeleteSketchChat = useCallback((id: string) => {
+    setOpen(false)
+    setPendingDeleteSketchId(id)
+  }, [])
 
   const sketchChats = useMemo(
     () =>
@@ -494,7 +508,11 @@ export function ChatsMenuProvider({
     askDelete,
     askRecreate,
     askRenameBranch,
+    askDeleteSketchChat,
   }
+  const deleteSketchChat = pendingDeleteSketchId
+    ? sketchChats.find((c) => c.id === pendingDeleteSketchId)
+    : undefined
 
   const deleteBranch = pendingDeleteBranchId
     ? branches.find((b) => b.id === pendingDeleteBranchId)
@@ -515,6 +533,20 @@ export function ChatsMenuProvider({
   return (
     <ChatsMenuContext.Provider value={value}>
       {children}
+      <ConfirmDialog
+        open={!!deleteSketchChat}
+        onOpenChange={(next) => {
+          if (!next) setPendingDeleteSketchId(null)
+        }}
+        verb="Delete"
+        itemName={deleteSketchChat?.label ?? ""}
+        itemNoun="chat"
+        description="Its messages go. The Mockups and Documents it made stay on the canvas."
+        onConfirm={() => {
+          if (deleteSketchChat) props.onDeleteSketchChat(deleteSketchChat.id)
+          setPendingDeleteSketchId(null)
+        }}
+      />
       <DeleteBranchDialog
         open={!!deleteBranch}
         onOpenChange={(next) => {
@@ -744,23 +776,7 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
 
   const sketchRows = (list: ChatSessionData[]) =>
     list.map((chat) => (
-      <CommandItem
-        key={chat.id}
-        value={`${chat.label} ${chat.id}`}
-        onSelect={() => pick(() => menu.onSelectSketchChat(chat.id))}
-      >
-        <span className="flex size-4 shrink-0 items-center justify-center">
-          <ChatCircleIcon className="size-3.5 opacity-70" />
-        </span>
-        <span className="truncate">{chat.label}</span>
-        <CheckIcon
-          className={cn(
-            "ml-auto size-3.5",
-            !(current.kind === "sketch" && current.id === chat.id) &&
-              "opacity-0"
-          )}
-        />
-      </CommandItem>
+      <SketchChatMenuRow key={chat.id} menu={menu} chat={chat} />
     ))
 
   const rows = (list: BranchData[]) =>
@@ -811,8 +827,7 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
 
         {sortedRepos.length === 0 ? (
           // A canvas with no repository has chats with none, which write
-          // Mockups and Documents; code needs a repository, added straight
-          // from the picker (#1182).
+          // Mockups and Documents.
           <>
             <CommandGroup heading="Chats">
               {sketchRows(sketchChats)}
@@ -826,21 +841,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
                 New chat
               </CommandItem>
             </CommandGroup>
-            {!searching && (
-              <div className="flex flex-col items-center gap-3 border-t px-4 py-4">
-                <p className="text-center text-xs text-balance text-muted-foreground">
-                  Add a repository to change code and preview it in frames.
-                </p>
-                <AddRepositoryTrigger
-                  align="center"
-                  onPick={() => setOpen(false)}
-                >
-                  <Button type="button" variant="outline" size="sm">
-                    Add repository
-                  </Button>
-                </AddRepositoryTrigger>
-              </div>
-            )}
           </>
         ) : searching ? (
           <CommandGroup heading="Chats">
@@ -1022,6 +1022,116 @@ function WorkspacesLabel({
         <PlusIcon />
       </IconButton>
     </div>
+  )
+}
+
+/**
+ * One chat with no repository in the menu: its title (renamed inline from its
+ * … menu), the … menu with Rename and Delete, and a check on the open one.
+ */
+function SketchChatMenuRow({
+  menu,
+  chat,
+}: {
+  menu: ChatsMenuValue
+  chat: ChatSessionData
+}) {
+  const editableRef = useRef<EditableTextHandle | null>(null)
+  const pendingEditRef = useRef(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const isCurrent =
+    menu.current.kind === "sketch" && menu.current.id === chat.id
+  return (
+    <CommandItem
+      value={`${chat.label} ${chat.id}`}
+      onSelect={() => {
+        menu.onSelectSketchChat(chat.id)
+        menu.setOpen(false)
+      }}
+      className="group/ws-row"
+    >
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <ChatCircleIcon className="size-3.5 opacity-70" />
+      </span>
+      <span
+        className="flex min-w-0 flex-1 has-[[data-editable-text=editing]]:overflow-visible"
+        onClick={(e) => {
+          if (editableRef.current?.isEditing()) e.stopPropagation()
+        }}
+      >
+        <EditableText
+          ref={editableRef}
+          as="span"
+          value={chat.label}
+          editTrigger="manual"
+          onEditStart={() => setRenaming(true)}
+          onEditEnd={() => setRenaming(false)}
+          onCommit={(next) => {
+            const label = next.trim()
+            if (!label || label === chat.label) return
+            menu.onRenameSketchChat(chat.id, label)
+          }}
+          className="min-w-0"
+          viewClassName="truncate"
+          editClassName={cn(
+            editableTextFieldClass,
+            "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
+          )}
+        />
+      </span>
+      {/* The … sits over the row's end, as on a Workspace row. */}
+      <span
+        {...isolate}
+        className={cn(
+          "absolute inset-y-0 right-7.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
+          menuOpen && "opacity-100",
+          renaming && "invisible"
+        )}
+      >
+        <span className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-(--row-bg)" />
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              label="Chat options"
+              className="relative text-muted-foreground"
+            >
+              <DotsThreeIcon />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="bottom"
+            align="end"
+            // Rename is a two-step: the menu closes, then the field takes
+            // focus instead of the trigger.
+            onCloseAutoFocus={(e) => {
+              if (!pendingEditRef.current) return
+              pendingEditRef.current = false
+              e.preventDefault()
+              editableRef.current?.startEditing()
+            }}
+          >
+            <DropdownMenuItem
+              onClick={() => {
+                pendingEditRef.current = true
+              }}
+            >
+              <PencilSimpleIcon />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => menu.askDeleteSketchChat(chat.id)}
+            >
+              <TrashIcon />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </span>
+      <CheckIcon className={cn("size-3.5", !isCurrent && "opacity-0")} />
+    </CommandItem>
   )
 }
 

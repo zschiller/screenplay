@@ -1374,6 +1374,17 @@ export function Canvas({
     [addChatSession, chatTarget, roomId]
   )
 
+  // Deleting a chat with no repository: the panel goes home if it showed it,
+  // and what it made stays on the canvas, owned by no one.
+  const deleteSketchChat = useCallback(
+    (chatId: string) => {
+      if (chatTarget.selectedChatId === chatId) chatTarget.showRoomChat()
+      removeChatSession(chatId)
+      chatStore.cleanup(chatId)
+    },
+    [chatTarget, removeChatSession]
+  )
+
   // Repopulate the Element Reference controller's live inputs every render so
   // its placement verbs and `replyInChat` read the current layouts and the
   // Chat-Target controller — without re-binding the controller on each change
@@ -2052,6 +2063,10 @@ export function Canvas({
           onSelectWorkspace={chatTarget.selectAgent}
           onSelectSketchChat={chatTarget.selectSketchChat}
           onCreateSketchChat={createSketchChat}
+          onRenameSketchChat={(chatId, label) =>
+            updateChatSession(chatId, { label })
+          }
+          onDeleteSketchChat={deleteSketchChat}
           onCreateBranchFromGitBranch={createBranchFromGitBranch}
           onCreateWorkspace={createBranch}
           onRebaseOnDefault={branchActions.rebaseOnDefault}

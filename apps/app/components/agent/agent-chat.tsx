@@ -7,17 +7,11 @@ import {
   useRef,
   useSyncExternalStore,
 } from "react"
-import {
-  ClockIcon,
-  FileTextIcon,
-  FolderPlusIcon,
-  XIcon,
-} from "@workspace/ui/components/icons"
+import { ClockIcon, FileTextIcon, XIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { GripSpinner } from "@/components/grip-spinner"
-import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { chatStore, sentTurn } from "@/lib/chat-store"
 import { describeSendError } from "@/lib/agent/chat-errors"
@@ -37,6 +31,7 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { CoordinatorStart } from "@/lib/fresh-workspace"
 import type { ChatTarget } from "@/lib/chat/chat-target"
 import {
+  CHAT_CAPABILITIES,
   chatCapabilitiesOf,
   type ChatCapabilities,
 } from "@/lib/chat/chat-capabilities"
@@ -588,30 +583,13 @@ function ChatEmptyState({
 }) {
   const fresh = roomStart?.kind === "fresh"
   // With no repository the Coordinator starts chats with none, which make
-  // Mockups and Documents; code waits for a repository, so the way to add
-  // one sits right here.
-  if (roomStart?.kind === "no-repository") {
-    return (
-      <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">
-            Sketch or write something
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Ask for a Mockup or a Document and a chat starts to make it. Add a
-            repository to change code and preview it in frames.
-          </p>
-        </div>
-        <AddRepositoryTrigger align="center">
-          <Button type="button" variant="outline" size="sm">
-            <FolderPlusIcon />
-            Add repository
-          </Button>
-        </AddRepositoryTrigger>
-      </div>
-    )
-  }
-  const starters = fresh ? [] : capabilities.starters
+  // Mockups and Documents, so its empty chat offers those asks.
+  const noRepository = roomStart?.kind === "no-repository"
+  const starters = fresh
+    ? []
+    : noRepository
+      ? CHAT_CAPABILITIES.sketch.starters
+      : capabilities.starters
   return (
     <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
       <div className="space-y-1">
@@ -620,12 +598,16 @@ function ChatEmptyState({
             ? roomStart.repoName
               ? `What should change in ${roomStart.repoName}?`
               : "What should change?"
-            : capabilities.emptyTitle}
+            : noRepository
+              ? "Sketch or write something"
+              : capabilities.emptyTitle}
         </p>
         <p className="text-xs text-muted-foreground">
           {fresh
             ? "Your first ask runs in the Workspace on the canvas."
-            : capabilities.emptyBody}
+            : noRepository
+              ? "Ask for a Mockup or a Document and a chat starts to make it."
+              : capabilities.emptyBody}
         </p>
       </div>
       {starters.length > 0 && (

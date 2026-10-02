@@ -98,6 +98,8 @@ function renderMenu(branches: BranchData[]) {
       onSelectWorkspace={onSelectWorkspace}
       onSelectSketchChat={noop}
       onCreateSketchChat={noop}
+      onRenameSketchChat={noop}
+      onDeleteSketchChat={noop}
       onCreateBranchFromGitBranch={noop}
       onCreateWorkspace={noop}
       onRebaseOnDefault={noop}
