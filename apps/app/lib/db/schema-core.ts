@@ -1,4 +1,5 @@
 import {
+  bigserial,
   boolean,
   check,
   index,
@@ -304,9 +305,12 @@ export const agentSteer = pgTable(
     // Who sent it. Null for a message nobody typed.
     userId: text("user_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    // Send order. Two Steers can share a `created_at` millisecond, so the
+    // inbox hands them out by this instead.
+    seq: bigserial("seq", { mode: "number" }).notNull(),
     takenAt: timestamp("taken_at"),
   },
-  (t) => [index("agent_steer_run_idx").on(t.runId, t.createdAt)]
+  (t) => [index("agent_steer_run_idx").on(t.runId, t.seq)]
 )
 
 // Persisted terminal tabs (#258). One row per open terminal tab, keyed by

@@ -51,6 +51,34 @@ describe("Steer inbox", () => {
     expect(await inbox.drain("run_1")).toEqual([])
   })
 
+  it("keeps send order for Steers sent in the same millisecond", async () => {
+    const { inbox, db, schema } = await seedRun()
+    // Same `created_at`, and ids that sort the other way round, so only the
+    // send order can put "first" first.
+    const createdAt = new Date("2026-10-02T12:00:00.000Z")
+    for (const [id, message] of [
+      ["z", "first"],
+      ["a", "second"],
+    ]) {
+      await db.insert(schema.agentSteer).values({
+        id: id!,
+        runId: "run_1",
+        chatId: "chat_1",
+        message: message!,
+        userId: "u_1",
+        createdAt,
+      })
+    }
+
+    const taken = await inbox.take("run_1")
+    expect(taken.map((s) => s.message)).toEqual(["first", "second"])
+    await inbox.release(taken.map((s) => s.id))
+    expect((await inbox.drain("run_1")).map((s) => s.message)).toEqual([
+      "first",
+      "second",
+    ])
+  })
+
   it("takes nothing once the run has stopped, leaving it for the sender", async () => {
     const { inbox, db, schema } = await seedRun()
     await add(inbox, "actually, wait")

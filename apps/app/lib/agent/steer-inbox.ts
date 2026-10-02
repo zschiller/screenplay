@@ -51,10 +51,9 @@ export interface SteerInbox {
   reclaim(id: string): Promise<boolean>
 }
 
-const byCreatedAt = (
-  a: { createdAt: Date; id: string },
-  b: { createdAt: Date; id: string }
-) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id)
+// Send order, not `created_at`: two Steers sent in the same millisecond would
+// otherwise come back in either order.
+const bySeq = (a: { seq: number }, b: { seq: number }) => a.seq - b.seq
 
 function toSteer(row: {
   id: string
@@ -69,7 +68,7 @@ export function createSteerInbox(database: DB = defaultDb): SteerInbox {
     id: agentSteer.id,
     message: agentSteer.message,
     userId: agentSteer.userId,
-    createdAt: agentSteer.createdAt,
+    seq: agentSteer.seq,
   }
   return {
     async add({ runId, chatId, message, userId }) {
@@ -91,7 +90,7 @@ export function createSteerInbox(database: DB = defaultDb): SteerInbox {
           )
         )
         .returning(returning)
-      return rows.sort(byCreatedAt).map(toSteer)
+      return rows.sort(bySeq).map(toSteer)
     },
     async release(ids) {
       if (ids.length === 0) return
@@ -105,7 +104,7 @@ export function createSteerInbox(database: DB = defaultDb): SteerInbox {
         .delete(agentSteer)
         .where(and(eq(agentSteer.runId, runId), isNull(agentSteer.takenAt)))
         .returning(returning)
-      return rows.sort(byCreatedAt).map(toSteer)
+      return rows.sort(bySeq).map(toSteer)
     },
     async reclaim(id) {
       const rows = await database
