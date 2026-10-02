@@ -119,6 +119,7 @@ export function useCanvasKeyboard({
               toolMode.set("select")
               break
             case "exit-frame-mode":
+            case "exit-mockup-mode":
               toolMode.set("select")
               break
             case "exit-comment-mode":
@@ -168,6 +169,9 @@ export function useCanvasKeyboard({
           return reference.clearMode()
         case "tool-frame":
           toolMode.toggle("frame")
+          return reference.clearMode()
+        case "tool-mockup":
+          toolMode.toggle("mockup")
           return reference.clearMode()
         // Figma-style cursor chat. Opens an inline input next to the cursor
         // and broadcasts each keystroke through awareness so peers see the

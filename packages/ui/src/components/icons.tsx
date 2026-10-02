@@ -82,7 +82,6 @@ import { MonitorIcon as MonitorBase } from "@phosphor-icons/react/dist/ssr/Monit
 import { MoonIcon as MoonBase } from "@phosphor-icons/react/dist/ssr/Moon"
 import { NavigationArrowIcon as NavigationArrowBase } from "@phosphor-icons/react/dist/ssr/NavigationArrow"
 import { NotePencilIcon as NotePencilBase } from "@phosphor-icons/react/dist/ssr/NotePencil"
-import { PaletteIcon as PaletteBase } from "@phosphor-icons/react/dist/ssr/Palette"
 import { PathIcon as PathBase } from "@phosphor-icons/react/dist/ssr/Path"
 import { PauseCircleIcon as PauseCircleBase } from "@phosphor-icons/react/dist/ssr/PauseCircle"
 import { PencilSimpleIcon as PencilSimpleBase } from "@phosphor-icons/react/dist/ssr/PencilSimple"
@@ -98,6 +97,7 @@ import { RecycleIcon as RecycleBase } from "@phosphor-icons/react/dist/ssr/Recyc
 import { RobotIcon as RobotBase } from "@phosphor-icons/react/dist/ssr/Robot"
 import { RowsIcon as RowsBase } from "@phosphor-icons/react/dist/ssr/Rows"
 import { ScanIcon as ScanBase } from "@phosphor-icons/react/dist/ssr/Scan"
+import { ScribbleIcon as ScribbleBase } from "@phosphor-icons/react/dist/ssr/Scribble"
 import { ScrollIcon as ScrollBase } from "@phosphor-icons/react/dist/ssr/Scroll"
 import { SelectionIcon as SelectionBase } from "@phosphor-icons/react/dist/ssr/Selection"
 import { ShareNetworkIcon as ShareNetworkBase } from "@phosphor-icons/react/dist/ssr/ShareNetwork"
@@ -308,7 +308,6 @@ export const NavigationArrowIcon = phosphor(
   "ph-navigation-arrow"
 )
 export const NotePencilIcon = phosphor(NotePencilBase, "ph-note-pencil")
-export const PaletteIcon = phosphor(PaletteBase, "ph-palette")
 export const PathIcon = phosphor(PathBase, "ph-path")
 export const PauseCircleIcon = phosphor(PauseCircleBase, "ph-pause-circle")
 export const PencilSimpleIcon = phosphor(PencilSimpleBase, "ph-pencil-simple")
@@ -327,6 +326,7 @@ export const RecycleIcon = phosphor(RecycleBase, "ph-recycle")
 export const RobotIcon = phosphor(RobotBase, "ph-robot")
 export const RowsIcon = phosphor(RowsBase, "ph-rows")
 export const ScanIcon = phosphor(ScanBase, "ph-scan")
+export const ScribbleIcon = phosphor(ScribbleBase, "ph-scribble")
 export const ScrollIcon = phosphor(ScrollBase, "ph-scroll")
 export const SelectionIcon = phosphor(SelectionBase, "ph-selection")
 export const ShareNetworkIcon = phosphor(ShareNetworkBase, "ph-share-network")

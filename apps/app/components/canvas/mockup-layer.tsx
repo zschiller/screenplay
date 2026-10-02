@@ -16,6 +16,14 @@ import type { GroupWorkspace } from "@/components/canvas/group-label"
 import type { FrameWorkspace } from "@/components/canvas/frame-nav"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
+import { GripSpinner } from "@/components/grip-spinner"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
 
 type Mover = (
   dx: number,
@@ -72,6 +80,9 @@ interface MockupLayerProps {
  * (`mockupSrcDoc`) keeps it from loading anything from the network. There is
  * no address bar, reload or Interact: it is a picture, not a running app. A transparent overlay sits over the page so
  * a press selects and drags the mockup like any other layer.
+ *
+ * An empty page is a Mockup someone drew and sent to a chat (#1359) that the
+ * chat hasn't filled yet, so it shows the model at work (the 9-dot).
  */
 export function MockupLayer({
   layer,
@@ -187,14 +198,31 @@ export function MockupLayer({
     >
       {(api) => (
         <div className="relative flex-1 overflow-hidden rounded-[inherit]">
-          <iframe
-            title={layer.title || "Mockup"}
-            srcDoc={mockupSrcDoc(html)}
-            // Scripts only: no same-origin, forms, popups or top navigation.
-            sandbox="allow-scripts"
-            className="pointer-events-none absolute inset-0 size-full border-0 bg-white"
-            tabIndex={-1}
-          />
+          {html.trim() ? (
+            <iframe
+              title={layer.title || "Mockup"}
+              srcDoc={mockupSrcDoc(html)}
+              // Scripts only: no same-origin, forms, popups or top navigation.
+              sandbox="allow-scripts"
+              className="pointer-events-none absolute inset-0 size-full border-0 bg-white"
+              tabIndex={-1}
+            />
+          ) : (
+            <Empty
+              data-mockup-sketching=""
+              className="pointer-events-none absolute inset-0 gap-3 rounded-none bg-white dark:bg-neutral-900"
+            >
+              <EmptyHeader>
+                <EmptyMedia variant="icon" className="mb-1">
+                  <GripSpinner className="text-muted-foreground" />
+                </EmptyMedia>
+                <EmptyTitle>Sketching</EmptyTitle>
+                <EmptyDescription className="text-xs/relaxed">
+                  The chat is drawing this page.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
           <div
             className="absolute inset-0 touch-none"
             style={{ cursor: "inherit" }}

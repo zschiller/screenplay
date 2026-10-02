@@ -17,6 +17,7 @@ export type CanvasKeyAction =
   | "escape"
   | "tool-select"
   | "tool-frame"
+  | "tool-mockup"
   | "tool-document"
   | "tool-comment"
   | "cursor-chat"
@@ -132,6 +133,7 @@ export const CANVAS_KEYS: readonly CanvasKeyBinding[] = [
   { action: "tool-comment", caps: ["C"], match: plain("c"), comments: true },
   { action: "tool-document", caps: ["D"], match: plain("d") },
   { action: "tool-frame", caps: ["F"], match: plain("f") },
+  { action: "tool-mockup", caps: ["M"], match: plain("m") },
   {
     action: "cursor-chat",
     caps: ["/"],
@@ -248,6 +250,7 @@ const SHEET: { title: string; lines: SheetLine[] }[] = [
     lines: [
       { label: "Select", action: "tool-select" },
       { label: "Frame", action: "tool-frame" },
+      { label: "Mockup", action: "tool-mockup" },
       { label: "Document", action: "tool-document" },
       { label: "Comment", action: "tool-comment" },
       { label: "Cursor chat", action: "cursor-chat" },

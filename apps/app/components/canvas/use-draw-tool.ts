@@ -5,9 +5,14 @@ import { useCallback, useMemo, useRef, useState } from "react"
 import {
   DEFAULT_IFRAME_LAYER_WIDTH,
   DEFAULT_IFRAME_LAYER_HEIGHT,
+  MOCKUP_MIN_HEIGHT,
+  MOCKUP_MIN_WIDTH,
 } from "@/lib/constants"
 import type { CanvasDrawTool } from "./use-canvas-gesture"
 import type { ToolModeController } from "./use-tool-mode"
+
+/** A box in canvas (world) space. */
+export type DrawnRect = { x: number; y: number; width: number; height: number }
 
 /** An in-flight draw-tool draft rect in canvas (world) space. */
 type Draft = {
@@ -28,6 +33,8 @@ export interface DrawToolController {
   documentDraft: Draft | null
   /** The frame-tool draft rect drawn by SelectionOverlay, or null when idle. */
   frameDraft: Draft | null
+  /** The Mockup-tool draft rect drawn by SelectionOverlay, or null when idle. */
+  mockupDraft: Draft | null
   /**
    * A click on a group's trailing add-member placeholder: appends a member of
    * the armed tool's kind to that group, selects it, and drops back to Select,
@@ -37,7 +44,7 @@ export interface DrawToolController {
 }
 
 /**
- * The Document / Frame draw tools (PRD #567 — the Tool Mode sibling). Owns the
+ * The Document / Frame / Mockup draw tools (PRD #567 — the Tool Mode sibling). Owns the
  * in-flight draft rect for each tool (state + the commit-time ref the gesture's
  * pointer handlers write) and the draft → new-Layer commit: default sizes,
  * click-vs-drag bounds, the `ops`-backed create, and the post-create selection.
@@ -49,6 +56,7 @@ export interface DrawToolController {
 export function useDrawTool({
   documentMode,
   frameMode,
+  mockupMode = false,
   addDocumentLayer,
   addFrame,
   addIframeLayerToGroup,
@@ -59,9 +67,11 @@ export function useDrawTool({
   setSelectedGroupIds,
   setEditingDocumentLayerId,
   onFrameDrawn,
+  onMockupDrawn,
 }: {
   documentMode: boolean
   frameMode: boolean
+  mockupMode?: boolean
   addDocumentLayer: (
     x: number,
     y: number,
@@ -80,15 +90,19 @@ export function useDrawTool({
    * A drawn frame was let go: the canvas opens its ask card (#1356). Gets the
    * new frame's id and the rect it was drawn at, in canvas space.
    */
-  onFrameDrawn?: (
-    frameId: string,
-    rect: { x: number; y: number; width: number; height: number }
-  ) => void
+  onFrameDrawn?: (frameId: string, rect: DrawnRect) => void
+  /**
+   * A Mockup box was let go (#1359): the canvas keeps the box drawn and opens
+   * its ask. Nothing is created: the Mockup is only made when the ask is sent.
+   */
+  onMockupDrawn?: (rect: DrawnRect) => void
 }): DrawToolController {
   const [documentDraft, setDocumentDraft] = useState<Draft | null>(null)
   const documentDraftRef = useRef<Draft | null>(null)
   const [frameDraft, setFrameDraft] = useState<Draft | null>(null)
   const frameDraftRef = useRef<Draft | null>(null)
+  const [mockupDraft, setMockupDraft] = useState<Draft | null>(null)
+  const mockupDraftRef = useRef<Draft | null>(null)
 
   const drawTool = useMemo<CanvasDrawTool>(
     () => ({
@@ -109,6 +123,14 @@ export function useDrawTool({
             currentY: canvas.y,
           }
           setFrameDraft(frameDraftRef.current)
+        } else if (mockupMode) {
+          mockupDraftRef.current = {
+            startX: canvas.x,
+            startY: canvas.y,
+            currentX: canvas.x,
+            currentY: canvas.y,
+          }
+          setMockupDraft(mockupDraftRef.current)
         }
       },
       updateDraft: (canvas) => {
@@ -130,6 +152,16 @@ export function useDrawTool({
           }
           frameDraftRef.current = next
           setFrameDraft(next)
+          return true
+        }
+        if (mockupDraftRef.current) {
+          const next = {
+            ...mockupDraftRef.current,
+            currentX: canvas.x,
+            currentY: canvas.y,
+          }
+          mockupDraftRef.current = next
+          setMockupDraft(next)
           return true
         }
         return false
@@ -173,28 +205,32 @@ export function useDrawTool({
           const d = frameDraftRef.current
           frameDraftRef.current = null
           setFrameDraft(null)
-          const dx = d.currentX - d.startX
-          const dy = d.currentY - d.startY
-          let x: number
-          let y: number
-          let w: number
-          let h: number
-          if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
-            w = DEFAULT_IFRAME_LAYER_WIDTH
-            h = DEFAULT_IFRAME_LAYER_HEIGHT
-            x = d.startX - w / 2
-            y = d.startY - h / 2
-          } else {
-            x = Math.min(d.startX, d.currentX)
-            y = Math.min(d.startY, d.currentY)
-            w = Math.abs(dx)
-            h = Math.abs(dy)
-          }
-          const id = addFrame(x, y, w, h)
+          const rect = drawnRect(d, {
+            width: DEFAULT_IFRAME_LAYER_WIDTH,
+            height: DEFAULT_IFRAME_LAYER_HEIGHT,
+          })
+          const id = addFrame(rect.x, rect.y, rect.width, rect.height)
           toolMode.set("select")
           setSelectedDocumentLayerIds(new Set())
           setSelectedIframeLayerIds(new Set([id]))
-          onFrameDrawn?.(id, { x, y, width: w, height: h })
+          onFrameDrawn?.(id, rect)
+          return true
+        }
+        // Mockup-tool: release creates nothing; it hands the box to the canvas
+        // to ask what to sketch in it. The Mockup is only made when the ask is
+        // sent, so backing out leaves nothing to delete.
+        if (mockupDraftRef.current) {
+          const d = mockupDraftRef.current
+          mockupDraftRef.current = null
+          setMockupDraft(null)
+          const rect = drawnRect(d, {
+            width: DEFAULT_IFRAME_LAYER_WIDTH,
+            height: DEFAULT_IFRAME_LAYER_HEIGHT,
+          })
+          rect.width = Math.max(MOCKUP_MIN_WIDTH, rect.width)
+          rect.height = Math.max(MOCKUP_MIN_HEIGHT, rect.height)
+          toolMode.set("select")
+          onMockupDrawn?.(rect)
           return true
         }
         return false
@@ -203,6 +239,8 @@ export function useDrawTool({
     [
       documentMode,
       frameMode,
+      mockupMode,
+      onMockupDrawn,
       addDocumentLayer,
       addFrame,
       toolMode,
@@ -245,5 +283,31 @@ export function useDrawTool({
     ]
   )
 
-  return { drawTool, documentDraft, frameDraft, addAtPlaceholder }
+  return { drawTool, documentDraft, frameDraft, mockupDraft, addAtPlaceholder }
+}
+
+/**
+ * The box a released draft stands for: the dragged rect, or on a click (under
+ * 3px of travel) the default size centred on the click.
+ */
+function drawnRect(
+  d: Draft,
+  fallback: { width: number; height: number }
+): DrawnRect {
+  const dx = d.currentX - d.startX
+  const dy = d.currentY - d.startY
+  if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+    return {
+      x: d.startX - fallback.width / 2,
+      y: d.startY - fallback.height / 2,
+      width: fallback.width,
+      height: fallback.height,
+    }
+  }
+  return {
+    x: Math.min(d.startX, d.currentX),
+    y: Math.min(d.startY, d.currentY),
+    width: Math.abs(dx),
+    height: Math.abs(dy),
+  }
 }

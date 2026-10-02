@@ -1,6 +1,6 @@
 /**
  * Tool Mode — the React-free decision core for which draw tool is armed on the
- * canvas toolbar: Select, Frame, Document, or Comment.
+ * canvas toolbar: Select, Frame, Mockup, Document, or Comment.
  *
  * These four were previously three independent booleans (`documentMode`,
  * `frameMode`, `commentMode`) with "Select" being the implicit none-active
@@ -20,9 +20,9 @@
  */
 
 /** The single active draw tool. "select" is the resting / pointer tool. */
-export type ToolMode = "select" | "frame" | "comment" | "document"
+export type ToolMode = "select" | "frame" | "mockup" | "comment" | "document"
 
-/** The four armable tools (everything but the resting "select" state). */
+/** The armable tools (everything but the resting "select" state). */
 export type ToolModeTool = Exclude<ToolMode, "select">
 
 /**

@@ -40,6 +40,34 @@ export function withViewport(
   return text ? `${text}\n\n${viewport}` : viewport
 }
 
+/**
+ * A drawn Mockup box being sent (#1359): the id the Mockup will take, so its
+ * prompt can name it, and where it lands, in canvas space.
+ */
+export type DrawnMockup = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * The prompt a drawn Mockup box's ask sends (#1359): what was typed, then which
+ * Mockup to fill and its size as the viewport. The Mockup already exists, empty
+ * and owned by the answering chat, so the chat writes it with `update_mockup`.
+ * The `[mockup: <id>]` marker names it the way the system prompt describes.
+ */
+export function forMockup(
+  prompt: string,
+  mockupId: string,
+  size: { width: number; height: number }
+): string {
+  const target = `Sketch it in Mockup [mockup: ${mockupId}] with update_mockup, for a ${Math.round(size.width)} × ${Math.round(size.height)} viewport.`
+  const text = prompt.trim()
+  return text ? `${text}\n\n${target}` : target
+}
+
 /** Who answers a drawn frame's ask: a new chat, or a Workspace's own chat. */
 export type FrameAnswerer =
   { kind: "new-chat" } | { kind: "workspace"; branchId: string }

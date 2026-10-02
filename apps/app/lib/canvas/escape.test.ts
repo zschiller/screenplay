@@ -107,6 +107,14 @@ describe("resolveEscapeAction — precedence", () => {
     expect(action).toBe("exit-frame-mode")
   })
 
+  it("exits mockup mode before focus mode", () => {
+    const action = resolveEscapeAction(
+      idleState({ toolMode: "mockup", focusedIframeLayerId: "frame-1" })
+    )
+
+    expect(action).toBe("exit-mockup-mode")
+  })
+
   it("exits comment mode (active tool) before focus mode", () => {
     const action = resolveEscapeAction(
       idleState({ toolMode: "comment", focusedIframeLayerId: "frame-1" })

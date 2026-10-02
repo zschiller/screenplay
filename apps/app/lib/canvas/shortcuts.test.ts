@@ -69,6 +69,7 @@ const CASES: [string, KeyLike, KeyTarget, CanvasKeyAction | null][] = [
   ["C", key("c"), canvas, "tool-comment"],
   ["D", key("d"), canvas, "tool-document"],
   ["F", key("f"), canvas, "tool-frame"],
+  ["M", key("m"), canvas, "tool-mockup"],
   ["⌘V is paste, not Select", key("v", cmd), canvas, null],
   ["Ctrl+D", key("d", ctrl), canvas, null],
   ["F typed in a field", key("f"), field, null],

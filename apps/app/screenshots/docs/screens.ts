@@ -1343,6 +1343,30 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await sleep(page, 400)
     },
   }),
+  screen({
+    name: "mockup-ask",
+    description:
+      "A box drawn with the Mockup tool asks what to sketch in it (#1359).",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [300, 120, 440, 620],
+    // After frame-unanswered, drawing in the same spot: it deletes the frame
+    // that pass left. An unsent Mockup box writes nothing to the room.
+    prepare: async (page) => {
+      await camera(page, VIEW.emptyLeft)
+      await clickAt(page, { x: 540, y: 300 }, 300)
+      await page.keyboard.press("Delete")
+      await page.keyboard.press("m")
+      await page.mouse.move(420, 160)
+      await page.mouse.down()
+      await page.mouse.move(500, 400, { steps: 8 })
+      await page.mouse.move(662, 683, { steps: 8 })
+      await page.mouse.up()
+      await sleep(page, 500)
+      await page.keyboard.type("Three takes on the empty cart")
+      await sleep(page, 600)
+    },
+  }),
 ]
 
 /** Pick the Home frame's "Start free trial" button with the element-target tool. */

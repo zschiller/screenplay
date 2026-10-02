@@ -29,27 +29,64 @@ const CANVAS_TOOLBAR_STRIP = 48
  */
 export const COMPOSER_POPUP_ATTRIBUTE = "data-composer-popup"
 
+/** Where the drawn box sits on screen, relative to the canvas wrapper. */
+export type AskCardTarget = {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+/** The drawn box a card asks about: a frame, or a Mockup box (#1359). */
+export type AskCardKind = "frame" | "mockup"
+
+const QUESTION: Record<AskCardKind, string> = {
+  frame: "What should this frame show?",
+  mockup: "What should this mockup show?",
+}
+
 /**
- * The ask a drawn frame opens (#1356, spec #1355): the chat composer on the
- * shared floating surface, centred on the frame in screen space, so it reads
- * the same at any zoom. A chip where the model pill sits says who answers and
- * switches it (#1357): New chat or any Workspace, starting from the default the
- * canvas worked out from the selection. A new chat's turn uses the default
- * model; a Workspace's chat keeps its own.
+ * Where a frame sits on screen, relative to the canvas wrapper: the frame
+ * lives inside the world transform, the card in screen space.
+ */
+export function frameAskTarget(frameId: string): AskCardTarget | null {
+  const wrapper = document.querySelector<HTMLElement>("[data-canvas-wrapper]")
+  const frame = document.getElementById(`iframe-layer-${frameId}`)
+  if (!wrapper || !frame) return null
+  const fr = frame.getBoundingClientRect()
+  const cw = wrapper.getBoundingClientRect()
+  return {
+    left: fr.left - cw.left,
+    top: fr.top - cw.top,
+    width: fr.width,
+    height: fr.height,
+  }
+}
+
+/**
+ * The ask a drawn frame or Mockup box opens (#1356, #1359, spec #1355): the
+ * chat composer on the shared floating surface, centred on the box in screen
+ * space, so it reads the same at any zoom. A chip where the model pill sits
+ * says who answers and switches it (#1357): New chat or any Workspace,
+ * starting from the default the canvas worked out from the selection. A new
+ * chat's turn uses the default model; a Workspace's chat keeps its own.
  *
- * Per-viewer: the canvas holds which frame is asking in local state, never in
+ * Per-viewer: the canvas holds which box is asking in local state, never in
  * the room doc. Enter sends; Esc or a pointer-down outside closes it, leaving
- * the frame as it is.
+ * a frame as it is (an unsent Mockup box goes with the card).
  */
 export function FrameAskCard({
-  frameId,
+  kind = "frame",
+  locate,
   markdownLayers,
   workspaces,
   defaultAnswerer,
   onSubmit,
   onClose,
 }: {
-  frameId: string
+  kind?: AskCardKind
+  /** The box's screen rect, read every animation frame; null until it's up. */
+  locate: () => AskCardTarget | null
   markdownLayers: MarkdownLayerData[]
   /** Every Workspace, for the chip's menu. */
   workspaces: BranchData[]
@@ -60,27 +97,27 @@ export function FrameAskCard({
   const cardRef = useRef<HTMLDivElement>(null)
   const [answerer, setAnswerer] = useState(defaultAnswerer)
   const onCloseRef = useRef(onClose)
+  const locateRef = useRef(locate)
   useEffect(() => {
     onCloseRef.current = onClose
+    locateRef.current = locate
   })
 
-  // Centre the card on the frame every frame, the way the frame bar follows
-  // its frame: the frame lives inside the world transform, the card in screen
-  // space. Hidden until the frame has mounted and the card is placed.
+  // Centre the card on the box every frame, the way the frame bar follows its
+  // frame. Hidden until the box is up and the card is placed.
   useEffect(() => {
     const wrapper = document.querySelector<HTMLElement>("[data-canvas-wrapper]")
     if (!wrapper) return
     let rafId = 0
     const tick = () => {
-      const frame = document.getElementById(`iframe-layer-${frameId}`)
+      const box = locateRef.current()
       const card = cardRef.current
-      if (frame && card) {
-        const fr = frame.getBoundingClientRect()
+      if (box && card) {
         const cw = wrapper.getBoundingClientRect()
         const w = card.offsetWidth
         const h = card.offsetHeight
-        const x = fr.left - cw.left + (fr.width - w) / 2
-        const y = fr.top - cw.top + (fr.height - h) / 2
+        const x = box.left + (box.width - w) / 2
+        const y = box.top + (box.height - h) / 2
         const clampedX = Math.max(INSET, Math.min(x, cw.width - w - INSET))
         const clampedY = Math.max(
           INSET,
@@ -93,7 +130,7 @@ export function FrameAskCard({
     }
     rafId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafId)
-  }, [frameId])
+  }, [])
 
   // A pointer-down anywhere but the card (or a picker it opened) closes it.
   useEffect(() => {
@@ -123,7 +160,7 @@ export function FrameAskCard({
     <FloatingToolbar
       ref={cardRef}
       role="dialog"
-      aria-label="What should this frame show?"
+      aria-label={QUESTION[kind]}
       className="invisible absolute top-0 left-0 block w-88 max-w-[calc(100%-1rem)] p-1"
       // React bubbles a portal's events up its owner tree, through the
       // canvas's gesture handlers; the card is not the canvas.
@@ -144,7 +181,7 @@ export function FrameAskCard({
         onModelChange={() => {}}
         onSubmit={(payload) => onSubmit(payload, answerer)}
         focusKey={1}
-        placeholder="What should this frame show?"
+        placeholder={QUESTION[kind]}
         modelSlot={
           <AnswererChip
             answerer={answerer}

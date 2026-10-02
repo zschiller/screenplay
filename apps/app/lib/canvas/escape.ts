@@ -18,6 +18,7 @@ export type EscapeAction =
   | "stop-editing-document"
   | "exit-document-mode"
   | "exit-frame-mode"
+  | "exit-mockup-mode"
   | "exit-comment-mode"
   | "close-comments-panel"
   | "exit-focus-mode"
@@ -40,7 +41,7 @@ export interface EscapeState {
   /** A Markdown Layer is being edited inline. */
   editingDocumentLayerId: string | null
   /**
-   * The armed draw tool (Tool Mode). Document / frame / comment placement read
+   * The armed draw tool (Tool Mode). Document / frame / mockup / comment placement read
    * from this single union instead of three separate booleans, so the escape
    * precedence has one source of truth for the active tool.
    */
@@ -72,6 +73,7 @@ export function resolveEscapeAction(state: EscapeState): EscapeAction {
   if (state.editingDocumentLayerId) return "stop-editing-document"
   if (state.toolMode === "document") return "exit-document-mode"
   if (state.toolMode === "frame") return "exit-frame-mode"
+  if (state.toolMode === "mockup") return "exit-mockup-mode"
   if (state.toolMode === "comment" || state.hasNewCommentPos)
     return "exit-comment-mode"
   if (state.commentsPanelOpen) return "close-comments-panel"

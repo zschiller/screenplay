@@ -99,7 +99,7 @@ describe("CanvasToolbar", () => {
     const { rerender } = render(
       <CanvasToolbar toolMode={result.current} onClearMode={() => {}} />
     )
-    for (const name of ["Select", "Frame", "Document", "Comment"]) {
+    for (const name of ["Select", "Frame", "Mockup", "Document", "Comment"]) {
       expect(screen.getByRole("button", { name })).toBeTruthy()
     }
     expect(
@@ -121,6 +121,22 @@ describe("CanvasToolbar", () => {
         .getByRole("button", { name: "Select" })
         .getAttribute("aria-pressed")
     ).toBe("false")
+  })
+
+  it("puts Mockup between Frame and Document, on M (#1359)", () => {
+    const { result } = renderHook(() => useToolMode())
+    const { rerender } = render(
+      <CanvasToolbar toolMode={result.current} onClearMode={() => {}} />
+    )
+    const names = screen
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+    expect(names.indexOf("Mockup")).toBe(names.indexOf("Frame") + 1)
+    expect(names.indexOf("Document")).toBe(names.indexOf("Mockup") + 1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Mockup" }))
+    rerender(<CanvasToolbar toolMode={result.current} onClearMode={() => {}} />)
+    expect(result.current.mode).toBe("mockup")
   })
 })
 
