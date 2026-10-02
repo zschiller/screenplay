@@ -9,8 +9,11 @@ import { PORTLESS_PROXY_PORT, portlessCliPath } from "@/lib/sandbox/portless"
 export const SANDBOX_TIMEOUT = 30 * 60 * 1000
 // 24 hours — snapshots preserve the full filesystem (node_modules etc.)
 export const SNAPSHOT_EXPIRATION = 24 * 60 * 60 * 1000
-// 1 vCPU = 2048 MB memory — sufficient for a Node.js dev server
-export const SANDBOX_VCPUS = 1
+// A fixed 4 vCPU (8 GB) per Workspace (#1384): room for the dev server, the
+// agent's edits and compiles, and three animated shared frames at ~58 fps. It
+// doesn't grow with frames, because a new size only applies after a restart
+// that loses every process (and every frame's state).
+export const SANDBOX_VCPUS = 4
 
 // Offset between the user's dev port and the bridge proxy's public port.
 // Far enough from typical monorepo ports (3001, 4200, 5173, 8080…) that a
@@ -164,8 +167,8 @@ export async function runLogged(
 /**
  * Write the in-sandbox HTML-injecting proxy and DOM bridge script to
  * /tmp/screenplay/. Idempotent — safe to call on every dev-server start.
- * Uses /tmp because commands run as the `vercel-sandbox` user, which has no
- * read access to /root. Throws if the write fails so callers running through
+ * Uses /tmp because commands run as the Sandbox's unprivileged user, which
+ * has no read access to /root. Throws if the write fails so callers running through
  * the runner surface a redacted failure result.
  */
 export async function writeBridgeFiles(

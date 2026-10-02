@@ -28,6 +28,40 @@ vercel link
 vercel env pull apps/app/.env.local   # sets VERCEL_OIDC_TOKEN (~12 h)
 ```
 
+Each workspace gets a fixed **4 vCPU, 8 GB** sandbox. That's room for the dev
+server, the agent's edits and compiles, and the browsers behind shared frames.
+It doesn't grow with the number of frames, because a new size only takes
+effect after a restart that loses every running process.
+
+### Sandbox image
+
+Sandboxes boot from a custom image: Vercel's Ubuntu image
+(`vercel/sandbox/universal`, with Node, pnpm, git and the coding CLIs) plus
+Google Chrome, Xvfb and ffmpeg for shared frames. Its Dockerfile is in
+`apps/app/sandbox-image/`. The app creates sandboxes from the
+`screenplay-workspace` repository in your app project's
+[Vercel Container Registry](https://vercel.com/docs/container-registry), or
+from `SANDBOX_IMAGE` if you set it. Push the image before your first deploy,
+or creating a workspace fails with an error naming the missing image.
+
+The `Sandbox image` GitHub workflow builds and pushes it whenever the image
+changes on `main`, and weekly for security updates. It signs in with GitHub
+OIDC, so it needs no secret:
+
+1. In Vercel, add an OIDC policy that trusts your repository's
+   `.github/workflows/sandbox-image.yml`.
+2. In your GitHub repository, add the variables `VERCEL_TEAM_ID`,
+   `VERCEL_TEAM_SLUG` and `VERCEL_PROJECT_SLUG` (the app project).
+3. Run the workflow once from the **Actions** tab.
+
+To push it by hand instead, from a linked project:
+
+```bash
+cd apps/app/sandbox-image
+vercel vcr login docker
+vercel vcr build docker . screenplay-workspace:latest --push
+```
+
 Sandbox VMs **hibernate**. Idle sandboxes are snapshotted and reclaimed, and
 reopening a canvas restores them with the working tree intact. **Restart
 sandbox** uses the same snapshot. Once a snapshot has fully expired, the only
