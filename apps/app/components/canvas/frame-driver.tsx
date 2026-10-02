@@ -14,13 +14,9 @@ import type { FrameDriverView } from "./use-frame-control"
 /** The agent's name where Frame Control names who drives. */
 const AGENT_NAME = "Claude"
 
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
+/** One initial: all a 16px avatar has room for at the UI text size. */
+function initial(name: string): string {
+  return (name.trim()[0] ?? "?").toUpperCase()
 }
 
 /** The driver's mark: the agent's 9 dots, twinkling while it drives, or a
@@ -37,9 +33,9 @@ function DriverMark({
       <AvatarFallback
         aria-hidden
         style={{ backgroundColor: driver.color }}
-        className={`text-[9px] font-medium ${presenceInkClass(driver.color)}`}
+        className={`text-xs font-medium ${presenceInkClass(driver.color)}`}
       >
-        {initials(driver.name)}
+        {initial(driver.name)}
       </AvatarFallback>
     </Avatar>
   )
