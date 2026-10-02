@@ -1262,6 +1262,27 @@ describe("createBranch", () => {
     expect(collections.iframeLayerGroups.toArray()).toHaveLength(1)
   })
 
+  it("shows an existing Workspace in a frame drawn for it (#1357)", () => {
+    const { ops, collections } = makeHarness()
+    const { branchId } = ops.createBranch({ branch: spec })
+    const frameId = ops.createBlankFrame(
+      { x: 40, y: 60 },
+      { width: 390, height: 844 }
+    )
+    const branchesBefore = collections.branches.toArray().length
+
+    ops.assignBranch(frameId, branchId)
+
+    const frame = collections.iframeLayers.get(frameId)
+    expect(frame).toMatchObject({ branchId, width: 390, height: 844 })
+    const group = collections.iframeLayerGroups
+      .toArray()
+      .find((g) => getGroupMembers(g).some((m) => m.id === frameId))
+    expect(group).toMatchObject({ x: 40, y: 60, branchId })
+    // No new Workspace.
+    expect(collections.branches.toArray()).toHaveLength(branchesBefore)
+  })
+
   it("falls back to the deferred seed when the frame is gone", () => {
     const { ops, collections } = makeHarness()
 
