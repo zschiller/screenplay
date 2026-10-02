@@ -633,6 +633,19 @@ on screen waits for the next chat to claim it.
 _Avoid_: opening a fresh chat for the quote; sending it without the person's
 own words; routing a hand-made Document's quote anywhere but the panel.
 
+**Canvas View**:
+What a member had selected and on screen when they sent a chat message, carried
+to the model in a `Canvas view:` footer (`buildCanvasViewFooter`) so "this" or
+"that frame" resolves to what they meant. The sender's own browser reads it at
+send time (`canvasViewSource`, which the mounted Canvas registers), so on a
+shared canvas each message carries its sender's view, under their name. It
+names layers with ids: the selection (Groups first), then the frames, documents
+and mockups with at least a quarter of them on screen, the largest first. The
+chat never shows it. Both the Workspace and Coordinator prompts say "this"
+means the selection first, then the screen.
+_Avoid_: streaming the view as it changes; reading another member's presence to
+fill it.
+
 **Question Card**:
 A question a chat asks with the `ask_question` Tool (#1312): one sentence, 2 to
 4 options, optionally one marked recommended, drawn with shadcn's Questionnaire

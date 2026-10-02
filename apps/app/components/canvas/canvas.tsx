@@ -134,6 +134,7 @@ import { useTerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import { serverTerminalTabStore } from "@/lib/terminal/server-tab-store"
 
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
+import { useCanvasView } from "@/components/canvas/use-canvas-view"
 
 import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import { useFrameControl } from "@/components/canvas/use-frame-control"
@@ -487,6 +488,25 @@ export function Canvas({
   const setSelectedDocumentLayerIds = selection.setDocumentLayerIds
   const overlaySelectedIds = selection.overlaySelectedIds
   const groupSelectedIframeLayerIds = selection.groupSelectedIframeLayerIds
+
+  // Canvas View: a chat message carries this member's selection and the layers
+  // on their screen, so the model can tell what "this" means.
+  const workspaceTitles = useMemo(
+    () => new Map(agents.map((a) => [a.id, workspaceLabel(a)])),
+    [agents]
+  )
+  useCanvasView({
+    canvasWrapperRef,
+    currentSelection: selection.current,
+    records: {
+      frames: iframeLayers,
+      documents: markdownLayers,
+      mockups: mockupLayers,
+      groups: iframeLayerGroups,
+      workspaceTitles,
+    },
+    sender: session?.user.name,
+  })
 
   // Awareness mirrors the Interaction controller's cursor-chat verbs read: the
   // latest self pointer (where '/' anchors the bubble) and message (null =
