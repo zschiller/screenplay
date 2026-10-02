@@ -22,7 +22,7 @@ const repo = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: here, 
 const arg = (n, f) => (process.argv.includes(`--${n}`) ? process.argv[process.argv.indexOf(`--${n}`) + 1] : f)
 const list = (n, f) => arg(n, f).split(",")
 const VCPUS = list("vcpus", "2,4,8").map(Number)
-const FRAMES = list("frames", "1,2,3").map(Number)
+const FRAMES = list("frames", "0,1,2,3").map(Number)
 const PAGES = list("pages", "still,busy")
 const LOADS = list("loads", "idle,edits,tsc")
 const FPS = Number(arg("fps", 60))
@@ -37,10 +37,15 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a)
 async function sh(sb, script, { sudo = false, detached = false } = {}) {
   const cmd = await sb.runCommand({ cmd: "bash", args: ["-lc", script], sudo, detached })
   if (detached) return cmd
-  if (cmd.exitCode !== 0) throw new Error(`${script.slice(0, 80)}… exited ${cmd.exitCode}: ${(await cmd.stderr()).slice(-2000)}`)
+  if (cmd.exitCode !== 0) throw new Error(`${script.slice(0, 80)}… exited ${cmd.exitCode}: ${(await cmd.stderr()).slice(-1500)} ${(await cmd.stdout()).slice(-1500)}`)
   return (await cmd.stdout()).trim()
 }
-const lastJson = (s) => JSON.parse(s.trim().split("\n").filter((l) => l.startsWith("{")).pop())
+const lastJson = (s, err = "") => {
+  const line = s.trim().split("\n").filter((l) => l.startsWith("{")).pop()
+  if (!line) throw new Error(`no JSON in output: ${s.slice(-800)} ${err.slice(-800)}`)
+  return JSON.parse(line)
+}
+const outJson = async (cmd) => lastJson(await cmd.stdout(), await cmd.stderr())
 
 // Browsers, X and ffmpeg: as in #1366 (Ubuntu image, Google Chrome for H.264).
 const installDesktop = (sb) => sh(sb, `set -e
@@ -58,13 +63,14 @@ const protoFiles = () => ["server.mjs", "viewer.html", "demo.html", "bench.mjs",
 // The Workspace's app: apps/homepage and the workspace packages it uses, plus every workspace
 // package.json so the frozen lockfile still matches.
 function workspaceFiles() {
-  const tracked = execFileSync("git", ["ls-files", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "apps/*/package.json", "packages/*/package.json", "apps/homepage", "packages/ui", "packages/typescript-config", "packages/eslint-config"], { cwd: repo, encoding: "utf8" }).split("\n").filter(Boolean)
+  const tracked = execFileSync("git", ["ls-files", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "patches", "apps/*/package.json", "packages/*/package.json", "apps/homepage", "packages/ui", "packages/typescript-config", "packages/eslint-config"], { cwd: repo, encoding: "utf8" }).split("\n").filter(Boolean)
   return [...new Set(tracked)].map((f) => ({ path: `${HOME}/ws/${f}`, content: readFileSync(join(repo, f)) }))
 }
 
 async function createSandbox(vcpus, ports) {
-  const sb = await Sandbox.create({ resources: { vcpus }, ports, timeout: 90 * 60 * 1000, region: REGION })
-  log(`sandbox ${sb.sandboxId}: ${vcpus} vCPU in ${REGION}`)
+  const sb = await Sandbox.create({ resources: { vcpus }, ports, timeout: 90 * 60 * 1000, region: REGION, persistent: false })
+  live.push(sb)
+  log(`sandbox ${sb.name}: ${vcpus} vCPU in ${REGION}`)
   return sb
 }
 
@@ -86,9 +92,9 @@ async function setupStream(vcpus) {
     sh(sb, `cd ${HOME}/proto && npm i --silent ws werift`),
   ])
   log(`stream setup ${Math.round((Date.now() - t0) / 1000)} s`)
-  await sh(sb, `cd ${HOME}/ws/apps/homepage && PORT=3001 nohup npx next dev --turbopack --port 3001 >/tmp/next.log 2>&1 &`)
+  await sb.runCommand({ cmd: "npx", args: ["next", "dev", "--turbopack", "--port", "3001"], cwd: `${HOME}/ws/apps/homepage`, detached: true })
   const c0 = Date.now()
-  await sh(sb, `for i in $(seq 1 600); do curl -sf -o /dev/null http://127.0.0.1:3001/ && exit 0; sleep 0.2; done; tail -30 /tmp/next.log; exit 1`)
+  await sh(sb, `for i in $(seq 1 600); do curl -sf -o /dev/null http://127.0.0.1:3001/ && exit 0; sleep 0.2; done; exit 1`)
   const coldCompileMs = Date.now() - c0
   const info = lastJson(await sh(sb, `node -e 'console.log(JSON.stringify({nproc: require("os").cpus().length, memMB: Math.round(require("os").totalmem()/2**20)}))'`))
   log(`next dev cold compile ${coldCompileMs} ms`, info)
@@ -97,38 +103,38 @@ async function setupStream(vcpus) {
 }
 
 async function scenario(stream, viewer, vcpus, frames, page, load) {
-  const server = await stream.runCommand({ cmd: "node", args: [`${HOME}/proto/server.mjs`, "--frames", String(frames), "--fps", String(FPS), "--page", page === "still" ? "" : page, "--decimate"], env: { CHROME }, detached: true })
+  // frames 0: the Workspace alone (dev server and agent), the baseline for compile time
+  const server = frames === 0 ? null : await stream.runCommand({ cmd: "node", args: [`${HOME}/proto/server.mjs`, "--frames", String(frames), "--fps", String(FPS), "--page", page === "still" ? "" : page, "--decimate"], env: { CHROME }, detached: true })
   try {
-    await sh(stream, `for i in $(seq 1 150); do curl -sf http://127.0.0.1:4990/frames >/dev/null && exit 0; sleep 0.2; done; exit 1`)
+    if (server) await sh(stream, `for i in $(seq 1 150); do curl -sf http://127.0.0.1:4990/frames >/dev/null && exit 0; sleep 0.2; done; exit 1`)
     await sleep(3000) // encoders up, Chrome settled
     const edits = load === "idle" ? null : await stream.runCommand({ cmd: "node", args: [`${HOME}/edit-loop.mjs`, "--dir", `${HOME}/ws/apps/homepage`, "--seconds", "50", ...(load === "tsc" ? ["--tsc"] : [])], detached: true })
     await sleep(load === "idle" ? 0 : 4000) // let compiles start
     const sys = await stream.runCommand({ cmd: "node", args: [`${HOME}/sysstat.mjs`, "--seconds", "30"], detached: true })
-    const bench = await viewer.runCommand({ cmd: "node", args: [`${HOME}/proto/bench.mjs`, "--server", stream.domain(4990), "--n", "30", "--smooth", "5"], env: { CHROME } })
-    const result = { kind: "scenario", vcpus, frames, page, load, fps: FPS, bench: lastJson(await bench.stdout()), sys: lastJson(await (await sys.wait()).stdout()) }
-    if (edits) result.edits = lastJson(await (await edits.wait()).stdout())
+    const bench = server && await viewer.runCommand({ cmd: "node", args: [`${HOME}/proto/bench.mjs`, "--server", stream.domain(4990), "--n", "30", "--smooth", page === "still" ? "0" : "5"], env: { CHROME } })
+    const result = { kind: "scenario", vcpus, frames, page, load, fps: FPS, bench: bench ? await outJson(bench) : null, sys: await outJson(await sys.wait()) }
+    if (edits) result.edits = await outJson(await edits.wait())
     appendFileSync(OUT, JSON.stringify(result) + "\n")
-    const b = result.bench
+    const b = result.bench ?? {}
     log(`${vcpus} vCPU, ${frames}×${page}, ${load}: click p50 ${b.clickMs?.p50} ms, ${b.smoothness?.fps} fps (p99 gap ${b.smoothness?.p99}), cpu ${result.sys.cpuPct.avg}%, mem ${result.sys.memMB.max} MB${result.edits ? `, compile p50 ${result.edits.compileMs.p50} ms` : ""}`)
   } catch (e) {
     log(`${vcpus} vCPU, ${frames}×${page}, ${load}: FAILED`, e.message)
     appendFileSync(OUT, JSON.stringify({ kind: "scenario", vcpus, frames, page, load, error: e.message }) + "\n")
   } finally {
-    await server.kill("SIGKILL").catch(() => {})
+    await server?.kill("SIGKILL").catch(() => {})
     await sh(stream, `pkill -9 -f "[e]dit-loop.mjs"; pkill -9 -f "[t]sc --noEmit"; pkill -9 chrome; pkill -9 Xvfb; pkill -9 ffmpeg; true`).catch(() => {})
     await sleep(1500)
   }
 }
 
-const viewer = await setupViewer()
-const live = [viewer]
-const stopAll = async () => { for (const sb of live) await sb.stop().catch(() => {}); log("stopped", live.map((s) => s.sandboxId).join(", ")) }
+const live = [] // every Sandbox this run created, stopped at the end whatever happens
+const stopAll = async () => { for (const sb of live) await sb.stop().catch(() => {}); log("stopped", live.map((s) => s.name).join(", ")) }
 process.on("SIGINT", async () => { await stopAll(); process.exit(1) })
 try {
+  const viewer = await setupViewer()
   for (const vcpus of VCPUS) {
     const stream = await setupStream(vcpus)
-    live.push(stream)
-    for (const frames of FRAMES) for (const page of PAGES) for (const load of LOADS) await scenario(stream, viewer, vcpus, frames, page, load)
+    for (const frames of FRAMES) for (const page of frames ? PAGES : ["none"]) for (const load of LOADS) await scenario(stream, viewer, vcpus, frames, page, load)
     await stream.stop()
     live.splice(live.indexOf(stream), 1)
     log(`stopped ${vcpus} vCPU sandbox`)
