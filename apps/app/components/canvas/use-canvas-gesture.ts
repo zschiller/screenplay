@@ -258,11 +258,12 @@ export function useCanvasGesture(
       const i = inputsRef.current
       if (!i) return
       // A press outside the interacting layer leaves Interact / Create Flow, as
-      // Esc does. Capture phase, so presses a layer stops still count; the
+      // Esc does, unless Space is held: that press pans. Capture phase, so presses a layer stops still count; the
       // press then goes on to that layer as usual. Portaled children (a
       // toolbar menu on document.body) aren't in the wrapper, so never leave.
       if (
         e.button === 0 &&
+        !i.spaceHeld &&
         i.interactingLayerId !== null &&
         e.currentTarget.contains(e.target as Node)
       ) {

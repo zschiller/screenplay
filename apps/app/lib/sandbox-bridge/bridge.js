@@ -847,6 +847,75 @@
     parent.postMessage({ type: "screenplay:escape" }, "*")
   })
 
+  // Space with the pointer outside the preview. A canvas pans on space-drag,
+  // but once the user has clicked into an interactive frame the key lands
+  // here. While the pointer is out over the canvas, a Space nobody is typing
+  // goes to the canvas instead, so space-drag pans there. With the pointer over
+  // the page, or in a text field, Space stays the page's.
+  let pointerInPage = true
+  // `mouseout` with no related target: the pointer left the page's window.
+  window.addEventListener("mouseout", (e) => {
+    if (!e.relatedTarget) pointerInPage = false
+  })
+  window.addEventListener("mouseover", () => {
+    pointerInPage = true
+  })
+  let spaceForwarded = false
+  function isTextEntry(el) {
+    if (!el || !(el instanceof Element)) return false
+    if (el.isContentEditable) return true
+    if (el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true
+    if (el.tagName !== "INPUT") return false
+    const type = (el.getAttribute("type") || "text").toLowerCase()
+    return ![
+      "button",
+      "checkbox",
+      "color",
+      "file",
+      "image",
+      "radio",
+      "range",
+      "reset",
+      "submit",
+    ].includes(type)
+  }
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== " " || e.isComposing) return
+      if (spaceForwarded) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        return
+      }
+      if (pointerInPage || e.repeat) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (isTextEntry(document.activeElement)) return
+      // Claim it before the page sees it: no scroll, no button press.
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      spaceForwarded = true
+      parent.postMessage({ type: "screenplay:space-down" }, "*")
+    },
+    true
+  )
+  window.addEventListener(
+    "keyup",
+    (e) => {
+      if (e.key !== " " || !spaceForwarded) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      spaceForwarded = false
+      parent.postMessage({ type: "screenplay:space-up" }, "*")
+    },
+    true
+  )
+  // A press on the canvas mid-hold moves focus out of the page, so the canvas
+  // hears the real keyup itself; just forget the hold here.
+  window.addEventListener("blur", () => {
+    spaceForwarded = false
+  })
+
   parent.postMessage(
     {
       type: "screenplay:ready",
