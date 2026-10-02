@@ -92,6 +92,7 @@ function CanvasMemberLayerImpl({
   agents,
   onRestartWorkspace,
   onOpenLogs,
+  onStartChat,
   repos,
   zoom,
   spaceHeld,
@@ -149,6 +150,8 @@ function CanvasMemberLayerImpl({
   onRestartWorkspace: (branchId: string) => void
   /** A frame's "Open logs": show its Workspace's sandbox logs. */
   onOpenLogs: (branchId: string) => void
+  /** An unanswered frame's Start a chat (#1358); unset when there's no Repo. */
+  onStartChat?: (iframeLayerId: string) => void
   repos: RepoData[]
   zoom: number
   spaceHeld: boolean
@@ -557,6 +560,7 @@ function CanvasMemberLayerImpl({
               workspace={assignedAgent}
               onRestartWorkspace={onRestartWorkspace}
               onOpenLogs={onOpenLogs}
+              onStartChat={iframeLayer.branchId ? undefined : onStartChat}
               assignableBranches={agents}
               onAssignBranch={layerMutations.assignAgent}
               discoveredRoutes={agentInfo?.discoveredRoutes}

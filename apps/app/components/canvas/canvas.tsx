@@ -1428,6 +1428,15 @@ export function Canvas({
     },
     [newChatRepoId, selection, iframeLayers, sizedLayers, chatSessions, agents]
   )
+  // An unanswered frame's Start a chat (#1358): select it and reopen its ask.
+  const { selectIframeLayer: selectFrame } = selection
+  const startFrameChat = useCallback(
+    (frameId: string) => {
+      selectFrame(frameId, false)
+      setAskFrameId(frameId)
+    },
+    [selectFrame]
+  )
 
   // Draw tools (Document / Frame) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
@@ -2022,6 +2031,7 @@ export function Canvas({
                         agents={agents}
                         onRestartWorkspace={branchActions.startWorkspace}
                         onOpenLogs={openBranchLogs}
+                        onStartChat={newChatRepoId ? startFrameChat : undefined}
                         repos={repos}
                         zoom={zoom}
                         spaceHeld={spaceHeld}

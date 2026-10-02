@@ -2,6 +2,7 @@
 
 import {
   ArrowClockwiseIcon,
+  ChatCircleIcon,
   FrameCornersIcon,
   PauseCircleIcon,
   PlayIcon,
@@ -33,6 +34,8 @@ export interface FrameStatusProps {
   onStart?: () => void
   /** Show the Workspace's sandbox logs. */
   onOpenLogs?: () => void
+  /** Start a chat on an unanswered frame: reopen its ask card (#1358). */
+  onStartChat?: () => void
   className?: string
 }
 
@@ -79,6 +82,7 @@ export function FrameStatus({
   onRetry,
   onStart,
   onOpenLogs,
+  onStartChat,
   className,
 }: FrameStatusProps) {
   const copy = COPY[stage]
@@ -86,6 +90,7 @@ export function FrameStatus({
   const progress = stage === "booting" || stage === "starting"
   const retry = failed ? onRetry : stage === "stopped" ? onStart : undefined
   const logs = failed ? onOpenLogs : undefined
+  const startChat = stage === "unassigned" ? onStartChat : undefined
 
   return (
     <Empty
@@ -123,7 +128,7 @@ export function FrameStatus({
           </EmptyDescription>
         )}
       </EmptyHeader>
-      {(retry || logs) && (
+      {(retry || logs || startChat) && (
         <EmptyContent
           className="pointer-events-auto w-auto flex-row justify-center gap-2"
           // Keep the press on the button: the canvas would otherwise read it as
@@ -135,6 +140,12 @@ export function FrameStatus({
             <Button size="sm" variant="outline" onClick={retry}>
               {stage === "stopped" ? <PlayIcon /> : <ArrowClockwiseIcon />}
               {stage === "stopped" ? "Start" : "Retry"}
+            </Button>
+          )}
+          {startChat && (
+            <Button size="sm" variant="outline" onClick={startChat}>
+              <ChatCircleIcon />
+              Start a chat
             </Button>
           )}
           {logs && (

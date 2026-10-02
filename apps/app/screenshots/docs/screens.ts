@@ -1316,6 +1316,33 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await sleep(page, 600)
     },
   }),
+  screen({
+    name: "frame-unanswered",
+    description:
+      "A drawn frame left unanswered: No Workspace, with Start a chat (#1358).",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [300, 120, 440, 620],
+    // After frame-ask, drawing in the same spot: it deletes the frame the last
+    // pass drew, draws its own, then closes the ask.
+    prepare: async (page) => {
+      await camera(page, VIEW.emptyLeft)
+      await clickAt(page, { x: 540, y: 300 }, 300)
+      await page.keyboard.press("Delete")
+      await page.keyboard.press("f")
+      await page.mouse.move(420, 160)
+      await page.mouse.down()
+      await page.mouse.move(500, 400, { steps: 8 })
+      await page.mouse.move(662, 683, { steps: 8 })
+      await page.mouse.up()
+      await sleep(page, 500)
+      // Esc closes the ask; a click on empty canvas drops the selection.
+      await page.keyboard.press("Escape")
+      await clickAt(page, { x: 330, y: 760 }, 300)
+      await page.mouse.move(250, 780)
+      await sleep(page, 400)
+    },
+  }),
 ]
 
 /** Pick the Home frame's "Start free trial" button with the element-target tool. */
