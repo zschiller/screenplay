@@ -53,6 +53,12 @@ interface SelectionOverlayProps {
     currentY: number
   } | null
   othersSelections: OtherSelection[]
+  /**
+   * Frames someone else drives (#1387), with the driver's colour ("ink" for
+   * the agent). An unselected one wears Interact's 2px ring in that colour;
+   * a selected one's selection ring covers it.
+   */
+  drivenFrames?: ReadonlyArray<{ id: string; color: string }>
   hideResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
   /**
@@ -114,6 +120,7 @@ export function SelectionOverlay({
   frameDraft,
   documentDraft,
   othersSelections,
+  drivenFrames,
   hideResizeHandles,
   inspectRect,
   highlightRect,
@@ -281,6 +288,25 @@ export function SelectionOverlay({
         r: snap(br.x),
         b: snap(br.y),
       })
+    }
+
+    // A frame someone else drives wears Interact's 2px ring in the driver's
+    // colour, unless it's selected (or interacting): the selection ring
+    // covers it there.
+    const inkColor = resolveCanvasColor(canvas, "--foreground")
+    for (const { id, color } of drivenFrames ?? []) {
+      if (frameEdges.has(id)) continue
+      const layout = iframeLayerLayouts.get(id)
+      if (!layout) continue
+      const tl = toScreen(layout.x, layout.y)
+      const br = toScreen(layout.x + layout.width, layout.y + layout.height)
+      const l = snap(tl.x)
+      const t = snap(tl.y)
+      const r = snap(br.x)
+      const b = snap(br.y)
+      ctx.strokeStyle = color === "ink" ? inkColor : color
+      ctx.lineWidth = 2
+      ctx.strokeRect(l - 1, t - 1, r - l + 2, b - t + 2)
     }
 
     // Draw selection frames for iframeLayers
@@ -621,6 +647,7 @@ export function SelectionOverlay({
     frameDraft,
     documentDraft,
     othersSelections,
+    drivenFrames,
     hideResizeHandles,
     inspectRect,
     highlightRect,

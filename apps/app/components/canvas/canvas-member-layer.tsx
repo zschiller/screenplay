@@ -35,6 +35,7 @@ import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
 import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
+import type { FrameControl } from "./use-frame-control"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -106,6 +107,7 @@ function CanvasMemberLayerImpl({
   setEditingDocumentLayerId,
   focusedIframeLayerId,
   setFocusedIframeLayerId,
+  frameControl,
   createFlowIframeLayerId,
   setCreateFlowIframeLayerId,
   removeIframeLayer,
@@ -176,6 +178,8 @@ function CanvasMemberLayerImpl({
   setEditingDocumentLayerId: React.Dispatch<React.SetStateAction<string | null>>
   focusedIframeLayerId: string | null
   setFocusedIframeLayerId: React.Dispatch<React.SetStateAction<string | null>>
+  /** Who drives each frame (#1387); entering Interact goes through it. */
+  frameControl: FrameControl
   createFlowIframeLayerId: string | null
   setCreateFlowIframeLayerId: React.Dispatch<
     React.SetStateAction<string | null>
@@ -535,9 +539,16 @@ function CanvasMemberLayerImpl({
               focused={focusedIframeLayerId === iframeLayer.id}
               createFlow={createFlowIframeLayerId === iframeLayer.id}
               selected={selectedIframeLayerIds.has(iframeLayer.id)}
+              driver={frameControl.driverOf(iframeLayer.id)}
               onFocus={(id) => {
-                setFocusedIframeLayerId(id)
-                if (id !== null) setCreateFlowIframeLayerId(null)
+                if (id === null) {
+                  setFocusedIframeLayerId(null)
+                  return
+                }
+                // Interact goes through Frame Control: it takes the frame
+                // from the agent, or asks the person driving it.
+                frameControl.interact(id)
+                setCreateFlowIframeLayerId(null)
               }}
               onToggleCreateFlow={(id) => {
                 setCreateFlowIframeLayerId(id)

@@ -110,6 +110,39 @@ it. From left to right:
 Interact and recording switch off automatically when you select something
 else.
 
+### Who's driving
+
+One party drives a frame at a time, and only the driver's clicks and keys
+reach it. Interact is the driver's seat: pressing it makes you the driver,
+and leaving it lets go.
+
+When Claude drives a frame, the frame shows it:
+
+- **Claude is driving** sits on the frame's title line, at its right edge.
+- An unselected frame gets a 2px ring, so you can spot it
+  from across the canvas.
+- Selected, the Interact button shows Claude's dots instead of the cursor, and
+  the frame has no resize handles, so its size can't change under Claude.
+
+<Screenshot
+  name="frame-claude-driving"
+  alt="A frame with the Claude is driving tag on its title line and a dark ring around it"
+/>
+
+<Screenshot
+  name="frame-claude-driving-selected"
+  alt="The selected frame Claude drives, with Claude's dots on the Interact button and no resize handles"
+/>
+
+Claude always gives way. Click the button (or double-click the frame) to
+take over at once: you're interacting, and Claude stops and waits. When you
+leave Interact, Claude carries on if it asked to.
+
+<Screenshot
+  name="frame-tooltip-take-over"
+  alt="The driver button's tooltip: Claude is driving, then Click to take over"
+/>
+
 <Screenshot
   name="frame-more-menu"
   alt="The More menu: Device size, Fit to content, Duplicate, Workspace, Delete frame"
