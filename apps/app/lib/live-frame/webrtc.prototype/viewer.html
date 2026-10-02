@@ -1,0 +1,181 @@
+<!doctype html>
+<!-- PROTOTYPE (shared live frame, video streaming), not for main. A viewer of one live frame:
+     ?transport=ws (H.264 over WebSocket, WebCodecs) or ?transport=webrtc, ?frame=0, ?name=you.
+     Shows the stream, forwards input while you're the driver, and has the #981 handoff controls. -->
+<meta charset="utf-8" />
+<title>Live frame viewer</title>
+<style>
+  body { margin: 0; font: 13px system-ui, sans-serif; background: #111; color: #ddd }
+  #bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #1c1c1c }
+  #bar button { font: inherit; padding: 4px 10px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: #eee; cursor: pointer }
+  #bar .who { opacity: 0.7 }
+  #stats { margin-left: auto; font-variant-numeric: tabular-nums; opacity: 0.7 }
+  #stage { position: relative; display: inline-block; margin: 12px; outline: 2px solid transparent }
+  #stage.driving { outline-color: #3c6 }
+  #stage canvas, #stage video { display: block; width: 100%; height: auto }
+  #stage video { position: absolute; inset: 0; opacity: 0 }
+  body.webrtc #stage video { position: static; opacity: 1 }
+  body.webrtc #out { display: none }
+</style>
+<div id="bar">
+  <span class="who" id="me"></span>
+  <span id="driver"></span>
+  <button id="req">Request control</button>
+  <button id="rel" hidden>Release</button>
+  <span id="grants"></span>
+  <span id="stats"></span>
+</div>
+<div id="stage" tabindex="0"><canvas id="out"></canvas><video id="vid" autoplay muted playsinline></video></div>
+<script>
+  const p = new URLSearchParams(location.search)
+  const transport = p.get("transport") || "ws"
+  document.body.classList.add(transport)
+  const zoom = Number(p.get("zoom") || 1)
+  let W = 1280, H = 800, me = null, state = null, lastColor = null
+  const ctx = out.getContext("2d", { willReadFrequently: true })
+  const sock = new WebSocket(`${location.origin.replace("http", "ws")}/?frame=${p.get("frame") || 0}&transport=${transport}&name=${p.get("name") || ""}`)
+  sock.binaryType = "arraybuffer"
+  const send = (m) => sock.readyState === 1 && sock.send(JSON.stringify(m))
+  window.send = send
+
+  // ---- ws transport: Annex B access units → WebCodecs ----
+  let decoder = null, ts = 0, gotKey = false, decoded = 0
+  let codec = "h264"
+  function initDecoder() {
+    decoder = new VideoDecoder({
+      output: (f) => { ctx.drawImage(f, 0, 0); f.close(); decoded++; onPicture() },
+      error: (e) => console.error("decode", e),
+    })
+    decoder.configure({ codec: codec === "h264" ? "avc1.42E01F" : "vp8", optimizeForLatency: true, hardwareAcceleration: "prefer-software" })
+  }
+  let bytesIn = 0
+  sock.onmessage = (e) => {
+    if (typeof e.data !== "string") {
+      const u = new Uint8Array(e.data)
+      bytesIn += u.length
+      const key = u[0] === 1
+      if (!gotKey && !key) return
+      gotKey = true
+      decoder.decode(new EncodedVideoChunk({ type: key ? "key" : "delta", timestamp: (ts += 33333), data: u.subarray(1) }))
+      return
+    }
+    const m = JSON.parse(e.data)
+    if (m.type === "hello") {
+      me = m.you; W = m.width; H = m.height; codec = m.codec
+      out.width = W; out.height = H
+      stage.style.width = `${W * zoom}px`
+      document.getElementById("me").textContent = `you: ${me}`
+      if (transport === "ws") initDecoder()
+      else startWebRtc()
+    } else if (m.type === "state") { state = m; renderState() }
+    else if (m.type === "offer") answer(m.sdp)
+    else if (m.type === "pong") window.onPong?.(m.t)
+  }
+
+  // ---- webrtc transport ----
+  let pc = null
+  function startWebRtc() { send({ type: "webrtc" }) }
+  async function answer(sdp) {
+    pc = new RTCPeerConnection()
+    pc.ontrack = (e) => { try { e.receiver.jitterBufferTarget = 0; e.receiver.playoutDelayHint = 0 } catch {} vid.srcObject = e.streams[0] || new MediaStream([e.track]); vid.play().catch(() => {}); watchVideo() }
+    await pc.setRemoteDescription(sdp)
+    await pc.setLocalDescription(await pc.createAnswer())
+    await new Promise((r) => { if (pc.iceGatheringState === "complete") r(); else pc.onicegatheringstatechange = () => pc.iceGatheringState === "complete" && r() })
+    send({ type: "answer", sdp: pc.localDescription })
+  }
+  function watchVideo() {
+    const tick = () => { ctx.drawImage(vid, 0, 0, W, H); decoded++; onPicture(); vid.requestVideoFrameCallback(tick) }
+    vid.requestVideoFrameCallback(tick)
+  }
+
+  // ---- probe colour (bench) ----
+  const COLOURS = [[255, 0, 0], [0, 0, 255], [0, 160, 0], [255, 160, 0]]
+  const PROBE = () => [24 + 48, H - 24 - 48]
+  function probeColour() {
+    const [x, y] = PROBE()
+    const d = ctx.getImageData(x, y, 1, 1).data
+    let best = 0, bd = 1e9
+    COLOURS.forEach((c, i) => { const dd = (c[0] - d[0]) ** 2 + (c[1] - d[1]) ** 2 + (c[2] - d[2]) ** 2; if (dd < bd) { bd = dd; best = i } })
+    return best
+  }
+  let waiter = null
+  const frameTimes = []
+  window.smoothness = async (seconds) => {
+    frameTimes.length = 0
+    const rtc = async () => { if (!pc) return null; for (const r of (await pc.getStats()).values()) if (r.type === "inbound-rtp" && r.kind === "video") return r }
+    const a = await rtc()
+    await new Promise((r) => setTimeout(r, seconds * 1000))
+    const b = await rtc()
+    const rtcStats = a && b && { decodedFps: +((b.framesDecoded - a.framesDecoded) / seconds).toFixed(1), dropped: b.framesDropped, jitterBufferMs: b.jitterBufferEmittedCount ? Math.round((b.jitterBufferDelay / b.jitterBufferEmittedCount) * 1000) : null, freezes: b.freezeCount }
+    const d = frameTimes.slice(1).map((t, i) => t - frameTimes[i]).sort((a, b) => a - b)
+    const q = (f) => +d[Math.min(d.length - 1, Math.floor(f * d.length))].toFixed(1)
+    const med = q(0.5)
+    return { fps: +(frameTimes.length / seconds).toFixed(1), intervalP50: med, p95: q(0.95), p99: q(0.99), max: q(1), stalls: d.filter((x) => x > med * 1.9).length, rtc: rtcStats }
+  }
+  function onPicture() { frameTimes.push(performance.now()); lastColor = probeColour(); if (waiter && lastColor !== waiter.from) { const w = waiter; waiter = null; w.resolve(performance.now() - w.t0) } }
+  const sendInput = (kind, e) => send({ type: "input", kind, e })
+  window.sendInput = sendInput
+  window.runBench = async (n, kind = "click") => {
+    const [x, y] = PROBE()
+    const times = []
+    for (let i = 0; i < n; i++) {
+      await new Promise((r) => setTimeout(r, 250 + Math.random() * 150))
+      const from = lastColor
+      const done = new Promise((resolve) => (waiter = { from, t0: performance.now(), resolve }))
+      if (kind === "click") {
+        sendInput("mouse", { type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1 })
+        sendInput("mouse", { type: "mouseReleased", x, y, button: "left", buttons: 0, clickCount: 1 })
+      } else {
+        sendInput("key", { type: "rawKeyDown", key: "F2", code: "F2", windowsVirtualKeyCode: 113 })
+        sendInput("key", { type: "keyUp", key: "F2", code: "F2", windowsVirtualKeyCode: 113 })
+      }
+      times.push(await Promise.race([done, new Promise((r) => setTimeout(() => r(null), 3000))]))
+    }
+    const ok = times.filter((t) => t != null).sort((a, b) => a - b)
+    const q = (f) => ok[Math.min(ok.length - 1, Math.floor(f * ok.length))]
+    return { n, lost: n - ok.length, p50: q(0.5), p90: q(0.9), max: ok[ok.length - 1] }
+  }
+
+  // ---- handoff UI ----
+  req.onclick = () => send({ type: "request" })
+  rel.onclick = () => send({ type: "release" })
+  function renderState() {
+    const driving = state.driver === me
+    document.getElementById("driver").textContent = `driver: ${state.driver ?? "nobody"}${state.requests.length ? ` · waiting: ${state.requests.join(", ")}` : ""}`
+    req.hidden = driving || state.requests.includes(me)
+    rel.hidden = !driving
+    stage.classList.toggle("driving", driving)
+    grants.innerHTML = ""
+    if (driving) for (const r of state.requests) {
+      const b = document.createElement("button")
+      b.textContent = `Let ${r} drive`
+      b.onclick = () => send({ type: "grant", to: r })
+      grants.append(b)
+    }
+  }
+
+  // ---- input forwarding (only lands if you're the driver; the server checks) ----
+  const surface = stage
+  const pt = (e) => { const r = surface.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H } }
+  const btn = (b) => ["left", "middle", "right"][b] || "none"
+  surface.addEventListener("mousedown", (e) => { surface.focus(); sendInput("mouse", { type: "mousePressed", ...pt(e), button: btn(e.button), buttons: e.buttons, clickCount: e.detail || 1 }); e.preventDefault() })
+  surface.addEventListener("mouseup", (e) => sendInput("mouse", { type: "mouseReleased", ...pt(e), button: btn(e.button), buttons: e.buttons, clickCount: e.detail || 1 }))
+  let lastMove = 0
+  surface.addEventListener("mousemove", (e) => { const t = performance.now(); if (t - lastMove < 16) return; lastMove = t; sendInput("mouse", { type: "mouseMoved", ...pt(e), button: "none", buttons: e.buttons }) })
+  surface.addEventListener("wheel", (e) => { sendInput("mouse", { type: "mouseWheel", ...pt(e), deltaX: e.deltaX, deltaY: e.deltaY }); e.preventDefault() }, { passive: false })
+  surface.addEventListener("keydown", (e) => {
+    const text = e.key.length === 1 ? e.key : e.key === "Enter" ? "\r" : undefined
+    sendInput("key", { type: text ? "keyDown" : "rawKeyDown", key: e.key, code: e.code, text, windowsVirtualKeyCode: e.keyCode, modifiers: (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.metaKey ? 4 : 0) | (e.shiftKey ? 8 : 0) })
+    e.preventDefault()
+  })
+  surface.addEventListener("keyup", (e) => sendInput("key", { type: "keyUp", key: e.key, code: e.code, windowsVirtualKeyCode: e.keyCode }))
+
+  // ---- stats ----
+  let lastDecoded = 0, lastBytes = 0
+  setInterval(async () => {
+    let kbps = ((bytesIn - lastBytes) * 8) / 1000
+    if (pc) { for (const r of (await pc.getStats()).values()) if (r.type === "inbound-rtp" && r.kind === "video") { kbps = ((r.bytesReceived - (window._rb || 0)) * 8) / 1000; window._rb = r.bytesReceived } }
+    document.getElementById("stats").textContent = `${transport} · ${decoded - lastDecoded} fps · ${Math.round(kbps)} kbps`
+    lastDecoded = decoded; lastBytes = bytesIn
+  }, 1000)
+</script>
