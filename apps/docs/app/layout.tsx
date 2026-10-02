@@ -71,12 +71,14 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={`${sans.variable} ${heading.variable} ${mono.variable}`}
     >
-      {/* Magenta (hue 326) for links and the current page, on pure white and black. */}
+      {/* Magenta for links and the current page, on pure white and black:
+          the `--info` ink (packages/ui tokens.css) in HSL, so links match the
+          callout glyphs and search matches. */}
       <Head
         color={{
-          hue: 326,
-          saturation: 100,
-          lightness: { light: 45, dark: 62 },
+          hue: { light: 297.4, dark: 292.6 },
+          saturation: { light: 96.1, dark: 96.4 },
+          lightness: { light: 38.9, dark: 57.5 },
         }}
         backgroundColor={{ light: "#ffffff", dark: "#000000" }}
       >
