@@ -65,43 +65,47 @@ export function QuestionCard({
         <QuestionnaireTitle className="text-sm">
           {question.question}
         </QuestionnaireTitle>
-        <QuestionnaireChoices>
-          {question.options.map((option, i) => (
-            <QuestionnaireChoice
-              key={i}
-              value={option.label}
-              checked={chosen === i}
-              // The chosen one stays at full strength; picking it again
-              // sends nothing (see `pick`).
-              disabled={!chatId || (answered && chosen !== i)}
-              onChange={() => pick(i)}
-            >
-              <span className="flex items-center gap-1.5">
-                {option.label}
-                {question.recommended === i && (
-                  <Badge variant="outline">Recommended</Badge>
+        {/* The answer line sits as close under the choices as a sender's
+            name sits over their message. */}
+        <div className="flex flex-col gap-1">
+          <QuestionnaireChoices>
+            {question.options.map((option, i) => (
+              <QuestionnaireChoice
+                key={i}
+                value={option.label}
+                checked={chosen === i}
+                // The chosen one stays at full strength; picking it again
+                // sends nothing (see `pick`).
+                disabled={!chatId || (answered && chosen !== i)}
+                onChange={() => pick(i)}
+              >
+                <span className="flex items-center gap-1.5">
+                  {option.label}
+                  {question.recommended === i && (
+                    <Badge variant="outline">Recommended</Badge>
+                  )}
+                </span>
+                {option.detail && (
+                  <QuestionnaireChoiceDescription className="text-xs">
+                    {option.detail}
+                  </QuestionnaireChoiceDescription>
                 )}
-              </span>
-              {option.detail && (
-                <QuestionnaireChoiceDescription className="text-xs">
-                  {option.detail}
-                </QuestionnaireChoiceDescription>
-              )}
-            </QuestionnaireChoice>
-          ))}
-        </QuestionnaireChoices>
-        {answered && (chosen == null || answeredBy) && (
-          <p
-            data-testid="question-answered-by"
-            className="text-xs text-muted-foreground"
-          >
-            {chosen == null
-              ? answeredBy
-                ? `${answeredBy} answered in chat`
-                : "Answered in chat"
-              : `Answered by ${answeredBy}`}
-          </p>
-        )}
+              </QuestionnaireChoice>
+            ))}
+          </QuestionnaireChoices>
+          {answered && (chosen == null || answeredBy) && (
+            <p
+              data-testid="question-answered-by"
+              className="text-xs text-muted-foreground"
+            >
+              {chosen == null
+                ? answeredBy
+                  ? `${answeredBy} answered in chat`
+                  : "Answered in chat"
+                : `Answered by ${answeredBy}`}
+            </p>
+          )}
+        </div>
       </QuestionnaireItem>
     </Questionnaire>
   )
