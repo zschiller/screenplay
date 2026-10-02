@@ -315,10 +315,12 @@ export type CanvasOps = {
    * the end of that Group's row, beside the layers it sits with; otherwise it
    * starts a fresh Group at `anchor` (canvas-space top-left), or beside the
    * existing Groups when no anchor is given. `chatId` names the chat that made
-   * it. The record and its HTML text commit together. Returns `undefined` when
-   * `groupId` names a missing Group.
+   * it. The record and its HTML text commit together. `id` lets a caller that
+   * names the Mockup before it exists (a drawn box's ask, #1359) pick it.
+   * Returns `undefined` when `groupId` names a missing Group.
    */
   createMockup(spec: {
+    id?: string
     html: string
     title: string
     width: number
@@ -977,6 +979,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   }
 
   function createMockup(spec: {
+    id?: string
     html: string
     title: string
     width: number
@@ -985,7 +988,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     groupId?: string
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined {
-    const mockupId = nanoid()
+    const mockupId = spec.id ?? nanoid()
     let groupId = spec.groupId
     batch(() => {
       const group = groupId

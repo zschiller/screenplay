@@ -118,10 +118,11 @@ export interface BranchActions {
   ) => boolean
   /**
    * Send a prompt to the Workspace's chat and show it (a drawn frame's ask,
-   * #1357), steering or queuing if it's busy. False when the Workspace has no
-   * running agent to ask.
+   * #1357), steering or queuing if it's busy. Returns the chat it went to (a
+   * drawn Mockup is owned by it, #1359), or undefined when the Workspace has
+   * no running agent to ask.
    */
-  sendPrompt: (agentId: string, message: string) => boolean
+  sendPrompt: (agentId: string, message: string) => string | undefined
 }
 
 export function useBranchActions(deps: BranchActionsDeps): BranchActions {
@@ -162,7 +163,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       prompt: string,
       agent: BranchData,
       options: { commentThreadIds?: string[] } = {}
-    ): boolean => {
+    ): string | undefined => {
       const decision = resolveTargetChat({
         roomId,
         freshChatId: nanoid(),
@@ -171,7 +172,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         agent,
         chatSessions,
       })
-      if (decision.kind === "none") return false
+      if (decision.kind === "none") return undefined
 
       // A comment request stays out of the way: the comments panel shows its
       // progress, so the chat panel keeps whatever it was showing.
@@ -192,7 +193,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
           chatTarget,
         }
       )
-      return true
+      return decision.send.chatId
     },
     [roomId, chatSessions, chatTarget, addChatSession]
   )
@@ -295,11 +296,11 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       sendComments: (agentId, message, threadIds) => {
         const agent = agents.find((a) => a.id === agentId)
         if (!agent) return false
-        return applyEngine(message, agent, { commentThreadIds: threadIds })
+        return !!applyEngine(message, agent, { commentThreadIds: threadIds })
       },
       sendPrompt: (agentId, message) => {
         const agent = agents.find((a) => a.id === agentId)
-        if (!agent) return false
+        if (!agent) return undefined
         return applyEngine(message, agent)
       },
     }),

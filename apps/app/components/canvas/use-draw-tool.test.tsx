@@ -9,6 +9,7 @@ import type { ToolMode } from "@/lib/canvas/tool-mode"
 
 function setup(armed: ToolMode) {
   const onFrameDrawn = vi.fn()
+  const onMockupDrawn = vi.fn()
   const addFrame = vi.fn(() => "drawn-frame")
   const addIframeLayerToGroup = vi.fn(() => "frame-new")
   const addDocumentLayerToGroup = vi.fn(() => "doc-new")
@@ -20,6 +21,7 @@ function setup(armed: ToolMode) {
     const draw = useDrawTool({
       documentMode: toolMode.documentMode,
       frameMode: toolMode.frameMode,
+      mockupMode: toolMode.mockupMode,
       addDocumentLayer: () => "drawn-doc",
       addFrame,
       addIframeLayerToGroup,
@@ -30,6 +32,7 @@ function setup(armed: ToolMode) {
       setSelectedGroupIds: setGroupIds,
       setEditingDocumentLayerId: () => {},
       onFrameDrawn,
+      onMockupDrawn,
     })
     return { toolMode, draw, iframeIds, documentIds, groupIds }
   })
@@ -40,6 +43,7 @@ function setup(armed: ToolMode) {
     addIframeLayerToGroup,
     addDocumentLayerToGroup,
     onFrameDrawn,
+    onMockupDrawn,
   }
 }
 
@@ -87,6 +91,50 @@ describe("useDrawTool frame release", () => {
     })
 
     expect(onFrameDrawn).not.toHaveBeenCalled()
+  })
+})
+
+describe("useDrawTool mockup release (#1359)", () => {
+  it("asks for the drawn box, back on Select, without making a layer", () => {
+    const { hook, addFrame, onFrameDrawn, onMockupDrawn } = setup("mockup")
+    const { drawTool } = hook.result.current.draw
+    act(() => {
+      drawTool.beginDraft({ x: 100, y: 200 })
+      drawTool.updateDraft({ x: 490, y: 1044 })
+    })
+    expect(hook.result.current.draw.mockupDraft).toMatchObject({
+      startX: 100,
+      currentY: 1044,
+    })
+    act(() => {
+      hook.result.current.draw.drawTool.commitDraft()
+    })
+
+    expect(onMockupDrawn).toHaveBeenCalledWith({
+      x: 100,
+      y: 200,
+      width: 390,
+      height: 844,
+    })
+    expect(addFrame).not.toHaveBeenCalled()
+    expect(onFrameDrawn).not.toHaveBeenCalled()
+    expect(hook.result.current.draw.mockupDraft).toBeNull()
+    expect(hook.result.current.toolMode.mode).toBe("select")
+    // The selection is left as it was: it decides who answers.
+    expect([...hook.result.current.iframeIds]).toEqual(["frame-old"])
+  })
+
+  it("asks on a click too, at the default size centred on it", () => {
+    const { hook, onMockupDrawn } = setup("mockup")
+    const { drawTool } = hook.result.current.draw
+    act(() => {
+      drawTool.beginDraft({ x: 0, y: 0 })
+      drawTool.commitDraft()
+    })
+
+    const rect = onMockupDrawn.mock.calls[0]![0]
+    expect(rect.x).toBe(-rect.width / 2)
+    expect(rect.y).toBe(-rect.height / 2)
   })
 })
 

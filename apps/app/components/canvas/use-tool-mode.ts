@@ -8,7 +8,7 @@ import {
 
 /**
  * Tool Mode controller (PRD #567) — owns which draw tool is armed (Select /
- * Frame / Document / Comment) as one discriminated value, lifted out of
+ * Frame / Mockup / Document / Comment) as one discriminated value, lifted out of
  * `components/canvas/canvas.tsx` where it lived as three independent booleans.
  *
  * The pure transition stays in `lib/canvas/tool-mode`: {@link reduceToolMode}
@@ -30,6 +30,7 @@ export interface ToolModeController {
   /** Convenience boolean reads (for render + gesture inputs). */
   isSelect: boolean
   frameMode: boolean
+  mockupMode: boolean
   documentMode: boolean
   commentMode: boolean
   /** Synchronous read for the long-lived keydown handler. */
@@ -61,6 +62,7 @@ export function useToolMode(): ToolModeController {
       mode,
       isSelect: mode === "select",
       frameMode: mode === "frame",
+      mockupMode: mode === "mockup",
       documentMode: mode === "document",
       commentMode: mode === "comment",
       current,

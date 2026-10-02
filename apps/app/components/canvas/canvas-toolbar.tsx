@@ -5,6 +5,7 @@ import {
   FileTextIcon,
   FrameCornersIcon,
   NavigationArrowIcon,
+  PaletteIcon,
 } from "@workspace/ui/components/icons"
 
 import {
@@ -17,8 +18,8 @@ import { isLocalBuild } from "@/lib/local-mode"
 import type { ToolModeController } from "./use-tool-mode"
 
 /**
- * The bottom tool toolbar (PRD #571) — the Select / Frame / Document / Comment
- * mode-button pill pinned to the bottom-center of the canvas.
+ * The bottom tool toolbar (PRD #571) — the Select / Frame / Mockup / Document /
+ * Comment mode-button pill pinned to the bottom-center of the canvas.
  *
  * Backed entirely by the Tool Mode controller (#567): each button reads one of
  * its boolean projections and dispatches one `set` / `toggle` intent, so mutual
@@ -34,7 +35,7 @@ export function CanvasToolbar({
   /** Reset the comment-placement sub-state (element-reference controller). */
   onClearMode: () => void
 }) {
-  const { frameMode, documentMode, commentMode } = toolMode
+  const { frameMode, mockupMode, documentMode, commentMode } = toolMode
   return (
     <div className="pointer-events-none absolute bottom-0 left-1/2 z-(--z-canvas-chrome) flex h-12 -translate-x-1/2 items-center px-2">
       <FloatingToolbar
@@ -63,6 +64,19 @@ export function CanvasToolbar({
           }}
         >
           <FrameCornersIcon />
+        </FloatingToolbarButton>
+        {/* Draw a box, then ask a chat to sketch a static page into it
+            (#1359). The sidebar shows Mockups with the same palette. */}
+        <FloatingToolbarButton
+          label="Mockup"
+          shortcut="M"
+          pressed={mockupMode}
+          onClick={() => {
+            toolMode.toggle("mockup")
+            onClearMode()
+          }}
+        >
+          <PaletteIcon />
         </FloatingToolbarButton>
         <FloatingToolbarButton
           label="Document"

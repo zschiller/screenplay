@@ -1,6 +1,6 @@
 ---
 title: Mockups
-description: Static design options a chat draws on the canvas, next to the running app or on their own.
+description: Static design options a chat sketches on the canvas, next to the running app, on their own, or in a box you draw.
 ---
 
 # Mockups
@@ -12,14 +12,41 @@ before anything is built.
 
 Ask a workspace chat for it in your own words, for example "sketch three
 takes on the empty cart as mockups". The chat writes each take as its own
-mockup, and when you ask for changes it rewrites them in place.
+mockup, and when you ask for changes it rewrites them in place. Or draw one
+yourself with the **Mockup** tool and say what goes in it.
 
 <Screenshot
   name="canvas-mockups"
   alt="An 'Option A · Toggle' pricing mockup beside the live mobile pricing page, with both options listed with their own icon in the layers list"
 />
 
+## Drawing one
+
+The **Mockup** tool (<kbd>M</kbd>) in the bottom toolbar draws a box where
+you drag, or a 1280×800 one where you click. As you let go, it asks what the
+mockup should show, the same way a drawn [frame](/guides/frames#adding-frames)
+does. Type what to sketch and press <kbd>Enter</kbd>. The box's size is sent
+along as the viewport, so a phone-sized box gets a mobile take.
+
+- The chip beside **Send** says which chat sketches it. With nothing selected
+  it's **New chat**, which starts a new workspace chat. If you had a frame,
+  mockup or document selected when you drew, it's that layer's workspace
+  chat. Click the chip to switch.
+- Sending puts an empty mockup in the box, owned by that chat. It shows
+  **Sketching** until the chat writes its page, then the page appears in
+  place, at the size you drew.
+- Press <kbd>Esc</kbd> or click elsewhere to skip the question. The box
+  disappears, and nothing is left on the canvas.
+
+<Screenshot
+  name="mockup-ask"
+  alt="A mockup box just drawn, asking what it should show, with the New chat chip beside the Send button"
+/>
+
 ## Where mockups sit
+
+A mockup you drew stays where you drew it. Mockups a chat makes on its own
+land here:
 
 - **Beside a frame.** A chat's first mockup joins the group of its
   workspace's frames, so the live page and the options read left to right in
@@ -70,7 +97,8 @@ layers list with their own icon. Delete them with <kbd>Delete</kbd>, and
 
 A mockup is a picture of an idea, so clicking it selects it rather than
 using the page. It has no address bar, reload or Interact. Mockups aren't
-chat targets, and there's no toolbar tool for them: chats create them.
+chat targets. A chat writes every mockup's page, including the ones you
+draw.
 
 ## Safety
 

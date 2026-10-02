@@ -119,6 +119,35 @@ describe("update_mockup", () => {
     expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A2")
   })
 
+  it("fills a Mockup a person drew and sent to this chat (#1359)", async () => {
+    const { run, doc, collections, ops } = chatTools()
+    // What the ask card writes: an empty page, owned by the answering chat.
+    ops.createMockup({
+      id: "drawn-1",
+      html: "",
+      title: "",
+      width: 390,
+      height: 844,
+      ownerChatId: "chat-1",
+      anchor: { x: 40, y: 60 },
+    })
+
+    const out = await run("update_mockup", {
+      mockup_id: "drawn-1",
+      html: "<p>Cart</p>",
+      title: "Empty cart",
+    })
+
+    expect(out).toBe("Updated Mockup drawn-1.")
+    expect(mockupHtml(doc, "drawn-1").toString()).toBe("<p>Cart</p>")
+    // Where and how big it was drawn stays as is.
+    expect(collections.mockupLayers.get("drawn-1")).toMatchObject({
+      title: "Empty cart",
+      width: 390,
+      height: 844,
+    })
+  })
+
   it("sets the status of the chat's own Mockup, which starts Current (#1310)", async () => {
     const { run, collections } = chatTools()
     const mockupId = idIn(

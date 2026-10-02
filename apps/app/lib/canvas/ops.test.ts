@@ -1292,6 +1292,35 @@ describe("createBranch", () => {
       true
     )
   })
+
+  it("lands a drawn Mockup box as the new chat's empty Mockup, at its rect (#1359)", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { chatId } = ops.createBranch({
+      branch: spec,
+      chat: { label: "Checkout" },
+    })
+
+    ops.createMockup({
+      id: "drawn-1",
+      html: "",
+      title: "",
+      width: 390,
+      height: 844,
+      ownerChatId: chatId,
+      anchor: { x: 40, y: 60 },
+    })
+
+    expect(collections.mockupLayers.get("drawn-1")).toMatchObject({
+      width: 390,
+      height: 844,
+      ownerChatId: chatId,
+    })
+    const group = collections.iframeLayerGroups
+      .toArray()
+      .find((g) => getGroupMembers(g).some((m) => m.id === "drawn-1"))
+    expect(group).toMatchObject({ x: 40, y: 60 })
+    expect(mockupHtml(doc, "drawn-1").toString()).toBe("")
+  })
 })
 
 describe("seedFrameForAgent", () => {

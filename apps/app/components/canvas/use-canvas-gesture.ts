@@ -83,6 +83,7 @@ export type CanvasGestureInputs = {
   commentMode: boolean
   documentMode: boolean
   frameMode: boolean
+  mockupMode: boolean
 
   /** Live reorder-dot / gap-handle geometry (from the Canvas Layout). */
   reorderHandles: readonly ReorderHandle[]
@@ -131,7 +132,8 @@ const isSuppressed = (i: CanvasGestureInputs) =>
   i.focusedLayer ||
   i.commentMode ||
   i.documentMode ||
-  i.frameMode
+  i.frameMode ||
+  i.mockupMode
 
 /** Canvas-space point of a pointer event against the wrapper, or `null`. */
 function toCanvas(i: CanvasGestureInputs, e: React.PointerEvent) {
@@ -251,7 +253,7 @@ export function useCanvasGesture(
       const i = inputsRef.current
       if (!i) return
       if (e.button !== 0 || i.spaceHeld || i.focusedLayer) return
-      if (i.commentMode || i.documentMode || i.frameMode) return
+      if (i.commentMode || i.documentMode || i.frameMode || i.mockupMode) return
       const target = e.target as HTMLElement
       if (!e.currentTarget.contains(target)) return
       // Top window-drag strip: defer to Tauri's native window drag.
@@ -313,7 +315,7 @@ export function useCanvasGesture(
 
       // Draw-tool drafts (document / frame mode): begin a draft rectangle. The
       // domain logic lives in the component; the hook owns the ordering.
-      if (i.documentMode || i.frameMode) {
+      if (i.documentMode || i.frameMode || i.mockupMode) {
         const canvas = toCanvas(i, e)
         if (!canvas) return
         i.drawTool.beginDraft(canvas)

@@ -5,6 +5,7 @@ import {
   FolderPlusIcon,
   FrameCornersIcon,
   LayoutIcon,
+  PaletteIcon,
 } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
@@ -32,11 +33,12 @@ const ON_PLANE = "bg-foreground/[0.06] dark:bg-muted"
 
 /**
  * The empty-canvas guidance (#735): what a Canvas with no Layers shows instead
- * of a blank field. Offers the three ways to start — a Frame, a Document, a
- * Project — each with the shortcut that does the same thing, so the guidance
+ * of a blank field. Offers the ways to start — a Frame, a Mockup, a Document,
+ * a repository — each with the shortcut that does the same thing, so the guidance
  * teaches the keys rather than standing in for them.
  *
- * Frame and Document arm the same Tool Mode the toolbar and `F` / `D` do; the
+ * Frame, Mockup and Document arm the same Tool Mode the toolbar and `F` / `M` /
+ * `D` do; the
  * guidance then steps aside for a one-line placement hint, so the next click
  * lands on the canvas rather than on a button. Add a repository goes straight
  * to the picker (#1182).
@@ -50,9 +52,9 @@ export function CanvasEmptyState({
 }: {
   toolMode: ToolModeController
 }) {
-  const { frameMode, documentMode } = toolMode
+  const { frameMode, mockupMode, documentMode } = toolMode
 
-  if (frameMode || documentMode) {
+  if (frameMode || mockupMode || documentMode) {
     return (
       <div
         data-slot="canvas-empty-hint"
@@ -61,7 +63,9 @@ export function CanvasEmptyState({
         <p className="flex animate-in items-center gap-2 text-sm text-muted-foreground duration-200 fade-in-0">
           {frameMode
             ? "Click or drag to place a frame"
-            : "Click or drag to place a document"}
+            : mockupMode
+              ? "Click or drag to place a mockup"
+              : "Click or drag to place a document"}
           <Kbd className={ON_PLANE}>Esc</Kbd>
         </p>
       </div>
@@ -80,8 +84,9 @@ export function CanvasEmptyState({
           </EmptyMedia>
           <EmptyTitle>This canvas is empty</EmptyTitle>
           <EmptyDescription>
-            Frames preview a Workspace, Documents hold notes and specs, and a
-            repository holds the code they run.
+            Frames preview a Workspace, Mockups sketch a page before it&apos;s built,
+            Documents hold notes and specs, and a repository holds the code they
+            run.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="pointer-events-auto w-56 gap-1">
@@ -90,6 +95,12 @@ export function CanvasEmptyState({
             label="Add a frame"
             shortcut="F"
             onClick={() => toolMode.set("frame")}
+          />
+          <EmptyAction
+            icon={<PaletteIcon />}
+            label="Add a Mockup"
+            shortcut="M"
+            onClick={() => toolMode.set("mockup")}
           />
           <EmptyAction
             icon={<FileTextIcon />}

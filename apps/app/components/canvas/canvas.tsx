@@ -175,12 +175,13 @@ import {
   type CanvasGestureInputs,
 } from "./use-canvas-gesture"
 
-import { useDrawTool } from "./use-draw-tool"
-import { FrameAskCard } from "./frame-ask-card"
+import { useDrawTool, type DrawnRect } from "./use-draw-tool"
+import { FrameAskCard, frameAskTarget } from "./frame-ask-card"
 import type { ComposerSubmitPayload } from "@/components/agent/composer"
 import {
   defaultFrameAnswerer,
   defaultNewWorkspaceRepoId,
+  forMockup,
   NEW_CHAT,
   withViewport,
   type FrameAnswerer,
@@ -462,6 +463,7 @@ export function Canvas({
   const commentMode = toolMode.commentMode
   const documentMode = toolMode.documentMode
   const frameMode = toolMode.frameMode
+  const mockupMode = toolMode.mockupMode
 
   // Canvas Selection controller (PRD #567): owns the three selection Sets, the
   // mirror refs the keydown handler reads via `current()`, the delete decision
@@ -1410,23 +1412,36 @@ export function Canvas({
     () => defaultNewWorkspaceRepoId(repos, agents),
     [repos, agents]
   )
+  const answererFromSelection = useCallback(() => {
+    const selected = selection.current()
+    return defaultFrameAnswerer({
+      frameIds: selected.iframeLayerIds,
+      ownedLayerIds: selected.markdownLayerIds,
+      frames: iframeLayers,
+      ownedLayers: sizedLayers,
+      chatSessions,
+      pickable: pickableWorkspaces(agents),
+    })
+  }, [selection, iframeLayers, sizedLayers, chatSessions, agents])
   const handleFrameDrawn = useCallback(
     (frameId: string) => {
       if (!newChatRepoId) return
-      const selected = selection.current()
-      setAskAnswerer(
-        defaultFrameAnswerer({
-          frameIds: selected.iframeLayerIds,
-          ownedLayerIds: selected.markdownLayerIds,
-          frames: iframeLayers,
-          ownedLayers: sizedLayers,
-          chatSessions,
-          pickable: pickableWorkspaces(agents),
-        })
-      )
+      setAskAnswerer(answererFromSelection())
       setAskFrameId(frameId)
     },
-    [newChatRepoId, selection, iframeLayers, sizedLayers, chatSessions, agents]
+    [newChatRepoId, answererFromSelection]
+  )
+  // The drawn Mockup box whose ask card is open (#1359). Per-viewer and only a
+  // box until sent: Esc or clicking away drops it, leaving nothing behind.
+  const [askMockupBox, setAskMockupBox] = useState<DrawnRect | null>(null)
+  const handleMockupDrawn = useCallback(
+    (rect: DrawnRect) => {
+      if (!newChatRepoId) return
+      setAskAnswerer(answererFromSelection())
+      setAskFrameId(null)
+      setAskMockupBox(rect)
+    },
+    [newChatRepoId, answererFromSelection]
   )
   // An unanswered frame's Start a chat (#1358): select it and reopen its ask.
   // The frame itself is the selection now, and it has no Workspace, so a new
@@ -1436,18 +1451,20 @@ export function Canvas({
     (frameId: string) => {
       selectFrame(frameId, false)
       setAskAnswerer(NEW_CHAT)
+      setAskMockupBox(null)
       setAskFrameId(frameId)
     },
     [selectFrame]
   )
 
-  // Draw tools (Document / Frame) — the Tool Mode sibling that turns a released
+  // Draw tools (Document / Frame / Mockup) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
   // draws; the gesture seam shares its pointer stream with `drawTool`.
-  const { drawTool, documentDraft, frameDraft, addAtPlaceholder } = useDrawTool(
-    {
+  const { drawTool, documentDraft, frameDraft, mockupDraft, addAtPlaceholder } =
+    useDrawTool({
       documentMode,
       frameMode,
+      mockupMode,
       addDocumentLayer,
       addFrame,
       addIframeLayerToGroup: groupActions.addIframeLayerToGroup,
@@ -1458,8 +1475,8 @@ export function Canvas({
       setSelectedGroupIds,
       setEditingDocumentLayerId,
       onFrameDrawn: handleFrameDrawn,
-    }
-  )
+      onMockupDrawn: handleMockupDrawn,
+    })
 
   // Sending the ask shows the answering Workspace in the drawn frame, with the
   // frame's size as the viewport. An existing Workspace takes the prompt in its
@@ -1470,6 +1487,7 @@ export function Canvas({
     : undefined
   const closeFrameAsk = useCallback(() => {
     setAskFrameId(null)
+    setAskMockupBox(null)
     setAskAnswerer(NEW_CHAT)
   }, [])
   const sendFrameAsk = useCallback(
@@ -1521,6 +1539,77 @@ export function Canvas({
     ]
   )
 
+  // Sending a drawn Mockup box (#1359) makes an empty Mockup there, owned by
+  // the chat that answers, and asks that chat to fill it with update_mockup.
+  // An empty page shows the sketching state until it does.
+  const sendMockupAsk = useCallback(
+    (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => {
+      const box = askMockupBox
+      closeFrameAsk()
+      if (!box) return
+      const mockup = { id: nanoid(), ...box }
+      const prompt = forMockup(payload.text, mockup.id, box)
+      const showMockup = () => {
+        setSelectedGroupIds(new Set())
+        setSelectedIframeLayerIds(new Set())
+        setSelectedDocumentLayerIds(new Set([mockup.id]))
+      }
+      if (answerer.kind === "workspace") {
+        const chatId = branchActions.sendPrompt(answerer.branchId, prompt)
+        // A Workspace still starting has no agent to ask yet.
+        if (!chatId) {
+          const agent = agents.find((a) => a.id === answerer.branchId)
+          toast.error(
+            `${agent ? workspaceLabel(agent) : "That Workspace"} isn't running yet. Ask again once it is.`
+          )
+          return
+        }
+        ops.createMockup({
+          id: mockup.id,
+          html: "",
+          title: "",
+          width: box.width,
+          height: box.height,
+          ownerChatId: chatId,
+          anchor: { x: box.x, y: box.y },
+        })
+        showMockup()
+        return
+      }
+      const repo = repos.find((r) => r.id === newChatRepoId)
+      if (!repo) return
+      void createBranch(
+        repo.id,
+        [{ baseBranch: repo.defaultBranch, model: payload.model, prompt }],
+        { mockup }
+      ).then(showMockup)
+    },
+    [
+      askMockupBox,
+      closeFrameAsk,
+      branchActions,
+      agents,
+      ops,
+      repos,
+      newChatRepoId,
+      createBranch,
+      setSelectedGroupIds,
+      setSelectedIframeLayerIds,
+      setSelectedDocumentLayerIds,
+    ]
+  )
+  // The drawn Mockup box's screen rect, from the live camera.
+  const locateMockupBox = useCallback(() => {
+    const t = transformRef.current?.state
+    if (!t || !askMockupBox) return null
+    return {
+      left: askMockupBox.x * t.scale + t.positionX,
+      top: askMockupBox.y * t.scale + t.positionY,
+      width: askMockupBox.width * t.scale,
+      height: askMockupBox.height * t.scale,
+    }
+  }, [askMockupBox])
+
   // Repopulate the gesture seam's inputs every render so its pointer handlers
   // read the latest geometry, mode flags, and Canvas Operations — the same
   // commit-time ref mirroring the old geometry refs used, lifted to one place.
@@ -1534,6 +1623,7 @@ export function Canvas({
       commentMode,
       documentMode,
       frameMode,
+      mockupMode,
       reorderHandles,
       gapHandles,
       groups: routeGroups,
@@ -1906,6 +1996,7 @@ export function Canvas({
                       ? "grab"
                       : documentMode ||
                           frameMode ||
+                          mockupMode ||
                           commentMode ||
                           targeting.pickActive
                         ? "crosshair"
@@ -2171,7 +2262,16 @@ export function Canvas({
                     }
                   })()}
                   marquee={gesturePreview.marqueeRect}
-                  frameDraft={frameDraft}
+                  frameDraft={
+                    frameDraft ??
+                    mockupDraft ??
+                    (askMockupBox && {
+                      startX: askMockupBox.x,
+                      startY: askMockupBox.y,
+                      currentX: askMockupBox.x + askMockupBox.width,
+                      currentY: askMockupBox.y + askMockupBox.height,
+                    })
+                  }
                   documentDraft={documentDraft}
                   othersSelections={othersSelections}
                   snapGuides={gesturePreview.snapGuides}
@@ -2265,11 +2365,21 @@ export function Canvas({
                 {askFrame ? (
                   <FrameAskCard
                     key={askFrame.id}
-                    frameId={askFrame.id}
+                    locate={() => frameAskTarget(askFrame.id)}
                     markdownLayers={markdownLayers}
                     workspaces={agents}
                     defaultAnswerer={askAnswerer}
                     onSubmit={sendFrameAsk}
+                    onClose={closeFrameAsk}
+                  />
+                ) : askMockupBox ? (
+                  <FrameAskCard
+                    kind="mockup"
+                    locate={locateMockupBox}
+                    markdownLayers={markdownLayers}
+                    workspaces={agents}
+                    defaultAnswerer={askAnswerer}
+                    onSubmit={sendMockupAsk}
                     onClose={closeFrameAsk}
                   />
                 ) : null}

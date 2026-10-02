@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   defaultFrameAnswerer,
   defaultNewWorkspaceRepoId,
+  forMockup,
   withViewport,
 } from "@/lib/frame-ask"
 import type { BranchData, RepoData } from "@/lib/types"
@@ -109,5 +110,20 @@ describe("defaultFrameAnswerer", () => {
         ownedLayerIds: [],
       })
     ).toEqual({ kind: "new-chat" })
+  })
+})
+
+describe("forMockup", () => {
+  it("names the drawn Mockup and its viewport after what was typed", () => {
+    expect(forMockup(" An empty cart ", "m-1", { width: 390.4, height: 844 }))
+      .toBe(`An empty cart
+
+Sketch it in Mockup [mockup: m-1] with update_mockup, for a 390 × 844 viewport.`)
+  })
+
+  it("still names the Mockup when nothing was typed", () => {
+    expect(forMockup("", "m-1", { width: 1280, height: 800 })).toBe(
+      "Sketch it in Mockup [mockup: m-1] with update_mockup, for a 1280 × 800 viewport."
+    )
   })
 })
