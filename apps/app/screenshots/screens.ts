@@ -1154,21 +1154,6 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "chat-history",
-    description:
-      "The chat history: closed chats with dates, first lines, one still running.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await openChatTab(page, "Checkout polish")
-      await replayRun(page, ids.chats.stickySummary, [
-        { type: "chat-stream-start" },
-      ])
-      await openChatHistory(page)
-    },
-    settleMs: 600,
-  },
-  {
     name: "logs-reconnecting",
     description:
       "The sandbox logs panel with coloured output, dropped and reconnecting.",
@@ -2389,18 +2374,6 @@ export const SCREENS: Screen[] = [
         .hover({ timeout: 15_000 })
     },
     settleMs: 300,
-  },
-  {
-    name: "chat-earlier-chat",
-    description:
-      "One of a Workspace's earlier chats from before #1315: readable, with a note and Open chat where the composer was.",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await openChatTab(page, "Checkout polish")
-      await page.mouse.move(0, 0)
-    },
-    settleMs: 400,
   },
   {
     name: "terminal-pane-new-shell-hover",
@@ -4580,31 +4553,43 @@ export async function openSetupError(page: Page): Promise<void> {
 }
 
 /**
+ * The review world's earlier chats (#1315), by label, which screens borrow for
+ * their transcripts. The panel has no way to open an earlier chat, so
+ * {@link openChatTab} shows one's transcript in the Workspace's own chat.
+ */
+const EARLIER_CHAT_TRANSCRIPTS: Record<string, string> = {
+  "Checkout polish": ids.chats.checkoutPolish,
+  "Breakpoint audit": ids.chats.markdown,
+}
+
+/**
  * Show one of a Workspace's chats by label. Its own chat is already on show
- * once the Workspace is selected; an earlier chat (#1315) opens from the
- * header's Chat history (#1341). The panel itself is opened by
- * {@link canvasPanels}, not from here.
+ * once the Workspace is selected. An earlier chat (#1315) can't be opened, so
+ * its transcript is served as the Workspace chat's history instead: the
+ * conversation on show is the earlier chat's, in a chat with a composer. That
+ * reloads the page, so call it before anything else a screen sets up. The
+ * panel itself is opened by {@link canvasPanels}, not from here.
  */
 export async function openChatTab(
   page: Page,
   label: string,
   workspace = CHAT_WORKSPACE
 ): Promise<void> {
+  const transcript = EARLIER_CHAT_TRANSCRIPTS[label]
+  if (transcript) {
+    const fresh = `chatId=${ids.chats.fresh}`
+    const isFreshHistory = (url: URL) =>
+      url.pathname.endsWith("/api/agent/history") && url.search.includes(fresh)
+    await page.route(isFreshHistory, async (route) => {
+      const url = route.request().url().replace(ids.chats.fresh, transcript)
+      await route.fulfill({ response: await route.fetch({ url }) })
+    })
+    // Every chat's history loads with the canvas, so load it again.
+    await page.reload()
+  }
   // The panel opens on the Coordinator (#893); a Workspace's chats live in
   // its panel.
   await selectWorkspace(page, workspace)
-  const history = page.getByRole("button", { name: "Chat history" }).first()
-  await history.waitFor({ timeout: 5_000 }).catch(() => {})
-  if (await history.isVisible()) {
-    await history.click({ timeout: 15_000 })
-    const row = page
-      .locator('[data-slot="popover-content"]')
-      .getByRole("button")
-      .filter({ hasText: new RegExp(label, "i") })
-      .first()
-    if (await row.count()) await row.click({ timeout: 15_000 })
-    else await page.keyboard.press("Escape")
-  }
   // A cold dev server can hold the history load past the settle delay.
   await page
     .getByText("Loading chat…")
@@ -4674,17 +4659,6 @@ export async function openTerminalPane(
   await page
     .getByRole("tablist", { name: "Terminals" })
     .getByRole("tab", { name, exact: true })
-    .first()
-    .click({ timeout: 15_000 })
-}
-
-/**
- * Open the chat panel's history. Matches today's "Chat history" button and the
- * earlier "Closed chats" one, so a before capture of this screen still opens it.
- */
-export async function openChatHistory(page: Page): Promise<void> {
-  await page
-    .getByRole("button", { name: /^(Chat history|Closed chats)$/ })
     .first()
     .click({ timeout: 15_000 })
 }

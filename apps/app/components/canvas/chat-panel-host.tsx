@@ -108,7 +108,6 @@ export function ChatPanelHost({
           }
           onRenameTerminal={tabPool.rename}
           onCloseTerminal={tabPool.close}
-          onRemoveChat={tabPool.remove}
           onPlanModeChange={(chatId, pm) =>
             onUpdateChatSession(chatId, { planMode: pm })
           }
