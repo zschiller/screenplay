@@ -279,7 +279,10 @@ export function aiSdkChunkToAcpUpdate(
     case "reasoning-delta":
       // The agent's streamed thinking → ACP `agent_thought_chunk`, so reasoning
       // survives to broadcast/persistence instead of being dropped on the floor.
-      return agentThoughtChunk(chunk.text)
+      // An empty delta (Anthropic's thinking signature, or a thinking block
+      // whose text the provider omits) carries nothing to show: forwarding it
+      // would open an empty Reasoning block.
+      return chunk.text ? agentThoughtChunk(chunk.text) : null
     case "tool-input-start":
       return toolCallStart({
         toolCallId: chunk.id,

@@ -961,6 +961,10 @@ class ChatStore {
       return
     }
     if (isUpdate(update, "agent_thought_chunk")) {
+      // An agent can stream a thinking block with no text (Claude with its
+      // thinking display omitted); there's nothing to show, so don't open an
+      // empty Reasoning block for it.
+      if (!blockText(update.content)) return
       this.appendAcpDelta(
         chatId,
         "reasoning",

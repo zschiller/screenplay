@@ -45,6 +45,12 @@ describe("AgentMessageItem — reasoning (ACP agent_thought_chunk)", () => {
 
     expect(screen.getByText("First I weigh the options.")).toBeTruthy()
   })
+
+  it("renders nothing for reasoning with no text", () => {
+    render(<AgentMessageItem message={{ role: "reasoning", content: "" }} />)
+
+    expect(screen.queryByRole("button", { name: /reasoning/i })).toBeNull()
+  })
 })
 
 function toolCall(
