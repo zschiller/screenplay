@@ -460,7 +460,10 @@ export function Canvas({
   // Document / Comment) as one discriminated value, so "exactly one tool active"
   // holds by construction. The booleans below are read-aliases for the existing
   // call sites; mode changes dispatch `toolMode.set` / `toolMode.toggle`.
-  const toolMode = useToolMode()
+  // A frame shows a Workspace, which needs a repository: with none, the Frame
+  // tool stays off and its button says why.
+  const repos = useRepos()
+  const toolMode = useToolMode({ frameAvailable: repos.length > 0 })
   const commentMode = toolMode.commentMode
   const documentMode = toolMode.documentMode
   const frameMode = toolMode.frameMode
@@ -915,7 +918,6 @@ export function Canvas({
   // `groupSelectedIframeLayerIds` (every member of a selected group) and
   // `overlaySelectedIds` (the iframe ∪ markdown union the overlay reads) are
   // projections owned by the Canvas Selection controller, aliased above.
-  const repos = useRepos()
   // Canvas memory (#902), oldest first, edited in Canvas settings › Memory.
   const memoryEntries = useMemories()
   const memories = useMemo(

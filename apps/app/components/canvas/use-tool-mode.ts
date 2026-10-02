@@ -33,6 +33,11 @@ export interface ToolModeController {
   mockupMode: boolean
   documentMode: boolean
   commentMode: boolean
+  /**
+   * Whether the Frame tool can be armed. A frame shows a Workspace, and a
+   * Workspace needs a repository, so a canvas with none can't draw frames.
+   */
+  frameAvailable: boolean
   /** Synchronous read for the long-lived keydown handler. */
   current(): ToolMode
   /** Arm a specific mode (Select button / `V` key, or an Escape exit). */
@@ -41,21 +46,30 @@ export interface ToolModeController {
   toggle(tool: ToolModeTool): void
 }
 
-export function useToolMode(): ToolModeController {
-  const [mode, setMode] = useState<ToolMode>("select")
+export function useToolMode({
+  frameAvailable = true,
+}: { frameAvailable?: boolean } = {}): ToolModeController {
+  const [armed, setMode] = useState<ToolMode>("select")
+  // A Frame tool armed before the last repository went reads as Select.
+  const mode = armed === "frame" && !frameAvailable ? "select" : armed
+  const frameAvailableRef = useRef(frameAvailable)
 
   const modeRef = useRef(mode)
   useEffect(() => {
     modeRef.current = mode
+    frameAvailableRef.current = frameAvailable
   })
 
   const current = useCallback(() => modeRef.current, [])
-  const set = useCallback((next: ToolMode) => setMode(next), [])
-  const toggle = useCallback(
-    (tool: ToolModeTool) =>
-      setMode((prev) => reduceToolMode(prev, { type: "toggle", tool })),
-    []
-  )
+  // Arming an unavailable Frame tool (its key, a stray click) does nothing.
+  const set = useCallback((next: ToolMode) => {
+    if (next === "frame" && !frameAvailableRef.current) return
+    setMode(next)
+  }, [])
+  const toggle = useCallback((tool: ToolModeTool) => {
+    if (tool === "frame" && !frameAvailableRef.current) return
+    setMode((prev) => reduceToolMode(prev, { type: "toggle", tool }))
+  }, [])
 
   return useMemo(
     () => ({
@@ -65,10 +79,11 @@ export function useToolMode(): ToolModeController {
       mockupMode: mode === "mockup",
       documentMode: mode === "document",
       commentMode: mode === "comment",
+      frameAvailable,
       current,
       set,
       toggle,
     }),
-    [mode, current, set, toggle]
+    [mode, frameAvailable, current, set, toggle]
   )
 }
