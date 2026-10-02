@@ -104,6 +104,16 @@ function workspaceStatusLine(
   return { kind: "idle", state: "ready", text: "Ready" }
 }
 
+/**
+ * Whether the Workspace's state glyph is the setup spinner: it's creating or
+ * starting, and neither Done nor failed.
+ */
+export function workspaceSettingUp(branch: StatusLineBranch): boolean {
+  return (
+    workspaceStatusLine(branch, { agentWorking: false }).kind === "progress"
+  )
+}
+
 /** The Workspaces with a plan waiting for approval, from the room's plans. */
 function planPendingBranchIds(
   plans: readonly Pick<PlanData, "branchId" | "status">[]
