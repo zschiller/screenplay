@@ -188,8 +188,10 @@
   display: flex;
   align-items: center;
   gap: 0.5em;
-  font-family: var(--font-instrument-serif), serif;
-  font-size: 1.5em;
+  font-family: var(--font-unbounded), sans-serif;
+  font-size: 1.1em;
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
 .hc-logo i {
   width: 1em;

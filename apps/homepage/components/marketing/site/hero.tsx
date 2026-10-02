@@ -18,7 +18,7 @@ export function Hero() {
         >
           <h1
             data-veil
-            className="font-wordmark text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance"
+            className="font-headline text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance"
           >
             Every branch,
             <br />
