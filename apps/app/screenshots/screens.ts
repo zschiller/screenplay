@@ -30,6 +30,7 @@ import { roomChatId } from "@/lib/chat/room-chat"
 import type { BranchData } from "@/lib/types"
 import { prependTurnMarkers } from "@/lib/agent/message-markers"
 import { userTurnEcho } from "@/lib/agent/user-turn"
+import type { AgentMessage } from "@/lib/agent/types"
 import {
   createdWorkspacesResult,
   queuedForWorkspaceResult,
@@ -47,7 +48,7 @@ import {
 } from "./fixtures/streams"
 import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "./lib/preview-url"
 import { resolveCaptureProfile } from "./profile"
-import { FIXTURE_IDS } from "./fixtures/world"
+import { COLLABORATOR_ID, FIXTURE_IDS } from "./fixtures/world"
 import { settle } from "./lib/browser"
 
 /**
@@ -3749,6 +3750,35 @@ export const SCREENS: Screen[] = [
   },
   // --- Hosted build only (`--hosted`): comments (#789) ---
   {
+    name: "canvas-chat-senders-web",
+    description:
+      "A shared Canvas's chat in the web build: Jordan's message and Priya's answer to the question card, each named.",
+    hosted: true,
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      // The hosted build has no replay handle, so the chat's history is
+      // served as the server would after the turn: the question run's
+      // messages, sent and answered by two members.
+      await page.route("**/api/agent/history?*", (route) =>
+        route.fulfill({ json: sharedQuestionTranscript() })
+      )
+      await page.reload()
+      await selectWorkspace(page, CHAT_WORKSPACE)
+      await page
+        .getByTestId("question-card")
+        .first()
+        .waitFor({ timeout: 15_000 })
+      await page
+        .getByTestId("message-sender")
+        .first()
+        .waitFor({ timeout: 10_000 })
+        .catch(() => {})
+      await page.mouse.move(0, 0)
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-document-reply-in-chat-web",
     description:
       "Reply in chat (#1243) in the web build: a Document line quoted into the Checkout polish chat's composer.",
@@ -4751,6 +4781,51 @@ export async function replayRun(
 }
 
 const text = (t: string) => ({ type: "text", text: t })
+
+/**
+ * {@link questionRun}'s transcript as the history route serves it, with the
+ * ask sent by the fixture user and the card answered by their collaborator.
+ */
+function sharedQuestionTranscript(): AgentMessage[] {
+  const out: AgentMessage[] = []
+  for (const event of questionRun()) {
+    if (event.type !== "chat-acp-update") continue
+    const u = event.update as {
+      sessionUpdate: string
+      content?: { text: string }
+      toolCallId?: string
+      title?: string
+      kind?: string
+      status?: string
+      rawInput?: unknown
+    }
+    if (u.sessionUpdate === "user_message_chunk") {
+      out.push({
+        role: "user",
+        content: u.content!.text,
+        sentBy: LOCAL_USER_ID,
+      })
+    } else if (u.sessionUpdate === "agent_message_chunk") {
+      out.push({ role: "assistant", content: u.content!.text })
+    } else if (u.sessionUpdate === "tool_call") {
+      out.push({
+        role: "tool_call",
+        toolCallId: u.toolCallId!,
+        title: u.title!,
+        kind: u.kind as never,
+        status: u.status as never,
+        content: [],
+        rawInput: u.rawInput,
+      })
+    }
+  }
+  out.push({
+    role: "user",
+    content: "Pin to the bottom",
+    sentBy: COLLABORATOR_ID,
+  })
+  return out
+}
 
 /**
  * Answer a send to `chatId`'s running turn the way the server does when it

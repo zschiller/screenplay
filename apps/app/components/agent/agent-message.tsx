@@ -85,6 +85,8 @@ import { ChatMarkdown } from "./chat-markdown"
 import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
 import { QuestionCard } from "./question-card"
+import { Avatar, AvatarImage } from "@workspace/ui/components/avatar"
+import type { ChatSender } from "@/hooks/use-chat-senders"
 import {
   isQuestionCall,
   parseQuestion,
@@ -1029,16 +1031,38 @@ function ElementHistoryToken({
  */
 function UserMessage({
   message,
+  sender,
 }: {
   message: AgentMessage & { role: "user" }
+  sender?: ChatSender
 }) {
   // A Coordinator wake is the server's report on a Workspace turn, not
   // something anyone said (#897).
   if (message.wakeFrom) return null
-  return message.delegatedFrom ? (
-    <DelegatedMessage message={message} />
-  ) : (
-    <UserBubble message={message} />
+  if (message.delegatedFrom) return <DelegatedMessage message={message} />
+  if (!sender) return <UserBubble message={message} />
+  return (
+    <div className="flex flex-col gap-1">
+      <SenderLabel sender={sender} />
+      <UserBubble message={message} />
+    </div>
+  )
+}
+
+/** Who sent a message, over its bubble, on a shared Canvas. */
+function SenderLabel({ sender }: { sender: ChatSender }) {
+  return (
+    <span
+      data-testid="message-sender"
+      className="flex max-w-[85%] items-center gap-1.5 self-end text-xs text-muted-foreground"
+    >
+      {sender.avatar && (
+        <Avatar className="size-4">
+          <AvatarImage src={sender.avatar} alt="" />
+        </Avatar>
+      )}
+      <span className="truncate">{sender.name}</span>
+    </span>
   )
 }
 
@@ -1214,15 +1238,23 @@ function ToolCallItem({
   message,
   chatId,
   questionAnswer,
+  senders,
 }: {
   message: AgentMessage & { role: "tool_call" }
   chatId?: string
   questionAnswer?: QuestionAnswer
+  senders?: Map<string, ChatSender> | null
 }) {
   const tasks = useWorkspaceTasks()
   if (isQuestionCall(message) && parseQuestion(message.rawInput)) {
+    const by = questionAnswer?.by ? senders?.get(questionAnswer.by) : undefined
     return (
-      <QuestionCard message={message} chatId={chatId} answer={questionAnswer} />
+      <QuestionCard
+        message={message}
+        chatId={chatId}
+        answer={questionAnswer}
+        answeredBy={by?.name}
+      />
     )
   }
   const found = tasks ? workspaceTasksOf(message) : []
@@ -1249,6 +1281,7 @@ export function AgentMessageItem({
   chatId,
   onRetry,
   questionAnswer,
+  senders,
 }: {
   message: AgentMessage
   roomId?: string
@@ -1257,10 +1290,20 @@ export function AgentMessageItem({
   onRetry?: () => Promise<unknown>
   /** How a question card was answered, once a user message follows it. */
   questionAnswer?: QuestionAnswer
+  /**
+   * Who sent the chat's messages, by user id: present in the hosted build on
+   * a shared Canvas, where messages and question answers name their sender.
+   */
+  senders?: Map<string, ChatSender> | null
 }) {
   switch (message.role) {
     case "user":
-      return <UserMessage message={message} />
+      return (
+        <UserMessage
+          message={message}
+          sender={message.sentBy ? senders?.get(message.sentBy) : undefined}
+        />
+      )
 
     case "assistant":
       return <AssistantMessage content={message.content} />
@@ -1274,6 +1317,7 @@ export function AgentMessageItem({
           message={message}
           chatId={chatId}
           questionAnswer={questionAnswer}
+          senders={senders}
         />
       )
 

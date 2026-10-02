@@ -28,7 +28,15 @@ import type {
  * ACP's `sessionUpdate` discriminant.
  */
 export type AcpMessageRecord =
-  | { role: "user"; content: ContentBlock[] }
+  | {
+      role: "user"
+      content: ContentBlock[]
+      /**
+       * The member who sent it, by user id. Absent on a message nobody typed
+       * and on rows written before senders were recorded.
+       */
+      sentBy?: string
+    }
   | { role: "agent"; content: ContentBlock[] }
   | { role: "thought"; content: ContentBlock[] }
   | AcpToolCallRecord

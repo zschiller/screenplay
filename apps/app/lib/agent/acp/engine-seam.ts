@@ -78,6 +78,8 @@ export interface EngineTurn {
 export interface TakenSteer {
   id: string
   content: ContentBlock[]
+  /** Who sent it, by user id; absent for a message nobody typed. */
+  sentBy?: string
 }
 
 /**

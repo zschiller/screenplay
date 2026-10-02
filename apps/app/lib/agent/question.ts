@@ -84,6 +84,8 @@ function parseOption(option: unknown): QuestionOption | null {
 export interface QuestionAnswer {
   /** The chosen option's index, or null when the reply was something else. */
   chosen: number | null
+  /** The member who answered, by user id, when the server recorded one. */
+  by?: string
 }
 
 /**
@@ -104,6 +106,10 @@ export function questionAnswers(
       for (const call of open) {
         answers.set(call.toolCallId, {
           chosen: chosenOption(parseQuestion(call.rawInput), message.content),
+          // The Coordinator answered a Delegated Message, not its sender.
+          ...(message.sentBy && !message.delegatedFrom
+            ? { by: message.sentBy }
+            : {}),
         })
       }
       open = []

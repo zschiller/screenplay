@@ -69,6 +69,11 @@ export interface TurnRequest {
   /** Who sent the message, recorded on a Steer so a stop can hand it back. */
   userId?: string | null
   /**
+   * Who the message shows as sent by, when that isn't `userId`: null for
+   * leftover Steers from more than one sender, joined into one message.
+   */
+  sentBy?: string | null
+  /**
    * The human's decision on a paused plan, when this turn resumes from one
    * (the plan route). Without it, a plan still pending on the chat is
    * implicitly rejected, with this message as the feedback.
@@ -130,7 +135,11 @@ export interface TurnLaunchDeps {
     planId: string,
     resolution: PlanResolution
   ): Promise<{ runId: string } | null>
-  persistUserTurn(chatId: string, userText: string): Promise<void>
+  persistUserTurn(
+    chatId: string,
+    userText: string,
+    sentBy: string | null
+  ): Promise<void>
   startRun(chatId: string): Promise<string>
   broadcastStreamStart(roomId: string, chatId: string): Promise<void>
   broadcastUpdate(
@@ -269,7 +278,9 @@ export async function launchTurn(
     return { kind: "plan-already-resolved" }
   }
 
-  if (!retry) await deps.persistUserTurn(chatId, prepared.userText)
+  const sentBy =
+    request.sentBy !== undefined ? request.sentBy : (request.userId ?? null)
+  if (!retry) await deps.persistUserTurn(chatId, prepared.userText, sentBy)
   const runId = await deps.startRun(chatId)
 
   await deps.broadcastStreamStart(roomId, chatId)
@@ -280,7 +291,11 @@ export async function launchTurn(
     })
   }
   if (!retry) {
-    await deps.broadcastUpdate(roomId, chatId, userTurnEcho(prepared.userText))
+    await deps.broadcastUpdate(
+      roomId,
+      chatId,
+      userTurnEcho(prepared.userText, sentBy)
+    )
   }
   const { branchRename, commentRequest } = prepared
 
@@ -358,7 +373,11 @@ async function steerRunningTurn(
   })
   await deps.broadcastControl(roomId, chatId, {
     kind: "steer_pending",
-    steer: { id: steer.id, message, turn: projectUserTurn(message) },
+    steer: {
+      id: steer.id,
+      message,
+      turn: projectUserTurn(message, steer.userId),
+    },
   })
   if (
     !(await deps.isRunActive(active.id)) &&
@@ -448,6 +467,9 @@ async function settleLeftoverSteers(
       sandboxName: request.sandboxName,
       model: request.model,
       userId: leftovers[0]!.userId,
+      sentBy: leftovers.every((s) => s.userId === leftovers[0]!.userId)
+        ? leftovers[0]!.userId
+        : null,
     },
     followUp(message)
   )

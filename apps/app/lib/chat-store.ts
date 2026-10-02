@@ -994,7 +994,15 @@ class ChatStore {
     const last = prev[prev.length - 1]
     const message = echoedUserTurn(update)
     if (!message) return
-    if (last?.role === "user" && last.content === message.content) return
+    if (last?.role === "user" && last.content === message.content) {
+      // The optimistic add can't know its sender; the echo names it.
+      if (message.sentBy && last.sentBy !== message.sentBy) {
+        this.update(chatId, {
+          messages: [...prev.slice(0, -1), { ...last, sentBy: message.sentBy }],
+        })
+      }
+      return
+    }
     this.update(chatId, { messages: [...prev, message] })
   }
 

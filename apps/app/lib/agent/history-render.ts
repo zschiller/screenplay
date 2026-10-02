@@ -60,7 +60,10 @@ function renderRecord(record: AcpMessageRecord, out: AgentMessage[]): void {
       // `resource_link`s); recover the wire string losslessly, then project
       // it the way the live echo is, so a reload shows what the live chat did
       // (a wake stays hidden, a Delegated Message stays collapsed).
-      const message = userTurnMessage(contentBlocksToWire(record.content))
+      const message = userTurnMessage(
+        contentBlocksToWire(record.content),
+        record.sentBy
+      )
       if (message.content) out.push(message)
       break
     }

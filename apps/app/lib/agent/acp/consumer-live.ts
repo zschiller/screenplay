@@ -51,7 +51,11 @@ export function liveAcpConsumerPorts(
     // message gets.
     async settleSteers(steers) {
       for (const steer of steers) {
-        await appendAcpMessage(chatId, { role: "user", content: steer.content })
+        await appendAcpMessage(chatId, {
+          role: "user",
+          content: steer.content,
+          ...(steer.sentBy ? { sentBy: steer.sentBy } : {}),
+        })
       }
       await broadcastControl(roomId, chatId, {
         kind: "steers_taken",
@@ -61,7 +65,7 @@ export function liveAcpConsumerPorts(
         await broadcastAcpUpdate(
           roomId,
           chatId,
-          userTurnEcho(contentBlocksToWire(steer.content))
+          userTurnEcho(contentBlocksToWire(steer.content), steer.sentBy)
         )
       }
     },
