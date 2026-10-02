@@ -4,6 +4,7 @@ import { docsUrl, githubUrl, releasesUrl } from "@/lib/app-url"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { buttonClass, focusRing, measure } from "./site/editorial"
+import { HeaderBar } from "./header-bar"
 import { Wordmark } from "./wordmark"
 
 const links = [
@@ -15,7 +16,7 @@ const links = [
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background">
+    <HeaderBar>
       <div
         className={`${measure} grid h-15 grid-cols-[1fr_auto] items-center gap-4 md:grid-cols-[1fr_auto_1fr]`}
       >
@@ -74,7 +75,7 @@ export function Header() {
           </a>
         </div>
       </div>
-    </header>
+    </HeaderBar>
   )
 }
 
