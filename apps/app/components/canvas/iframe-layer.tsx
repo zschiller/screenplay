@@ -619,6 +619,15 @@ export function IframeLayer({
     // walks the same Escape precedence (lib/canvas/escape.ts) as an Esc
     // pressed on the canvas: an armed pick cancels first, otherwise the frame
     // leaves interaction.
+    // Space pressed in the page with the pointer out over the canvas, so
+    // space-drag pans the canvas as it does outside Interact.
+    onSpaceDown: () => {
+      if (!interactive) return
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: " " }))
+    },
+    onSpaceUp: () => {
+      window.dispatchEvent(new KeyboardEvent("keyup", { key: " " }))
+    },
     onEscape: () => {
       if (!interactive) return
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
@@ -629,7 +638,17 @@ export function IframeLayer({
   // back to the canvas. Otherwise it stays inside the iframe, and canvas
   // shortcuts, a second Esc included, go to the preview instead.
   useEffect(() => {
-    if (interactive) return
+    if (interactive) {
+      // Entering from the toolbar leaves focus on the Interact button, where
+      // Space would press it (leaving Interact) instead of panning the canvas.
+      const active = document.activeElement
+      if (
+        active instanceof HTMLElement &&
+        active.closest("#frame-toolbar-portal")
+      )
+        active.blur()
+      return
+    }
     const iframe = iframeRef.current
     if (iframe && document.activeElement === iframe) iframe.blur()
   }, [interactive])

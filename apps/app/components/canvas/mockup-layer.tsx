@@ -205,6 +205,15 @@ export function MockupLayer({
     onWheel: (wheel) => onWheel?.(layer.id, wheel),
     // Esc the page didn't claim, forwarded by the bridge because keydowns
     // never leave the iframe: replay it on the canvas so it leaves Interact.
+    // Space pressed in the page with the pointer out over the canvas, so
+    // space-drag pans the canvas as it does outside Interact.
+    onSpaceDown: () => {
+      if (!focused) return
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: " " }))
+    },
+    onSpaceUp: () => {
+      window.dispatchEvent(new KeyboardEvent("keyup", { key: " " }))
+    },
     onEscape: () => {
       if (!focused) return
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
@@ -213,7 +222,17 @@ export function MockupLayer({
 
   // Leaving Interact hands keyboard focus back to the canvas.
   useEffect(() => {
-    if (focused) return
+    if (focused) {
+      // Entering from the toolbar leaves focus on the Interact button, where
+      // Space would press it (leaving Interact) instead of panning the canvas.
+      const active = document.activeElement
+      if (
+        active instanceof HTMLElement &&
+        active.closest("#frame-toolbar-portal")
+      )
+        active.blur()
+      return
+    }
     const iframe = iframeRef.current
     if (iframe && document.activeElement === iframe) iframe.blur()
   }, [focused])
