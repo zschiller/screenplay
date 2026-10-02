@@ -1,14 +1,20 @@
 /* The hero's backdrop (hero-stage.tsx): copies of the homepage panning past
-   under the dither veil. Plain CSS because the copies are built on the
-   client. */
+   above the text, dissolving into the dither veil. Plain CSS because the
+   copies are built on the client. */
 
-.hc-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
+.hc-stage {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+}
+.hc-backdrop {
+  position: relative;
+  z-index: 0;
   pointer-events: none;
+}
+/* The headline's first line sinks into the bottom row, where the veil turns
+   solid. The clamp is the headline's size in hero.tsx. */
+.hc-content {
+  margin-top: calc(clamp(56px, 10.5vw, 148px) * -1.35);
 }
 .hc-rows {
   width: 100%;
@@ -34,42 +40,14 @@
 .hc-stage[data-playing] .hc-track {
   animation-play-state: running;
 }
-/* Below 1024px the text fills the hero, so the copies go below it instead of
-   under it, smaller, and with no veil (hero-stage.tsx skips it). */
-@media (max-width: 1023px) {
-  .hc-stage {
-    display: flex;
-    flex-direction: column;
-  }
-  .hc-content {
-    order: 1;
-  }
-  .hc-backdrop {
-    position: relative;
-    order: 2;
-    inset: auto;
-  }
-  .hc-rows {
-    gap: 36px;
-  }
-  /* One row is enough to show the idea and keeps Fig. 1 closer. */
-  .hc-track + .hc-track {
-    display: none;
-  }
-  .hc-copy {
-    width: 220px;
-  }
+/* The copies sit back a little, so the real headline is the brightest type;
+   the one an agent is changing comes forward while it works. */
+.hc-copy {
+  opacity: 0.9;
+  transition: opacity 0.5s;
 }
-/* Under the veil the copies sit back, so the real headline is the only bright
-   type; the one an agent is changing comes forward while it works. */
-@media (min-width: 1024px) {
-  .hc-copy {
-    opacity: 0.45;
-    transition: opacity 0.5s;
-  }
-  .hc-copy.working {
-    opacity: 1;
-  }
+.hc-copy.working {
+  opacity: 1;
 }
 @keyframes hc-pan {
   to {
@@ -81,7 +59,17 @@
 .hc-copy {
   position: relative;
   flex: none;
-  width: clamp(240px, 30vw, 380px);
+  width: clamp(240px, 24vw, 340px);
+}
+/* Below 1024px one row is enough to show the idea and keeps the text near
+   the top. */
+@media (max-width: 1023px) {
+  .hc-track + .hc-track {
+    display: none;
+  }
+  .hc-copy {
+    width: 280px;
+  }
 }
 .hc-head {
   position: absolute;
