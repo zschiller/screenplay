@@ -4,6 +4,7 @@ import {
   anyWorkspaceNeedsYou,
   formatElapsed,
   roomWorkspaceFacts,
+  workspaceSettingUp,
   workspaceState,
   type WorkspaceState,
   type WorkspaceStateBranch,
@@ -332,6 +333,25 @@ describe("anyWorkspaceNeedsYou", () => {
       anyWorkspaceNeedsYou([ws({ id: "a" }), ws({ id: "busy" })], stateOf)
     ).toBe(false)
     expect(anyWorkspaceNeedsYou([], stateOf)).toBe(false)
+  })
+})
+
+describe("workspaceSettingUp", () => {
+  it("is true while the Workspace is creating or starting", () => {
+    expect(workspaceSettingUp(ws({ status: "creating" }))).toBe(true)
+    expect(workspaceSettingUp(ws({ status: "starting" }))).toBe(true)
+  })
+
+  it("is false once it runs, stops, fails or is Done", () => {
+    expect(workspaceSettingUp(ws())).toBe(false)
+    expect(workspaceSettingUp(ws({ status: "stopped" }))).toBe(false)
+    expect(workspaceSettingUp(ws({ status: "error" }))).toBe(false)
+    expect(
+      workspaceSettingUp(ws({ status: "starting", error: "Install failed" }))
+    ).toBe(false)
+    expect(
+      workspaceSettingUp(ws({ status: "creating", doneAt: Date.now() }))
+    ).toBe(false)
   })
 })
 

@@ -30,6 +30,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { workspaceLabel } from "@/lib/workspace-label"
+import { workspaceSettingUp } from "@/lib/branch/workspace-state"
 import type { BranchData } from "@/lib/types"
 import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
@@ -135,6 +136,16 @@ export function FrameAddressBar({
   recordedScreens,
   onToggleRecording,
 }: FrameAddressBarProps) {
+  // A recording is about its screens; the host comes back when it stops.
+  const showHost = !recording && (workspace?.ref || onAssignWorkspace)
+  // A Workspace setting up already spins in the host, so the bar's own
+  // loading spinner would be a second one.
+  const hostSpinning =
+    !!showHost && !!workspace && workspaceSettingUp(workspace)
+  const shownStatus =
+    status === "live" || (status === "loading" && hostSpinning)
+      ? undefined
+      : status
   const leading = recording ? (
     <span
       aria-hidden
@@ -142,11 +153,9 @@ export function FrameAddressBar({
     >
       <span className="size-1.5 animate-pulse rounded-full bg-current" />
     </span>
-  ) : status && status !== "live" ? (
-    <StatusIndicator status={status} />
+  ) : shownStatus ? (
+    <StatusIndicator status={shownStatus} />
   ) : null
-  // A recording is about its screens; the host comes back when it stops.
-  const showHost = !recording && (workspace?.ref || onAssignWorkspace)
   const barRef = useRef<HTMLDivElement>(null)
   // The Workspace host takes at most half the bar (#1149). The bar sizes to
   // its content, so it's kept wide enough (up to its cap) for the host's
