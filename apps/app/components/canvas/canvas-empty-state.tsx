@@ -18,9 +18,16 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { Kbd } from "@workspace/ui/components/kbd"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 
 import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 
+import { NO_REPOSITORY_HINT } from "./canvas-toolbar"
 import type { ToolModeController } from "./use-tool-mode"
 
 /**
@@ -41,7 +48,8 @@ const ON_PLANE = "bg-foreground/[0.06] dark:bg-muted"
  * `D` do; the
  * guidance then steps aside for a one-line placement hint, so the next click
  * lands on the canvas rather than on a button. Add a repository goes straight
- * to the picker (#1182).
+ * to the picker (#1182). With no repository yet, Add a frame is off and its
+ * tooltip says to add one first, the same as the toolbar's Frame button.
  *
  * Floats over the canvas in screen space and is pointer-transparent except for
  * its buttons, so panning and marquee still work around it. The Canvas stops
@@ -84,18 +92,39 @@ export function CanvasEmptyState({
           </EmptyMedia>
           <EmptyTitle>This canvas is empty</EmptyTitle>
           <EmptyDescription>
-            Frames preview a Workspace, Mockups sketch a page before it&apos;s built,
-            Documents hold notes and specs, and a repository holds the code they
-            run.
+            Frames preview a Workspace, Mockups sketch a page before it&apos;s
+            built, Documents hold notes and specs, and a repository holds the
+            code they run.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="pointer-events-auto w-56 gap-1">
-          <EmptyAction
-            icon={<FrameCornersIcon />}
-            label="Add a frame"
-            shortcut="F"
-            onClick={() => toolMode.set("frame")}
-          />
+          {toolMode.frameAvailable ? (
+            <EmptyAction
+              icon={<FrameCornersIcon />}
+              label="Add a frame"
+              shortcut="F"
+              onClick={() => toolMode.set("frame")}
+            />
+          ) : (
+            // A disabled button fires no pointer events, so the tooltip hangs
+            // off a wrapping span.
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex w-full">
+                    <EmptyAction
+                      icon={<FrameCornersIcon />}
+                      label="Add a frame"
+                      disabled
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {NO_REPOSITORY_HINT}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           <EmptyAction
             icon={<ScribbleIcon />}
             label="Add a Mockup"

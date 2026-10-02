@@ -2,13 +2,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { NEW_CHAT } from "@/lib/frame-ask"
+import { NEW_CHAT, NEW_SKETCH_CHAT } from "@/lib/frame-ask"
+import type { ChatSessionData } from "@/lib/types"
 import { FrameAskCard } from "./frame-ask-card"
 
 // The real composer is an editor; the card only needs a field to type in.
 vi.mock("@/components/agent/composer", () => ({
-  Composer: ({ placeholder }: { placeholder: string }) => (
-    <textarea aria-label={placeholder} />
+  Composer: ({
+    placeholder,
+    modelSlot,
+  }: {
+    placeholder: string
+    modelSlot?: React.ReactNode
+  }) => (
+    <>
+      <textarea aria-label={placeholder} />
+      {modelSlot}
+    </>
   ),
 }))
 
@@ -18,14 +28,19 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
-function renderCard(onClose = vi.fn()) {
+function renderCard(
+  onClose = vi.fn(),
+  defaultAnswerer = NEW_CHAT,
+  sketchChats: ChatSessionData[] = []
+) {
   render(
     <FrameAskCard
       kind="mockup"
       locate={() => ({ left: 0, top: 0, width: 390, height: 844 })}
       markdownLayers={[]}
       workspaces={[]}
-      defaultAnswerer={NEW_CHAT}
+      sketchChats={sketchChats}
+      defaultAnswerer={defaultAnswerer}
       onSubmit={() => {}}
       onClose={onClose}
     />
@@ -63,5 +78,22 @@ describe("FrameAskCard for a drawn Mockup box (#1359)", () => {
 
     fireEvent.pointerDown(document.body)
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("says a new chat answers on a canvas with no repository and no chats", () => {
+    renderCard(vi.fn(), NEW_SKETCH_CHAT)
+
+    expect(screen.getByText("New chat")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Who answers" })).toBeNull()
+  })
+
+  it("offers the chats with no repository once there are some", () => {
+    renderCard(vi.fn(), { kind: "sketch", chatId: "s-1" }, [
+      { id: "s-1", target: "sketch", label: "Pricing sketch", createdAt: 1 },
+    ])
+
+    expect(
+      screen.getByRole("button", { name: "Who answers" }).textContent
+    ).toContain("Pricing sketch")
   })
 })

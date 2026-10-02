@@ -12,6 +12,7 @@ vi.mock("@/lib/terminal-tabs", () => ({
 import {
   agentChatTarget,
   roomChatTarget,
+  sketchChatTarget,
   type ChatTargetSpec,
 } from "@/lib/agent/chat-target-kinds"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
@@ -148,8 +149,10 @@ describe("room chat target", () => {
       "remove",
       "remove_workspace",
       "rename",
+      "send_to_chat",
       "send_to_workspace",
       "show_on_canvas",
+      "start_chat",
       "stop_workspace",
       "undo_changes",
       "view_frame",
@@ -487,5 +490,46 @@ describe("frame reads in every chat (#1311)", () => {
     expect(await call(workspace.read_frame_html!, {})).toBe(
       'Can\'t read the page in frame [frame-1] (/login in Workspace "Sign-in"): its Workspace has no running preview.'
     )
+  })
+})
+
+describe("sketchChatTarget (a chat with no repository)", () => {
+  it("gets the Document, Mockup, layer read and question tools, and nothing that touches code", () => {
+    const room = {
+      roomId: "room-1",
+      readDoc: async () => {
+        throw new Error("not read while building tools")
+      },
+      mutateDoc: async () => {
+        throw new Error("not written while building tools")
+      },
+    }
+    const names = Object.keys(
+      sketchChatTarget.buildTools(room, { chatId: "s-1" })
+    )
+    expect(names).toEqual(
+      expect.arrayContaining([
+        ...Object.keys(buildDocumentTools({ room, chatId: "s-1" })),
+        ...Object.keys(buildMockupTools({ room, chatId: "s-1" })),
+        "read_document",
+        "read_skill",
+        "ask_question",
+      ])
+    )
+    expect(names).not.toContain("bash")
+    expect(names).not.toContain("send_to_workspace")
+  })
+
+  it("writes its prompt around Mockups and Documents, with no repository", () => {
+    const prompt = sketchChatTarget.buildSystemPrompt(
+      {
+        chatId: "s-1",
+        layerDirectory: { documents: [] },
+        memory: [],
+      },
+      {}
+    )
+    expect(prompt).toMatch(/no repository/i)
+    expect(prompt).toContain("create_mockup")
   })
 })

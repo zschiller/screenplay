@@ -1,4 +1,5 @@
 import { sortForSidebar } from "@/lib/sidebar-order"
+import { isSketchChat } from "@/lib/chat/sketch-chat"
 import type {
   BranchData,
   ChatSessionData,
@@ -68,11 +69,21 @@ export function forMockup(
   return text ? `${text}\n\n${target}` : target
 }
 
-/** Who answers a drawn frame's ask: a new chat, or a Workspace's own chat. */
+/**
+ * Who answers a drawn frame's ask: a new chat, or a Workspace's own chat. A
+ * drawn Mockup box can also go to a chat with no repository (a Sketch Chat):
+ * an existing one by `chatId`, else a new one. On a canvas with no repository
+ * that's the only kind there is.
+ */
 export type FrameAnswerer =
-  { kind: "new-chat" } | { kind: "workspace"; branchId: string }
+  | { kind: "new-chat" }
+  | { kind: "workspace"; branchId: string }
+  | { kind: "sketch"; chatId?: string }
 
 export const NEW_CHAT: FrameAnswerer = { kind: "new-chat" }
+
+/** A new chat with no repository. */
+export const NEW_SKETCH_CHAT: FrameAnswerer = { kind: "sketch" }
 
 /**
  * Who answers by default (#1357, spec #1355), from the canvas selection when
@@ -81,6 +92,8 @@ export const NEW_CHAT: FrameAnswerer = { kind: "new-chat" }
  * together only when they all lead to one Workspace. A Workspace that can't be
  * picked (gone, failed, stopped) falls back to a new chat. Prompts to a
  * Workspace land in its one chat (`workspaceChatId`), so the Branch is enough.
+ * With `sketch` (a drawn Mockup box), Mockups and Documents that all belong
+ * to one chat with no repository pick that chat.
  */
 export function defaultFrameAnswerer(input: {
   /** Selected frames. */
@@ -89,17 +102,30 @@ export function defaultFrameAnswerer(input: {
   ownedLayerIds: Iterable<string>
   frames: readonly Pick<IframeLayerData, "id" | "branchId">[]
   ownedLayers: readonly { id: string; ownerChatId?: string }[]
-  chatSessions: readonly Pick<ChatSessionData, "id" | "branchId">[]
+  chatSessions: readonly Pick<ChatSessionData, "id" | "branchId" | "target">[]
   /** The Workspaces the chip can pick. */
   pickable: readonly Pick<BranchData, "id">[]
+  /** Whether a chat with no repository can answer (a Mockup box). */
+  sketch?: boolean
 }): FrameAnswerer {
   const framesById = new Map(input.frames.map((f) => [f.id, f]))
   const ownedById = new Map(input.ownedLayers.map((l) => [l.id, l]))
   const chatsById = new Map(input.chatSessions.map((c) => [c.id, c]))
 
+  const frameIds = [...input.frameIds]
+  const owned = [...input.ownedLayerIds]
+  if (input.sketch && owned.length > 0 && frameIds.length === 0) {
+    const owners = new Set(owned.map((id) => ownedById.get(id)?.ownerChatId))
+    const [owner] = owners
+    const chat = owner ? chatsById.get(owner) : undefined
+    if (owners.size === 1 && chat && isSketchChat(chat)) {
+      return { kind: "sketch", chatId: chat.id }
+    }
+  }
+
   const branchIds = new Set<string | undefined>()
-  for (const id of input.frameIds) branchIds.add(framesById.get(id)?.branchId)
-  for (const id of input.ownedLayerIds) {
+  for (const id of frameIds) branchIds.add(framesById.get(id)?.branchId)
+  for (const id of owned) {
     const owner = ownedById.get(id)?.ownerChatId
     branchIds.add(owner ? chatsById.get(owner)?.branchId : undefined)
   }

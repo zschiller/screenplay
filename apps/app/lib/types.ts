@@ -167,8 +167,12 @@ export type ChatSessionData = {
   id: string
   /** Set when the chat targets a Branch. */
   branchId?: string
-  /** `"room"` when the chat targets the whole Room (the Coordinator). */
-  target?: "room"
+  /**
+   * `"room"` when the chat targets the whole Room (the Coordinator);
+   * `"sketch"` for a chat with no repository (a Sketch Chat), which has no
+   * Branch or sandbox and makes only Documents and Mockups.
+   */
+  target?: "room" | "sketch"
   label: string
   createdAt: number
   isStreaming?: boolean

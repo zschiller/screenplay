@@ -60,6 +60,9 @@ function room() {
     launchWorkspaceTurn: async () => {
       throw new Error("no Workspaces")
     },
+    launchSketchTurn: async () => {
+      throw new Error("no chats")
+    },
   }
   const turn = () => {
     const tools = buildRoomTools("room-1", ports)

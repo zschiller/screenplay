@@ -96,6 +96,10 @@ function renderMenu(branches: BranchData[]) {
       current={{ kind: "room" }}
       onShowRoomChat={onShowRoomChat}
       onSelectWorkspace={onSelectWorkspace}
+      onSelectSketchChat={noop}
+      onCreateSketchChat={noop}
+      onRenameSketchChat={noop}
+      onDeleteSketchChat={noop}
       onCreateBranchFromGitBranch={noop}
       onCreateWorkspace={noop}
       onRebaseOnDefault={noop}

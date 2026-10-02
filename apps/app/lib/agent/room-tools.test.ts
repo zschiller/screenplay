@@ -6,6 +6,7 @@ import {
   CANVAS_SUMMARY_LIMITS,
   type RoomToolPorts,
   type TerminalTabSummary,
+  type SketchTurnRequest,
   type WorkspaceTurnRequest,
 } from "@/lib/agent/room-tools"
 import type { RoomCollections } from "@/lib/yjs/schema"
@@ -49,6 +50,7 @@ function portsOver(
     readFrameCapture: unused,
     readFramePage: unused,
     launchWorkspaceTurn: async () => {},
+    launchSketchTurn: async () => {},
   }
 }
 
@@ -333,6 +335,78 @@ describe("write_memory", () => {
       /needs text/
     )
     expect(readMemory(collections)).toEqual([])
+  })
+})
+
+describe("chats with no repository", () => {
+  function chatHarness() {
+    const { collections } = makeHarness()
+    const launched: SketchTurnRequest[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      launchSketchTurn: async (request) => {
+        launched.push(request)
+      },
+    }
+    const run = async (name: string, input: Record<string, string>) =>
+      (await buildRoomTools("room-1", ports)[name]!.execute!(input, {
+        toolCallId: "t1",
+        messages: [],
+        context: {},
+      })) as string
+    return { collections, launched, ports, run }
+  }
+
+  it("start_chat creates a chat with no repository and sends it the prompt", async () => {
+    const { collections, launched, ports, run } = chatHarness()
+
+    const result = await run("start_chat", {
+      title: " Pricing sketch ",
+      prompt: " Sketch a pricing page ",
+    })
+
+    const chatId = launched[0]!.chatId
+    expect(launched).toEqual([{ chatId, message: "Sketch a pricing page" }])
+    expect(collections.chatSessions.get(chatId)).toMatchObject({
+      target: "sketch",
+      label: "Pricing sketch",
+    })
+    expect(result).toContain(`"Pricing sketch" [chat ${chatId}]`)
+    // read_canvas lists it, so a follow-up can name it.
+    expect(await readCanvas(ports)).toContain(
+      `Chats with no repository (1):\n- [${chatId}] "Pricing sketch" · idle`
+    )
+  })
+
+  it("send_to_chat sends a follow-up, and refuses a busy chat or a Workspace chat", async () => {
+    const { collections, launched, run } = chatHarness()
+    collections.chatSessions.set("s-1", {
+      id: "s-1",
+      target: "sketch",
+      label: "Notes",
+      createdAt: 1,
+      model: "m-1",
+    })
+    collections.chatSessions.set(
+      "chat-1",
+      baseChat("chat-1", { branchId: "ws-1" })
+    )
+
+    expect(
+      await run("send_to_chat", { chat_id: "s-1", message: "Shorter" })
+    ).toContain('Sent to "Notes" [chat s-1]')
+    expect(launched).toEqual([
+      { chatId: "s-1", message: "Shorter", model: "m-1" },
+    ])
+
+    await expect(
+      run("send_to_chat", { chat_id: "chat-1", message: "Hi" })
+    ).rejects.toThrow(/No chat with no repository/)
+    collections.chatSessions.update("s-1", { isStreaming: true })
+    await expect(
+      run("send_to_chat", { chat_id: "s-1", message: "Again" })
+    ).rejects.toThrow(/is working on a turn/)
+    expect(launched).toHaveLength(1)
   })
 })
 

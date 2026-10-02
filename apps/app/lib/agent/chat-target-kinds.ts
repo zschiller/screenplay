@@ -4,8 +4,10 @@ import type { ModelMessage, Tool } from "ai"
 import {
   buildAgentSystemPrompt,
   buildRoomSystemPrompt,
+  buildSketchSystemPrompt,
   type LayerDirectory,
 } from "./config"
+import { sketchSkillIndex } from "./sketch-tools"
 import { toolsetFor } from "./toolset"
 import type { ToolNaming } from "./tool-name"
 import { prependTurnMarkers } from "./message-markers"
@@ -21,8 +23,8 @@ import { readMemory } from "@/lib/canvas/memory"
 import type { MemoryData } from "@/lib/types"
 
 /**
- * Server-side registry of chat target kinds (a Branch's sandbox or the whole
- * Room). A Document is no longer a target (#1314): a Workspace chat writes the
+ * Server-side registry of chat target kinds (a Branch's sandbox, the whole
+ * Room, or a Sketch Chat with no repository). A Document is no longer a target (#1314): a Workspace chat writes the
  * Documents it owns with its own tools. Each entry contains the
  * code paths that change between targets:
  *
@@ -190,6 +192,8 @@ export interface RoomTarget {
    * it the tool reports that it can't reach Workspaces.
    */
   launchWorkspaceTurn?: RoomToolPorts["launchWorkspaceTurn"]
+  /** Starts a turn in a chat with no repository, injected likewise. */
+  launchSketchTurn?: RoomToolPorts["launchSketchTurn"]
   /** Provisions a Workspace `create_workspaces` created, injected likewise. */
   provisionWorkspace?: RoomToolPorts["provisionWorkspace"]
   /** Stops a Workspace chat's turn for `stop_workspace`, injected likewise. */
@@ -218,6 +222,7 @@ export function liveRoomToolPorts(
   {
     userId,
     launchWorkspaceTurn,
+    launchSketchTurn,
     provisionWorkspace,
     stopWorkspaceTurn,
     openPullRequest,
@@ -235,6 +240,7 @@ export function liveRoomToolPorts(
     mutateDoc: (fn) => room.mutateDoc(fn),
     launchWorkspaceTurn:
       launchWorkspaceTurn ?? unavailable("Messaging Workspaces"),
+    launchSketchTurn: launchSketchTurn ?? unavailable("Messaging chats"),
     provisionWorkspace:
       provisionWorkspace ?? unavailable("Starting Workspaces"),
     stopWorkspaceTurn: stopWorkspaceTurn ?? unavailable("Stopping Workspaces"),
@@ -284,6 +290,49 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   // chats (#743), so a stale `planMode: true` never reaches the model.
   decorateUserMessage(message) {
     return message
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Sketch target — a chat with no repository (`lib/chat/sketch-chat.ts`). No
+// sandbox: Documents and Mockups only.
+// ---------------------------------------------------------------------------
+
+export interface SketchTarget {
+  /** The Sketch Chat, which owns the Documents and Mockups it makes. */
+  chatId: string
+}
+
+interface SketchContext {
+  chatId: string
+  layerDirectory: LayerDirectory
+  memory: MemoryData[]
+}
+
+export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
+  kind: "sketch",
+  async loadContext(room, target) {
+    const [layerDirectory, memory] = await Promise.all([
+      loadLayerDirectory(room),
+      loadCanvasMemory(room),
+    ])
+    return { chatId: target.chatId, layerDirectory, memory }
+  },
+  buildSystemPrompt(ctx, { toolNaming }) {
+    return buildSketchSystemPrompt({
+      layerDirectory: ctx.layerDirectory,
+      chatId: ctx.chatId,
+      skills: sketchSkillIndex(),
+      memory: ctx.memory,
+      toolNaming,
+    })
+  },
+  buildTools(room, target) {
+    return toolsetFor({ kind: "sketch", room, chatId: target.chatId })
+  },
+  // No branch and no plan mode; a Delegated Message still says who sent it.
+  decorateUserMessage(message, { delegatedFrom }) {
+    return prependTurnMarkers(message, { delegatedFrom })
   },
 }
 

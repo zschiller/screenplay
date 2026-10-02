@@ -858,7 +858,7 @@ export function RoomSidebar({
                 </DropHintContext.Provider>
                 {iframeLayerGroups.length === 0 && (
                   <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
-                    No frames yet
+                    Nothing on the canvas yet
                   </div>
                 )}
               </SidebarGroupContent>

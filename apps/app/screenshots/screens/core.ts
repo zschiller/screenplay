@@ -218,7 +218,7 @@ export const CORE_SCREENS: Screen[] = [
   {
     name: "dialog-new-workspace",
     description:
-      "The prompt-first Create workspaces dialog, from the Chats menu's New chat (+).",
+      "The prompt-first New chat dialog, from the Chats menu's New chat (+).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {

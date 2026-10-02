@@ -12,8 +12,14 @@ import {
   loadLayerDirectory,
   prepareChatTarget,
   roomChatTarget,
+  sketchChatTarget,
 } from "./chat-target-kinds"
 import { ensureRoomChat } from "@/lib/room-chat"
+import {
+  isSketchChat,
+  sketchChatSession,
+  SKETCH_CHAT_LABEL,
+} from "@/lib/chat/sketch-chat"
 import type { RoomAccess } from "@/lib/room-access"
 import { DEFAULT_MODEL } from "./providers"
 import {
@@ -64,7 +70,11 @@ import {
   type TurnTarget,
 } from "./turn-launch"
 import { prependTurnMarkers } from "./message-markers"
-import { wakeRequesterId, type WorkspaceTurnRequest } from "./room-tools"
+import {
+  wakeRequesterId,
+  type SketchTurnRequest,
+  type WorkspaceTurnRequest,
+} from "./room-tools"
 import type { RoomTarget } from "./chat-target-kinds"
 import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -151,22 +161,32 @@ const COORDINATOR_IDLE_WAIT_MS = 5 * 60_000
 /**
  * Tell the Room's Coordinator how a Workspace turn ended (#897): which
  * Workspace, the run state, and the turn's summary and final reply, read now
- * so a queued wake still reports its own turn. Chats that aren't on a
- * Workspace wake nothing.
+ * so a queued wake still reports its own turn. A Sketch Chat's turns wake it
+ * too; any other chat that isn't on a Workspace wakes nothing.
  */
 async function wakeCoordinator(
   room: RoomAccess,
   end: WorkspaceTurnEnd
 ): Promise<void> {
   const workspace = await room.readDoc(({ chatSessions, branches }) => {
-    const branchId = chatSessions.get(end.chatId)?.branchId
-    const branch = branchId ? branches.get(branchId) : undefined
+    const chat = chatSessions.get(end.chatId)
+    // A Sketch Chat wakes it too, named by the chat itself.
+    if (isSketchChat(chat)) {
+      return {
+        id: chat!.id,
+        title: chat!.label,
+        requesterId: room.userId,
+        sketch: true,
+      }
+    }
+    const branch = chat?.branchId ? branches.get(chat.branchId) : undefined
     return branch
       ? {
           id: branch.id,
           title: workspaceLabel(branch),
           // Workspaces this wake creates belong to this Workspace's owner.
           requesterId: wakeRequesterId(branch, room.userId),
+          sketch: false,
         }
       : null
   })
@@ -174,6 +194,7 @@ async function wakeCoordinator(
   const message = wakeMessage({
     workspaceId: workspace.id,
     title: workspace.title,
+    sketch: workspace.sketch,
     status: end.status,
     lastTurn: renderLastTurn(await loadChatTranscript(end.chatId)),
   })
@@ -288,6 +309,8 @@ export function coordinatorTarget(
     requesterId: opts.requesterId,
     coordinatorChatId,
     launchWorkspaceTurn: delegatedTurnLauncher(room, coordinatorChatId),
+    launchSketchTurn: (request) =>
+      launchDelegatedSketchTurn(room, coordinatorChatId, request),
     // Provisioned with the owner's GitHub account, as the create they asked
     // for; the seed message follows once the sandbox runs.
     async provisionWorkspace(request) {
@@ -395,6 +418,38 @@ async function launchDelegatedTurn(
   }
   if (result.kind === "not-steerable") {
     throw new Error("The Workspace is busy. Try again once its turn ends.")
+  }
+}
+
+async function launchDelegatedSketchTurn(
+  room: RoomAccess,
+  coordinatorChatId: string,
+  request: SketchTurnRequest
+): Promise<void> {
+  const { chatId, message, model } = request
+  const result = await launchTurn(
+    liveTurnLaunchDeps(room),
+    {
+      roomId: room.roomId,
+      chatId,
+      message: prependTurnMarkers(message, {
+        delegatedFrom: coordinatorChatId,
+      }),
+      model,
+    },
+    sketchTurn({
+      room,
+      chatId,
+      message,
+      model,
+      delegatedFrom: coordinatorChatId,
+    })
+  )
+  if (result.kind === "target-not-found") {
+    throw new Error("The chat is gone.")
+  }
+  if (result.kind === "not-steerable") {
+    throw new Error("The chat is busy. Try again once its turn ends.")
   }
 }
 
@@ -536,6 +591,87 @@ export function sandboxTurn(input: {
         commentThreadIds: undefined,
         delegatedFrom: undefined,
       }),
+  }
+}
+
+/**
+ * A Sketch Chat (`lib/chat/sketch-chat.ts`): no repository and no sandbox, so
+ * the turn runs with the Document and Mockup tools only. Its first message
+ * names it, unless it was created with a name.
+ */
+export function sketchTurn(input: {
+  room: RoomDoc
+  chatId: string
+  message: string
+  model?: string
+  /** The sending Coordinator chat, when this turn is a Delegated Message. */
+  delegatedFrom?: string
+}): TurnTarget {
+  const { room, chatId, message } = input
+  const { roomId } = room
+  return {
+    async prepare() {
+      // The client adds the chat record as it sends, so its first turn can
+      // beat the record here: make it then, as `ensureRoomChat` does. A chat
+      // that exists as anything else isn't this target's.
+      const chat = await room
+        .mutateDoc(({ chatSessions }) => {
+          const existing = chatSessions.get(chatId)
+          if (existing) return existing
+          const created = sketchChatSession(chatId, Date.now())
+          chatSessions.set(chatId, created)
+          return created
+        })
+        .catch(() => undefined)
+      if (!isSketchChat(chat)) return null
+      const prepared = await prepareChatTarget(
+        room,
+        sketchChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
+        { chatId } as unknown as never,
+        undefined,
+        { toolNaming: toolNamingForTurn(input.model) }
+      )
+      if (!prepared) return null
+
+      const model = input.model || DEFAULT_MODEL
+      await upsertChat({
+        chatId,
+        roomId,
+        // No sandbox, as for the Coordinator.
+        sandboxName: "",
+        model,
+        systemPrompt: prepared.systemPrompt,
+      })
+
+      // First-message naming (#910), only while it has its stock name.
+      if (chat?.label === SKETCH_CHAT_LABEL) {
+        const { chatLabel } = await generateChatNames({
+          message,
+          shouldNameBranch: false,
+          model,
+        })
+        if (chatLabel) {
+          await room.mutateDoc(({ chatSessions }) => {
+            if (chatSessions.get(chatId)?.label === SKETCH_CHAT_LABEL)
+              chatSessions.update(chatId, { label: chatLabel })
+          })
+        }
+      }
+
+      return {
+        systemPrompt: prepared.systemPrompt,
+        model,
+        tools: prepared.tools,
+        userText: prepared.decorateUserMessage(message, {
+          isFirstMessage: false,
+          delegatedFrom: input.delegatedFrom,
+        }),
+        // The Coordinator hears how a turn it delegated ended.
+        wakesCoordinator: true,
+      }
+    },
+    followUp: (next) =>
+      sketchTurn({ ...input, message: next, delegatedFrom: undefined }),
   }
 }
 

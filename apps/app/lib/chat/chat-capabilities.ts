@@ -54,6 +54,21 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
       "What changed in each Workspace?",
     ],
   },
+  // A chat with no repository writes pages, not code.
+  sketch: {
+    skills: false,
+    planMode: false,
+    elementPicking: false,
+    placeholder: "Ask for a Mockup or a Document… (@ document)",
+    emptyTitle: "Sketch without code",
+    emptyBody:
+      "This chat has no repository. It writes Mockups and Documents on the canvas.",
+    starters: [
+      "Mock up a pricing page",
+      "Sketch three hero layouts",
+      "Write a one-page plan",
+    ],
+  },
 }
 
 /**

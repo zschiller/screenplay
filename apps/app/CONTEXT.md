@@ -512,16 +512,27 @@ _Avoid_: the grid for plain progress; `Spinner` or a raw `Loader2` for model
 activity; a third spinner style.
 
 **Chat Target**:
-What a Chat Session talks to — a Branch's **sandbox**, or the whole **Room**
-(see **Room Target**). A Document is not one: a Workspace chat writes
+What a Chat Session talks to — a Branch's **sandbox**, the whole **Room**
+(see **Room Target**), or nothing but the Canvas (see **Sketch Chat**). A Document is not one: a Workspace chat writes
 Documents with its own tools (#1314). The target decides the
 system prompt and which Tools the model is given. On the client it is one
-value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `room`), which the chat store maps to the wire target in one place. What the
+value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `room`, `sketch`), which the chat store maps to the wire target in one place. What the
 Composer offers for each kind (skills, plan mode, element picking, placeholder,
 empty state and starters) is one row of the capability table in
 `lib/chat/chat-capabilities`; only the `agent` kind has a sandbox, so only it
 turns on skills, plan mode and element picking.
 _Avoid_: subject, destination.
+
+**Sketch Chat**:
+A Chat Session with no Repo and so no Branch or sandbox: it writes and edits
+only the Documents and Mockups it owns (`lib/chat/sketch-chat`, kind
+`sketch`, marked by `target: "sketch"` on the session). A member starts one
+from the Chats menu or by drawing a Mockup box; the Room Target starts one
+with `start_chat` and messages it with `send_to_chat`, and hears its turns
+like a Branch's. It never runs code: code needs a Repo (#1409).
+_Shown to users as_: "chat with no repository"; "No repository" where a Repo
+is picked.
+_Avoid_: repo-less Workspace, empty sandbox.
 
 **Room Target** (planned, wayfinder #856):
 The Chat Target of a chat that works on the whole Room rather than one Branch
@@ -529,6 +540,8 @@ or document: it sees every Repo, Branch and Layer, arranges the Canvas, creates
 Branches, and hands work to their agents through **Delegated Messages**. It
 makes nothing itself: Documents, Mockups and code all come from a Branch's
 chat, and only the Room Target arranges the Canvas or moves the view (#1316).
+With no Branch to fit an ask for a Document or Mockup (a Room with no Repo,
+say), it starts a **Sketch Chat** for it instead.
 Its kind is `room`, named for its target like the other kinds, never for its role.
 It works like a Claude Projects chat: a Room has **exactly one** Room Target
 chat, it hears every Branch's turns (Branches are its threads), and it stays

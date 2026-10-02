@@ -57,12 +57,19 @@ function nextRowKey(): string {
 /** One row's create request: its {@link ComposerSpec} and the Repo it's in. */
 export type WorkspaceSpec = ComposerSpec & { repoId: string }
 
+/**
+ * A row's `repoId` when it picks No repository: a chat with none (a Sketch
+ * Chat, `lib/chat/sketch-chat.ts`), which writes Mockups and Documents only.
+ */
+export const NO_REPOSITORY_ID = "no-repository"
+
 interface CreateBranchDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /**
-   * The canvas's Repos, in sidebar order. With several, each row gets a
-   * repository chip beside its base chip (#884); with one, nothing mentions it.
+   * The canvas's Repos, in sidebar order. Each row gets a repository chip
+   * beside its base chip (#884), which also offers No repository
+   * ({@link NO_REPOSITORY_ID}).
    */
   repos: RepoData[]
   /**
@@ -74,7 +81,7 @@ interface CreateBranchDialogProps {
   repoId: string
   /**
    * The base each row starts on. Defaults to the Repo's default branch; the
-   * "New workspace from here…" menu item (#353) seeds it with the originating
+   * "New chat from here…" menu item (#353) seeds it with the originating
    * branch's ref so the dialog opens pre-based on that branch (a base ≠ the
    * default resolves to the planner's `duplicate-branch` flow), still with an
    * empty prompt.
@@ -209,9 +216,9 @@ export function CreateBranchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="px-5 pt-5 pb-3">
-          <DialogTitle>Create workspaces</DialogTitle>
+          <DialogTitle>New chat</DialogTitle>
           <DialogDescription>
-            Create one or more workspaces, each with an optional prompt.
+            Start one or more chats, each with an optional prompt.
           </DialogDescription>
         </DialogHeader>
 
@@ -245,10 +252,12 @@ export function CreateBranchDialog({
                   onRemove={() => removeRowAt(idx)}
                   onRepoChange={(repo) =>
                     // A new repository starts on its own default branch.
-                    updateRow(idx, {
-                      repoId: repo.id,
-                      baseBranch: repo.defaultBranch,
-                    })
+                    updateRow(
+                      idx,
+                      repo
+                        ? { repoId: repo.id, baseBranch: repo.defaultBranch }
+                        : { repoId: NO_REPOSITORY_ID }
+                    )
                   }
                   onBaseChange={(branch) =>
                     updateRow(idx, { baseBranch: branch })
@@ -283,15 +292,19 @@ export function CreateBranchDialog({
             Cancel
           </Button>
           <Button onClick={submitAll} disabled={noAgents}>
-            {rows.length === 1
-              ? "Create workspace"
-              : `Create ${rows.length} workspaces`}
+            {createLabel(rows)}
             <Kbd>↵</Kbd>
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
+}
+
+/** The create button's label. */
+function createLabel(rows: readonly ComposerRow[]): string {
+  const n = rows.length
+  return n === 1 ? "Create chat" : `Create ${n} chats`
 }
 
 interface WorkspaceRowProps {
@@ -304,7 +317,8 @@ interface WorkspaceRowProps {
   /** The canvas's Repos; the row offers a repository chip when there are several. */
   repos: RepoData[]
   onRemove: () => void
-  onRepoChange: (repo: RepoData) => void
+  /** A Repo, or null for No repository. */
+  onRepoChange: (repo: RepoData | null) => void
   onBaseChange: (branch: string) => void
   onModelChange: (model: string) => void
   onPlanModeChange: (planMode: boolean) => void
@@ -337,7 +351,10 @@ function WorkspaceRow({
 }: WorkspaceRowProps) {
   const composerRef = useRef<ComposerHandle>(null)
   const [basePickerOpen, setBasePickerOpen] = useState(false)
-  const repo = repos.find((r) => r.id === row.repoId) ?? repos[0]
+  const noRepository = row.repoId === NO_REPOSITORY_ID
+  const repo = noRepository
+    ? undefined
+    : (repos.find((r) => r.id === row.repoId) ?? repos[0])
 
   // Focus the Composer when this row becomes the focused one — on first mount of
   // the initial row and when a freshly-added row lands.
@@ -353,7 +370,7 @@ function WorkspaceRow({
         {/* -ml-2 cancels the ghost pickers' padding so the first icon sits
             on the dialog gutter with the title and the prompt box. */}
         <div className="-ml-2 flex items-center gap-1">
-          {repos.length > 1 && repo ? (
+          {repos.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -363,7 +380,7 @@ function WorkspaceRow({
                   title="Choose the repository"
                 >
                   <BookBookmarkIcon className="size-3.5" />
-                  {repoShortName(repo)}
+                  {repo ? repoShortName(repo) : "No repository"}
                   <CaretDownIcon className="size-3 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
@@ -376,10 +393,10 @@ function WorkspaceRow({
                 }}
               >
                 <DropdownMenuRadioGroup
-                  value={repo.id}
+                  value={repo?.id ?? NO_REPOSITORY_ID}
                   onValueChange={(id) => {
-                    const next = repos.find((r) => r.id === id)
-                    if (next && next.id !== repo.id) onRepoChange(next)
+                    if (id === (repo?.id ?? NO_REPOSITORY_ID)) return
+                    onRepoChange(repos.find((r) => r.id === id) ?? null)
                   }}
                 >
                   {repos.map((r) => (
@@ -387,35 +404,41 @@ function WorkspaceRow({
                       {repoShortName(r)}
                     </DropdownMenuRadioItem>
                   ))}
+                  {/* A chat that writes Mockups and Documents only. */}
+                  <DropdownMenuRadioItem value={NO_REPOSITORY_ID}>
+                    No repository
+                  </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
-          <Popover open={basePickerOpen} onOpenChange={setBasePickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                size="xs"
-                variant="ghost"
-                title="Choose the base branch"
-              >
-                <GitBranchIcon className="size-3.5" />
-                <span className="font-mono">{row.baseBranch}</span>
-                <CaretDownIcon className="size-3 opacity-60" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" align="start">
-              <BranchPicker
-                owner={repo?.repoOwner ?? ""}
-                repo={repo?.repoName ?? ""}
-                onSelect={(branch) => {
-                  onBaseChange(branch)
-                  setBasePickerOpen(false)
-                  composerRef.current?.focus()
-                }}
-              />
-            </PopoverContent>
-          </Popover>
+          {!noRepository && (
+            <Popover open={basePickerOpen} onOpenChange={setBasePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  title="Choose the base branch"
+                >
+                  <GitBranchIcon className="size-3.5" />
+                  <span className="font-mono">{row.baseBranch}</span>
+                  <CaretDownIcon className="size-3 opacity-60" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="start">
+                <BranchPicker
+                  owner={repo?.repoOwner ?? ""}
+                  repo={repo?.repoName ?? ""}
+                  onSelect={(branch) => {
+                    onBaseChange(branch)
+                    setBasePickerOpen(false)
+                    composerRef.current?.focus()
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
           <div className="flex-1" />
           {canRemove && (
             <Button

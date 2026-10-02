@@ -29,7 +29,8 @@ import {
   buildMockupTools,
   MOCKUP_TOOL_ANNOTATIONS,
 } from "@/lib/agent/mockup-tools"
-import { withRedactedOutput } from "@/lib/agent/toolset"
+import { toolsetFor, withRedactedOutput } from "@/lib/agent/toolset"
+import { SKETCH_TOOL_ANNOTATIONS } from "@/lib/agent/sketch-tools"
 import {
   buildQuestionTools,
   QUESTION_TOOL_ANNOTATIONS,
@@ -111,6 +112,30 @@ export async function POST(req: Request) {
         onInitialize: (client) =>
           console.info(
             `[workspace-mcp] ${client.name ?? "client"} connected for ${binding.sandboxName}`
+          ),
+      },
+      message
+    )
+    if (!response) return new Response(null, { status: 202 })
+    return Response.json(response)
+  }
+  // A Sketch Chat's harness gets the same tools as its in-process turn: its
+  // Document and Mockup tools, the layer reads and Question Cards.
+  if (binding.sketch) {
+    const response = await handleMcpMessage(
+      {
+        name: COORDINATOR_MCP_SERVER_NAME,
+        version: "1",
+        tools: toolsetFor({ kind: "sketch", room, chatId: binding.chatId }),
+        annotations: {
+          ...DOCUMENT_TOOL_ANNOTATIONS,
+          ...MOCKUP_TOOL_ANNOTATIONS,
+          ...QUESTION_TOOL_ANNOTATIONS,
+          ...SKETCH_TOOL_ANNOTATIONS,
+        },
+        onInitialize: (client) =>
+          console.info(
+            `[sketch-mcp] ${client.name ?? "client"} connected for chat ${binding.chatId}`
           ),
       },
       message

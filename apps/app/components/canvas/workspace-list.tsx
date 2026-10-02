@@ -1,6 +1,10 @@
 "use client"
 
-import { CheckIcon, PlusIcon } from "@workspace/ui/components/icons"
+import {
+  ChatCircleIcon,
+  CheckIcon,
+  PlusIcon,
+} from "@workspace/ui/components/icons"
 import {
   Command,
   CommandEmpty,
@@ -87,6 +91,7 @@ export function WorkspaceCommandList({
   placeholder = "Search workspaces…",
   footer,
   newChat,
+  sketch,
 }: {
   branches: BranchData[]
   currentBranchId?: string
@@ -97,6 +102,15 @@ export function WorkspaceCommandList({
   footer?: string[]
   /** A New chat row above the Workspaces, checked when it's the pick. */
   newChat?: { current: boolean; onPick: () => void }
+  /**
+   * Chats with no repository, between New chat and the Workspaces: a New
+   * chat, no repository row (checked when `current` is "new"), then each one.
+   */
+  sketch?: {
+    chats: readonly { id: string; label: string }[]
+    current: "new" | string | null
+    onPick: (chatId?: string) => void
+  }
 }) {
   const stateOf = useWorkspaceStates()
   return (
@@ -114,6 +128,37 @@ export function WorkspaceCommandList({
               />
             </CommandItem>
           )}
+          {sketch && (
+            <CommandItem
+              value="New chat, no repository"
+              onSelect={() => sketch.onPick()}
+            >
+              <PlusIcon className="text-muted-foreground" />
+              <span className="flex-1">New chat, no repository</span>
+              <CheckIcon
+                className={cn(
+                  "size-3.5",
+                  sketch.current !== "new" && "invisible"
+                )}
+              />
+            </CommandItem>
+          )}
+          {sketch?.chats.map((chat) => (
+            <CommandItem
+              key={chat.id}
+              value={`${chat.label} ${chat.id}`}
+              onSelect={() => sketch.onPick(chat.id)}
+            >
+              <ChatCircleIcon className="text-muted-foreground" />
+              <span className="flex-1 truncate">{chat.label}</span>
+              <CheckIcon
+                className={cn(
+                  "size-3.5",
+                  sketch.current !== chat.id && "invisible"
+                )}
+              />
+            </CommandItem>
+          ))}
           {pickableWorkspaces(branches).map((a) => {
             const hasDiff =
               a.status === "running" &&

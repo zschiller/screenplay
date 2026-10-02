@@ -41,6 +41,12 @@ describe("chatTargetOf", () => {
       sandboxName: "sb-a1",
     })
     expect(chatTargetOf({ kind: "room" })).toEqual({ kind: "room" })
+    expect(
+      chatTargetOf({
+        kind: "sketch",
+        chat: chat("s1", 1, {}, { target: "sketch" }),
+      })
+    ).toEqual({ kind: "sketch", chatId: "s1" })
   })
 })
 
@@ -57,6 +63,18 @@ describe("resolveChatPanelTarget", () => {
 
   it("resolves to nothing when no agent is selected", () => {
     expect(resolveChatPanelTarget(undefined)).toBeNull()
+  })
+
+  it("shows a selected chat with no repository when no agent is selected", () => {
+    const sketch = chat("s1", 1, {}, { target: "sketch" })
+    expect(resolveChatPanelTarget(undefined, sketch)).toEqual({
+      kind: "sketch",
+      chat: sketch,
+    })
+    // A Workspace's chat isn't one.
+    expect(
+      resolveChatPanelTarget(undefined, chat("c1", 1, { branchId: "a1" }))
+    ).toBeNull()
   })
 })
 

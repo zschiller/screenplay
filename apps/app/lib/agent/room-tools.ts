@@ -40,6 +40,7 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
+import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
 import { MOCKUP_STATUS_LABELS, mockupStatusOf } from "@/lib/mockup-status"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
@@ -82,6 +83,11 @@ export interface RoomToolPorts extends WorkspaceReadPorts {
    */
   launchWorkspaceTurn(input: WorkspaceTurnRequest): Promise<void>
   /**
+   * Start a turn in a chat with no repository (a Sketch Chat) carrying a
+   * Delegated Message, as {@link launchWorkspaceTurn} does for a Workspace.
+   */
+  launchSketchTurn(input: SketchTurnRequest): Promise<void>
+  /**
    * Start provisioning a Workspace `create_workspaces` created (#898), as
    * `/api/branch/create` does. Resolves once provisioning is under way; a
    * failure later lands on the Branch as `error`. Throws when it can't start.
@@ -121,6 +127,14 @@ export type WorkspaceTurnRequest = {
    * the Workspace and its branch, as a first chat typed by hand does.
    */
   isFirstChat: boolean
+  model?: string
+}
+
+/** A Delegated Message on its way into a chat with no repository. */
+export type SketchTurnRequest = {
+  chatId: string
+  /** The message as the Coordinator wrote it, before any turn marker. */
+  message: string
   model?: string
 }
 
@@ -165,6 +179,9 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   create_workspaces: { destructiveHint: false, openWorldHint: false },
   // Stops a turn the user can resume by messaging the Workspace again.
   stop_workspace: { destructiveHint: false, openWorldHint: false },
+  // Chats with no repository: Documents and Mockups only.
+  start_chat: { destructiveHint: false, openWorldHint: false },
+  send_to_chat: { destructiveHint: false, openWorldHint: false },
   // A PR on GitHub, and a removal that tears the sandbox down for good (#901).
   open_pull_request: { destructiveHint: false, openWorldHint: true },
   remove_workspace: { destructiveHint: true, openWorldHint: false },
@@ -341,6 +358,48 @@ export function buildRoomTools(
         required: ["workspace_id"],
       }),
       execute: async ({ workspace_id }) => stopWorkspace(ports, workspace_id),
+    }),
+    start_chat: tool({
+      description:
+        "Start a chat with no repository, seeded with a first message. It writes Documents and Mockups only: no code, sandbox or frames. Use it for a document or mockup when the canvas has no repository, or when the ask isn't about any repository's code. It starts right away and returns the chat's id; you hear back when its turn ends.",
+      inputSchema: jsonSchema<{ title: string; prompt: string }>({
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description:
+              'The chat\'s title: a few words naming the work, e.g. "Pricing page sketch".',
+          },
+          prompt: {
+            type: "string",
+            description:
+              "The seed message the chat starts on, written as the user would write it.",
+          },
+        },
+        required: ["title", "prompt"],
+      }),
+      execute: async ({ title, prompt }) => startChat(ports, title, prompt),
+    }),
+    send_to_chat: tool({
+      description:
+        "Send a message into a chat with no repository, as a new turn. Use it for a follow-up on a Document or Mockup that chat made. It returns as soon as the message is queued; you hear back when the turn ends. It refuses a chat that is working.",
+      inputSchema: jsonSchema<{ chat_id: string; message: string }>({
+        type: "object",
+        properties: {
+          chat_id: {
+            type: "string",
+            description: "The chat's id, from `read_canvas`.",
+          },
+          message: {
+            type: "string",
+            description:
+              "What the chat should do, written as the user would write it.",
+          },
+        },
+        required: ["chat_id", "message"],
+      }),
+      execute: async ({ chat_id, message }) =>
+        sendToChat(ports, chat_id, message),
     }),
     read_skill: tool({
       // The index rides in the description too, so a desktop harness, which
@@ -748,8 +807,7 @@ async function sendToWorkspace(
       )
     }
     const title = workspaceLabel(branch)
-    // A fresh Workspace still starting (the one adding a repository makes,
-    // #1182) takes the message as its seed, sent once its sandbox runs.
+    // A fresh Workspace still starting (#1182) takes the message as its seed, sent once its sandbox runs.
     const starting =
       branch.status === "creating" || branch.status === "starting"
     if (starting && branch.pendingSeed) {
@@ -831,6 +889,55 @@ async function sendToWorkspace(
 }
 
 /**
+ * Start a chat with no repository (a Sketch Chat) for the turn's requester,
+ * seeded with `rawPrompt` as a Delegated Message.
+ */
+async function startChat(
+  ports: RoomToolPorts,
+  rawTitle: string,
+  rawPrompt: string
+): Promise<string> {
+  const prompt = typeof rawPrompt === "string" ? rawPrompt.trim() : ""
+  if (!prompt) throw new Error("The chat needs a seed prompt.")
+  const title =
+    (typeof rawTitle === "string" ? rawTitle.trim() : "") || "Untitled"
+  const chatId = nanoid()
+  await ports.mutateDoc(({ chatSessions }) => {
+    chatSessions.set(
+      chatId,
+      sketchChatSession(chatId, Date.now(), { label: title })
+    )
+  })
+  await ports.launchSketchTurn({ chatId, message: prompt })
+  return `Started "${title}" [chat ${chatId}], a chat with no repository. It's working on it now; you'll hear back when its turn ends.`
+}
+
+/** Send a Delegated Message into a chat with no repository. */
+async function sendToChat(
+  ports: RoomToolPorts,
+  chatId: string,
+  rawMessage: string
+): Promise<string> {
+  const message = typeof rawMessage === "string" ? rawMessage.trim() : ""
+  if (!message) throw new Error("The message is empty.")
+  const chat = await ports.readDoc(({ chatSessions }) =>
+    chatSessions.get(chatId)
+  )
+  if (!chat || !isSketchChat(chat)) {
+    throw new Error(
+      `No chat with no repository has the id ${chatId}. Send to a Workspace with send_to_workspace, or call read_canvas for current ids.`
+    )
+  }
+  if (chat.isStreaming) {
+    throw new Error(
+      `"${chat.label}" is working on a turn. Wait until it ends, then send the message.`
+    )
+  }
+  await ports.launchSketchTurn({ chatId, message, model: chat.model })
+  return `Sent to "${chat.label}" [chat ${chatId}]. It's working on it now; you'll hear back when its turn ends.`
+}
+
+/**
  * Per-section caps on the canvas summary. A canvas past them gets a "…and N
  * more" line, so the summary stays well under 25k tokens however big the
  * canvas grows (the size test pins this).
@@ -838,6 +945,7 @@ async function sendToWorkspace(
 export const CANVAS_SUMMARY_LIMITS = {
   repos: 20,
   workspaces: 100,
+  chats: 100,
   groups: 100,
   frames: 150,
   documents: 100,
@@ -914,6 +1022,16 @@ export function summarizeCanvas(
         ]
           .filter(Boolean)
           .join(" · ")
+    ),
+    section(
+      "Chats with no repository",
+      chats.filter(isSketchChat).sort(byCreated),
+      CANVAS_SUMMARY_LIMITS.chats,
+      (c) =>
+        [
+          `- [${c.id}] "${clip(c.label)}"`,
+          c.isStreaming ? "working" : "idle",
+        ].join(" · ")
     ),
     section("Groups", groups, CANVAS_SUMMARY_LIMITS.groups, (g) =>
       [

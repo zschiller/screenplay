@@ -11,6 +11,7 @@ import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import { buildQuestionTools } from "@/lib/agent/question-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
+import { buildSketchTools } from "@/lib/agent/sketch-tools"
 
 /**
  * What a chat target needs to assemble its toolset. The sandbox kind carries a
@@ -21,6 +22,8 @@ import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
  */
 export type ToolTarget =
   | { kind: "sandbox"; room: RoomDoc; sandbox: ToolContext; chatId: string }
+  /** A Sketch Chat: no repository, so Documents and Mockups only. */
+  | { kind: "sketch"; room: RoomDoc; chatId: string }
   | {
       kind: "room"
       room: RoomDoc
@@ -52,7 +55,9 @@ export function toolsetFor(target: ToolTarget): ToolSet {
             sandboxName: target.sandbox.sandboxName,
           }),
         }
-      : buildRoomTools(target.room.roomId, target.ports, target.turnId)
+      : target.kind === "sketch"
+        ? buildSketchTools({ room: target.room, chatId: target.chatId })
+        : buildRoomTools(target.room.roomId, target.ports, target.turnId)
   return withRedactedOutput({ ...own, ...read, ...ask })
 }
 

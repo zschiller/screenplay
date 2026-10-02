@@ -188,6 +188,7 @@ import {
   defaultNewWorkspaceRepoId,
   forMockup,
   NEW_CHAT,
+  NEW_SKETCH_CHAT,
   withViewport,
   type FrameAnswerer,
 } from "@/lib/frame-ask"
@@ -214,6 +215,7 @@ import { CanvasZoomMenu } from "./canvas-zoom-menu"
 import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
 import { viewRequests } from "@/lib/canvas/view-requests"
 import { roomChatId } from "@/lib/chat/room-chat"
+import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
 
 import { ShortcutSheet } from "./shortcut-sheet"
 
@@ -464,7 +466,10 @@ export function Canvas({
   // Document / Comment) as one discriminated value, so "exactly one tool active"
   // holds by construction. The booleans below are read-aliases for the existing
   // call sites; mode changes dispatch `toolMode.set` / `toolMode.toggle`.
-  const toolMode = useToolMode()
+  // A frame shows a Workspace, which needs a repository: with none, the Frame
+  // tool stays off and its button says why.
+  const repos = useRepos()
+  const toolMode = useToolMode({ frameAvailable: repos.length > 0 })
   const commentMode = toolMode.commentMode
   const documentMode = toolMode.documentMode
   const frameMode = toolMode.frameMode
@@ -961,7 +966,6 @@ export function Canvas({
   // `groupSelectedIframeLayerIds` (every member of a selected group) and
   // `overlaySelectedIds` (the iframe ∪ markdown union the overlay reads) are
   // projections owned by the Canvas Selection controller, aliased above.
-  const repos = useRepos()
   // Canvas memory (#902), oldest first, edited in Canvas settings › Memory.
   const memoryEntries = useMemories()
   const memories = useMemo(
@@ -1002,6 +1006,23 @@ export function Canvas({
     (documentId: string) =>
       documentOwnerChatOf(documentId, markdownLayers, chatSessions),
     [markdownLayers, chatSessions]
+  )
+  // The chat with no repository that made a Document, if one did.
+  const sketchOwnerChatId = useCallback(
+    (documentId: string) => {
+      const owner = markdownLayers.find((d) => d.id === documentId)?.ownerChatId
+      const chat = owner ? chatSessions.find((c) => c.id === owner) : undefined
+      return chat && isSketchChat(chat) ? chat.id : null
+    },
+    [markdownLayers, chatSessions]
+  )
+  // Every chat with no repository, newest first.
+  const sketchChats = useMemo(
+    () =>
+      chatSessions
+        .filter(isSketchChat)
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [chatSessions]
   )
 
   const agentDomains = useMemo(() => {
@@ -1330,18 +1351,58 @@ export function Canvas({
   const handleAskForMockupKnob = useCallback(
     (mockupId: string) => {
       const mockup = mockupLayers.find((m) => m.id === mockupId)
-      const chat = chatSessions.find((c) => c.id === mockup?.ownerChatId)
-      if (!mockup || !chat?.branchId) return
+      if (!mockup) return
+      const prompt = `Add a knob to the Mockup "${mockup.title || "Untitled"}" that controls `
+      const chat = chatSessions.find((c) => c.id === mockup.ownerChatId)
+      // A Mockup a chat with no repository made.
+      if (chat && isSketchChat(chat)) {
+        chatTarget.selectSketchChat(chat.id)
+        inputStore.prefill(chat.id, prompt)
+        return
+      }
+      if (!chat?.branchId) return
       chatTarget.selectAgentChat(chat.branchId, chat.id, {
         expandPanel: true,
         remember: true,
       })
-      inputStore.prefill(
-        chat.id,
-        `Add a knob to the Mockup "${mockup.title || "Untitled"}" that controls `
-      )
+      inputStore.prefill(chat.id, prompt)
     },
     [mockupLayers, chatSessions, chatTarget]
+  )
+
+  // A new chat with no repository (a Sketch Chat), opened in the panel; a
+  // prompt from the New chat dialog is its first message.
+  const createSketchChat = useCallback(
+    (spec?: { prompt?: string; model?: string }) => {
+      const chatId = nanoid()
+      addChatSession(chatId, {
+        ...sketchChatSession(chatId, Date.now()),
+        ...(spec?.model ? { model: spec.model } : {}),
+      })
+      chatTarget.selectSketchChat(chatId)
+      const prompt = spec?.prompt?.trim()
+      if (prompt) {
+        chatStore.sendMessage({
+          roomId,
+          chatId,
+          target: { kind: "sketch", chatId },
+          message: prompt,
+          model: spec?.model,
+        })
+      }
+    },
+    [addChatSession, chatTarget, roomId]
+  )
+
+  // Deleting a chat with no repository: the panel goes home if it showed it,
+  // and what it made stays on the canvas, owned by no one.
+  const deleteSketchChat = useCallback(
+    (chatId: string) => {
+      if (chatTarget.selectedChatId === chatId) chatTarget.showRoomChat()
+      removeChatSession(chatId)
+      chatStore.cleanup(chatId)
+    },
+    [chatTarget, removeChatSession]
   )
 
   // Repopulate the Element Reference controller's live inputs every render so
@@ -1353,6 +1414,7 @@ export function Canvas({
       iframeLayerLayouts,
       chatTarget,
       documentOwnerChat,
+      sketchOwnerChatId,
     }
   })
 
@@ -1502,17 +1564,21 @@ export function Canvas({
     () => defaultNewWorkspaceRepoId(repos, agents),
     [repos, agents]
   )
-  const answererFromSelection = useCallback(() => {
-    const selected = selection.current()
-    return defaultFrameAnswerer({
-      frameIds: selected.iframeLayerIds,
-      ownedLayerIds: selected.markdownLayerIds,
-      frames: iframeLayers,
-      ownedLayers: sizedLayers,
-      chatSessions,
-      pickable: pickableWorkspaces(agents),
-    })
-  }, [selection, iframeLayers, sizedLayers, chatSessions, agents])
+  const answererFromSelection = useCallback(
+    (opts: { sketch?: boolean } = {}) => {
+      const selected = selection.current()
+      return defaultFrameAnswerer({
+        frameIds: selected.iframeLayerIds,
+        ownedLayerIds: selected.markdownLayerIds,
+        frames: iframeLayers,
+        ownedLayers: sizedLayers,
+        chatSessions,
+        pickable: pickableWorkspaces(agents),
+        sketch: opts.sketch,
+      })
+    },
+    [selection, iframeLayers, sizedLayers, chatSessions, agents]
+  )
   const handleFrameDrawn = useCallback(
     (frameId: string) => {
       if (!newChatRepoId) return
@@ -1524,10 +1590,13 @@ export function Canvas({
   // The drawn Mockup box whose ask card is open (#1359). Per-viewer and only a
   // box until sent: Esc or clicking away drops it, leaving nothing behind.
   const [askMockupBox, setAskMockupBox] = useState<DrawnRect | null>(null)
+  // With no repository there are no Workspaces, so a chat with none answers.
   const handleMockupDrawn = useCallback(
     (rect: DrawnRect) => {
-      if (!newChatRepoId) return
-      setAskAnswerer(answererFromSelection())
+      const answerer = answererFromSelection({ sketch: true })
+      setAskAnswerer(
+        newChatRepoId || answerer.kind === "sketch" ? answerer : NEW_SKETCH_CHAT
+      )
       setAskFrameId(null)
       setAskMockupBox(rect)
     },
@@ -1666,6 +1735,37 @@ export function Canvas({
         showMockup()
         return
       }
+      // A chat with no repository owns the Mockup and sketches it: the one
+      // picked, else a new one.
+      if (answerer.kind === "sketch") {
+        const existing = answerer.chatId
+          ? chatSessions.find((c) => c.id === answerer.chatId)
+          : undefined
+        const chatId = existing?.id ?? nanoid()
+        if (!existing) {
+          addChatSession(chatId, sketchChatSession(chatId, Date.now()))
+        }
+        ops.createMockup({
+          id: mockup.id,
+          html: "",
+          title: "",
+          width: box.width,
+          height: box.height,
+          ownerChatId: chatId,
+          anchor: { x: box.x, y: box.y },
+        })
+        showMockup()
+        chatTarget.selectSketchChat(chatId)
+        chatStore.sendMessage({
+          roomId,
+          chatId,
+          target: { kind: "sketch", chatId },
+          message: prompt,
+          // An existing chat keeps its own model.
+          model: existing?.model ?? payload.model,
+        })
+        return
+      }
       const repo = repos.find((r) => r.id === newChatRepoId)
       if (!repo) return
       void createBranch(
@@ -1683,6 +1783,10 @@ export function Canvas({
       repos,
       newChatRepoId,
       createBranch,
+      roomId,
+      chatTarget,
+      chatSessions,
+      addChatSession,
       setSelectedGroupIds,
       setSelectedIframeLayerIds,
       setSelectedDocumentLayerIds,
@@ -1971,12 +2075,18 @@ export function Canvas({
           current={
             chatTarget.target?.kind === "agent"
               ? { kind: "agent", id: chatTarget.target.agent.id }
-              : repos.length > 0
-                ? { kind: "room" }
-                : { kind: "none" }
+              : chatTarget.target?.kind === "sketch"
+                ? { kind: "sketch", id: chatTarget.target.chat.id }
+                : { kind: "room" }
           }
           onShowRoomChat={chatTarget.showRoomChat}
           onSelectWorkspace={chatTarget.selectAgent}
+          onSelectSketchChat={chatTarget.selectSketchChat}
+          onCreateSketchChat={createSketchChat}
+          onRenameSketchChat={(chatId, label) =>
+            updateChatSession(chatId, { label })
+          }
+          onDeleteSketchChat={deleteSketchChat}
           onCreateBranchFromGitBranch={createBranchFromGitBranch}
           onCreateWorkspace={createBranch}
           onRebaseOnDefault={branchActions.rebaseOnDefault}
@@ -2411,7 +2521,10 @@ export function Canvas({
                     onClose={closeCursorChat}
                   />
                 ) : null}
-                {isCanvasEmpty && <CanvasEmptyState toolMode={toolMode} />}
+                {/* A drawn Mockup box asking what to show already took the click. */}
+                {isCanvasEmpty && !askMockupBox && (
+                  <CanvasEmptyState toolMode={toolMode} />
+                )}
                 {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
                 (same layer, earlier in DOM order) so the pills stay clickable
@@ -2480,6 +2593,7 @@ export function Canvas({
                     locate={locateMockupBox}
                     markdownLayers={markdownLayers}
                     workspaces={agents}
+                    sketchChats={sketchChats}
                     defaultAnswerer={askAnswerer}
                     onSubmit={sendMockupAsk}
                     onClose={closeFrameAsk}
@@ -2596,7 +2710,6 @@ export function Canvas({
                 tabPool={tabPool}
                 chatSessions={chatSessions}
                 localTerminals={terminalTabs.tabs}
-                repos={repos}
                 roomId={roomId}
                 diffStats={diffStats}
                 branchPrs={branchPrs}

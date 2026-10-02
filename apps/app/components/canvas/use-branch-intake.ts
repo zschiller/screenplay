@@ -319,50 +319,11 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         id,
         createdAt: Date.now(),
       })
-      const sandboxName = `sp-${nanoid(10)}`
-      const branch = randomBranchName()
-
-      // One transaction so the repo and its first agent land as a single
-      // undo step. `createBranch` owns the agent record + deferred-seed flag.
-      let agentId = ""
-      ops.batch(() => {
-        addRepoToStorage(id, data)
-        agentId = ops.createBranch({
-          branch: {
-            repoId: id,
-            sandboxName,
-            gitUrl: data.cloneUrl,
-            ref: branch,
-            previewDomain: "",
-            port: data.devServerPort ?? 3000,
-            status: "creating",
-            statusMessage: "Creating branch…",
-            createdAt: Date.now(),
-            createFlow: "new",
-          },
-        }).branchId
-      })
-      // The panel stays on the Coordinator (#1182): the Workspace shows up as
-      // its frame, and the first ask to the Coordinator goes to it. So it
-      // isn't added to the pending set that selects a Workspace once it runs.
-      const seedChat = seedDefaultTabForNewBranch(agentId)
-      seedEagerFrameForBranch(agentId)
-
-      void requestCreate(agentId, {
-        flow: "new",
-        sandboxName,
-        branch,
-        repoId: id,
-        seedChat,
-      })
+      // Adding a repository only adds it: the first ask that needs it starts
+      // a Workspace, so no sandbox or frame starts that nobody asked for.
+      addRepoToStorage(id, data)
     },
-    [
-      addRepoToStorage,
-      ops,
-      requestCreate,
-      seedDefaultTabForNewBranch,
-      seedEagerFrameForBranch,
-    ]
+    [addRepoToStorage]
   )
 
   // Prompts queued by the prompt-first create handler (createBranch) that should

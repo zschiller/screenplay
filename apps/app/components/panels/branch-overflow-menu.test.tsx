@@ -256,7 +256,7 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Rebase on main",
       "Open branch on GitHub",
       "Rename branch…",
-      "New workspace from here…",
+      "New chat from here…",
       "Rename",
       "Restart",
       "Mark as done",
@@ -289,7 +289,7 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Reopen",
       "Open pull request #7",
       "Open branch on GitHub",
-      "New workspace from here…",
+      "New chat from here…",
       "Rename",
       "Delete",
     ])
@@ -449,18 +449,18 @@ function MenuToDialogHarness() {
   )
 }
 
-describe('"New workspace from here…" opens the create dialog', () => {
+describe('"New chat from here…" opens the create dialog', () => {
   it("opens it pre-based on this branch with an empty prompt", async () => {
     render(<MenuToDialogHarness />)
 
     // No dialog until the item is chosen.
-    expect(screen.queryByText("Create workspaces")).toBeNull()
+    expect(screen.queryByText("Start one or more chats, each with an optional prompt.")).toBeNull()
 
-    fireEvent.click(screen.getByText("New workspace from here…"))
+    fireEvent.click(screen.getByText("New chat from here…"))
 
     // The create dialog is now open…
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).queryByText("Create workspaces")).not.toBeNull()
+    expect(within(dialog).queryByText("Start one or more chats, each with an optional prompt.")).not.toBeNull()
     // …pre-based on this branch (the base chip shows its ref, not the default)…
     expect(within(dialog).queryByText(branch.ref)).not.toBeNull()
     expect(within(dialog).queryByText(repo.defaultBranch)).toBeNull()
@@ -472,7 +472,7 @@ describe('"New workspace from here…" opens the create dialog', () => {
   it("is disabled for a branch with no ref to fork from", () => {
     renderMenu({ ref: undefined })
     const item = screen
-      .getByText("New workspace from here…")
+      .getByText("New chat from here…")
       .closest("[role=menuitem]")
     expect(item?.getAttribute("aria-disabled")).toBe("true")
   })

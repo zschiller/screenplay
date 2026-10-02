@@ -17,6 +17,10 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 import type { ToolModeController } from "./use-tool-mode"
 
+/** Why the Frame tool is off on a canvas with no repository. */
+export const NO_REPOSITORY_HINT =
+  "Frames run your app from a repository. Add one to preview it."
+
 /**
  * The bottom tool toolbar (PRD #571) — the Select / Frame / Mockup / Document /
  * Comment mode-button pill pinned to the bottom-center of the canvas.
@@ -54,9 +58,13 @@ export function CanvasToolbar({
         >
           <NavigationArrowIcon />
         </FloatingToolbarButton>
+        {/* A frame shows a Workspace, so with no repository the tool is off;
+            the tooltip still opens and says why. */}
         <FloatingToolbarButton
           label="Frame"
-          shortcut="F"
+          shortcut={toolMode.frameAvailable ? "F" : undefined}
+          hint={toolMode.frameAvailable ? undefined : NO_REPOSITORY_HINT}
+          disabled={!toolMode.frameAvailable}
           pressed={frameMode}
           onClick={() => {
             toolMode.toggle("frame")

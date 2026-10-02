@@ -138,7 +138,9 @@ export async function resolveLiveEngine(
   // The agent runs in the Branch's worktree — the same absolute path the
   // terminal transport and tools resolve (`SandboxInstance.worktreePath`). The
   // Coordinator runs in an app-owned folder with its tools served over MCP.
-  const folderSession = await coordinatorSession(opts.chatId)
+  // A Sketch Chat (no sandbox) shares its Room's folder, with its own tools.
+  const folderSession =
+    (await coordinatorSession(opts.chatId)) ?? (await sketchSession(opts))
   const mcp = folderSession ?? workspaceSession(opts)
   const cwd = opts.sandboxName
     ? (await sandboxProvider.get({ name: opts.sandboxName })).worktreePath
@@ -217,6 +219,31 @@ async function coordinatorSession(chatId: string | undefined): Promise<
   return {
     cwd: await ensureCoordinatorFolder(roomId),
     mcpServers: [coordinatorMcpServer({ roomId, chatId })],
+    sessionMeta: coordinatorSessionMeta(),
+  }
+}
+
+/**
+ * A Sketch Chat's harness session setup (`lib/chat/sketch-chat.ts`): any chat
+ * with no sandbox that isn't the Coordinator. It runs in its Room's folder,
+ * like the Coordinator, with its Document and Mockup tools served over MCP.
+ */
+async function sketchSession(opts: {
+  sandboxName?: string
+  chatId?: string
+  roomId?: string
+}): Promise<
+  | (Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> & {
+      cwd: string
+    })
+  | null
+> {
+  const { sandboxName, chatId, roomId } = opts
+  if (sandboxName || !chatId || !roomId || !isLocalBuild) return null
+  if (roomIdOfRoomChat(chatId)) return null
+  return {
+    cwd: await ensureCoordinatorFolder(roomId),
+    mcpServers: [coordinatorMcpServer({ roomId, chatId, sketch: true })],
     sessionMeta: coordinatorSessionMeta(),
   }
 }

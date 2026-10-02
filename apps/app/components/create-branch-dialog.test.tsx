@@ -7,7 +7,10 @@ import {
   screen,
   within,
 } from "@testing-library/react"
-import { CreateBranchDialog } from "@/components/create-branch-dialog"
+import {
+  CreateBranchDialog,
+  NO_REPOSITORY_ID,
+} from "@/components/create-branch-dialog"
 import type { RepoData } from "@/lib/types"
 import type { ModelInfo } from "@/lib/models-store"
 import { createModelCatalog, inMemoryCatalogSource } from "@/lib/model-catalog"
@@ -71,10 +74,21 @@ function renderDialog(repos: RepoData[], repoId: string) {
   return { dialog: screen.getByRole("dialog"), onSubmit }
 }
 
-describe("Create workspaces' repository chip (#884)", () => {
-  it("never mentions the repository on a canvas with one", () => {
-    const { dialog } = renderDialog([web], web.id)
-    expect(within(dialog).queryByTitle("Choose the repository")).toBeNull()
+describe("New chat dialog' repository chip (#884)", () => {
+  it("offers No repository, which starts a chat with no base branch", () => {
+    const { dialog, onSubmit } = renderDialog([web], web.id)
+    fireEvent.keyDown(within(dialog).getByTitle("Choose the repository"), {
+      key: "Enter",
+    })
+    fireEvent.click(
+      screen.getByRole("menuitemradio", { name: "No repository" })
+    )
+
+    expect(within(dialog).queryByTitle("Choose the base branch")).toBeNull()
+    fireEvent.click(within(dialog).getByRole("button", { name: /Create chat/ }))
+    expect(onSubmit).toHaveBeenCalledWith([
+      expect.objectContaining({ repoId: NO_REPOSITORY_ID }),
+    ])
   })
 
   it("starts on the given repository and its default branch", () => {
@@ -93,7 +107,7 @@ describe("Create workspaces' repository chip (#884)", () => {
 
     expect(within(dialog).queryByText("trunk")).not.toBeNull()
     fireEvent.click(
-      within(dialog).getByRole("button", { name: /Create workspace/ })
+      within(dialog).getByRole("button", { name: /Create chat/ })
     )
     expect(onSubmit).toHaveBeenCalledWith([
       expect.objectContaining({ repoId: api.id, baseBranch: "trunk" }),
@@ -101,7 +115,7 @@ describe("Create workspaces' repository chip (#884)", () => {
   })
 })
 
-describe("Create workspaces with no coding agent (#1257)", () => {
+describe("New chat dialog with no coding agent (#1257)", () => {
   function renderWith(models: ModelInfo[]) {
     const catalog = createModelCatalog(inMemoryCatalogSource({ models }))
     render(
@@ -126,7 +140,7 @@ describe("Create workspaces with no coding agent (#1257)", () => {
     ).not.toBeNull()
     expect(
       within(dialog)
-        .getByRole("button", { name: /Create workspace/ })
+        .getByRole("button", { name: /Create chat/ })
         .hasAttribute("disabled")
     ).toBe(true)
   })
@@ -142,7 +156,7 @@ describe("Create workspaces with no coding agent (#1257)", () => {
     expect(await within(dialog).findByText("Opus")).not.toBeNull()
     expect(
       within(dialog)
-        .getByRole("button", { name: /Create workspace/ })
+        .getByRole("button", { name: /Create chat/ })
         .hasAttribute("disabled")
     ).toBe(false)
   })

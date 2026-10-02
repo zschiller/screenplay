@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react"
 import { IconButton, shortcutKeys } from "@workspace/ui/components/icon-button"
 
-import { CanvasToolbar } from "./canvas-toolbar"
+import { CanvasToolbar, NO_REPOSITORY_HINT } from "./canvas-toolbar"
 import { useToolMode } from "./use-tool-mode"
 
 vi.mock("@/lib/local-mode", () => ({ isLocalBuild: false }))
@@ -137,6 +137,43 @@ describe("CanvasToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mockup" }))
     rerender(<CanvasToolbar toolMode={result.current} onClearMode={() => {}} />)
     expect(result.current.mode).toBe("mockup")
+  })
+})
+
+describe("Frame tool with no repository", () => {
+  it("turns the Frame button off and says to add a repository first", async () => {
+    const { result } = renderHook(() => useToolMode({ frameAvailable: false }))
+    render(<CanvasToolbar toolMode={result.current} onClearMode={() => {}} />)
+    const button = screen.getByRole("button", { name: "Frame" })
+    expect(button.hasAttribute("disabled")).toBe(true)
+    await act(async () => {
+      fireEvent.pointerMove(button.parentElement!, { pointerType: "mouse" })
+    })
+    const tooltip = await screen.findByRole("tooltip")
+    expect(tooltip.textContent).toContain(NO_REPOSITORY_HINT)
+  })
+
+  it("ignores F and the empty state's Add a frame", () => {
+    const { result } = renderHook(() => useToolMode({ frameAvailable: false }))
+    act(() => result.current.toggle("frame"))
+    expect(result.current.mode).toBe("select")
+    act(() => result.current.set("frame"))
+    expect(result.current.mode).toBe("select")
+    // Other tools still arm.
+    act(() => result.current.toggle("mockup"))
+    expect(result.current.mode).toBe("mockup")
+  })
+
+  it("drops an armed Frame tool when the last repository goes", () => {
+    const { result, rerender } = renderHook(
+      ({ frameAvailable }) => useToolMode({ frameAvailable }),
+      { initialProps: { frameAvailable: true } }
+    )
+    act(() => result.current.set("frame"))
+    expect(result.current.frameMode).toBe(true)
+    rerender({ frameAvailable: false })
+    expect(result.current.mode).toBe("select")
+    expect(result.current.frameMode).toBe(false)
   })
 })
 

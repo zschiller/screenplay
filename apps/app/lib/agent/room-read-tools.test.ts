@@ -56,6 +56,7 @@ function setup(overrides: Partial<RoomToolPorts> = {}) {
     requesterId: "user-1",
     coordinatorChatId: "room-chat-1",
     launchWorkspaceTurn: vi.fn(async () => {}),
+    launchSketchTurn: vi.fn(async () => {}),
     readChatTranscript: vi.fn(async () => []),
     readWorkspaceDiff: vi.fn(async () => ""),
     readWorkspaceFile: vi.fn(async () => null),
@@ -77,7 +78,11 @@ async function run(
   input: Record<string, unknown>
 ): Promise<unknown> {
   const tools = buildRoomTools("room-1", ports)
-  return tools[name].execute!(input, { toolCallId: "t1", messages: [], context: {} })
+  return tools[name].execute!(input, {
+    toolCallId: "t1",
+    messages: [],
+    context: {},
+  })
 }
 
 function addChat(
