@@ -1,9 +1,10 @@
 # The image every hosted Workspace Sandbox boots from (#1388): Vercel's
 # Ubuntu image (Node, pnpm, git, the coding CLIs) plus the browser stack shared
-# frames need. `.github/workflows/sandbox-image.yml` builds it and pushes it to
-# the app project's Vercel Container Registry as `screenplay-workspace`.
-# Sandboxes don't run ENTRYPOINT or CMD.
-ARG BASE_IMAGE=vcr.vercel.com/vercel/sandbox/universal:latest
+# frames need. `.github/workflows/sandbox-image.yml` builds it with
+# `docker-bake.hcl` (which builds the Vercel base from its open Dockerfiles)
+# and pushes it to the app project's Vercel Container Registry as
+# `screenplay-workspace`. Sandboxes don't run ENTRYPOINT or CMD.
+ARG BASE_IMAGE=vercel-universal
 FROM ${BASE_IMAGE}
 
 USER root
