@@ -75,8 +75,8 @@ type Copy = {
 }
 
 /**
- * The hero's backdrop: copies of this homepage pan past in two rows (one
- * below 1024px), each a Workspace an agent is changing live, above the text.
+ * The hero's backdrop: copies of this homepage pan past in two rows, each a
+ * Workspace an agent is changing live, above the text.
  * The headline, marked `data-veil`, sinks into the bottom row, and a dither in
  * the page's own background colour thickens evenly from the top of the rows
  * to solid partway down the headline's first line, so the copies dissolve

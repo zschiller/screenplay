@@ -61,14 +61,13 @@
   flex: none;
   width: clamp(240px, 24vw, 340px);
 }
-/* Below 1024px one row is enough to show the idea and keeps the text near
-   the top. */
+/* Below 1024px both rows stay, a little smaller and closer. */
 @media (max-width: 1023px) {
-  .hc-track + .hc-track {
-    display: none;
+  .hc-rows {
+    gap: 36px;
   }
   .hc-copy {
-    width: 280px;
+    width: 260px;
   }
 }
 .hc-head {
