@@ -110,6 +110,7 @@ function CanvasMemberLayerImpl({
   removeIframeLayer,
   handlePlayIframeLayer,
   onAskForKnob,
+  onAskForMockupKnob,
   handleCaptureReadyChange,
   handleCaptureDirty,
   layerMutations,
@@ -160,9 +161,9 @@ function CanvasMemberLayerImpl({
    *  element hover overlay so the user can see what they're about to target. */
   pickActive: boolean
   /**
-   * Iframe Layers to dim during an armed element pick (#619): every frame *not*
-   * eligible for the requesting branch, so it's visually clear which frames can
-   * be targeted. Empty whenever no pick is armed.
+   * Iframe Layers and Mockups to dim during an armed element pick (#619):
+   * every one *not* eligible for the requesting branch, so it's visually clear
+   * which can be targeted. Empty whenever no pick is armed.
    */
   dimmedIframeLayerIds: ReadonlySet<string>
   /** Local user's display name + presence color, used to tint our own selection.
@@ -182,6 +183,11 @@ function CanvasMemberLayerImpl({
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
   /** Start an "add a knob" request in a Workspace's chat composer. */
   onAskForKnob: (branchId: string) => void
+  /**
+   * Start an "add a knob" request in the composer of the chat that made a
+   * Mockup.
+   */
+  onAskForMockupKnob: (mockupId: string) => void
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
   handleCaptureDirty: IframeLayerProps["onCaptureDirty"]
   /**
@@ -457,6 +463,25 @@ function CanvasMemberLayerImpl({
                 onResize={layerMutations.resizeMockup}
                 onRename={layerMutations.renameMockup}
                 onSetStatus={layerMutations.setMockupStatus}
+                pickActive={pickActive}
+                dimmed={dimmedIframeLayerIds.has(mockup.id)}
+                onHover={reference.setInspectHover}
+                onDomReady={reference.onIframeLayerDomReady}
+                onKnobsDeclared={layerMutations.updateMockupKnobs}
+                onKnobValuesChange={layerMutations.updateMockupKnobValues}
+                onSharedStateChanged={layerMutations.updateMockupSharedState}
+                focused={focusedIframeLayerId === mockup.id}
+                onFocus={(id) => {
+                  setFocusedIframeLayerId(id)
+                  if (id !== null) setCreateFlowIframeLayerId(null)
+                }}
+                commentMode={commentMode}
+                onWheel={onIframeWheel}
+                onAskForKnob={
+                  documentWorkspaces.has(mockup.id)
+                    ? () => onAskForMockupKnob(mockup.id)
+                    : undefined
+                }
               />
             )
           }

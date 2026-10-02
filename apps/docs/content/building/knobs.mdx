@@ -62,14 +62,14 @@ throughout these docs.
 
 ## Knob types
 
-| `type` | Control | Fields |
-| --- | --- | --- |
-| `slider` | Slider | `min`, `max`, `default` (number); `step?` |
-| `number` | Number field | `default` (number); `min?`, `max?`, `step?` |
-| `boolean` | Switch | `default` (boolean) |
-| `string` | Text field | `default` (string); `placeholder?` |
-| `select` | Dropdown | `default` (string); `options: { value, label? }[]` |
-| `color` | Color picker | `default` (string, e.g. `"#1d4ed8"`) |
+| `type`    | Control      | Fields                                             |
+| --------- | ------------ | -------------------------------------------------- |
+| `slider`  | Slider       | `min`, `max`, `default` (number); `step?`          |
+| `number`  | Number field | `default` (number); `min?`, `max?`, `step?`        |
+| `boolean` | Switch       | `default` (boolean)                                |
+| `string`  | Text field   | `default` (string); `placeholder?`                 |
+| `select`  | Dropdown     | `default` (string); `options: { value, label? }[]` |
+| `color`   | Color picker | `default` (string, e.g. `"#1d4ed8"`)               |
 
 Every knob takes an optional `label` (defaults to the `id`). It can also take
 a `validator: (value) => value`, which runs inside your app on every incoming
@@ -94,9 +94,40 @@ const unsubscribe = registerKnob(
   { id: "background", type: "color", default: "#ffffff" },
   (value) => {
     document.body.style.background = String(value)
-  },
+  }
 )
 ```
+
+## Knobs on a mockup
+
+A [mockup](/guides/mockups) is a static page with no bundler, so it doesn't
+install the package. Its page already has a global
+`screenplay.registerKnob(def, onChange)`, which works like `registerKnob`
+above, and every value is also set on the page's root as the CSS variable
+`--knob-<id>`:
+
+```html
+<style>
+  .card {
+    padding: calc(var(--knob-card-padding, 16) * 1px);
+  }
+</style>
+<script>
+  screenplay.registerKnob({
+    id: "card-padding",
+    type: "slider",
+    label: "Padding",
+    min: 0,
+    max: 64,
+    step: 2,
+    default: 16,
+  })
+</script>
+```
+
+You won't usually write this yourself: ask the chat that drew the mockup for
+a knob, and it rewrites the page with one. The **Knobs** button under the
+selected mockup shows them.
 
 ## Safe to ship
 

@@ -112,6 +112,26 @@ remove() // or clearSharedState("session")
 unsubscribe()
 ```
 
+## On a mockup
+
+A [mockup](/guides/mockups)'s page has no bundler, so it doesn't install the
+package. It already has a global `screenplay.shareState(key, initial, onChange)`
+that follows the same rules. `onChange` runs at once with the current value
+and again on every change, your own `set` included, so one function can draw
+the page:
+
+```html
+<script>
+  const tab = screenplay.shareState("tab", "overview", (value) => {
+    document.body.dataset.tab = value
+  })
+  document.querySelector("#plans").onclick = () => tab.set("plans")
+</script>
+```
+
+You won't usually write this yourself: the chat that drew the mockup adds it
+when you ask for a page that remembers what people clicked.
+
 ## Rules
 
 - Values must be **JSON**. Functions, class instances, `undefined`, and

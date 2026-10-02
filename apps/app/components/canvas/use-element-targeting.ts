@@ -15,12 +15,12 @@ import {
   partitionTargetFrames,
   projectHighlight,
   targetableBranchIds,
+  type TargetLayer,
 } from "@/lib/canvas/element-targeting"
 import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
 import { screenToCanvas } from "@/lib/canvas/route"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { targetingStore } from "@/lib/targeting-store"
-import type { IframeLayerData } from "@/lib/types"
 
 /**
  * Element Targeting controller (PRD #616, #705) — the React binding for a
@@ -36,8 +36,8 @@ import type { IframeLayerData } from "@/lib/types"
  * by calling `cancel`.
  */
 export interface ElementTargetingDeps {
-  /** Live, synced Iframe Layers — the eligibility rule runs over these. */
-  iframeLayers: IframeLayerData[]
+  /** Live, synced frames and Mockups — the eligibility rule runs over these. */
+  targetLayers: readonly TargetLayer[]
   /** World-space frame layouts — the hit-test and highlight projection. */
   iframeLayerLayouts: IframeLayerLayoutMap
   /** Per-frame DOM bridge; absent for a closed frame. */
@@ -51,7 +51,7 @@ export interface ElementTargetingController {
   pickActive: boolean
   /** Live read of `pickActive` for long-lived handlers (the Escape dispatch). */
   isPickActive(): boolean
-  /** Frames drawn dimmed during a pick (every non-eligible frame). */
+  /** Frames and Mockups drawn dimmed during a pick (every non-eligible one). */
   dimmedIds: ReadonlySet<string>
   /** Hovered-token outline in world space, or null. */
   highlightRect: DomRect | null
@@ -64,7 +64,7 @@ export interface ElementTargetingController {
 export function useElementTargeting(
   deps: ElementTargetingDeps
 ): ElementTargetingController {
-  const { iframeLayers, iframeLayerLayouts, getIframeLayerDom, transformRef } =
+  const { targetLayers, iframeLayerLayouts, getIframeLayerDom, transformRef } =
     deps
   const [core] = useState(() => new ElementTargeting())
   const snapshot = useSyncExternalStore(
@@ -97,8 +97,8 @@ export function useElementTargeting(
   // its target affordance when picking would have nothing to hit (#619). Cleared
   // on unmount so a stale set doesn't outlive the Room.
   const branchIds = useMemo(
-    () => targetableBranchIds(iframeLayers),
-    [iframeLayers]
+    () => targetableBranchIds(targetLayers),
+    [targetLayers]
   )
   useEffect(() => {
     targetingStore.publishEligibleBranches(branchIds)
@@ -108,8 +108,8 @@ export function useElementTargeting(
   }, [])
 
   const { dimmedIds } = useMemo(
-    () => partitionTargetFrames(snapshot.armedBranchId, iframeLayers),
-    [snapshot.armedBranchId, iframeLayers]
+    () => partitionTargetFrames(snapshot.armedBranchId, targetLayers),
+    [snapshot.armedBranchId, targetLayers]
   )
 
   const highlightRect = useMemo(
@@ -132,12 +132,12 @@ export function useElementTargeting(
           e.currentTarget.getBoundingClientRect(),
           transform.state
         ),
-        iframeLayers,
+        iframeLayers: targetLayers,
         layouts: iframeLayerLayouts,
         getDom: getIframeLayerDom,
       })
     },
-    [core, transformRef, iframeLayers, iframeLayerLayouts, getIframeLayerDom]
+    [core, transformRef, targetLayers, iframeLayerLayouts, getIframeLayerDom]
   )
 
   const isPickActive = useCallback(() => core.isArmed(), [core])

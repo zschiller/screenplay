@@ -252,6 +252,12 @@ export interface TargetedElement {
    * highlight.
    */
   iframeLayerId?: string
+  /**
+   * "mockup" for an element in a Mockup (#1309), whose `route` is then
+   * `mockup <id>` and whose line names it `(mockup: <title>)` in place of
+   * `(frame: <label>)`, so the agent reads the page with `read_mockup`.
+   */
+  layerKind?: "mockup"
 }
 
 /**
@@ -273,7 +279,7 @@ export function buildTargetedElementsFooter(
   if (elements.length === 0) return ""
   const lines = elements.map(
     (e) =>
-      `- ${e.ref}: ${e.route} — ${e.selector} (frame: ${e.frameLabel})` +
+      `- ${e.ref}: ${e.route} — ${e.selector} (${e.layerKind ?? "frame"}: ${e.frameLabel})` +
       // App-only trailer (see `TargetedElement.iframeLayerId`); omitted when
       // absent so agent-facing lines stay clean and legacy turns round-trip.
       (e.iframeLayerId ? ` [layer: ${e.iframeLayerId}]` : "")
@@ -370,13 +376,14 @@ const TARGETED_ELEMENTS_FOOTER_RE = new RegExp(
   `\\n\\n---\\n\\n${TARGETED_ELEMENTS_FOOTER_TOKEN}[\\s\\S]*$`
 )
 // One targeted-element detail line, exactly as `buildTargetedElementsFooter`
-// emits it: `- <ref>: <route> — <selector> (frame: <frameLabel>)` with an
+// emits it: `- <ref>: <route> — <selector> (frame: <frameLabel>)` (or
+// `(mockup: …)` for an element in a Mockup) with an
 // optional ` [layer: <id>]` app-only trailer. `ref` holds no `:` (it's a
 // nanoid); `route` stops at the first ` — `; `selector` runs greedily up to the
-// trailing ` (frame: …)`, whose label may itself contain parens; `<id>` (also a
+// trailing ` (frame: …)` / ` (mockup: …)`, whose label may itself contain parens; `<id>` (also a
 // nanoid) holds no `]`, so the trailer is unambiguous even then.
 const TARGETED_ELEMENTS_LINE_RE =
-  /^- ([^:]+): (.+?) — (.+) \(frame: (.*)\)(?: \[layer: ([^\]]+)\])?$/
+  /^- ([^:]+): (.+?) — (.+) \((frame|mockup): (.*)\)(?: \[layer: ([^\]]+)\])?$/
 
 /**
  * Parse a wire user message back into its turn metadata and clean body.
@@ -452,9 +459,10 @@ export function parseTargetedElementsFooter(wire: string): TargetedElement[] {
         ref: m[1],
         route: m[2],
         selector: m[3],
-        frameLabel: m[4],
+        frameLabel: m[5],
         // `undefined` on a legacy line with no `[layer: …]` trailer.
-        iframeLayerId: m[5],
+        iframeLayerId: m[6],
+        ...(m[4] === "mockup" ? { layerKind: "mockup" as const } : {}),
       })
     }
   }

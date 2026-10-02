@@ -31,19 +31,25 @@ export const MOCKUP_CSP =
 /**
  * A Mockup page as its frame's `srcdoc`: the page with {@link MOCKUP_CSP} as
  * the first thing in its head, so no script, style or image it names can load
- * from the network. The policy goes after any doctype, so the page keeps its
- * rendering mode.
+ * from the network, then `runtime` (the DOM bridge and knobs runtime,
+ * `MOCKUP_RUNTIME_JS`) as an inline script, so it runs before the page's own
+ * scripts. The policy goes after any doctype, so the page keeps its rendering
+ * mode.
  */
-export function mockupSrcDoc(html: string): string {
-  const meta = `<meta http-equiv="Content-Security-Policy" content="${MOCKUP_CSP}">`
+export function mockupSrcDoc(html: string, runtime = ""): string {
+  const prelude =
+    `<meta http-equiv="Content-Security-Policy" content="${MOCKUP_CSP}">` +
+    (runtime
+      ? `<script>${runtime.replace(/<\/script/gi, "<\\/script")}</script>`
+      : "")
   const head = /<head(\s[^>]*)?>/i.exec(html)
-  if (head) return splice(html, head.index + head[0].length, meta)
+  if (head) return splice(html, head.index + head[0].length, prelude)
   const root = /<html(\s[^>]*)?>/i.exec(html)
   if (root) {
-    return splice(html, root.index + root[0].length, `<head>${meta}</head>`)
+    return splice(html, root.index + root[0].length, `<head>${prelude}</head>`)
   }
   const doctype = /^\s*<!doctype[^>]*>/i.exec(html)
-  return splice(html, doctype ? doctype[0].length : 0, meta)
+  return splice(html, doctype ? doctype[0].length : 0, prelude)
 }
 
 function splice(s: string, at: number, insert: string): string {

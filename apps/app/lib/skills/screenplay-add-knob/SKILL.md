@@ -95,3 +95,37 @@ value to your component.
 - **Non-React prototype?** Use `registerKnob(def, onChange)` from the
   same package — it runs the callback on every value change and returns
   an unsubscribe function.
+
+## Knobs on a Mockup
+
+A Mockup is a static page with no bundler, so it doesn't install the
+package. Its page already has `screenplay.registerKnob(def, onChange)`, which works
+like the package's `registerKnob`: `onChange` runs at once with the
+current value and again on every change. Each value is also set on `:root`
+as the CSS variable `--knob-<id>`, so a knob can drive CSS alone:
+
+```html
+<style>
+  .card {
+    padding: calc(var(--knob-card-padding, 16) * 1px);
+  }
+</style>
+<script>
+  screenplay.registerKnob({
+    id: "card-padding",
+    type: "slider",
+    label: "Padding",
+    min: 0,
+    max: 64,
+    step: 2,
+    default: 16,
+  })
+  screenplay.registerKnob(
+    { id: "card-shadow", type: "boolean", label: "Drop shadow", default: true },
+    (on) => document.body.classList.toggle("shadow", on)
+  )
+</script>
+```
+
+Add them by rewriting the page with `update_mockup`. The Knobs button under
+the selected Mockup shows them.

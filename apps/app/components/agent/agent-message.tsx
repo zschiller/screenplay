@@ -1015,6 +1015,7 @@ function ElementHistoryToken({
           selector={detail.selector}
           route={detail.route}
           frameLabel={detail.frameLabel}
+          inMockup={detail.layerKind === "mockup"}
         />
       </HoverCardContent>
     </HoverCard>

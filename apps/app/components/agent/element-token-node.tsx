@@ -31,6 +31,7 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
   const iframeLayerId = (node.attrs.iframeLayerId as string | undefined) ?? ""
   const route = (node.attrs.route as string | undefined) ?? "/"
   const frameLabel = (node.attrs.frameLabel as string | undefined) ?? ""
+  const inMockup = node.attrs.layerKind === "mockup"
 
   const handleOpenChange = useElementHighlight(ref, iframeLayerId, selector)
 
@@ -65,6 +66,7 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
             selector={selector}
             route={route}
             frameLabel={frameLabel}
+            inMockup={inMockup}
           />
         </HoverCardContent>
       </HoverCard>

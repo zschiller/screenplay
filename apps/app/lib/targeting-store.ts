@@ -32,6 +32,9 @@ export interface PickedElement {
   iframeLayerId: string
   /** Display label of that frame, for the agent-facing footer. */
   frameLabel: string
+  /** Set when the layer is a Mockup (#1309) rather than a frame; its `route`
+   *  is then `mockup <id>`. */
+  layerKind?: "mockup"
 }
 
 /** A pending pick the Canvas fulfills: which branch's frames are eligible, and

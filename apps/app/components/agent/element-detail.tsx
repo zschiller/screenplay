@@ -1,18 +1,32 @@
 /**
  * The body of an element token's HoverCard — the detail its terse label hides:
  * the full CSS selector, then the route and frame as a label/value list (the
- * delete dialog's Removes/Keeps shape). Shared by the composer's node view and
- * the sent-message bubble so the two cards read the same.
+ * delete dialog's Removes/Keeps shape), or, for an element in a Mockup, which
+ * has no route, the Mockup's title. Shared by the composer's node view and the
+ * sent-message bubble so the two cards read the same.
  */
 export function ElementDetail({
   selector,
   route,
   frameLabel,
+  inMockup = false,
 }: {
   selector: string
   route: string
   frameLabel?: string
+  inMockup?: boolean
 }) {
+  if (inMockup) {
+    return (
+      <>
+        <ElementSelector selector={selector} />
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+          <dt className="text-muted-foreground">Mockup</dt>
+          <dd className="break-words">{frameLabel}</dd>
+        </dl>
+      </>
+    )
+  }
   return (
     <>
       <ElementSelector selector={selector} />

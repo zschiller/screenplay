@@ -18,9 +18,9 @@ import { COLLECTION_KEYS } from "@/lib/yjs/schema"
  *   that only writes chat sessions or plans (run status, titles) is skipped,
  *   and so is one that touches repositories or Workspaces: those have
  *   server-side effects Undo can't reverse, so they keep their confirms.
- * - Not the fields a running prototype reports on its frame (route, scroll,
- *   state, knob declarations), which sync the live page rather than record an
- *   edit anyone made.
+ * - Not the fields a running prototype reports on its frame or Mockup (route,
+ *   scroll, state, knob declarations), which sync the live page rather than
+ *   record an edit anyone made.
  *
  * Chat sessions are in scope only so that undoing a document's deletion brings
  * its chat back with it.
@@ -34,6 +34,13 @@ const LIVE_FRAME_FIELDS: ReadonlySet<string> = new Set([
   "scrollY",
   "knobs",
   "sharedState",
+])
+
+/** Collections whose records carry a running page's fields: frames, and
+ *  Mockups, whose pages declare knobs too. */
+const LIVE_KEYS: ReadonlySet<string> = new Set([
+  COLLECTION_KEYS.iframeLayers,
+  COLLECTION_KEYS.mockupLayers,
 ])
 
 /** The collections a member edits on the canvas. */
@@ -84,7 +91,7 @@ export function createCanvasUndo(doc: Y.Doc): CanvasUndo {
       if (!editable.has(owner.key)) continue
       if (
         !owner.entry ||
-        owner.key !== COLLECTION_KEYS.iframeLayers ||
+        !LIVE_KEYS.has(owner.key) ||
         [...keys].some((k) => k === null || !LIVE_FRAME_FIELDS.has(k))
       ) {
         edit = true

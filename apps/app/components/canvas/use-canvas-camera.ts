@@ -663,7 +663,9 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       // through so pinch-zoom over a focused frame works.
       const activeFrameId = focusedIframeLayerId ?? createFlowIframeLayerId
       if (activeFrameId && !e.ctrlKey && !e.metaKey) {
-        const frameEl = document.getElementById(`iframe-layer-${activeFrameId}`)
+        const frameEl =
+          document.getElementById(`iframe-layer-${activeFrameId}`) ??
+          document.getElementById(`mockup-layer-${activeFrameId}`)
         if (frameEl && frameEl.contains(e.target as Node)) return
       }
       e.preventDefault()

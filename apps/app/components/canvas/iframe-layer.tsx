@@ -30,7 +30,6 @@ import {
 } from "@workspace/ui/components/floating-toolbar"
 import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
-import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
@@ -61,6 +60,7 @@ import {
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
+import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
 import type {
@@ -105,14 +105,6 @@ const PLACEHOLDER_RELOAD_GRACE_MS = 1500
 // `contentReady` stops the loop the moment a real page paints, so a healthy
 // frame reloads at most once; the cap only bounds a genuinely stuck server.
 const MAX_PLACEHOLDER_RELOADS = 10
-
-// A selected frame's floating toolbar hangs centred under the frame, like
-// Safari's bottom bar (issue #795). Screen px: its gap below the frame, the
-// canvas toolbar strip it stays above when the frame runs off screen, and its
-// inset from the canvas's side edges.
-const FRAME_TOOLBAR_GAP = 8
-const CANVAS_TOOLBAR_STRIP = 48
-const FRAME_TOOLBAR_INSET = 8
 
 export interface IframeLayerData {
   id: string
@@ -527,41 +519,10 @@ export function IframeLayer({
   // highlights (default variant) when HMR drops.
   const showToolbar = selected && !multiSelected
 
-  // Portal target is created in canvas.tsx in the popovers layer (above the
-  // SelectionOverlay's overlay layer — see the canvas tokens in globals.css), so the toolbar isn't painted over by hover rings or
-  // resize handles. Resolved lazily during render — it's only read once the
-  // frame is selected (showToolbar), well after the ancestor portal node has
-  // mounted, and getElementById returns a stable node reference so dependents
-  // don't churn.
-  const toolbarPortalTarget =
-    typeof document !== "undefined"
-      ? document.getElementById("frame-toolbar-portal")
-      : null
-  const toolbarVisible =
-    !!iframeLayer.branchId && showToolbar && !!toolbarPortalTarget
-
-  // Keep the portaled toolbar centred under the frame. When the frame's bottom
-  // is off screen the toolbar stops above the canvas toolbar, and it never
-  // slides off the sides.
-  useCanvasAnchoredPortal({
-    enabled: toolbarVisible,
+  const toolbarPortalTarget = useLayerToolbar({
+    show: !!iframeLayer.branchId && showToolbar,
     anchorRef: frameRef,
-    targetRef: toolbarRef,
-    getOffset: (fr, cw) => {
-      const width = toolbarRef.current?.offsetWidth ?? 0
-      const height = toolbarRef.current?.offsetHeight ?? 0
-      const centred = fr.left - cw.left + (fr.width - width) / 2
-      return {
-        x: Math.max(
-          FRAME_TOOLBAR_INSET,
-          Math.min(centred, cw.width - width - FRAME_TOOLBAR_INSET)
-        ),
-        y: Math.min(
-          fr.bottom - cw.top + FRAME_TOOLBAR_GAP,
-          cw.height - CANVAS_TOOLBAR_STRIP - height
-        ),
-      }
-    },
+    toolbarRef,
   })
   const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
@@ -949,7 +910,7 @@ export function IframeLayer({
     >
       {(api) => (
         <>
-          {toolbarVisible &&
+          {toolbarPortalTarget &&
             createPortal(
               <FloatingToolbar
                 ref={toolbarRef}
@@ -1100,7 +1061,7 @@ export function IframeLayer({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </FloatingToolbar>,
-              toolbarPortalTarget!
+              toolbarPortalTarget
             )}
           <div
             className={`relative h-full w-full overflow-hidden bg-white dark:bg-neutral-900 ${LAYER_SURFACE_CLASS}`}
