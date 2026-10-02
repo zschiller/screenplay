@@ -242,3 +242,68 @@ describe("bridge getPageSnapshot", () => {
     expect(snap.markup).toBe('<button id="pay">Pay now</button>')
   })
 })
+
+describe("bridge Space with the pointer outside the page", () => {
+  const posted: string[] = []
+  function onMessage(e: MessageEvent) {
+    const type = e.data?.type
+    if (type === "screenplay:space-down" || type === "screenplay:space-up")
+      posted.push(type)
+  }
+  const press = (type: "keydown" | "keyup", init: KeyboardEventInit = {}) => {
+    const e = new KeyboardEvent(type, {
+      key: " ",
+      bubbles: true,
+      cancelable: true,
+      ...init,
+    })
+    ;(document.activeElement ?? document.body).dispatchEvent(e)
+    return e
+  }
+  // postMessage delivers asynchronously.
+  const flush = () => new Promise((r) => setTimeout(r, 0))
+  const leave = () =>
+    window.dispatchEvent(new MouseEvent("mouseout", { relatedTarget: null }))
+  const enter = () =>
+    document.body.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+
+  beforeEach(() => {
+    posted.length = 0
+    window.addEventListener("message", onMessage)
+    return () => {
+      window.removeEventListener("message", onMessage)
+      enter()
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
+    }
+  })
+
+  it("hands Space to the canvas, and keeps it from the page", async () => {
+    leave()
+    const down = press("keydown")
+    const up = press("keyup")
+    await flush()
+    expect(down.defaultPrevented).toBe(true)
+    expect(up.defaultPrevented).toBe(true)
+    expect(posted).toEqual(["screenplay:space-down", "screenplay:space-up"])
+  })
+
+  it("leaves Space to the page while the pointer is over it", async () => {
+    enter()
+    const down = press("keydown")
+    press("keyup")
+    await flush()
+    expect(down.defaultPrevented).toBe(false)
+    expect(posted).toEqual([])
+  })
+
+  it("leaves Space to a text field being typed in", async () => {
+    document.body.innerHTML = `<input id="q" />`
+    document.getElementById("q")!.focus()
+    leave()
+    const down = press("keydown")
+    press("keyup")
+    await flush()
+    expect(down.defaultPrevented).toBe(false)
+    expect(posted).toEqual([])
+  })
+})

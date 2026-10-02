@@ -62,6 +62,7 @@ import type { TurnSummary } from "@/lib/agent/turn-summary"
 import { bareToolName } from "@/lib/agent/tool-name"
 import {
   elementMarkersToPills,
+  mockupMarkersToRefs,
   skillMarkersToPills,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
@@ -79,7 +80,14 @@ import {
 import { chatStore } from "@/lib/chat-store"
 import { inputStore } from "@/lib/input-store"
 import { diffLines, foldContext } from "@/lib/agent/line-diff"
-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+import { InlineRef } from "@/components/agent/inline-ref"
+import { WorkspaceStateGlyph } from "@/components/workspace-mention"
+import {
+  roomWorkspaceFacts,
+  workspaceState,
+} from "@/lib/branch/workspace-state"
+import { parseLayerLink } from "@/lib/agent/layer-link"
+import { useMockupTitle } from "@/lib/yjs/react"
 import { ElementDetail } from "./element-detail"
 import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
@@ -876,7 +884,7 @@ function PlanMessage({
     approved: (
       <Badge
         variant="outline"
-        className="h-4 gap-1 px-1.5 py-0 text-xs text-success-text"
+        className="h-4 gap-1 px-1.5 py-0 text-xs text-success"
       >
         <CheckCircleIcon className="size-3 text-success" /> Approved
       </Badge>
@@ -1009,10 +1017,9 @@ function ElementHistoryToken({
   return (
     <HoverCard onOpenChange={handleOpenChange}>
       <HoverCardTrigger asChild>
-        <span className={`${MENTION_TEXT_CLASS} font-mono`}>
-          <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+        <InlineRef kind="element" className="font-mono">
           {children}
-        </span>
+        </InlineRef>
       </HoverCardTrigger>
       <HoverCardContent align="start">
         <ElementDetail
@@ -1024,6 +1031,15 @@ function ElementHistoryToken({
       </HoverCardContent>
     </HoverCard>
   )
+}
+
+/**
+ * A drawn Mockup named in a sent message, by its live title (the box is empty
+ * and untitled when the message is sent; the chat titles it).
+ */
+function MockupRef({ id }: { id: string }) {
+  const title = useMockupTitle(id)
+  return <InlineRef kind="mockup">{title || "Mockup"}</InlineRef>
 }
 
 /**
@@ -1114,9 +1130,13 @@ function UserBubble({
   // footers; recover the inline chips: `skillMarkersToPills` for the
   // `/`-skill marker and `elementMarkersToPills` for each `[element: …]`
   // element token — the same markers the composer's `serializeSkill` /
-  // `serializeElement` emit, rendered back as inline references below.
+  // `serializeElement` emit, rendered back as inline references below — and
+  // `mockupMarkersToRefs` for a drawn Mockup's `[mockup: <id>]`.
   const displayContent = useMemo(
-    () => elementMarkersToPills(skillMarkersToPills(message.content)),
+    () =>
+      mockupMarkersToRefs(
+        elementMarkersToPills(skillMarkersToPills(message.content))
+      ),
     [message.content]
   )
   // The terse inline label hides the messy detail; the projection carries it,
@@ -1129,16 +1149,19 @@ function UserBubble({
   const components = useMemo<Components>(
     () => ({
       a: ({ href, children, ...props }) => {
-        // `/`-skill and `@`-doc references render as plain inline, sky-colored
-        // text — matching the composer chips. The serialized children already
-        // carry the leading `/` or `@` marker; no pill, icon, or background.
-        if (
-          typeof href === "string" &&
-          (href.startsWith("skill:") || href.startsWith("mention:"))
-        ) {
-          return <span className={MENTION_TEXT_CLASS}>{children}</span>
+        // Inline references, as the composer draws them: a `/`-skill keeps
+        // its `/`; an `@`-document trades its `@` for the document icon.
+        if (typeof href === "string" && href.startsWith("skill:")) {
+          return <InlineRef kind="skill">{children}</InlineRef>
         }
-        // element tokens: a clean crosshair + `font-mono` tag name,
+        if (typeof href === "string" && href.startsWith("mention:")) {
+          return <InlineRef kind="document">{stripAt(children)}</InlineRef>
+        }
+        // A drawn Mockup, by its live title.
+        if (typeof href === "string" && href.startsWith("mockup:")) {
+          return <MockupRef id={href.slice("mockup:".length)} />
+        }
+        // element tokens: the crosshair + `font-mono` tag name,
         // matching the composer token. Detail rides the footer, keyed by the
         // link's `element:<ref>`; missing (a footer-less legacy turn) → plain
         // token, no card.
@@ -1147,10 +1170,9 @@ function UserBubble({
           const detail = targetedElements.get(refId)
           if (!detail) {
             return (
-              <span className={`${MENTION_TEXT_CLASS} font-mono`}>
-                <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+              <InlineRef kind="element" className="font-mono">
                 {children}
-              </span>
+              </InlineRef>
             )
           }
           return (
@@ -1185,13 +1207,32 @@ function UserBubble({
 
 /**
  * An agent reply. In the Coordinator's transcript, a `[title](workspace:<id>)`
- * link opens that Workspace (#897); anywhere else it reads as plain text.
+ * link names a Workspace by its state and title and opens it (#897), and a
+ * `[title](frame:<id>)`, `document:` or `mockup:` link names that layer and
+ * shows it on the canvas. Anywhere else they read as references that do
+ * nothing.
  */
 function AssistantMessage({ content }: { content: string }) {
   const tasks = useWorkspaceTasks()
+  const facts = useMemo(
+    () => tasks && roomWorkspaceFacts(tasks.chatSessions, tasks.plans),
+    [tasks]
+  )
   const components = useMemo<Components>(
     () => ({
       a: ({ href, children, ...props }) => {
+        const layer = typeof href === "string" ? parseLayerLink(href) : null
+        if (layer) {
+          const onShow = tasks?.onShow
+          return (
+            <InlineRef
+              kind={layer.kind}
+              onClick={onShow && (() => onShow(layer.id))}
+            >
+              {children}
+            </InlineRef>
+          )
+        }
         if (
           typeof href !== "string" ||
           !href.startsWith(WORKSPACE_LINK_SCHEME)
@@ -1203,36 +1244,48 @@ function AssistantMessage({ content }: { content: string }) {
           )
         }
         const branchId = href.slice(WORKSPACE_LINK_SCHEME.length)
-        const exists = tasks?.branches.some((b) => b.id === branchId)
-        if (!tasks || !exists) return <span>{children}</span>
-        // A link like any other in the reply; it opens the Workspace in place.
+        const branch = tasks?.branches.find((b) => b.id === branchId)
+        if (!tasks || !facts || !branch) return <span>{children}</span>
+        // Led by the Workspace's state; it opens the Workspace in place.
         return (
-          <a
-            href={href}
-            {...props}
+          <InlineRef
+            kind="workspace"
             data-testid="workspace-link"
-            onClick={(e) => {
-              e.preventDefault()
-              tasks.onOpen({ branchId })
-            }}
+            icon={
+              <WorkspaceStateGlyph line={workspaceState(branch, facts).line} />
+            }
+            onClick={() => tasks.onOpen({ branchId })}
           >
             {children}
-          </a>
+          </InlineRef>
         )
       },
     }),
-    [tasks]
+    [tasks, facts]
   )
   return (
-    <ChatMarkdown components={components} urlTransform={keepWorkspaceLinks}>
+    <ChatMarkdown components={components} urlTransform={keepReferenceLinks}>
       {content}
     </ChatMarkdown>
   )
 }
 
-/** Markdown's default URL filter, letting `workspace:` links through. */
-function keepWorkspaceLinks(url: string): string {
-  return url.startsWith(WORKSPACE_LINK_SCHEME) ? url : defaultUrlTransform(url)
+/**
+ * Markdown's default URL filter, letting `workspace:`, `frame:`, `document:`
+ * and `mockup:` links through.
+ */
+function keepReferenceLinks(url: string): string {
+  return url.startsWith(WORKSPACE_LINK_SCHEME) || parseLayerLink(url)
+    ? url
+    : defaultUrlTransform(url)
+}
+
+/** A mention's text without its leading `@`: the icon marks it now. */
+function stripAt(children: ReactNode): ReactNode {
+  if (typeof children === "string") return children.replace(/^@/, "")
+  if (Array.isArray(children) && typeof children[0] === "string")
+    return [children[0].replace(/^@/, ""), ...children.slice(1)]
+  return children
 }
 
 /**

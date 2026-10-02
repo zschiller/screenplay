@@ -12,6 +12,7 @@ import * as Y from "yjs"
 import { createCanvasUndo, type CanvasUndo } from "@/lib/canvas/undo"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import {
+  useOptionalYjs,
   useYjs,
   type AwarenessChange,
   type AwarenessLike,
@@ -77,6 +78,27 @@ export function useMarkdownLayers(): Array<MarkdownLayerData> {
 
 export function useMockupLayers(): Array<MockupLayerData> {
   return useCollectionArray(useRoomCollections().mockupLayers)
+}
+
+/**
+ * A Mockup Layer's title, kept current as it changes: `""` while untitled,
+ * `undefined` once deleted or outside a room.
+ */
+export function useMockupTitle(id: string): string | undefined {
+  const doc = useOptionalYjs()?.doc
+  const collection = useMemo(
+    () => (doc ? getRoomCollections(doc).mockupLayers : null),
+    [doc]
+  )
+  const subscribe = useCallback(
+    (cb: () => void) => collection?.observe(cb) ?? (() => {}),
+    [collection]
+  )
+  const getSnapshot = useCallback(
+    () => collection?.get(id)?.title,
+    [collection, id]
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 /** A Mockup Layer's page, kept current as the shared `Y.Text` changes. */

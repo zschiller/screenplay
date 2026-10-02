@@ -130,6 +130,8 @@ interface LayerShellProps {
   onRenameGroup?: (next: string) => void
   /** Layer-specific title row rendered inside the shared `LayerTitleBar`. */
   renderTitle: (api: LayerShellApi) => React.ReactNode
+  /** Right-aligned to the layer on its title row: who drives a frame (#1387). */
+  titleTag?: React.ReactNode
 
   // ── Body ───────────────────────────────────────────────────────────────────
   /** Layer-specific content rendered inside the world-space container. */
@@ -185,6 +187,7 @@ export function LayerShell({
   onSelectGroup,
   onRenameGroup,
   renderTitle,
+  titleTag,
   children,
 }: LayerShellProps) {
   // `groupSelected` routes through the selection mover too, so grabbing a
@@ -306,6 +309,7 @@ export function LayerShell({
     <div
       ref={containerRef}
       id={containerId}
+      data-layer-id={layerId}
       className={containerClassName}
       style={{
         width,
@@ -353,6 +357,7 @@ export function LayerShell({
         reorderDragTranslateX={dragTranslateX}
         reorderDragTranslateY={dragTranslateY}
         reorderDragPopped={dragPopped}
+        tag={titleTag}
       >
         {
           // `api`'s handlers (`deferSelect`, `onBodyPointerDownCapture`) read

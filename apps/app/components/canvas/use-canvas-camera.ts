@@ -916,9 +916,12 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       trackPadPanning: { disabled: true },
       panning: {
         velocityDisabled: true,
+        // Interact keeps the canvas still, except for a space-drag (outside
+        // the page, which takes its own pointers).
         disabled:
-          focusedIframeLayerId !== null ||
-          createFlowIframeLayerId !== null ||
+          ((focusedIframeLayerId !== null ||
+            createFlowIframeLayerId !== null) &&
+            !spaceHeld) ||
           editingDocumentLayerId !== null,
         allowLeftClickPan: spaceHeld,
         allowMiddleClickPan: true,

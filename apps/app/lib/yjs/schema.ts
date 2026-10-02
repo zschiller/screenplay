@@ -12,6 +12,7 @@ import type {
   ViewportData,
   RepoData,
 } from "@/lib/types"
+import type { FrameControlRecord } from "@/lib/canvas/frame-control"
 
 /**
  * Y.Doc layout for a room. Each domain is a top-level Y.Map of Y.Maps; the
@@ -33,6 +34,8 @@ export const COLLECTION_KEYS = {
   plans: "plans",
   /** Canvas memory entries (#902), `lib/canvas/memory.ts`. */
   memories: "memories",
+  /** Who drives each copy of a frame (#1387), `lib/canvas/frame-control.ts`. */
+  frameControl: "frameControl",
   // Formerly the shared tracked-pin positions of selector-anchored comments.
   // No longer written (#785): pins are placed per viewer, from their own
   // frame, so viewers can't overwrite each other's. Kept so existing docs
@@ -234,6 +237,7 @@ export type RoomCollections = {
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   memories: YjsCollection<MemoryData>
+  frameControl: YjsCollection<FrameControlRecord>
   commentPositions: YjsCollection<CommentPosition>
   savedViewport: YjsSingleton<ViewportData>
   /** Run a function as a single Yjs transaction (one update, one undo step). */
@@ -297,6 +301,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     memories: new YjsCollection<MemoryData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.memories)
+    ),
+    frameControl: new YjsCollection<FrameControlRecord>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.frameControl)
     ),
     commentPositions: new YjsCollection<CommentPosition>(
       doc,

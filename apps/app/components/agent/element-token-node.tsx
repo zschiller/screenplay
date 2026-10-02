@@ -8,7 +8,6 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { ElementDetail } from "./element-detail"
 import { useElementHighlight } from "./use-element-highlight"
 
@@ -40,7 +39,8 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
       <HoverCard onOpenChange={handleOpenChange}>
         <HoverCardTrigger asChild>
           <span
-            className={`${MENTION_TEXT_CLASS} cursor-default font-mono`}
+            data-inline-ref="element"
+            className="inline-ref cursor-default font-mono"
             contentEditable={false}
           >
             {/*
@@ -57,8 +57,12 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
               (zero width) and composer-only; the sent bubble uses renderHTML.
             */}
             {"\u200B"}
-            <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
-            {label}
+            <CrosshairIcon
+              aria-hidden
+              weight="bold"
+              className="inline-ref-icon"
+            />
+            <span className="inline-ref-label">{label}</span>
           </span>
         </HoverCardTrigger>
         <HoverCardContent align="start">

@@ -17,6 +17,7 @@ import {
   type MoveAssemblyGroup,
   type MoveAssemblyLayout,
 } from "@/lib/canvas/gesture"
+import { pressLeavesInteraction } from "@/lib/canvas/interaction-mode"
 import { hasModKey } from "@/lib/canvas/key-target"
 import type { GapHandle, ReorderHandle } from "@/lib/canvas/layout"
 import {
@@ -84,6 +85,10 @@ export type CanvasGestureInputs = {
   documentMode: boolean
   frameMode: boolean
   mockupMode: boolean
+  /** The frame or Mockup in Interact or Create Flow mode, or null. */
+  interactingLayerId: string | null
+  /** Leave Interact / Create Flow, as Esc does. */
+  leaveInteraction: () => void
 
   /** Live reorder-dot / gap-handle geometry (from the Canvas Layout). */
   reorderHandles: readonly ReorderHandle[]
@@ -252,6 +257,28 @@ export function useCanvasGesture(
     (e: React.PointerEvent) => {
       const i = inputsRef.current
       if (!i) return
+      // A press outside the interacting layer leaves Interact / Create Flow, as
+      // Esc does, unless Space is held: that press pans. Capture phase, so presses a layer stops still count; the
+      // press then goes on to that layer as usual. Portaled children (a
+      // toolbar menu on document.body) aren't in the wrapper, so never leave.
+      if (
+        e.button === 0 &&
+        !i.spaceHeld &&
+        i.interactingLayerId !== null &&
+        e.currentTarget.contains(e.target as Node)
+      ) {
+        const target = e.target as HTMLElement
+        if (
+          pressLeavesInteraction({
+            interactingId: i.interactingLayerId,
+            pressedLayerId:
+              target.closest<HTMLElement>("[data-layer-id]")?.dataset.layerId ??
+              null,
+            onLayerToolbar: !!target.closest("#frame-toolbar-portal"),
+          })
+        )
+          i.leaveInteraction()
+      }
       if (e.button !== 0 || i.spaceHeld || i.focusedLayer) return
       if (i.commentMode || i.documentMode || i.frameMode || i.mockupMode) return
       const target = e.target as HTMLElement

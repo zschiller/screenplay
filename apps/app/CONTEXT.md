@@ -1314,6 +1314,23 @@ Mode** selection into here (that stays in **Tool Mode** — this governs frame
 interaction, not the armed tool); re-deriving cursor-chat-open from the anchor
 instead of the awareness message.
 
+**Frame Control**:
+Who drives a frame (#1387, spec #1386): one party at a time, a person or the
+agent, and only the driver's input reaches the page. The pure reducer
+(`reduceFrameControl` in `lib/canvas/frame-control.ts`, pinned by
+`frame-control.test.ts`) owns every handoff rule over the record `{ live,
+driver, requests[] }` in the Room's `frameControl` Yjs map: the driver lets
+people drive (grant / decline), requests queue, a driver who leaves keeps
+control for 5 seconds, the agent always yields and asks again, and a chat ask
+grants the agent control when the asker drives or nobody does. Records are
+keyed per **copy** of a frame (`frameControlKey`): until shared frames, every
+viewer runs their own copy, whose parties are that viewer and the agent.
+`useFrameControl` is the React adapter: **Interact is the driver's seat**
+(entering asks to drive, leaving lets go). The Interact button is the driver
+button, and the Layer Shell draws the title-line tag.
+_Avoid_: a second affordance for control beside Interact; writing `driver`
+outside the reducer; one record per frame for copies that aren't shared.
+
 **Canvas Keyboard**:
 The global `keydown`/`keyup` listeners for the canvas (`useCanvasKeyboard`, PRD
 #579), a dispatch from action to verb. Which key means what lives in one table,

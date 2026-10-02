@@ -10,8 +10,8 @@ const badgeVariants = cva(
       variant: {
         default: "border-transparent bg-primary text-primary-foreground",
         secondary: "border-transparent bg-secondary text-secondary-foreground",
-        // Outline, red icon, label a shade calmer, like every status chip.
-        destructive: "text-destructive-text [&>svg]:text-destructive",
+        // Outline, red icon and label, like every status chip.
+        destructive: "text-destructive",
         outline: "text-foreground",
       },
     },

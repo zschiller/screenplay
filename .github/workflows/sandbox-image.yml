@@ -8,7 +8,8 @@ name: Sandbox image
 #
 # Signs in to VCR with GitHub OIDC, so no secret is stored. Needs a Vercel OIDC
 # policy for this repository and workflow, and three repository variables:
-# VERCEL_TEAM_ID, VERCEL_TEAM_SLUG and VERCEL_PROJECT_SLUG (the app project).
+# VERCEL_TEAM_ID, VERCEL_TEAM_SLUG and SCREENPLAY_APP_VERCEL_PROJECT_SLUG (the
+# app project, named for the app because the repo holds several Vercel projects).
 # Until they're set, the job is skipped.
 
 on:
@@ -34,9 +35,23 @@ jobs:
     if: vars.VERCEL_TEAM_ID != ''
     runs-on: ubuntu-latest
     env:
-      REPOSITORY: vcr.vercel.com/${{ vars.VERCEL_TEAM_SLUG }}/${{ vars.VERCEL_PROJECT_SLUG }}/screenplay-workspace
+      REPOSITORY: vcr.vercel.com/${{ vars.VERCEL_TEAM_SLUG }}/${{ vars.SCREENPLAY_APP_VERCEL_PROJECT_SLUG }}/screenplay-workspace
     steps:
+      - name: Check the repository variables
+        if: vars.VERCEL_TEAM_SLUG == '' || vars.SCREENPLAY_APP_VERCEL_PROJECT_SLUG == ''
+        run: |
+          echo "::error::Set the repository variables VERCEL_TEAM_SLUG and SCREENPLAY_APP_VERCEL_PROJECT_SLUG (Settings > Secrets and variables > Actions > Variables)."
+          exit 1
+
       - uses: actions/checkout@v4
+
+      # Vercel's managed base image can't be pulled outside a Sandbox, so build
+      # it from the Dockerfiles Vercel publishes it from.
+      - uses: actions/checkout@v4
+        with:
+          repository: vercel/sandbox
+          path: vercel-sandbox
+          sparse-checkout: images
 
       - uses: docker/setup-buildx-action@v3
 
@@ -46,13 +61,8 @@ jobs:
           team: ${{ vars.VERCEL_TEAM_ID }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: apps/app/sandbox-image
-          platforms: linux/amd64
-          provenance: false
-          pull: true
-          tags: |
-            ${{ env.REPOSITORY }}:latest
-            ${{ env.REPOSITORY }}:${{ github.sha }}
-          outputs: type=image,push=true,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
+        run: docker buildx bake -f apps/app/sandbox-image/docker-bake.hcl workspace
+        env:
+          VERCEL_SANDBOX_IMAGES: vercel-sandbox/images
+          TAGS: ${{ env.REPOSITORY }}:latest ${{ env.REPOSITORY }}:${{ github.sha }}
+          PUSH: "true"

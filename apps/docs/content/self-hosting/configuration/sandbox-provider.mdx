@@ -51,15 +51,21 @@ OIDC, so it needs no secret:
 1. In Vercel, add an OIDC policy that trusts your repository's
    `.github/workflows/sandbox-image.yml`.
 2. In your GitHub repository, add the variables `VERCEL_TEAM_ID`,
-   `VERCEL_TEAM_SLUG` and `VERCEL_PROJECT_SLUG` (the app project).
+   `VERCEL_TEAM_SLUG` and `SCREENPLAY_APP_VERCEL_PROJECT_SLUG` (the app
+   project). Add them as repository variables, not environment variables: the
+   workflow doesn't run in a GitHub environment.
 3. Run the workflow once from the **Actions** tab.
 
-To push it by hand instead, from a linked project:
+The image builds on Vercel's Ubuntu Sandbox image, which the workflow builds
+from [Vercel's own Dockerfiles](https://github.com/vercel/sandbox/tree/main/images)
+because the managed one can't be pulled as a base. To push it by hand instead,
+from the repository root of a linked project:
 
 ```bash
-cd apps/app/sandbox-image
+git clone --depth 1 https://github.com/vercel/sandbox vercel-sandbox
 vercel vcr login docker
-vercel vcr build docker . screenplay-workspace:latest --push
+TAGS=vcr.vercel.com/<team>/<project>/screenplay-workspace:latest PUSH=true \
+  docker buildx bake -f apps/app/sandbox-image/docker-bake.hcl workspace
 ```
 
 Sandbox VMs **hibernate**. Idle sandboxes are snapshotted and reclaimed, and
