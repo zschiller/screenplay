@@ -173,7 +173,10 @@ export function ThreadCard({
         </div>
       </div>
       {quote}
-      <div className="-mx-3 flex max-h-72 flex-col gap-3 overflow-y-auto px-3">
+      <div
+        className="-mx-3 flex max-h-72 flex-col gap-3 overflow-y-auto px-3"
+        data-selectable-text
+      >
         {thread.comments.map((c) => (
           <CommentRow
             key={c.id}
