@@ -72,7 +72,10 @@ export function HomeSidebar() {
             header is just the traffic-light spacer above. */}
         {!isLocalBuild && (
           <div data-tauri-drag-region className="flex items-center px-3 py-2">
-            <div className="ml-auto">
+            {/* `flex`, not block: the trigger is inline-flex, and in a block
+                its line box sits on the initials' baseline until the photo
+                loads, then on the image's bottom edge, growing the row 6px. */}
+            <div className="ml-auto flex">
               <AccountMenu />
             </div>
           </div>
