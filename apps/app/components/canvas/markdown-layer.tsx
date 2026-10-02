@@ -337,6 +337,8 @@ function NodeTypeDropdown({
 interface MarkdownLayerProps {
   layer: MarkdownLayerData
   zoom: number
+  /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
+  labelHidden?: boolean
   selected: boolean
   multiSelected: boolean
   editing: boolean
@@ -448,6 +450,7 @@ interface MarkdownLayerProps {
 export function MarkdownLayer({
   layer,
   zoom,
+  labelHidden,
   selected,
   multiSelected,
   editing,
@@ -960,6 +963,7 @@ export function MarkdownLayer({
         },
       }}
       zoom={zoom}
+      labelHidden={labelHidden}
       selected={selected}
       groupSelected={groupSelected}
       multiSelected={multiSelected}
