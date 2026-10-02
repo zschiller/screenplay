@@ -18,7 +18,7 @@ export default function OgImage() {
       className="relative flex h-[630px] w-[1200px] flex-col overflow-hidden bg-background px-14 pt-12 text-foreground"
     >
       <div className="flex items-end justify-between gap-8">
-        <h1 className="font-wordmark text-[88px] leading-[0.92] font-normal tracking-[-0.025em] whitespace-nowrap">
+        <h1 className="font-headline text-[88px] leading-[0.92] font-normal tracking-[-0.025em] whitespace-nowrap">
           Every branch, <em>side by side</em>.
         </h1>
         <div className="pb-2.5">
