@@ -72,6 +72,11 @@ import type {
 
 const UNASSIGNED_IN_GROUP =
   "Choose a Workspace from the group's title to preview it here."
+/** The unanswered frame's copy when it can start a chat (#1358). */
+const START_A_CHAT =
+  "Start a chat to build something here, or choose a Workspace from the frame's title."
+const START_A_CHAT_IN_GROUP =
+  "Start a chat to build something here, or choose a Workspace from the group's title."
 
 // Cached expected bridge version — fetched once per session.
 let expectedBridgeVersionPromise: Promise<string> | null = null
@@ -259,6 +264,9 @@ interface IframeLayerProps {
   onRestartWorkspace?: (branchId: string) => void
   /** Show the frame's Workspace's sandbox logs. */
   onOpenLogs?: (branchId: string) => void
+  /** Start a chat on the frame while it has no Workspace: select it and
+   *  reopen its ask card (#1358). Unset when there's no Repo to start in. */
+  onStartChat?: (iframeLayerId: string) => void
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableBranches?: BranchData[]
   onAssignBranch?: (iframeLayerId: string, branchId: string) => void
@@ -361,6 +369,7 @@ export function IframeLayer({
   workspace,
   onRestartWorkspace,
   onOpenLogs,
+  onStartChat,
   assignableBranches,
   onAssignBranch,
   discoveredRoutes,
@@ -1187,9 +1196,13 @@ export function IframeLayer({
                     ? workspace?.error
                     : stage === "unassigned"
                       ? // The Group's label offers the list instead (#871).
-                        showWorkspace
-                        ? undefined
-                        : UNASSIGNED_IN_GROUP
+                        onStartChat
+                        ? showWorkspace
+                          ? START_A_CHAT
+                          : START_A_CHAT_IN_GROUP
+                        : showWorkspace
+                          ? undefined
+                          : UNASSIGNED_IN_GROUP
                       : workspace?.statusMessage
                 }
                 onRetry={
@@ -1208,6 +1221,9 @@ export function IframeLayer({
                   branchId && onOpenLogs
                     ? () => onOpenLogs(branchId)
                     : undefined
+                }
+                onStartChat={
+                  onStartChat ? () => onStartChat(iframeLayer.id) : undefined
                 }
               />
             )}
