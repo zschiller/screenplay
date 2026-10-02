@@ -10,7 +10,6 @@ import {
   agentChatTarget,
   loadCanvasMemory,
   loadLayerDirectory,
-  markdownLayerChatTarget,
   prepareChatTarget,
   roomChatTarget,
 } from "./chat-target-kinds"
@@ -220,62 +219,6 @@ export const liveTurnStopDeps: TurnStopDeps = {
   broadcastControl,
   broadcastStreamEnd: (roomId, chatId) =>
     broadcastSignal(roomId, chatId, "chat-stream-end"),
-}
-
-/**
- * A chat on a Markdown Layer: no sandbox of its own (it reads the Workspaces'
- * code), and its kind-specific bits (system prompt, tools, message
- * decoration) come from the layer's `ChatTargetSpec`.
- */
-export function markdownLayerTurn(input: {
-  room: RoomDoc
-  chatId: string
-  markdownLayerId: string
-  message: string
-  model?: string
-}): TurnTarget {
-  return {
-    async prepare() {
-      const prepared = await prepareChatTarget(
-        input.room,
-        // Cast through `never` so prepareChatTarget's generic doesn't try to
-        // unify the spec with its target.
-        markdownLayerChatTarget as unknown as Parameters<
-          typeof prepareChatTarget
-        >[1],
-        { markdownLayerId: input.markdownLayerId } as unknown as never,
-        undefined,
-        { toolNaming: toolNamingForTurn(input.model) }
-      )
-      if (!prepared) return null
-
-      const model = input.model || DEFAULT_MODEL
-      await upsertChat({
-        chatId: input.chatId,
-        roomId: input.room.roomId,
-        // No sandbox: an empty string satisfies the NOT NULL constraint; it's
-        // never read back for layer chats.
-        sandboxName: "",
-        model,
-        systemPrompt: prepared.systemPrompt,
-      })
-
-      // Plan mode is a sandbox-chat feature and stops at this boundary (#743).
-      // The spec's decorator drops the marker and no `planMode` reaches the
-      // engine: on the ACP engine a plan-mode turn turns the permission handler
-      // into the ExitPlanMode gate, which would refuse this target's document
-      // writes. A chat carrying a stale `planMode: true` must still run normally.
-      return {
-        systemPrompt: prepared.systemPrompt,
-        model,
-        tools: prepared.tools,
-        userText: prepared.decorateUserMessage(input.message, {
-          isFirstMessage: false,
-        }),
-      }
-    },
-    followUp: (message) => markdownLayerTurn({ ...input, message }),
-  }
 }
 
 /**
@@ -506,6 +449,7 @@ export function sandboxTurn(input: {
       const systemPrompt = buildAgentSystemPrompt({
         repoSystemPrompt: branchState?.systemPrompt ?? undefined,
         layerDirectory,
+        chatId,
         skills,
         memory,
         toolNaming: toolNamingForTurn(input.model),
@@ -514,9 +458,8 @@ export function sandboxTurn(input: {
       await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })
 
       // First-message naming (#910). Every new chat earns a label; the Branch
-      // rename is narrower: only the first chat on the Branch, and only while
-      // the room doc says it is still auto-named, so a later chat can't rename
-      // it under its siblings. The names go straight into the room doc here;
+      // rename is narrower: only the Branch's first chat (its one chat since
+      // #1315), and only while the room doc says it is still auto-named. The names go straight into the room doc here;
       // clients observe it. The git rename runs before the Engine does.
       let effectiveBranch = branchState?.ref
       let branchRename: BranchRenameClaim | undefined
@@ -540,7 +483,9 @@ export function sandboxTurn(input: {
           chatId,
           sandboxName,
           userId,
-          label: chatLabel || undefined,
+          // A Workspace and its one chat share a name (#1315): when the
+          // first message titles the Workspace, the chat takes that title too.
+          label: (shouldNameBranch && title) || chatLabel || undefined,
           branch,
           // The Workspace takes its title from the same call (#881).
           title: shouldNameBranch ? title || undefined : undefined,
@@ -554,7 +499,12 @@ export function sandboxTurn(input: {
       return {
         systemPrompt,
         model,
-        tools: toolsetFor({ kind: "sandbox", room, sandbox: toolCtx }),
+        tools: toolsetFor({
+          kind: "sandbox",
+          room,
+          sandbox: toolCtx,
+          chatId,
+        }),
         // The Chat Target spec owns the marker policy (branch only on the
         // first message) and delegates the format to the Message Markers codec.
         userText: agentChatTarget.decorateUserMessage!(message, {
@@ -595,11 +545,12 @@ export function sandboxTurn(input: {
  */
 export function planResumeTurn(input: {
   room: RoomDoc
+  chatId: string
   userId: string
   message: string
   chat: { sandboxName: string; model: string; systemPrompt: string }
 }): TurnTarget {
-  const { room, userId, message, chat } = input
+  const { room, chatId, userId, message, chat } = input
   return {
     async prepare() {
       const toolCtx: ToolContext = {
@@ -610,7 +561,12 @@ export function planResumeTurn(input: {
       return {
         systemPrompt: chat.systemPrompt,
         model: chat.model,
-        tools: toolsetFor({ kind: "sandbox", room, sandbox: toolCtx }),
+        tools: toolsetFor({
+          kind: "sandbox",
+          room,
+          sandbox: toolCtx,
+          chatId,
+        }),
         userText: message,
         commentRequest: {
           sandboxName: chat.sandboxName,

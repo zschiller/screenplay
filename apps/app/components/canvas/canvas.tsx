@@ -24,6 +24,7 @@ import {
   useIframeLayers,
   useChatSessions,
   useMarkdownLayers,
+  useMockupLayers,
   useOtherPresences,
   useRoomCollections,
   useSavedViewport,
@@ -35,6 +36,10 @@ import {
 } from "@/lib/yjs/react"
 
 import { createCanvasOps } from "@/lib/canvas/ops"
+import {
+  documentOwnerChat as documentOwnerChatOf,
+  documentWorkspaceIds,
+} from "@/lib/canvas/document-owner"
 
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 
@@ -44,7 +49,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 import { inputStore } from "@/lib/input-store"
 
-import { restoreAgentChatSelection } from "@/lib/chat/chat-target"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 
@@ -62,7 +67,6 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 
 import { renameRoom } from "@/lib/rooms-actions"
 
-import { showDeleteToast } from "./delete-toast"
 import { SelectionOverlay } from "./selection-overlay"
 
 import { Comments } from "./comments"
@@ -127,6 +131,7 @@ import {
 import { useTabPool } from "@/components/canvas/use-tab-pool"
 
 import { useTerminalTabs } from "@/components/canvas/use-terminal-tabs"
+import { serverTerminalTabStore } from "@/lib/terminal/server-tab-store"
 
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 
@@ -156,6 +161,7 @@ import {
   groupContentWidth,
   groupGap,
 } from "@/lib/canvas/layout"
+import { memberBox, sizedLayersOf } from "@/lib/canvas/sized-layers"
 
 import type {
   MoveAssemblyGroup,
@@ -222,7 +228,7 @@ import { addMemory, editMemory, removeMemory } from "@/lib/canvas/memory"
 
 import { ChatPanelHost } from "./chat-panel-host"
 
-import { WorkspacesMenuProvider } from "@/components/agent/workspaces-menu"
+import { ChatsMenuProvider } from "@/components/agent/chats-menu"
 
 import {
   useHoveredWorkspaceId,
@@ -338,9 +344,8 @@ export function Canvas({
   // Chat-Target selection — which target the panel shows, the per-target memory,
   // and the pending-agent readiness — is owned by the `useChatTarget` controller
   // (#569), created once its dependencies are in scope below. The client's
-  // Terminal Tabs (`localTerminals`) and their seed / re-fetch-merge /
-  // orphan-prune lifecycle are owned by the `useTerminalTabs` controller (#582),
-  // created once `agents` is in scope below; the Tab Pool composes it.
+  // Terminal Tabs are owned by `useTerminalTabs` (#1265), created once `agents`
+  // is in scope below; the Tab Pool composes it.
   // Element Reference controller (PRD #570): how the Canvas points at an
   // element or a Document passage. It owns the comment-mode placement state
   // (`newCommentPos`, `activeThreadId`, `inspectHover`) and the two registries
@@ -366,7 +371,7 @@ export function Canvas({
   const others = useOtherPresences()
   const { data: session } = useAppSession()
   const userId = session?.user.id
-  const history = useYjsHistory(showDeleteToast)
+  const history = useYjsHistory()
   const collections = useRoomCollections()
   // Canvas Operations seam (#157): the single transaction entry point + the
   // generic single-field `patch`. Trivial single-field writes below go through
@@ -398,6 +403,12 @@ export function Canvas({
     [allIframeLayerGroups, allIframeLayers, agents]
   )
   const markdownLayers = useMarkdownLayers()
+  const mockupLayers = useMockupLayers()
+  // Every non-frame layer, as the one list the layout helpers size.
+  const sizedLayers = useMemo(
+    () => [...markdownLayers, ...mockupLayers],
+    [markdownLayers, mockupLayers]
+  )
   const savedViewport = useSavedViewport()
 
   // Canvas Operation wrappers the controllers apply removals / persistence
@@ -408,12 +419,21 @@ export function Canvas({
     },
     [ops]
   )
+  // Documents and Mockups share one selection Set, so this removes both,
+  // routing each id to its kind's verb.
   const removeDocumentLayers = useCallback(
     (ids: string[]) => {
-      const { removedChatIds } = ops.removeDocuments(ids)
-      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
+      const mockupIds = ids.filter((id) => collections.mockupLayers.has(id))
+      const docIds = ids.filter((id) => !collections.mockupLayers.has(id))
+      ops.batch(() => {
+        if (mockupIds.length > 0) ops.removeMockups(mockupIds)
+        if (docIds.length > 0) {
+          const { removedChatIds } = ops.removeDocuments(docIds)
+          for (const chatId of removedChatIds) chatStore.cleanup(chatId)
+        }
+      })
     },
-    [ops]
+    [ops, collections]
   )
   const saveViewport = useCallback(
     (vp: ViewportData) => {
@@ -604,12 +624,8 @@ export function Canvas({
 
   const iframeLayerLayouts = useMemo(
     () =>
-      computeIframeLayerLayouts(
-        iframeLayerGroups,
-        iframeLayers,
-        markdownLayers
-      ),
-    [iframeLayerGroups, iframeLayers, markdownLayers]
+      computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, sizedLayers),
+    [iframeLayerGroups, iframeLayers, sizedLayers]
   )
   // Ref mirror so callbacks that only need the current snapshot (e.g.
   // `requestReorderDrag` computing the cursor's grab offset) can read it
@@ -765,7 +781,7 @@ export function Canvas({
       deriveCanvasLayout({
         groups: iframeLayerGroups,
         iframeLayers,
-        markdownLayers,
+        sizedLayers,
         selection: {
           iframeLayerIds: selectedIframeLayerIds,
           documentLayerIds: selectedDocumentLayerIds,
@@ -796,7 +812,7 @@ export function Canvas({
     [
       iframeLayerGroups,
       iframeLayers,
-      markdownLayers,
+      sizedLayers,
       selectedIframeLayerIds,
       selectedDocumentLayerIds,
       selectedGroupIds,
@@ -875,22 +891,33 @@ export function Canvas({
     if (names.length > 0) void stopDevServers(names).catch(() => {})
   }, [agents])
 
-  // Terminal Tab controller (PRD #579, cut 3/4): owns this client's
-  // `localTerminals` plus their first-paint seed, the `listTerminalTabsAction`
-  // re-fetch-and-merge, and the orphan prune (drop tab + delete persisted row
-  // when the Branch is gone). The Tab Pool composes it for the apply-side; the
-  // Chat-Target controller reads `localTerminals` to resolve a selected tab's
-  // target.
+  // Terminal Tabs (#1265): the one owner of this client's Terminal Tab list —
+  // open, close, rename, restore and prune, with the rows and sessions behind
+  // the server-action store. The Tab Pool composes it for the apply-side; the
+  // Chat-Target controller reads `tabs` to resolve a selected tab's target.
   const terminalTabs = useTerminalTabs({
     roomId,
     agents,
     initialTerminalTabs,
+    store: serverTerminalTabStore,
   })
 
   const diffStats = useDiffStats(agents, repos)
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
+  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
+  // label and the Group's.
+  const documentWorkspaces = useMemo(
+    () => documentWorkspaceIds(sizedLayers, chatSessions),
+    [sizedLayers, chatSessions]
+  )
+  // Where Reply in chat and Send to agent on a chat-made Document go.
+  const documentOwnerChat = useCallback(
+    (documentId: string) =>
+      documentOwnerChatOf(documentId, markdownLayers, chatSessions),
+    [markdownLayers, chatSessions]
+  )
 
   const agentDomains = useMemo(() => {
     const domains: Record<
@@ -950,15 +977,13 @@ export function Canvas({
   )
 
   // Chat-Target selection controller (PRD #569): owns which Chat Target the
-  // panel shows — the selected agent/doc/chat, the per-target memory, and the
+  // panel shows — the selected agent/chat, the per-target memory, and the
   // pending-agent readiness — and resolves the `ChatPanelTarget`. The symmetric
   // sibling of the Tab Pool controller (which owns the tabs *within* a target);
   // both `useTabPool` and `useBranchIntake` compose with it for selection.
   const chatTarget = useChatTarget({
     agents,
     chatSessions,
-    markdownLayers,
-    localTerminals: terminalTabs.localTerminals,
     chatPanelRef,
   })
 
@@ -984,10 +1009,7 @@ export function Canvas({
   const reorderOrderSnapshot = useCallback(
     (group: IframeLayerGroupData): ReorderMemberSnapshot[] =>
       getGroupMembers(group).map((m) => {
-        const size =
-          m.kind === "iframe-layer"
-            ? collections.iframeLayers.get(m.id)
-            : collections.markdownLayers.get(m.id)
+        const size = memberBox(collections, m)
         return { id: m.id, kind: m.kind, width: size?.width ?? null }
       }),
     [collections]
@@ -1007,11 +1029,12 @@ export function Canvas({
     [iframeLayerGroups, reorderOrderSnapshot]
   )
 
-  // Markdown-layer ids, so the marquee hit-test can classify a covered layer as
-  // a document (it lives in the shared layout map alongside frames).
+  // Non-frame layer ids (documents and mockups, which share a selection Set),
+  // so the marquee hit-test can classify a covered layer (it lives in the
+  // shared layout map alongside frames).
   const markdownLayerIdSet = useMemo(
-    () => new Set(markdownLayers.map((d) => d.id)),
-    [markdownLayers]
+    () => new Set(sizedLayers.map((d) => d.id)),
+    [sizedLayers]
   )
 
   // Project the live collections into the plain snapshots the Layer-initiated
@@ -1023,15 +1046,12 @@ export function Canvas({
   const buildMoveAssembly = useCallback(() => {
     const allGroups = collections.iframeLayerGroups.toArray()
     const abArr = collections.iframeLayers.toArray()
-    const docArr = collections.markdownLayers.toArray()
+    const docArr = sizedLayersOf(collections)
     const groups: MoveAssemblyGroup[] = allGroups.map((g) => {
       const members = getGroupMembers(g)
       const memberSizes: Array<{ width: number; height: number }> = []
       for (const m of members) {
-        const size =
-          m.kind === "iframe-layer"
-            ? collections.iframeLayers.get(m.id)
-            : collections.markdownLayers.get(m.id)
+        const size = memberBox(collections, m)
         if (size) memberSizes.push({ width: size.width, height: size.height })
       }
       return {
@@ -1147,7 +1167,6 @@ export function Canvas({
     ops,
     collections,
     getViewportCenter,
-    rememberDocChat: chatTarget.rememberDocChat,
     selection,
   })
   // Alias the controller verbs to the local names the render tree / other
@@ -1191,21 +1210,18 @@ export function Canvas({
   })
   const handleSelectIframeLayer = frameActions.selectIframeLayer
   const handleZoomToDocument = frameActions.zoomToDocument
+  const handleZoomToMockup = frameActions.zoomToMockup
   const handleZoomToGroup = frameActions.zoomToGroup
   const handleShowRoutesForAgent = frameActions.showRoutesForAgent
   const handlePlayAgent = frameActions.playAgent
   const handlePlayIframeLayer = frameActions.playIframeLayer
 
   // The empty Knobs popover's "Ask the agent to add a knob": open the frame's
-  // Workspace chat (the one the panel would restore, or a fresh one) and start
-  // the request in its composer for the user to finish. Nothing is sent.
+  // Workspace chat (its one chat, #1315, or a fresh one when it has none) and
+  // start the request in its composer for the user to finish. Nothing is sent.
   const handleAskForKnob = useCallback(
     (branchId: string) => {
-      let chatId = restoreAgentChatSelection(
-        chatSessions,
-        branchId,
-        chatTarget.rememberedAgentChatId(branchId)
-      )
+      let chatId = workspaceChatId(chatSessions, branchId)
       if (!chatId) {
         chatId = nanoid()
         addChatSession(chatId, {
@@ -1217,7 +1233,6 @@ export function Canvas({
       }
       chatTarget.selectAgentChat(branchId, chatId, {
         expandPanel: true,
-        clearDocument: true,
         remember: true,
       })
       inputStore.prefill(chatId, ASK_FOR_KNOB_PROMPT)
@@ -1233,6 +1248,7 @@ export function Canvas({
     referenceInputsRef.current = {
       iframeLayerLayouts,
       chatTarget,
+      documentOwnerChat,
     }
   })
 
@@ -1247,8 +1263,6 @@ export function Canvas({
     updateChatSession,
     removeChatSession,
     roomId,
-    userId,
-    agents,
     chatSessions,
     terminalTabs,
     chatTarget,
@@ -1300,6 +1314,14 @@ export function Canvas({
     updateAgentInStorage,
     setBranchPr,
   })
+  // The Terminal Pane's Run and Stop (#1342).
+  const devServerControls = useMemo(
+    () => ({
+      stop: branchActions.stopDevServer,
+      run: branchActions.runDevServer,
+    }),
+    [branchActions]
+  )
 
   // Sending comments to a Workspace's agent (#788), from the comments panel
   // or a thread card.
@@ -1307,9 +1329,31 @@ export function Canvas({
     (frameId: string) => commentFrameInfo.get(frameId)?.branchId,
     [commentFrameInfo]
   )
+  // A Document's threads go to the chat that made it, else to the Workspace
+  // chat the panel shows (#1314).
+  const commentDocumentChat = useCallback(
+    (documentId: string) => {
+      const owner = documentOwnerChat(documentId)
+      if (owner) return owner
+      if (chatTarget.target?.kind !== "agent") return null
+      const branchId = chatTarget.target.agent.id
+      const shown = chatSessions.find(
+        (c) => c.id === chatTarget.selectedChatId && c.branchId === branchId
+      )
+      return { branchId, chatId: shown?.id }
+    },
+    [documentOwnerChat, chatTarget, chatSessions]
+  )
+  const commentDocumentTitle = useCallback(
+    (documentId: string) =>
+      markdownLayers.find((d) => d.id === documentId)?.title,
+    [markdownLayers]
+  )
   const commentRequests = useCommentRequests({
     threads: commentThreads.threads,
     frameWorkspace: commentFrameWorkspace,
+    documentChat: commentDocumentChat,
+    documentTitle: commentDocumentTitle,
     agents,
     sendComments: branchActions.sendComments,
   })
@@ -1532,7 +1576,7 @@ export function Canvas({
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Every Add repository outside Canvas settings (the empty canvas, the chat
-  // panel, the getting-started checklist, the Workspaces menu) goes straight to
+  // panel, the getting-started checklist, the Chats menu) goes straight to
   // the picker and closes when the repository is added (#1182).
   const addRepository = useAddRepositoryFlow()
   // A new canvas opens on the chat panel (#1182): while no Workspace has had a
@@ -1546,7 +1590,7 @@ export function Canvas({
     opensOnPanelRef.current = false
     expandChatPanel()
   }, [expandChatPanel])
-  const isCanvasEmpty = iframeLayers.length === 0 && markdownLayers.length === 0
+  const isCanvasEmpty = iframeLayers.length === 0 && sizedLayers.length === 0
   // The first Canvas after setup shows the getting-started checklist (#780)
   // until it's dismissed. Read from this browser's storage after hydration.
   const showGettingStarted = useSyncExternalStore(
@@ -1578,18 +1622,6 @@ export function Canvas({
   // so the collapsed-sidebar pills must shift right to clear them.
   const trafficLightsPresent = useTrafficLightsPresent()
 
-  // Expand the collapsed chat panel when the logs stream actually starts,
-  // so the panel opens as the user sees live install/boot output — not
-  // earlier (when the sandbox doesn't exist yet and the stream would just
-  // show "Connecting…").
-  const handleLogsReady = useCallback(() => {
-    const panel = chatPanelRef.current
-    if (panel?.isCollapsed()) {
-      panel.expand()
-      const { inPixels } = panel.getSize()
-      if (inPixels < 480) panel.resize(480)
-    }
-  }, [])
   // A frame's "Open logs" (issue #731): point the chat panel at the frame's
   // Workspace, open it, and ask it for the sandbox logs tab.
   const [logsRequest, setLogsRequest] = useState<{
@@ -1618,11 +1650,17 @@ export function Canvas({
         <LogProbe
           key={agentId}
           sandboxName={sandboxName}
-          onReady={() => chatTarget.handlePendingReady(agentId)}
+          onReady={() => {
+            // Expand the collapsed chat panel once the new Workspace's
+            // sandbox streams logs, as it's selected — not earlier, when
+            // there's nothing to show yet.
+            chatTarget.handlePendingReady(agentId)
+            chatTarget.expandPanel()
+          }}
         />
       ))}
       <AddRepositoryFlowProvider value={addRepository}>
-        <WorkspacesMenuProvider
+        <ChatsMenuProvider
           userId={userId ?? "anonymous"}
           roomId={roomId}
           repos={repos}
@@ -1634,23 +1672,12 @@ export function Canvas({
           current={
             chatTarget.target?.kind === "agent"
               ? { kind: "agent", id: chatTarget.target.agent.id }
-              : chatTarget.target?.kind === "layer"
-                ? {
-                    kind: "layer",
-                    layerKind: chatTarget.target.layerKind,
-                    id: chatTarget.target.layer.id,
-                  }
-                : repos.length > 0
-                  ? { kind: "room" }
-                  : { kind: "none" }
+              : repos.length > 0
+                ? { kind: "room" }
+                : { kind: "none" }
           }
           onShowRoomChat={chatTarget.showRoomChat}
-          onSelectWorkspace={(id, options) =>
-            chatTarget.selectAgent(id, { ...options, clearDocument: true })
-          }
-          onSelectLayer={(layerKind, id) => {
-            if (layerKind === "markdown-layer") chatTarget.selectDocument(id)
-          }}
+          onSelectWorkspace={chatTarget.selectAgent}
           onCreateBranchFromGitBranch={createBranchFromGitBranch}
           onCreateWorkspace={createBranch}
           onRebaseOnDefault={branchActions.rebaseOnDefault}
@@ -1702,6 +1729,7 @@ export function Canvas({
                 branches={agents}
                 iframeLayers={iframeLayers}
                 markdownLayers={markdownLayers}
+                mockupLayers={mockupLayers}
                 iframeLayerGroups={sortedIframeLayerGroups}
                 selectedIframeLayerIds={selectedIframeLayerIds}
                 selectedGroupIds={selectedGroupIds}
@@ -1712,6 +1740,9 @@ export function Canvas({
                 onZoomToDocument={handleZoomToDocument}
                 onRenameDocument={layerMutations.setTitle}
                 onRemoveDocument={(id) => removeDocumentLayers([id])}
+                onZoomToMockup={handleZoomToMockup}
+                onRenameMockup={layerMutations.renameMockup}
+                onRemoveMockup={(id) => removeDocumentLayers([id])}
                 onSelectIframeLayer={handleIframeLayerSelect}
                 onZoomToIframeLayer={handleSelectIframeLayer}
                 onRenameIframeLayer={layerMutations.rename}
@@ -1729,9 +1760,7 @@ export function Canvas({
                         chatTarget.showRoomChat()
                         chatTarget.expandPanel()
                       }}
-                      onOpenWorkspace={(id) =>
-                        chatTarget.selectAgent(id, { clearDocument: true })
-                      }
+                      onOpenWorkspace={(id) => chatTarget.selectAgent(id)}
                       onDismiss={clearGettingStartedCanvas}
                     />
                   ) : null
@@ -1867,6 +1896,8 @@ export function Canvas({
                         iframeLayerGroups={iframeLayerGroups}
                         iframeLayers={iframeLayers}
                         markdownLayers={markdownLayers}
+                        documentWorkspaces={documentWorkspaces}
+                        mockupLayers={mockupLayers}
                         selection={selection}
                         onIframeWheel={camera.handleIframeWheel}
                         reference={reference}
@@ -2226,7 +2257,7 @@ export function Canvas({
                 chatTarget={chatTarget}
                 tabPool={tabPool}
                 chatSessions={chatSessions}
-                localTerminals={terminalTabs.localTerminals}
+                localTerminals={terminalTabs.tabs}
                 repos={repos}
                 roomId={roomId}
                 diffStats={diffStats}
@@ -2234,12 +2265,12 @@ export function Canvas({
                 chatPanelRef={chatPanelRef}
                 onUpdateChatSession={updateChatSession}
                 onSetBranchPr={setBranchPr}
-                onLogsReady={handleLogsReady}
                 logsRequest={logsRequest}
+                devServerControls={devServerControls}
               />
             </ResizablePanel>
           </ResizablePanelGroup>
-        </WorkspacesMenuProvider>
+        </ChatsMenuProvider>
       </AddRepositoryFlowProvider>
     </>
   )

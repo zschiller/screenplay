@@ -11,7 +11,7 @@ and the agent should share.
 
 <Screenshot
   name="doc-chat"
-  alt="A 'Pricing launch checklist' document on the canvas, with its document chat open"
+  alt="A 'Pricing launch checklist' document on the canvas, labelled with the Pricing FAQ workspace whose chat wrote it, and that chat open"
 />
 
 ## Creating and editing
@@ -43,11 +43,12 @@ resize them, and group them with frames.
 ## Ask an agent about a passage
 
 Select text in a document and click **Reply in chat** (the curved arrow at the
-end of the formatting toolbar). The passage goes into the composer of the chat
-the agent panel is showing, whether that's the
-[Coordinator](/guides/coordinator), a workspace's chat, or a document chat, and
-the panel opens if it was closed. This works the same in the web app and the
-desktop app.
+end of the formatting toolbar). On a document a chat wrote, the passage goes
+into that chat's composer and the panel switches to it. On a document you made
+yourself, it goes into the chat the agent panel is showing, whether that's the
+[Coordinator](/guides/coordinator) or a workspace's chat. Either way the panel
+opens if it was closed. This works the same in the web app and the desktop
+app.
 
 The quote sits above the input with the document's title, the line range and
 the first lines of the text. Type your question and send: the agent gets the
@@ -67,29 +68,21 @@ The mention follows the target if it's renamed. <kbd>@</kbd> works the same
 way in the [agent composer](/guides/agent#mentioning-documents): the agent is
 told which documents you mentioned and reads their current contents.
 
-## Chatting with a document
+## Documents a chat writes
 
-Every document can be a chat target. Pick it under **Documents** in the agent
-panel's Workspaces menu. The agent then acts as an editor for that page. It can:
+A [workspace's chat](/guides/agent) can write documents: ask it for a plan, a
+spec or release notes and it drops a new document beside that workspace's
+frames. The document shows the workspace's name next to its title, the same
+way a group does, unless the group around it already says it. Documents you
+make yourself show no name.
 
-- rewrite the body,
-- append to it,
-- change the title,
-- read other documents on the canvas,
-- read the code of the canvas's workspaces, so a spec or plan can quote the
-  files it's about.
+A chat edits only the documents it wrote. It can rewrite the body, append to
+it and change the title, and its edits merge live into the shared document, so
+it never overwrites what you're typing. Every chat can read every document,
+but to have a chat change one you made, ask it to write a new one or edit the
+text yourself. The agent's tool calls show as **Create document**, **Rewrite
+document**, **Append to document**, **Set title** and **Read document** rows.
 
-<Screenshot
-  name="workspaces-menu"
-  alt="The Workspaces menu listing the Coordinator, Workspaces and Documents"
-/>
-
-Edits merge live into the shared document, so the agent never overwrites what
-you're typing. Document chats don't have a sandbox of their own, so there are
-no shell commands, git, skills, plan mode, or terminals. They read code from a
-workspace's checkout but never change it: ask the workspace for that. When the
-canvas has several workspaces, the agent reads the one your question is about,
-and you can name it. Reading a hosted workspace's code wakes its sandbox if it
-was asleep. The agent's tool calls show as **Rewrite document**, **Append to
-document**, **Set title**, **Read document**, **Read code**, **Search code**
-and **Find files** rows.
+Comments go to the same place. **Send to agent** on a thread on a chat's
+document sends it to the chat that wrote it. On a document you made, it goes
+to the workspace chat the agent panel is showing.

@@ -33,7 +33,14 @@ export interface ElementReferenceInputs {
    */
   iframeLayerLayouts: IframeLayerLayoutMap
   /** Opens the panel through the Chat-Target controller, not raw setters. */
-  chatTarget: Pick<ChatTarget, "expandPanel">
+  chatTarget: Pick<ChatTarget, "expandPanel" | "selectAgentChat">
+  /**
+   * The open chat that made a Document, and its Workspace (#1314), or null
+   * for a Document made by hand (or whose chat is closed or gone).
+   */
+  documentOwnerChat: (
+    documentId: string
+  ) => { chatId: string; branchId: string } | null
 }
 
 /** Comment-mode placement position — layer-local for frame/doc-anchored pins. */
@@ -84,8 +91,10 @@ export interface ElementReference {
   clearMode: () => void
   /**
    * Reply in chat (#1243): quote a Document passage into the composer of the
-   * chat the panel is showing, opening the panel when it's collapsed. Nothing
-   * is sent; the quote rides the next message typed there.
+   * chat that made the Document, shown in the panel (#1314), or, for a
+   * Document made by hand, of the chat the panel is showing, opening the
+   * panel when it's collapsed. Nothing is sent; the quote rides the next
+   * message typed there.
    */
   replyInChat: (quote: ChatQuote) => void
 
@@ -254,7 +263,19 @@ export function useElementReference(
 
   const replyInChat = useCallback(
     (quote: ChatQuote) => {
-      inputsRef.current?.chatTarget.expandPanel()
+      const inputs = inputsRef.current
+      // A passage from a Document a chat made goes to that chat (#1314),
+      // brought on screen; any other goes to the chat on screen.
+      const owner = inputs?.documentOwnerChat(quote.documentId)
+      if (owner) {
+        inputs?.chatTarget.selectAgentChat(owner.branchId, owner.chatId, {
+          expandPanel: true,
+          remember: true,
+        })
+        chatQuoteStore.quoteInto(owner.chatId, quote)
+        return
+      }
+      inputs?.chatTarget.expandPanel()
       chatQuoteStore.reply(quote)
     },
     [inputsRef]

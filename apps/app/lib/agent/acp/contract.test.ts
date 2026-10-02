@@ -94,7 +94,7 @@ describe("ExternalEngine — steering", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await config.onFinish?.({ finishReason: "stop" } as any)
+      await config.onEnd?.({ finishReason: "stop" } as any)
     },
   })
 
@@ -607,12 +607,12 @@ describe("ExternalEngine — Codex steering request (#1192)", () => {
 })
 
 describe("InProcessEngine — capability + cancellation", () => {
-  it("captures prompt-cache usage from onFinish", async () => {
+  it("captures prompt-cache usage from onEnd", async () => {
     const driver: StreamDriver = (config) => ({
       consumeStream: async () => {
-        await config.onFinish?.({
+        await config.onEnd?.({
           finishReason: "stop",
-          totalUsage: {
+          usage: {
             inputTokens: 100,
             outputTokens: 20,
             inputTokenDetails: { cacheReadTokens: 90, cacheWriteTokens: 10 },

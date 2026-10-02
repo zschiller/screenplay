@@ -23,12 +23,34 @@ import {
   coordinatorMcpServer,
   coordinatorSessionMeta,
   ensureCoordinatorFolder,
-  ensureDocumentsFolder,
 } from "@/lib/agent/coordinator-mcp"
-import { engineChoiceFromEnv, selectEngine } from "./engine-select"
-import type { ExternalEngineConfig } from "./acp-engine"
+import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
 import type { Engine } from "./engine-seam"
+import { inProcessEngine } from "./in-process-engine"
 import { SpawnAcpSessionFactory } from "./spawn-session-factory"
+
+/**
+ * Which Engine implementation drives a Chat Session (ADR 0006, PRD #375). The
+ * choice is **minimal and explicit**: a per-deployment env var, *not* a
+ * per-Chat-Session schema column, so a deployment runs entirely on one engine
+ * and the decision never has to migrate data or branch per row.
+ */
+export type EngineChoice = "in-process" | "external"
+
+/** The env var name a deployment sets to pick the engine. */
+export const ENGINE_ENV_VAR = "AGENT_ENGINE"
+
+/**
+ * Read the engine choice from the environment, defaulting to `in-process` (the
+ * established, self-contained default). Only the explicit value `external` opts
+ * into the external engine; anything else (unset, empty, or unrecognised) stays
+ * on the default, so a typo never silently swaps engines.
+ */
+export function engineChoiceFromEnv(
+  env: Record<string, string | undefined> = process.env
+): EngineChoice {
+  return env[ENGINE_ENV_VAR] === "external" ? "external" : "in-process"
+}
 
 /**
  * The **default** harness whose ACP adapter backs the external engine for a chat
@@ -71,21 +93,16 @@ export function toolNamingForTurn(
 }
 
 /**
- * Resolve the {@link Engine} for a live agent turn, wiring the external engine's
- * production transport when `AGENT_ENGINE=external` (the desktop build).
- *
- * This is the assembly point ADR 0006 / `engine-select` deferred: `selectEngine`
- * alone throws under `AGENT_ENGINE=external` because it has no session factory:
- * the factory is request-scoped, since the external engine spawns the harness's
- * ACP adapter **in the Branch's worktree**, so its `cwd` is only known once the
- * turn's `sandboxName` is. This builds the {@link SpawnAcpSessionFactory} for the
- * configured harness and resolves that worktree path, then hands both to
- * `selectEngine`.
- *
- * On the in-process default it returns that engine directly — the `external`
- * config is never constructed, so no sandbox lookup happens on the hosted path.
- * Like `selectEngine`, a misconfigured `external` deployment throws here at the
- * route boundary rather than silently degrading.
+ * Resolve the {@link Engine} for a live agent turn: the one place Engine
+ * selection and assembly happen (ADR 0006). On the in-process default it
+ * returns that engine directly, so no sandbox lookup happens on the hosted
+ * path. Under `AGENT_ENGINE=external` (the desktop build) it assembles the
+ * external engine per request, since the engine spawns the Harness's ACP
+ * adapter **in the Branch's worktree**, whose path is only known once the
+ * turn's `sandboxName` is. Everything that differs between Harnesses (the
+ * adapter's spawn argv, how it takes the model, whether it queues prompts) is
+ * read off the Harness descriptor's `acpAdapter` by the
+ * {@link SpawnAcpSessionFactory}, not decided here.
  *
  * When `chatId` is given on the external path it wires native session resume:
  * the chat's stored ACP session id (if any) seeds `session/load`, and a callback
@@ -107,8 +124,6 @@ export function toolNamingForTurn(
 export async function resolveLiveEngine(
   opts: {
     sandboxName?: string
-    /** The document a document chat's turn targets. */
-    markdownLayerId?: string
     chatId?: string
     model?: string
     /** The turn's Room, which a Workspace chat's MCP token is bound to. */
@@ -117,15 +132,13 @@ export async function resolveLiveEngine(
 ): Promise<Engine> {
   if (engineChoiceFromEnv() !== "external") {
     // In-process default: self-contained, no transport to wire.
-    return selectEngine()
+    return inProcessEngine
   }
 
   // The agent runs in the Branch's worktree — the same absolute path the
   // terminal transport and tools resolve (`SandboxInstance.worktreePath`). The
-  // Coordinator and a document chat run in an app-owned folder with their
-  // tools served over MCP.
-  const folderSession =
-    (await coordinatorSession(opts.chatId)) ?? (await documentSession(opts))
+  // Coordinator runs in an app-owned folder with its tools served over MCP.
+  const folderSession = await coordinatorSession(opts.chatId)
   const mcp = folderSession ?? workspaceSession(opts)
   const cwd = opts.sandboxName
     ? (await sandboxProvider.get({ name: opts.sandboxName })).worktreePath
@@ -163,17 +176,15 @@ export async function resolveLiveEngine(
         setChatModel(opts.chatId!, encodeHarnessModelId(harnessKey, resolved))
     : undefined
 
-  return selectEngine({
-    external: {
-      sessionFactory,
-      cwd,
-      loadSessionId,
-      onSessionId,
-      modelId,
-      reconcileModel,
-      mcpServers: mcp?.mcpServers,
-      sessionMeta: mcp?.sessionMeta,
-    },
+  return new ExternalEngine({
+    sessionFactory,
+    cwd,
+    loadSessionId,
+    onSessionId,
+    modelId,
+    reconcileModel,
+    mcpServers: mcp?.mcpServers,
+    sessionMeta: mcp?.sessionMeta,
   })
 }
 
@@ -211,36 +222,11 @@ async function coordinatorSession(chatId: string | undefined): Promise<
 }
 
 /**
- * A document chat's harness session setup: its Room's documents folder, and
- * its tools (the document's edits, document reads, and reads of the
- * Workspaces' code) as the same MCP server, bound to its document. Without
- * them a harness has nothing to edit the document with. Local build only,
- * like the route.
- */
-async function documentSession(opts: {
-  markdownLayerId?: string
-  chatId?: string
-  roomId?: string
-}): Promise<
-  | (Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> & {
-      cwd: string
-    })
-  | null
-> {
-  const { markdownLayerId, chatId, roomId } = opts
-  if (!markdownLayerId || !chatId || !roomId || !isLocalBuild) return null
-  return {
-    cwd: await ensureDocumentsFolder(roomId),
-    mcpServers: [coordinatorMcpServer({ roomId, chatId, markdownLayerId })],
-    sessionMeta: coordinatorSessionMeta(),
-  }
-}
-
-/**
  * A Workspace chat's harness session setup: its own dev server's tools (log
- * and Dev Server Restart, `dev-server-tools.ts`) as the same MCP server, bound
- * to its Sandbox. The harness's shell runs in the worktree but never sees the
- * dev server Screenplay supervises. Local build only, like the route.
+ * and Dev Server Restart, `dev-server-tools.ts`) and its Document tools
+ * (#1314) as the same MCP server, bound to its Sandbox and chat. The
+ * harness's shell runs in the worktree but never sees the dev server or the
+ * canvas Screenplay supervises. Local build only, like the route.
  */
 function workspaceSession(opts: {
   sandboxName?: string

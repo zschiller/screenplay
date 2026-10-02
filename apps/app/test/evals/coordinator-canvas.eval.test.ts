@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { beforeAll, describe, it } from "vitest"
 import * as Y from "yjs"
-import { generateText, stepCountIs } from "ai"
+import { generateText, isStepCount } from "ai"
 
 import { buildRoomSystemPrompt } from "@/lib/agent/config"
 import {
@@ -84,6 +84,7 @@ function ports(doc: Y.Doc): RoomToolPorts {
     readWorkspaceFile: async () => null,
     captureFrame: no("Frame screenshots"),
     readFrameCapture: async () => null,
+    readFramePage: no("Frame page reads"),
     launchWorkspaceTurn: no("Messaging Workspaces"),
   } as RoomToolPorts
 }
@@ -152,10 +153,10 @@ describe.skipIf(!RUN)("Coordinator canvas eval", () => {
       })
       const result = await generateText({
         model: resolveLanguageModel(MODEL),
-        system,
+        instructions: system,
         messages: [{ role: "user", content: ask }],
         tools: buildRoomTools("room-eval", p),
-        stopWhen: stepCountIs(25),
+        stopWhen: isStepCount(25),
       })
       const calls = result.steps.flatMap((s) =>
         s.toolCalls.map((call) => ({

@@ -58,6 +58,7 @@ const sandboxTarget: ToolTarget = {
   kind: "sandbox",
   room,
   sandbox: sandboxCtx,
+  chatId: "chat-1",
 }
 
 function fakeSandboxReturning(content: string): SandboxInstance {
@@ -114,10 +115,45 @@ describe("toolsetFor (sandbox)", () => {
     expect(tools.read_document).toBeDefined()
   })
 
+  it("gives every chat the ask_question tool (#1312)", async () => {
+    const tools = toolsetFor(sandboxTarget)
+    const ask = tools.ask_question.execute!
+    expect(
+      await ask(
+        {
+          question: "Which layout?",
+          options: [{ label: "A" }, { label: "B" }],
+        },
+        {} as never
+      )
+    ).toMatch(/^Asked\. End your turn/)
+    expect(
+      await ask({ question: "Which?", options: [{ label: "A" }] }, {} as never)
+    ).toMatch(/^Not asked/)
+  })
+
+  it("reads other Workspaces' code, and has no tool that writes to them (#1315)", () => {
+    const tools = toolsetFor(sandboxTarget)
+    expect(tools.read_code_file).toBeDefined()
+    expect(tools.search_code).toBeDefined()
+    expect(tools.find_code_files).toBeDefined()
+    // Every write tool acts on the chat's own sandbox and takes no Workspace.
+    for (const name of ["write_file", "edit_file", "run_command"]) {
+      const schema = tools[name]!.inputSchema as { shape?: object }
+      expect(Object.keys(schema.shape ?? {})).not.toContain("workspaceId")
+    }
+  })
+
   it("assembles the new grep and glob tools", () => {
     const tools = toolsetFor(sandboxTarget)
     expect(tools.grep).toBeDefined()
     expect(tools.glob).toBeDefined()
+  })
+
+  it("gives a Workspace chat the Mockup tools (#1309)", () => {
+    const tools = toolsetFor(sandboxTarget)
+    expect(tools.create_mockup).toBeDefined()
+    expect(tools.update_mockup).toBeDefined()
   })
 
   it("preserves submit_plan as a human-in-the-loop tool with no execute", () => {

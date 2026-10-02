@@ -17,6 +17,7 @@ import {
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
 import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { QUESTION_TOOL_ANNOTATIONS } from "@/lib/agent/question-tools"
 import {
   addMemory,
   editMemory,
@@ -38,6 +39,8 @@ import { getSkill, getSkillIndex } from "@/lib/skills"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
+import { MOCKUP_STATUS_LABELS, mockupStatusOf } from "@/lib/mockup-status"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
@@ -45,6 +48,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
   PlanData,
   RepoData,
 } from "@/lib/types"
@@ -148,6 +152,7 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   read_workspace_diff: { readOnlyHint: true, openWorldHint: false },
   read_workspace_file: { readOnlyHint: true, openWorldHint: false },
   view_frame: { readOnlyHint: true, openWorldHint: false },
+  read_frame_html: { readOnlyHint: true, openWorldHint: false },
   // Writes only canvas memory (#902), which the spec lets act right away.
   write_memory: {
     readOnlyHint: false,
@@ -165,12 +170,12 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   remove_workspace: { destructiveHint: true, openWorldHint: false },
   // Reads a bundled Coordinator App Skill (#905).
   read_skill: { readOnlyHint: true, openWorldHint: false },
-  // Shared by every chat's toolset (`layer-read-tools.ts`).
+  // Shared by every chat's toolset (`layer-read-tools.ts`, `question-tools.ts`).
   read_document: { readOnlyHint: true, openWorldHint: false },
+  ...QUESTION_TOOL_ANNOTATIONS,
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
   // undoable with `undo_changes`, so none is destructive.
   create_frames: { destructiveHint: false, openWorldHint: false },
-  create_document: { destructiveHint: false, openWorldHint: false },
   move_group: { destructiveHint: false, openWorldHint: false },
   arrange_groups: { destructiveHint: false, openWorldHint: false },
   move_to_group: { destructiveHint: false, openWorldHint: false },
@@ -197,7 +202,7 @@ export function buildRoomTools(
     ...buildViewTools(ports.readDoc),
     read_canvas: tool({
       description:
-        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
+        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents, mockups and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
       inputSchema: jsonSchema<Record<string, never>>({
         type: "object",
         properties: {},
@@ -309,7 +314,7 @@ export function buildRoomTools(
     }),
     [REMOVE_WORKSPACE_TOOL]: tool({
       description:
-        "Remove a Workspace from the canvas, as Delete in the Workspaces menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. It acts right away.",
+        "Remove a Workspace from the canvas, as Delete in the Chats menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. It acts right away.",
       inputSchema: jsonSchema<{ workspace_id: string }>({
         type: "object",
         properties: {
@@ -616,7 +621,7 @@ export function workspaceOwnerId(
 }
 
 /**
- * Remove the Workspace the way Delete in the Workspaces menu does (#901): the
+ * Remove the Workspace the way Delete in the Chats menu does (#901): the
  * Branch, its frames and chats leave the doc in one change, then its sandbox
  * is torn down. The git branch and any PR stay where they are.
  */
@@ -773,20 +778,19 @@ async function sendToWorkspace(
         `"${title}" is waiting for the user to approve its plan. Only the user approves plans: tell them it's waiting.`
       )
     }
-    const branchChats = chats.filter((c) => c.branchId === branchId)
-    const open = branchChats
-      .filter((c) => !c.closedAt)
-      .sort((a, b) => b.createdAt - a.createdAt)[0]
+    // The Workspace's one chat (#1315); a fresh one only when it has none.
+    const ownId = workspaceChatId(chats, branchId)
+    const own = ownId ? chats.find((c) => c.id === ownId) : undefined
     let target: {
       chatId: string
       model: string | undefined
       isFirstChat: boolean
     }
-    if (open) {
+    if (own) {
       target = {
-        chatId: open.id,
-        model: open.model,
-        isFirstChat: branchChats.length === 1,
+        chatId: own.id,
+        model: own.model,
+        isFirstChat: chats.filter((c) => c.branchId === branchId).length === 1,
       }
     } else {
       const chat: ChatSessionData = {
@@ -796,11 +800,7 @@ async function sendToWorkspace(
         createdAt: Date.now(),
       }
       collections.chatSessions.set(chat.id, chat)
-      target = {
-        chatId: chat.id,
-        model: undefined,
-        isFirstChat: branchChats.length === 0,
-      }
+      target = { chatId: chat.id, model: undefined, isFirstChat: true }
     }
     if (queue) {
       // Provisioning sends it the moment the sandbox runs (`sendPendingSeed`),
@@ -841,6 +841,7 @@ export const CANVAS_SUMMARY_LIMITS = {
   groups: 100,
   frames: 150,
   documents: 100,
+  mockups: 100,
   terminalTabs: 50,
   /** Longest title, label or route kept, in characters. */
   text: 80,
@@ -868,10 +869,15 @@ export function summarizeCanvas(
     collections,
     COLLECTION_KEYS.markdownLayers
   )
+  const mockups = records<MockupLayerData>(
+    collections,
+    COLLECTION_KEYS.mockupLayers
+  )
   const chats = records<ChatSessionData>(
     collections,
     COLLECTION_KEYS.chatSessions
   )
+  const sized = [...documents, ...mockups]
 
   const groupOf = new Map(
     groups.flatMap((g) => getGroupMembers(g).map((m) => [m.id, g.id] as const))
@@ -915,7 +921,7 @@ export function summarizeCanvas(
         `at ${Math.round(g.x)}, ${Math.round(g.y)}`,
         // Its extent, so a move can clear its neighbours (items sit in one
         // row, left to right, the Group's gap apart).
-        `${Math.round(groupContentWidth(g, frames, documents))}×${Math.round(groupContentHeight(g, frames, documents))}`,
+        `${Math.round(groupContentWidth(g, frames, sized))}×${Math.round(groupContentHeight(g, frames, sized))}`,
         `${getGroupMembers(g).length} items`,
       ].join(" · ")
     ),
@@ -934,6 +940,18 @@ export function summarizeCanvas(
       [
         `- [${d.id}] "${clip(d.title || "Untitled")}"`,
         groupOf.get(d.id) && `Group ${groupOf.get(d.id)}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    ),
+    section("Mockups", mockups, CANVAS_SUMMARY_LIMITS.mockups, (m) =>
+      [
+        `- [${m.id}] "${clip(m.title || "Untitled")}"`,
+        `${Math.round(m.width)}×${Math.round(m.height)}`,
+        MOCKUP_STATUS_LABELS[mockupStatusOf(m)],
+        m.ownerChatId &&
+          `by chat "${clip(chats.find((c) => c.id === m.ownerChatId)?.label || m.ownerChatId)}"`,
+        groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]
         .filter(Boolean)
         .join(" · ")

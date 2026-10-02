@@ -9,7 +9,8 @@ import {
   type TabPoolTarget,
 } from "@/lib/chat/tab-pool"
 import { useChatSync } from "@/hooks/use-chat-sync"
-import type { ChatSessionData, TerminalTabData } from "@/lib/types"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
+import type { ChatSessionData } from "@/lib/types"
 
 /**
  * Chat tabs (#1261, spec #1249) — the Chat Session half of the Tab Pool plus
@@ -22,10 +23,9 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
  *
  * The player hands it one Branch's Chat Sessions and its own selection state.
  * The Canvas hands it the whole room's list and composes it inside
- * `useTabPool`, which adds what only the Canvas needs: Terminal Tabs (passed
- * here as `terminals` so they count toward the pool), the per-user default tab
- * kind for an agent respawn (`respawnAgent`), and Chat-Target selection
- * (`selectChat`'s `target`).
+ * `useTabPool`, which adds what only the Canvas needs: Terminal Tabs (outside
+ * the pool since #1341), the per-user default tab kind for an agent respawn
+ * (`respawnAgent`), and Chat-Target selection (`selectChat`'s `target`).
  */
 export interface ChatTabsDeps {
   roomId: string
@@ -41,8 +41,6 @@ export interface ChatTabsDeps {
    * host that tracks the shown target (the Canvas's Chat-Target) can follow.
    */
   selectChat: (chatId: string | null, target?: TabPoolTarget) => void
-  /** Open non-chat tabs that share an agent's pool (the Canvas's Terminal Tabs). */
-  terminals?: TerminalTabData[]
   /**
    * Recreate an agent's default tab when its last one goes. Defaults to a fresh
    * chat; the Canvas passes its per-user default tab kind (chat or terminal).
@@ -51,7 +49,11 @@ export interface ChatTabsDeps {
 }
 
 export interface ChatTabs {
-  /** Create a fresh chat on a target and select it. Returns its id. */
+  /**
+   * Bring up a target's chat and select it. Returns its id. A Workspace has one
+   * chat (#1315): its own chat when it has one, reopened if it was closed; a
+   * fresh one only for a Workspace without any.
+   */
   open: (target: TabPoolTarget) => string
   /** Archive a chat (`closedAt` stamped, reopenable). */
   close: (chatId: string, nextSelectedId?: string) => void
@@ -60,15 +62,7 @@ export interface ChatTabs {
   /** Restore a closed chat into its pool and select it. */
   reopen: (chatId: string) => void
   rename: (chatId: string, label: string) => void
-  /**
-   * Apply a {@link resolveTabClose} outcome: respawn the target's default tab,
-   * or move selection. Exposed so the Canvas's Terminal Tab close lands on the
-   * same respawn and selection.
-   */
-  applyCloseOutcome: (outcome: TabCloseOutcome) => void
 }
-
-const NO_TERMINALS: TerminalTabData[] = []
 
 export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
   const {
@@ -79,7 +73,6 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     removeChatSession,
     selectedChatId,
     selectChat,
-    terminals = NO_TERMINALS,
     respawnAgent,
   } = deps
 
@@ -87,19 +80,25 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
 
   const open = useCallback(
     (target: TabPoolTarget) => {
+      const own = workspaceChatId(chatSessions, target.branchId)
+      if (own) {
+        if (chatSessions.find((c) => c.id === own)?.closedAt) {
+          updateChatSession(own, { closedAt: 0 })
+        }
+        selectChat(own, target)
+        return own
+      }
       const id = nanoid()
       addChatSession(id, {
         id,
-        ...(target.kind === "agent"
-          ? { branchId: target.branchId }
-          : { markdownLayerId: target.markdownLayerId }),
+        branchId: target.branchId,
         label: "Untitled",
         createdAt: Date.now(),
       })
       selectChat(id, target)
       return id
     },
-    [addChatSession, selectChat]
+    [chatSessions, addChatSession, updateChatSession, selectChat]
   )
 
   // With no respawn, selection moves only when the decision says so
@@ -108,12 +107,8 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     (outcome: TabCloseOutcome) => {
       const { respawn, nextSelectedId } = outcome
       if (respawn) {
-        if (respawn.target === "agent") {
-          if (respawnAgent) respawnAgent(respawn.branchId)
-          else open({ kind: "agent", branchId: respawn.branchId })
-        } else {
-          open({ kind: "doc", markdownLayerId: respawn.markdownLayerId })
-        }
+        if (respawnAgent) respawnAgent(respawn.branchId)
+        else open({ kind: "agent", branchId: respawn.branchId })
         return
       }
       if (nextSelectedId !== undefined) selectChat(nextSelectedId)
@@ -121,39 +116,39 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     [respawnAgent, open, selectChat]
   )
 
-  // Resolve a chat's pool (agent vs doc, kept apart in buildTabPool) and apply
-  // the pure decision. A chat that is already closed isn't in its pool
-  // (removing it from the history menu decides nothing), and a chat with no
-  // agent or doc target has no pool; both return false and leave selection.
+  // Resolve a chat's pool (its Branch's, from buildTabPool) and apply the pure
+  // decision. A chat that is already closed isn't in its pool (removing it
+  // from the history menu decides nothing), and a chat with no Branch has no
+  // pool; both return false and leave selection.
   const resolveChatClose = useCallback(
     (chatId: string, nextSelectedId?: string): boolean => {
       const chat = chatSessions.find((c) => c.id === chatId)
       if (!chat || chat.closedAt) return false
-      const target: TabPoolTarget | null = chat.branchId
-        ? { kind: "agent", branchId: chat.branchId }
-        : chat.markdownLayerId
-          ? { kind: "doc", markdownLayerId: chat.markdownLayerId }
-          : null
-      if (!target) return false
-      const pool = buildTabPool(target, chatSessions, terminals)
+      if (!chat.branchId) return false
+      const target: TabPoolTarget = { kind: "agent", branchId: chat.branchId }
+      const pool = buildTabPool(target, chatSessions)
       applyCloseOutcome(
         resolveTabClose(pool, chatId, selectedChatId, nextSelectedId)
       )
       return true
     },
-    [chatSessions, terminals, selectedChatId, applyCloseOutcome]
+    [chatSessions, selectedChatId, applyCloseOutcome]
   )
 
+  // A Workspace's own chat never closes or goes (#1315); only its earlier
+  // chats do.
   const close = useCallback(
     (chatId: string, nextSelectedId?: string) => {
+      if (isOwnChat(chatSessions, chatId)) return
       updateChatSession(chatId, { closedAt: Date.now() })
       resolveChatClose(chatId, nextSelectedId)
     },
-    [updateChatSession, resolveChatClose]
+    [chatSessions, updateChatSession, resolveChatClose]
   )
 
   const remove = useCallback(
     (chatId: string) => {
+      if (isOwnChat(chatSessions, chatId)) return
       // A deleted chat can't stay selected, even when it had no pool to decide.
       if (!resolveChatClose(chatId) && selectedChatId === chatId) {
         selectChat(null)
@@ -161,7 +156,13 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
       chatStore.cleanup(chatId)
       removeChatSession(chatId)
     },
-    [resolveChatClose, selectedChatId, selectChat, removeChatSession]
+    [
+      chatSessions,
+      resolveChatClose,
+      selectedChatId,
+      selectChat,
+      removeChatSession,
+    ]
   )
 
   const reopen = useCallback(
@@ -179,5 +180,14 @@ export function useChatTabs(deps: ChatTabsDeps): ChatTabs {
     [updateChatSession]
   )
 
-  return { open, close, remove, reopen, rename, applyCloseOutcome }
+  return { open, close, remove, reopen, rename }
+}
+
+/** Whether `chatId` is its Workspace's one chat (#1315). */
+function isOwnChat(
+  chatSessions: readonly ChatSessionData[],
+  chatId: string
+): boolean {
+  const branchId = chatSessions.find((c) => c.id === chatId)?.branchId
+  return !!branchId && workspaceChatId(chatSessions, branchId) === chatId
 }

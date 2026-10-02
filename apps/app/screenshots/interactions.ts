@@ -1,6 +1,6 @@
 import type { Page } from "playwright-core"
 
-import { stubTerminal } from "./fixtures/streams"
+import { stubLogs, stubTerminal } from "./fixtures/streams"
 import {
   connectWorkspaceLifecycle,
   livePreviewDomain,
@@ -20,6 +20,7 @@ import {
   openChatTab,
   openTerminalTab,
   replayRun,
+  selectWorkspace,
   rowMenuTrigger,
   stubSteer,
   tabTo,
@@ -137,7 +138,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     name: "canvas-delete-undo",
     description:
-      "Delete a frame from the layers list, then Undo in its toast; select a frame, press Delete, then ⌘Z.",
+      "Delete a frame from the layers list, then ⌘Z; select a frame, press Delete, then ⌘Z.",
     path: `/${ids.rooms.checkout}`,
     run: async (page) => {
       // Frozen so the deletes happen on screen only, never in the persisted
@@ -154,11 +155,7 @@ export const INTERACTIONS: Interaction[] = [
           .click({ timeout: 1500 })
       )
       await page.waitForTimeout(1800)
-      await step(() =>
-        page
-          .getByRole("button", { name: "Undo", exact: true })
-          .click({ timeout: 1500 })
-      )
+      await page.keyboard.press("Control+z")
       await page.waitForTimeout(1800)
       await click(page, page.getByText("Empty cart", { exact: true }).first())
       await page.waitForTimeout(800)
@@ -472,6 +469,36 @@ export const INTERACTIONS: Interaction[] = [
           window.dispatchEvent(new StorageEvent("storage", { key: "theme", newValue: "${theme}" }))
         })()`)
         await page.waitForTimeout(1800)
+      }
+    },
+  },
+  {
+    name: "terminal-pane-open-close",
+    description:
+      "The Terminal Pane growing from the footnote into its tab strip and back, by a name, the caret and ⌃` (#1344).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: (page) => stubLogs(page, "reconnecting"),
+    run: async (page) => {
+      await selectWorkspace(page, "Checkout polish").catch(() =>
+        console.warn("  ! skipped a step: could not select the Workspace")
+      )
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1000)
+      await click(
+        page,
+        page
+          .getByRole("tablist", { name: "Terminals" })
+          .getByRole("tab", { name: "Dev server" })
+      )
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1400)
+      await click(page, page.getByRole("button", { name: "Hide terminal" }))
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1400)
+      for (let i = 0; i < 2; i++) {
+        await page.keyboard.press("Control+Backquote")
+        await page.waitForTimeout(1400)
       }
     },
   },

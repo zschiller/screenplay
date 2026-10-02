@@ -206,6 +206,224 @@ describe("ExternalEngine — permission-request routing", () => {
 })
 
 /**
+ * Codex plans through its `collaboration_mode` option, not a plan mode (#1337).
+ * Its plan turn may ask for ordinary tool approvals, which run as on any turn;
+ * the gate is its request to carry out the finished plan, raised to the
+ * consumer as screenplay's own "Review plan" request. The plan it also sends as
+ * its last reply is left to the gate, so it isn't shown twice.
+ */
+describe("ExternalEngine — Codex plan turn (#1337)", () => {
+  const PLAN = "## Plan\n\n1. Edit the button\n2. Run the tests"
+
+  function planTurn(): EngineTurn {
+    return {
+      chatId: "chat",
+      runId: "run-7",
+      roomId: "room",
+      systemPrompt: "",
+      model: "model",
+      history: [{ role: "user", content: [{ type: "text", text: "go" }] }],
+      planMode: true,
+    }
+  }
+
+  /** A session on an agent that plans through its collaboration mode. */
+  function codexFactory(
+    body: (ports: AcpSessionPorts, signal: AbortSignal) => Promise<unknown>
+  ) {
+    return {
+      open: async (ports: AcpSessionPorts) =>
+        ({
+          id: "sess",
+          plansByCollaborationMode: true,
+          prompt: (_blocks: unknown, signal: AbortSignal) =>
+            body(ports, signal),
+          close: () => {},
+        }) as unknown as AcpSession,
+    }
+  }
+
+  function reply(messageId: string, text: string) {
+    return {
+      sessionUpdate: "agent_message_chunk" as const,
+      messageId,
+      content: { type: "text" as const, text },
+    }
+  }
+
+  /** Codex's request to carry out its finished plan. */
+  function implementPlan(): RequestPermissionRequest {
+    return {
+      sessionId: "sess",
+      toolCall: {
+        toolCallId: "plan-review:plan-1",
+        title: "Implement this plan?",
+        kind: "switch_mode",
+        status: "pending",
+        rawInput: { plan: PLAN },
+      },
+      options: [
+        { optionId: "implement", name: "Yes", kind: "allow_once" },
+        { optionId: "revise", name: "No", kind: "reject_once" },
+      ],
+    }
+  }
+
+  function commandPermission(): RequestPermissionRequest {
+    return {
+      sessionId: "sess",
+      toolCall: {
+        toolCallId: "cmd-1",
+        title: "ls",
+        kind: "execute",
+        status: "pending",
+        rawInput: { command: ["ls"] },
+      },
+      options: [
+        { optionId: "allow", name: "Allow", kind: "allow_once" },
+        { optionId: "no", name: "Reject", kind: "reject_once" },
+      ],
+    }
+  }
+
+  function sentTexts(updates: EngineUpdate[]): string[] {
+    return updates.flatMap((u) =>
+      u.kind === "session_update" &&
+      u.update.sessionUpdate === "agent_message_chunk"
+        ? [blockText(u.update.content)]
+        : []
+    )
+  }
+
+  it("auto-allows an ordinary tool approval on a Codex plan turn", async () => {
+    const updates: EngineUpdate[] = []
+    let decision: { approved: boolean } | undefined
+    const engine = new ExternalEngine({
+      sessionFactory: codexFactory(async (ports) => {
+        decision = await ports.requestPlanApproval(commandPermission())
+        return "end_turn"
+      }),
+    })
+
+    await engine.run(
+      planTurn(),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(decision).toEqual({ approved: true })
+    expect(updates.some((u) => u.kind === "permission_request")).toBe(false)
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
+  it("ends on the plan approval, showing the plan once", async () => {
+    const updates: EngineUpdate[] = []
+    let decision: { approved: boolean } | undefined
+    let turnAbortedByGate = false
+    const engine = new ExternalEngine({
+      sessionFactory: codexFactory(async (ports, signal) => {
+        await ports.onUpdate(reply("msg-1", "Let me look "))
+        await ports.onUpdate(reply("msg-1", "around."))
+        await ports.onUpdate({
+          sessionUpdate: "tool_call",
+          toolCallId: "read-1",
+          title: "Read button.tsx",
+          status: "completed",
+        })
+        await ports.onUpdate(reply("plan-1", PLAN))
+        // Codex reports usage and goes idle before it asks.
+        await ports.onUpdate({
+          sessionUpdate: "usage_update",
+          used: 1200,
+          size: 200000,
+        })
+        await ports.onUpdate({
+          sessionUpdate: "session_info_update",
+          _meta: { codex: { threadStatus: { type: "idle" } } },
+        })
+        decision = await ports.requestPlanApproval(implementPlan())
+        turnAbortedByGate = signal.aborted
+        return "cancelled"
+      }),
+    })
+
+    await engine.run(
+      planTurn(),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(sentTexts(updates)).toEqual(["Let me look ", "around."])
+    expect(
+      updates.flatMap((u) =>
+        u.kind === "session_update" ? [u.update.sessionUpdate] : []
+      )
+    ).toEqual([
+      "agent_message_chunk",
+      "agent_message_chunk",
+      "tool_call",
+      "usage_update",
+      "session_info_update",
+    ])
+    const gate = updates.find((u) => u.kind === "permission_request")
+    expect(gate).toBeDefined()
+    if (gate?.kind !== "permission_request") return
+    expect(gate.request.toolCall).toMatchObject({
+      toolCallId: "run-7:plan-review:plan-1",
+      title: "Review plan",
+      rawInput: { plan: PLAN },
+    })
+    expect(gate.request.options.map((o) => o.kind)).toEqual([
+      "allow_once",
+      "reject_once",
+    ])
+    expect(updates.at(-1)).toBe(gate)
+    expect(decision).toEqual({ approved: false })
+    expect(turnAbortedByGate).toBe(true)
+    expect(updates.some((u) => u.kind === "done")).toBe(false)
+  })
+
+  it("sends a last reply that isn't the plan before the gate", async () => {
+    const updates: EngineUpdate[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: codexFactory(async (ports) => {
+        await ports.onUpdate(reply("msg-1", "Here is what I found."))
+        await ports.requestPlanApproval(implementPlan())
+        return "cancelled"
+      }),
+    })
+
+    await engine.run(
+      planTurn(),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(sentTexts(updates)).toEqual(["Here is what I found."])
+    expect(updates.at(-1)?.kind).toBe("permission_request")
+  })
+
+  it("sends a turn's last reply when it ends without a plan", async () => {
+    const updates: EngineUpdate[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: codexFactory(async (ports) => {
+        await ports.onUpdate(reply("msg-1", "Which page do you mean?"))
+        return "end_turn"
+      }),
+    })
+
+    await engine.run(
+      planTurn(),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(sentTexts(updates)).toEqual(["Which page do you mean?"])
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+})
+
+/**
  * Native session resume — the durable fix for desktop chats whose model couldn't
  * see earlier messages. Each turn spawns a fresh adapter, so without resume the
  * agent boots a context-less `session/new` and only ever receives the latest

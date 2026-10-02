@@ -11,37 +11,35 @@ import {
 } from "@/lib/agent/message-markers"
 import { workspaceLink } from "@/lib/agent/workspace-task"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
-import type { CodeCheckout } from "@/lib/agent/code-read-tools"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
-  documents: Array<Pick<MarkdownLayerData, "id" | "title">>
+  documents: Array<Pick<MarkdownLayerData, "id" | "title" | "ownerChatId">>
 }
 
 /**
  * Renders the canvas's layer directory as a system-prompt block. Every chat
- * target — agent, document — bakes this in so the model can resolve a
- * `@<title>`-style mention (in the user message *or* in a body it just
- * fetched via a read tool) back to the layer's stable id and call the
- * right read tool.
- *
- * `excludeId` filters out the layer the chat is targeting so a doc chat's
- * directory doesn't list the doc itself (the targeted doc's full body is
- * already inlined elsewhere in the prompt).
+ * target bakes this in so the model can resolve a `@<title>`-style mention (in
+ * the user message *or* in a body it just fetched via a read tool) back to the
+ * layer's stable id and call the right read tool. `chatId` marks the Documents
+ * that chat made, the ones it can edit (#1314).
  */
 function renderLayerDirectory(
   dir: LayerDirectory,
-  excludeId?: string,
-  t: ToolNaming["name"] = BARE_TOOL_NAMING.name
+  t: ToolNaming["name"] = BARE_TOOL_NAMING.name,
+  chatId?: string
 ): string {
-  const docs = dir.documents.filter((d) => d.id !== excludeId)
+  const docs = dir.documents
   if (docs.length === 0) return ""
   const lines: string[] = [
     "",
     `Layers on this canvas (call \`${t("read_document")}\` with the id):`,
   ]
   lines.push("  Documents:")
-  for (const d of docs) lines.push(`    - ${d.id}: ${d.title || "Untitled"}`)
+  for (const d of docs) {
+    const yours = chatId && d.ownerChatId === chatId ? " (yours)" : ""
+    lines.push(`    - ${d.id}: ${d.title || "Untitled"}${yours}`)
+  }
   return lines.join("\n")
 }
 
@@ -68,93 +66,9 @@ export function renderCanvasMemory(
 }
 
 /**
- * System prompt for chat sessions that target a *document layer* on the
- * canvas instead of an agent's sandbox. The agent's job here is editorial:
- * it reads the doc body, edits the title, and rewrites the body using
- * lightweight markdown. It has no shell and writes no code, but it reads the
- * code of the canvas's Workspaces (`checkouts`), so a document can be about
- * the codebase.
- *
- * `currentTitle` and `currentBody` are baked in so the model has the
- * latest state without having to call `read_document` first; it can still
- * read peer documents to follow `@<title>` mentions. `toolNaming` names its
- * tools the way the turn's engine exposes them (#1223).
- */
-export function buildMarkdownLayerSystemPrompt(opts: {
-  currentTitle: string
-  currentBody: string
-  layerDirectory: LayerDirectory
-  /** This doc's own id — excluded from the directory to avoid self-recursion. */
-  selfId?: string
-  memory?: readonly MemoryData[]
-  /** The Workspaces whose code the chat can read. */
-  checkouts?: readonly Pick<CodeCheckout, "workspaceId" | "title" | "repo">[]
-  toolNaming?: ToolNaming
-}): string {
-  const naming = opts.toolNaming ?? BARE_TOOL_NAMING
-  const t = naming.name
-  return [
-    "You are an editor working inside a Notion-style document tile on a collaborative canvas. You can read, retitle, and rewrite the document via your tools, and read the code of the canvas's Workspaces. You have no shell and never change code: Workspace agents do that.",
-    ...(naming.note ? ["", naming.note] : []),
-    "",
-    "Formatting rules for the document body:",
-    "- Separate paragraphs with a blank line.",
-    "- Headings: prefix with `# `, `## `, `### ` (up to 6 hashes).",
-    "- Bullet lists: prefix each item with `- ` or `* `.",
-    "- Inline marks are preserved — use `**bold**`, `*italic*`, `` `code` ``, `[link](url)` where they help.",
-    `- One exception: \`${t("append_to_document_body")}\` re-reads the existing body as plain text before concatenating, so marks *already in the document* are flattened. What you append keeps its own marks. If preserving the document's existing marks matters, rewrite the whole body with \`${t("replace_document_body")}\` instead.`,
-    "",
-    "When the user asks for a change:",
-    `1. If you need to confirm the current text, call \`${t("read_document")}\` first (with no \`id\`, you get the targeted doc).`,
-    `2. For full rewrites or restructures, call \`${t("replace_document_body")}\` with the entire new body.`,
-    `3. For incremental additions, call \`${t("append_to_document_body")}\`.`,
-    `4. To rename the doc, call \`${t("set_document_title")}\`.`,
-    "5. After editing, give the user a short summary of what you changed.",
-    "",
-    renderCodeAccess(opts.checkouts ?? [], t),
-    "",
-    "Following mentions to other docs:",
-    `- The user's message may contain \`${MENTION_MARKER_TOKEN}\` markers, and any document body you fetch may contain free-text \`@<title>\` references.`,
-    `- Look up the title in the layer directory below to get the id, then call \`${t("read_document")}(id)\` to load it.`,
-    `- Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the user's message, pairing each id with its title so you can \`${t("read_document")}(id)\` directly.`,
-    "",
-    `Current title: ${opts.currentTitle || "(untitled)"}`,
-    "",
-    "Current body:",
-    "```",
-    opts.currentBody || "(empty)",
-    "```",
-    renderLayerDirectory(opts.layerDirectory, opts.selfId, t),
-    ...(opts.memory?.length ? [renderCanvasMemory(opts.memory)] : []),
-  ].join("\n")
-}
-
-/**
- * The document chat's code block: which Workspaces' code it reads and with
- * which tools, or that there is none yet.
- */
-function renderCodeAccess(
-  checkouts: readonly Pick<CodeCheckout, "workspaceId" | "title" | "repo">[],
-  t: ToolNaming["name"]
-): string {
-  if (checkouts.length === 0) {
-    return "Code: this canvas has no Workspace with a checkout yet, so there is no code to read. If the user asks about the code, say so."
-  }
-  return [
-    "Reading the code:",
-    `- When the document is about the product or its code, ground it in the code: find files with \`${t("find_code_files")}\`, search with \`${t("search_code")}\`, and read them with \`${t("read_code_file")}\`. Don't guess what the code does.`,
-    checkouts.length === 1
-      ? "- The canvas has one Workspace, so you can leave out `workspaceId`."
-      : "- Pass the `workspaceId` of the Workspace to read. Each is a branch of its repository; when the user doesn't say which, read the one whose repository fits, and the oldest when they are the same repository.",
-    "Workspaces:",
-    ...checkouts.map((c) => `- [${c.workspaceId}] "${c.title}" (${c.repo})`),
-  ].join("\n")
-}
-
-/**
  * The Workspace agent's instructions before its skill index. `t` names the
- * dev server tools, which a harness reaches over our MCP server (#1223); every
- * other tool it names is the in-process engine's own.
+ * dev server and Document tools, which a harness reaches over our MCP server
+ * (#1223, #1314); every other tool it names is the in-process engine's own.
  */
 const agentSystemPromptBase = (
   t: ToolNaming["name"]
@@ -193,11 +107,20 @@ Opening a pull request:
 When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
 
 Following \`${MENTION_MARKER_TOKEN}\` mentions:
-The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` to fetch the contents. Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the message, pairing each id with its title. These reads are live — they always return the current state, not a snapshot.`
+The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`${t("read_document")}(id)\` to fetch the contents. Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the message, pairing each id with its title. These reads are live — they always return the current state, not a snapshot.
+
+Writing Documents:
+When the user asks for a plan, notes, a spec or any other write-up, put it in a Document on the canvas rather than a file in the project: call \`${t("create_document")}\` with a title and the body as markdown. The Document is yours and shows your name. You can edit only the Documents you made (marked "(yours)" in the layer directory): rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Anyone's Document can be read with \`${t("read_document")}\`; ask its owner, or the user, to change one that isn't yours. In a body, separate paragraphs with a blank line and don't repeat the title as a \`#\` heading.`
 
 const agentSystemPromptTail = (t: ToolNaming["name"]) => `
 
-Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches run_command: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. Never start another dev server with run_command.
+Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches run_command: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. The user can stop it from the terminal pane; ${t("stop_dev_server")} and ${t("start_dev_server")} do the same. Never start another dev server with run_command.
+
+To see the preview as the user sees it on the canvas, call ${t("view_frame")} for a screenshot of your frame, or ${t("read_frame_html")} for its current page as self-contained HTML (optionally one element, by CSS selector). Both also read other Workspaces' frames on the canvas, by frameId.
+
+Mockups: when the user wants to see a design idea before it's built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite your own with ${t("update_mockup")}. Each Mockup shows a status, Set aside, Current or Built, that the user can change on the canvas and you can set with ${t("update_mockup")}; use it however helps them follow the takes.
+
+This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace's chat.
 
 Keep your responses concise. Show the user what you changed and why.`
 
@@ -224,6 +147,8 @@ Keep your responses concise. Show the user what you changed and why.`
 export function buildAgentSystemPrompt(opts: {
   repoSystemPrompt?: string
   layerDirectory: LayerDirectory
+  /** The chat the prompt is for, which owns the Documents it made (#1314). */
+  chatId?: string
   skills: OriginTaggedSkill[]
   memory?: readonly MemoryData[]
   toolNaming?: ToolNaming
@@ -246,7 +171,7 @@ export function buildAgentSystemPrompt(opts: {
   const repoBlock = repoSystemPrompt?.trim()
     ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
     : ""
-  const directoryBlock = renderLayerDirectory(layerDirectory)
+  const directoryBlock = renderLayerDirectory(layerDirectory, t, opts.chatId)
   const memoryBlock = renderCanvasMemory(memory)
   return (
     agentSystemPromptBase(t) +
@@ -276,18 +201,19 @@ export function buildRoomSystemPrompt(opts: {
   const naming = opts.toolNaming ?? BARE_TOOL_NAMING
   const t = naming.name
   return [
-    "You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, and Terminal Tabs. You see the whole canvas. You never work inside a sandbox yourself: Workspace agents do that.",
+    "You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, mockups, and Terminal Tabs. You see the whole canvas. You make nothing yourself: Workspace chats write the code, documents and mockups, and you start and steer them, then arrange what they make.",
     ...(naming.note ? ["", naming.note] : []),
     "",
     "When the user asks about the canvas:",
     `- Answer from the canvas summary below, or call \`${t("read_canvas")}\` for the current state when things may have changed. Never guess what is on the canvas.`,
     `- Call \`${t("read_document")}\` with a document's id to read its text.`,
     `- To find out what a Workspace did, call \`${t("read_workspace_chat")}\` (its last ask, turn summary and last reply; pass \`full: true\` only when you need the whole transcript). \`${t("read_workspace_diff")}\` and \`${t("read_workspace_file")}\` read its changes and code. You can't edit Workspace files.`,
-    `- To see what a frame looks like, call \`${t("view_frame")}\`.`,
+    `- To see what a frame looks like, call \`${t("view_frame")}\`, or \`${t("read_frame_html")}\` for its current page as self-contained HTML.`,
     `- Name Workspaces by their title, not their id. Link a title as \`${workspaceLink("<title>", "<id>")}\` so the user can open the Workspace.`,
     "",
     "Arranging the canvas:",
-    "- You can create frames (blank, for a Workspace, or one per route), create documents, move and arrange Groups, move frames and documents between Groups, merge Groups, rename frames, Groups and documents, and remove frames and documents. These act right away, so do what was asked without asking first.",
+    "- You can create frames (blank, for a Workspace, or one per route), move and arrange Groups, move frames, documents and mockups between Groups, merge Groups, rename frames and Groups, and remove frames and documents. These act right away, so do what was asked without asking first.",
+    "- Only you arrange the canvas and move the view; Workspace chats can't. Place what they make by judgment, usually beside the frames and other things it relates to, rather than by a fixed layout.",
     `- Every change a turn makes is kept. When the user asks to undo ("undo that"), call \`${t("undo_changes")}\`; it puts removed frames and documents back exactly as they were. \`${t("list_changes")}\` shows what recent turns changed.`,
     "- Removing a frame never removes its Workspace.",
     `- A Group holds its frames and documents in one row, left to right, and the summary gives each Group's top-left corner and size. To tidy the canvas, or to put Groups side by side or in a column, call \`${t("arrange_groups")}\`: it spaces them so nothing overlaps. Use \`${t("move_group")}\` only to put one Group at a particular spot, clear of the others' rects. When the user only asks to fix overlaps, move just the Groups that overlap. A change that leaves Groups overlapping says so in its result; clear them before you finish.`,
@@ -295,6 +221,9 @@ export function buildRoomSystemPrompt(opts: {
     "Moving the view:",
     `- \`${t("show_on_canvas")}\` moves the user's view to fit frames, documents or Groups, or the whole canvas when you pass no ids. It moves only the view of the person who asked and changes nothing on the canvas.`,
     `- When the user asks to see, find, zoom to or go to something, call it rather than describing where it is. After you create or arrange what the user asked for, call it on the result so they see it.`,
+    "",
+    "Documents and mockups:",
+    `- You can't write or edit a document or a mockup. When the user asks for one (a plan, notes, a spec, a design idea to look at or compare), start a chat that makes it: send the ask to the Workspace it's about with \`${t("send_to_workspace")}\`, or, when none fits, create one with \`${t("create_workspaces")}\` and put the ask in its seed prompt. The same goes for any change to the code. The chat owns what it makes, so send changes to one back to that chat.`,
     "",
     "When the user asks for work in a Workspace that exists:",
     `- Call \`${t("send_to_workspace")}\` with the Workspace's id and a message written as the user would write it. It returns once the message is queued; don't wait for or predict the result. The Workspace's agent does the work, and the user sees your message in that Workspace's chat.`,

@@ -1,8 +1,5 @@
-import type {
-  BranchData,
-  ChatSessionData,
-  MarkdownLayerData,
-} from "@/lib/types"
+import type { BranchData, ChatSessionData } from "@/lib/types"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
 /**
  * Chat-Target selection — the pure decisions behind *which* Chat Target the
@@ -17,8 +14,8 @@ import type {
  *
  * Three decisions live here:
  *
- * 1. {@link resolveChatPanelTarget} — pack the selected agent or document into
- *    the `ChatPanelTarget` the chat panel renders.
+ * 1. {@link resolveChatPanelTarget} — pack the selected agent into the
+ *    `ChatPanelTarget` the chat panel renders.
  * 2. {@link restoreAgentChatSelection} — the remembered-chat rule: keep the
  *    remembered chat if it is still open, else fall back to the first open one.
  * 3. {@link pendingProbes} / {@link resolvePendingReady} — the pending-agent
@@ -28,9 +25,10 @@ import type {
 
 /**
  * What one chat talks to, on the client (`apps/app/CONTEXT.md`, "Chat
- * Target"): a Branch's sandbox, a document, or the whole Room. One value, so an
- * impossible combination (a sandbox and a Room at once) can't be written. The
- * chat store maps it to the wire target in one place.
+ * Target"): a Branch's sandbox or the whole Room. One value, so an impossible
+ * combination (a sandbox and a Room at once) can't be written. The chat store
+ * maps it to the wire target in one place. A Document is no longer a target
+ * (#1314): the chat that made one edits it with its own tools.
  */
 export type ChatTarget =
   | {
@@ -39,31 +37,16 @@ export type ChatTarget =
       branchId: string
       sandboxName: string
     }
-  | { kind: "document"; layerId: string }
   | { kind: "room" }
 
 /**
- * The chat panel can target one of three top-level kinds:
+ * The chat panel can target one of two top-level kinds:
  *  - an *agent* (sandbox-backed flow): file editing, git, PR creation, logs.
- *  - a *layer* of any kind whose `LayerKindDescriptor.canBeChatTarget` is
- *    true (currently just markdownLayers). The `layerKind` discriminator
- *    determines which descriptor's icon/label drives the chrome and which
- *    server-side toolset runs.
  *  - the *room*: the canvas's one Coordinator chat, the panel's home when
  *    nothing else is selected (#893).
- *
- * New layer kinds become valid chat targets by setting
- * `canBeChatTarget: true` on their descriptor and registering a server-side
- * `chat-target-kinds` entry — no changes here needed.
  */
 export type ChatPanelTarget =
-  | { kind: "agent"; agent: BranchData }
-  | {
-      kind: "layer"
-      layerKind: string
-      layer: { id: string } & Record<string, unknown>
-    }
-  | { kind: "room" }
+  { kind: "agent"; agent: BranchData } | { kind: "room" }
 
 /** The {@link ChatTarget} of a chat shown in the panel for `target`. */
 export function chatTargetOf(target: ChatPanelTarget): ChatTarget {
@@ -74,40 +57,22 @@ export function chatTargetOf(target: ChatPanelTarget): ChatTarget {
         branchId: target.agent.id,
         sandboxName: target.agent.sandboxName,
       }
-    case "layer":
-      return { kind: "document", layerId: target.layer.id }
     case "room":
       return { kind: "room" }
   }
 }
 
 /**
- * Resolve the panel's current target from the live selection. An agent wins when
- * one is selected *and* its Sandbox exists (a still-provisioning agent has no
- * `sandboxName`, so the panel would otherwise show an empty chat); otherwise the
- * picked document target; otherwise none. Agent takes precedence over document —
- * pointing the panel at an agent is what clears the doc target at the call site.
+ * Resolve the panel's current target from the live selection: the selected
+ * agent once its Sandbox exists (a still-provisioning agent has no
+ * `sandboxName`, so the panel would otherwise show an empty chat), otherwise
+ * none, and the panel shows the Room.
  */
 export function resolveChatPanelTarget(
-  selectedAgent: BranchData | undefined,
-  selectedDocLayer: MarkdownLayerData | null | undefined
+  selectedAgent: BranchData | undefined
 ): ChatPanelTarget | null {
   if (selectedAgent?.sandboxName) {
     return { kind: "agent", agent: selectedAgent }
-  }
-  if (selectedDocLayer) {
-    // Layer-kind targets are packed into the generic `{ kind: "layer",
-    // layerKind, layer }` shape the chat panel dispatches through its
-    // layer-kinds registry. The cast widens MarkdownLayerData to the registry's
-    // open `{ id } & Record<string, unknown>` layer shape.
-    return {
-      kind: "layer",
-      layerKind: "markdown-layer",
-      layer: selectedDocLayer as unknown as { id: string } & Record<
-        string,
-        unknown
-      >,
-    }
   }
   return null
 }
@@ -115,22 +80,28 @@ export function resolveChatPanelTarget(
 /**
  * The remembered-chat restoration rule for an agent target: when you switch back
  * to an agent, reopen the chat you last had selected there *if it is still
- * open*, otherwise fall back to the agent's first open chat (earliest by
- * `createdAt`), otherwise nothing. Closed chats and other agents' chats never
- * win. Tested against plain chat-session snapshots.
+ * open* (an earlier chat on an old canvas, say), otherwise the Workspace's one
+ * chat (#1315), otherwise nothing. Closed earlier chats and other agents' chats
+ * never win. Tested against plain chat-session snapshots.
  */
 export function restoreAgentChatSelection(
   chats: readonly ChatSessionData[],
   agentId: string,
   rememberedChatId: string | null | undefined
 ): string | null {
-  const open = chats
-    .filter((c) => c.branchId === agentId && !c.closedAt)
-    .sort((a, b) => a.createdAt - b.createdAt)
-  if (rememberedChatId && open.some((c) => c.id === rememberedChatId)) {
+  const own = workspaceChatId(chats, agentId)
+  if (
+    rememberedChatId &&
+    chats.some(
+      (c) =>
+        c.id === rememberedChatId &&
+        c.branchId === agentId &&
+        (!c.closedAt || c.id === own)
+    )
+  ) {
     return rememberedChatId
   }
-  return open[0]?.id ?? null
+  return own ?? null
 }
 
 /** A pending agent whose Sandbox is ready to be probed for streaming logs. */

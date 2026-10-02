@@ -19,9 +19,9 @@ export const BROKERED_VALUE = "brokered"
  * the desktop backend, the external engine reads them back to pick the adapter
  * (#479), and `agent_chat.model` persists them verbatim.
  *
- * Lives in this leaf (rather than `acp/engine-select`, which reads it back) so
- * the model-enumeration fold can build harness ids without pulling the engine
- * graph in. `engine-select` re-exports it for its existing consumers.
+ * Lives in this leaf (beside the codec in `./model-id`) so the
+ * model-enumeration fold can build harness ids without pulling the engine
+ * graph in.
  */
 export const HARNESS_ID_PREFIX = "harness:"
 
@@ -50,18 +50,33 @@ export function commitAndPushRuleMarkdown(): string {
 }
 
 /**
- * The argv that spawns a harness's **ACP adapter** as a host subprocess over
- * stdio — the wire the external Engine's `SpawnAcpSessionFactory` speaks to. It
- * lives on the descriptor (not a separate adapter map) so a CLI's terminal
- * launch and its chat backing read the *one* catalog entry: there is no second
- * adapter-key namespace. `null` for a terminal-only harness with no ACP adapter
- * (e.g. the opencode slots today), which the chat-capability filter drops.
+ * A harness's **ACP adapter**: the argv that spawns it as a host subprocess over
+ * stdio (the wire the external Engine's `SpawnAcpSessionFactory` speaks to), and
+ * the facts about it the session needs. It lives on the descriptor (not a
+ * separate adapter map) so a CLI's terminal launch and its chat backing read the
+ * *one* catalog entry, and a change for one Harness is a change to its one file.
+ * `null` for a terminal-only harness with no ACP adapter (e.g. the opencode
+ * slots today), which the chat-capability filter drops.
  */
 export interface AcpAdapter {
   /** Executable to spawn (e.g. `npx`). */
   command: string
   /** Arguments passed to {@link command}. */
   args: string[]
+  /**
+   * How the adapter takes the chat's model (ADR 0011): the id of the session
+   * config option it advertises as its model selector. The session applies the
+   * model in-session with `session/set_config_option` on this option once the
+   * session opens; nothing about the model rides the spawn.
+   */
+  modelOption: string
+  /**
+   * Whether the adapter takes a further `session/prompt` while one runs and
+   * folds it into the live turn (#1191). ACP has no standard capability for
+   * this, so it is stated here rather than read from an adapter's own `_meta`.
+   * With it, a Steer joins the running turn as another prompt.
+   */
+  promptQueueing: boolean
 }
 
 /**

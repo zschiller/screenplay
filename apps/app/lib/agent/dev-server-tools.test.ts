@@ -18,6 +18,7 @@ function ports(overrides: Partial<DevServerPorts> = {}): DevServerPorts {
     status: vi.fn(async () => running),
     readLog: vi.fn(async () => ""),
     restart: vi.fn(async () => ({ ok: true as const })),
+    stop: vi.fn(async () => ({ ok: true as const })),
     waitUntilAnswering: vi.fn(async () => true),
     ...overrides,
   }
@@ -118,6 +119,40 @@ describe("restart_dev_server", () => {
       "Couldn't restart the dev server: Sandbox is not running"
     )
     expect(p.waitUntilAnswering).not.toHaveBeenCalled()
+  })
+})
+
+describe("stop_dev_server and start_dev_server (#1342)", () => {
+  it("stops the dev server", async () => {
+    const p = ports()
+    expect(await run(buildDevServerTools(p), "stop_dev_server")).toBe(
+      "Dev server stopped. The preview is dark until start_dev_server runs it again."
+    )
+    expect(p.stop).toHaveBeenCalledOnce()
+  })
+
+  it("reports a failed stop", async () => {
+    const p = ports({ stop: async () => ({ ok: false, error: "gone" }) })
+    expect(await run(buildDevServerTools(p), "stop_dev_server")).toBe(
+      "Couldn't stop the dev server: gone"
+    )
+  })
+
+  it("starts it through the restart path and waits for it", async () => {
+    const p = ports({ readLog: async () => "$ pnpm dev\nready\n" })
+    expect(await run(buildDevServerTools(p), "start_dev_server")).toBe(
+      "Dev server started and answering.\n\nLatest log lines:\n$ pnpm dev\nready"
+    )
+    expect(p.restart).toHaveBeenCalledOnce()
+  })
+
+  it("tells the model a stopped server is stopped, not broken", async () => {
+    const p = ports({
+      status: async () => ({ ...running, answering: false, stopped: true }),
+    })
+    expect(await run(buildDevServerTools(p), "read_dev_server_logs")).toBe(
+      "Dev server: stopped (call start_dev_server to run it again).\n\n(the log is empty)"
+    )
   })
 })
 

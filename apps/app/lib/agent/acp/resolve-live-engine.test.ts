@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 // The in-process engine binds to the model providers at import time; stub the
-// resolution that would otherwise demand real API keys (mirrors engine-select.test).
+// resolution that would otherwise demand real API keys.
 vi.mock("@/lib/agent/providers", () => ({
   resolveLanguageModel: () => ({}),
 }))
@@ -53,22 +53,19 @@ vi.mock("@/lib/local-mode", () => localMode)
 const ensureCoordinatorFolder = vi.fn(
   async (roomId: string) => `/coordinator/${roomId}`
 )
-const ensureDocumentsFolder = vi.fn(
-  async (roomId: string) => `/coordinator/documents/${roomId}`
-)
 vi.mock("@/lib/agent/coordinator-mcp", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/agent/coordinator-mcp")>()),
   ensureCoordinatorFolder: (roomId: string) => ensureCoordinatorFolder(roomId),
-  ensureDocumentsFolder: (roomId: string) => ensureDocumentsFolder(roomId),
 }))
 
-import { ENGINE_ENV_VAR } from "./engine-select"
 import { resolveCoordinatorToken } from "@/lib/agent/coordinator-mcp"
 import { ExternalEngine } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
 import {
   ACP_HARNESS_ENV_VAR,
+  ENGINE_ENV_VAR,
   acpHarnessFromEnv,
+  engineChoiceFromEnv,
   resolveLiveEngine,
   toolNamingForTurn,
 } from "./resolve-live-engine"
@@ -77,6 +74,29 @@ import {
 function engineModelId(engine: unknown): string | undefined {
   return (engine as { config: { modelId?: string } }).config.modelId
 }
+
+/**
+ * Engine selection is minimal and explicit (ADR 0006): one per-deployment env
+ * var, default `in-process`, no per-Chat-Session column.
+ */
+describe("engineChoiceFromEnv", () => {
+  it("defaults to in-process when AGENT_ENGINE is unset", () => {
+    expect(engineChoiceFromEnv({})).toBe("in-process")
+  })
+
+  it("selects external on the explicit value", () => {
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "external" })).toBe(
+      "external"
+    )
+  })
+
+  it("treats an unrecognised value as the default, never a silent swap", () => {
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "External" })).toBe(
+      "in-process"
+    )
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "" })).toBe("in-process")
+  })
+})
 
 describe("acpHarnessFromEnv", () => {
   it("defaults to claude-code when unset, empty, or whitespace", () => {
@@ -287,7 +307,6 @@ describe("resolveLiveEngine", () => {
     afterEach(() => {
       localMode.isLocalBuild = false
       ensureCoordinatorFolder.mockClear()
-      ensureDocumentsFolder.mockClear()
     })
 
     it("runs in the Room's own folder and gets its tools over MCP", async () => {
@@ -357,30 +376,6 @@ describe("resolveLiveEngine", () => {
         roomId: "r1",
         chatId: "chat-9",
         sandboxName: "branch-7",
-      })
-      expect(config.sessionMeta).toEqual({
-        claudeCode: { options: { allowedTools: ["mcp__screenplay__*"] } },
-      })
-    })
-
-    it("gives a document chat its Room's documents folder and its tools", async () => {
-      process.env[ENGINE_ENV_VAR] = "external"
-      localMode.isLocalBuild = true
-      const config = configOf(
-        await resolveLiveEngine({
-          markdownLayerId: "doc-1",
-          chatId: "chat-doc",
-          roomId: "r1",
-        })
-      )
-      expect(config.cwd).toBe("/coordinator/documents/r1")
-      const auth = config.mcpServers![0]!.headers!.find(
-        (h) => h.name === "Authorization"
-      )
-      expect(resolveCoordinatorToken(auth!.value)).toEqual({
-        roomId: "r1",
-        chatId: "chat-doc",
-        markdownLayerId: "doc-1",
       })
       expect(config.sessionMeta).toEqual({
         claudeCode: { options: { allowedTools: ["mcp__screenplay__*"] } },

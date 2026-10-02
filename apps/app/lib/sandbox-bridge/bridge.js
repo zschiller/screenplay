@@ -338,6 +338,7 @@
   function ensurePickUi() {
     if (pickOverlay) return
     pickOverlay = document.createElement("div")
+    pickOverlay.id = "__screenplay-pick-overlay"
     Object.assign(pickOverlay.style, {
       position: "fixed",
       inset: "0",
@@ -442,6 +443,11 @@
         } else if (d.op === "getOuterHTML") {
           const el = d.handle ? handleToEl.get(d.handle) : null
           reply(d.id, true, el ? el.outerHTML : null)
+        } else if (d.op === "getPageSnapshot") {
+          // The page as it is right now, for an agent's `read_frame_html`
+          // (#1268): its markup and the CSS that styles it, which the server
+          // assembles into one self-contained document.
+          reply(d.id, true, pageSnapshot(d.selector))
         } else if (d.op === "getRectsForSelectors") {
           // Batched op: one round-trip resolves rects for many selectors at
           // once. Used by the canvas to track selector-anchored comment pins.
@@ -551,6 +557,132 @@
       reply(d.id, false, (err && err.message) || err)
     }
   })
+
+  // The page's rendered DOM and its styles, optionally for one element. Scripts
+  // are dropped (the result is for reading, not running), and so are the
+  // style and link elements whose rules come back in `css`, inlined from the
+  // CSSOM so a stylesheet the dev server built in memory is included. Rules
+  // that can't style anything in the markup are left out to keep it small; a
+  // cross-origin stylesheet can't be read, so it stays a link. Returns null
+  // when the selector matches nothing.
+  function pageSnapshot(selector) {
+    const root = selector
+      ? document.querySelector(selector)
+      : document.documentElement
+    if (!root) return null
+    const css = []
+    const links = []
+    const sheets = Array.from(document.styleSheets).concat(
+      Array.from(document.adoptedStyleSheets || [])
+    )
+    for (const sheet of sheets) {
+      if (sheet.disabled) continue
+      if (isBridgeUi(sheet.ownerNode)) continue
+      let rules
+      try {
+        rules = sheet.cssRules
+      } catch {
+        if (sheet.href) links.push(sheet.href)
+        continue
+      }
+      const base = sheet.href || document.baseURI
+      const text = keptRules(rules, root)
+        .map((r) => absoluteUrls(r, base))
+        .join("\n")
+      if (text) css.push(text)
+    }
+    // The whole page is its body; the head holds nothing to show but styles.
+    const markup = (selector ? root : document.body || root).cloneNode(true)
+    markup
+      .querySelectorAll(
+        "script, style, link[rel~='stylesheet'], [id^='__screenplay']"
+      )
+      .forEach((el) => el.remove())
+    return {
+      url: window.location.href,
+      title: document.title,
+      htmlAttributes: attributesOf(document.documentElement),
+      bodyAttributes: document.body ? attributesOf(document.body) : "",
+      markup: selector ? markup.outerHTML : markup.innerHTML,
+      css: css.join("\n"),
+      stylesheetLinks: links,
+    }
+  }
+
+  // The rules that can apply under `root`, as CSS text. At-rules without a
+  // selector (@font-face, @keyframes, @property, …) are kept whole; grouping
+  // rules (@media, @supports, @layer, @container) keep only their live
+  // children. A selector with a pseudo-class or pseudo-element is kept, since
+  // `:hover` or `::before` can't be tested against the page as it stands.
+  function keptRules(rules, root) {
+    const out = []
+    for (const rule of Array.from(rules)) {
+      if (rule.selectorText !== undefined) {
+        if (selectorMayApply(rule.selectorText, root)) out.push(rule.cssText)
+      } else if (rule.cssRules && !isWholeAtRule(rule)) {
+        const inner = keptRules(rule.cssRules, root)
+        if (inner.length === 0) continue
+        const text = rule.cssText
+        out.push(text.slice(0, text.indexOf("{") + 1) + inner.join("\n") + "}")
+      } else {
+        out.push(rule.cssText)
+      }
+    }
+    return out
+  }
+
+  // The bridge's own touch cursor and picker overlay aren't part of the page.
+  function isBridgeUi(node) {
+    return !!(node && node.id && node.id.startsWith("__screenplay"))
+  }
+
+  function isWholeAtRule(rule) {
+    return /^@(-[a-z]+-)?(keyframes|font-feature-values)\b/i.test(rule.cssText)
+  }
+
+  // `<html>` and `<body>` count for a one-element read too: the document it
+  // comes back in keeps their attributes, so their rules (fonts, colours)
+  // still apply.
+  function selectorMayApply(selectorText, root) {
+    if (selectorText.includes(":")) return true
+    try {
+      return (
+        root.matches(selectorText) ||
+        !!root.querySelector(selectorText) ||
+        document.documentElement.matches(selectorText) ||
+        (!!document.body && document.body.matches(selectorText))
+      )
+    } catch {
+      return true
+    }
+  }
+
+  // Inlined CSS loses its stylesheet's URL, so resolve `url(...)` against it.
+  function absoluteUrls(cssText, base) {
+    return cssText.replace(
+      /url\(\s*(['"]?)([^'")]+)\1\s*\)/g,
+      (match, quote, url) => {
+        if (/^(data|blob|about):|^#/i.test(url)) return match
+        try {
+          return 'url("' + new URL(url, base).href + '")'
+        } catch {
+          return match
+        }
+      }
+    )
+  }
+
+  function attributesOf(el) {
+    return Array.from(el.attributes)
+      .map(
+        (a) =>
+          a.name +
+          '="' +
+          a.value.replace(/&/g, "&amp;").replace(/"/g, "&quot;") +
+          '"'
+      )
+      .join(" ")
+  }
 
   function currentPath() {
     return (

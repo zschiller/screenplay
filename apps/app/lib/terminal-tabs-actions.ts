@@ -4,6 +4,7 @@ import { requireUserId } from "@/lib/auth-helpers"
 import { requireMember } from "@/lib/rooms"
 import {
   killTerminalSession,
+  killTerminalSessions,
   terminalSessionActivity,
 } from "@/lib/sandbox/terminal"
 import {
@@ -75,6 +76,21 @@ export async function killTerminalSessionAction(opts: {
   const userId = await requireUserId()
   await requireMember(opts.roomId, userId)
   await killTerminalSession(opts.sandboxName, opts.terminalSessionId)
+}
+
+/**
+ * Kill the session behind a tab whose Branch is gone (the orphan prune), when
+ * there's no Sandbox left to name. On the hosted backend the tmux session died
+ * with the Branch's Sandbox, so this is a no-op; on desktop the PTY lives in
+ * the sidecar and outlives the worktree, so it's killed here.
+ */
+export async function killOrphanedTerminalSessionAction(opts: {
+  roomId: string
+  terminalSessionId: string
+}): Promise<void> {
+  const userId = await requireUserId()
+  await requireMember(opts.roomId, userId)
+  await killTerminalSessions([opts.terminalSessionId])
 }
 
 /**

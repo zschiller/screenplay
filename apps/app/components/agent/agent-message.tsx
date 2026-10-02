@@ -16,6 +16,7 @@ import {
   CheckCircleIcon,
   ClipboardTextIcon,
   ClockCounterClockwiseIcon,
+  CodeIcon,
   CopyIcon,
   CrosshairIcon,
   EyeIcon,
@@ -30,6 +31,8 @@ import {
   NotePencilIcon,
   PencilSimpleIcon,
   PencilSimpleLineIcon,
+  PlayIcon,
+  QuestionIcon,
   RobotIcon,
   SelectionIcon,
   SparkleIcon,
@@ -81,6 +84,12 @@ import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
 import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
+import { QuestionCard } from "./question-card"
+import {
+  isQuestionCall,
+  parseQuestion,
+  type QuestionAnswer,
+} from "@/lib/agent/question"
 import {
   WORKSPACE_LINK_SCHEME,
   workspaceTasksOf,
@@ -96,6 +105,8 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   read_skill: SparkleIcon,
   read_dev_server_logs: ListDashesIcon,
   restart_dev_server: ArrowsClockwiseIcon,
+  stop_dev_server: SquareIcon,
+  start_dev_server: PlayIcon,
   read_document: FileTextIcon,
   read_canvas: SquaresFourIcon,
   read_workspace_chat: ChatTextIcon,
@@ -105,6 +116,7 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   search_code: MagnifyingGlassIcon,
   find_code_files: FolderOpenIcon,
   view_frame: EyeIcon,
+  read_frame_html: CodeIcon,
   write_memory: BrainIcon,
   replace_document_body: NotePencilIcon,
   append_to_document_body: NotePencilIcon,
@@ -124,6 +136,7 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   stop_workspace: StopCircleIcon,
   open_pull_request: GitPullRequestIcon,
   remove_workspace: TrashIcon,
+  ask_question: QuestionIcon,
 }
 
 const toolLabels: Record<string, string> = {
@@ -136,6 +149,8 @@ const toolLabels: Record<string, string> = {
   read_skill: "Read skill",
   read_dev_server_logs: "Read dev server logs",
   restart_dev_server: "Restart dev server",
+  stop_dev_server: "Stop dev server",
+  start_dev_server: "Run dev server",
   submit_plan: "Submit plan",
   read_document: "Read document",
   read_canvas: "Read canvas",
@@ -146,6 +161,7 @@ const toolLabels: Record<string, string> = {
   search_code: "Search code",
   find_code_files: "Find files",
   view_frame: "View frame",
+  read_frame_html: "Read frame HTML",
   write_memory: "Save to memory",
   replace_document_body: "Rewrite document",
   append_to_document_body: "Append to document",
@@ -165,6 +181,7 @@ const toolLabels: Record<string, string> = {
   stop_workspace: "Stop Workspace",
   open_pull_request: "Open pull request",
   remove_workspace: "Remove Workspace",
+  ask_question: "Ask a question",
 }
 
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
@@ -426,28 +443,18 @@ function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
 
 /**
  * Render one ACP {@link ToolCallContent} block *structurally* — a file `diff`
- * as a line diff, a `terminal` as its handle, a text `content` block as
- * preformatted text — rather than flattening it all to one `<pre>`.
+ * as a line diff, a text `content` block as preformatted text — rather than
+ * flattening it all to one `<pre>`. `terminal` blocks never get here: see
+ * {@link shownContent}.
  */
 function ToolContentBlock({
   block,
   failed,
 }: {
-  block: ToolCallContent
+  block: Exclude<ToolCallContent, { type: "terminal" }>
   failed?: boolean
 }) {
   if (block.type === "diff") return <DiffBlock block={block} />
-  if (block.type === "terminal") {
-    return (
-      <div
-        data-testid="tool-content-terminal"
-        className="flex items-center gap-1.5 px-2 py-1 font-mono text-xs text-muted-foreground"
-      >
-        <TerminalIcon className="size-3 shrink-0" />
-        terminal {block.terminalId}
-      </div>
-    )
-  }
   // A standard content block — render its text; non-text blocks (image, …) are
   // deferred polish.
   const text =
@@ -459,6 +466,19 @@ function ToolContentBlock({
     >
       {text}
     </pre>
+  )
+}
+
+/**
+ * A tool call's content without its `terminal` blocks. We never create ACP
+ * terminals, so a terminal id resolves to nothing; codex-acp sends one for a
+ * running command anyway and swaps in the output text when it finishes, so the
+ * row's title and status carry it until then.
+ */
+function shownContent(content: ToolCallContent[]) {
+  return content.filter(
+    (b): b is Exclude<ToolCallContent, { type: "terminal" }> =>
+      b.type !== "terminal"
   )
 }
 
@@ -571,7 +591,8 @@ function ToolCallRow({
   // Structure it when we have a real verb (our own raw tool, or a known kind we
   // could attach a detail to); otherwise fall back to the adapter's prose title.
   const structured = isRawToolName || (verb != null && detail != null)
-  const hasContent = message.content.length > 0 && !outcome
+  const content = shownContent(message.content)
+  const hasContent = content.length > 0 && !outcome
 
   const title = outcome ? (
     outcome
@@ -622,8 +643,8 @@ function ToolCallRow({
         title={<TruncatedTitle fullText={fullText}>{title}</TruncatedTitle>}
         headerProps={headerProps}
       >
-        {hasFailureText(message.content) ? (
-          message.content.map((block, i) => (
+        {hasFailureText(content) ? (
+          content.map((block, i) => (
             <ToolContentBlock key={i} block={block} failed />
           ))
         ) : (
@@ -649,7 +670,7 @@ function ToolCallRow({
     >
       {hasContent ? (
         <div className="divide-y divide-border">
-          {message.content.map((block, i) => (
+          {content.map((block, i) => (
             <ToolContentBlock key={i} block={block} />
           ))}
         </div>
@@ -1191,10 +1212,19 @@ function keepWorkspaceLinks(url: string): string {
  */
 function ToolCallItem({
   message,
+  chatId,
+  questionAnswer,
 }: {
   message: AgentMessage & { role: "tool_call" }
+  chatId?: string
+  questionAnswer?: QuestionAnswer
 }) {
   const tasks = useWorkspaceTasks()
+  if (isQuestionCall(message) && parseQuestion(message.rawInput)) {
+    return (
+      <QuestionCard message={message} chatId={chatId} answer={questionAnswer} />
+    )
+  }
   const found = tasks ? workspaceTasksOf(message) : []
   if (tasks && found.length > 0) {
     return (
@@ -1218,12 +1248,15 @@ export function AgentMessageItem({
   roomId,
   chatId,
   onRetry,
+  questionAnswer,
 }: {
   message: AgentMessage
   roomId?: string
   chatId?: string
   /** Retry for an error the chat can redo (a failed turn, approval or stop). */
   onRetry?: () => Promise<unknown>
+  /** How a question card was answered, once a user message follows it. */
+  questionAnswer?: QuestionAnswer
 }) {
   switch (message.role) {
     case "user":
@@ -1236,7 +1269,13 @@ export function AgentMessageItem({
       return <ReasoningMessage message={message} />
 
     case "tool_call":
-      return <ToolCallItem message={message} />
+      return (
+        <ToolCallItem
+          message={message}
+          chatId={chatId}
+          questionAnswer={questionAnswer}
+        />
+      )
 
     case "plan":
       if (!roomId || !chatId) return null

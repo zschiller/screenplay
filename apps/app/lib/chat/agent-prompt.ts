@@ -1,5 +1,5 @@
 import { chatStore, type SendMessageOptions } from "@/lib/chat-store"
-import { restoreAgentChatSelection } from "@/lib/chat/chat-target"
+import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import type { BranchData, ChatSessionData } from "@/lib/types"
 
 /**
@@ -18,11 +18,10 @@ import type { BranchData, ChatSessionData } from "@/lib/types"
  * Two pieces:
  *
  * 1. {@link resolveTargetChat} — the pure decision "which Chat Session should
- *    this prompt land in" for an agent target: reuse the remembered chat if it
- *    is still open, else the agent's first open chat; a busy (already streaming)
- *    target bumps to a fresh chat, as does an agent with no open chat; a missing
- *    branch / sandbox yields "none", and `session: null` marks a reused chat
- *    (nothing to create).
+ *    this prompt land in" for an agent target: the Workspace's one chat
+ *    (#1315), busy or not; a fresh chat only for a Workspace with none; a
+ *    missing branch / sandbox yields "none", and `session: null` marks a
+ *    reused chat (nothing to create).
  * 2. {@link dispatchPrompt} — the apply verb. Create the Chat Session through the
  *    canvas ops seam (ADR 0001) *only* when the decision calls for a fresh chat;
  *    select the resolved target through the Chat-Target controller; call
@@ -127,60 +126,37 @@ export interface ResolveTargetChatInput {
   message: string
   /** The agent the prompt targets. */
   agent: Pick<BranchData, "id" | "sandboxName" | "ref">
-  /** All Chat Sessions — filtered to the agent's open chats internally. */
+  /** All Chat Sessions — narrowed to the agent's chat internally. */
   chatSessions: readonly ChatSessionData[]
-  /** The remembered chat id from the Chat-Target controller. */
-  rememberedChatId: string | null | undefined
-  /**
-   * Whether a chat is mid-turn (streaming). Injected so the core stays pure —
-   * the controller combines the live chat-store snapshot with the Y.Doc mirror.
-   */
-  isBusy: (chatId: string) => boolean
 }
 
 /**
- * Resolve which Chat Session a prompt to an agent should land in. Reuses the
- * remembered chat when it is still open (else the agent's first open chat); a
- * busy target — or no open chat at all — bumps to a fresh Chat Session. A
- * reused chat carries its own plan-mode / model forward. An agent with no
- * Sandbox / branch yields `{ kind: "none" }`.
+ * Resolve which Chat Session a prompt to an agent should land in: the
+ * Workspace's one chat (#1315), carrying its plan-mode / model forward, or a
+ * fresh Chat Session for a Workspace that has none. A message to a busy chat
+ * steers it or queues. An agent with no Sandbox / branch yields
+ * `{ kind: "none" }`.
  */
 export function resolveTargetChat(
   input: ResolveTargetChatInput
 ): TargetChatDecision {
-  const {
-    roomId,
-    freshChatId,
-    createdAt,
-    message,
-    agent,
-    chatSessions,
-    rememberedChatId,
-    isBusy,
-  } = input
+  const { roomId, freshChatId, createdAt, message, agent, chatSessions } = input
 
   if (!agent.sandboxName || !agent.ref) return { kind: "none" }
 
-  // The remembered-chat rule, shared with the Chat-Target controller: the
-  // remembered chat if still open, else the first open one, else none.
-  const restoredId = restoreAgentChatSelection(
-    chatSessions,
-    agent.id,
-    rememberedChatId
-  )
-  const targetChat = restoredId
-    ? chatSessions.find((c) => c.id === restoredId)
+  // A Workspace has one chat (#1315), so a prompt lands in it, busy or not: a
+  // message sent mid-turn steers the run or waits in its queue. Only a
+  // Workspace with no chat yet gets a fresh one.
+  const ownId = workspaceChatId(chatSessions, agent.id)
+  const targetChat = ownId
+    ? chatSessions.find((c) => c.id === ownId)
     : undefined
-  const busy = targetChat ? isBusy(targetChat.id) : false
 
-  // A busy target (mid-turn) — or no open chat at all — bumps to a fresh chat so
-  // an in-flight turn is never interrupted; otherwise reuse the chat and carry
-  // its plan-mode / model forward.
   let session: ChatSessionData | null
   let chatId: string
   let planMode: boolean | undefined
   let model: string | undefined
-  if (!targetChat || busy) {
+  if (!targetChat) {
     chatId = freshChatId
     session = {
       id: chatId,

@@ -111,22 +111,53 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     expect(diffEl.textContent).toContain("after")
   })
 
-  it("renders a terminal content block as its own structural element", () => {
-    const terminal: ToolCallContent = { type: "terminal", terminalId: "t_42" }
+  // codex-acp sends a `terminal` block for a running command although we never
+  // create ACP terminals, so its id resolves to nothing (#1300).
+  it("never renders a terminal content block's handle", () => {
+    const terminal: ToolCallContent = {
+      type: "terminal",
+      terminalId: "exec-42",
+    }
     render(
       <AgentMessageItem
         message={toolCall({
-          title: "run_command",
+          title: "pnpm test",
           kind: "execute",
-          status: "completed",
+          status: "in_progress",
           content: [terminal],
         })}
       />
     )
     fireEvent.click(screen.getByTestId("tool-call"))
-    expect(screen.getByTestId("tool-content-terminal").textContent).toContain(
-      "t_42"
+    expect(screen.queryByTestId("tool-content-text")).toBeNull()
+    expect(document.body.textContent).not.toContain("exec-42")
+    expect(document.body.textContent).not.toContain("terminal")
+  })
+
+  it("renders only the text beside a terminal content block", () => {
+    const terminal: ToolCallContent = {
+      type: "terminal",
+      terminalId: "exec-42",
+    }
+    const output: ToolCallContent = {
+      type: "content",
+      content: { type: "text", text: "12 tests passed" },
+    }
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "pnpm test",
+          kind: "execute",
+          status: "completed",
+          content: [terminal, output],
+        })}
+      />
     )
+    fireEvent.click(screen.getByTestId("tool-call"))
+    expect(screen.getByTestId("tool-content-text").textContent).toBe(
+      "12 tests passed"
+    )
+    expect(document.body.textContent).not.toContain("exec-42")
   })
 
   // claude-agent-acp forwards Claude Code's file-read decorations verbatim —
@@ -949,8 +980,8 @@ describe("AgentMessageItem — Workspace task row (#896)", () => {
     )
     expect(
       screen.getByTestId("workspace-task").getAttribute("data-state")
-    ).toBe("finished")
-    expect(screen.getByText("Finished")).toBeTruthy()
+    ).toBe("ready")
+    expect(screen.getByText("Ready")).toBeTruthy()
   })
 
   it("stays a tool row outside the Coordinator chat", () => {
@@ -1069,5 +1100,72 @@ describe("AgentMessageItem — user turns after a reload (#1252)", () => {
     )
     expect(screen.getByTestId("delegated-message")).toBeTruthy()
     expect(screen.queryByText("Keep the next param.")).toBeNull()
+  })
+})
+
+describe("AgentMessageItem — question cards (#1312)", () => {
+  const question = toolCall({
+    toolCallId: "q1",
+    title: "ask_question",
+    kind: "other",
+    status: "completed",
+    rawInput: {
+      question: "Which layout?",
+      options: [{ label: "Compact", detail: "One row" }, { label: "Roomy" }],
+      recommended: 0,
+    },
+  })
+  const choice = (name: RegExp) =>
+    screen.getByRole("radio", { name }) as HTMLInputElement
+
+  it("draws the question with one choice per option and the recommendation", () => {
+    render(<AgentMessageItem message={question} chatId="chat-1" />)
+
+    expect(screen.getByText("Which layout?")).toBeTruthy()
+    expect(choice(/Compact/)).toBeTruthy()
+    expect(choice(/Roomy/)).toBeTruthy()
+    expect(screen.getByText("Recommended")).toBeTruthy()
+  })
+
+  it("sends the picked option as the next message, once", () => {
+    const sent: string[] = []
+    const unsubscribe = inputStore.subscribeSend("chat-1", (t) => sent.push(t))
+    render(<AgentMessageItem message={question} chatId="chat-1" />)
+
+    fireEvent.click(choice(/Roomy/))
+    fireEvent.click(choice(/Compact/))
+    unsubscribe()
+
+    expect(sent).toEqual(["Roomy"])
+    expect(choice(/Roomy/).checked).toBe(true)
+    expect(choice(/Compact/).disabled).toBe(true)
+  })
+
+  it("shows the chosen option once answered, and takes no more answers", () => {
+    render(
+      <AgentMessageItem
+        message={question}
+        chatId="chat-1"
+        questionAnswer={{ chosen: 0 }}
+      />
+    )
+
+    expect(choice(/Compact/).checked).toBe(true)
+    expect(choice(/Roomy/).checked).toBe(false)
+    expect(choice(/Roomy/).disabled).toBe(true)
+  })
+
+  it("falls back to a tool row while the arguments stream", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          toolCallId: "q1",
+          title: "ask_question",
+          kind: "other",
+        })}
+        chatId="chat-1"
+      />
+    )
+    expect(screen.getByText("Ask a question")).toBeTruthy()
   })
 })

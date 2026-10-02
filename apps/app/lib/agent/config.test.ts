@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildAgentSystemPrompt,
-  buildMarkdownLayerSystemPrompt,
   buildRoomSystemPrompt,
 } from "@/lib/agent/config"
 import { harnessToolNaming } from "@/lib/agent/tool-name"
@@ -102,93 +101,6 @@ describe("buildAgentSystemPrompt — skills block", () => {
   })
 })
 
-describe("buildMarkdownLayerSystemPrompt — formatting rules", () => {
-  const prompt = () =>
-    buildMarkdownLayerSystemPrompt({
-      currentTitle: "Sprint notes",
-      currentBody: "Standup is at 10.",
-      layerDirectory: EMPTY_DIRECTORY,
-      selfId: "doc-1",
-    })
-
-  // `replace_document_body` parses its content as CommonMark, so marks do
-  // survive a save. The prompt used to claim the opposite and tell the model to
-  // emit plain text, contradicting the tool's own description (#743).
-  it("tells the model inline marks are preserved", () => {
-    expect(prompt()).toContain("Inline marks are preserved")
-    expect(prompt()).not.toMatch(/emit plain text/)
-  })
-
-  // The narrower truth behind that stale line: `append_to_document_body`
-  // re-reads the body as plain text first, so it flattens marks already in the
-  // document. The prompt states that limitation specifically, scoped to append.
-  it("scopes the flattening caveat to the append tool", () => {
-    const rule = prompt()
-      .split("\n")
-      .find((line) => line.includes("flattened"))
-
-    expect(rule).toBeDefined()
-    expect(rule).toContain("append_to_document_body")
-    expect(rule).toContain("replace_document_body")
-  })
-
-  it("offers no shell or commands", () => {
-    expect(prompt()).toMatch(/no shell and never change code/)
-    expect(prompt()).not.toMatch(/run_command/)
-  })
-})
-
-describe("buildMarkdownLayerSystemPrompt — the canvas's code", () => {
-  const prompt = (
-    opts: Partial<Parameters<typeof buildMarkdownLayerSystemPrompt>[0]> = {}
-  ) =>
-    buildMarkdownLayerSystemPrompt({
-      currentTitle: "Onboarding spec",
-      currentBody: "",
-      layerDirectory: EMPTY_DIRECTORY,
-      ...opts,
-    })
-
-  it("lists the Workspaces whose code it reads, and the tools that read it", () => {
-    const out = prompt({
-      checkouts: [
-        { workspaceId: "ws-1", title: "Sign-in fix", repo: "web" },
-        { workspaceId: "ws-2", title: "API errors", repo: "api" },
-      ],
-    })
-
-    expect(out).toContain('- [ws-1] "Sign-in fix" (web)')
-    expect(out).toContain('- [ws-2] "API errors" (api)')
-    expect(out).toContain("`read_code_file`")
-    expect(out).toContain("`search_code`")
-    expect(out).toContain("Pass the `workspaceId`")
-  })
-
-  it("lets a canvas with one Workspace leave out its id", () => {
-    const out = prompt({
-      checkouts: [{ workspaceId: "ws-1", title: "Sign-in fix", repo: "web" }],
-    })
-
-    expect(out).toContain("you can leave out `workspaceId`")
-  })
-
-  it("says there is no code when no Workspace has a checkout", () => {
-    expect(prompt()).toContain("no Workspace with a checkout yet")
-    expect(prompt()).not.toContain("read_code_file")
-  })
-
-  it("names its tools the way a desktop harness exposes them (#1223)", () => {
-    const out = prompt({
-      checkouts: [{ workspaceId: "ws-1", title: "Sign-in fix", repo: "web" }],
-      toolNaming: { name: (tool) => `mcp__screenplay__${tool}` },
-    })
-
-    expect(out).toContain("`mcp__screenplay__replace_document_body`")
-    expect(out).toContain("`mcp__screenplay__search_code`")
-    expect(out).not.toMatch(/[^_]`read_document`/)
-  })
-})
-
 describe("tool names per engine (#1223)", () => {
   const ROOM_TOOLS = [
     "read_canvas",
@@ -250,7 +162,59 @@ describe("tool names per engine (#1223)", () => {
     expect(claude).toContain("call mcp__screenplay__read_dev_server_logs")
     expect(claude).toContain("and mcp__screenplay__restart_dev_server to")
     expect(claude).toContain("call mcp__screenplay__restart_dev_server when")
+    expect(claude).toContain("`mcp__screenplay__create_document`")
+    expect(claude).toContain("`mcp__screenplay__replace_document_body`")
     // The rest are the in-process engine's own tools, not served over MCP.
     expect(claude).toContain("call `read_skill`")
+  })
+})
+
+describe("buildAgentSystemPrompt — Documents (#1314)", () => {
+  const directory = {
+    ...EMPTY_DIRECTORY,
+    documents: [
+      { id: "doc-1", title: "Rollout plan", ownerChatId: "chat-1" },
+      { id: "doc-2", title: "Notes" },
+    ],
+  }
+
+  it("tells the chat to write up plans in a Document it owns", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+    })
+    expect(prompt).toContain("call `create_document`")
+    expect(prompt).toContain("You can edit only the Documents you made")
+  })
+
+  it("marks the chat's own Documents in the layer directory", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: directory,
+      skills: APP_SKILLS,
+      chatId: "chat-1",
+    })
+    expect(prompt).toContain("- doc-1: Rollout plan (yours)")
+    expect(prompt).toMatch(/- doc-2: Notes$/m)
+  })
+})
+
+describe("buildAgentSystemPrompt — one chat per Workspace (#1315)", () => {
+  it("says only this chat changes its Workspace and others are read-only", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+    })
+    expect(prompt).toContain("the only one that changes its code")
+    expect(prompt).toContain("read their code with read_code_file")
+  })
+
+  it("names the code reads as a harness reaches them", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+      toolNaming: harnessToolNaming("claude-code", "screenplay"),
+    })
+    expect(prompt).toContain("mcp__screenplay__read_code_file")
+    expect(prompt).toContain("mcp__screenplay__find_code_files")
   })
 })

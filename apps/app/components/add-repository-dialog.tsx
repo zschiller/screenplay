@@ -199,7 +199,7 @@ export function AddRepositoryMenuItems({
 /**
  * The canvas's own add-repository flow (#1182), for every Add repository
  * outside Canvas settings: the empty canvas, the chat panel, the
- * getting-started checklist and the Workspaces menu. The canvas renders its
+ * getting-started checklist and the Chats menu. The canvas renders its
  * {@link AddRepositoryDialog}; Canvas settings keeps a flow of its own.
  */
 const AddRepositoryFlowContext = createContext<AddRepositoryFlow | null>(null)

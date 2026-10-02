@@ -63,7 +63,7 @@ export async function crawlRoutes(
 
     const res = await generateText({
       model: resolveLanguageModel(DEFAULT_MODEL),
-      system: `You are analyzing a web project's file structure to discover its navigable routes.
+      instructions: `You are analyzing a web project's file structure to discover its navigable routes.
 Look at the file listing and determine the framework (Next.js, SvelteKit, Nuxt, Remix, React Router, Astro, plain React, etc.) and identify all static, user-facing routes.
 
 Rules:

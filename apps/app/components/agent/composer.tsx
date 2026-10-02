@@ -960,7 +960,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
     return (
-      <div ref={editorContainerRef} className={className}>
+      <div ref={editorContainerRef} data-slot="composer" className={className}>
         {aboveInput}
         <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
           {inputHeader && (

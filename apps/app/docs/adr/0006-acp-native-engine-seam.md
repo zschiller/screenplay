@@ -221,7 +221,7 @@ The second implementation lands, proving the seam is honest rather than nominal:
 ### The live-route cutover — the keystone (#397)
 
 The single integrated cutover the PRD sequenced last: `/api/agent/stream` and
-`/api/agent/plan` now drive `selectEngine → Engine.run → AcpUpdateConsumer`
+`/api/agent/plan` now drive `resolveLiveEngine → Engine.run → AcpUpdateConsumer`
 through `driveEngineTurn` (which owns the abort watchdog at the boundary), and
 the legacy machinery is **deleted**, not parallel.
 
@@ -269,9 +269,10 @@ recorded (below), and starts the next turn with any Steers a completed, failed o
 left behind (a stopped run hands them back).
 
 The external engine steers too (#1191), but only on a Harness whose adapter
-advertises prompt queueing at initialize (the Claude adapter's
-`_meta.claudeCode.promptQueueing`), and the engine only learns that once the
-session is open. So steerability is a fact about the run, not a static
+queues prompts (stated on its descriptor, `AcpAdapter.promptQueueing`: the
+Claude adapter does) or takes Codex's steering request, which the adapter
+advertises at initialize, so the engine only learns it once the session is
+open. So steerability is a fact about the run, not a static
 capability of the Engine (#1250, #1251): the turn carries a second port,
 `reportSteering`, which every Engine calls once its session is open. Turn
 Launch records the first answer on `agent_run.steers` and broadcasts
@@ -308,7 +309,7 @@ one new `session/prompt`, since Codex runs one turn at a time.
   will be compatible; the **text path**, the **plan-mode permission-request
   mapping**, and the **`/stop` stop-not-failure mapping** all pass today.
 - **The cutover has landed; the live path is ACP-native end-to-end.** The
-  `/api/agent/stream` and `/api/agent/plan` routes drive `selectEngine →
+  `/api/agent/stream` and `/api/agent/plan` routes drive `resolveLiveEngine →
   Engine.run → AcpUpdateConsumer` through `driveEngineTurn` (which owns the abort
   watchdog at the boundary). Persistence and broadcast are ACP-native on the live
   path, and the legacy machinery — `runAgentLoop` + helpers, `StreamBroadcaster`,

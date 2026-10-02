@@ -1,21 +1,21 @@
 ---
 title: Workspaces
-description: Create workspaces with their own live environment, and manage them from the Workspaces menu.
+description: Create workspaces with their own live environment, and manage them from the Chats menu.
 ---
 
 # Workspaces
 
 A workspace is one git branch of a repository, running in its own sandbox with
-its own dev server, frames, agent chats, and terminals. The **Workspaces**
-button at the top right of the Coordinator opens the list of every workspace
-on the canvas, by title. Wherever a workspace is named, on a row, a group or frame label, or
+its own dev server, frames, one agent chat, and terminals. A workspace and its
+chat share one title. The **Chats** button at the top right of the Coordinator
+opens the list of every chat on the canvas, by title. Wherever a workspace is named, on a row, a group or frame label, or
 the address bar, it shows the same way: an icon for what it's doing, its
 title, and its pull request when there's room.
 
 ## Creating workspaces
 
-Open the **Workspaces** menu and click **+** (**New workspace**) next to
-**Workspaces**.
+Open the **Chats** menu and click **+** (**New chat**) next to **Chats**. Each
+new chat gets its own workspace.
 **Create workspaces** can create several at once:
 
 <Screenshot
@@ -43,9 +43,10 @@ Open the **Workspaces** menu and click **+** (**New workspace**) next to
 
 A new workspace's frame appears on the canvas straight away, and the canvas
 zooms to it. The workspace goes through **creating** and **starting** while
-it checks out the branch, runs the setup script, and boots the dev server,
-and the agent panel shows the live **sandbox logs** meanwhile. When the server
-is up, the frame shows the app and the panel switches to chat.
+it checks out the branch, runs the setup script, and boots the dev server.
+To watch it happen, open **Dev server** under the workspace's composer (see
+[Terminals](/guides/agent#terminals)). When the server is up, the frame shows
+the app.
 
 To work on a branch that already exists, click the **…** next to **+** and
 choose **Open existing git branch** (on a canvas with several repositories,
@@ -57,13 +58,13 @@ A canvas with no repository yet says that workspaces need one, with an
 
 ## Titles
 
-A workspace is named by its title everywhere: the Workspaces menu, the agent
+A workspace is named by its title everywhere: the Chats menu, the agent
 panel's header, the canvas list and each frame's workspace badge and address
 bar. Titles are in sentence case, like "Add pricing FAQ". Where a title comes
 from depends on how the workspace started:
 
-- **From the Workspaces menu or a new repository**, the first message in the
-  workspace's first chat titles it and renames its branch to match (for
+- **From the Chats menu or a new repository**, the first message in the
+  workspace's chat titles it and renames its branch to match (for
   example `add-pricing-faq`). If that branch name is already taken on the
   remote, a numeric suffix is added.
 - **From a Coordinator plan**, the workspace takes the title from the plan,
@@ -72,40 +73,40 @@ from depends on how the workspace started:
 - **From Open existing git branch**, its first message changes neither the
   branch nor the title. It reads **New Workspace** until you rename it.
 
-Later chats get their own names but never change the workspace's title or
-branch.
+Earlier chats on a canvas from before workspaces had one chat keep their own
+names and never change the workspace's title or branch.
 
 Renaming a workspace (**… → Rename**, then type over its title) changes only
 the title, so it never touches the branch, its pull request or anyone's
 checkout. To rename the branch itself, use **… → Rename branch…**.
 
-## The Workspaces menu
+## The Chats menu
 
 <Screenshot
   name="workspaces-menu"
-  alt="The agent panel's Workspaces menu open: the Coordinator, the Workspaces list with + and …, and Documents"
+  alt="The agent panel's Chats menu open: the Coordinator, then each chat with + and …"
 />
 
-The **Workspaces** button sits at the far right of the
+The **Chats** button sits at the far right of the
 [Coordinator](/guides/coordinator)'s header, the agent panel's top
 level. In a workspace, click **Coordinator** in the header to get back to it.
-An orange dot on the **Workspaces** button means a workspace needs you: its setup
+An orange dot on the **Chats** button means a workspace needs you: its setup
 failed, its plan waits for your approval, or its pull request can't merge. An
 open pull request waiting on review doesn't count.
 Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 
-- a **search** field that finds a workspace by its title or branch, including
-  done ones;
-- the **Coordinator**, checked when the panel shows it;
-- the **Workspaces** list, with **+** and **…** beside its heading;
-- **Documents**, whose chats you can open the same way.
+- a **search** field that finds a chat by its title or its workspace's
+  branch, including done ones;
+- the **Coordinator**, first, checked when the panel shows it;
+- the **Chats** list, one row for each workspace's chat, with **+** and
+  **…** beside its heading.
 
 Pick a row to open that chat; the menu closes. <kbd>Esc</kbd> or a click
 outside closes it without picking. The arrow keys move through the rows.
 With the agent panel collapsed (<kbd>⌘</kbd> <kbd>I</kbd>), open the panel
 first.
 
-Each workspace row shows:
+Each chat row shows:
 
 - a **status icon** for what the workspace is doing: a spinner while it
   starts, an activity spinner while the agent works, an orange dot when it
@@ -114,7 +115,8 @@ Each workspace row shows:
   when it's [done](#marking-a-workspace-done), or a warning when setup failed.
   Click the warning for the error, with **Retry**, **Recreate** and
   **Copy error**;
-- the workspace's **title**. A workspace without one (created before titles
+- the chat's **title**, which is its workspace's title, never its branch. A
+  workspace without one (created before titles
   existed, or not asked anything yet) reads **New Workspace** until you
   rename it or its first chat message names it;
 - at the end, the workspace's **pull request** as a small outlined badge:
@@ -139,10 +141,10 @@ them: drag a row to move it among its repository's workspaces.
 
 <Screenshot
   name="ws-list-view"
-  alt="The Workspaces menu's … with the Sort by submenu open"
+  alt="The Chats menu's … with the Sort by submenu open"
 />
 
-The **…** beside **Workspaces** sets how the list is shown:
+The **…** beside **Chats** sets how the list is shown:
 
 - **Sort by** shows the current sort; pick **Manual** (the order you drag,
   and the default),
@@ -153,7 +155,7 @@ The **…** beside **Workspaces** sets how the list is shown:
   or setup is running), **Needs you** (setup failed, a plan waits for your
   approval, or its pull request can't merge) and **Idle** (ready or stopped,
   including a pull request waiting on review). Each section gets its own heading in
-  place of **Workspaces**, and rows inside it follow the sort you picked.
+  place of **Chats**, and rows inside it follow the sort you picked.
   Empty sections are hidden.
 
 [Done](#marking-a-workspace-done) workspaces stay in their own section at the
@@ -182,7 +184,7 @@ its title.
 
 ## Workspace actions
 
-In the Workspaces menu, hover a workspace and click **…**. The menu starts with the one action the
+In the Chats menu, hover a chat and click **…**. The menu starts with the one action the
 workspace's state calls for (**Retry setup** after a failed setup, **Mark as
 done** once its pull request has merged, the pull request, **Reopen** on a done
 workspace, or **Open prototype player**), then the rest, with dividers between
@@ -216,6 +218,8 @@ When a preview gets stuck, **Restart** offers escalating fixes:
 
 - **Restart dev server** restarts only the dev server process. It's quick,
   keeps every file, and works even while the agent is busy. Try it first.
+  To stop the dev server instead, see
+  [Running and stopping the dev server](/guides/agent#running-and-stopping-the-dev-server).
 - **Restart sandbox** _(hosted)_ restarts the whole sandbox VM. Your working
   tree, including uncommitted changes, is restored from a snapshot.
 - **Recreate from scratch** deletes the sandbox and checks the branch out
@@ -244,7 +248,7 @@ without deleting anything:
   same group stay where they are;
 - its row moves into a collapsed **Done** section at the bottom of the
   Workspaces list, with a check circle for its status icon;
-- its chats and history stay, and frame workspace lists stop offering it.
+- its chat and history stay, and frame workspace lists stop offering it.
 
 Everyone on the canvas sees it as done. It isn't available while the agent is
 working. Merging its pull request doesn't mark a workspace done, but once it
@@ -271,7 +275,7 @@ needs a GitHub connection.
 
 ## Deleting
 
-**… → Delete** removes the workspace, its chats and its frames from the
+**… → Delete** removes the workspace, its chat and its frames from the
 canvas, and shuts down its sandbox. The dialog lists what it **Removes** and
 what it **Keeps** (the git branch itself isn't deleted), and warns when
 uncommitted changes, or on the hosted app unpushed commits, would be lost. If

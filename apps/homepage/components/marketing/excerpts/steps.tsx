@@ -1,6 +1,8 @@
 import {
   ArrowSquareOutIcon,
   BookBookmarkIcon,
+  ChatsIcon,
+  CheckIcon,
   GitPullRequestIcon,
   MagnifyingGlassIcon,
   PathIcon,
@@ -10,9 +12,9 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
+  ChatCard,
   Frame,
   UserBubble,
-  WorkspacePlan,
   WorkspaceRow,
   ask,
   versions,
@@ -105,13 +107,27 @@ export function AddRepoExcerpt() {
   )
 }
 
-/** Step 2: the Coordinator's plan for the ask, one Workspace per version. */
+/**
+ * Step 2: the ask, and the Workspaces the Coordinator started for it right
+ * away, each a chat card with what it was asked.
+ */
 export function CreateWorkspacesExcerpt() {
   return (
-    <Card label="The Coordinator's plan for the ask: three Workspaces, one per version, waiting for approval.">
+    <Card label="The ask in the Coordinator's chat, and a chat card for each of the three Workspaces it started, all working.">
       <div className="absolute inset-x-4 top-4 flex flex-col gap-3 text-[13px] leading-normal">
         <UserBubble className="ml-0 text-xs">{ask}</UserBubble>
-        <WorkspacePlan pending compact />
+        <p className="text-xs">Starting a Workspace for each version.</p>
+        <div className="flex flex-col gap-1">
+          {versions.map((v) => (
+            <ChatCard
+              key={v.title}
+              title={v.title}
+              prompt={v.prompt}
+              diff={v.diff}
+              working
+            />
+          ))}
+        </div>
       </div>
     </Card>
   )
@@ -169,29 +185,51 @@ const menu: (
   { icon: <PathIcon />, label: "Show all routes" },
 ]
 
-/** Step 4: the picked version's menu, with Create pull request on top. */
+/**
+ * Step 4: the Chats menu, with the picked version's Workspace menu open on
+ * Create pull request, which leads it once the Workspace has changes.
+ */
 export function PullRequestExcerpt() {
   return (
-    <Card
-      label="The three versions in the Workspaces list, with the picked one's menu open on Create pull request."
-      className="bg-sidebar"
-    >
-      <div className="absolute top-5 left-3 flex w-[232px] flex-col gap-0.5">
-        {versions.map((v) => (
-          <WorkspaceRow
-            key={v.title}
-            name={v.title}
-            diff={v.version === "split" ? undefined : [...v.diff]}
-            selected={v.version === "split"}
-            menu={v.version === "split"}
-          />
-        ))}
+    <Card label="The Chats menu listing the Coordinator and the three versions, with the picked one's menu open on Create pull request.">
+      <div
+        className={cn(
+          surface,
+          // Cropped below its search field, so the open menu fits.
+          "absolute top-[-37px] left-3 flex w-[236px] flex-col text-sm"
+        )}
+      >
+        <div className="flex h-9 items-center gap-2 border-b border-border px-3 text-muted-foreground">
+          <MagnifyingGlassIcon className="size-4" />
+          Search chats…
+        </div>
+        <div className="flex flex-col gap-0.5 p-1">
+          <div className="flex h-8 items-center gap-2 px-2">
+            <span className="flex size-4 shrink-0 items-center justify-center">
+              <ChatsIcon className="size-3.5 opacity-70" />
+            </span>
+            Coordinator
+            <CheckIcon className="ml-auto size-3.5 opacity-0" />
+          </div>
+          <span className="px-2 pt-1.5 pb-1 font-mono text-xs tracking-wider text-muted-foreground uppercase">
+            Chats
+          </span>
+          {versions.map((v) => (
+            <WorkspaceRow
+              key={v.title}
+              name={v.title}
+              diff={v.version === "split" ? undefined : v.diff}
+              selected={v.version === "split"}
+              menu={v.version === "split"}
+            />
+          ))}
+        </div>
       </div>
       <div
         className={cn(
           surface,
           // Menus take the other theme in the app (`inverted`, #1073).
-          "inverted absolute top-[88px] left-[108px] flex w-[200px] flex-col p-1 text-[13px]"
+          "inverted absolute top-[100px] left-[128px] flex w-[200px] flex-col p-1 text-[13px]"
         )}
       >
         {menu.map((item, i) =>

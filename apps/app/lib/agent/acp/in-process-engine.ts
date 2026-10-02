@@ -1,10 +1,12 @@
 import {
-  stepCountIs,
+  hasToolCall,
+  isStepCount,
   streamText,
   type ModelMessage,
   type StreamTextResult,
   type Tool,
 } from "ai"
+import { ASK_QUESTION_TOOL } from "@/lib/agent/question"
 import { resolveLanguageModel } from "../providers"
 import {
   acpHistoryToModelMessages,
@@ -36,7 +38,7 @@ const MAX_STEPS = 20
  */
 export type StreamDriver = (
   config: Parameters<typeof streamText>[0]
-) => Pick<StreamTextResult<Record<string, Tool>, never>, "consumeStream">
+) => Pick<StreamTextResult<Record<string, Tool>, never, never>, "consumeStream">
 
 /**
  * The in-process AI-SDK Engine (ADR 0006), now a **translator**: it keeps the
@@ -47,7 +49,7 @@ export type StreamDriver = (
  * broadcasts, ACP-native persistence, and run-state transitions.
  *
  * It declares the prompt-cache usage capability ({@link UsageReportingEngine}):
- * `onFinish`'s `totalUsage` is captured and exposed via {@link lastTurnUsage},
+ * `onEnd`'s `usage` (all steps) is captured and exposed via {@link lastTurnUsage},
  * which the caller reads only after narrowing through `supportsUsageReporting`.
  * A generic ACP agent that can't surface usage simply omits the capability.
  *
@@ -159,9 +161,10 @@ export class InProcessEngine implements UsageReportingEngine {
     | { outcome: "halted" }
   > {
     // Steers taken during this pass, each at the index of the step input it
-    // joined. `prepareStep`'s messages override lasts one step, and each
-    // step's input is the pass's messages plus its responses so far, so they
-    // are spliced back in at the same places every step.
+    // joined. Each step's input is rebuilt as the pass's messages plus its
+    // responses so far (AI SDK 7 carries a `prepareStep` messages override
+    // forward, so the carried `messages` would already hold earlier steers),
+    // and the steers are spliced back in at the same places every step.
     const taken: Array<{ at: number; message: ModelMessage }> = []
     // How the pass ended, set from the stream's callbacks.
     const end: {
@@ -172,13 +175,15 @@ export class InProcessEngine implements UsageReportingEngine {
 
     const result = this.startStream({
       model: resolveLanguageModel(turn.model),
-      system: cachedSystem(turn.systemPrompt),
+      instructions: cachedSystem(turn.systemPrompt),
       messages,
       tools: turn.tools,
-      stopWhen: [stepCountIs(maxSteps)],
+      // A question (#1312) ends the turn: the answer is the user's next message.
+      stopWhen: [isStepCount(maxSteps), hasToolCall(ASK_QUESTION_TOOL)],
       abortSignal: signal,
 
-      prepareStep: async ({ messages: stepInput }) => {
+      prepareStep: async ({ initialMessages, responseMessages }) => {
+        const stepInput = [...initialMessages, ...responseMessages]
         const steer = await steering.takeSteers()
         if (steer) taken.push({ at: stepInput.length, message: steer })
         return taken.length > 0
@@ -232,16 +237,18 @@ export class InProcessEngine implements UsageReportingEngine {
         })
       },
 
-      onFinish: async ({ finishReason, totalUsage, response, steps }) => {
+      // `usage` and `responseMessages` span every step (AI SDK 7);
+      // `response.messages` is now the final step's alone.
+      onEnd: async ({ finishReason, usage, responseMessages, steps }) => {
         this.addUsage({
-          inputTokens: totalUsage?.inputTokens,
-          outputTokens: totalUsage?.outputTokens,
-          cacheReadTokens: totalUsage?.inputTokenDetails?.cacheReadTokens,
-          cacheWriteTokens: totalUsage?.inputTokenDetails?.cacheWriteTokens,
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
+          cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
         })
         end.finish = {
           stopReason: toStopReason(finishReason),
-          responseMessages: response?.messages ?? [],
+          responseMessages: responseMessages ?? [],
           steps: steps?.length ?? 1,
         }
       },

@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 
-import { chatStore } from "@/lib/chat-store"
 import { dispatchPrompt, resolveTargetChat } from "@/lib/chat/agent-prompt"
 import {
   routeBranchAction,
@@ -16,6 +15,8 @@ import {
   reopen as reopenRecovery,
   restartDevServer as restartDevServerRecovery,
   restartSandbox as restartSandboxRecovery,
+  runDevServer as runDevServerRecovery,
+  stopDevServer as stopDevServerRecovery,
   startWorkspace as startWorkspaceRecovery,
   type RecoveryOutcome,
 } from "@/lib/branch/recovery"
@@ -85,6 +86,10 @@ export interface BranchActions {
   createPullRequest: (agentId: string) => void
   /** Bounce the dev server in place (the only recovery usable mid-turn). */
   restartDevServer: (agentId: string) => void
+  /** Stop the dev server, leaving the Sandbox running (#1342). */
+  stopDevServer: (agentId: string) => Promise<void>
+  /** Start a stopped dev server again (#1342). */
+  runDevServer: (agentId: string) => Promise<void>
   /** Snapshot-restore onto a fresh VM, preserving the working tree. */
   restartSandbox: (agentId: string) => void
   /** A frame's Retry / Start on a failed or stopped Workspace (issue #731). */
@@ -144,8 +149,8 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
     [agents, repos, updateAgentInStorage]
   )
 
-  // engine route → Module B's dispatch: reuse-or-bump the target chat, then send
-  // the rebase prompt with the rename callbacks wired.
+  // engine route → Module B's dispatch: send the prompt in the Workspace's one
+  // chat (#1315) with the rename callbacks wired.
   const applyEngine = useCallback(
     (
       prompt: string,
@@ -159,10 +164,6 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         message: prompt,
         agent,
         chatSessions,
-        rememberedChatId: chatTarget.rememberedAgentChatId(agent.id),
-        isBusy: (chatId) =>
-          chatStore.getSnapshot(chatId).isStreaming ||
-          chatSessions.find((c) => c.id === chatId)?.isStreaming === true,
       })
       if (decision.kind === "none") return false
 
@@ -257,6 +258,8 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       createPullRequest: (agentId) => run("create-pr", agentId),
       restartDevServer: (agentId) => run("restart-dev-server", agentId),
       restartSandbox: (agentId) => run("restart-sandbox", agentId),
+      stopDevServer: (agentId) => stopDevServerRecovery(agentId, recoveryDeps),
+      runDevServer: (agentId) => runDevServerRecovery(agentId, recoveryDeps),
       startWorkspace: (agentId) =>
         void startWorkspaceRecovery(agentId, recoveryDeps, {
           local: isLocalBuild,

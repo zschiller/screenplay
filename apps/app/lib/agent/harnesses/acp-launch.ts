@@ -33,13 +33,13 @@
  */
 
 import { harnessAcpAdapter } from "./index"
+import type { AcpAdapter } from "./types"
 
-/** A resolved ACP spawn command: the argv, working directory, and child env. */
-export interface AcpLaunch {
-  /** Executable to spawn (e.g. `npx`). */
-  command: string
-  /** Arguments passed to {@link command}. */
-  args: string[]
+/**
+ * A resolved ACP launch: the Harness's {@link AcpAdapter} (its argv and the
+ * facts the session reads off it), plus the working directory and child env.
+ */
+export interface AcpLaunch extends AcpAdapter {
   /** Working directory for the child — the Branch's worktree root. */
   cwd: string
   /** The child process environment, with the Claude-Code session vars stripped. */
@@ -77,9 +77,9 @@ export function acpChildEnv(
  * `process.env`. The returned `env` is the host env with the Claude-Code
  * session vars stripped (see {@link acpChildEnv}).
  *
- * The chat's chosen model is not part of the launch: every adapter takes it
- * in-session via `session/set_config_option` (see
- * {@link import("../acp/session").AcpSession}).
+ * The chat's chosen model is not part of the argv: every adapter takes it
+ * in-session via `session/set_config_option` on the descriptor's
+ * {@link AcpAdapter.modelOption} (see {@link import("../acp/session").AcpSession}).
  */
 export function resolveAcpLaunch(
   harnessKey: string | null | undefined,
@@ -91,8 +91,7 @@ export function resolveAcpLaunch(
   const adapter = harnessAcpAdapter(harnessKey)
   if (!adapter) return null
   return {
-    command: adapter.command,
-    args: adapter.args,
+    ...adapter,
     cwd: opts.cwd,
     env: acpChildEnv(opts.env ?? process.env),
   }

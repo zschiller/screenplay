@@ -3,11 +3,12 @@ import "server-only"
 import { tool } from "ai"
 import { z } from "zod"
 
-import { groupToolCalls } from "@/lib/agent/group-tool-calls"
 import {
-  imageModelOutput,
-  type ImageToolOutput,
-} from "@/lib/agent/image-output"
+  buildFrameReadTools,
+  type FrameReadPorts,
+} from "@/lib/agent/frame-read-tools"
+import { groupToolCalls } from "@/lib/agent/group-tool-calls"
+import { isHarnessPlumbing } from "@/lib/agent/tool-name"
 import { renderFileWindow } from "@/lib/agent/render"
 import { truncateOutput } from "@/lib/agent/search"
 import { summarizeSteps } from "@/lib/agent/turn-summary"
@@ -19,13 +20,14 @@ import type { ChatSessionData } from "@/lib/types"
 
 /**
  * The Coordinator's Workspace reads (#895): what a Workspace's agent said and
- * did, what its checkout changed, and what a frame looks like. Every tool here
- * only reads. The Workspace agent stays the only writer of its sandbox.
+ * did, what its checkout changed, and what a frame looks like and holds (the
+ * frame reads are shared with Workspace agents, `frame-read-tools.ts`). Every
+ * tool here only reads. The Workspace agent stays the only writer of its sandbox.
  *
  * Part of the Coordinator tools module: {@link buildRoomTools} spreads these
  * in, and their ports ride on `RoomToolPorts`.
  */
-export interface WorkspaceReadPorts {
+export interface WorkspaceReadPorts extends FrameReadPorts {
   /** A chat's whole transcript, as the chat UI draws it on reload. */
   readChatTranscript(chatId: string): Promise<AgentMessage[]>
   /**
@@ -42,10 +44,6 @@ export interface WorkspaceReadPorts {
     checkout: WorkspaceCheckout,
     path: string
   ): Promise<string | null>
-  /** Screenshot a frame's live preview through the Thumbnail Capturer. */
-  captureFrame(preview: FramePreview): Promise<FrameImage>
-  /** The frame's stored Frame Capture, or `null` when it has none. */
-  readFrameCapture(frameId: string): Promise<StoredFrameCapture | null>
 }
 
 /** What the diff and file ports need to reach a Workspace's checkout. */
@@ -54,13 +52,6 @@ export type WorkspaceCheckout = {
   ref: string
   defaultBranch: string
 }
-
-/** A frame's live preview: its URL and the size it renders at. */
-export type FramePreview = { url: string; width: number; height: number }
-
-export type FrameImage = { data: Buffer; mediaType: string }
-
-export type StoredFrameCapture = FrameImage & { capturedAt: number }
 
 /**
  * Caps on what the reads return, so one call can't flood the Coordinator's
@@ -187,62 +178,7 @@ export function buildWorkspaceReadTools(ports: WorkspaceReadPorts & Reader) {
       },
     }),
 
-    view_frame: tool({
-      description:
-        "Look at a frame: returns a screenshot of its live preview, or its last stored capture when the preview isn't running. Use it to check what a Workspace built.",
-      inputSchema: z.object({
-        frameId: z.string().describe("The frame id from read_canvas"),
-      }),
-      execute: async ({ frameId }): Promise<string | ImageToolOutput> => {
-        const frame = await ports.readDoc((c) => {
-          const layer = c.iframeLayers.get(frameId)
-          if (!layer) return null
-          const branch = layer.branchId
-            ? c.branches.get(layer.branchId)
-            : undefined
-          return {
-            route: layer.route || "/",
-            width: Math.round(layer.width),
-            height: Math.round(layer.height),
-            workspace: branch
-              ? ` in Workspace "${workspaceLabel(branch)}"`
-              : "",
-            url: branch?.previewDomain
-              ? branch.previewDomain + (layer.route ?? "")
-              : null,
-          }
-        })
-        if (!frame) return `Frame not found: ${frameId}`
-        const name = `frame [${frameId}] (${frame.route}${frame.workspace})`
-
-        let liveProblem = "its Workspace has no running preview"
-        if (frame.url) {
-          try {
-            const image = await ports.captureFrame({
-              url: frame.url,
-              width: frame.width,
-              height: frame.height,
-            })
-            return imageOutput(
-              `Live preview of ${name} at ${frame.width}×${frame.height}.`,
-              image
-            )
-          } catch (err) {
-            liveProblem = `the live capture failed (${errorText(err)})`
-          }
-        }
-
-        const stored = await ports.readFrameCapture(frameId).catch(() => null)
-        if (stored) {
-          return imageOutput(
-            `Stored capture of ${name} from ${new Date(stored.capturedAt).toISOString()}, not live: ${liveProblem}.`,
-            stored
-          )
-        }
-        return `No screenshot of ${name}: ${liveProblem}, and it has never been captured.`
-      },
-      toModelOutput: imageModelOutput,
-    }),
+    ...buildFrameReadTools(ports, { kind: "canvas" }),
   }
 }
 
@@ -281,7 +217,10 @@ export function renderLastTurn(messages: readonly AgentMessage[]): string {
   if (start === -1) return "No messages yet."
 
   const ask = userTurnText(messages[start] as UserMessage)
-  const steps = messages.slice(start + 1)
+  // Guardian Reviews are harness plumbing no chat shows.
+  const steps = messages
+    .slice(start + 1)
+    .filter((m) => !isHarnessPlumbing(m, { coordinator: false }))
   const { text, failures } = summarizeSteps(groupToolCalls([...steps]))
   const didWork = steps.some((m) => m.role === "tool_call")
   const reply = [...steps].reverse().find((m) => m.role === "assistant")
@@ -339,15 +278,6 @@ export function renderTranscript(messages: readonly AgentMessage[]): string {
   const max = WORKSPACE_READ_LIMITS.transcript
   if (text.length <= max) return text
   return `…(${text.length - max} earlier characters left out)\n${text.slice(-max)}`
-}
-
-function imageOutput(caption: string, image: FrameImage): ImageToolOutput {
-  return {
-    kind: "image",
-    caption,
-    data: image.data.toString("base64"),
-    mediaType: image.mediaType,
-  }
 }
 
 /** A collection's current records, read from the raw Y.Map (see room-tools). */

@@ -71,6 +71,23 @@ describe("formatAgentRequest", () => {
       /^Please address this comment on the app\./
     )
   })
+
+  it("names the Document and the text a Document comment is on (#1314)", () => {
+    const text = formatAgentRequest([
+      request(4, {
+        route: null,
+        selector: null,
+        document: { id: "doc-1", title: "Launch plan" },
+        quotedText: "Ship on Friday",
+        comments: [{ authorName: "Zack", body: "Make it Monday" }],
+      }),
+    ])
+    expect(text).toMatch(/^Please address this comment on a Document\./)
+    expect(text).toContain(
+      '#4 on the Document "Launch plan" (id doc-1), on "Ship on Friday":\nZack: Make it Monday'
+    )
+    expect(text).not.toContain("Commit your changes")
+  })
 })
 
 describe("splitAgentReply", () => {
@@ -152,6 +169,22 @@ describe("planAgentRequests", () => {
     expect([...plan].map(([w, list]) => [w, list.map((t) => t.id)])).toEqual([
       ["w1", ["a", "c", "again"]],
       ["w2", ["b"]],
+    ])
+  })
+
+  it("sends a Document thread where its Document's chat is (#1314)", () => {
+    const docs: Record<string, string> = { owned: "w2" }
+    const plan = planAgentRequests(
+      [
+        thread("mine", { workspaceId: null, documentId: "owned" }),
+        thread("hand-made", { workspaceId: null, documentId: "loose" }),
+      ],
+      (id) => frames[id],
+      () => true,
+      (id) => docs[id]
+    )
+    expect([...plan].map(([w, list]) => [w, list.map((t) => t.id)])).toEqual([
+      ["w2", ["mine"]],
     ])
   })
 })

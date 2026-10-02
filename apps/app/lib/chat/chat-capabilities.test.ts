@@ -17,7 +17,6 @@ describe("CHAT_CAPABILITIES", () => {
 
   it("offers the `/` skill menu only where there are skills", () => {
     expect(CHAT_CAPABILITIES.agent.placeholder).toContain("/ skill")
-    expect(CHAT_CAPABILITIES.document.placeholder).not.toContain("/")
     expect(CHAT_CAPABILITIES.room.placeholder).not.toContain("/")
   })
 
@@ -48,14 +47,9 @@ describe("chatCapabilitiesOf", () => {
     expect(caps.pickBranchId).toBe("b1")
   })
 
-  it("resolves neither for a document or Room chat", () => {
-    for (const target of [
-      { kind: "document", layerId: "doc-1" },
-      { kind: "room" },
-    ] as const) {
-      const caps = chatCapabilitiesOf(target)
-      expect(caps.skillSandboxName).toBeUndefined()
-      expect(caps.pickBranchId).toBeUndefined()
-    }
+  it("resolves neither for the Room chat", () => {
+    const caps = chatCapabilitiesOf({ kind: "room" })
+    expect(caps.skillSandboxName).toBeUndefined()
+    expect(caps.pickBranchId).toBeUndefined()
   })
 })

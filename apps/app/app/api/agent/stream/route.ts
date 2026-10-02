@@ -1,9 +1,9 @@
-import { openRoomForRoute } from "@/lib/room-access"
+import { openRoomForRoute, type RoomDoc } from "@/lib/room-access"
+import { isEarlierChat } from "@/lib/chat/workspace-chat"
 import { isRoomChatId, roomChatId } from "@/lib/chat/room-chat"
 import { launchTurn } from "@/lib/agent/turn-launch"
 import {
   liveTurnLaunchDeps,
-  markdownLayerTurn,
   roomTurn,
   sandboxTurn,
 } from "@/lib/agent/turn-launch-live"
@@ -16,8 +16,6 @@ interface RequestBody {
   chatId: string
   /** Required when the chat targets an agent (sandbox-backed flow). */
   sandboxName?: string
-  /** Required when the chat targets a document layer (no sandbox). */
-  markdownLayerId?: string
   /** `"room"` for the Room's Coordinator chat (no sandbox, whole canvas). */
   target?: "room"
   message: string
@@ -32,16 +30,15 @@ interface RequestBody {
 
 export async function POST(req: Request) {
   const body: RequestBody = await req.json()
-  const { roomId, chatId, sandboxName, markdownLayerId, message, model } = body
+  const { roomId, chatId, sandboxName, message, model } = body
   if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
   }
   const isRoomTarget = body.target === "room"
-  if (!isRoomTarget && !markdownLayerId && !sandboxName) {
-    return new Response(
-      "Missing target: markdownLayerId, sandboxName or target: room",
-      { status: 400 }
-    )
+  if (!isRoomTarget && !sandboxName) {
+    return new Response("Missing target: sandboxName or target: room", {
+      status: 400,
+    })
   }
   // The Coordinator chat's id is derived from its Room. Refusing that shape
   // anywhere else means no one can claim a Room's Coordinator chat by naming
@@ -55,24 +52,28 @@ export async function POST(req: Request) {
   if (room instanceof Response) return room
   const { userId } = room
 
+  // One chat per Workspace (#1315): an earlier chat on an old canvas stays
+  // readable, but only the Workspace's own chat changes its code.
+  if (!isRoomTarget && (await isEarlierChatInRoom(room, chatId))) {
+    return Response.json({ error: "earlier_chat" }, { status: 409 })
+  }
+
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,
   // drive after the response) and whether a message sent while the chat's
   // agent is working steers it; this route only picks the Chat Target.
   const target = isRoomTarget
     ? roomTurn({ room, chatId, message, model })
-    : markdownLayerId
-      ? markdownLayerTurn({ room, chatId, markdownLayerId, message, model })
-      : sandboxTurn({
-          room,
-          chatId,
-          sandboxName: sandboxName!,
-          userId,
-          message,
-          isFirstChat: body.isFirstChat,
-          planMode: body.planMode,
-          model,
-          commentThreadIds: body.commentThreadIds,
-        })
+    : sandboxTurn({
+        room,
+        chatId,
+        sandboxName: sandboxName!,
+        userId,
+        message,
+        isFirstChat: body.isFirstChat,
+        planMode: body.planMode,
+        model,
+        commentThreadIds: body.commentThreadIds,
+      })
 
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
@@ -81,7 +82,6 @@ export async function POST(req: Request) {
       chatId,
       message,
       sandboxName,
-      markdownLayerId,
       model,
       userId,
       retry: body.retry === true,
@@ -104,4 +104,18 @@ export async function POST(req: Request) {
     return Response.json({ error: "not_steerable" }, { status: 409 })
   }
   return Response.json({ chatId, runId: result.runId })
+}
+
+/** Whether `chatId` is one of its Workspace's earlier chats (#1315). */
+async function isEarlierChatInRoom(
+  room: RoomDoc,
+  chatId: string
+): Promise<boolean> {
+  return room.readDoc(({ chatSessions }) => {
+    // `get` is fresh where the `toArray` snapshot can lag a just-added chat.
+    const chat = chatSessions.get(chatId)
+    if (!chat) return false
+    const others = chatSessions.toArray().filter((c) => c.id !== chatId)
+    return isEarlierChat([...others, chat], chat)
+  })
 }

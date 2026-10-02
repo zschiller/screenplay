@@ -114,7 +114,8 @@ do (a non-fast-forward push is rejected and the agent pulls and resolves). On
 the desktop **local** backend the limit is structural: each Branch is a git
 worktree of one shared clone, and git keeps one checkout per branch — so a ref
 already open (or checked out in the user's own clone) **fails loud with a named
-error**, never silently shares or steals a checkout. Rendered in the sidebar by
+error**, never silently shares or steals a checkout. A Branch has exactly one
+chat, its **Workspace Chat** (#1315). Rendered in the sidebar by
 its branch's name. Lives in the room's Y.Doc as the `branches` collection
 (`BranchData`).
 _Shown to users as_: "Workspace".
@@ -126,7 +127,7 @@ backend's no-limit applies on desktop.
 **Workspace State** (`@/lib/branch/workspace-state`, #1247):
 What a Branch shows about itself anywhere it appears: its **label**, its
 **status line** (setting up, Agent working, Needs you, Ready, Stopped, Done, or
-the failed step), its **section** in the Workspaces menu, and whether it
+the failed step), its **section** in the Chats menu, and whether it
 **needs you**. A pure function of the Branch plus the Room's Chat Sessions (a
 turn in flight) and plans (one waiting for approval). `useWorkspaceStates`
 reads those once from the Room doc and hands every caller a lookup, so callers
@@ -365,13 +366,13 @@ groups may exist only in uncommitted, client-side drag state.
 _Avoid_: cluster, stack, frame group.
 
 **Member**:
-A reference (`{ kind, id }`) from a Group to the Iframe Layer or Markdown Layer
-it contains.
+A reference (`{ kind, id }`) from a Group to the Iframe Layer, Markdown Layer or
+Mockup Layer it contains.
 _Avoid_: child, item.
 
 **Layer**:
-The umbrella for the two kinds of content a Group's Member references — an **Iframe
-Layer** or a **Markdown Layer**. Both are positioned in world space, selectable,
+The umbrella for the kinds of content a Group's Member references — an **Iframe
+Layer**, a **Markdown Layer** or a **Mockup Layer**. All are positioned in world space, selectable,
 draggable (group-move + merge) and resizable on the canvas; they differ only in
 content. The shared frame around either is the **Layer Shell**, and the shared
 gesture machinery (`useLayerDrag`, `useLayerResize`) and the common
@@ -388,14 +389,37 @@ _Avoid_: screen, window, panel; "frame" is the UI label only.
 **Markdown Layer** (Document):
 A rich-text layer whose body is a TipTap-owned `Y.XmlFragment` keyed
 `markdown-layer-{id}`. Its title is mirrored into both the fragment heading and
-the layer's collection record.
-_Avoid_: note, text layer.
+the layer's collection record. A Document a chat made records that chat as
+its **owner** (`ownerChatId`, #1314): only the owner edits it with tools, and
+it shows the owner's name by the Group label rule. One a person made has no
+owner and no name. Every chat reads every Document.
+_Avoid_: note, text layer; "document chat" (Documents are not Chat Targets
+since #1314).
+
+**Mockup Layer** (Mockup):
+A static HTML page a chat wrote, shown on the canvas with no Sandbox
+(#1309). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
+(`MockupLayerData`: size, title, the `ownerChatId` of the chat that made
+it, and a **Mockup Status** of `set-aside`, `current` or `built` (#1310),
+which anyone on the canvas or its owning chat sets; nothing else reads it, and
+an unset status reads as `current`).
+It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no
+`allow-same-origin` and a Content Security Policy that blocks the network, so
+the page can never reach the app, its cookies or the canvas, and has no
+browser chrome. A Workspace chat creates one with `create_mockup` and rewrites
+its own (page, title or status) with `update_mockup`; a new one joins the Group of the chat's latest
+Mockup, else of its Workspace's frames. Like a chat-made Document, it names
+its chat's Workspace by the Group label rule. Not a Chat Target. Canvas selection carries it
+in the Markdown Layer Set: selection only tells frames apart from the other
+kinds.
+_Avoid_: prototype (that's a running Workspace), wireframe, design layer;
+"artifact".
 
 **Layer Shell**:
-The canvas frame that wraps either Layer kind: it owns the world-space container,
+The canvas frame that wraps every Layer kind: it owns the world-space container,
 the selection wiring, the drag (group-move / merge routing plus the deferred
 click-to-select), the resize handles, and the LayerTitleBar. An Iframe Layer and a
-Markdown Layer plug in as **content adapters** — the shell renders the frame, the
+Markdown Layer and a Mockup Layer plug in as **content adapters** — the shell renders the frame, the
 adapter renders what's inside (the live preview, or the TipTap document) and its
 content-specific toolbar. Two adapters make the seam real (one adapter is a
 hypothetical seam, two is a real one). The Shell absorbs what was copy-pasted across
@@ -410,6 +434,27 @@ adapter; standing up a third Shell per future kind (one Shell, N content adapter
 The _identity_ of a chat tab (id, label, target). The conversation itself —
 messages and streaming state — lives in the client chat-store, not the Y.Doc.
 _Avoid_: chat, conversation; "thread" means a comment thread.
+
+**Workspace Chat** (#1315, spec #1308):
+A Branch's one Chat Session, and the only chat that changes its code. Every
+Branch gets it when it starts, whatever the default tab kind, and a Branch never
+gets a second: more parallel work means more Branches. It is always open (no
+close, not in Chat history) and is where every prompt to the Branch lands, busy
+or not (a message mid-turn steers or queues): the Coordinator's
+`send_to_workspace`, comment requests, Reply in chat on its Documents, Ask for a
+knob. Other chats read its code (`read_code_file`, `search_code`,
+`find_code_files`) and never write it. The rule is one pure function,
+`workspaceChatId` in `lib/chat/workspace-chat` — the newest Chat Session on the
+Branch, closed or not — so the panel, the prompt dispatch, the Coordinator's
+delegation and the stream route agree. When the first message titles the
+Workspace, the chat takes the same title: a Workspace and its chat share a name,
+which is why frames and Documents show the Workspace's title. A Branch from
+before #1315 can hold several chats; the others are its **earlier chats**:
+readable, closable and reopenable from Chat history, but they never send (the
+panel shows Open chat in place of the composer and the stream route refuses them
+with `earlier_chat`).
+_Avoid_: "new chat" on a Branch that has one; bumping a busy Branch to a fresh
+chat; a second rule for "which chat" at a call site.
 
 **Chat Session Writes**:
 The single small owner of the three thin **Canvas Operation** wrappers for Chat
@@ -466,11 +511,11 @@ _Avoid_: the grid for plain progress; `Spinner` or a raw `Loader2` for model
 activity; a third spinner style.
 
 **Chat Target**:
-What a Chat Session talks to — a Branch's **sandbox**, a Markdown Layer (a
-document), or the whole **Room** (see **Room Target**). The target decides the
+What a Chat Session talks to — a Branch's **sandbox**, or the whole **Room**
+(see **Room Target**). A Document is not one: a Workspace chat writes
+Documents with its own tools (#1314). The target decides the
 system prompt and which Tools the model is given. On the client it is one
-value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `document`,
-`room`), which the chat store maps to the wire target in one place. What the
+value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `room`), which the chat store maps to the wire target in one place. What the
 Composer offers for each kind (skills, plan mode, element picking, placeholder,
 empty state and starters) is one row of the capability table in
 `lib/chat/chat-capabilities`; only the `agent` kind has a sandbox, so only it
@@ -480,8 +525,10 @@ _Avoid_: subject, destination.
 **Room Target** (planned, wayfinder #856):
 The Chat Target of a chat that works on the whole Room rather than one Branch
 or document: it sees every Repo, Branch and Layer, arranges the Canvas, creates
-Branches, and hands work to their agents through **Delegated Messages**. Its
-kind is `room`, named for its target like the other kinds, never for its role.
+Branches, and hands work to their agents through **Delegated Messages**. It
+makes nothing itself: Documents, Mockups and code all come from a Branch's
+chat, and only the Room Target arranges the Canvas or moves the view (#1316).
+Its kind is `room`, named for its target like the other kinds, never for its role.
 It works like a Claude Projects chat: a Room has **exactly one** Room Target
 chat, it hears every Branch's turns (Branches are its threads), and it stays
 quiet unless there is a result, a blocker or a decision.
@@ -531,21 +578,20 @@ run).
 **Chat-Target selection**:
 _Which_ Chat Target the agent panel shows — the other half of the panel model
 from the Tab Pool, which owns the tabs _within_ a target. Owned by the
-**Chat-Target controller** (`useChatTarget`, PRD #569): the selected agent / doc
-/ chat, the **per-target memory** (last chat per agent, per document; last agent
-per repo) that restores your place when you switch back, and the **pending-agent
+**Chat-Target controller** (`useChatTarget`, PRD #569): the selected agent /
+chat, the **per-target memory** (last chat per agent; last agent per repo) that restores your place when you switch back, and the **pending-agent
 readiness** (a just-created agent renders a LogProbe; selection flips to it once
 its sandbox streams logs). The decisions are **pure functions** (`lib/chat/chat-target`,
 the sibling of `lib/chat/tab-pool`): resolving the `ChatPanelTarget`, the
 remembered-chat rule (the remembered chat if still open, else the first open
 one), and the readiness transitions; the controller applies them and exposes the
-resolved `target` plus selection verbs (`selectAgent`, `selectDocument`,
-`selectChat`, …). The Tab Pool and Branch Intake controllers **compose with it**
+resolved `target` plus selection verbs (`selectAgent`, `selectChat`,
+`selectAgentChat`, …). The Tab Pool and Branch Intake controllers **compose with it**
 for their selection side effects rather than poking raw setters. Same shape as
 the Tab Pool: decide purely, apply at the call site (the call site is the
 controller). With nothing selected the panel shows the Room: `ChatPanel` takes a
 `room` target too and draws the Coordinator chat under the same header
-(`ChatPanelHeader`, the one Collapse chat button) as a Workspace or document.
+(`ChatPanelHeader`, the one Collapse chat button) as a Workspace.
 _Avoid_: conflating _which_ target is shown (this) with the tabs within it (Tab
 Pool); reaching around the controller to set `selectedAgentId` / `selectedChatId`
 directly; folding the pure decisions into the controller.
@@ -557,7 +603,9 @@ comment-mode placement state (`newCommentPos`, the open inline thread, the
 inspect-hover overlay) and the two ref-backed registries the flow reads — the
 per-Iframe-Layer DOM accessors and the per-Markdown-Layer TipTap editors, each
 with a version counter so membership changes re-render their consumers — plus
-the `replyInChat` verb, which hands a Document passage to **Chat Quote**. The
+the `replyInChat` verb, which hands a Document passage to **Chat Quote**. A
+passage from a Document a chat owns goes to that chat, brought on screen; any
+other goes to the foreground chat (#1314). The
 old "anchor a doc text span and **Send to agent**" path (a fresh Document chat
 sent from the comment composer, `lib/canvas/chat-reference`) was retired by
 Reply in chat (#1243), after the frame element → owning-agent route (#570) went
@@ -569,8 +617,10 @@ persisted thread is its own surface).
 **Chat Quote**:
 A Document passage quoted into a chat's composer by **Reply in chat** (#1243),
 the last button of a Document's selection toolbar on the web and desktop. It
-lands in the composer of the chat the panel is **showing** — the Coordinator, or
-the active chat tab of a Workspace or Document — the way an element token lands
+lands in the composer of the Document's **owner** chat when a chat made it,
+which the panel switches to (`quoteInto`, #1314); otherwise in the chat the
+panel is **showing** — the Coordinator, or the active chat tab of a Workspace —
+the way an element token lands
 in the composer that picked it, and opens the panel if it's collapsed. The
 quote sits above the input (the Document's title and line range, up to three
 lines of the text, an X) and nothing is sent until the person sends; that send
@@ -578,9 +628,22 @@ carries it ahead of the typed text as `formatQuoteForChat` writes it. A chat
 holds one quote, and a second Reply in chat replaces it. The bridge is the
 `chatQuoteStore` singleton (`lib/chat-quote-store`): a chat on screen claims the
 **foreground** (the newest claim wins), and a quote asked for while no chat is
-on screen (a terminal tab, the logs) waits for the next chat to claim it.
+on screen waits for the next chat to claim it.
 _Avoid_: opening a fresh chat for the quote; sending it without the person's
-own words; routing it by the Document instead of the panel.
+own words; routing a hand-made Document's quote anywhere but the panel.
+
+**Question Card**:
+A question a chat asks with the `ask_question` Tool (#1312): one sentence, 2 to
+4 options, optionally one marked recommended, drawn with shadcn's Questionnaire
+(`@workspace/ui/components/questionnaire`). Every Chat Target has the Tool,
+and a Harness reaches it over MCP. The call's arguments are the card; picking
+an option sends its label as the person's next message through the chat's own
+send path (`inputStore.send`), so it steers or queues like anything typed. The
+in-process Engine ends the turn on the call. Nothing else is stored: a card is
+answered once a user message follows it, and the option that message names is
+the chosen one (`questionAnswers`, `lib/agent/question.ts`).
+_Avoid_: a pending-tool-call row or a paused run for it (that's the plan gate);
+answering on the person's behalf.
 
 **Element Targeting**:
 A Composer's one-shot crosshair **pick** of an element in one of its own
@@ -608,7 +671,7 @@ private Escape listener for the pick; calling it "inspect" or "comment" (those
 are the comment-mode placement in **Element Reference**); cross-Branch targeting.
 
 **Terminal Tab**:
-A BYO-harness shell surfaced as a tab in the agent panel, attached to one
+A plain shell surfaced as a tab in the **Terminal Pane**, attached to one
 Branch's sandbox and rendered with xterm.js in our own React, connecting to the
 backing terminal server's websocket directly (no iframe). Its identity — id,
 label, target Branch — is persisted **per User** in Postgres (the `terminalTab`
@@ -623,44 +686,74 @@ backend runs a **node-pty** process in the sidecar over a localhost WebSocket
 socket — no tmux, no public URL. Explicitly **not** a Chat Session: nothing here
 enters the chat-store, the conversation tables, or the Y.Doc, and it is modeled
 by its own `TerminalTabData`, never `ChatSessionData`.
-Its **lifecycle** is owned by the **Terminal Tab controller** (`useTerminalTabs`,
-PRD #579): the client-local `localTerminals` state, the first-paint seed from the
-server-fetched rows, the `listTerminalTabsAction` re-fetch-and-**merge** (pure
-`mergeRestoredTabs` — restored-first, never replace, so a tab opened mid-resolve
-isn't dropped), and the **orphan prune** (drop the tab + delete the persisted row
-when its Branch is gone, over the pure `partitionTerminalsByBranch`). The Tab Pool
-controller **composes it** (the way it composes Chat-Target), so the Terminal Tab
-apply-side and lifecycle share one ownership chain rather than being split between
-the canvas composition root and the Tab Pool.
+New tabs never launch a **Harness** (#1343): harnesses run as the chat, and a
+row saved earlier with a harness key keeps launching it until it's closed.
+One module owns the list, **Terminal Tabs** (`useTerminalTabs`, #1265), and
+nothing else changes it: its verbs are **open** (create the tab, save its row),
+**close**, **rename**, and the two it runs itself, **restore** (the first-paint
+seed from the server-fetched rows, then a re-fetch-and-**merge** — pure
+`mergeRestoredTabs`, restored-first, never replace, so a tab opened mid-resolve
+isn't dropped) and **prune** (a tab whose Branch is gone, over the pure
+`partitionTerminalsByBranch`). **Close and prune guarantee the same three
+things**: the tab leaves the pane, its row is deleted (it never comes back on
+reload), and its session is killed (the shell and anything running in it stop).
+Prune kills with no Sandbox to name, since the Sandbox went with the Branch: the
+hosted tmux session died with it, and the desktop PTY, which lives in the
+sidecar, is killed there. The row and the session sit behind one
+`TerminalTabStore` adapter (`lib/terminal/tab-store.ts`): the server actions in
+production, in memory in tests. The Tab Pool controller **composes it** (the way
+it composes Chat-Target) for its verbs but never sets the list; Terminal Tabs
+are not in the Tab Pool (#1341).
 _Avoid_: chat tab; terminal session (reserve "tmux session" for the hosted
 backend's in-sandbox multiplexer, "Terminal Tab" for the UI surface); harness
 (that's the tool the operator runs _inside_ the tab — see Engine for why the
 app's own loop isn't one); calling the transport "ttyd" unqualified (it's ttyd on
 Vercel, node-pty on the desktop build).
 
+**Terminal Pane**:
+The resizable pane under a Workspace's chat (#1341, spec #1340): a stock
+vertical Resizable whose terminals are **Dev server** first, always, then the
+person's Terminal Tabs. Dev server is the Sandbox's log stream (the logs route,
+a follow of the dev server log) shown read-only: it owns no process, has no
+close or rename, and keeps the pane from ever emptying, so closing a shell
+lands on its neighbour, then Dev server. Closed, the pane is a borderless
+**footnote** under the composer naming the terminals; a name opens the pane on
+it. Open, that line is the pane's tab strip with + and a hide caret. ⌃`, the
+caret and dragging the divider to the bottom close it; a frame's Open logs
+opens it on Dev server; nothing opens it by itself. Open/closed and height are
+a **per-person pref** (localStorage, keyed by User), the same in every
+Workspace; which terminal each Workspace shows is session state. The pure rules
+live in `lib/chat/terminal-pane` (order, selection, the close fallback, the
+pref's shape); the **Terminal Pane controller** (`useTerminalPaneController`)
+holds the state; `TerminalPane` draws it. The Coordinator's panel has none.
+_Avoid_: calling Dev server "logs" in UI (the frame menu's "Open logs" opens
+it); a drawer (it's a split under the chat, not a sheet); putting the
+Workspace's chat in the pane's tabs.
+
 **Tab Pool**:
-The per-Chat-Target set of open tabs in the agent panel — a target's open Chat
-Sessions plus, for an agent (Branch) target, its Terminal Tabs — treated as one
-pool. **Invariant: while the target lives, its pool is never empty.** Closing the
-last tab respawns the user's **preferred default tab kind** (chat or terminal for an
-agent target; always a chat for a doc target), so the panel is never left blank.
-Agent chats and doc chats are **separate pools** — filtered by `branchId` vs
-`markdownLayerId`, since every doc chat shares an undefined `agentId` and would
-otherwise collide — and a doc target has no terminals. The close decision is a
-**pure function** (`resolveTabClose`: pool + closing tab → what survives, the next
-selection, and whether to respawn); the **Tab Pool controller** (`useTabPool`,
-PRD #563) applies the effects (server actions, killing the tmux/PTY session, the
-selection write) and exposes the apply-side as plain verbs — `open`, `close`,
-`remove`, `select`, `rename`, `reopen`, and the `seed` entry Branch Intake calls.
-The controller owns the chat-store and Y.Doc tab writes and the never-empty
-invariant; the component renders the strip and calls intent. Mirrors the Gesture
-Intent shape: decide purely, apply at the call site (the call site is the
-controller, not the component). The pool is **per Branch and shared by the Canvas
-and the player**: the Chat Session half and Chat Sync live in `useChatTabs`, which
-the player's chat host uses directly and `useTabPool` composes (adding Terminal
-Tabs, the per-user default tab kind and Chat-Target selection).
+The per-Chat-Target set of open chats in the agent panel — a Branch's open
+Chat Sessions, filtered by `branchId`. **Invariant: while the target lives, its
+pool is never empty.** The **Workspace Chat** is always in its Branch's pool
+(closed or not) and never closes, so in practice the pool only empties on a
+Branch with no chat (one made terminal-first before #1315); closing its last
+chat respawns the user's **preferred default tab kind**, and seeding a Branch
+always makes its chat, with a terminal beside it when that is the default. The
+panel shows no tab strip (#1341): the Workspace's chat fills it, and its
+earlier chats open read-only from the header's Chat history. Terminal Tabs left
+the pool with #1341 and live in the **Terminal Pane**. The close decision is a
+**pure function** (`resolveTabClose`: pool + closing chat → what survives, the
+next selection, and whether to respawn); the **Tab Pool controller**
+(`useTabPool`, PRD #563) applies the effects (the chat writes, Terminal Tabs'
+open / close / rename, the selection write) and exposes the apply-side as plain
+verbs — `open`, `close`, `remove`, `rename`, `reopen`, and the `seed` entry
+Branch Intake calls. Mirrors the Gesture Intent shape: decide purely, apply at
+the call site (the call site is the controller, not the component). The pool is
+**per Branch and shared by the Canvas and the player**: the Chat Session half
+and Chat Sync live in `useChatTabs`, which the player's chat host uses directly
+and `useTabPool` composes (adding Terminal Tabs, the per-user default tab kind
+and Chat-Target selection).
 _Avoid_: tab bar / tab list (that's the rendered strip; the Pool is the model behind
-it); mixing the agent and doc pools; treating an empty pool as a valid resting state
+it); treating an empty pool as a valid resting state
 for a live target; folding the respawn effects into the decision (it returns whether
 to respawn; the controller performs it); re-implementing tab creation outside the
 controller (Branch Intake's seed step calls `useTabPool().seed`).
@@ -705,7 +798,7 @@ auth), with the spawn argv/env resolved by a harness → ACP launch resolver
 `resolveLaunchArgv`. Both speak ACP at the seam; they are
 named for _where the model runs_ (in-process vs. a separate external agent), not
 for the protocol. Which _engine_ runs is a per-deployment choice
-(`AGENT_ENGINE=in-process|external`, default in-process — `engine-select.ts`), not a
+(`AGENT_ENGINE=in-process|external`, default in-process — `resolve-live-engine.ts`), not a
 per-Chat-Session column; but which **Harness backs the external engine _is_ a
 per-Chat-Session choice** — the chat's stored model id, when it carries the
 `harness:<key>` form, names the Harness whose ACP adapter is spawned (so the model
@@ -760,10 +853,10 @@ An external, bring-your-own coding agent CLI — Claude Code, Codex, aider —
 someone else's tool we install (or detect) and step out of the way for, as
 opposed to screenplay's owned in-process Agent Loop. **One descriptor, one key per
 CLI** (`lib/agent/harnesses/`): the single catalog key (`claude-code`) is the
-`SANDBOX_HARNESSES` token, the Terminal Tab key, _and_ the `harness:<key>` model
+`SANDBOX_HARNESSES` token, the (legacy) Terminal Tab key, _and_ the `harness:<key>` model
 id — there is no separate adapter-key namespace. A Harness is consumed two ways
-off that one descriptor: run **interactively inside a Terminal Tab**, or spawned
-as the **ACP backing of the external Engine** to drive agent chat (its
+off that one descriptor: installed in the sandbox, where someone can type it in
+a Terminal Tab's shell, or spawned as the **ACP backing of the external Engine** to drive agent chat (its
 `acpAdapter` argv). Both read the same entry; the descriptor also carries the
 `hostBinary` the desktop detector probes and an optional **curated model list**
 (`models` + `defaultModelId`) — the per-Harness set of models the desktop chat
@@ -1117,7 +1210,7 @@ member out itself — see **Sidebar Drop**),
 `removeIframeLayerGroup` keeps its chat-store cleanup + selection follow, and the
 route/seed creators keep their viewport-centered placement. Constructed from
 `ops`, the live `collections`, the viewport-center reader (**Canvas Camera**),
-the **Chat-Target** memory (`rememberDocChat`), and the **Canvas Selection**
+and the **Canvas Selection**
 controller (for the delete-follow on group teardown).
 _Avoid_: putting these structural mutations back as loose callbacks on the
 composition root (add a field to `GroupActions` instead); writing a Group / Layer

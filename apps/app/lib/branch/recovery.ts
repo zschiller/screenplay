@@ -3,6 +3,7 @@ import {
   recreateSandbox,
   stopWorkspaceSandbox,
   restartDevServer as restartDevServerSandbox,
+  stopDevServer as stopDevServerSandbox,
   restartSandbox as restartSandboxVm,
 } from "@/lib/sandbox/lifecycle"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
@@ -46,6 +47,8 @@ export interface RecoveryAgent {
   previewDomain: string
   /** The git ref recreate reclones from. */
   ref: string
+  /** Set while someone has the dev server stopped (#1342). */
+  devServerStoppedAt?: number
 }
 
 /**
@@ -59,6 +62,8 @@ export interface RecoveryPatch {
   statusMessage?: string
   error?: string
   doneAt?: number
+  devServerStoppedAt?: number
+  devServerLaunchedAt?: number
 }
 
 /** Surface success / failure to the user. Adapts the sonner `toast` at the call site. */
@@ -152,6 +157,9 @@ async function runSandboxRecovery(
       status: "running",
       statusMessage: "",
       error: "",
+      // Every path through here launched the dev server.
+      devServerStoppedAt: undefined,
+      devServerLaunchedAt: Date.now(),
     })
     if (spec.successMessage) deps.toast.success(spec.successMessage)
     return { ok: true }
@@ -172,26 +180,90 @@ async function runSandboxRecovery(
  * Sandbox. The thin path: no VM cycle and no status flip, so it stays usable
  * mid-turn while the agent works, and a blank preview port means there's
  * nothing to persist — the only signal is a toast. A missing Repo is reported
- * without flipping status (there's no status to flip on this path).
+ * without flipping status (there's no status to flip on this path). A stopped
+ * dev server (#1342) runs again: the stop is cleared up front, so every member
+ * sees it start, and put back if the launch fails.
  */
-export async function restartDevServer(
+export function restartDevServer(
   id: string,
   deps: BranchRecoveryDeps
+): Promise<void> {
+  return launchDevServer(id, deps, {
+    successMessage: "Dev server restarted",
+    failureTitle: "Couldn't restart dev server",
+  })
+}
+
+/**
+ * **Dev Server Run** (#1342) — start a stopped dev server again. The same
+ * launch as {@link restartDevServer}; the dot turning green is the only
+ * signal, so there's no success toast.
+ */
+export function runDevServer(
+  id: string,
+  deps: BranchRecoveryDeps
+): Promise<void> {
+  return launchDevServer(id, deps, {
+    failureTitle: "Couldn't run dev server",
+  })
+}
+
+async function launchDevServer(
+  id: string,
+  deps: BranchRecoveryDeps,
+  copy: { successMessage?: string; failureTitle: string }
 ): Promise<void> {
   const agent = deps.findAgent(id)
   if (!agent?.sandboxName) return
 
   const repo = deps.findRepo(agent.repoId)
   if (!repo) {
-    deps.toast.error("Couldn't restart dev server", "Workspace not found")
+    deps.toast.error(copy.failureTitle, "Workspace not found")
     return
   }
 
-  const result = await restartDevServerSandbox(agent.sandboxName, repo)
+  const stoppedAt = agent.devServerStoppedAt
+  deps.patchAgent(id, {
+    devServerStoppedAt: undefined,
+    devServerLaunchedAt: Date.now(),
+  })
+  const result = await restartDevServerSandbox(agent.sandboxName, repo).catch(
+    (err: unknown) => ({
+      success: false as const,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  )
   if (result.success) {
-    deps.toast.success("Dev server restarted")
+    if (copy.successMessage) deps.toast.success(copy.successMessage)
   } else {
-    deps.toast.error("Couldn't restart dev server", result.error || undefined)
+    if (stoppedAt) deps.patchAgent(id, { devServerStoppedAt: stoppedAt })
+    deps.toast.error(copy.failureTitle, result.error || undefined)
+  }
+}
+
+/**
+ * **Dev Server Stop** (#1342) — stop the dev server and its bridge proxy,
+ * leaving the Sandbox running and the output in place. Recorded on the Branch
+ * first so every member's dot goes quiet at once and a reconnect doesn't
+ * relaunch it; cleared again if the stop fails.
+ */
+export async function stopDevServer(
+  id: string,
+  deps: BranchRecoveryDeps,
+  now: number = Date.now()
+): Promise<void> {
+  const agent = deps.findAgent(id)
+  if (!agent?.sandboxName) return
+  deps.patchAgent(id, { devServerStoppedAt: now })
+  const result = await stopDevServerSandbox(agent.sandboxName).catch(
+    (err: unknown) => ({
+      success: false as const,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  )
+  if (!result.success) {
+    deps.patchAgent(id, { devServerStoppedAt: undefined })
+    deps.toast.error("Couldn't stop dev server", result.error || undefined)
   }
 }
 

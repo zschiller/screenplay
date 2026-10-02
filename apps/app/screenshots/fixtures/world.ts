@@ -3,12 +3,18 @@ import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { LOCAL_USER_ID } from "@/lib/local-user"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "../lib/preview-url"
+import {
+  EMPTY_CART_ILLUSTRATED,
+  EMPTY_CART_SUGGESTIONS,
+  ORDER_RECEIPT,
+} from "./mockups"
 import type {
   BranchData,
   ChatSessionData,
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
   MemoryData,
   PlanData,
   RepoData,
@@ -93,6 +99,7 @@ export interface FixtureRoom {
     iframeLayers?: IframeLayerData[]
     iframeLayerGroups?: IframeLayerGroupData[]
     markdownLayers?: MarkdownLayerData[]
+    mockupLayers?: MockupLayerData[]
     chatSessions?: ChatSessionData[]
     plans?: PlanData[]
     /** Canvas memory entries (#902), shown in Canvas settings › Memory. */
@@ -100,6 +107,8 @@ export interface FixtureRoom {
     savedViewport?: ViewportData
     /** Markdown body per Markdown Layer id, written into its `markdown-layer-{id}` fragment. */
     markdownBodies?: Record<string, string>
+    /** HTML page per Mockup Layer id, written into its `mockup-layer-{id}` text. */
+    mockupHtml?: Record<string, string>
   }
   /**
    * Frames to fake a Thumbnail Manifest for, so the home grid composes a real
@@ -270,6 +279,10 @@ export const FIXTURE_IDS = {
     framesReady: "branch-frames-ready",
     /** Frame states Canvas: the one the boot recording walks from `creating` to `running`. */
     framesLive: "branch-frames-live",
+    /** Frame states Canvas: `running`, its dev server stopped by a member (#1342). */
+    framesServerStopped: "branch-frames-server-stopped",
+    /** Frame states Canvas: `running`, its dev server crashed: the preview never answers (#1342). */
+    framesServerCrashed: "branch-frames-server-crashed",
   },
   chats: {
     checkoutPolish: "chat-checkout-polish",
@@ -668,6 +681,16 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       route: "/cart",
     },
     {
+      // The live page the Empty cart mockups explore, in their Group.
+      id: "layer-cart-live",
+      branchId: b.emptyCart,
+      width: 1280,
+      height: 800,
+      label: "Empty cart · live",
+      iframeState: {},
+      route: "/cart",
+    },
+    {
       // No `branchId`: the empty-frame state, which renders the "pick a
       // Workspace" affordance rather than an iframe.
       id: "layer-unbound",
@@ -684,6 +707,37 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       width: 720,
       height: 800,
       title: "Checkout brief",
+      // The Checkout polish chat wrote it (#1314).
+      ownerChatId: FIXTURE_IDS.chats.checkoutPolish,
+    },
+  ]
+
+  // Mockup Layers (#1309): two options the Empty cart chat drew beside its
+  // live page, and a receipt the Checkout polish chat started from no frame.
+  const mockupLayers: MockupLayerData[] = [
+    {
+      id: "mockup-cart-illustrated",
+      ownerChatId: EMPTY_CART_CHAT_ID,
+      width: 1280,
+      height: 800,
+      title: "Option A · Illustrated",
+      status: "set-aside",
+    },
+    {
+      id: "mockup-cart-suggestions",
+      ownerChatId: EMPTY_CART_CHAT_ID,
+      width: 1280,
+      height: 800,
+      title: "Option B · Suggestions",
+      status: "current",
+    },
+    {
+      id: "mockup-receipt",
+      ownerChatId: FIXTURE_IDS.chats.checkoutPolish,
+      width: 720,
+      height: 800,
+      title: "Order receipt email",
+      status: "built",
     },
   ]
 
@@ -710,6 +764,27 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
         { kind: "iframe-layer", id: "layer-unbound" },
       ],
       sidebarOrder: 1,
+    },
+    {
+      id: "grp-cart-ideas",
+      name: "Empty cart ideas",
+      x: 0,
+      y: 2200,
+      members: [
+        { kind: "iframe-layer", id: "layer-cart-live" },
+        { kind: "mockup-layer", id: "mockup-cart-illustrated" },
+        { kind: "mockup-layer", id: "mockup-cart-suggestions" },
+      ],
+      branchId: b.emptyCart,
+      sidebarOrder: 2,
+    },
+    {
+      id: "grp-receipt",
+      name: "Receipt",
+      x: 4140,
+      y: 2200,
+      members: [{ kind: "mockup-layer", id: "mockup-receipt" }],
+      sidebarOrder: 3,
     },
   ]
 
@@ -771,14 +846,6 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       closedAt: minutesAgo(now, 60 * 24 * 3 - 40),
       model: "claude-sonnet-4-5",
     },
-    {
-      // A doc-targeted chat, so the Chat Target selector shows both kinds.
-      id: "chat-brief",
-      markdownLayerId: "doc-checkout-brief",
-      label: "Checkout brief",
-      createdAt: minutesAgo(now, 9),
-      model: "claude-sonnet-4-5",
-    },
   ]
 
   const plans: PlanData[] = [
@@ -805,6 +872,12 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       iframeLayers,
       iframeLayerGroups,
       markdownLayers,
+      mockupLayers,
+      mockupHtml: {
+        "mockup-cart-illustrated": EMPTY_CART_ILLUSTRATED,
+        "mockup-cart-suggestions": EMPTY_CART_SUGGESTIONS,
+        "mockup-receipt": ORDER_RECEIPT,
+      },
       chatSessions,
       plans,
       memories: [
@@ -1232,6 +1305,16 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
       status: "creating",
       statusMessage: "Cloning repository…",
     }),
+    // No frames: they're here for the Terminal Pane's dev server states.
+    branch(b.framesServerStopped, `${cold}server-stopped`, "price-alerts", 6, {
+      status: "running",
+      title: "Price alerts",
+      devServerStoppedAt: minutesAgo(now, 4),
+    }),
+    branch(b.framesServerCrashed, `${cold}server-crashed`, "open-houses", 7, {
+      status: "running",
+      title: "Open houses",
+    }),
   ]
   const frame = (id: string, label: string, branchId?: string) => ({
     id,
@@ -1499,6 +1582,27 @@ function checkoutChat(now: number): FixtureChat {
         kind: "execute",
         status: "completed",
         content: [{ type: "terminal", terminalId: "term-checkout-claude" }],
+      },
+    },
+    {
+      id: "msg-7-guardian",
+      createdAt: at(34.5),
+      record: {
+        // Codex's approval reviewer, which no chat shows unless it denies (#1300).
+        role: "tool_call",
+        toolCallId: "guardian_assessment:review-checkout",
+        title: "Guardian Review",
+        kind: "think",
+        status: "completed",
+        content: [
+          {
+            type: "content",
+            content: {
+              type: "text",
+              text: "Action: pnpm lint\nVerdict: approved",
+            },
+          },
+        ],
       },
     },
     {

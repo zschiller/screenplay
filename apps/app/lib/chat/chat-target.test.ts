@@ -7,11 +7,7 @@ import {
   resolvePendingReady,
   restoreAgentChatSelection,
 } from "@/lib/chat/chat-target"
-import type {
-  BranchData,
-  ChatSessionData,
-  MarkdownLayerData,
-} from "@/lib/types"
+import type { BranchData, ChatSessionData } from "@/lib/types"
 
 function agent(id: string, extra: Partial<BranchData> = {}): BranchData {
   return {
@@ -31,14 +27,10 @@ function agent(id: string, extra: Partial<BranchData> = {}): BranchData {
 function chat(
   id: string,
   createdAt: number,
-  target: { branchId?: string; markdownLayerId?: string },
+  target: { branchId?: string },
   extra: Partial<ChatSessionData> = {}
 ): ChatSessionData {
   return { id, label: "Untitled", createdAt, ...target, ...extra }
-}
-
-function doc(id: string): MarkdownLayerData {
-  return { id, width: 200, height: 120, title: "Doc" }
 }
 
 describe("chatTargetOf", () => {
@@ -48,45 +40,23 @@ describe("chatTargetOf", () => {
       branchId: "a1",
       sandboxName: "sb-a1",
     })
-    expect(
-      chatTargetOf({
-        kind: "layer",
-        layerKind: "markdown-layer",
-        layer: { id: "d1" },
-      })
-    ).toEqual({ kind: "document", layerId: "d1" })
     expect(chatTargetOf({ kind: "room" })).toEqual({ kind: "room" })
   })
 })
 
 describe("resolveChatPanelTarget", () => {
   it("packs a selected agent with a sandbox into an agent target", () => {
-    const target = resolveChatPanelTarget(agent("a1"), null)
+    const target = resolveChatPanelTarget(agent("a1"))
     expect(target).toEqual({ kind: "agent", agent: agent("a1") })
-  })
-
-  it("prefers the agent over a document when both are present", () => {
-    const target = resolveChatPanelTarget(agent("a1"), doc("d1"))
-    expect(target?.kind).toBe("agent")
-  })
-
-  it("falls through to the document when no agent has a sandbox", () => {
-    const target = resolveChatPanelTarget(undefined, doc("d1"))
-    expect(target).toEqual({
-      kind: "layer",
-      layerKind: "markdown-layer",
-      layer: doc("d1"),
-    })
   })
 
   it("ignores a selected agent that is still provisioning (no sandbox)", () => {
     const provisioning = agent("a1", { sandboxName: "" })
-    expect(resolveChatPanelTarget(provisioning, doc("d1"))?.kind).toBe("layer")
-    expect(resolveChatPanelTarget(provisioning, null)).toBeNull()
+    expect(resolveChatPanelTarget(provisioning)).toBeNull()
   })
 
-  it("resolves to nothing when neither target is set", () => {
-    expect(resolveChatPanelTarget(undefined, null)).toBeNull()
+  it("resolves to nothing when no agent is selected", () => {
+    expect(resolveChatPanelTarget(undefined)).toBeNull()
   })
 })
 
@@ -99,33 +69,35 @@ describe("restoreAgentChatSelection", () => {
     expect(restoreAgentChatSelection(chats, "a1", "c2")).toBe("c2")
   })
 
-  it("falls back to the first open chat when the remembered one is closed", () => {
+  it("falls back to the Workspace's chat when the remembered one is closed", () => {
     const chats = [
       chat("c2", 2, { branchId: "a1" }),
-      chat("c1", 1, { branchId: "a1" }),
-      chat("c3", 3, { branchId: "a1" }, { closedAt: 99 }),
+      chat("c1", 1, { branchId: "a1" }, { closedAt: 99 }),
+      chat("c3", 3, { branchId: "a1" }),
     ]
-    // c3 (remembered) is closed → earliest open chat (c1 by createdAt).
-    expect(restoreAgentChatSelection(chats, "a1", "c3")).toBe("c1")
+    // c1 (remembered) is an earlier chat, closed → the Workspace's chat (c3).
+    expect(restoreAgentChatSelection(chats, "a1", "c1")).toBe("c3")
   })
 
-  it("falls back to the first open chat when nothing is remembered", () => {
+  it("falls back to the Workspace's chat when nothing is remembered", () => {
     const chats = [
       chat("c2", 2, { branchId: "a1" }),
       chat("c1", 1, { branchId: "a1" }),
     ]
+    expect(restoreAgentChatSelection(chats, "a1", undefined)).toBe("c2")
+  })
+
+  it("restores the Workspace's chat even when it was closed (#1315)", () => {
+    const chats = [chat("c1", 1, { branchId: "a1" }, { closedAt: 5 })]
     expect(restoreAgentChatSelection(chats, "a1", undefined)).toBe("c1")
   })
 
-  it("never restores another agent's chat or a closed chat", () => {
-    const chats = [
-      chat("other", 1, { branchId: "a2" }),
-      chat("closed", 2, { branchId: "a1" }, { closedAt: 5 }),
-    ]
+  it("never restores another agent's chat", () => {
+    const chats = [chat("other", 1, { branchId: "a2" })]
     expect(restoreAgentChatSelection(chats, "a1", "other")).toBeNull()
   })
 
-  it("returns null when the agent has no open chats", () => {
+  it("returns null when the agent has no chat", () => {
     expect(restoreAgentChatSelection([], "a1", "c1")).toBeNull()
   })
 })

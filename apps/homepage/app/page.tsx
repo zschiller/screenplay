@@ -3,6 +3,7 @@ import { Footer } from "@/components/marketing/footer"
 import { Hero } from "@/components/marketing/site/hero"
 import { Problem } from "@/components/marketing/site/problem"
 import { Scenes } from "@/components/marketing/site/scenes"
+import { BeforeYouBuild } from "@/components/marketing/site/before-you-build"
 import { Features } from "@/components/marketing/site/features"
 import { SelfHosting } from "@/components/marketing/site/self-hosting"
 import { Faq } from "@/components/marketing/site/faq"
@@ -16,6 +17,7 @@ export default function HomePage() {
         <Hero />
         <Problem />
         <Scenes />
+        <BeforeYouBuild />
         <Features />
         <SelfHosting />
         <Faq />

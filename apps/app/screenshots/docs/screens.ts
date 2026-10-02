@@ -316,25 +316,25 @@ async function openCardMenu(page: Page, name: string, label: string) {
   await clickAt(page, at.button, 900)
 }
 
-/** A Workspace row in the chat panel's Workspaces menu (#1152). */
-const BRANCH_ROW = "[data-workspaces-menu] [cmdk-item]"
+/** A Workspace row in the chat panel's Chats menu (#1152). */
+const BRANCH_ROW = "[data-chats-menu] [cmdk-item]"
 
-/** Open the chat panel's Workspaces menu, unless it's open already. */
-async function openWorkspacesMenu(page: Page) {
-  if (await page.locator("[data-workspaces-menu]").isVisible()) return
+/** Open the chat panel's Chats menu, unless it's open already. */
+async function openChatsMenu(page: Page) {
+  if (await page.locator("[data-chats-menu]").isVisible()) return
   // The button lives on the Coordinator header only (#1152).
   const crumb = page.getByRole("button", { name: "Coordinator", exact: true })
   if (await crumb.isVisible()) await crumb.click()
   await page
-    .getByRole("button", { name: "Workspaces", exact: true })
+    .getByRole("button", { name: "Chats", exact: true })
     .click({ timeout: 15_000 })
-  await page.locator("[data-workspaces-menu]").waitFor({ timeout: 10_000 })
+  await page.locator("[data-chats-menu]").waitFor({ timeout: 10_000 })
   await sleep(page, 400)
 }
 
-/** Hover a row (a Workspace in the Workspaces menu by default) by its text. */
+/** Hover a row (a Workspace in the Chats menu by default) by its text. */
 async function hoverRow(page: Page, text: string, rowSelector = BRANCH_ROW) {
-  if (rowSelector === BRANCH_ROW) await openWorkspacesMenu(page)
+  if (rowSelector === BRANCH_ROW) await openChatsMenu(page)
   const at = (await page.evaluate(
     `(() => {
       const row = [...document.querySelectorAll(${JSON.stringify(rowSelector)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
@@ -364,9 +364,9 @@ async function openRowMenu(page: Page, text: string, rowSelector = BRANCH_ROW) {
   await clickAt(page, at, 900)
 }
 
-/** Point the chat panel at a Workspace from the Workspaces menu. */
+/** Point the chat panel at a Workspace from the Chats menu. */
 async function selectWorkspace(page: Page, text: string) {
-  await openWorkspacesMenu(page)
+  await openChatsMenu(page)
   const at = (await page.evaluate(
     `(() => {
       const row = [...document.querySelectorAll(${JSON.stringify(BRANCH_ROW)})].find((e) => e.innerText.includes(${JSON.stringify(text)}))
@@ -411,19 +411,6 @@ async function focusComposer(page: Page) {
   )) as { x: number; y: number } | null
   if (!at) throw new Error("no composer")
   await clickAt(page, at, 300)
-}
-
-/** Open the chat panel's Workspaces menu, optionally picking a chat. */
-async function pickTarget(page: Page, label?: string) {
-  await openWorkspacesMenu(page)
-  if (label) {
-    await page
-      .locator("[cmdk-item],[role=option]")
-      .filter({ hasText: label })
-      .first()
-      .click({ timeout: 10_000 })
-    await sleep(page, 1500)
-  }
 }
 
 /** The widest preview iframe showing `pathname` (the desktop frame). */
@@ -645,6 +632,15 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: (page) => camera(page, VIEW.overview),
   }),
   screen({
+    name: "canvas-mockups",
+    description:
+      "A pricing mockup beside the live mobile page, on the Pricing experiments canvas.",
+    path: `/${ids.rooms.pricingExperiments}`,
+    cookies: SIDEBAR_ONLY,
+    // The mobile frame, then the first mockup after it in the Group.
+    prepare: (page) => camera(page, { x: -378, y: 130, zoom: 0.3 }),
+  }),
+  screen({
     name: "canvas-menu",
     description: "The Canvas breadcrumb's ⋯ menu.",
     path: ROOM,
@@ -766,9 +762,9 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: MENU,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openWorkspacesMenu(page)
+      await openChatsMenu(page)
       await page
-        .getByRole("button", { name: "More workspace actions" })
+        .getByRole("button", { name: "More chat actions" })
         .click({ timeout: 15_000 })
       await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
       await page
@@ -824,8 +820,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: DIALOG,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await openWorkspacesMenu(page)
-      await page.locator("button[aria-label='New workspace']").first().click()
+      await openChatsMenu(page)
+      await page.locator("button[aria-label='New chat']").first().click()
       await sleep(page, 1500)
       await page.locator("[role=dialog] [contenteditable=true]").first().click()
       await page.keyboard.type(
@@ -972,30 +968,27 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "workspaces-menu",
     description:
-      "The chat panel's Workspaces menu (#1152): the Coordinator, the Workspaces and Documents.",
+      "The chat panel's Chats menu (#1152, #1317): the Coordinator, then every chat.",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [700, 0, 580, 460],
     focus: POPOVER,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
-      await pickTarget(page)
+      await openChatsMenu(page)
     },
   }),
   screen({
-    name: "new-tab-menu",
-    description: "The chat panel's New chat or terminal menu.",
+    name: "terminal-footnote",
+    description:
+      "A Workspace's chat with its terminals named in the footnote under the composer.",
     path: ROOM,
     cookies: WITH_CHAT,
-    crop: [820, 0, 460, 260],
+    crop: [820, 560, 460, 340],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")
-      await page
-        .getByRole("button", { name: "New chat or terminal" })
-        .first()
-        .click()
-      await sleep(page, 900)
+      await page.mouse.move(0, 0)
     },
   }),
   screen({
@@ -1072,14 +1065,18 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "logs",
-    description: "A Workspace's sandbox logs.",
+    description:
+      "The Terminal Pane open on Dev server, the dev server's output.",
     path: ROOM,
     cookies: WITH_CHAT,
-    beforeNavigate: (page) => stubLogs(page, "reconnecting", LOGS_SAMPLE),
+    beforeNavigate: (page) => stubLogs(page, "live", LOGS_SAMPLE),
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")
-      await page.getByRole("tab", { name: "Sandbox logs" }).first().click()
+      await page
+        .getByRole("tablist", { name: "Terminals" })
+        .getByRole("tab", { name: "Dev server" })
+        .click()
       await sleep(page, 2500)
     },
   }),
@@ -1096,12 +1093,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "doc-chat",
-    description: "A chat about the launch checklist document.",
+    description:
+      "The launch checklist document, with the name of the chat that wrote it (#1314), and that chat open.",
     path: ROOM,
     cookies: WITH_CHAT,
     prepare: async (page) => {
       await camera(page, VIEW.document)
-      await pickTarget(page, "Pricing launch checklist")
+      await selectWorkspace(page, "Pricing FAQ")
     },
   }),
   screen({
@@ -1144,7 +1142,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "terminal",
-    description: "A terminal tab in a Workspace.",
+    description: "A terminal open in a Workspace's Terminal Pane.",
     path: ROOM,
     cookies: WITH_CHAT,
     beforeNavigate: (page) => stubTerminal(page, TERMINAL_SAMPLE),
@@ -1152,12 +1150,11 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Customer stories")
       await page
-        .getByRole("button", { name: "New chat or terminal" })
-        .first()
+        .getByRole("tablist", { name: "Terminals" })
+        .getByRole("tab", { name: "Dev server" })
         .click()
       await page
-        .getByRole("menuitem")
-        .filter({ hasNotText: "New chat" })
+        .getByRole("button", { name: "New terminal", exact: true })
         .first()
         .click()
       await page.mouse.move(0, 0)

@@ -135,8 +135,6 @@ import type { BranchPrInfo } from "@/lib/github-actions"
 
 import { listRepoBranches } from "@/lib/github-actions"
 
-import { CHAT_TARGETABLE_LAYER_KINDS } from "@/lib/layer-kinds"
-
 import { isLocalBuild } from "@/lib/local-mode"
 
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
@@ -171,28 +169,26 @@ import {
 import { useChatSessions } from "@/lib/yjs/react"
 
 /**
- * The chat panel's Workspaces menu (#1152): one button pinned to the far right
- * of the panel header, the same on the Coordinator and inside a Workspace, that
- * opens the list of every chat on the canvas. The Coordinator leads it, then
- * the Workspaces list (what the sidebar used to hold: sort, grouping, Done,
- * row menus, drag), then document chats. It is the one way to move between
- * chats; the header's breadcrumb only says where you are.
+ * The chat panel's Chats menu (#1152, #1317): one button pinned to the far
+ * right of the panel header that opens the list of every chat on the canvas.
+ * The Coordinator leads it, then each Workspace's one chat (#1315) by its
+ * title and Workspace state icon, never its branch, with what the sidebar used
+ * to hold (sort, grouping, Done, row menus, drag). Documents have no chats of
+ * their own (#1314). It is the one way to move between chats; the header's
+ * breadcrumb only says where you are.
  *
- * {@link WorkspacesMenuProvider} sits around the panel and owns everything
+ * {@link ChatsMenuProvider} sits around the panel and owns everything
  * that outlives the menu (the dialogs its rows and actions open, the create
- * request from the getting-started checklist); {@link WorkspacesMenuButton}
+ * request from the getting-started checklist); {@link ChatsMenuButton}
  * renders the button in whichever header is showing. Without a provider (the
  * prototype player's chat) the button renders nothing.
  */
 
 /** Which chat the panel shows, for the menu's check marks. */
-export type WorkspacesMenuCurrent =
-  | { kind: "room" }
-  | { kind: "agent"; id: string }
-  | { kind: "layer"; layerKind: string; id: string }
-  | { kind: "none" }
+export type ChatsMenuCurrent =
+  { kind: "room" } | { kind: "agent"; id: string } | { kind: "none" }
 
-export interface WorkspacesMenuProviderProps {
+export interface ChatsMenuProviderProps {
   userId: string
   roomId: string
   repos: RepoData[]
@@ -202,11 +198,10 @@ export interface WorkspacesMenuProviderProps {
   diffStats: Map<string, DiffStats>
   /** GitHub-polled PR state per branch, shared with the chat header. */
   branchPrs: Map<string, BranchPrInfo>
-  current: WorkspacesMenuCurrent
+  current: ChatsMenuCurrent
   onShowRoomChat: () => void
   /** Open a Workspace's chat; `expandPanel` defaults to true. */
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
-  onSelectLayer: (layerKind: string, id: string) => void
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRebaseOnDefault: (branchId: string) => void
@@ -230,8 +225,8 @@ export interface WorkspacesMenuProviderProps {
   children: React.ReactNode
 }
 
-type WorkspacesMenuValue = Omit<
-  WorkspacesMenuProviderProps,
+type ChatsMenuValue = Omit<
+  ChatsMenuProviderProps,
   "children" | "iframeLayers" | "onCreateWorkspace"
 > & {
   open: boolean
@@ -255,7 +250,7 @@ type WorkspacesMenuValue = Omit<
   askRenameBranch: (branchId: string) => void
 }
 
-const WorkspacesMenuContext = createContext<WorkspacesMenuValue | null>(null)
+const ChatsMenuContext = createContext<ChatsMenuValue | null>(null)
 
 // Rows are cmdk items: its root handles arrow keys and Enter, and selects an
 // item on click. A row's own controls (its … menu, which portals out while its
@@ -268,12 +263,12 @@ const isolate = {
   onPointerDown: stop,
 }
 
-export function WorkspacesMenuProvider({
+export function ChatsMenuProvider({
   children,
   iframeLayers,
   onCreateWorkspace,
   ...props
-}: WorkspacesMenuProviderProps) {
+}: ChatsMenuProviderProps) {
   const {
     repos,
     branches,
@@ -458,7 +453,7 @@ export function WorkspacesMenuProvider({
     setPendingRenameBranchId(id)
   }, [])
 
-  const value: WorkspacesMenuValue = {
+  const value: ChatsMenuValue = {
     ...props,
     open,
     setOpen,
@@ -494,7 +489,7 @@ export function WorkspacesMenuProvider({
     : undefined
 
   return (
-    <WorkspacesMenuContext.Provider value={value}>
+    <ChatsMenuContext.Provider value={value}>
       {children}
       <DeleteBranchDialog
         open={!!deleteBranch}
@@ -626,18 +621,18 @@ export function WorkspacesMenuProvider({
           ) : null}
         </DialogContent>
       </Dialog>
-    </WorkspacesMenuContext.Provider>
+    </ChatsMenuContext.Provider>
   )
 }
 
 /**
- * The labelled Workspaces button at the right of the Coordinator header (the
+ * The labelled Chats button at the right of the Coordinator header (the
  * panel's top level), with a dot while any Workspace needs you. A Workspace
  * chat has no button: its Coordinator crumb goes back up. Renders nothing
  * outside a provider.
  */
-export function WorkspacesMenuButton() {
-  const menu = useContext(WorkspacesMenuContext)
+export function ChatsMenuButton() {
+  const menu = useContext(ChatsMenuContext)
   if (!menu) return null
   return (
     <Popover open={menu.open} onOpenChange={menu.setOpen}>
@@ -645,17 +640,17 @@ export function WorkspacesMenuButton() {
         <Button
           variant="ghost"
           size="xs"
-          aria-label="Workspaces"
-          aria-description={menu.needsYou ? "A workspace needs you" : undefined}
+          aria-label="Chats"
+          aria-description={menu.needsYou ? "A chat needs you" : undefined}
           className="text-muted-foreground"
         >
-          Workspaces
+          Chats
           {menu.needsYou ? <NeedsYouDot className="size-1.5" /> : null}
           <CaretDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        data-workspaces-menu=""
+        data-chats-menu=""
         side="bottom"
         align="end"
         className="w-80 p-0"
@@ -666,13 +661,13 @@ export function WorkspacesMenuButton() {
             e.preventDefault()
         }}
       >
-        <WorkspacesMenuList menu={menu} />
+        <ChatsMenuList menu={menu} />
       </PopoverContent>
     </Popover>
   )
 }
 
-function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
+function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const {
     userId,
     roomId,
@@ -682,7 +677,6 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
     activeBranches,
     doneBranches,
     stateOf,
-    markdownLayers,
     setOpen,
   } = menu
   const [search, setSearch] = useState("")
@@ -729,10 +723,6 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
       )
     })
 
-  const layersByKind: Record<string, Array<{ id: string } & object>> = {
-    "markdown-layer": markdownLayers,
-  }
-
   return (
     <Command
       // Filtering follows the search box; with it empty cmdk keeps our order.
@@ -740,7 +730,7 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
       className="rounded-none!"
     >
       <CommandInput
-        placeholder="Search workspaces…"
+        placeholder="Search chats…"
         value={search}
         onValueChange={setSearch}
       />
@@ -769,7 +759,7 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
           // from the picker (#1182).
           <div className="flex flex-col items-center gap-3 px-4 py-6">
             <p className="text-center text-xs text-balance text-muted-foreground">
-              Workspaces need a repository to run.
+              Chats need a repository to work in.
             </p>
             <AddRepositoryTrigger align="center" onPick={() => setOpen(false)}>
               <Button type="button" variant="outline" size="sm">
@@ -778,7 +768,7 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
             </AddRepositoryTrigger>
           </div>
         ) : searching ? (
-          <CommandGroup heading="Workspaces">
+          <CommandGroup heading="Chats">
             {rows([...activeBranches, ...doneBranches])}
           </CommandGroup>
         ) : (
@@ -790,7 +780,7 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
               label={
                 sections?.[0]
                   ? WORKSPACE_SECTION_LABELS[sections[0].section]
-                  : "Workspaces"
+                  : "Chats"
               }
               sort={listView.sort}
               groupByState={listView.groupByState}
@@ -843,54 +833,14 @@ function WorkspacesMenuList({ menu }: { menu: WorkspacesMenuValue }) {
             )}
           </>
         )}
-
-        {CHAT_TARGETABLE_LAYER_KINDS.map((descriptor) => {
-          const items = layersByKind[descriptor.kind] ?? []
-          if (items.length === 0) return null
-          return (
-            <CommandGroup
-              key={descriptor.kind}
-              heading={descriptor.pluralLabel}
-            >
-              {items.map((item) => {
-                const label = descriptor.getLabel(item as never)
-                const isCurrent =
-                  current.kind === "layer" &&
-                  current.layerKind === descriptor.kind &&
-                  current.id === item.id
-                return (
-                  <CommandItem
-                    key={item.id}
-                    value={`${label} ${item.id}`}
-                    keywords={[label]}
-                    onSelect={() =>
-                      pick(() => menu.onSelectLayer(descriptor.kind, item.id))
-                    }
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center">
-                      <descriptor.Icon className="size-3.5 opacity-70" />
-                    </span>
-                    <span className="truncate">{label}</span>
-                    <CheckIcon
-                      className={cn(
-                        "ml-auto size-3.5",
-                        !isCurrent && "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
-          )
-        })}
       </CommandList>
     </Command>
   )
 }
 
 /**
- * The Workspaces label with the list's actions: + creates a Workspace in one
- * step (#884); the … beside it holds this member's view options (#885) and the
+ * The Chats label with the list's actions: + starts a chat, and with it its
+ * Workspace, in one step (#884, #1315); the … beside it holds this member's view options (#885) and the
  * rarer Open existing git branch. Styled like a cmdk group heading, but a
  * plain row, since cmdk hides its headings from assistive technology.
  */
@@ -902,7 +852,7 @@ function WorkspacesLabel({
   onSort,
   onGroupByState,
 }: {
-  menu: WorkspacesMenuValue
+  menu: ChatsMenuValue
   label: string
   sort: WorkspaceSort
   groupByState: boolean
@@ -918,7 +868,7 @@ function WorkspacesLabel({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <IconButton
-            label="More workspace actions"
+            label="More chat actions"
             className="text-muted-foreground"
           >
             <DotsThreeIcon />
@@ -984,7 +934,7 @@ function WorkspacesLabel({
         </DropdownMenuContent>
       </DropdownMenu>
       <IconButton
-        label="New workspace"
+        label="New chat"
         className="mr-1 text-muted-foreground"
         onClick={() => menu.openNewWorkspace(menu.lastUsedRepoId)}
       >
@@ -995,8 +945,9 @@ function WorkspacesLabel({
 }
 
 /**
- * One Workspace in the menu: state icon, title (renamed inline from its …
- * menu), PR badge or line count, the … menu, and a check on the open one.
+ * One Workspace's chat in the menu: its Workspace state icon, title (a chat
+ * and its Workspace share one, #1315; renamed inline from its … menu), PR
+ * badge or line count, the … menu, and a check on the open one.
  * Hovering it outlines its frames on the canvas (#793) and opens its hover
  * card (#882), as the sidebar row did.
  */
@@ -1006,7 +957,7 @@ function WorkspaceMenuRow({
   repo,
   sortable,
 }: {
-  menu: WorkspacesMenuValue
+  menu: ChatsMenuValue
   branch: BranchData
   repo: RepoData
   sortable: boolean
@@ -1108,7 +1059,7 @@ function WorkspaceMenuRow({
       )}
       {/* The … sits over the row's end, like a chat tab's close button, so
           it holds no slot at rest and the row stays as tall as the
-          Coordinator and Documents rows (#1165). It shows on hover, when the
+          Coordinator row (#1165). It shows on hover, when the
           row is arrowed to, and while it holds focus; a fade in the row's
           colour runs under the meta it covers. right-7.5 clears the check
           column (px-2 + gap-2 + the 14px check). */}
@@ -1253,7 +1204,7 @@ function SortableWorkspaces({
   branches,
   children,
 }: {
-  menu: WorkspacesMenuValue
+  menu: ChatsMenuValue
   branches: BranchData[]
   children: React.ReactNode
 }) {

@@ -10,7 +10,7 @@ const features: { title: string; body: string }[] = [
   },
   {
     title: "The Coordinator",
-    body: "One chat for the whole canvas. Ask what changed in each Workspace, or have it start new ones, for versions of one change or separate tasks in parallel.",
+    body: "One chat for the whole canvas. It starts a Workspace for each version or task, follows every chat, and tells you when one needs you.",
   },
   {
     title: "Pick elements",
@@ -22,7 +22,7 @@ const features: { title: string; body: string }[] = [
   },
   {
     title: "Your agents and models",
-    body: "Use Claude Code or Codex with the subscription you already have, and pick the model per chat.",
+    body: "Use Claude Code or Codex with the subscription you already have, and pick the model per chat. Steer an agent mid-turn by sending a message while it works.",
   },
   {
     title: "Runs on your Mac",

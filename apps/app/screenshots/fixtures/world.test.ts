@@ -97,6 +97,7 @@ describe("fixture world — referential integrity", () => {
       const layerIds = [
         ...(doc.iframeLayers ?? []).map((l) => l.id),
         ...(doc.markdownLayers ?? []).map((l) => l.id),
+        ...(doc.mockupLayers ?? []).map((l) => l.id),
       ]
       // A Layer no Group references gets wrapped in a synthetic single-member
       // Group by the on-load migration — which silently rewrites the canvas the
@@ -112,28 +113,31 @@ describe("fixture world — referential integrity", () => {
     for (const { doc } of allRoomDocs()) {
       const iframeIds = new Set((doc.iframeLayers ?? []).map((l) => l.id))
       const markdownIds = new Set((doc.markdownLayers ?? []).map((l) => l.id))
+      const mockupIds = new Set((doc.mockupLayers ?? []).map((l) => l.id))
+      const pools = {
+        "iframe-layer": iframeIds,
+        "markdown-layer": markdownIds,
+        "mockup-layer": mockupIds,
+      }
       for (const group of doc.iframeLayerGroups ?? []) {
         for (const member of group.members) {
-          const pool = member.kind === "iframe-layer" ? iframeIds : markdownIds
-          expect(pool).toContain(member.id)
+          expect(pools[member.kind]).toContain(member.id)
         }
       }
     }
   })
 
-  it("targets an existing Workspace or Document from every chat and plan", () => {
+  it("targets an existing Workspace from every chat and plan", () => {
     for (const { doc } of allRoomDocs()) {
       const branchIds = new Set((doc.branches ?? []).map((b) => b.id))
-      const markdownIds = new Set((doc.markdownLayers ?? []).map((l) => l.id))
       const chatIds = new Set((doc.chatSessions ?? []).map((c) => c.id))
       for (const chat of doc.chatSessions ?? []) {
-        // A Chat Session targets exactly one of a Workspace or a Document.
-        expect(
-          Number(chat.branchId != null) + Number(chat.markdownLayerId != null)
-        ).toBe(1)
-        if (chat.branchId) expect(branchIds).toContain(chat.branchId)
-        if (chat.markdownLayerId)
-          expect(markdownIds).toContain(chat.markdownLayerId)
+        // A Chat Session targets a Workspace (or is the Room's Coordinator).
+        if (chat.target !== "room") expect(branchIds).toContain(chat.branchId)
+      }
+      for (const layer of doc.markdownLayers ?? []) {
+        // A chat-made Document names a chat that exists (#1314).
+        if (layer.ownerChatId) expect(chatIds).toContain(layer.ownerChatId)
       }
       for (const plan of doc.plans ?? []) {
         expect(chatIds).toContain(plan.chatId)
@@ -147,6 +151,19 @@ describe("fixture world — referential integrity", () => {
       const markdownIds = new Set((doc.markdownLayers ?? []).map((l) => l.id))
       for (const id of Object.keys(doc.markdownBodies ?? {})) {
         expect(markdownIds).toContain(id)
+      }
+    }
+  })
+
+  it("gives every Mockup Layer a page, and only Mockup Layers", () => {
+    for (const { doc } of allRoomDocs()) {
+      const mockupIds = (doc.mockupLayers ?? []).map((l) => l.id).sort()
+      expect(Object.keys(doc.mockupHtml ?? {}).sort()).toEqual(mockupIds)
+      for (const mockup of doc.mockupLayers ?? []) {
+        if (mockup.ownerChatId)
+          expect((doc.chatSessions ?? []).map((c) => c.id)).toContain(
+            mockup.ownerChatId
+          )
       }
     }
   })

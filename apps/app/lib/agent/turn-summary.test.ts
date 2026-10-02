@@ -36,6 +36,24 @@ function shape(messages: AgentMessage[], streaming = false): string[] {
 }
 
 describe("foldFinishedTurns (issue #800)", () => {
+  it("keeps a question card on screen in a folded turn (#1312)", () => {
+    expect(
+      shape([
+        user("tidy the header"),
+        call("t1"),
+        assistant("Two ways to go."),
+        call("q1", { title: "ask_question" }),
+        user("Compact"),
+      ])
+    ).toEqual([
+      "user",
+      "summary(1)",
+      "assistant:Two ways to go.",
+      "tool_call",
+      "user",
+    ])
+  })
+
   it("shows only a Coordinator wake's reply and task rows, never its message or steps, keeping its task rows (#897)", () => {
     const wake: AgentMessage = {
       role: "user",
@@ -136,6 +154,26 @@ describe("foldFinishedTurns (issue #800)", () => {
         assistant("Sent"),
       ])
     ).toEqual(["user", "summary(1)", "tool_call", "assistant:Sent"])
+    // The message that started the chats stays over their cards (#1318).
+    expect(
+      shape([
+        user("split it"),
+        call("r", { title: "read_canvas" }),
+        assistant("Looking"),
+        call("r2", { title: "read_canvas" }),
+        assistant("Starting two chats"),
+        send("a"),
+        send("b"),
+        assistant("Sent"),
+      ])
+    ).toEqual([
+      "user",
+      "summary(3)",
+      "assistant:Starting two chats",
+      "tool_call",
+      "tool_call",
+      "assistant:Sent",
+    ])
   })
 
   it("folds a finished turn's steps and narration, keeping the answer", () => {

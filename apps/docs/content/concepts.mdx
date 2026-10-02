@@ -1,6 +1,6 @@
 ---
 title: Core concepts
-description: Canvases, the Coordinator, repositories, workspaces, frames, groups, documents and their agents, and how they fit together.
+description: Canvases, the Coordinator, repositories, workspaces, frames, groups, documents, mockups and their agents, and how they fit together.
 ---
 
 # Core concepts
@@ -31,9 +31,9 @@ name.
 The **Coordinator** is the canvas's own chat, and where the agent panel opens.
 Every canvas has exactly one, shared by everyone on it. It sees the whole
 canvas: each workspace's status, changes and pull request, and every frame and
-document. It arranges the canvas for you, and when you ask for a change it
-sends a message to the right workspace's agent, which does the work. The
-Coordinator never edits code itself. It can also start new workspaces, open a
+document. It arranges the canvas for you, and when you ask for a change, a
+document or a mockup it sends a message to the right workspace's agent, which
+does the work. The Coordinator makes nothing itself. It can also start new workspaces, open a
 workspace's pull request and remove a workspace, right away.
 → [The Coordinator](/guides/coordinator)
 
@@ -59,10 +59,11 @@ A **workspace** is one git branch of a repository, running in its own isolated
   repository.
 
 Each workspace has a title (the agent writes it from your first message), its
-own dev server, and its own agent chats and terminals. The **Workspaces**
-button at the top right of the agent panel lists every workspace in one flat
-list, like threads in a project; on a canvas with several repositories each
-row ends with its repository's name.
+own dev server, and its own agent chat and terminals. The **Chats**
+button at the top right of the agent panel lists every chat in one flat
+list, like threads in a project: the Coordinator, then each workspace's chat
+by its title. On a canvas with several repositories each row ends with its
+repository's name.
 Workspaces are cheap: create one for every idea you want to try and compare
 them side by side.
 → [Workspaces](/guides/workspaces)
@@ -77,24 +78,33 @@ switch into **Interact** mode and you can click through the app.
 ## Document
 
 A **document** is a rich-text page on the canvas for specs, checklists, notes
-and plans. Documents are edited collaboratively, and you can chat with the
-agent about a document directly: it rewrites or appends to the page for you.
+and plans. Documents are edited collaboratively, and a workspace's chat can
+write one for you and keep editing it.
 → [Documents](/guides/documents)
+
+## Mockup
+
+A **mockup** is a static page a workspace chat draws on the canvas to show a
+design option. It needs no dev server, so it shows up at once, beside its
+workspace's frames or in a group of its own. It shows the workspace of the chat
+that made it, and only that chat can change it. → [Mockups](/guides/mockups)
 
 ## Group
 
-A **group** is a row of frames and documents laid out left to right, so the
+A **group** is a row of frames, documents and mockups laid out left to right, so the
 desktop and mobile versions of a page, or the steps of a flow, stay together.
-Every frame and document lives in one. When all of a group's frames show the
+Every frame, document and mockup lives in one. When all of a group's frames show the
 same workspace, as the screens of one flow do, the group names it once;
 otherwise each frame names its own.
 → [Groups](/guides/canvas#groups)
 
 ## Workspace agent
 
-A **workspace agent** does the coding. Every workspace has its own chats, and
-when you (or the Coordinator) give it work, it reads files, edits them, runs
-commands, and commits inside that workspace's sandbox. Where the agent comes
+A **workspace agent** does the coding. Every workspace has exactly one chat,
+and only that chat changes its code. When you (or the Coordinator) give it
+work, it reads files, edits them, runs commands, and commits inside that
+workspace's sandbox. It can read other workspaces' code, but never changes
+it. Where the agent comes
 from depends on how you run Screenplay:
 
 - **Desktop**: the coding CLI installed on your machine (Claude Code or Codex),
@@ -103,8 +113,8 @@ from depends on how you run Screenplay:
   configured (Anthropic, OpenAI, Google, the Vercel AI Gateway, or any
   OpenAI-compatible endpoint).
 
-Alongside chat, **terminal tabs** give you an interactive shell in the same
-sandbox, with a coding CLI pre-launched. → [Workspace chats](/guides/agent),
+Alongside chat, **terminal tabs** give you plain interactive shells in the
+same sandbox. → [Workspace chats](/guides/agent),
 [Terminal tabs](/guides/terminals)
 
 ## Memory
@@ -129,4 +139,5 @@ the source or the self-hosting docs:
 | Frame           | Iframe Layer       |
 | Group           | Iframe Layer Group |
 | Document        | Markdown Layer     |
+| Mockup          | Mockup Layer       |
 | Workspace agent | Engine             |

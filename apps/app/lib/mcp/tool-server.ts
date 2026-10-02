@@ -145,6 +145,7 @@ async function callTool(
     const output = await tool.execute(input as never, {
       toolCallId,
       messages: [],
+      context: {},
     })
     // A tool that shapes its own model output (a screenshot) keeps that shape
     // over MCP; anything else goes out as text.
@@ -170,7 +171,7 @@ function mcpContent(output: ToolResultOutput): McpContent[] {
     case "content":
       return output.value.map((part): McpContent => {
         if (part.type === "text") return { type: "text", text: part.text }
-        if (part.type === "image-data" || part.type === "media") {
+        if (part.type === "image-data") {
           return { type: "image", data: part.data, mimeType: part.mediaType }
         }
         return { type: "text", text: JSON.stringify(part) }

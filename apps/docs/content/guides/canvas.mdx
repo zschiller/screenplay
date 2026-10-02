@@ -12,9 +12,9 @@ A canvas has three regions:
 - **The canvas itself**: an infinite surface of frames and documents, with
   the toolbar at the bottom center.
 - **Agent panel** (<kbd>⌘</kbd> <kbd>I</kbd>): the [Coordinator](/guides/coordinator), or chat and
-  terminals for the selected workspace or document. Its **Workspaces** button
-  lists every workspace (see
-  [The Workspaces menu](/guides/workspaces#the-workspaces-menu)).
+  terminals for the selected workspace. Its **Chats** button
+  lists every chat (see
+  [The Chats menu](/guides/workspaces#the-chats-menu)).
 
 <Screenshot
   name="hero"
@@ -87,8 +87,8 @@ layer, by clicking, dragging or using a slot, selects it and returns to
 
 ## Groups
 
-Layers on the canvas always live in **groups**: rows of frames and documents
-laid out left to right with an even gap. Groups keep related screens together,
+Layers on the canvas always live in **groups**: rows of frames, documents and
+[mockups](/guides/mockups) laid out left to right with an even gap. Groups keep related screens together,
 such as a page's desktop and mobile versions or the steps of a signup flow.
 
 - **Move a group** by dragging any member's title bar or the group label.
@@ -145,8 +145,8 @@ each frame row ends with its own workspace instead.
 - Double-click to zoom to it.
 - Drag rows to reorder, move a layer into another group, or drop it between
   groups to start a new one.
-- **…** → **Rename** or **Delete**. A delete happens at once, with **Undo** in a
-  toast.
+- **…** → **Rename** or **Delete**. A delete happens at once; <kbd>⌘</kbd>
+  <kbd>Z</kbd> brings it back.
 
 ## Undo
 
@@ -156,8 +156,9 @@ frames, documents and groups. A frame's page, its route and scroll, isn't part
 of undo. Your ⌘Z never undoes someone else's changes or the Coordinator's.
 
 Deleting a frame, document or group happens at once, whether from the layers
-list, the frame toolbar or the <kbd>Delete</kbd> key, and a toast offers
-**Undo**. Everyone on the canvas sees the delete, and the undo. Deleting a
+list, the frame toolbar or the <kbd>Delete</kbd> key, with no confirm and no
+toast; <kbd>⌘</kbd> <kbd>Z</kbd> brings it back. Everyone on the canvas sees
+the delete, and the undo. Deleting a
 workspace or a repository still asks first, because undo can't bring those
 back.
 

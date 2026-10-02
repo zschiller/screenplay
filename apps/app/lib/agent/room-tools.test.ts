@@ -47,6 +47,7 @@ function portsOver(
     readWorkspaceFile: unused,
     captureFrame: unused,
     readFrameCapture: unused,
+    readFramePage: unused,
     launchWorkspaceTurn: async () => {},
   }
 }
@@ -54,7 +55,10 @@ function portsOver(
 async function readCanvas(ports: RoomToolPorts): Promise<string> {
   const tools = buildRoomTools("room-1", ports)
   const execute = tools.read_canvas.execute!
-  return (await execute({}, { toolCallId: "t1", messages: [] })) as string
+  return (await execute(
+    {},
+    { toolCallId: "t1", messages: [], context: {} }
+  )) as string
 }
 
 describe("the Coordinator's tools", () => {
@@ -128,6 +132,48 @@ describe("read_canvas", () => {
     )
     expect(summary).toContain('- [doc-1] "Launch spec"')
     expect(summary).toContain('- [term-1] "Claude Code" · Workspace ws-1')
+  })
+
+  it("lists mockups, naming the chat that made each and their status", async () => {
+    const { collections } = makeHarness()
+    collections.chatSessions.set("chat-1", {
+      id: "chat-1",
+      branchId: "ws-1",
+      label: "Empty cart",
+      createdAt: 0,
+    })
+    collections.mockupLayers.set("mock-1", {
+      id: "mock-1",
+      width: 1280,
+      height: 800,
+      title: "Option A",
+      ownerChatId: "chat-1",
+    })
+    collections.mockupLayers.set("mock-2", {
+      id: "mock-2",
+      width: 720,
+      height: 800,
+      title: "Receipt",
+      status: "built",
+    })
+    collections.iframeLayerGroups.set("grp-1", {
+      id: "grp-1",
+      name: "Receipt",
+      x: 0,
+      y: 0,
+      members: [{ kind: "mockup-layer", id: "mock-2" }],
+    })
+
+    const summary = await readCanvas(portsOver(collections))
+
+    expect(summary).toContain(
+      '- [mock-1] "Option A" · 1280×800 · Current · by chat "Empty cart"'
+    )
+    expect(summary).toContain(
+      '- [mock-2] "Receipt" · 720×800 · Built · Group grp-1'
+    )
+    // The Group's extent counts the mockup's box.
+    expect(summary).toContain('- [grp-1] "Receipt" · at 0, 0 · 720×800')
   })
 
   it("reads records written after an earlier read", async () => {
@@ -219,7 +265,11 @@ async function writeMemory(
 ): Promise<string> {
   const tools = buildRoomTools("room-1", ports)
   const execute = tools.write_memory.execute!
-  return (await execute(input, { toolCallId: "t1", messages: [] })) as string
+  return (await execute(input, {
+    toolCallId: "t1",
+    messages: [],
+    context: {},
+  })) as string
 }
 
 describe("write_memory", () => {
@@ -301,6 +351,7 @@ describe("send_to_workspace", () => {
       (await buildRoomTools("room-1", ports).send_to_workspace.execute!(input, {
         toolCallId: "t1",
         messages: [],
+        context: {},
       })) as string
     return { collections, launched, ports, send }
   }
@@ -328,23 +379,15 @@ describe("send_to_workspace", () => {
     })
   })
 
-  it("queues the message in the Workspace's newest open chat and returns", async () => {
+  it("queues the message in the Workspace's one chat and returns", async () => {
     const { collections, launched, send } = sendHarness()
     collections.branches.set(
       "ws-1",
       baseBranch("ws-1", { title: "Fix sign-in redirect" })
     )
     collections.chatSessions.set(
-      "old",
-      baseChat("old", { branchId: "ws-1", createdAt: 1 })
-    )
-    collections.chatSessions.set(
-      "new",
-      baseChat("new", { branchId: "ws-1", createdAt: 2, model: "m-1" })
-    )
-    collections.chatSessions.set(
-      "closed",
-      baseChat("closed", { branchId: "ws-1", createdAt: 3, closedAt: 4 })
+      "chat",
+      baseChat("chat", { branchId: "ws-1", createdAt: 1, model: "m-1" })
     )
 
     const result = await send({
@@ -356,13 +399,31 @@ describe("send_to_workspace", () => {
       {
         branchId: "ws-1",
         sandboxName: "sandbox-ws-1",
-        chatId: "new",
+        chatId: "chat",
         message: "Keep the next param.",
-        isFirstChat: false,
+        isFirstChat: true,
         model: "m-1",
       },
     ])
-    expect(result).toContain('Sent to "Fix sign-in redirect" [chat new]')
+    expect(result).toContain('Sent to "Fix sign-in redirect" [chat chat]')
+  })
+
+  it("sends to the newest of an old canvas's chats, closed or not (#1315)", async () => {
+    const { collections, launched, send } = sendHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1"))
+    collections.chatSessions.set(
+      "old",
+      baseChat("old", { branchId: "ws-1", createdAt: 1 })
+    )
+    collections.chatSessions.set(
+      "newest",
+      baseChat("newest", { branchId: "ws-1", createdAt: 3, closedAt: 4 })
+    )
+
+    await send({ workspace_id: "ws-1", message: "Go" })
+
+    expect(launched[0]).toMatchObject({ chatId: "newest", isFirstChat: false })
+    expect(collections.chatSessions.toArray()).toHaveLength(2)
   })
 
   it("never waits on the Workspace turn", async () => {
@@ -377,13 +438,13 @@ describe("send_to_workspace", () => {
       },
     }).send_to_workspace.execute!(
       { workspace_id: "ws-1", message: "Go" },
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )
     await expect(result).resolves.toMatch(/Sent to/)
     expect(queued).toBe(true)
   })
 
-  it("opens a chat when the Workspace has none open", async () => {
+  it("opens a chat when the Workspace has none", async () => {
     const { collections, launched, send } = sendHarness()
     collections.branches.set("ws-1", baseBranch("ws-1"))
 
@@ -502,7 +563,7 @@ describe("create_workspaces", () => {
   async function create(ports: RoomToolPorts, input: unknown) {
     return (await buildRoomTools("room-1", ports).create_workspaces.execute!(
       input,
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )) as string
   }
 
@@ -622,7 +683,7 @@ describe("stop_workspace", () => {
     const stop = async (workspace_id: string) =>
       (await buildRoomTools("room-1", ports).stop_workspace.execute!(
         { workspace_id },
-        { toolCallId: "t1", messages: [] }
+        { toolCallId: "t1", messages: [], context: {} }
       )) as string
     return { collections, stopped, stop }
   }
@@ -708,7 +769,7 @@ describe("open_pull_request and remove_workspace (#901, #1217)", () => {
   async function call(ports: RoomToolPorts, name: string, workspaceId: string) {
     return (await buildRoomTools("room-1", ports)[name]!.execute!(
       { workspace_id: workspaceId },
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )) as string
   }
 
@@ -790,7 +851,7 @@ describe("read_skill (#905)", () => {
     const execute = tools.read_skill.execute!
     return (await execute(
       { name },
-      { toolCallId: "t1", messages: [] }
+      { toolCallId: "t1", messages: [], context: {} }
     )) as string
   }
 

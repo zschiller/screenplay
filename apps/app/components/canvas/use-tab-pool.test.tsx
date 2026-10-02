@@ -6,24 +6,11 @@ import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { TerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import type { ChatSessionData } from "@/lib/types"
 
-vi.mock("@/lib/terminal-tabs-actions", () => ({
-  createTerminalTabAction: vi.fn().mockResolvedValue(undefined),
-  deleteTerminalTabAction: vi.fn().mockResolvedValue(undefined),
-  killTerminalSessionAction: vi.fn().mockResolvedValue(undefined),
-}))
-
 // Chat Sync rides along in `useChatTabs`; its effects are tested there.
 vi.mock("@/hooks/use-chat-sync", () => ({ useChatSync: () => {} }))
 
 vi.mock("@/lib/chat-store", () => ({
   chatStore: { cleanup: vi.fn() },
-}))
-
-// The respawn follows the per-user default tab kind; pin it to a chat so the
-// respawn is a plain `addChatSession`.
-vi.mock("@/lib/canvas/tab-kind", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/canvas/tab-kind")>()),
-  readLastTabKind: () => "chat",
 }))
 
 import { useTabPool } from "./use-tab-pool"
@@ -45,20 +32,19 @@ function setup(chatSessions: ChatSessionData[], selectedChatId: string) {
       selectedChatId,
       selectChatId: vi.fn(),
       selectAgentChat: vi.fn(),
-      selectDocChat: vi.fn(),
     } as unknown as ChatTarget,
     terminalTabs: {
-      localTerminals: [],
-      setLocalTerminals: vi.fn(),
-      isLocalTerminal: () => false,
-    } as unknown as TerminalTabs,
+      tabs: [],
+      isTerminal: () => false,
+      open: vi.fn(),
+      close: vi.fn(),
+      rename: vi.fn(),
+    } satisfies TerminalTabs,
   }
   const { result } = renderHook(() =>
     useTabPool({
       ...deps,
       roomId: "room-1",
-      userId: "user-1",
-      agents: [],
       chatSessions,
     })
   )
@@ -89,30 +75,16 @@ describe("useTabPool remove", () => {
     expect(addChatSession).not.toHaveBeenCalled()
   })
 
-  it("respawns a fresh chat when the last open tab is removed", () => {
-    const { tabPool, chatTarget, removeChatSession, addChatSession } = setup(
+  it("keeps the Workspace's own chat when asked to remove it (#1315)", () => {
+    const { tabPool, removeChatSession, addChatSession } = setup(
       [chat("only", 1), chat("old", 0, { closedAt: 5 })],
       "only"
     )
 
     tabPool.remove("only")
 
-    expect(removeChatSession).toHaveBeenCalledWith("only")
-    expect(addChatSession).toHaveBeenCalledTimes(1)
-    const [newId, data] = addChatSession.mock.calls[0]
-    expect(data).toMatchObject({ branchId: "ws-1", label: "Untitled" })
-    expect(chatTarget.selectChatId).toHaveBeenCalledWith(newId)
-  })
-
-  it("respawns a doc chat when the last doc tab is removed", () => {
-    const doc = chat("d", 1, { branchId: undefined, markdownLayerId: "md-1" })
-    const { tabPool, chatTarget, addChatSession } = setup([doc], "d")
-
-    tabPool.remove("d")
-
-    const [newId, data] = addChatSession.mock.calls[0]
-    expect(data).toMatchObject({ markdownLayerId: "md-1" })
-    expect(chatTarget.selectDocChat).toHaveBeenCalledWith("md-1", newId)
+    expect(removeChatSession).not.toHaveBeenCalled()
+    expect(addChatSession).not.toHaveBeenCalled()
   })
 
   it("decides nothing when a closed chat is deleted from history", () => {

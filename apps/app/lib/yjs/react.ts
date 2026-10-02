@@ -9,17 +9,14 @@ import {
   useSyncExternalStore,
 } from "react"
 import * as Y from "yjs"
-import {
-  createCanvasUndo,
-  type CanvasUndo,
-  type DeleteStep,
-} from "@/lib/canvas/undo"
+import { createCanvasUndo, type CanvasUndo } from "@/lib/canvas/undo"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import {
   useYjs,
   type AwarenessChange,
   type AwarenessLike,
 } from "@/lib/yjs/context"
+import { mockupHtml } from "@/lib/yjs/mockup-html"
 import {
   getRoomCollections,
   type RoomCollections,
@@ -33,6 +30,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   MemoryData,
+  MockupLayerData,
   PlanData,
   ViewportData,
   RepoData,
@@ -77,6 +75,25 @@ export function useMarkdownLayers(): Array<MarkdownLayerData> {
   return useCollectionArray(useRoomCollections().markdownLayers)
 }
 
+export function useMockupLayers(): Array<MockupLayerData> {
+  return useCollectionArray(useRoomCollections().mockupLayers)
+}
+
+/** A Mockup Layer's page, kept current as the shared `Y.Text` changes. */
+export function useMockupHtml(layerId: string): string {
+  const { doc } = useYjs()
+  const text = useMemo(() => mockupHtml(doc, layerId), [doc, layerId])
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      text.observe(cb)
+      return () => text.unobserve(cb)
+    },
+    [text]
+  )
+  const getSnapshot = useCallback(() => text.toString(), [text])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
 export function useRepos(): Array<RepoData> {
   return useCollectionArray(useRoomCollections().repos)
 }
@@ -106,21 +123,14 @@ export function useSavedViewport(): ViewportData | null {
  * ⌘Z / ⌘⇧Z for the canvas: this member's own edits to frames, documents,
  * Groups and memory (see `lib/canvas/undo.ts` for exactly what's tracked).
  * Text fragments (`text-{layerId}`) have their own UndoManager owned by the
- * TipTap editor, so they're not double-tracked here. `onDelete` fires for each
- * delete step, so the caller can offer Undo in a toast.
+ * TipTap editor, so they're not double-tracked here.
  */
-export function useYjsHistory(onDelete?: (step: DeleteStep) => void) {
+export function useYjsHistory() {
   const { doc } = useYjs()
   const undoRef = useRef<CanvasUndo | null>(null)
-  const onDeleteRef = useRef(onDelete)
-  useEffect(() => {
-    onDeleteRef.current = onDelete
-  })
 
   useEffect(() => {
-    const undo = createCanvasUndo(doc, {
-      onDelete: (step) => onDeleteRef.current?.(step),
-    })
+    const undo = createCanvasUndo(doc)
     undoRef.current = undo
     return () => {
       undo.destroy()

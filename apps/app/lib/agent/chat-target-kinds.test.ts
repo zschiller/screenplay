@@ -11,18 +11,29 @@ vi.mock("@/lib/terminal-tabs", () => ({
 
 import {
   agentChatTarget,
-  markdownLayerChatTarget,
   roomChatTarget,
   type ChatTargetSpec,
 } from "@/lib/agent/chat-target-kinds"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
 import { addMemory } from "@/lib/canvas/memory"
+import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
+import { buildViewTools } from "@/lib/agent/room-view-tools"
+import { buildDocumentTools } from "@/lib/agent/document-tools"
+import { buildMockupTools } from "@/lib/agent/mockup-tools"
 import type { RoomDoc } from "@/lib/room-access"
+import type { ToolContext } from "@/lib/agent/tools"
+import {
+  documentFragment,
+  fragmentBodyToPlainText,
+} from "@/lib/yjs/fragment-text"
 import {
   baseBranch,
+  baseChat,
   baseDoc,
+  baseLayer,
   baseRepo,
   makeHarness,
+  seedGroup,
 } from "@/test/canvas/harness"
 
 const MESSAGE = "bold the dates"
@@ -39,7 +50,7 @@ const decorate = (
 
 /**
  * Turn-marker decoration is per target kind: a marker only belongs on a
- * message whose target has something to do with it. A document chat has no
+ * message whose target has something to do with it. The Coordinator has no
  * `submit_plan` gate and no branch, so it gets a bare message (#743).
  */
 describe("decorateUserMessage — per target kind", () => {
@@ -53,28 +64,9 @@ describe("decorateUserMessage — per target kind", () => {
     expect(out).toContain(MESSAGE)
   })
 
-  it("leaves a document chat's message undecorated even with plan mode on", () => {
-    const out = decorate(markdownLayerChatTarget.decorateUserMessage, {
-      planMode: true,
-      isFirstMessage: true,
-    })
-
-    expect(out).toBe(MESSAGE)
-    expect(out).not.toContain(PLAN_MODE_MARKER)
-  })
-
   it("leaves a Room Target chat's message undecorated", () => {
     const out = decorate(roomChatTarget.decorateUserMessage, {
       planMode: true,
-      branch: "feat/x",
-      isFirstMessage: true,
-    })
-
-    expect(out).toBe(MESSAGE)
-  })
-
-  it("doesn't leak the branch marker into a document chat's first message", () => {
-    const out = decorate(markdownLayerChatTarget.decorateUserMessage, {
       branch: "feat/x",
       isFirstMessage: true,
     })
@@ -85,7 +77,7 @@ describe("decorateUserMessage — per target kind", () => {
 
 /**
  * The `room` kind (the Coordinator): the whole canvas as context and the
- * Coordinator tools module as its tool set, with no sandbox or document tools.
+ * Coordinator tools module as its tool set, with no sandbox tools.
  */
 describe("room chat target", () => {
   it("is its own kind", () => {
@@ -138,7 +130,7 @@ describe("room chat target", () => {
 
     expect(Object.keys(tools).sort()).toEqual([
       "arrange_groups",
-      "create_document",
+      "ask_question",
       "create_frames",
       "create_workspaces",
       "list_changes",
@@ -148,6 +140,7 @@ describe("room chat target", () => {
       "open_pull_request",
       "read_canvas",
       "read_document",
+      "read_frame_html",
       "read_skill",
       "read_workspace_chat",
       "read_workspace_diff",
@@ -162,6 +155,85 @@ describe("room chat target", () => {
       "view_frame",
       "write_memory",
     ])
+  })
+})
+
+/**
+ * The Coordinator only delegates (#1316): the Chat Target toolset seam gives
+ * it no tool that makes or edits a Document or Mockup, and gives a Workspace
+ * chat none that arranges the canvas or moves the view, so chats never fight
+ * over the layout.
+ */
+describe("the Coordinator only delegates", () => {
+  const room: RoomDoc = {
+    roomId: "room-1",
+    readDoc: async () => {
+      throw new Error("not read while building tools")
+    },
+    mutateDoc: async () => {
+      throw new Error("not written while building tools")
+    },
+  }
+  const names = (tools: object) => Object.keys(tools)
+  const documentAndMockupWrites = [
+    ...names(buildDocumentTools({ room, chatId: "chat-1" })),
+    ...names(buildMockupTools({ room, chatId: "chat-1" })),
+  ].filter((name) => name !== "read_document" && name !== "read_mockup")
+  const arrangeAndCamera = [
+    ...names(buildArrangeTools(room.mutateDoc, "turn-1")),
+    ...names(buildViewTools(room.readDoc)),
+  ]
+
+  it("gives the Coordinator no tool that creates or edits a Document or Mockup", () => {
+    const tools = names(roomChatTarget.buildTools(room, { userId: "user-1" }))
+
+    expect(documentAndMockupWrites).toEqual(
+      expect.arrayContaining(["create_document", "create_mockup"])
+    )
+    for (const name of documentAndMockupWrites) {
+      expect(tools).not.toContain(name)
+    }
+    // It still arranges the canvas, moves the view and starts chats.
+    expect(tools).toEqual(
+      expect.arrayContaining([
+        ...arrangeAndCamera,
+        "send_to_workspace",
+        "create_workspaces",
+      ])
+    )
+  })
+
+  it("gives a Workspace chat no arrange or camera tools", () => {
+    const sandbox: ToolContext = { sandboxName: "sb-1", room, userId: "user-1" }
+    const tools = names(
+      agentChatTarget.buildTools(
+        room,
+        { sandboxName: "sb-1", branch: "main", chatId: "chat-1" },
+        sandbox
+      )
+    )
+
+    expect(arrangeAndCamera).toEqual(
+      expect.arrayContaining(["arrange_groups", "show_on_canvas"])
+    )
+    for (const name of arrangeAndCamera) {
+      expect(tools).not.toContain(name)
+    }
+    expect(tools).toEqual(expect.arrayContaining(documentAndMockupWrites))
+  })
+
+  it("tells the Coordinator to start a chat for a Document or Mockup", () => {
+    const prompt = roomChatTarget.buildSystemPrompt(
+      { canvasSummary: "", memory: [] },
+      {}
+    )
+
+    expect(prompt).toContain("You can't write or edit a document or a mockup.")
+    expect(prompt).toMatch(
+      /start a chat that makes it: send the ask to the Workspace it's about with `send_to_workspace`/
+    )
+    expect(prompt).not.toContain("create_document")
+    expect(prompt).not.toContain("create_mockup")
   })
 })
 
@@ -194,20 +266,11 @@ describe("canvas memory in every kind's system prompt", () => {
     const ctx = await agentChatTarget.loadContext(room, {
       sandboxName: "sb-1",
       branch: "main",
+      chatId: "chat-1",
     })
     const prompt = agentChatTarget.buildSystemPrompt(ctx!, {})
 
     expect(prompt).toContain("Canvas memory")
-    expect(prompt).toContain("- Use pnpm, never npm.")
-  })
-
-  it("includes memory in a document chat's prompt", async () => {
-    const room = roomWithMemory()
-    const ctx = await markdownLayerChatTarget.loadContext(room, {
-      markdownLayerId: "doc-1",
-    })
-    const prompt = markdownLayerChatTarget.buildSystemPrompt(ctx!, {})
-
     expect(prompt).toContain("- Use pnpm, never npm.")
   })
 
@@ -219,34 +282,210 @@ describe("canvas memory in every kind's system prompt", () => {
     expect(prompt).toMatch(/- \[mem-[^\]]+\] Use pnpm, never npm\./)
     expect(prompt).toContain("write_memory")
   })
+})
 
-  it("gives a document chat the canvas's Workspaces to read code from", async () => {
-    const room = roomWithMemory()
-    const ctx = await markdownLayerChatTarget.loadContext(room, {
-      markdownLayerId: "doc-1",
-    })
-    const prompt = markdownLayerChatTarget.buildSystemPrompt(ctx!, {})
-    const tools = markdownLayerChatTarget.buildTools(room, {
-      markdownLayerId: "doc-1",
-    })
+/**
+ * A Workspace chat writes Documents (#1314): the Chat Target toolset seam hands
+ * it the Document tools, bound to the chat, which creates Documents it owns
+ * and edits only those.
+ */
+describe("a Workspace chat's Document tools", () => {
+  function setup() {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { repoId: "repo-1", sandboxName: "sb-1" })
+    )
+    collections.chatSessions.set(
+      "chat-1",
+      baseChat("chat-1", { branchId: "ws-1" })
+    )
+    collections.markdownLayers.set(
+      "hand-made",
+      baseDoc("hand-made", { title: "Notes" })
+    )
+    collections.markdownLayers.set(
+      "theirs",
+      baseDoc("theirs", { title: "Other plan", ownerChatId: "chat-2" })
+    )
+    seedGroup(collections, "g-hand", [
+      { kind: "markdown-layer", id: "hand-made" },
+    ])
+    seedGroup(collections, "g-theirs", [
+      { kind: "markdown-layer", id: "theirs" },
+    ])
+    const room: RoomDoc = {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+    const sandbox: ToolContext = { sandboxName: "sb-1", room, userId: "user-1" }
+    const target = { sandboxName: "sb-1", branch: "main", chatId: "chat-1" }
+    const tools = agentChatTarget.buildTools(room, target, sandbox)
+    const run = (name: string, input: object) =>
+      (
+        tools[name as keyof typeof tools] as {
+          execute: (input: object, opts: never) => Promise<string>
+        }
+      ).execute(input, {} as never)
+    const body = (id: string) =>
+      fragmentBodyToPlainText(documentFragment(collections.doc, id))
+    return { collections, room, target, tools, run, body }
+  }
 
-    expect(prompt).toContain("- [ws-1]")
+  it("has the tools to create and edit Documents, and to read any", () => {
+    const { tools } = setup()
+
     expect(Object.keys(tools)).toEqual(
       expect.arrayContaining([
-        "read_code_file",
-        "search_code",
-        "find_code_files",
+        "create_document",
         "replace_document_body",
+        "append_to_document_body",
+        "set_document_title",
         "read_document",
       ])
     )
+    expect(Object.keys(tools)).not.toContain("write_memory")
   })
 
-  it("gives a document chat no memory write tool", () => {
-    const tools = markdownLayerChatTarget.buildTools(roomWithMemory(), {
-      markdownLayerId: "doc-1",
+  it("creates a Document the chat owns, with its title and body", async () => {
+    const { collections, run, body } = setup()
+
+    const out = await run("create_document", {
+      title: "Rollout plan",
+      content: "Ship to 10% first.",
     })
 
-    expect(Object.keys(tools)).not.toContain("write_memory")
+    const doc = collections.markdownLayers
+      .toArray()
+      .find((d) => d.title === "Rollout plan")!
+    expect(out).toBe(`Created document "Rollout plan" (id ${doc.id}).`)
+    expect(doc.ownerChatId).toBe("chat-1")
+    expect(body(doc.id)).toBe("Ship to 10% first.")
+    expect(
+      collections.iframeLayerGroups
+        .toArray()
+        .some((g) => g.members?.some((m) => m.id === doc.id))
+    ).toBe(true)
+  })
+
+  it("edits the Documents it made", async () => {
+    const { collections, run, body } = setup()
+    await run("create_document", { title: "Plan" })
+    const id = collections.markdownLayers
+      .toArray()
+      .find((d) => d.ownerChatId === "chat-1")!.id
+
+    await run("replace_document_body", { document_id: id, content: "One." })
+    await run("append_to_document_body", { document_id: id, content: "Two." })
+    await run("set_document_title", { document_id: id, title: "Final plan" })
+
+    expect(body(id)).toBe("One.\n\nTwo.")
+    expect(collections.markdownLayers.get(id)?.title).toBe("Final plan")
+  })
+
+  it("refuses to change a hand-made Document or another chat's", async () => {
+    const { collections, run, body } = setup()
+
+    for (const [id, title] of [
+      ["hand-made", "Notes"],
+      ["theirs", "Other plan"],
+    ]) {
+      const refusal = `Error: "${title}" wasn't made by this chat, so you can read it but not change it.`
+      expect(
+        await run("replace_document_body", { document_id: id, content: "x" })
+      ).toBe(refusal)
+      expect(
+        await run("append_to_document_body", { document_id: id, content: "x" })
+      ).toBe(refusal)
+      expect(
+        await run("set_document_title", { document_id: id, title: "x" })
+      ).toBe(refusal)
+      expect(collections.markdownLayers.get(id)?.title).toBe(title)
+      expect(body(id)).toBe("")
+    }
+  })
+
+  it("marks the chat's own Documents in its prompt", async () => {
+    const { collections, room, target } = setup()
+    collections.markdownLayers.set(
+      "mine",
+      baseDoc("mine", { title: "My plan", ownerChatId: "chat-1" })
+    )
+
+    const ctx = await agentChatTarget.loadContext(room, target)
+    const prompt = agentChatTarget.buildSystemPrompt(ctx!, {})
+
+    expect(prompt).toContain("create_document")
+    expect(prompt).toMatch(/My plan.*\(yours\)/)
+    expect(prompt).not.toMatch(/Notes.*\(yours\)/)
+  })
+})
+
+describe("frame reads in every chat (#1311)", () => {
+  /** Two Workspaces, each with a frame; neither preview is running. */
+  function canvasWithFrames(): RoomDoc {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { title: "Sign-in", sandboxName: "sb-1" })
+    )
+    collections.branches.set(
+      "ws-2",
+      baseBranch("ws-2", { title: "Pricing", sandboxName: "sb-2" })
+    )
+    collections.iframeLayers.set(
+      "frame-1",
+      baseLayer("frame-1", { branchId: "ws-1", route: "/login" })
+    )
+    collections.iframeLayers.set(
+      "frame-2",
+      baseLayer("frame-2", { branchId: "ws-2", route: "/pricing" })
+    )
+    collections.markdownLayers.set("doc-1", baseDoc("doc-1"))
+    return {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+  }
+
+  const toolsOf = (room: RoomDoc) => ({
+    workspace: agentChatTarget.buildTools(
+      room,
+      { sandboxName: "sb-1", branch: "sign-in", chatId: "chat-1" },
+      { sandboxName: "sb-1", room, userId: "user-1" }
+    ),
+  })
+
+  const call = (tool: { execute?: unknown }, input: object) =>
+    (tool.execute as (i: object, o: object) => Promise<unknown>)(input, {
+      toolCallId: "t1",
+      messages: [],
+    })
+
+  it("gives a Workspace agent frame reads", () => {
+    const { workspace } = toolsOf(canvasWithFrames())
+    expect(Object.keys(workspace)).toEqual(
+      expect.arrayContaining(["view_frame", "read_frame_html"])
+    )
+  })
+
+  it("lets a Workspace agent read another Workspace's frame", async () => {
+    const { workspace } = toolsOf(canvasWithFrames())
+
+    expect(await call(workspace.read_frame_html!, { frameId: "frame-2" })).toBe(
+      'Can\'t read the page in frame [frame-2] (/pricing in Workspace "Pricing"): its Workspace has no running preview.'
+    )
+  })
+
+  it("reads a Workspace agent's own frame when none is named", async () => {
+    const { workspace } = toolsOf(canvasWithFrames())
+
+    expect(await call(workspace.read_frame_html!, {})).toBe(
+      'Can\'t read the page in frame [frame-1] (/login in Workspace "Sign-in"): its Workspace has no running preview.'
+    )
   })
 })

@@ -13,6 +13,9 @@ import { formatQuoteForChat } from "@/lib/document-comments"
  * no chat is on screen (a terminal tab or the logs are showing) waits for the
  * next chat that comes to the foreground.
  *
+ * A passage from a Document a chat made goes to that chat instead, wherever
+ * the panel is ({@link quoteInto}, #1314); the Canvas brings it on screen.
+ *
  * Each chat holds at most one quote: a second Reply in chat replaces it. The
  * quote rides the chat's next send and is cleared there ({@link take}).
  */
@@ -69,6 +72,16 @@ class ChatQuoteStore {
     this.waiting = null
     this.set(chatId, quote)
     return chatId
+  }
+
+  /**
+   * Quote a passage into one chat, whether or not it is on screen: the chat
+   * that made the Document (#1314). Clears any quote waiting for the
+   * foreground, which this one replaces.
+   */
+  quoteInto(chatId: string, quote: ChatQuote): void {
+    this.waiting = null
+    this.set(chatId, quote)
   }
 
   /**

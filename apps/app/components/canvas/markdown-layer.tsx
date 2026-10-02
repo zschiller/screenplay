@@ -78,6 +78,9 @@ import type { MarkdownLayerData } from "@/lib/types"
 import { isLocalBuild } from "@/lib/local-mode"
 import { cn } from "@workspace/ui/lib/utils"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
+import type { FrameWorkspace } from "@/components/canvas/frame-nav"
+import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
+import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 
 export interface InlineCommentDraft {
   documentId: string
@@ -374,6 +377,11 @@ interface MarkdownLayerProps {
   groupLabel?: string
   /** The Group's Workspace, named after the group label (#868). */
   groupWorkspace?: GroupWorkspace
+  /**
+   * The Workspace of the chat that made this Document (#1314), named after its
+   * title unless the group label names it. Unset for a hand-made Document.
+   */
+  ownerWorkspace?: FrameWorkspace
   /** True when the parent group is selected. Drives label color, frame
    *  highlight, and click behavior (clicks are a no-op while the group owns
    *  the selection — same as IframeLayer). */
@@ -455,6 +463,7 @@ export function MarkdownLayer({
   dragPopped,
   groupLabel,
   groupWorkspace,
+  ownerWorkspace,
   groupSelected,
   remoteSelectedColor,
   remoteGroupSelectedColor,
@@ -984,6 +993,20 @@ export function MarkdownLayer({
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
           onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
+          trailing={
+            ownerWorkspace && (
+              <MaybeWorkspaceHoverCard
+                branchId={ownerWorkspace.branchId}
+                side="bottom"
+              >
+                {/* The mention doesn't take the trigger's props; this span
+                    does. Names win: the Workspace gives up its width first. */}
+                <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
+                  <CompactWorkspaceMention workspace={ownerWorkspace} />
+                </span>
+              </MaybeWorkspaceHoverCard>
+            )
+          }
         />
       )}
     >

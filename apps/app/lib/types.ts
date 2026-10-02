@@ -71,6 +71,20 @@ export type BranchData = {
    */
   doneAt?: number
   /**
+   * When someone stopped the Workspace's dev server (#1342), from the Terminal
+   * Pane or the chat's `stop_dev_server`. Its Sandbox keeps running; a stopped
+   * dev server isn't relaunched by a reconnect until someone runs it again
+   * (Run, Restart, or `start_dev_server`), which clears this. Shared through
+   * the doc, so every member sees the same state.
+   */
+  devServerStoppedAt?: number
+  /**
+   * When someone last ran or restarted the dev server (#1342). The Terminal
+   * Pane's dot gives a fresh launch a grace period before a preview that
+   * isn't answering yet reads as crashed.
+   */
+  devServerLaunchedAt?: number
+  /**
    * When a chat turn last started on the Workspace, stamped by Turn Launch.
    * The sidebar's Recent activity sort reads it (#885); absent until the
    * first turn, when `createdAt` stands in.
@@ -133,20 +147,16 @@ export type BranchData = {
 }
 
 /**
- * Which kind of tab the "+" new-tab control creates. Purely a UI-level
- * selection — it is *not* a discriminant stored on any tab. The two kinds are
- * distinct domain types: a chat tab is a {@link ChatSessionData}, a terminal
- * tab is a {@link TerminalTabData}.
- */
-export type TabKind = "chat" | "terminal"
-
-/**
  * A chat tab: the durable Engine conversation. Targets exactly one of a
- * *Branch* (`branchId` set), a *markdown layer* (`markdownLayerId` set) or the
- * whole *Room* (`target: "room"`), and its scrollback is persisted + shared.
- * Multiple chats can target the same Branch (or layer), so a user can keep
- * parallel conversations going; a Room has exactly one Room Target chat (see
- * `lib/chat/room-chat.ts`).
+ * *Branch* (`branchId` set) or the whole *Room* (`target: "room"`), and its
+ * scrollback is persisted + shared. A Branch has exactly one chat, the only one
+ * that changes its code (#1315, `lib/chat/workspace-chat.ts`); more parallel
+ * work means more Branches. A Branch from before then may hold several: the
+ * newest is its chat, the rest are read-only **earlier chats**. A Room has
+ * exactly one Room Target chat (see `lib/chat/room-chat.ts`). Documents are no longer a chat's
+ * target (#1314): a chat writes the Documents it owns
+ * ({@link MarkdownLayerData.ownerChatId}). Chats saved against a Document
+ * before then have neither field and are listed nowhere.
  *
  * Chat sessions live in the shared `chatSessions` Y.Doc collection. Terminal
  * tabs are deliberately *not* `ChatSessionData` (see {@link TerminalTabData}),
@@ -155,10 +165,8 @@ export type TabKind = "chat" | "terminal"
  */
 export type ChatSessionData = {
   id: string
-  /** Set when the chat targets a Branch. Mutually exclusive with the layer ids. */
+  /** Set when the chat targets a Branch. */
   branchId?: string
-  /** Set when the chat targets a markdown layer. */
-  markdownLayerId?: string
   /** `"room"` when the chat targets the whole Room (the Coordinator). */
   target?: "room"
   label: string
@@ -186,8 +194,9 @@ export type TerminalTabData = {
   /** Shared live-view identity — the key collaborators co-view one PTY against. */
   terminalSessionId: string
   /** The harness this tab launches into (`Harness.key`, e.g. "claude-code"),
-   *  resolved server-side → the launch argv at connect time. Omitted on tabs
-   *  created before harness auto-launch (#285), which open a plain shell. */
+   *  resolved server-side → the launch argv at connect time. Only on tabs
+   *  saved while terminals could launch a harness (#285 to #1343); new tabs
+   *  omit it and open a plain shell. */
   harnessKey?: string
   label: string
   createdAt: number
@@ -249,7 +258,7 @@ export type IframeLayerData = {
  * each new kind just adds its case here and registers a sizer in
  * `lib/canvas/layout.ts`.
  */
-export type GroupMemberKind = "iframe-layer" | "markdown-layer"
+export type GroupMemberKind = "iframe-layer" | "markdown-layer" | "mockup-layer"
 export type GroupMember = {
   kind: GroupMemberKind
   id: string
@@ -306,7 +315,42 @@ export type MarkdownLayerData = {
   width: number
   height: number
   title: string
+  /**
+   * The chat that made this Document (#1314), which alone edits it with its
+   * tools and gets its Send to agent and Reply in chat. Unset for a Document
+   * a person made by hand, or one the Coordinator made.
+   */
+  ownerChatId?: string
 }
+
+/**
+ * A static HTML page a chat wrote, shown on the canvas without a Sandbox
+ * (issue #1309). Lives in a Group like the other layers. The page itself is a
+ * `Y.Text` keyed `mockup-layer-${id}` (resolved through `mockupHtml`), so it
+ * syncs like a document body; the record carries size, title and owner.
+ */
+export type MockupLayerData = {
+  id: string
+  width: number
+  height: number
+  title: string
+  /**
+   * The chat that made the mockup (#1309), which alone updates it with its
+   * tools, and whose Workspace its label names, as a Document's owner does.
+   * Once that chat is gone the mockup stays and names none.
+   */
+  ownerChatId?: string
+  /**
+   * Where this take stands (#1310), set by anyone on the canvas or by its
+   * owning chat. Nothing else reads it: the chat decides what it means. Unset
+   * on a mockup made before statuses, which reads as `current`.
+   */
+  status?: MockupStatus
+}
+
+/** A Mockup's status (#1310), in menu order. */
+export const MOCKUP_STATUSES = ["set-aside", "current", "built"] as const
+export type MockupStatus = (typeof MOCKUP_STATUSES)[number]
 
 export type ViewportData = {
   x: number

@@ -25,6 +25,13 @@ export interface AgentRequestThread {
   anchor: ElementAnchor | null
   snapshot: string | null
   comments: readonly { authorName: string; body: string }[]
+  /**
+   * The Document a thread on a Document's text is on (#1314), which the chat
+   * edits with its Document tools rather than in code.
+   */
+  document?: { id: string; title: string } | null
+  /** The Document text the thread was made on. */
+  quotedText?: string | null
 }
 
 /** The element a comment is on, as the agent should look for it. */
@@ -44,31 +51,45 @@ export function formatAgentRequest(
   threads: readonly AgentRequestThread[]
 ): string {
   const one = threads.length === 1
+  // Comments on Documents only (#1314) are about their text, not the app.
+  const documents = threads.every((t) => t.document)
+  const on = documents ? "on Documents" : "on the app"
   const lines = [
     one
-      ? "Please address this comment on the app."
-      : `Please address these ${threads.length} comments on the app.`,
+      ? `Please address this comment ${documents ? "on a Document" : on}.`
+      : `Please address these ${threads.length} comments ${on}.`,
   ]
   for (const thread of threads) {
-    const element = describeElement(thread)
-    const where = [thread.route, element].filter(Boolean).join(", ")
-    const snapshot = thread.snapshot?.trim()
-    lines.push(
-      "",
-      `#${thread.number}${where ? ` on ${where}` : ""}` +
-        (snapshot ? ` ("${snapshot}")` : "") +
-        ":"
-    )
+    lines.push("", `#${thread.number}${threadPlace(thread)}:`)
     for (const c of thread.comments) lines.push(`${c.authorName}: ${c.body}`)
   }
   const example = threads[0]?.number ?? 1
   lines.push(
     "",
-    "Commit your changes. When you're done, end your reply with one line " +
+    (documents ? "" : "Commit your changes. ") +
+      "When you're done, end your reply with one line " +
       `per comment saying what you did, starting with its number, like ` +
-      `"#${example}: Made the summary sticky below 768px."`
+      (documents
+        ? `"#${example}: Rewrote the rollout section."`
+        : `"#${example}: Made the summary sticky below 768px."`)
   )
   return lines.join("\n")
+}
+
+/** Where a thread is, after its number: its route and element, or its
+ *  Document and the text it's on. */
+function threadPlace(thread: AgentRequestThread): string {
+  if (thread.document) {
+    const quoted = thread.quotedText?.trim()
+    return (
+      ` on the Document "${thread.document.title || "Untitled"}" (id ${thread.document.id})` +
+      (quoted ? `, on "${quoted}"` : "")
+    )
+  }
+  const element = describeElement(thread)
+  const where = [thread.route, element].filter(Boolean).join(", ")
+  const snapshot = thread.snapshot?.trim()
+  return (where ? ` on ${where}` : "") + (snapshot ? ` ("${snapshot}")` : "")
 }
 
 const REPLY_LINE =
@@ -127,13 +148,17 @@ export interface SendableThread {
 
 /**
  * The Workspace whose agent a thread goes to: the one it was made on, else
- * the one its frame shows. Document and canvas threads have none.
+ * the one its frame shows. A Document thread goes where `documentWorkspace`
+ * says (#1314): the Workspace of the chat that made the Document, else the
+ * one the panel shows. Canvas threads have none.
  */
 export function threadWorkspace(
   thread: SendableThread,
-  frameWorkspace: (frameId: string) => string | null | undefined
+  frameWorkspace: (frameId: string) => string | null | undefined,
+  documentWorkspace: (documentId: string) => string | null | undefined = () =>
+    null
 ): string | null {
-  if (thread.documentId) return null
+  if (thread.documentId) return documentWorkspace(thread.documentId) ?? null
   if (thread.workspaceId) return thread.workspaceId
   return thread.iframeLayerId
     ? (frameWorkspace(thread.iframeLayerId) ?? null)
@@ -153,12 +178,13 @@ export function isWithAgent(thread: Pick<SendableThread, "agentStatus">) {
 export function planAgentRequests<T extends SendableThread>(
   threads: readonly T[],
   frameWorkspace: (frameId: string) => string | null | undefined,
-  agentReady: (workspaceId: string) => boolean
+  agentReady: (workspaceId: string) => boolean,
+  documentWorkspace?: (documentId: string) => string | null | undefined
 ): Map<string, T[]> {
   const requests = new Map<string, T[]>()
   for (const thread of threads) {
     if (thread.resolved || isWithAgent(thread)) continue
-    const workspace = threadWorkspace(thread, frameWorkspace)
+    const workspace = threadWorkspace(thread, frameWorkspace, documentWorkspace)
     if (!workspace || !agentReady(workspace)) continue
     const list = requests.get(workspace)
     if (list) list.push(thread)

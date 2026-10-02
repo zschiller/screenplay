@@ -30,7 +30,6 @@ import {
   planBranchTeardown,
   planRepoTeardown,
 } from "@/lib/branch/intake"
-import { readLastTabKind } from "@/lib/canvas/tab-kind"
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import {
   resolveRepoData,
@@ -39,12 +38,7 @@ import {
 import type { CanvasOps } from "@/lib/canvas/ops"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { RepoPickerSelection } from "@/components/repo-picker"
-import type {
-  BranchData,
-  IframeLayerData,
-  RepoData,
-  TabKind,
-} from "@/lib/types"
+import type { BranchData, IframeLayerData, RepoData } from "@/lib/types"
 
 /**
  * Branch Intake controller (PRD #562) — the Repo → Branch → Sandbox lifecycle
@@ -73,13 +67,12 @@ export interface BranchIntakeDeps {
   iframeLayers: IframeLayerData[]
   roomId: string
   /**
-   * The Tab Pool's seed entry: seed a Branch's default tab (chat or terminal)
-   * without re-implementing tab creation. This is the handoff to the Tab Pool
-   * controller (separate PRD); the seed plan decides *whether* and *which kind*.
+   * The Tab Pool's seed entry: seed a Branch's chat without re-implementing
+   * tab creation. This is the handoff to the Tab Pool controller (separate
+   * PRD); the seed plan decides *whether*.
    */
   createDefaultTabForBranch: (
     branchId: string,
-    kind: TabKind,
     options?: { select?: boolean }
   ) => string
   getViewportCenter: () => { cx: number; cy: number }
@@ -265,7 +258,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       const frame = planBranchSeed({
         branchId,
         hasSeededChat: false,
-        defaultTabKind: readLastTabKind(),
       }).frame
       const { cx, cy } = getViewportCenter()
       const frameGroup = ops.createFramesForAgents([frame], { x: cx, y: cy })
@@ -297,10 +289,8 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       const { tab } = planBranchSeed({
         branchId,
         hasSeededChat: false,
-        defaultTabKind: readLastTabKind(),
       })
-      if (tab)
-        createDefaultTabForBranch(tab.branchId, tab.kind, { select: false })
+      if (tab) createDefaultTabForBranch(tab.branchId, { select: false })
       return false
     },
     [createDefaultTabForBranch]
@@ -464,10 +454,9 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       // frame); frames are collected here and created in the same Yjs
       // transaction below so branch + frame land as one undo step.
       const frameSpecs: Array<{ agentId: string; label?: string }> = []
-      const tabSpecs: Array<{ branchId: string; kind: TabKind }> = []
+      const tabSpecs: Array<{ branchId: string }> = []
       const { cx, cy } = getViewportCenter()
       let frameGroup: { groupId: string; layerIds: string[] } | undefined
-      const defaultTabKind = readLastTabKind()
 
       // Create all Branch records (and pre-seed each prompted row's Chat Session
       // so its queued prompt has a stable chatId) in one Yjs transaction.
@@ -516,7 +505,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             branchId: id,
             label,
             hasSeededChat: plan.seedChat,
-            defaultTabKind,
           })
           frameSpecs.push(seed.frame)
           if (seed.tab) tabSpecs.push(seed.tab)
@@ -561,7 +549,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       // the other branch-create flows. The server still skips its auto chat for
       // these rows (seedChat: false), since the client owns tab seeding here.
       for (const tab of tabSpecs) {
-        createDefaultTabForBranch(tab.branchId, tab.kind, { select: false })
+        createDefaultTabForBranch(tab.branchId, { select: false })
       }
 
       for (const d of dispatched) {

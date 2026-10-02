@@ -2,7 +2,7 @@ import "server-only"
 
 import { getPuppeteerCapturer } from "./puppeteer"
 import { getTauriWebviewCapturer } from "./tauri-webview"
-import type { ThumbnailCapturer } from "./types"
+import type { FramePageReader, ThumbnailCapturer } from "./types"
 
 /**
  * Which {@link ThumbnailCapturer} backend a build runs on. Mirrors the sibling
@@ -33,7 +33,7 @@ export function capturerChoiceFromEnv(
 /** Resolve the configured {@link ThumbnailCapturer} for the current build. */
 export function selectThumbnailCapturer(
   env: Record<string, string | undefined> = process.env
-): ThumbnailCapturer {
+): ThumbnailCapturer & FramePageReader {
   return capturerChoiceFromEnv(env) === "tauri-webview"
     ? getTauriWebviewCapturer()
     : getPuppeteerCapturer()

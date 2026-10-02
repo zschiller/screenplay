@@ -8,6 +8,7 @@ import {
   getGroupMembers,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import { memberBox, sizedLayersOf } from "@/lib/canvas/sized-layers"
 import type { GroupMember } from "@/lib/types"
 import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
 
@@ -34,8 +35,8 @@ import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
  * the route/seed creators keep their viewport-centered placement.
  *
  * Constructed from `ops`, the live `collections`, the viewport-center reader
- * (Camera), the Chat-Target memory (`rememberDocChat`, for a new document's
- * chat), and the Selection controller (for the delete-follow on group teardown).
+ * (Camera), and the Selection controller (for the delete-follow on group
+ * teardown).
  *
  * Note: the two thin multi-Layer remove wrappers (`removeIframeLayers` /
  * `removeDocumentLayers`) stay on the Canvas root because the Selection
@@ -47,8 +48,6 @@ export interface GroupActionInputs {
   collections: RoomCollections
   /** Viewport center in canvas space — placement for the route/seed creators. */
   getViewportCenter: () => { cx: number; cy: number }
-  /** Chat-Target memory — remember a new document's seeded chat. */
-  rememberDocChat: (markdownLayerId: string, chatId: string) => void
   /** Selection controller — `removeIframeLayerGroup` drops the deleted group. */
   selection: CanvasSelection
 }
@@ -105,7 +104,7 @@ export interface GroupActions {
   reorderIframeLayerGroups: (orderedIds: string[]) => void
   /** Rename a group. */
   renameIframeLayerGroup: (groupId: string, name: string) => void
-  /** Delete an entire group + all its members (iframeLayers, markdownLayers). */
+  /** Delete an entire group + all its members (frames, documents, mockups). */
   removeIframeLayerGroup: (groupId: string) => void
 }
 
@@ -113,7 +112,6 @@ export function useGroupActions({
   ops,
   collections,
   getViewportCenter,
-  rememberDocChat,
   selection,
 }: GroupActionInputs): GroupActions {
   // Depend on the stable verb, not the whole (re-created-each-render) selection
@@ -224,8 +222,7 @@ export function useGroupActions({
   /**
    * Append a new document to an existing group — the Document sibling of
    * `addIframeLayerToGroup`. Mirrors the last member's bounds so the new doc
-   * visually replaces the placeholder rect the user just clicked, and remembers
-   * the seeded chat so the doc's chat tab is ready on open.
+   * visually replaces the placeholder rect the user just clicked.
    */
   const addDocumentLayerToGroup = useCallback(
     (groupId: string): string | undefined => {
@@ -234,20 +231,15 @@ export function useGroupActions({
       const members = getGroupMembers(group)
       if (members.length === 0) return
       const lastMember = members[members.length - 1]!
-      const lastSize =
-        lastMember.kind === "iframe-layer"
-          ? collections.iframeLayers.get(lastMember.id)
-          : collections.markdownLayers.get(lastMember.id)
+      const lastSize = memberBox(collections, lastMember)
       if (!lastSize) return
       const result = ops.addDocumentToGroup(groupId, {
         width: lastSize.width,
         height: lastSize.height,
       })
-      if (!result) return
-      rememberDocChat(result.docId, result.chatId)
-      return result.docId
+      return result?.docId
     },
-    [collections, ops, rememberDocChat]
+    [collections, ops]
   )
 
   /**
@@ -262,14 +254,10 @@ export function useGroupActions({
       width: number,
       height: number
     ): string => {
-      const { docId, chatId } = ops.createDocument(
-        { x: canvasX, y: canvasY },
-        { width, height }
-      )
-      rememberDocChat(docId, chatId)
-      return docId
+      return ops.createDocument({ x: canvasX, y: canvasY }, { width, height })
+        .docId
     },
-    [ops, rememberDocChat]
+    [ops]
   )
 
   /** Reorder groups in the sidebar Frames list. */
@@ -322,17 +310,7 @@ export function useGroupActions({
       // renumber sidebar order so it slots in at the requested index. Placement
       // (canvas-space) is the caller's job; the verb owns the member move,
       // group creation/naming, and source pruning.
-      const memberSize = (() => {
-        if (member.kind === "iframe-layer") {
-          const ab = collections.iframeLayers.get(member.id)
-          return ab ? { width: ab.width, height: ab.height } : null
-        }
-        if (member.kind === "markdown-layer") {
-          const d = collections.markdownLayers.get(member.id)
-          return d ? { width: d.width, height: d.height } : null
-        }
-        return null
-      })()
+      const memberSize = memberBox(collections, member)
       if (!memberSize) return
 
       const sourceWillEmpty =
@@ -348,7 +326,8 @@ export function useGroupActions({
         collections.iframeLayers.toArray(),
         { x: cx, y: cy },
         memberSize.width,
-        memberSize.height
+        memberSize.height,
+        sizedLayersOf(collections)
       )
 
       // One batch so the split + sidebar renumber land as a single undo step.
@@ -398,12 +377,16 @@ export function useGroupActions({
       const documentIds = members
         .filter((m) => m.kind === "markdown-layer")
         .map((m) => m.id)
+      const mockupIds = members
+        .filter((m) => m.kind === "mockup-layer")
+        .map((m) => m.id)
       // Compose both removal verbs under one batch so the group teardown is a
       // single transaction (one undo step). Each verb prunes the group as its
       // last member of that kind leaves.
       let removedChatIds: string[] = []
       ops.batch(() => {
         if (iframeLayerIds.length > 0) ops.removeLayers(iframeLayerIds)
+        if (mockupIds.length > 0) ops.removeMockups(mockupIds)
         if (documentIds.length > 0) {
           removedChatIds = ops.removeDocuments(documentIds).removedChatIds
         }

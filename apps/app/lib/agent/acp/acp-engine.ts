@@ -9,8 +9,11 @@ import type {
 } from "./engine-seam"
 import {
   blockText,
+  planFromPermissionRequest,
+  planPermissionRequest,
   textBlock,
   type ContentBlock,
+  type RequestPermissionRequest,
   type SessionUpdate,
   type StopReason,
 } from "./schema"
@@ -96,7 +99,7 @@ export interface ExternalEngineConfig {
  * **Graceful capability degradation (ADR 0003 / ADR 0006).** This engine
  * deliberately does **not** implement {@link
  * import("./engine-seam").UsageReportingEngine}: a generic ACP agent may never
- * surface prompt-cache `totalUsage`, so the capability is simply absent and
+ * surface prompt-cache usage, so the capability is simply absent and
  * {@link import("./engine-seam").supportsUsageReporting} narrows it out — the
  * caller takes the no-usage branch rather than calling a half-implemented
  * method.
@@ -113,6 +116,13 @@ export interface ExternalEngineConfig {
  * *other* permission request a real adapter raises (file edits, command runs on
  * a non-plan turn) is an ordinary tool approval the engine **auto-allows**, so
  * the tool runs to completion instead of being mistaken for an empty plan.
+ *
+ * An agent that plans through its `collaboration_mode` option instead (Codex's
+ * adapter, #1337) asks to carry out its finished plan with a permission request
+ * of its own. On its plan turns only that request is the gate, raised to the
+ * consumer as screenplay's own plan request, and every other one is
+ * auto-allowed. The agent also sends the plan as its last reply, which the
+ * gate already shows, so that reply is held back (see {@link HeldReply}).
  *
  * **Stop / supersession.** A user `/stop` or a supersession reaches the engine
  * as an aborted `signal`; the session sends `session/cancel` and the agent
@@ -152,15 +162,28 @@ export class ExternalEngine implements Engine {
     // turn ends only after the last of them.
     const inOrder = serially()
     let steering: PromptSteering | null = null
+    let session: AcpSession | null = null
+    // A plan turn on an agent that plans through its collaboration mode
+    // (#1337) holds its latest reply back until it knows the reply isn't the
+    // plan the gate will show.
+    let held: HeldReply | null = null
     // Set once the turn has reported how it ended; an agent that keeps
     // streaming after that has nothing more to show. What it streams after a
     // stop the consumer drops, as for every Engine (#1263).
     let ended = false
+    // A reply still held when the turn ends wasn't the plan, so it goes out.
+    const releaseHeld = async () => {
+      for (const ready of held?.release() ?? []) {
+        await sink({ kind: "session_update", update: ready })
+      }
+    }
     const ports: AcpSessionPorts = {
       onUpdate: (update) =>
         inOrder(async () => {
           if (ended) return
-          await sink({ kind: "session_update", update })
+          for (const ready of held ? held.take(update) : [update]) {
+            await sink({ kind: "session_update", update: ready })
+          }
           steering?.observe(update)
           // A finished tool call is the step boundary a Steer can join at.
           if (steering && endsToolCall(update)) await steering.take()
@@ -182,9 +205,24 @@ export class ExternalEngine implements Engine {
         // without end. Auto-allowing matches the in-process engine, which runs
         // its tools with no permission gate at all.
         if (!turn.planMode) return { approved: true }
+        // An agent planning through its collaboration mode (#1337) raises
+        // ordinary tool approvals on a plan turn too; only its request to carry
+        // out the finished plan is the gate.
+        const collaborationPlan = session?.plansByCollaborationMode === true
+        if (collaborationPlan && !asksToCarryOutPlan(request)) {
+          return { approved: true }
+        }
 
         await inOrder(async () => {
-          await sink({ kind: "permission_request", request })
+          if (!collaborationPlan) {
+            await sink({ kind: "permission_request", request })
+            return
+          }
+          const gate = planGate(request, turn.runId)
+          for (const ready of held?.withoutPlan(gate.plan) ?? []) {
+            await sink({ kind: "session_update", update: ready })
+          }
+          await sink({ kind: "permission_request", request: gate.request })
         })
         planPause.abort()
         // Not used as a decision: the aborted turn signal makes the session
@@ -194,7 +232,6 @@ export class ExternalEngine implements Engine {
       },
     }
 
-    let session: AcpSession | null = null
     // A stop cancels the session first. But a message the Claude adapter had
     // already pushed into the running turn (a taken Steer) keeps the agent
     // working past the cancel (#1191), so an agent still going a while later
@@ -214,6 +251,7 @@ export class ExternalEngine implements Engine {
       const opened = await this.openSession(ports, turn)
       session = opened.session
       const { resumed } = opened
+      if (session.plansByCollaborationMode) held = new HeldReply()
       // A resumed session already holds the prior conversation, so send only the
       // new user message. A fresh session has none — replay the whole history so
       // its context is seeded (the first turn reduces to just the new message),
@@ -235,7 +273,7 @@ export class ExternalEngine implements Engine {
       } else {
         stopReason = await session.prompt(blocks, turnSignal)
       }
-      await inOrder(async () => {})
+      await inOrder(() => releaseHeld())
       ended = true
 
       // The plan gate already closed the turn through the consumer; emitting a
@@ -253,7 +291,7 @@ export class ExternalEngine implements Engine {
       }
       await sink({ kind: "done", stopReason })
     } catch (e) {
-      await inOrder(async () => {}).catch(() => {})
+      await inOrder(() => releaseHeld()).catch(() => {})
       ended = true
       if (signal.aborted) {
         session?.close()
@@ -444,6 +482,97 @@ function lastUserContent(history: AcpMessageRecord[]): ContentBlock[] | null {
   const record = history[index]!
   return record.role === "user" ? record.content : null
 }
+
+/**
+ * Whether a permission request asks to carry out a finished plan: Codex's
+ * adapter asks with the plan as `rawInput.plan` (#1337). Its tool approvals
+ * carry a command or a file change instead.
+ */
+function asksToCarryOutPlan(request: RequestPermissionRequest): boolean {
+  const raw = request.toolCall.rawInput
+  return (
+    typeof raw === "object" &&
+    raw !== null &&
+    typeof (raw as { plan?: unknown }).plan === "string"
+  )
+}
+
+/**
+ * The plan gate for an agent's request to carry out its plan (#1337), as
+ * screenplay's own plan request: the same "Review plan" approval Claude Code
+ * chats get. The pending plan is stored under its tool call id, so the run id
+ * keeps it unique when the agent reuses item ids across sessions.
+ */
+function planGate(
+  request: RequestPermissionRequest,
+  runId: string
+): { plan: string; request: RequestPermissionRequest } {
+  const { plan } = planFromPermissionRequest(request)
+  return {
+    plan,
+    request: planPermissionRequest({
+      sessionId: request.sessionId,
+      toolCallId: `${runId}:${request.toolCall.toolCallId}`,
+      plan,
+    }),
+  }
+}
+
+/**
+ * The latest reply of a plan turn on an agent that plans through its
+ * collaboration mode (#1337), held until something else arrives. Codex's
+ * adapter sends the finished plan as a reply of its own just before asking to
+ * carry it out; the gate shows the plan, so that reply is dropped rather than
+ * shown twice. Codex reports usage and its thread going idle in between, so
+ * status updates like those pass straight through and keep the reply held. Any
+ * other reply goes out as soon as the next message, reasoning or tool call
+ * arrives, or when the turn ends.
+ */
+class HeldReply {
+  private chunks: SessionUpdate[] = []
+  private messageId: string | null = null
+
+  /** The updates to send now that `update` arrived. */
+  take(update: SessionUpdate): SessionUpdate[] {
+    if (STATUS_UPDATES.has(update.sessionUpdate)) return [update]
+    if (update.sessionUpdate !== "agent_message_chunk") {
+      return [...this.release(), update]
+    }
+    const messageId = update.messageId ?? null
+    const ready = messageId === this.messageId ? [] : this.release()
+    this.messageId = messageId
+    this.chunks.push(update)
+    return ready
+  }
+
+  /** Everything held, dropping it when it is the plan the gate shows. */
+  withoutPlan(plan: string): SessionUpdate[] {
+    const text = this.chunks
+      .map((u) =>
+        u.sessionUpdate === "agent_message_chunk" ? blockText(u.content) : ""
+      )
+      .join("")
+    const held = this.release()
+    return text.trim() === plan.trim() ? [] : held
+  }
+
+  /** Everything held, in arrival order. */
+  release(): SessionUpdate[] {
+    const held = this.chunks
+    this.chunks = []
+    this.messageId = null
+    return held
+  }
+}
+
+/** Updates about the session rather than the conversation, which a held reply lets by. */
+const STATUS_UPDATES = new Set<SessionUpdate["sessionUpdate"]>([
+  "usage_update",
+  "session_info_update",
+  "available_commands_update",
+  "current_mode_update",
+  "config_option_update",
+])
 
 /** How long a stopped turn's agent gets to wind down before it is ended. */
 const STOP_GRACE_MS = 2000

@@ -98,16 +98,16 @@ afterEach(() => {
 })
 
 describe("useChatTabs close", () => {
-  it("archives the selected chat and selects the first sibling", () => {
+  it("archives the selected earlier chat and selects the Workspace's chat", () => {
     const { tabs, sessions, state } = setup(
       [chat("a", 1), chat("b", 2), chat("other", 0, { branchId: "ws-2" })],
-      "b"
+      "a"
     )
 
-    act(() => tabs().close("b"))
+    act(() => tabs().close("a"))
 
-    expect(sessions.get("b")?.closedAt).toBeGreaterThan(0)
-    expect(state.selectedChatId).toBe("a")
+    expect(sessions.get("a")?.closedAt).toBeGreaterThan(0)
+    expect(state.selectedChatId).toBe("b")
   })
 
   it("prefers the tab strip's neighbour when it names one", () => {
@@ -116,73 +116,33 @@ describe("useChatTabs close", () => {
       "b"
     )
 
-    act(() => tabs().close("b", "c"))
+    act(() => tabs().close("b", "a"))
 
-    expect(state.selectedChatId).toBe("c")
+    expect(state.selectedChatId).toBe("a")
   })
 
   it("leaves selection alone when a background tab closes", () => {
-    const { tabs, selectChat } = setup([chat("a", 1), chat("b", 2)], "a")
+    const { tabs, selectChat } = setup([chat("a", 1), chat("b", 2)], "b")
 
-    act(() => tabs().close("b"))
+    act(() => tabs().close("a"))
 
     expect(selectChat).not.toHaveBeenCalled()
   })
 
-  it("respawns a fresh chat when the last open tab closes", () => {
-    const { tabs, state, openIds, selectChat } = setup(
-      [chat("only", 1)],
-      "only"
-    )
+  it("never closes the Workspace's own chat (#1315)", () => {
+    const { tabs, sessions, selectChat } = setup([chat("only", 1)], "only")
 
     act(() => tabs().close("only"))
 
-    const [fresh] = openIds()
-    expect(fresh).toBeDefined()
-    expect(fresh).not.toBe("only")
-    expect(state.selectedChatId).toBe(fresh)
-    expect(selectChat).toHaveBeenCalledWith(fresh, {
-      kind: "agent",
-      branchId: "ws-1",
-    })
-  })
-
-  it("hands an agent respawn to respawnAgent when the host passes one", () => {
-    const respawnAgent = vi.fn()
-    const { tabs, openIds } = setup([chat("only", 1)], "only", {
-      respawnAgent,
-    })
-
-    act(() => tabs().close("only"))
-
-    expect(respawnAgent).toHaveBeenCalledWith("ws-1")
-    expect(openIds()).toEqual([])
-  })
-
-  it("counts the host's terminals toward the pool", () => {
-    const { tabs, state, openIds } = setup([chat("only", 1)], "only", {
-      terminals: [
-        {
-          id: "term",
-          branchId: "ws-1",
-          label: "Terminal",
-          createdAt: 2,
-          terminalSessionId: "term",
-        } as never,
-      ],
-    })
-
-    act(() => tabs().close("only"))
-
-    expect(openIds()).toEqual([])
-    expect(state.selectedChatId).toBe("term")
+    expect(sessions.get("only")?.closedAt).toBeUndefined()
+    expect(selectChat).not.toHaveBeenCalled()
   })
 })
 
 describe("useChatTabs remove", () => {
-  it("deletes the selected chat and selects the next open one", () => {
+  it("deletes the selected earlier chat and selects the next open one", () => {
     const { tabs, sessions, state } = setup(
-      [chat("a", 1), chat("b", 2), chat("c", 3, { closedAt: 5 })],
+      [chat("a", 1), chat("b", 2), chat("c", 3)],
       "b"
     )
 
@@ -193,21 +153,13 @@ describe("useChatTabs remove", () => {
     expect(state.selectedChatId).toBe("a")
   })
 
-  it("respawns a fresh chat when the last open tab is removed", () => {
-    const { tabs, sessions, state, openIds } = setup(
-      [chat("only", 1), chat("old", 0, { closedAt: 5 })],
-      "only"
-    )
+  it("never deletes the Workspace's own chat (#1315)", () => {
+    const { tabs, sessions } = setup([chat("only", 1)], "only")
 
     act(() => tabs().remove("only"))
 
-    expect(sessions.has("only")).toBe(false)
-    const [fresh] = openIds()
-    expect(sessions.get(fresh)).toMatchObject({
-      branchId: "ws-1",
-      label: "Untitled",
-    })
-    expect(state.selectedChatId).toBe(fresh)
+    expect(sessions.has("only")).toBe(true)
+    expect(chatStore.cleanup).not.toHaveBeenCalled()
   })
 
   it("decides nothing when a closed chat is deleted from history", () => {
@@ -225,8 +177,8 @@ describe("useChatTabs remove", () => {
 })
 
 describe("useChatTabs open and reopen", () => {
-  it("opens a chat on the target and selects it", () => {
-    const { tabs, sessions, state } = setup([chat("a", 1)], "a")
+  it("opens a chat on a Workspace that has none and selects it", () => {
+    const { tabs, sessions, state } = setup([], null)
 
     let id = ""
     act(() => {
@@ -235,6 +187,23 @@ describe("useChatTabs open and reopen", () => {
 
     expect(sessions.get(id)).toMatchObject({ branchId: "ws-1" })
     expect(state.selectedChatId).toBe(id)
+  })
+
+  it("never opens a second chat on a Workspace (#1315)", () => {
+    const { tabs, sessions, state } = setup(
+      [chat("a", 1, { closedAt: 5 })],
+      null
+    )
+
+    let id = ""
+    act(() => {
+      id = tabs().open({ kind: "agent", branchId: "ws-1" })
+    })
+
+    expect(id).toBe("a")
+    expect(sessions.size).toBe(1)
+    expect(sessions.get("a")?.closedAt).toBe(0)
+    expect(state.selectedChatId).toBe("a")
   })
 
   it("reopens a closed chat and selects it", () => {

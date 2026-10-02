@@ -7,6 +7,7 @@ import {
   groupContentWidth,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import {
   DEFAULT_IFRAME_LAYER_HEIGHT,
   DEFAULT_IFRAME_LAYER_WIDTH,
@@ -19,15 +20,14 @@ import type { RoomDoc } from "@/lib/room-access"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 
-/** A new document's size, as a click with the Document tool makes it. */
-const DOCUMENT_SIZE = { width: 480, height: 640 }
-
 /**
- * The Coordinator's arrange tools (#894): create, move, group, merge, rename
- * and remove frames and documents, plus the change log's `list_changes` and
+ * The Coordinator's arrange tools (#894): create frames; move, group, merge
+ * and remove frames and documents; rename frames and Groups; plus the change log's `list_changes` and
  * `undo_changes`. They act right away, with no confirmation. Every write goes
  * through Canvas Operations inside one server-side room mutation, logged
- * under `turnId` so the Coordinator can undo a turn when asked.
+ * under `turnId` so the Coordinator can undo a turn when asked. None creates
+ * or edits a Document or Mockup: the Coordinator starts a chat for those, and
+ * that chat owns what it makes (#1316).
  */
 export function buildArrangeTools(
   mutateDoc: RoomDoc["mutateDoc"],
@@ -120,35 +120,6 @@ export function buildArrangeTools(
             `Created ${frameNames(frames)}${forWorkspace(branch)} in a new Group.`,
             [...ids, created.groupId]
           )
-        }),
-    }),
-
-    create_document: tool({
-      description:
-        "Create a document, optionally titled. Pass `group_id` to add it to the end of an existing Group; otherwise it gets a new Group.",
-      inputSchema: jsonSchema<{ title?: string; group_id?: string }>({
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          group_id: { type: "string" },
-        },
-      }),
-      execute: async ({ title, group_id }) =>
-        change((doc) => {
-          const { ops, c } = freshOps(doc)
-          let docId: string
-          if (group_id) {
-            const added = ops.addDocumentToGroup(group_id, DOCUMENT_SIZE)
-            if (!added) return `Error: no Group ${group_id}.`
-            docId = added.docId
-          } else {
-            docId = ops.createDocument(
-              newGroupAnchor(c, DOCUMENT_SIZE),
-              DOCUMENT_SIZE
-            ).docId
-          }
-          if (title) freshOps(doc).ops.renameDocument(docId, title)
-          return withIds(`Created document "${title || "Untitled"}".`, [docId])
         }),
     }),
 
@@ -307,7 +278,7 @@ export function buildArrangeTools(
     }),
 
     rename: tool({
-      description: "Rename a frame, a Group or a document.",
+      description: "Rename a frame or a Group.",
       inputSchema: jsonSchema<{ id: string; name: string }>({
         type: "object",
         properties: {
@@ -329,12 +300,7 @@ export function buildArrangeTools(
             ops.patch("iframeLayerGroups", id, { name })
             return `Renamed Group "${group.name ?? id}" to "${name}".`
           }
-          const document = c.markdownLayers.get(id)
-          if (document) {
-            ops.renameDocument(id, name)
-            return `Renamed document "${document.title || "Untitled"}" to "${name}".`
-          }
-          return `Error: no frame, Group or document ${id}.`
+          return `Error: no frame or Group ${id}.`
         }),
     }),
 
@@ -467,7 +433,7 @@ function newGroupAnchor(
     ORIGIN,
     size.width,
     size.height,
-    c.markdownLayers.toArray()
+    sizedLayersOf(c)
   )
 }
 
@@ -479,15 +445,15 @@ type GroupRect = { x: number; y: number; width: number; height: number }
 /** Every Group's canvas rect: its top-left corner and its row's extent. */
 function groupRects(c: RoomCollections): Map<string, GroupRect> {
   const frames = c.iframeLayers.toArray()
-  const documents = c.markdownLayers.toArray()
+  const sized = sizedLayersOf(c)
   return new Map(
     c.iframeLayerGroups.toArray().map((g) => [
       g.id,
       {
         x: g.x,
         y: g.y,
-        width: groupContentWidth(g, frames, documents),
-        height: groupContentHeight(g, frames, documents),
+        width: groupContentWidth(g, frames, sized),
+        height: groupContentHeight(g, frames, sized),
       },
     ])
   )
@@ -566,7 +532,7 @@ function groupName(c: RoomCollections, id: string): string {
   return c.iframeLayerGroups.get(id)?.name ?? id
 }
 
-/** The Group holding a frame or document, if any. */
+/** The Group holding a frame, document or mockup, if any. */
 function memberGroup(c: RoomCollections, id: string): string | undefined {
   return c.iframeLayerGroups
     .toArray()
@@ -595,12 +561,14 @@ function frameNames(frames: { label: string }[]): string {
   return `${frames.length === 1 ? "frame" : "frames"} ${names}`
 }
 
-/** Frames and documents by name: `frame "Settings", document "Launch spec"`. */
+/** Group members by name: `frame "Settings", document "Launch spec"`. */
 function memberNames(c: RoomCollections, ids: string[]): string {
   return ids
     .map((id) => {
       const frame = c.iframeLayers.get(id)
       if (frame) return `frame "${frame.label}"`
+      const mockup = c.mockupLayers.get(id)
+      if (mockup) return `mockup "${mockup.title || "Untitled"}"`
       return `document "${c.markdownLayers.get(id)?.title || "Untitled"}"`
     })
     .join(", ")

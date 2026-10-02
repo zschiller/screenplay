@@ -63,6 +63,9 @@ function setup(overrides: Partial<RoomToolPorts> = {}) {
       throw new Error("no browser")
     }),
     readFrameCapture: vi.fn(async () => null),
+    readFramePage: vi.fn(async () => {
+      throw new Error("no browser")
+    }),
     ...overrides,
   }
   return { collections, ports }
@@ -74,7 +77,7 @@ async function run(
   input: Record<string, unknown>
 ): Promise<unknown> {
   const tools = buildRoomTools("room-1", ports)
-  return tools[name].execute!(input, { toolCallId: "t1", messages: [] })
+  return tools[name].execute!(input, { toolCallId: "t1", messages: [], context: {} })
 }
 
 function addChat(

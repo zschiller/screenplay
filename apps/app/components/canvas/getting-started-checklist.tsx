@@ -174,7 +174,7 @@ function StepBody({
           </span>
         </Hint>
       ) : line?.kind === "error" ? (
-        <Hint>{line.title}. Retry it from the Workspaces menu.</Hint>
+        <Hint>{line.title}. Retry it from the Chats menu.</Hint>
       ) : (
         <Hint>See its chat and what changed while the frame updates.</Hint>
       )}

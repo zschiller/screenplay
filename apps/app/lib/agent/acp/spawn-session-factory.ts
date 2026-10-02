@@ -88,7 +88,13 @@ export class SpawnAcpSessionFactory implements AcpSessionFactory {
 
     try {
       const transport = childTransport(child)
-      const session = await AcpSession.open(transport, ports, options)
+      const session = await AcpSession.open(transport, ports, {
+        ...options,
+        adapter: {
+          modelOption: launch.modelOption,
+          promptQueueing: launch.promptQueueing,
+        },
+      })
       session.onClose(() => {
         child.kill()
         this.children.delete(child)

@@ -232,7 +232,12 @@ type SheetLine = { label: string; gesture?: string } & (
   | { action: CanvasKeyAction }
   | {
       keys: string[]
-      handledBy: "pointer" | "comments-panel" | "comment-composer" | "composer"
+      handledBy:
+        | "pointer"
+        | "comments-panel"
+        | "comment-composer"
+        | "composer"
+        | "terminal-pane"
       comments?: boolean
     }
 )
@@ -269,6 +274,12 @@ const SHEET: { title: string; lines: SheetLine[] }[] = [
     lines: [
       { label: "Toggle sidebar", action: "toggle-sidebar" },
       { label: "Toggle chat", action: "toggle-chat" },
+      // The Terminal Pane under a Workspace's chat listens for it itself.
+      {
+        label: "Toggle terminal",
+        keys: ["⌃", "`"],
+        handledBy: "terminal-pane",
+      },
       { label: "Toggle both panels", action: "toggle-panels" },
       { label: "Keyboard shortcuts", action: "shortcut-sheet" },
     ],

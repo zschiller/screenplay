@@ -16,8 +16,8 @@ It can also look inside a workspace: what its agent was last asked, a summary
 of what it did and its last reply (or the whole chat when it needs it), the
 workspace's changes and its files. And it can look at a frame, taking a
 screenshot of the live preview, or using the last saved one when the preview
-isn't running. So you can ask "What did the sign-in workspace change, and how
-does it look?"
+isn't running, or read the page in a frame as HTML with its styles. So you
+can ask "What did the sign-in workspace change, and how does it look?"
 
 <Screenshot
   name="coordinator"
@@ -25,11 +25,14 @@ does it look?"
 />
 
 The Coordinator can also arrange the canvas. Ask it to add frames for a
-workspace's routes, add a document, move or rename frames, groups and
-documents, gather frames into a group, merge groups, or remove frames and
-documents. It can tidy the canvas too, or line groups up side by side, in a
-column or in a grid, spaced so nothing overlaps. It does these right away,
-without asking first. Removing a frame never removes its workspace.
+workspace's routes, move frames, documents and mockups between groups, rename
+frames and groups, gather things into a group, merge groups, or remove frames
+and documents. It can tidy the canvas too, or line groups up side by side, in
+a column or in a grid, spaced so nothing overlaps. It does these right away,
+without asking first. Removing a frame never removes its workspace. Only the
+Coordinator arranges the canvas and moves the view, so workspace chats never
+fight over the layout; it places what they make by judgment, usually beside
+the frames it relates to.
 
 It can move your view as well. Ask it to "zoom to the cart", "take me to the
 split screen variant" or "show me everything", and your canvas moves to fit
@@ -41,10 +44,11 @@ changed, so a frame or document it removed comes back exactly as it was, and
 you can undo an undo the same way. Your own ⌘Z still undoes only your own
 edits, never the Coordinator's.
 
-The Coordinator never works inside a sandbox and never edits a workspace's
-files. When you ask for work in a workspace, it sends that workspace's agent a
-message, and the agent does the work. When no workspace fits, it starts new
-ones.
+The Coordinator makes nothing itself. It never works inside a sandbox, never
+edits a workspace's files, and never writes a [document](/guides/documents) or
+a [mockup](/guides/mockups). When you ask it for any of these, it sends the
+ask to the workspace it's about, and that workspace's agent does the work and
+owns what it makes. When no workspace fits, it starts a new one for the ask.
 
 On a new canvas, the workspace that adding a repository started hasn't been
 asked anything yet. The Coordinator sends your next ask for that repository
@@ -54,23 +58,27 @@ should change in the repository.
 
 ## Messages to workspaces
 
-Each workspace the Coordinator messaged shows up in its reply as a card with the
-workspace's title, its changed lines and its state, and under them the message
-it was sent. The state reads:
+Each workspace chat the Coordinator starts or messages shows up as a card
+under the Coordinator message that started it, with the workspace's title, its
+changed lines and its state, and under them the message it was sent. The state
+reads the same as the workspace's row in the Workspaces menu:
 
 - **Sending** while the message goes out;
 - **Starting** while the workspace's sandbox comes up;
 - **Working** while its agent runs;
-- **Needs you** when its plan waits for your approval;
-- **Finished** once its turn ends, including a turn that ended in an error or
-  that someone stopped. It only means the agent is done for now; the
-  workspace is **Done** when you
+- **Needs you** when its plan waits for your approval or its pull request
+  can't merge;
+- **Ready** once its turn ends, including a turn that ended in an error or
+  that someone stopped;
+- **Stopped** when its sandbox is stopped;
+- **Done** once you
   [mark it done](/guides/workspaces#marking-a-workspace-done);
 - **Failed** when its sandbox failed to start;
 - **Removed** once the workspace has been deleted.
 
-The card updates as the workspace works. Click it to open that workspace on
-the chat the message went to.
+The card updates as the chat works. Click it to switch the panel to that
+workspace's chat; **Coordinator** at the start of the panel header brings you
+back.
 
 In the workspace's chat, the message shows as one line, **Received a message
 from the Coordinator**. Click it to read what was asked. The chat is still
@@ -88,9 +96,10 @@ it started one you didn't want, ask it to remove it.
 
 Each workspace starts its sandbox, and its agent begins on the Coordinator's
 first message as soon as the sandbox is running. The new workspaces show up as
-rows in the Coordinator's reply, **Starting** at first.
+cards in the Coordinator's reply, **Starting** at first, each with the first
+message it was given.
 They belong to whoever asked for them. If one fails to start, the others carry
-on: its row shows **Failed**, the Coordinator tells you, and **Retry** on the
+on: its card shows **Failed**, the Coordinator tells you, and **Retry** on the
 workspace brings it up and sends that first message then.
 
 The Coordinator can also stop a workspace's running turn, which happens right
@@ -111,7 +120,7 @@ commits, as the workspace chat's **Create PR** button does. It's opened with the
 GitHub account of whoever owns the workspace, even when someone else asked or
 the Coordinator followed up on its own.
 
-Removing a workspace works like **Delete** in the Workspaces menu: its chats and
+Removing a workspace works like **Delete** in the Chats menu: its chat and
 frames go and its sandbox is torn down. The git branch and any pull request
 stay on GitHub. Removing can't be undone.
 
@@ -143,7 +152,7 @@ approve the plan in the workspace; the Coordinator can't.
 
 Each canvas keeps a shared **memory**: preferences, decisions and facts about
 its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
-it, the Coordinator's and each workspace's and document's alike, so no chat has
+it, the Coordinator's and each workspace's alike, so no chat has
 to ask the same thing twice. On the desktop app, a chat that runs through an
 external harness gets memory when the chat starts.
 
@@ -153,8 +162,8 @@ Workspace agents read memory but never write it.
 
 To read or change memory yourself, open **Canvas settings** from the **…**
 next to the canvas name and choose **Memory**. **Edit** changes an entry,
-**…** › **Delete** removes it (with **Undo** in a toast), and **Add memory**
-adds one. Everyone on a shared canvas sees the same entries.
+**…** › **Delete** removes it (<kbd>⌘</kbd> <kbd>Z</kbd> on the canvas brings
+it back), and **Add memory** adds one. Everyone on a shared canvas sees the same entries.
 
 <Screenshot
   name="canvas-settings-memory"
@@ -175,14 +184,15 @@ Its tool calls show as compact rows, like a workspace agent's. Once a change
 to the canvas finishes, its row says what changed, such as **Renamed Group
 "Hero" to "Sign-in"**.
 
-| Kind       | Rows                                                                                                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read       | **Read canvas**, **Read document**, **Read Workspace chat**, **Read Workspace diff**, **Read Workspace file**, **View frame**, **Read skill**                               |
-| Arrange    | **Create frames**, **Create document**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes** |
-| View       | **Show on canvas**                                                                                                                                                          |
-| Workspaces | **Create Workspaces**, **Stop Workspace**, **Open pull request**, **Remove Workspace**                                                                                      |
-| Memory     | **Save to memory**                                                                                                                                                          |
+| Kind       | Rows                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read       | **Read canvas**, **Read document**, **Read Workspace chat**, **Read Workspace diff**, **Read Workspace file**, **View frame**, **Read frame HTML**, **Read skill** |
+| Arrange    | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**             |
+| View       | **Show on canvas**                                                                                                                                                 |
+| Workspaces | **Create Workspaces**, **Stop Workspace**, **Open pull request**, **Remove Workspace**                                                                             |
+| Memory     | **Save to memory**                                                                                                                                                 |
 
 A message to a workspace shows as its [card](#messages-to-workspaces) rather
-than a row. When the Coordinator runs on Claude Code or Codex on
+than a row, and a [question](/guides/agent#questions) it
+asks you shows its options to pick from. When the Coordinator runs on Claude Code or Codex on
 desktop, its rows carry the same names.

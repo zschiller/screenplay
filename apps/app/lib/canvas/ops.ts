@@ -3,6 +3,8 @@ import {
   IFRAME_LAYER_GROUP_GAP,
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
+  MOCKUP_MIN_HEIGHT,
+  MOCKUP_MIN_WIDTH,
 } from "@/lib/constants"
 import {
   getGroupMembers,
@@ -14,8 +16,10 @@ import {
   keepHiddenMembers,
   shownIndexToMemberIndex,
 } from "@/lib/canvas/done-workspaces"
+import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
+import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
 import {
   documentFragment,
   seedDocumentFragment,
@@ -28,6 +32,8 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  MockupLayerData,
+  MockupStatus,
   PlanData,
   ViewportData,
   RepoData,
@@ -65,6 +71,7 @@ type RecordByKey = {
   iframeLayers: IframeLayerData
   iframeLayerGroups: IframeLayerGroupData
   markdownLayers: MarkdownLayerData
+  mockupLayers: MockupLayerData
   chatSessions: ChatSessionData
   plans: PlanData
   commentPositions: CommentPosition
@@ -179,13 +186,14 @@ export type CanvasOps = {
    * Create a Document (Markdown Layer) in a fresh single-member Group anchored
    * at `anchor` (canvas-space top-left), `size` clamped to the document floor.
    * Seeds the body fragment's title heading via `documentFragment` (the single
-   * fragment-key owner) and pre-creates a Chat Session targeting the Document.
-   * Returns the new document, Group, and chat ids.
+   * fragment-key owner). `ownerChatId` records the chat that made it (#1314);
+   * a Document made by hand has none. Returns the new document and Group ids.
    */
   createDocument(
     anchor: { x: number; y: number },
-    size: { width: number; height: number }
-  ): { docId: string; groupId: string; chatId: string }
+    size: { width: number; height: number },
+    opts?: { ownerChatId?: string }
+  ): { docId: string; groupId: string }
   /**
    * Create a Branch record from `spec`, allocating its id and setting the
    * deferred-seed flag `pendingIframeLayerSeed`. When `spec.chat` is given,
@@ -262,14 +270,15 @@ export type CanvasOps = {
    * sibling of {@link addFrameToGroup}, sized from the resolved `size` (the
    * caller mirrors the Group's last sibling) and spliced onto the end of the
    * member row. Like {@link createDocument} it seeds the body fragment's title
-   * heading and pre-creates a Chat Session targeting the Document; the
-   * multi-collection write is why this earns a verb. Returns the new document
-   * and chat ids, or `undefined` when the Group is missing.
+   * heading and records `ownerChatId`; the multi-collection write is why this
+   * earns a verb. Returns the new document id, or `undefined` when the Group
+   * is missing.
    */
   addDocumentToGroup(
     groupId: string,
-    size: { width: number; height: number }
-  ): { docId: string; chatId: string } | undefined
+    size: { width: number; height: number },
+    opts?: { ownerChatId?: string }
+  ): { docId: string } | undefined
   /**
    * Rename a Document (Markdown Layer) from outside the editor (sidebar, agent
    * tool): write `title` into the body fragment's first heading — the source
@@ -288,11 +297,42 @@ export type CanvasOps = {
   removeLayers(ids: string[]): { removedChatIds: string[] }
   /**
    * Remove the given Markdown Layers (Documents): drop them from any Group
-   * (pruning a Group emptied by the removal) and delete the Chat Sessions
-   * targeting them, returning those `removedChatIds` so the caller can clear
-   * the client chat-store mirror.
+   * (pruning a Group emptied by the removal). Documents own no Chat Sessions
+   * since #1314 (the chat that made one outlives it), so `removedChatIds` is
+   * always empty, as for {@link removeLayers}.
    */
   removeDocuments(ids: string[]): { removedChatIds: string[] }
+  /**
+   * Create a Mockup Layer (#1309) showing `spec.html`. With `groupId` it joins
+   * the end of that Group's row, beside the layers it sits with; otherwise it
+   * starts a fresh Group at `anchor` (canvas-space top-left), or beside the
+   * existing Groups when no anchor is given. `chatId` names the chat that made
+   * it. The record and its HTML text commit together. Returns `undefined` when
+   * `groupId` names a missing Group.
+   */
+  createMockup(spec: {
+    html: string
+    title: string
+    width: number
+    height: number
+    ownerChatId?: string
+    groupId?: string
+    anchor?: { x: number; y: number }
+  }): { mockupId: string; groupId: string } | undefined
+  /**
+   * Replace a Mockup Layer's page, title and/or status (#1310). The record and
+   * its HTML text commit together. Returns false when the mockup is gone.
+   */
+  updateMockup(
+    id: string,
+    patch: { html?: string; title?: string; status?: MockupStatus }
+  ): boolean
+  /**
+   * Remove the given Mockup Layers, dropping them from any Group (pruning a
+   * Group emptied by the removal). Their HTML texts stay in the doc, like a
+   * document's body, so Undo brings a mockup back whole.
+   */
+  removeMockups(ids: string[]): { removedChatIds: string[] }
   /**
    * Remove a Branch and everything keyed to it — its Iframe Layers, its Chat
    * Sessions, and its Members in any Group (pruning Groups emptied by the
@@ -369,6 +409,23 @@ export type CanvasOps = {
    */
   internal: {
     pruneIfEmpty(groupId: string): void
+  }
+}
+
+/** A new Document's record: its size above the document floor, no title yet,
+ *  and the chat that made it, if any. */
+function newDocument(
+  id: string,
+  size: { width: number; height: number },
+  { ownerChatId }: { ownerChatId?: string }
+): MarkdownLayerData {
+  return {
+    id,
+    // Documents have their own minimum dimensions, distinct from frames.
+    width: Math.max(200, size.width),
+    height: Math.max(120, size.height),
+    title: "",
+    ...(ownerChatId ? { ownerChatId } : {}),
   }
 }
 
@@ -560,7 +617,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height
+        height,
+        sizedLayersOf(collections)
       )
       collections.iframeLayers.set(layerId, {
         id: layerId,
@@ -598,7 +656,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height
+        height,
+        sizedLayersOf(collections)
       )
       routes.forEach((r, i) => {
         collections.iframeLayers.set(layerIds[i]!, {
@@ -641,7 +700,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height
+        height,
+        sizedLayersOf(collections)
       )
       frames.forEach((frame, i) => {
         const size = defaultSizeForAgent(frame.agentId)
@@ -676,19 +736,13 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
 
   function createDocument(
     anchor: { x: number; y: number },
-    size: { width: number; height: number }
-  ): { docId: string; groupId: string; chatId: string } {
+    size: { width: number; height: number },
+    opts: { ownerChatId?: string } = {}
+  ): { docId: string; groupId: string } {
     const docId = nanoid()
     const groupId = nanoid()
-    const chatId = nanoid()
     batch(() => {
-      collections.markdownLayers.set(docId, {
-        id: docId,
-        // Documents have their own minimum dimensions, distinct from frames.
-        width: Math.max(200, size.width),
-        height: Math.max(120, size.height),
-        title: "",
-      })
+      collections.markdownLayers.set(docId, newDocument(docId, size, opts))
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
@@ -701,16 +755,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       // mount the editor filling an empty fragment locally). The fragment key
       // has one owner — `documentFragment` (slice 1).
       seedDocumentFragment(documentFragment(doc, docId))
-      // Pre-create an empty Chat Session targeting the Document so its chat tab
-      // is ready the first time the panel opens.
-      collections.chatSessions.set(chatId, {
-        id: chatId,
-        markdownLayerId: docId,
-        label: "Untitled",
-        createdAt: Date.now(),
-      })
     })
-    return { docId, groupId, chatId }
+    return { docId, groupId }
   }
 
   function createBranch(spec: CreateBranchSpec): {
@@ -860,40 +906,28 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
 
   function addDocumentToGroup(
     groupId: string,
-    size: { width: number; height: number }
-  ): { docId: string; chatId: string } | undefined {
+    size: { width: number; height: number },
+    opts: { ownerChatId?: string } = {}
+  ): { docId: string } | undefined {
     const docId = nanoid()
-    const chatId = nanoid()
     let created = false
     batch(() => {
       const group = collections.iframeLayerGroups.get(groupId)
       if (!group) return
-      collections.markdownLayers.set(docId, {
-        id: docId,
-        // Documents have their own minimum dimensions, distinct from frames.
-        width: Math.max(200, size.width),
-        height: Math.max(120, size.height),
-        title: "",
-      })
+      collections.markdownLayers.set(docId, newDocument(docId, size, opts))
       collections.iframeLayerGroups.update(groupId, {
         members: [
           ...getGroupMembers(group),
           { kind: "markdown-layer", id: docId },
         ],
       })
-      // Seed the title heading + pre-create the chat exactly as createDocument
-      // does, so a Group-appended Document is indistinguishable from a freshly
-      // created one (same fragment shape, same ready chat tab).
+      // Seed the title heading exactly as createDocument does, so a
+      // Group-appended Document is indistinguishable from a freshly created
+      // one.
       seedDocumentFragment(documentFragment(doc, docId))
-      collections.chatSessions.set(chatId, {
-        id: chatId,
-        markdownLayerId: docId,
-        label: "Untitled",
-        createdAt: Date.now(),
-      })
       created = true
     })
-    return created ? { docId, chatId } : undefined
+    return created ? { docId } : undefined
   }
 
   function renameDocument(docId: string, title: string): void {
@@ -920,20 +954,99 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function removeDocuments(ids: string[]): { removedChatIds: string[] } {
     if (ids.length === 0) return { removedChatIds: [] }
     const idSet = new Set(ids)
-    const removedChatIds: string[] = []
     batch(() => {
       for (const id of ids) collections.markdownLayers.delete(id)
-      for (const chat of collections.chatSessions.toArray()) {
-        if (chat.markdownLayerId && idSet.has(chat.markdownLayerId)) {
-          collections.chatSessions.delete(chat.id)
-          removedChatIds.push(chat.id)
-        }
-      }
       removeMembersMatching(
         (m) => m.kind === "markdown-layer" && idSet.has(m.id)
       )
     })
-    return { removedChatIds }
+    return { removedChatIds: [] }
+  }
+
+  function createMockup(spec: {
+    html: string
+    title: string
+    width: number
+    height: number
+    ownerChatId?: string
+    groupId?: string
+    anchor?: { x: number; y: number }
+  }): { mockupId: string; groupId: string } | undefined {
+    const mockupId = nanoid()
+    let groupId = spec.groupId
+    batch(() => {
+      const group = groupId
+        ? collections.iframeLayerGroups.get(groupId)
+        : undefined
+      if (groupId && !group) {
+        groupId = undefined
+        return
+      }
+      collections.mockupLayers.set(mockupId, {
+        id: mockupId,
+        width: Math.max(MOCKUP_MIN_WIDTH, spec.width),
+        height: Math.max(MOCKUP_MIN_HEIGHT, spec.height),
+        title: spec.title,
+        status: "current",
+        ...(spec.ownerChatId ? { ownerChatId: spec.ownerChatId } : {}),
+      })
+      writeMockupHtml(mockupHtml(doc, mockupId), spec.html)
+      const member = { kind: "mockup-layer" as const, id: mockupId }
+      if (group) {
+        collections.iframeLayerGroups.update(group.id, {
+          members: [...getGroupMembers(group), member],
+        })
+        return
+      }
+      groupId = nanoid()
+      const anchor =
+        spec.anchor ??
+        placeNewIframeLayerGroup(
+          collections.iframeLayerGroups.toArray(),
+          collections.iframeLayers.toArray(),
+          { x: 0, y: 0 },
+          spec.width,
+          spec.height,
+          sizedLayersOf(collections)
+        )
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        x: anchor.x,
+        y: anchor.y,
+        members: [member],
+      })
+    })
+    return groupId ? { mockupId, groupId } : undefined
+  }
+
+  function updateMockup(
+    id: string,
+    patch: { html?: string; title?: string; status?: MockupStatus }
+  ): boolean {
+    if (!collections.mockupLayers.get(id)) return false
+    batch(() => {
+      if (patch.title !== undefined || patch.status !== undefined) {
+        collections.mockupLayers.update(id, {
+          ...(patch.title !== undefined ? { title: patch.title } : {}),
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+        })
+      }
+      if (patch.html !== undefined) {
+        writeMockupHtml(mockupHtml(doc, id), patch.html)
+      }
+    })
+    return true
+  }
+
+  function removeMockups(ids: string[]): { removedChatIds: string[] } {
+    if (ids.length === 0) return { removedChatIds: [] }
+    const idSet = new Set(ids)
+    batch(() => {
+      for (const id of ids) collections.mockupLayers.delete(id)
+      removeMembersMatching((m) => m.kind === "mockup-layer" && idSet.has(m.id))
+    })
+    return { removedChatIds: [] }
   }
 
   function removeBranch(branchId: string): { removedChatIds: string[] } {
@@ -1185,6 +1298,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     renameDocument,
     removeLayers,
     removeDocuments,
+    createMockup,
+    updateMockup,
+    removeMockups,
     removeBranch,
     removeRepo,
     reorderRepos,

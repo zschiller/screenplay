@@ -9,8 +9,8 @@ import type { RoomCollections } from "@/lib/yjs/schema"
 import { baseBranch, baseRepo, makeHarness } from "@/test/canvas/harness"
 
 /**
- * A document chat's code reads: each reads one Workspace's checkout, picked by
- * `workspaceId` or, when the canvas has only one, by default.
+ * A chat's reads of other Workspaces' code: each reads one Workspace's
+ * checkout, picked by `workspaceId` or, when there is only one, by default.
  */
 
 function room(setup: (c: RoomCollections) => void) {
@@ -35,7 +35,8 @@ function fakeSandbox(files: Record<string, string>, stdout = "") {
 
 function tools(
   collections: RoomCollections,
-  sandboxes: Record<string, CodeReader>
+  sandboxes: Record<string, CodeReader>,
+  ownSandboxName?: string
 ) {
   const openSandbox = vi.fn(async (name: string) => {
     const sandbox = sandboxes[name]
@@ -47,6 +48,7 @@ function tools(
     tools: buildCodeReadTools({
       readDoc: async (fn) => fn(collections),
       openSandbox,
+      ownSandboxName,
     }),
   }
 }
@@ -152,8 +154,35 @@ describe("buildCodeReadTools", () => {
     )
 
     expect(await run(t.find_code_files, { pattern: "**/*.ts" })).toContain(
-      "no Workspace with a checkout"
+      "no other Workspace with a checkout"
     )
+  })
+
+  it("leaves out the reading chat's own Workspace (#1315)", async () => {
+    const c = room((c) => {
+      c.repos.set("repo-1", baseRepo("repo-1"))
+      c.branches.set(
+        "ws-1",
+        baseBranch("ws-1", { title: "Mine", createdAt: 1 })
+      )
+      c.branches.set(
+        "ws-2",
+        baseBranch("ws-2", { title: "Theirs", createdAt: 2 })
+      )
+    })
+    const own = fakeSandbox({ "a.ts": "mine" })
+    const other = fakeSandbox({ "a.ts": "theirs" })
+    const { tools: t } = tools(
+      c,
+      { "sandbox-ws-1": own.sandbox, "sandbox-ws-2": other.sandbox },
+      "sandbox-ws-1"
+    )
+
+    // With only one other Workspace, the id is optional and it's that one.
+    expect(await run(t.read_code_file, { path: "a.ts" })).toContain("theirs")
+    expect(
+      await run(t.read_code_file, { workspaceId: "ws-1", path: "a.ts" })
+    ).toContain("No Workspace with a checkout has id ws-1")
   })
 
   it("answers with the reason when the Sandbox can't be opened", async () => {
