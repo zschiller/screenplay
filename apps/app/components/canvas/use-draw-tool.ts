@@ -58,6 +58,7 @@ export function useDrawTool({
   setSelectedDocumentLayerIds,
   setSelectedGroupIds,
   setEditingDocumentLayerId,
+  onFrameDrawn,
 }: {
   documentMode: boolean
   frameMode: boolean
@@ -75,6 +76,14 @@ export function useDrawTool({
   setSelectedDocumentLayerIds: React.Dispatch<React.SetStateAction<Set<string>>>
   setSelectedGroupIds: React.Dispatch<React.SetStateAction<Set<string>>>
   setEditingDocumentLayerId: (id: string | null) => void
+  /**
+   * A drawn frame was let go: the canvas opens its ask card (#1356). Gets the
+   * new frame's id and the rect it was drawn at, in canvas space.
+   */
+  onFrameDrawn?: (
+    frameId: string,
+    rect: { x: number; y: number; width: number; height: number }
+  ) => void
 }): DrawToolController {
   const [documentDraft, setDocumentDraft] = useState<Draft | null>(null)
   const documentDraftRef = useRef<Draft | null>(null)
@@ -158,7 +167,8 @@ export function useDrawTool({
           setEditingDocumentLayerId(id)
           return true
         }
-        // Frame-tool: release creates a new empty frame.
+        // Frame-tool: release creates a new empty frame, then asks what it
+        // should show.
         if (frameDraftRef.current) {
           const d = frameDraftRef.current
           frameDraftRef.current = null
@@ -184,6 +194,7 @@ export function useDrawTool({
           toolMode.set("select")
           setSelectedDocumentLayerIds(new Set())
           setSelectedIframeLayerIds(new Set([id]))
+          onFrameDrawn?.(id, { x, y, width: w, height: h })
           return true
         }
         return false
@@ -198,6 +209,7 @@ export function useDrawTool({
       setSelectedIframeLayerIds,
       setSelectedDocumentLayerIds,
       setEditingDocumentLayerId,
+      onFrameDrawn,
     ]
   )
 

@@ -1231,6 +1231,46 @@ describe("createBranch", () => {
     expect(chat?.label).toBe("Build login")
     expect(chat?.model).toBe("claude-x")
   })
+
+  it("shows the new Branch in a drawn frame and seeds no other frame", () => {
+    const { ops, collections } = makeHarness()
+    const frameId = ops.createBlankFrame(
+      { x: 40, y: 60 },
+      { width: 390, height: 844 }
+    )
+    const before = collections.iframeLayers.toArray().length
+
+    const { branchId } = ops.createBranch({
+      branch: spec,
+      chat: { label: "Checkout" },
+      frameId,
+    })
+
+    const frame = collections.iframeLayers.get(frameId)
+    expect(frame?.branchId).toBe(branchId)
+    // Where and how big it was drawn stays as is.
+    expect(frame).toMatchObject({ width: 390, height: 844 })
+    const group = collections.iframeLayerGroups
+      .toArray()
+      .find((g) => getGroupMembers(g).some((m) => m.id === frameId))
+    expect(group).toMatchObject({ x: 40, y: 60, branchId })
+    // No deferred seed, and no second Group of frames.
+    expect(collections.branches.get(branchId)?.pendingIframeLayerSeed).toBe(
+      false
+    )
+    expect(collections.iframeLayers.toArray()).toHaveLength(before)
+    expect(collections.iframeLayerGroups.toArray()).toHaveLength(1)
+  })
+
+  it("falls back to the deferred seed when the frame is gone", () => {
+    const { ops, collections } = makeHarness()
+
+    const { branchId } = ops.createBranch({ branch: spec, frameId: "gone" })
+
+    expect(collections.branches.get(branchId)?.pendingIframeLayerSeed).toBe(
+      true
+    )
+  })
 })
 
 describe("seedFrameForAgent", () => {

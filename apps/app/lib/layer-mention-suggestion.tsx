@@ -83,6 +83,9 @@ export function buildLayerMentionSuggestion(opts: {
             editor: props.editor,
           })
           containerEl = document.createElement("div")
+          // Outside any composer's DOM; marked so a card that closes on a
+          // pointer-down elsewhere (the frame ask card) leaves it be.
+          containerEl.setAttribute("data-composer-popup", "")
           containerEl.style.position = "fixed"
           containerEl.style.zIndex = "60"
           containerEl.style.minWidth = "224px"

@@ -17,8 +17,20 @@ view, so hot reload, client-side routing, and app state all work as normal.
 
 - A new workspace gets a frame automatically once its dev server is up.
 - The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
-  or draws one where you drag. A new frame shows **No Workspace** until you
-  pick a workspace for it from its title (**Choose a workspace**).
+  or draws one where you drag. As you let go, the frame asks what it should
+  show. Type what to build and press <kbd>Enter</kbd> (<kbd>Shift</kbd>
+  <kbd>Enter</kbd> for a new line): a new chat starts on it, and its workspace
+  boots in that frame. The frame's size is sent along as the viewport, so a
+  phone-sized frame gets a mobile layout.
+- Press <kbd>Esc</kbd> or click elsewhere to skip the question. The frame
+  stays and shows **No Workspace** until you pick a workspace for it from its
+  title (**Choose a workspace**).
+
+  <Screenshot
+    name="frame-ask"
+    alt="A frame just drawn, asking what it should show, with New chat beside the Send button"
+  />
+
 - **Show all routes** in the workspace menu adds a group with a frame for
   every route the workspace has visited.
 

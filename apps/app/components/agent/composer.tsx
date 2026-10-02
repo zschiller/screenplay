@@ -433,6 +433,11 @@ export interface ComposerProps {
    * quote here (#1243) so it reads as part of the message being written.
    */
   inputHeader?: ReactNode
+  /**
+   * Shown where the model picker sits, in its place: the frame ask card puts
+   * its who-answers chip here (#1356), and the turn uses the default model.
+   */
+  modelSlot?: ReactNode
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
   /** Outer container className. Defaults to the chat input frame. */
@@ -496,6 +501,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       aboveInput,
       inputHeader,
       hideSend = false,
+      modelSlot,
       placeholder = "Ask the agent…",
       className = "relative border-t border-border p-3",
       onPickElement,
@@ -997,6 +1003,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   "No models are set up on this server yet."
                 )}
               </span>
+            ) : modelSlot ? (
+              modelSlot
             ) : (
               <DropdownMenu>
                 <TooltipProvider>
