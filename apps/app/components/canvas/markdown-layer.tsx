@@ -61,7 +61,6 @@ import { useMarkdownLayers } from "@/lib/yjs/react"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   LayerShell,
@@ -616,7 +615,8 @@ export function MarkdownLayer({
           // The node view (MarkdownLayerMentionNodeView) drives the in-editor
           // render; these attrs cover the serialized/static-render path.
           HTMLAttributes: {
-            class: MENTION_TEXT_CLASS,
+            class: "inline-ref",
+            "data-inline-ref-mask": "document",
           },
           renderText({ node }) {
             const label =
@@ -627,7 +627,11 @@ export function MarkdownLayer({
             const label =
               (node.attrs.label as string | undefined) ??
               (node.attrs.id as string)
-            return ["span", options.HTMLAttributes, `@${label}`]
+            return [
+              "span",
+              options.HTMLAttributes,
+              ["span", { class: "inline-ref-label" }, label],
+            ]
           },
           deleteTriggerWithBackspace: true,
           // These getters read refs, but TipTap only invokes them while the

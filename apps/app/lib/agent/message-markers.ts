@@ -182,6 +182,27 @@ export function elementMarkersToPills(body: string): string {
   )
 }
 
+// The `[mockup: <id>]` marker a drawn Mockup box's ask names its Mockup with
+// (`forMockup` in lib/frame-ask.ts), with the sentence around it that's only
+// for the agent. Not a markdown link, so it must not be followed by `(`; the
+// id is a nanoid and holds no `]`.
+const MOCKUP_ASK_RE = /Mockup \[mockup:\s*([^\]\s]+)\] with update_mockup/g
+const MOCKUP_MARKER_RE = /\[mockup:\s*([^\]\s]+)\](?!\()/g
+
+/**
+ * Renderer-only transform: rewrite each `[mockup: <id>]` marker into the
+ * reference link form `[Mockup](mockup:<id>)` (mirroring
+ * `elementMarkersToPills`), dropping forMockup's "Mockup … with update_mockup"
+ * wording around it, so "Sketch it in Mockup [mockup: m-1] with
+ * update_mockup, for …" reads "Sketch it in [Mockup](mockup:m-1), for …". The
+ * renderer swaps in the Mockup's live title; `Mockup` is only the fallback.
+ */
+export function mockupMarkersToRefs(body: string): string {
+  return body
+    .replace(MOCKUP_ASK_RE, (_m, id) => `[Mockup](mockup:${id})`)
+    .replace(MOCKUP_MARKER_RE, (_m, id) => `[Mockup](mockup:${id})`)
+}
+
 /**
  * The canonical token that opens the referenced-documents footer. It is the
  * single source of truth for both the build side (`buildReferencedDocsFooter`)

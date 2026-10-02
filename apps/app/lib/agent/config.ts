@@ -10,6 +10,7 @@ import {
   WAKE_MARKER_LABEL,
 } from "@/lib/agent/message-markers"
 import { workspaceLink } from "@/lib/agent/workspace-task"
+import { layerLink } from "@/lib/agent/layer-link"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
@@ -210,6 +211,7 @@ export function buildRoomSystemPrompt(opts: {
     `- To find out what a Workspace did, call \`${t("read_workspace_chat")}\` (its last ask, turn summary and last reply; pass \`full: true\` only when you need the whole transcript). \`${t("read_workspace_diff")}\` and \`${t("read_workspace_file")}\` read its changes and code. You can't edit Workspace files.`,
     `- To see what a frame looks like, call \`${t("view_frame")}\`, or \`${t("read_frame_html")}\` for its current page as self-contained HTML.`,
     `- Name Workspaces by their title, not their id. Link a title as \`${workspaceLink("<title>", "<id>")}\` so the user can open the Workspace.`,
+    `- Name frames, documents and mockups by their title too, linked as \`${layerLink("frame", "<title>", "<id>")}\`, \`${layerLink("document", "<title>", "<id>")}\` or \`${layerLink("mockup", "<title>", "<id>")}\` so the user can find them on the canvas.`,
     "",
     "Arranging the canvas:",
     "- You can create frames (blank, for a Workspace, or one per route), move and arrange Groups, move frames, documents and mockups between Groups, merge Groups, rename frames and Groups, and remove frames and documents. These act right away, so do what was asked without asking first.",

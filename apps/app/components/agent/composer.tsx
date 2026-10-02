@@ -72,7 +72,6 @@ import { isLocalBuild } from "@/lib/local-mode"
 import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { readDraft, writeDraft } from "@/lib/composer-drafts"
 import { COMPOSER_ATTRIBUTE } from "@/lib/canvas/key-target"
 import { ElementTokenNodeView } from "./element-token-node"
@@ -133,7 +132,7 @@ const ElementToken = Node.create({
       "span",
       mergeAttributes(HTMLAttributes, {
         "data-element-token": "",
-        class: `${MENTION_TEXT_CLASS} font-mono`,
+        class: "inline-ref font-mono",
       }),
       `${ELEMENT_TOKEN_GLYPH} ${node.attrs.label}`,
     ]
@@ -619,11 +618,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           dropcursor: false,
         }),
         Mention.configure({
-          // Mentions render as plain inline text for now — no pill background,
-          // icon, or color. The previous pill styling wasn't vertically
-          // centered and its background ate too much space; we're starting from
-          // unstyled text and will re-add affordances deliberately over time.
-          // The leading `@` (docs) / `/` (skills) is the only visible marker.
+          // Mentions render as inline references (`.inline-ref`, like the
+          // sent message): a document's icon in place of its `@`, a skill's
+          // `/`. Their plain text keeps the `@` / `/`.
           renderText({ node }) {
             const label =
               (node.attrs.label as string | undefined) ?? node.attrs.id
@@ -635,15 +632,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             const label =
               (node.attrs.label as string | undefined) ??
               (node.attrs.id as string)
-            const prefix = node.attrs.mentionSuggestionChar === "/" ? "/" : "@"
-            // Both `@`-doc and `/`-skill mentions render blue + medium weight so
-            // they read as distinct affordances within the plaintext draft.
+            const skill = node.attrs.mentionSuggestionChar === "/"
             return [
               "span",
               mergeAttributes(options.HTMLAttributes, {
-                class: MENTION_TEXT_CLASS,
+                class: "inline-ref",
+                ...(skill ? {} : { "data-inline-ref-mask": "document" }),
               }),
-              `${prefix}${label}`,
+              [
+                "span",
+                { class: "inline-ref-label" },
+                skill ? `/${label}` : label,
+              ],
             ]
           },
           deleteTriggerWithBackspace: true,

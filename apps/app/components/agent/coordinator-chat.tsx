@@ -12,6 +12,7 @@ import {
   useRepos,
 } from "@/lib/yjs/react"
 import { roomChatId } from "@/lib/chat/room-chat"
+import { viewRequests } from "@/lib/canvas/view-requests"
 import { ensureRoomChatAction } from "@/lib/room-chat-actions"
 import type { ChatSessionData } from "@/lib/types"
 
@@ -50,8 +51,17 @@ export function CoordinatorChat({
     [repos, branches]
   )
   const workspaceTasks = useMemo(
-    () => ({ branches, chatSessions, plans, onOpen: onOpenWorkspace }),
-    [branches, chatSessions, plans, onOpenWorkspace]
+    () => ({
+      branches,
+      chatSessions,
+      plans,
+      onOpen: onOpenWorkspace,
+      // A frame, document or mockup a reply names: fit it in this member's
+      // view, as the Coordinator's own `show_on_canvas` does.
+      onShow: (layerId: string) =>
+        viewRequests.emit({ chatId, ids: [layerId] }),
+    }),
+    [branches, chatSessions, plans, onOpenWorkspace, chatId]
   )
 
   const requestedRef = useRef(false)
