@@ -11,7 +11,7 @@
   --font-sans:
     var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
-  --font-wordmark: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-headline: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --color-selection: var(--selection);
   --color-plane: var(--plane);
   --color-comment: var(--comment);

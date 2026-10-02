@@ -1,10 +1,5 @@
 import type { Metadata } from "next"
-import {
-  Geist_Mono,
-  Instrument_Sans,
-  Instrument_Serif,
-  Unbounded,
-} from "next/font/google"
+import { Geist_Mono, Instrument_Sans, Unbounded } from "next/font/google"
 import { Footer, Layout, Navbar } from "nextra-theme-docs"
 import { Head } from "nextra/components"
 import { getPageMap } from "nextra/page-map"
@@ -18,7 +13,7 @@ import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
 
 // The type voice the app uses (#1005, #1077): Instrument Sans for the text,
 // Unbounded for headings, Geist Mono for code and the sidebar's section
-// labels. The wordmark keeps Instrument Serif. `globals.css` maps these
+// labels, and Unbounded 600 for the wordmark. `globals.css` maps these
 // variables onto Nextra's fonts.
 const sans = Instrument_Sans({
   subsets: ["latin"],
@@ -26,14 +21,9 @@ const sans = Instrument_Sans({
   style: ["normal", "italic"],
   variable: "--font-instrument-sans",
 })
-const serif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-instrument-serif",
-})
 const heading = Unbounded({
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "600"],
   variable: "--font-unbounded",
 })
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
@@ -53,7 +43,10 @@ const navbar = (
       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <ScreenplayMark width={24} height={24} />
         <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span className={serif.className} style={{ fontSize: 26 }}>
+          <span
+            className={heading.className}
+            style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.03em" }}
+          >
             Screenplay
           </span>
           <span className="sp-docs-label">Docs</span>
@@ -76,7 +69,7 @@ export default async function RootLayout({
       lang="en"
       dir="ltr"
       suppressHydrationWarning
-      className={`${sans.variable} ${serif.variable} ${heading.variable} ${mono.variable}`}
+      className={`${sans.variable} ${heading.variable} ${mono.variable}`}
     >
       {/* Magenta (hue 326) for links and the current page, on pure white and black. */}
       <Head

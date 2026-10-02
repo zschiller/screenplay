@@ -12,8 +12,8 @@ import { cn } from "@workspace/ui/lib/utils"
 // The Editorial type voice (#1005, #1010), with the app's titles (#1077):
 // Instrument Sans for text, Unbounded for headlines, Geist Mono for small
 // uppercase labels. `marketing.css` maps these onto `font-sans` and
-// `font-heading`. Instrument Serif (with its italic) stays for the wordmark
-// and the hero headline.
+// `font-heading`; the logotype is Unbounded at 600. Instrument Serif (with its
+// italic) stays for the hero headline.
 const fontSans = Instrument_Sans({
   subsets: ["latin"],
   variable: "--font-instrument-sans",
@@ -28,7 +28,7 @@ const fontSerif = Instrument_Serif({
 
 const fontHeading = Unbounded({
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "600"],
   variable: "--font-unbounded",
 })
 
