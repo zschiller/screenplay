@@ -102,7 +102,9 @@ async function setupStream(vcpus) {
   return sb
 }
 
-async function scenario(stream, viewer, vcpus, frames, page, load) {
+// The viewer page sometimes loads before the Sandbox proxy routes to a fresh server; retry once.
+async function scenario(...a) { if (!(await scenarioOnce(...a, false))) await scenarioOnce(...a, true) }
+async function scenarioOnce(stream, viewer, vcpus, frames, page, load, last) {
   // frames 0: the Workspace alone (dev server and agent), the baseline for compile time
   const server = frames === 0 ? null : await stream.runCommand({ cmd: "node", args: [`${HOME}/proto/server.mjs`, "--frames", String(frames), "--fps", String(FPS), "--page", page === "still" ? "" : page, "--decimate"], env: { CHROME }, detached: true })
   try {
@@ -117,9 +119,11 @@ async function scenario(stream, viewer, vcpus, frames, page, load) {
     appendFileSync(OUT, JSON.stringify(result) + "\n")
     const b = result.bench ?? {}
     log(`${vcpus} vCPU, ${frames}×${page}, ${load}: click p50 ${b.clickMs?.p50} ms, ${b.smoothness?.fps} fps (p99 gap ${b.smoothness?.p99}), cpu ${result.sys.cpuPct.avg}%, mem ${result.sys.memMB.max} MB${result.edits ? `, compile p50 ${result.edits.compileMs.p50} ms` : ""}`)
+    return true
   } catch (e) {
-    log(`${vcpus} vCPU, ${frames}×${page}, ${load}: FAILED`, e.message)
-    appendFileSync(OUT, JSON.stringify({ kind: "scenario", vcpus, frames, page, load, error: e.message }) + "\n")
+    log(`${vcpus} vCPU, ${frames}×${page}, ${load}: FAILED${last ? "" : " (retrying)"}`, e.message.slice(0, 300))
+    if (last) appendFileSync(OUT, JSON.stringify({ kind: "scenario", vcpus, frames, page, load, error: e.message }) + "\n")
+    return false
   } finally {
     await server?.kill("SIGKILL").catch(() => {})
     await sh(stream, `pkill -9 -f "[e]dit-loop.mjs"; pkill -9 -f "[t]sc --noEmit"; pkill -9 chrome; pkill -9 Xvfb; pkill -9 ffmpeg; true`).catch(() => {})
