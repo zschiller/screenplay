@@ -21,9 +21,10 @@
   display: flex;
   flex-direction: column;
   gap: 44px;
-  /* Room for the first row's Workspace names, which sit above their
-     frames, and for the last row's outline, which sits just outside. */
-  padding-top: 20px;
+  /* Air under the nav above the first row's Workspace names, which sit
+     above their frames, and room for the last row's outline, which sits
+     just outside. */
+  padding-top: 52px;
   padding-bottom: 1px;
   overflow: hidden;
 }

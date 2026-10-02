@@ -2,7 +2,7 @@ import { createFluid } from "./fluid"
 
 /**
  * Paints a background colour over whatever sits under `canvas` as a fine
- * dither that thickens evenly down the canvas: nothing above `span()`'s top,
+ * dither that thickens down the canvas, slowly at first: nothing above `span()`'s top,
  * solid from its bottom down, so text below that line stays readable on top
  * of a busy layer and the layer above it dissolves into grain.
  *
@@ -58,6 +58,9 @@ export function createDitherVeil(
   const COARSE = 8
   // How far around the pointer the veil clears, in CSS px.
   const PEEK = 90
+  // How sharply the veil eases in down its span: 1 is an even ramp, higher
+  // keeps more of the top clear.
+  const EASE = 1.6
 
   let W = 0
   let H = 0
@@ -143,8 +146,10 @@ export function createDitherVeil(
     for (let r = 0, i = 0; r < rows; r++) {
       // How far above the solid line this row is.
       const d = Math.max(solid - (r * cell + cell / 2), 0)
-      // Below the line it stays solid whatever the edge noise does.
-      const k = d <= 0 ? 1.3 : 1 - d / fall
+      // Below the line it stays solid whatever the edge noise does. Above
+      // it the veil eases in, so the upper part of the span stays clear.
+      const t = 1 - d / fall
+      const k = d <= 0 ? 1.3 : t > 0 ? t ** EASE : t
       for (let c = 0; c < cols; c++, i++) {
         dist[i] = d
         base[i] = k
