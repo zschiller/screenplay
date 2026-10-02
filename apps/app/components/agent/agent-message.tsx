@@ -959,6 +959,9 @@ function ReasoningMessage({
 }) {
   const [expanded, setExpanded] = useState(false)
 
+  // A thinking block whose text the model withheld has nothing to disclose.
+  if (!message.content.trim()) return null
+
   return (
     <ChatDisclosure
       open={expanded}

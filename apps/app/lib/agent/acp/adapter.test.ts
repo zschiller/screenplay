@@ -366,6 +366,15 @@ describe("aiSdkChunkToAcpUpdate (streamText chunk → ACP update)", () => {
     })
   })
 
+  it("drops an empty reasoning-delta (a thinking signature or omitted text)", () => {
+    const chunk = {
+      type: "reasoning-delta",
+      id: "r1",
+      text: "",
+    } as TextStreamPart<Record<string, Tool>>
+    expect(aiSdkChunkToAcpUpdate(chunk)).toBeNull()
+  })
+
   it("maps tool-input-start to a pending tool_call with the tool's kind", () => {
     const chunk = {
       type: "tool-input-start",
