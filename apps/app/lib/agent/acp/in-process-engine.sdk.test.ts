@@ -82,7 +82,8 @@ async function runTurn(
   model: MockLanguageModelV4,
   takeSteers: () => Promise<
     Array<{ id: string; content: ReturnType<typeof textBlock>[] }>
-  >
+  >,
+  modelId = "anthropic:test"
 ) {
   const engine = new InProcessEngine((config) =>
     streamText({ ...config, model })
@@ -94,7 +95,7 @@ async function runTurn(
       runId: "r",
       roomId: "rm",
       systemPrompt: "SYS",
-      model: "anthropic:test",
+      model: modelId,
       history: [{ role: "user", content: [textBlock("start")] }],
       tools: { echo },
       takeSteers,
@@ -128,6 +129,15 @@ function shape(prompt: unknown): string[] {
 }
 
 describe("InProcessEngine over the real AI SDK loop", () => {
+  it("asks a Claude 5 model for summarized thinking, so Reasoning has text", async () => {
+    const model = mockModel([{ text: "done" }])
+    await runTurn(model, steersAt({}), "anthropic:claude-sonnet-5-5")
+
+    expect(model.doStreamCalls[0]!.providerOptions).toEqual({
+      anthropic: { thinking: { type: "adaptive", display: "summarized" } },
+    })
+  })
+
   it("keeps a mid-pass Steer where it joined, once, on every later step", async () => {
     const model = mockModel([
       { toolCall: "a" },

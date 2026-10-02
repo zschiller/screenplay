@@ -8,6 +8,7 @@ import {
 } from "ai"
 import { ASK_QUESTION_TOOL } from "@/lib/agent/question"
 import { resolveLanguageModel } from "../providers"
+import { thinkingProviderOptions } from "../providers/thinking"
 import {
   acpHistoryToModelMessages,
   aiSdkChunkToAcpUpdate,
@@ -175,6 +176,7 @@ export class InProcessEngine implements UsageReportingEngine {
 
     const result = this.startStream({
       model: resolveLanguageModel(turn.model),
+      providerOptions: thinkingProviderOptions(turn.model),
       instructions: cachedSystem(turn.systemPrompt),
       messages,
       tools: turn.tools,
