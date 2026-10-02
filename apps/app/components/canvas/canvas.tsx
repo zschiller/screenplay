@@ -1429,10 +1429,13 @@ export function Canvas({
     [newChatRepoId, selection, iframeLayers, sizedLayers, chatSessions, agents]
   )
   // An unanswered frame's Start a chat (#1358): select it and reopen its ask.
+  // The frame itself is the selection now, and it has no Workspace, so a new
+  // chat answers unless the chip is switched.
   const { selectIframeLayer: selectFrame } = selection
   const startFrameChat = useCallback(
     (frameId: string) => {
       selectFrame(frameId, false)
+      setAskAnswerer(NEW_CHAT)
       setAskFrameId(frameId)
     },
     [selectFrame]
