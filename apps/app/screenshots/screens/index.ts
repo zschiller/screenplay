@@ -1,37 +1,37 @@
-import { readdirSync } from "node:fs"
+import { existsSync, readdirSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
+import { CORE_SCREENS } from "./core"
 import type { Screen } from "./screen"
 
 export * from "./screen"
 export * from "./helpers"
 
 /**
- * The **named screen list**: every surface a capture run shoots, in order.
+ * The **named screen list**: the core screens (`./core.ts`), then whatever is
+ * in `./scratch/`.
  *
- * The list is the files in `./list`, read in filename order, each default-
- * exporting an array of screens. There is no index to edit: a new file is
- * picked up on the next run, so two PRs that each add screens never touch the
- * same lines. A ticket's new screens go in a new file named `NN-<topic>.ts`,
- * where `NN` is the prefix of the surface they sit beside (`07-chat.ts` for a
- * chat state, so `07-chat-senders.ts`); `99-` runs last, for screens that
- * really change the Fixture World.
+ * The core is a short, committed baseline: one or two screens per main
+ * surface. A PR's own screens, the exact state its change shows up in, go in
+ * a file in `./scratch/` (gitignored), default-exporting an array of screens.
+ * Shoot them on the base branch and on yours (the folder survives a branch
+ * switch, being untracked), attach the images, and leave the file out of the
+ * commit. Nothing about a PR's screens lands on main, so there is nothing for
+ * two PRs to conflict on and no list to maintain.
  *
  * A screen is a `name`, a `path`, and (only if the surface needs opening) a
  * `prepare` that clicks it into view; everything else (light and dark, the
  * viewport, settling, the output filename) is the runner's job
- * (`../lib/capture.ts`). Keeping the list declarative is what makes a
- * before/after pair comparable: both halves shoot the same names in the same
- * order at the same size, so the two directories diff file-for-file.
- *
- * Paths are built from `FIXTURE_IDS` rather than written out, so a Canvas
- * renamed in the Fixture World can't leave a screen pointing at a 404.
+ * (`../lib/capture.ts`). Both halves of a before/after pair shoot the same
+ * names in the same order at the same size, so the two directories diff
+ * file-for-file.
  */
-export const SCREENS: Screen[] = await loadScreens()
+export const SCREENS: Screen[] = [...CORE_SCREENS, ...(await loadScratch())]
 
-async function loadScreens(): Promise<Screen[]> {
-  const dir = join(dirname(fileURLToPath(import.meta.url)), "list")
+async function loadScratch(): Promise<Screen[]> {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "scratch")
+  if (!existsSync(dir)) return []
   const files = readdirSync(dir)
     .filter(
       (file) => /^[^.].*\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file)
@@ -44,13 +44,13 @@ async function loadScreens(): Promise<Screen[]> {
     }
     if (!Array.isArray(mod.default)) {
       throw new Error(
-        `screenshots/screens/list/${file} must default-export an array of screens`
+        `screenshots/screens/scratch/${file} must default-export an array of screens`
       )
     }
     screens.push(...(mod.default as Screen[]))
   }
   const seen = new Set<string>()
-  for (const screen of screens) {
+  for (const screen of [...CORE_SCREENS, ...screens]) {
     if (seen.has(screen.name)) {
       throw new Error(`two screens are named "${screen.name}"`)
     }

@@ -1,3 +1,5 @@
+import { fixtureFaultCookieName, type FixtureFault } from "@/lib/fixture-faults"
+import { fixtureModelCookieName } from "@/lib/fixture-model"
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -1015,4 +1017,49 @@ export async function replyInChatFromBrief(page: Page): Promise<void> {
     .catch(() => {})
   await page.keyboard.type("Above, like the mobile mock?")
   await page.mouse.move(0, 0)
+}
+
+/**
+ * The cookie that asks the Fixture World for a server-side failure
+ * (`@/lib/fixture-faults`) — one the browser can't cause, like the home layout's
+ * own Canvas load.
+ */
+export function fixtureFault(
+  fault: FixtureFault
+): Array<{ name: string; value: string }> {
+  return [{ name: fixtureFaultCookieName(), value: fault }]
+}
+
+/** Make a model reachable for settings detection (`slow` answers after 20s). */
+export function fixtureModel(
+  mode: "connected" | "slow"
+): Array<{ name: string; value: string }> {
+  return [{ name: fixtureModelCookieName(), value: mode }]
+}
+
+/**
+ * Make the Canvas throw as it mounts, so the route's error boundary catches it.
+ *
+ * The fixture world can't make the server render fail on demand, but the route
+ * has one boundary for the server render and the client Canvas alike, so any
+ * throw inside it paints the same page. `ResizeObserver` is constructed by the
+ * panel layout on mount and nowhere before the Canvas, so failing it reaches
+ * exactly that boundary and nothing earlier.
+ */
+export async function breakCanvasMount(page: Page): Promise<void> {
+  await page.addInitScript(`
+    window.ResizeObserver = class {
+      constructor() {
+        throw new Error("screenshot harness: simulated Canvas failure")
+      }
+    }
+  `)
+}
+
+/** Click the confirm dialog's action button. */
+export async function confirmDialog(page: Page, verb: string): Promise<void> {
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: verb, exact: true })
+    .click({ timeout: 10_000 })
 }

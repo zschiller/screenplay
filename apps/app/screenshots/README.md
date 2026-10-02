@@ -22,8 +22,9 @@ pnpm screenshots:docs       # regenerate the product docs' screenshots
 | `fixtures/world.ts`          | The **fixture world**, as data. Add the state your ticket needs here.                                           |
 | `fixtures/seed.ts`           | The single writer: PGlite rows, `.ydoc` files, blobs.                                                           |
 | `fixtures/frame-captures.ts` | Synthetic Frame Captures so the home grid composes real cards.                                                  |
-| `screens/list/`              | The **named screen list**, one file per surface. New screens go in a new file; nothing else to edit.            |
-| `screens/helpers.ts`         | Shared steps and stubs the screen files use.                                                                    |
+| `screens/core.ts`            | The **core screens**: a short committed baseline, one or two per surface.                                       |
+| `screens/scratch/`           | Your PR's own screens. Gitignored: write them, shoot before/after, don't commit them.                           |
+| `screens/helpers.ts`         | Shared steps and stubs screens use.                                                                             |
 | `interactions.ts`            | The **named interactions** recorded to video.                                                                   |
 | `lib/preview-server.ts`      | Serves fixture pages for Iframe Layers, with the real Sandbox Bridge inlined.                                   |
 | `lib/capture.ts`             | Runs a capture set; one context per screen-and-theme.                                                           |
