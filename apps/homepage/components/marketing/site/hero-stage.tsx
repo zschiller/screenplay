@@ -76,10 +76,11 @@ type Copy = {
 
 /**
  * The hero's backdrop: copies of this homepage pan past in two rows, each a
- * Workspace an agent is changing live, under a dither in the page's own
- * background colour that keeps the text on top readable. Everything marked
- * `data-veil` inside gets solid background behind its lines. Below 1024px,
- * where the text fills the hero, the copies sit below it instead, unveiled.
+ * Workspace an agent is changing live, above the text.
+ * The headline, marked `data-veil`, sinks into the bottom row, and a dither in
+ * the page's own background colour thickens evenly from the top of the rows
+ * to solid partway down the headline's first line, so the copies dissolve
+ * into it and the text stays readable.
  *
  * The copies are built on the client only; they're decoration, hidden from
  * assistive tech. With reduced motion they hold still. Hovering clears a hole
@@ -94,9 +95,17 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const host = stage.current!
     const rowsEl = strip.current!
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
-    const veil = createDitherVeil(canvas.current!, () => [
-      ...host.querySelectorAll("[data-veil]"),
-    ])
+    // Clear at the top of the rows, solid most of the way down the headline's
+    // first line, so that line sits on the densest grain.
+    const veil = createDitherVeil(canvas.current!, () => {
+      const s = host.getBoundingClientRect().top
+      const head = host.querySelector<HTMLElement>("[data-veil]")!
+      const size = parseFloat(getComputedStyle(head).fontSize)
+      return [
+        rowsEl.getBoundingClientRect().top - s,
+        head.getBoundingClientRect().top - s + size * 0.88,
+      ]
+    })
     const timers = new Set<ReturnType<typeof setTimeout>>()
     let alive = false
     let visibleNow = false
@@ -172,9 +181,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       f.h1.textContent = cur
     }
 
-    // Narrower screens stack the copies under the text instead, unveiled.
-    const wide = matchMedia("(min-width: 1024px)")
-
     // A few agents at once each keep picking a copy on screen and changing
     // it, or, after a few edits, wiping it back to main to start over.
     async function agent(delay: number) {
@@ -185,14 +191,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           const r = f.el.getBoundingClientRect()
           return !f.busy && r.left > s.left + 20 && r.right < s.right - 20
         })
-        // Mostly the ones clear of the veil, where the change shows.
-        const clear = onScreen.filter(
-          (f) => f.el.getBoundingClientRect().left > s.left + s.width * 0.5
-        )
-        const pool =
-          wide.matches && clear.length && Math.random() < 0.75
-            ? clear
-            : onScreen
+        // Mostly the top row, which the veil leaves clearest.
+        const clear = onScreen.filter((f) => rowsEl.firstChild!.contains(f.el))
+        const pool = clear.length && Math.random() < 0.75 ? clear : onScreen
         const f = pool[Math.floor(Math.random() * pool.length)]
         if (f) await edit(f)
         await wait(500 + Math.random() * 700)
@@ -238,7 +239,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       if (reduce || alive) return
       alive = true
       host.dataset.playing = ""
-      if (wide.matches) veil.start()
+      veil.start()
       for (let k = 0; k < 3; k++) void agent(k * 450)
     }
     const pause = () => {
@@ -260,7 +261,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       if (pending) return
       pending = requestAnimationFrame(() => {
         pending = 0
-        if (!wide.matches) return veil.stop()
         veil.measure()
         veil.drawOnce()
         if (alive && !reduce) veil.start()
@@ -273,21 +273,20 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
 
     // Hovering clears a hole in the veil to peek at the copies underneath.
     const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse" || !wide.matches) return
+      if (e.pointerType !== "mouse") return
       const r = host.getBoundingClientRect()
       veil.peekAt({ x: e.clientX - r.left, y: e.clientY - r.top })
       if (reduce) veil.drawOnce()
     }
     const onLeave = () => {
       veil.peekAt(null)
-      if (reduce && wide.matches) veil.drawOnce()
+      if (reduce) veil.drawOnce()
     }
     host.addEventListener("pointermove", onMove)
     host.addEventListener("pointerleave", onLeave)
 
     const resize = new ResizeObserver(remeasure)
     resize.observe(host)
-    wide.addEventListener("change", remeasure)
     // Only animate while the hero is on screen.
     const seen = new IntersectionObserver(([entry]) => {
       visibleNow = !!entry?.isIntersecting
@@ -302,7 +301,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       resize.disconnect()
       host.removeEventListener("pointermove", onMove)
       host.removeEventListener("pointerleave", onLeave)
-      wide.removeEventListener("change", remeasure)
       seen.disconnect()
       rowsEl.replaceChildren()
     }
@@ -319,7 +317,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       <canvas
         ref={canvas}
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1] size-full max-lg:hidden"
+        className="pointer-events-none absolute inset-0 z-[1] size-full"
       />
       <div className="hc-content relative z-[2]">{children}</div>
     </div>

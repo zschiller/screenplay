@@ -10,12 +10,7 @@ export function Hero() {
   return (
     <section>
       <HeroStage>
-        <div
-          className={cn(
-            measure,
-            "pt-[clamp(56px,9vw,120px)] pb-[clamp(40px,6vw,80px)]"
-          )}
-        >
+        <div className={cn(measure, "pb-[clamp(40px,6vw,80px)]")}>
           <h1
             data-veil
             className="font-headline text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance"
@@ -25,15 +20,12 @@ export function Hero() {
             <em>side by side</em>.
           </h1>
           <div className="mt-14 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
-            <p
-              data-veil
-              className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]"
-            >
+            <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
               Run your coding agents on separate branches and see every result
               live on one canvas.
             </p>
             <div>
-              <div data-veil className="flex flex-wrap gap-3 max-sm:flex-col">
+              <div className="flex flex-wrap gap-3 max-sm:flex-col">
                 <a
                   href={releasesUrl}
                   target="_blank"
@@ -50,7 +42,7 @@ export function Hero() {
                   Host it for your team
                 </a>
               </div>
-              <p data-veil className="mt-3 w-fit text-sm text-muted-foreground">
+              <p className="mt-3 w-fit text-sm text-muted-foreground">
                 For Macs with Apple Silicon
               </p>
             </div>

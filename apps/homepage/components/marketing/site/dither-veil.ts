@@ -2,8 +2,9 @@ import { createFluid } from "./fluid"
 
 /**
  * Paints a background colour over whatever sits under `canvas` as a fine
- * dither: solid behind the target elements' text, breaking into grain and then
- * nothing away from it, so text stays readable on top of a busy layer.
+ * dither that thickens evenly down the canvas: nothing above `span()`'s top,
+ * solid from its bottom down, so text below that line stays readable on top
+ * of a busy layer and the layer above it dissolves into grain.
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
  * blue noise instead of Bayer's checkerboard. The grain creeps and a value
@@ -15,7 +16,7 @@ import { createFluid } from "./fluid"
  */
 export function createDitherVeil(
   canvas: HTMLCanvasElement,
-  targets: () => Element[]
+  span: () => [top: number, solid: number]
 ) {
   const ctx = canvas.getContext("2d")!
   const host = canvas.parentElement!
@@ -52,11 +53,8 @@ export function createDitherVeil(
   const ign = (x: number, y: number) =>
     fract(52.9829189 * fract(0.06711056 * x + 0.00583715 * y))
 
-  // How far the solid core reaches past the text, and how long the fade is,
-  // in CSS px.
-  const PAD = 12
-  const FALL = 190
-  // The spacing of the grid distances are measured on, in CSS px.
+  // The spacing of the grid the edge noise and the peek are worked out on, in
+  // CSS px.
   const COARSE = 8
   // How far around the pointer the veil clears, in CSS px.
   const PEEK = 90
@@ -131,63 +129,24 @@ export function createDitherVeil(
       img = octx.createImageData(cols, rows)
     }
 
-    // Hug the text line by line rather than whole blocks, so what's
-    // underneath shows wherever there are no words.
-    const s = host.getBoundingClientRect()
-    const rects = targets()
-      .flatMap((n) => {
-        const range = document.createRange()
-        range.selectNodeContents(n)
-        return [...range.getClientRects()].filter((r) => r.width > 1)
-      })
-      .map((r) => [
-        r.left - s.left - PAD,
-        r.top - s.top - PAD,
-        r.right - s.left + PAD,
-        r.bottom - s.top + PAD,
-      ])
-
-    // Distance to the text changes slowly, so it's worked out on a coarse
-    // grid and interpolated per grain: measuring every grain against every
-    // line made each resize take most of a second.
     gc = Math.ceil(W / COARSE) + 2
     const gr = Math.ceil(H / COARSE) + 2
     edge = new Float32Array(gc * gr)
     marble = new Float32Array(gc * gr)
     shown = new Float32Array(gc * gr)
-    const grid = new Float32Array(gc * gr)
-    for (let r = 0, i = 0; r < gr; r++) {
-      for (let c = 0; c < gc; c++, i++) {
-        const x = c * COARSE
-        const y = r * COARSE
-        let d = 1e9
-        for (const [x0, y0, x1, y1] of rects) {
-          const dx = Math.max(x0! - x, 0, x - x1!)
-          const dy = Math.max(y0! - y, 0, y - y1!)
-          d = Math.min(d, dx * dx + dy * dy)
-        }
-        grid[i] = Math.sqrt(d)
-      }
-    }
+    const [top, solid] = span()
+    const fall = Math.max(solid - top, 1)
     dist = new Float32Array(cols * rows)
     base = new Float32Array(cols * rows)
     const fade = new Int32Array(cols * rows)
     let n = 0
     for (let r = 0, i = 0; r < rows; r++) {
-      const gy = (r * cell + cell / 2) / COARSE
-      const y0 = Math.floor(gy)
-      const fy = gy - y0
+      // How far above the solid line this row is.
+      const d = Math.max(solid - (r * cell + cell / 2), 0)
+      // Below the line it stays solid whatever the edge noise does.
+      const k = d <= 0 ? 1.3 : 1 - d / fall
       for (let c = 0; c < cols; c++, i++) {
-        const gx = (c * cell + cell / 2) / COARSE
-        const x0 = Math.floor(gx)
-        const fx = gx - x0
-        const j = y0 * gc + x0
-        const top = grid[j]! + (grid[j + 1]! - grid[j]!) * fx
-        const bot = grid[j + gc]! + (grid[j + gc + 1]! - grid[j + gc]!) * fx
-        const d = top + (bot - top) * fy
         dist[i] = d
-        // Behind the text it stays solid whatever the edge noise does.
-        const k = d <= 0 ? 1.3 : 1 - d / FALL
         base[i] = k
         if (k < 1 && k > -0.4) fade[n++] = i
       }
@@ -219,8 +178,8 @@ export function createDitherVeil(
     fill()
   }
 
-  // Paints the grains that only change under the pointer: solid behind the
-  // text, clear far from it.
+  // Paints the grains that only change under the pointer: solid below the
+  // line, clear above the fade.
   function fill() {
     if (!img) return
     const data = img.data
@@ -286,7 +245,7 @@ export function createDitherVeil(
 
   // Redraws the grains in `rect` that can change: the fade by distance, a
   // billowing edge, a creeping grain and, with `peek`, a hole where the
-  // pointer is. Grains in `skip` are left alone; behind the text, without
+  // pointer is. Grains in `skip` are left alone; below the line, without
   // `peek`, grains go back to solid.
   function paint(
     rect: [number, number, number, number],
@@ -451,7 +410,7 @@ export function createDitherVeil(
           : [0, bandR[from]!, cols - 1, bandR[to - 1]!]
     }
     // Redraw the grains the peek covers now and put back the ones it
-    // covered last frame. Grains far from the text stay clear.
+    // covered last frame. Grains above the fade stay clear.
     for (const b of [touched, box]) {
       if (!b) continue
       if (b === box) paint(b, true, null, t)
@@ -507,7 +466,7 @@ export function createDitherVeil(
       rgb = [...x.getImageData(0, 0, 1, 1).data.slice(0, 3)]
       fill()
     },
-    /** Re-reads the layout; call when the host or its text changes size. */
+    /** Re-reads the layout; call when the host or the line moves. */
     measure,
     /** Draws one frame now, e.g. right after `measure`. */
     drawOnce() {
