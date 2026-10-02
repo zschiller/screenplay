@@ -51,7 +51,9 @@ OIDC, so it needs no secret:
 1. In Vercel, add an OIDC policy that trusts your repository's
    `.github/workflows/sandbox-image.yml`.
 2. In your GitHub repository, add the variables `VERCEL_TEAM_ID`,
-   `VERCEL_TEAM_SLUG` and `VERCEL_PROJECT_SLUG` (the app project).
+   `VERCEL_TEAM_SLUG` and `SCREENPLAY_APP_VERCEL_PROJECT_SLUG` (the app
+   project). Add them as repository variables, not environment variables: the
+   workflow doesn't run in a GitHub environment.
 3. Run the workflow once from the **Actions** tab.
 
 To push it by hand instead, from a linked project:
