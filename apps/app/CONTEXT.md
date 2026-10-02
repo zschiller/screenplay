@@ -439,7 +439,7 @@ _Avoid_: chat, conversation; "thread" means a comment thread.
 A Branch's one Chat Session, and the only chat that changes its code. Every
 Branch gets it when it starts, whatever the default tab kind, and a Branch never
 gets a second: more parallel work means more Branches. It is always open (no
-close, not in Chat history) and is where every prompt to the Branch lands, busy
+close) and is where every prompt to the Branch lands, busy
 or not (a message mid-turn steers or queues): the Coordinator's
 `send_to_workspace`, comment requests, Reply in chat on its Documents, Ask for a
 knob. Other chats read its code (`read_code_file`, `search_code`,
@@ -450,9 +450,10 @@ delegation and the stream route agree. When the first message titles the
 Workspace, the chat takes the same title: a Workspace and its chat share a name,
 which is why frames and Documents show the Workspace's title. A Branch from
 before #1315 can hold several chats; the others are its **earlier chats**:
-readable, closable and reopenable from Chat history, but they never send (the
-panel shows Open chat in place of the composer and the stream route refuses them
-with `earlier_chat`).
+kept, but the panel has no way to open them (no Chat history button). They
+never send: if a remembered selection lands on
+one, the panel shows it read-only with Open chat in place of the composer, and
+the stream route refuses them with `earlier_chat`.
 _Avoid_: "new chat" on a Branch that has one; bumping a busy Branch to a fresh
 chat; a second rule for "which chat" at a call site.
 
@@ -738,8 +739,7 @@ pool is never empty.** The **Workspace Chat** is always in its Branch's pool
 Branch with no chat (one made terminal-first before #1315); closing its last
 chat respawns the user's **preferred default tab kind**, and seeding a Branch
 always makes its chat, with a terminal beside it when that is the default. The
-panel shows no tab strip (#1341): the Workspace's chat fills it, and its
-earlier chats open read-only from the header's Chat history. Terminal Tabs left
+panel shows no tab strip (#1341): the Workspace's chat fills it. Terminal Tabs left
 the pool with #1341 and live in the **Terminal Pane**. The close decision is a
 **pure function** (`resolveTabClose`: pool + closing chat → what survives, the
 next selection, and whether to respawn); the **Tab Pool controller**

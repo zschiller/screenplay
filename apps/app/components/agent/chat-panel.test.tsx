@@ -104,7 +104,6 @@ function renderRoomPanel(onCollapse = vi.fn()) {
       roomId="room-1"
       onSelectChat={noop}
       onCreateChat={noop}
-      onRemoveChat={noop}
       onPlanModeChange={noop}
       onModelChange={noop}
       onCollapse={onCollapse}
@@ -182,7 +181,6 @@ function renderWorkspacePanel(
     onCreateChat: noop,
     onCreateTerminal: () => "new",
     onCloseTerminal,
-    onRemoveChat: noop,
     onPlanModeChange: noop,
     onModelChange: noop,
     onCollapse: noop,
@@ -327,7 +325,7 @@ describe("ChatPanel with a Workspace target", () => {
     ).toBe("true")
   })
 
-  it("keeps earlier chats behind Chat history, opened read-only", () => {
+  it("shows a selected earlier chat read-only", () => {
     const { onSelectChat, rerender, props } = renderWorkspacePanel({
       chatSessions: [
         { id: "old", label: "Old", createdAt: 1, branchId: "ws-1" },
@@ -340,7 +338,6 @@ describe("ChatPanel with a Workspace target", () => {
       ],
       selectedChatId: "chat-1",
     })
-    expect(screen.getByRole("button", { name: "Chat history" })).toBeTruthy()
     rerender(<ChatPanel {...props} selectedChatId="old" />)
     const shown = screen
       .getAllByTestId("agent-chat")
@@ -350,8 +347,19 @@ describe("ChatPanel with a Workspace target", () => {
     expect(onSelectChat).toHaveBeenCalledWith("chat-1")
   })
 
-  it("has no Chat history without earlier chats", () => {
-    renderWorkspacePanel()
+  it("has no Chat history button, even with earlier chats", () => {
+    renderWorkspacePanel({
+      chatSessions: [
+        { id: "old", label: "Old", createdAt: 1, branchId: "ws-1" },
+        {
+          id: "chat-1",
+          label: "Checkout polish",
+          createdAt: 2,
+          branchId: "ws-1",
+        },
+      ],
+      selectedChatId: "chat-1",
+    })
     expect(screen.queryByRole("button", { name: "Chat history" })).toBeNull()
   })
 })

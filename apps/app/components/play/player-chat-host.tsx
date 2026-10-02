@@ -107,7 +107,6 @@ function PlayerChatHostImpl({
       roomId={roomId}
       onSelectChat={setSelectedChatId}
       onCreateChat={() => chatTabs.open({ kind: "agent", branchId: agent.id })}
-      onRemoveChat={chatTabs.remove}
       onPlanModeChange={(chatId, planMode) =>
         updateChatSession(chatId, { planMode })
       }

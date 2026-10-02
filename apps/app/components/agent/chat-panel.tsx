@@ -30,7 +30,6 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { AgentChat } from "./agent-chat"
-import { ChatHistoryMenu } from "./chat-history-menu"
 import { ChatPanelHeader } from "./chat-panel-header"
 import { CoordinatorChat } from "./coordinator-chat"
 import { ChatsMenuButton } from "./chats-menu"
@@ -121,7 +120,7 @@ interface ChatPanelProps {
    *  conversation model. Empty/absent where there are no shells (the player). */
   terminalTabs?: TerminalTabData[]
   /** The chat on show: the Workspace's own chat, or one of its earlier chats
-   *  opened from Chat history. */
+   *  when a remembered selection lands on one. */
   selectedChatId: string | null
   roomId: string
   onSelectChat: (chatId: string | null) => void
@@ -137,8 +136,6 @@ interface ChatPanelProps {
   onRenameTerminal?: (id: string, label: string) => void
   /** Close a terminal: drop the tab and kill its session. */
   onCloseTerminal?: (id: string) => void
-  /** Delete an earlier chat for good (from Chat history). */
-  onRemoveChat: (chatId: string) => void
   onPlanModeChange: (chatId: string, planMode: boolean) => void
   onModelChange: (chatId: string, model: string) => void
   diffStats?: DiffStats
@@ -218,7 +215,6 @@ function WorkspaceChatPanel({
   onCreateTerminal,
   onRenameTerminal,
   onCloseTerminal,
-  onRemoveChat,
   onPlanModeChange,
   onModelChange,
   diffStats,
@@ -231,21 +227,15 @@ function WorkspaceChatPanel({
   const agent = target.agent
   const chatTarget = chatTargetOf(target)
   // The Workspace's one chat (#1315). Any other chat here is an earlier chat
-  // from before #1315, kept readable behind Chat history.
+  // from before #1315. The panel has no way to open one; a remembered
+  // selection that lands on one shows it read-only in place of the
+  // Workspace's chat until you go back to it.
   const ownChatId = workspaceChatId(chatSessions, agent.id)
   const ownChat = chatSessions.find((c) => c.id === ownChatId)
-  const earlierChats = useMemo(
-    () =>
-      chatSessions
-        .filter((c) => c.id !== ownChatId)
-        .sort(
-          (a, b) => (b.closedAt || b.createdAt) - (a.closedAt || a.createdAt)
-        ),
-    [chatSessions, ownChatId]
-  )
-  // An earlier chat picked from Chat history, shown read-only in place of the
-  // Workspace's chat until you go back to it.
-  const shownEarlierChat = earlierChats.find((c) => c.id === selectedChatId)
+  const shownEarlierChat =
+    selectedChatId && selectedChatId !== ownChatId
+      ? chatSessions.find((c) => c.id === selectedChatId)
+      : undefined
   const shownChatId = shownEarlierChat?.id ?? ownChatId ?? ""
 
   // Select the Workspace's chat when nothing is, so the panel's selection
@@ -443,15 +433,6 @@ function WorkspaceChatPanel({
               <GitPullRequestIcon />
               Create PR
             </Button>
-          )}
-          {/* A Workspace's earlier chats, from before it had one chat
-              (#1315), open read-only from here. */}
-          {earlierChats.length > 0 && (
-            <ChatHistoryMenu
-              chats={earlierChats}
-              onOpen={onSelectChat}
-              onDelete={onRemoveChat}
-            />
           )}
         </div>
       </ChatPanelHeader>
