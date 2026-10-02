@@ -303,6 +303,7 @@ export function LayerShell({
     <div
       ref={containerRef}
       id={containerId}
+      data-layer-id={layerId}
       className={containerClassName}
       style={{
         width,

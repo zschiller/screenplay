@@ -70,3 +70,25 @@ export function canInteractOnDoubleClick(input: {
   const { hasPreview, commentMode, pickActive, spaceHeld } = input
   return hasPreview && !commentMode && !pickActive && !spaceHeld
 }
+
+/**
+ * Whether a press on the canvas leaves the interaction mode (Interact or Create
+ * Flow) a frame or Mockup is in. A press outside the interacting layer leaves
+ * it, as Esc does: on empty canvas, or on another layer (which then takes the
+ * press as usual). A press on the interacting layer's own chrome — its title
+ * bar, or its toolbar with the Interact button — keeps the mode. Presses inside
+ * the live page never reach the canvas: they stay in the iframe.
+ */
+export function pressLeavesInteraction(input: {
+  /** The layer in Interact or Create Flow mode, or null when none is. */
+  interactingId: string | null
+  /** The layer whose box the press landed in, or null on empty canvas. */
+  pressedLayerId: string | null
+  /** The press landed on the selected layer's floating toolbar. */
+  onLayerToolbar: boolean
+}): boolean {
+  const { interactingId, pressedLayerId, onLayerToolbar } = input
+  if (interactingId === null) return false
+  if (onLayerToolbar) return false
+  return pressedLayerId !== interactingId
+}

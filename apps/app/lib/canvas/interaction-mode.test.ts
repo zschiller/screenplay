@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   canInteractOnDoubleClick,
+  pressLeavesInteraction,
   reconcileInteractionMode,
 } from "@/lib/canvas/interaction-mode"
 
@@ -134,5 +135,57 @@ describe("canInteractOnDoubleClick", () => {
     expect(canInteractOnDoubleClick({ ...idle, commentMode: true })).toBe(false)
     expect(canInteractOnDoubleClick({ ...idle, pickActive: true })).toBe(false)
     expect(canInteractOnDoubleClick({ ...idle, spaceHeld: true })).toBe(false)
+  })
+})
+
+describe("pressLeavesInteraction", () => {
+  it("leaves on a press on empty canvas", () => {
+    expect(
+      pressLeavesInteraction({
+        interactingId: "a",
+        pressedLayerId: null,
+        onLayerToolbar: false,
+      })
+    ).toBe(true)
+  })
+
+  it("leaves on a press on another layer", () => {
+    expect(
+      pressLeavesInteraction({
+        interactingId: "a",
+        pressedLayerId: "b",
+        onLayerToolbar: false,
+      })
+    ).toBe(true)
+  })
+
+  it("stays on a press on the interacting layer's own title bar", () => {
+    expect(
+      pressLeavesInteraction({
+        interactingId: "a",
+        pressedLayerId: "a",
+        onLayerToolbar: false,
+      })
+    ).toBe(false)
+  })
+
+  it("stays on a press on the layer's toolbar, Interact button included", () => {
+    expect(
+      pressLeavesInteraction({
+        interactingId: "a",
+        pressedLayerId: null,
+        onLayerToolbar: true,
+      })
+    ).toBe(false)
+  })
+
+  it("does nothing when no layer is interacting", () => {
+    expect(
+      pressLeavesInteraction({
+        interactingId: null,
+        pressedLayerId: null,
+        onLayerToolbar: false,
+      })
+    ).toBe(false)
   })
 })

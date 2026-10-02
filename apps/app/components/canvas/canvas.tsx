@@ -1668,6 +1668,11 @@ export function Canvas({
       documentMode,
       frameMode,
       mockupMode,
+      interactingLayerId: focusedIframeLayerId ?? createFlowIframeLayerId,
+      leaveInteraction: () => {
+        setFocusedIframeLayerId(null)
+        setCreateFlowIframeLayerId(null)
+      },
       reorderHandles,
       gapHandles,
       groups: routeGroups,
