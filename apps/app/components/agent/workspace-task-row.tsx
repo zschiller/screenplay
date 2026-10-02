@@ -37,6 +37,8 @@ export interface WorkspaceTasks {
   chatSessions: readonly ChatSessionData[]
   plans: readonly PlanData[]
   onOpen: (task: WorkspaceTaskRef) => void
+  /** Show a frame, document or mockup a reply names on the canvas. */
+  onShow?: (layerId: string) => void
 }
 
 const WorkspaceTasksContext = createContext<WorkspaceTasks | null>(null)

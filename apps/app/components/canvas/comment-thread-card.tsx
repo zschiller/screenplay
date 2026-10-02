@@ -375,7 +375,10 @@ function CommentRow({
   }
 }
 
-/** A comment's text with @mentions of room members set in medium weight. */
+/**
+ * A comment's text with @mentions of room members set in medium weight, in
+ * the text colour, like every inline reference.
+ */
 function CommentBody({
   body,
   memberNames,
@@ -387,7 +390,7 @@ function CommentBody({
     <p className="break-words whitespace-pre-wrap">
       {splitMentions(body, memberNames).map((seg, i) =>
         seg.mention ? (
-          <span key={i} className="font-medium text-info">
+          <span key={i} className="font-medium">
             {seg.text}
           </span>
         ) : (

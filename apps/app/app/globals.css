@@ -528,3 +528,57 @@ body {
 .chat-markdown .hljs-strong {
   font-weight: 600;
 }
+
+/* Inline references: how a chat message names a Workspace, document, frame,
+   mockup or element. Its icon (a Workspace's state glyph) and the name in
+   medium weight, in the text colour, never underlined. The name carries the
+   baseline, so it lines up with the words around it whatever the icon. */
+.inline-ref {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  font-stretch: 98.8%;
+  color: var(--foreground);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: default;
+}
+.inline-ref-label {
+  align-self: baseline;
+}
+button.inline-ref {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+button.inline-ref:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+.inline-ref-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-right: 0.125rem;
+  color: currentColor;
+}
+[data-inline-ref="workspace"] > .inline-ref-icon > span {
+  width: 100%;
+  height: 100%;
+}
+/* The composer's and the document editor's `@` mentions render through
+   TipTap's renderHTML, so they draw the document icon (Phosphor FileText,
+   bold like the React icons) as a mask in the text colour. */
+.inline-ref[data-inline-ref-mask="document"]::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-right: 0.125rem;
+  background-color: currentColor;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><path d='M216.49,79.52l-56-56A12,12,0,0,0,152,20H56A20,20,0,0,0,36,40V216a20,20,0,0,0,20,20H200a20,20,0,0,0,20-20V88A12,12,0,0,0,216.49,79.52ZM160,57l23,23H160ZM60,212V44h76V92a12,12,0,0,0,12,12h48V212Zm112-80a12,12,0,0,1-12,12H96a12,12,0,0,1,0-24h64A12,12,0,0,1,172,132Zm0,40a12,12,0,0,1-12,12H96a12,12,0,0,1,0-24h64A12,12,0,0,1,172,172Z'/></svg>")
+    center / contain no-repeat;
+}

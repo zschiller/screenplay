@@ -1068,6 +1068,118 @@ describe("AgentMessageItem — Coordinator wakes (#897)", () => {
   })
 })
 
+describe("AgentMessageItem — inline references", () => {
+  const branch = {
+    id: "ws-1",
+    repoId: "repo-1",
+    sandboxName: "sandbox-ws-1",
+    gitUrl: "",
+    ref: "fix-sign-in",
+    title: "Fix sign-in redirect",
+    previewDomain: "",
+    port: 3000,
+    status: "running",
+    createdAt: 0,
+  } satisfies BranchData
+
+  it("names an @ document by its icon and title, without the @", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={{
+          role: "user",
+          content: "Follow [@Checkout brief](mention:doc-1) here.",
+        }}
+      />
+    )
+    const ref = container.querySelector("[data-inline-ref=document]")
+    expect(ref?.textContent).toBe("Checkout brief")
+    expect(ref?.querySelector("svg")).toBeTruthy()
+    expect(ref?.className).not.toContain("text-info")
+  })
+
+  it("names a drawn Mockup in place of its raw marker", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={{
+          role: "user",
+          content:
+            "A receipt.\n\nSketch it in Mockup [mockup: m-1] with update_mockup, for a 390 × 844 viewport.",
+        }}
+      />
+    )
+    expect(container.textContent).toContain(
+      "Sketch it in Mockup, for a 390 × 844 viewport."
+    )
+    expect(container.textContent).not.toContain("update_mockup")
+    expect(
+      container.querySelector("[data-inline-ref=mockup]")?.textContent
+    ).toBe("Mockup")
+  })
+
+  it("leads a Coordinator's Workspace link with its state", () => {
+    render(
+      <WorkspaceTasksProvider
+        value={{
+          branches: [branch],
+          chatSessions: [],
+          plans: [],
+          onOpen: () => {},
+        }}
+      >
+        <AgentMessageItem
+          message={{
+            role: "assistant",
+            content: "[Fix sign-in redirect](workspace:ws-1) is done.",
+          }}
+        />
+      </WorkspaceTasksProvider>
+    )
+    const link = screen.getByTestId("workspace-link")
+    expect(link.tagName).toBe("BUTTON")
+    expect(link.querySelector("[role=img], svg")).toBeTruthy()
+    expect(link.textContent).toBe("Fix sign-in redirect")
+  })
+
+  it("shows a frame, document or mockup a Coordinator reply names", () => {
+    const shown: string[] = []
+    render(
+      <WorkspaceTasksProvider
+        value={{
+          branches: [],
+          chatSessions: [],
+          plans: [],
+          onOpen: () => {},
+          onShow: (id) => shown.push(id),
+        }}
+      >
+        <AgentMessageItem
+          message={{
+            role: "assistant",
+            content:
+              "See [Checkout · mobile](frame:f-1), [Brief](document:d-1) and [Option A](mockup:m-1).",
+          }}
+        />
+      </WorkspaceTasksProvider>
+    )
+    for (const name of ["Checkout · mobile", "Brief", "Option A"])
+      fireEvent.click(screen.getByRole("button", { name }))
+    expect(shown).toEqual(["f-1", "d-1", "m-1"])
+  })
+
+  it("names a layer without a link outside the Coordinator chat", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={{ role: "assistant", content: "See [Brief](document:d-1)." }}
+      />
+    )
+    expect(screen.queryByRole("button")).toBeNull()
+    expect(container.querySelector("a")).toBeNull()
+    expect(
+      container.querySelector("[data-inline-ref=document]")?.textContent
+    ).toBe("Brief")
+  })
+})
+
 describe("AgentMessageItem — user turns after a reload (#1252)", () => {
   /** A persisted user turn, rendered the way a reload renders it. */
   const reloaded = (wire: string): AgentMessage => {

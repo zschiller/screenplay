@@ -11,6 +11,7 @@ import {
   buildTargetedElementsFooter,
   deriveElementLabel,
   elementMarkersToPills,
+  mockupMarkersToRefs,
   parseTargetedElementsFooter,
   parseUserMessage,
   prependTurnMarkers,
@@ -19,6 +20,7 @@ import {
   serializeSkill,
   skillMarkersToPills,
 } from "@/lib/agent/message-markers"
+import { forMockup } from "@/lib/frame-ask"
 
 describe("prependTurnMarkers", () => {
   it("renders plan before branch", () => {
@@ -408,6 +410,26 @@ describe("elementMarkersToPills", () => {
     expect(parsed.planMode).toBe(true)
     expect(parsed.branch).toBe("feat/x")
     expect(elementMarkersToPills(parsed.body)).toBe("[button](element:el-1)")
+  })
+})
+
+describe("mockupMarkersToRefs", () => {
+  it("names a drawn Mockup's ask by the Mockup, without the agent's wording", () => {
+    expect(
+      mockupMarkersToRefs(forMockup("", "m-2", { width: 390, height: 844 }))
+    ).toBe("Sketch it in [Mockup](mockup:m-2), for a 390 × 844 viewport.")
+  })
+
+  it("rewrites a bare marker too", () => {
+    expect(mockupMarkersToRefs("Fill [mockup: m-1] please")).toBe(
+      "Fill [Mockup](mockup:m-1) please"
+    )
+  })
+
+  it("leaves a markdown link named like the marker alone", () => {
+    expect(mockupMarkersToRefs("[mockup: x](https://e.com)")).toBe(
+      "[mockup: x](https://e.com)"
+    )
   })
 })
 
