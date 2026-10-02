@@ -45,6 +45,14 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # Vercel's managed base image can't be pulled outside a Sandbox, so build
+      # it from the Dockerfiles Vercel publishes it from.
+      - uses: actions/checkout@v4
+        with:
+          repository: vercel/sandbox
+          path: vercel-sandbox
+          sparse-checkout: images
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to VCR
@@ -53,13 +61,8 @@ jobs:
           team: ${{ vars.VERCEL_TEAM_ID }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: apps/app/sandbox-image
-          platforms: linux/amd64
-          provenance: false
-          pull: true
-          tags: |
-            ${{ env.REPOSITORY }}:latest
-            ${{ env.REPOSITORY }}:${{ github.sha }}
-          outputs: type=image,push=true,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
+        run: docker buildx bake -f apps/app/sandbox-image/docker-bake.hcl workspace
+        env:
+          VERCEL_SANDBOX_IMAGES: vercel-sandbox/images
+          TAGS: ${{ env.REPOSITORY }}:latest ${{ env.REPOSITORY }}:${{ github.sha }}
+          PUSH: "true"
