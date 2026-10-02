@@ -91,10 +91,11 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
   resolvePlan,
   // The user turn is stored ACP-native: the decorated wire text (plan/branch
   // markers + `@`-mention `resource_link`s) encoded to content blocks.
-  persistUserTurn: (chatId, userText) =>
+  persistUserTurn: (chatId, userText, sentBy) =>
     appendAcpMessage(chatId, {
       role: "user",
       content: wireToContentBlocks(userText),
+      ...(sentBy ? { sentBy } : {}),
     }),
   startRun,
   broadcastStreamStart: (roomId, chatId) =>

@@ -89,6 +89,27 @@ describe("questionAnswers (#1312)", () => {
     expect(answers.get("q1")).toEqual({ chosen: 0 })
   })
 
+  it("names who answered, when the server recorded a sender", () => {
+    const answers = questionAnswers([
+      ask("q1", layout),
+      { role: "user", content: "Compact", sentBy: "user_maya" },
+    ])
+    expect(answers.get("q1")).toEqual({ chosen: 0, by: "user_maya" })
+  })
+
+  it("doesn't credit a Delegated Message's sender with the answer", () => {
+    const answers = questionAnswers([
+      ask("q1", layout),
+      {
+        role: "user",
+        content: "Compact",
+        sentBy: "user_maya",
+        delegatedFrom: "room-chat-r1",
+      },
+    ])
+    expect(answers.get("q1")).toEqual({ chosen: 0 })
+  })
+
   it("isn't answered by a Coordinator wake", () => {
     const answers = questionAnswers([
       ask("q1", layout),

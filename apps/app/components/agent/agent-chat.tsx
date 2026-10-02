@@ -45,6 +45,7 @@ import {
 import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
 import { questionAnswers } from "@/lib/agent/question"
+import { useChatSenders } from "@/hooks/use-chat-senders"
 import { targetingStore } from "@/lib/targeting-store"
 import { useModelCatalog } from "@/lib/use-model-catalog"
 import {
@@ -331,6 +332,8 @@ export function AgentChat({
 
   // Question cards (#1312) close once a user message follows them.
   const answers = useMemo(() => questionAnswers(messages), [messages])
+  // On a shared Canvas, messages and answers name who sent them.
+  const senders = useChatSenders(roomId, messages)
 
   // While the sandbox is still booting there's no agent to talk to yet — show
   // the same provisioning spinner the terminal does (terminal-tab.tsx) instead
@@ -372,6 +375,7 @@ export function AgentChat({
         questionAnswer={
           msg.role === "tool_call" ? answers.get(msg.toolCallId) : undefined
         }
+        senders={senders}
         // Retry only while the error is the last thing in the chat: once the
         // conversation has moved on, redoing it would act out of turn.
         onRetry={

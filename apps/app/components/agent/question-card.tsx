@@ -20,7 +20,8 @@ import { parseQuestion, type QuestionAnswer } from "@/lib/agent/question"
  * message, through the chat's own composer path (so it steers or queues like
  * anything typed); there is no Next or Submit, since one question needs none.
  * Once a user message follows the call, the card is answered: the chosen
- * option stays checked and the others are disabled.
+ * option stays checked and the others are disabled, and on a shared Canvas
+ * the card names who answered.
  *
  * Returns null while the call's arguments are still streaming, or when they
  * don't make a question, so the chat shows the plain tool row instead.
@@ -29,10 +30,13 @@ export function QuestionCard({
   message,
   chatId,
   answer,
+  answeredBy,
 }: {
   message: AgentMessage & { role: "tool_call" }
   chatId?: string
   answer?: QuestionAnswer
+  /** Who answered it, on a shared Canvas. */
+  answeredBy?: string
 }) {
   // Picked here but not yet in the transcript: holds the card shut until the
   // sent message lands, so a second pick can't send a second answer.
@@ -61,34 +65,47 @@ export function QuestionCard({
         <QuestionnaireTitle className="text-sm">
           {question.question}
         </QuestionnaireTitle>
-        <QuestionnaireChoices>
-          {question.options.map((option, i) => (
-            <QuestionnaireChoice
-              key={i}
-              value={option.label}
-              checked={chosen === i}
-              // The chosen one stays at full strength; picking it again
-              // sends nothing (see `pick`).
-              disabled={!chatId || (answered && chosen !== i)}
-              onChange={() => pick(i)}
-            >
-              <span className="flex items-center gap-1.5">
-                {option.label}
-                {question.recommended === i && (
-                  <Badge variant="outline">Recommended</Badge>
+        {/* The answer line sits as close under the choices as a sender's
+            name sits over their message. */}
+        <div className="flex flex-col gap-1">
+          <QuestionnaireChoices>
+            {question.options.map((option, i) => (
+              <QuestionnaireChoice
+                key={i}
+                value={option.label}
+                checked={chosen === i}
+                // The chosen one stays at full strength; picking it again
+                // sends nothing (see `pick`).
+                disabled={!chatId || (answered && chosen !== i)}
+                onChange={() => pick(i)}
+              >
+                <span className="flex items-center gap-1.5">
+                  {option.label}
+                  {question.recommended === i && (
+                    <Badge variant="outline">Recommended</Badge>
+                  )}
+                </span>
+                {option.detail && (
+                  <QuestionnaireChoiceDescription className="text-xs">
+                    {option.detail}
+                  </QuestionnaireChoiceDescription>
                 )}
-              </span>
-              {option.detail && (
-                <QuestionnaireChoiceDescription className="text-xs">
-                  {option.detail}
-                </QuestionnaireChoiceDescription>
-              )}
-            </QuestionnaireChoice>
-          ))}
-        </QuestionnaireChoices>
-        {answered && chosen == null && (
-          <p className="text-xs text-muted-foreground">Answered in chat</p>
-        )}
+              </QuestionnaireChoice>
+            ))}
+          </QuestionnaireChoices>
+          {answered && (chosen == null || answeredBy) && (
+            <p
+              data-testid="question-answered-by"
+              className="text-xs text-muted-foreground"
+            >
+              {chosen == null
+                ? answeredBy
+                  ? `${answeredBy} answered in chat`
+                  : "Answered in chat"
+                : `Answered by ${answeredBy}`}
+            </p>
+          )}
+        </div>
       </QuestionnaireItem>
     </Questionnaire>
   )

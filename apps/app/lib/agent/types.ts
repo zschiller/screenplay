@@ -31,6 +31,8 @@ export type AgentMessage =
       delegatedFrom?: string
       /** Hover detail for the body's `element:` tokens, keyed by ref. */
       targetedElements?: TargetedElement[]
+      /** The member who sent it, by user id, when the server recorded one. */
+      sentBy?: string
     }
   | { role: "assistant"; content: string }
   // The agent's reasoning (ACP `agent_thought_chunk`), rendered in a collapsible

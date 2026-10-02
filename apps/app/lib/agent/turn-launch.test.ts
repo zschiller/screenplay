@@ -3,6 +3,8 @@ import type { Engine } from "./acp/engine-seam"
 import type { RunStatus } from "./run-state"
 import type { Steer } from "./steer-inbox"
 import type { RepoData } from "@/lib/types"
+import type { SessionUpdate } from "./acp/schema"
+import { echoedUserTurn } from "./user-turn"
 import {
   launchTurn,
   stopTurn,
@@ -48,6 +50,7 @@ function recordingDeps(
   } = {}
 ) {
   const log: string[] = []
+  const echoes: SessionUpdate[] = []
   const afterResponse: Array<() => Promise<void>> = []
   const leftovers = [...(opts.leftovers ?? [])]
   // Whether each run takes Steers, as recorded when its Engine reported.
@@ -68,8 +71,8 @@ function recordingDeps(
       )
       return opts.planStillPending === false ? null : { runId: "run_0" }
     },
-    async persistUserTurn(_chatId, userText) {
-      log.push(`persist ${userText}`)
+    async persistUserTurn(_chatId, userText, sentBy) {
+      log.push(`persist ${userText}${sentBy ? ` by ${sentBy}` : ""}`)
     },
     async startRun() {
       log.push("start run")
@@ -80,6 +83,7 @@ function recordingDeps(
     },
     async broadcastUpdate(_roomId, _chatId, update) {
       log.push(`broadcast ${update.sessionUpdate}`)
+      echoes.push(update)
     },
     async broadcastControl(_roomId, _chatId, control) {
       log.push(
@@ -162,7 +166,7 @@ function recordingDeps(
   const flush = async () => {
     for (const task of afterResponse) await task()
   }
-  return { deps, log, flush, opts }
+  return { deps, log, flush, opts, echoes }
 }
 
 const request = { roomId: "room_1", chatId: "chat_1", message: "fix it" }
@@ -229,6 +233,13 @@ describe("Turn Launch", () => {
       "drive run_1 planMode=true",
       "settle comments run_1",
     ])
+  })
+
+  it("records who sent the message on the stored turn and its echo", async () => {
+    const { deps, log, echoes } = recordingDeps()
+    await launchTurn(deps, { ...request, userId: "user_maya" }, target(log))
+    expect(log).toContain("persist fix it by user_maya")
+    expect(echoedUserTurn(echoes[0]!)).toMatchObject({ sentBy: "user_maya" })
   })
 
   it("starts and settles comments on a sandbox turn that queues none (an earlier plan-paused turn may still owe them)", async () => {
@@ -628,6 +639,7 @@ describe("Turn Launch — steering (#1190)", () => {
           "follow up: use the v2 API / and keep v1",
           "resolve engine",
           "prepare target",
+          // Two senders' words in one message: it names neither.
           "persist use the v2 API\n\nand keep v1",
           "start run",
           "broadcast chat-stream-start",

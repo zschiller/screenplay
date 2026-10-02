@@ -488,4 +488,39 @@ describe("chat-store — user turns, reload == live (#1252, #1253)", () => {
     expect(chatStore.getSnapshot(chatId).messages).toEqual(sent)
     chatStore.cleanup(chatId)
   })
+
+  it("names the sender on the optimistic message once the echo does", async () => {
+    const chatId = `chat_${++seq}`
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ runId: "run-1" }),
+      }))
+    )
+    try {
+      await chatStore.sendMessage({
+        roomId: "room-1",
+        chatId,
+        target: { kind: "room" },
+        message: "ship it",
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: userTurnEcho("ship it", "user_maya"),
+      },
+    ])
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      { role: "user", content: "ship it", sentBy: "user_maya" },
+    ])
+    chatStore.cleanup(chatId)
+  })
 })

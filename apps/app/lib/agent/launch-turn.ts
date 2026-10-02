@@ -64,6 +64,7 @@ export async function launchEngineTurn(params: {
           (await steerInbox.take(id)).map((steer) => ({
             id: steer.id,
             content: wireToContentBlocks(steer.message),
+            ...(steer.userId ? { sentBy: steer.userId } : {}),
           })),
         releaseSteers: (ids) => steerInbox.release(ids),
         reportSteering,

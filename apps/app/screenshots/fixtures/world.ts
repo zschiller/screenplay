@@ -312,7 +312,8 @@ export interface BuildWorldOptions {
   previewOrigin: string
 }
 
-const COLLABORATOR_ID = "user-priya"
+/** The hosted world's second member, Priya Shah. */
+export const COLLABORATOR_ID = "user-priya"
 
 /**
  * The Checkout canvas's threads, all on the Mobile checkout Workspace so the

@@ -1103,6 +1103,38 @@ describe("AgentMessageItem — user turns after a reload (#1252)", () => {
   })
 })
 
+const senders = new Map([
+  ["user_maya", { name: "Maya Chen", avatar: null }],
+  ["user_sam", { name: "Sam Ortiz", avatar: null }],
+])
+
+describe("AgentMessageItem — who sent a message", () => {
+  it("names the sender over the bubble on a shared Canvas", () => {
+    render(
+      <AgentMessageItem
+        message={{ role: "user", content: "ship it", sentBy: "user_sam" }}
+        senders={senders}
+      />
+    )
+    expect(screen.getByTestId("message-sender").textContent).toBe("Sam Ortiz")
+  })
+
+  it("names nobody where the chat names no senders, or the sender is unknown", () => {
+    render(
+      <>
+        <AgentMessageItem
+          message={{ role: "user", content: "ship it", sentBy: "user_sam" }}
+        />
+        <AgentMessageItem
+          message={{ role: "user", content: "ship it", sentBy: "user_gone" }}
+          senders={senders}
+        />
+      </>
+    )
+    expect(screen.queryByTestId("message-sender")).toBeNull()
+  })
+})
+
 describe("AgentMessageItem — question cards (#1312)", () => {
   const question = toolCall({
     toolCallId: "q1",
@@ -1153,6 +1185,45 @@ describe("AgentMessageItem — question cards (#1312)", () => {
     expect(choice(/Compact/).checked).toBe(true)
     expect(choice(/Roomy/).checked).toBe(false)
     expect(choice(/Roomy/).disabled).toBe(true)
+  })
+
+  it("names who answered on a shared Canvas", () => {
+    render(
+      <AgentMessageItem
+        message={question}
+        chatId="chat-1"
+        questionAnswer={{ chosen: 1, by: "user_maya" }}
+        senders={senders}
+      />
+    )
+    expect(screen.getByTestId("question-answered-by").textContent).toBe(
+      "Answered by Maya Chen"
+    )
+  })
+
+  it("names who answered in words", () => {
+    render(
+      <AgentMessageItem
+        message={question}
+        chatId="chat-1"
+        questionAnswer={{ chosen: null, by: "user_maya" }}
+        senders={senders}
+      />
+    )
+    expect(screen.getByTestId("question-answered-by").textContent).toBe(
+      "Maya Chen answered in chat"
+    )
+  })
+
+  it("names nobody where the chat names no senders", () => {
+    render(
+      <AgentMessageItem
+        message={question}
+        chatId="chat-1"
+        questionAnswer={{ chosen: 1, by: "user_maya" }}
+      />
+    )
+    expect(screen.queryByTestId("question-answered-by")).toBeNull()
   })
 
   it("falls back to a tool row while the arguments stream", () => {

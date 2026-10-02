@@ -34,9 +34,18 @@ export interface UserTurn {
   delegatedFrom?: string
   /** The `Targeted elements:` footer's entries, keyed by their inline ref. */
   targetedElements?: TargetedElement[]
+  /**
+   * The member who sent it, by user id. Not in the wire text: the server
+   * records it beside the turn (the stored record's `sentBy`, the send's
+   * session) and hands it in.
+   */
+  sentBy?: string
 }
 
-export function projectUserTurn(wire: string): UserTurn {
+export function projectUserTurn(
+  wire: string,
+  sentBy?: string | null
+): UserTurn {
   const { body, wakeFrom, delegatedFrom } = parseUserMessage(wire)
   const targetedElements = parseTargetedElementsFooter(wire)
   return {
@@ -44,6 +53,7 @@ export function projectUserTurn(wire: string): UserTurn {
     ...(wakeFrom ? { wakeFrom } : {}),
     ...(delegatedFrom ? { delegatedFrom } : {}),
     ...(targetedElements.length > 0 ? { targetedElements } : {}),
+    ...(sentBy ? { sentBy } : {}),
   }
 }
 
@@ -59,8 +69,11 @@ export function userTurnToMessage({
 }
 
 /** A user turn's wire text as the chat message the UI draws. */
-export function userTurnMessage(wire: string): UserTurnMessage {
-  return userTurnToMessage(projectUserTurn(wire))
+export function userTurnMessage(
+  wire: string,
+  sentBy?: string | null
+): UserTurnMessage {
+  return userTurnToMessage(projectUserTurn(wire, sentBy))
 }
 
 /** Where a live echo carries the projection's typed fields. */
@@ -73,8 +86,11 @@ type EchoFields = Omit<UserTurn, "body">
  * text is the projected body, with the typed fields in its `_meta`. Every
  * client appends it as-is, so the live message is the one a reload draws.
  */
-export function userTurnEcho(wire: string): SessionUpdate {
-  const { body, ...fields } = projectUserTurn(wire)
+export function userTurnEcho(
+  wire: string,
+  sentBy?: string | null
+): SessionUpdate {
+  const { body, ...fields } = projectUserTurn(wire, sentBy)
   return {
     sessionUpdate: "user_message_chunk",
     content: textBlock(body),

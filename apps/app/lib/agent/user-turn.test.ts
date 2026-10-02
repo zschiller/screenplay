@@ -119,6 +119,18 @@ describe("userTurnEcho", () => {
     expect(echoedUserTurn(echo)).toEqual(userTurnMessage(wire))
   })
 
+  it("carries who sent it, which the wire text doesn't", () => {
+    const echo = userTurnEcho("ship it", "user_maya")
+    expect(echoedUserTurn(echo)).toEqual({
+      role: "user",
+      content: "ship it",
+      sentBy: "user_maya",
+    })
+    expect(echoedUserTurn(echo)).toEqual(
+      userTurnMessage("ship it", "user_maya")
+    )
+  })
+
   it("echoes a plain turn as a plain chunk", () => {
     expect(userTurnEcho("ship it")).toEqual(userMessageChunk("ship it"))
     expect(echoedUserTurn(userMessageChunk("ship it"))).toEqual({
