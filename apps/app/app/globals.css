@@ -79,16 +79,6 @@
   --color-canvas-plane: var(--canvas-plane);
 }
 
-/* Text selection in the accent (#1033), matching the canvas selection and the
-   focus rings instead of the browser's default blue. Dark needs a stronger
-   tint to stay visible on the near-black surfaces. */
-::selection {
-  background-color: color-mix(in oklab, var(--info) 22%, transparent);
-}
-.dark ::selection {
-  background-color: color-mix(in oklab, var(--info) 38%, transparent);
-}
-
 /* Disable browser swipe-to-navigate so two-finger horizontal pans on the
    canvas don't accidentally trigger back/forward. */
 html,
