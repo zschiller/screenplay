@@ -214,6 +214,41 @@ export async function serveYjsDoc(
   })
 }
 
+/**
+ * Pass the Yjs socket through to the server, and once the server has spoken,
+ * slip the client one extra update built from `build`, as if another client
+ * wrote it. The update reaches only this page: the client never echoes an
+ * update it received back to the server, so the Fixture World is untouched.
+ * For state the world shouldn't carry for every screen, like the agent
+ * driving a frame.
+ */
+export async function injectYjsUpdate(
+  page: Page,
+  build: (collections: RoomCollections) => void
+): Promise<void> {
+  const doc = new Y.Doc()
+  const collections = getRoomCollections(doc)
+  collections.transact(() => build(collections))
+  const update = Y.encodeStateAsUpdate(doc)
+  doc.destroy()
+  // messageSync (0), update (2), then the update as a length-prefixed buffer.
+  const message = Buffer.concat([
+    Buffer.from([0, 2, ...varUint(update.length)]),
+    Buffer.from(update),
+  ])
+  await page.routeWebSocket(/^(?!.*\/_next\/)/, (ws) => {
+    const server = ws.connectToServer()
+    let injected = false
+    ws.onMessage((m) => server.send(m))
+    server.onMessage((m) => {
+      ws.send(m)
+      if (injected) return
+      injected = true
+      ws.send(message)
+    })
+  })
+}
+
 /** The Project the getting-started screens add, as a folder pick would. */
 export const gettingStartedRepo = {
   id: "repo-getting-started",

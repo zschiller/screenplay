@@ -7,7 +7,6 @@ import {
   ArrowRightIcon,
   ArrowsOutSimpleIcon,
   CopyIcon,
-  CursorIcon,
   DotsThreeIcon,
   GitBranchIcon,
   PlayIcon,
@@ -60,6 +59,9 @@ import {
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
+import { FrameDriverButton, FrameDriverTag } from "./frame-driver"
+import type { FrameDriverView } from "./use-frame-control"
+import { drivenByOther } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -122,12 +124,17 @@ export interface IframeLayerData {
   sharedState?: JsonObject
 }
 
+const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
+
 interface IframeLayerProps {
   iframeLayer: IframeLayerData
   zoom: number
   /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
   labelHidden?: boolean
   focused: boolean
+  /** Who drives the frame (#1387). Someone else driving it shows their mark on
+   *  Interact, the title-line tag, and no resize handles. */
+  driver?: FrameDriverView
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
   selected: boolean
@@ -324,6 +331,7 @@ export function IframeLayer({
   zoom,
   labelHidden,
   focused,
+  driver = NOBODY_DRIVES,
   createFlow,
   selected,
   onFocus,
@@ -883,7 +891,11 @@ export function IframeLayer({
       titleDragDisabled={interactive}
       // No resize handles while interacting: the Selection Overlay hides its
       // drawn ones, and the edge hit areas would steal clicks from the page.
-      resizable={!focused}
+      // Nor while someone else drives, so the size never changes under them.
+      resizable={!focused && !drivenByOther(driver)}
+      titleTag={
+        drivenByOther(driver) ? <FrameDriverTag driver={driver} /> : undefined
+      }
       onResize={onResize}
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}
@@ -975,22 +987,10 @@ export function IframeLayer({
                   }
                 />
                 <FloatingToolbarSeparator />
-                <FloatingToolbarButton
-                  label="Interact"
-                  shortcut={focused ? ["Esc"] : undefined}
-                  pressed={focused}
-                  // While interacting, the pressed button takes the selection
-                  // fill (the hot pink that carries black), like the ring
-                  // around the frame.
-                  className={
-                    focused
-                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
-                      : undefined
-                  }
+                <FrameDriverButton
+                  driver={driver}
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                >
-                  <CursorIcon />
-                </FloatingToolbarButton>
+                />
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
                   values={iframeLayer.knobValues}

@@ -56,6 +56,9 @@ interface LayerTitleBarProps {
   /** Layer-specific content rendered below the GroupLabel slot. Typically a
    *  title row plus accessories (HMR dot, route picker, branch picker, …). */
   children?: React.ReactNode
+  /** Right-aligned to the layer on the title row, e.g. "Claude is driving"
+   *  (#1387). The title row truncates before it does. */
+  tag?: React.ReactNode
 }
 
 /**
@@ -94,6 +97,7 @@ export function LayerTitleBar({
   reorderDragTranslateY,
   reorderDragPopped,
   children,
+  tag,
 }: LayerTitleBarProps) {
   // Compose the caller's base move-drag handlers with the reorder-request
   // hook. Pointerdown first asks the canvas to lift this layer into a
@@ -115,6 +119,9 @@ export function LayerTitleBar({
     <div
       className={cn(
         "canvas-frame-label group/title-bar absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap",
+        // With a tag the bar spans the layer so the tag sits at its right
+        // edge; only its contents take the pointer, not the gap between them.
+        tag && "pointer-events-none",
         hidden && "invisible"
       )}
       style={{
@@ -135,6 +142,7 @@ export function LayerTitleBar({
         transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
         transformOrigin: "bottom left",
         maxWidth: layerWidth * zoom,
+        width: tag ? layerWidth * zoom : undefined,
         marginBottom: 4 / zoom,
       }}
       // Far out, a label is just the Layer's name: the group label and the
@@ -144,7 +152,7 @@ export function LayerTitleBar({
     >
       {groupLabel && !reorderDragPopped && (
         <div
-          className="group-data-compact/title-bar:hidden"
+          className="pointer-events-auto group-data-compact/title-bar:hidden"
           style={
             reorderDragTranslateX != null || reorderDragTranslateY != null
               ? {
@@ -168,7 +176,18 @@ export function LayerTitleBar({
           />
         </div>
       )}
-      {children}
+      {tag ? (
+        <div className="flex w-full items-end gap-2">
+          <div className="flex min-w-0 flex-1 flex-col items-start *:pointer-events-auto">
+            {children}
+          </div>
+          <div className="pointer-events-auto shrink-0 group-data-compact/title-bar:hidden">
+            {tag}
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </div>
   )
 }

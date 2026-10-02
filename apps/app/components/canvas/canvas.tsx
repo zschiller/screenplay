@@ -136,6 +136,9 @@ import { serverTerminalTabStore } from "@/lib/terminal/server-tab-store"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 
 import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction"
+import { useFrameControl } from "@/components/canvas/use-frame-control"
+import { frameDriverRingColor } from "@/components/canvas/frame-driver"
+import { drivenByOther } from "@/lib/canvas/frame-control"
 
 import { useCanvasKeyboard } from "@/components/canvas/use-canvas-keyboard"
 
@@ -534,6 +537,29 @@ export function Canvas({
   const setEditingDocumentLayerId = interaction.setEditingDocumentLayerId
   const spaceHeld = interaction.spaceHeld
   const chatAnchor = interaction.chatAnchor
+
+  // Frame Control (#1387): who drives each frame. Interact is the driver's
+  // seat; the agent always yields it.
+  const frameIds = useMemo(
+    () => iframeLayers.map((layer) => layer.id),
+    [iframeLayers]
+  )
+  const frameControl = useFrameControl({
+    collection: collections.frameControl,
+    viewerId: userId ?? null,
+    others,
+    frameIds,
+    focusedId: focusedIframeLayerId,
+    setFocusedId: setFocusedIframeLayerId,
+  })
+  const drivenFrames = useMemo(
+    () =>
+      frameIds.flatMap((id) => {
+        const color = frameDriverRingColor(frameControl.driverOf(id))
+        return color ? [{ id, color }] : []
+      }),
+    [frameIds, frameControl]
+  )
   const closeCursorChat = interaction.closeCursorChat
 
   // Canvas Camera controller (PRD #567): owns the react-zoom-pan-pinch
@@ -2182,6 +2208,7 @@ export function Canvas({
                         setEditingDocumentLayerId={setEditingDocumentLayerId}
                         focusedIframeLayerId={focusedIframeLayerId}
                         setFocusedIframeLayerId={setFocusedIframeLayerId}
+                        frameControl={frameControl}
                         createFlowIframeLayerId={createFlowIframeLayerId}
                         setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
                         removeIframeLayer={removeIframeLayer}
@@ -2272,13 +2299,18 @@ export function Canvas({
                   hoveredIframeLayerId={hoveredIframeLayerId}
                   workspaceHighlightIds={workspaceHighlightIds}
                   iframeLayerLayouts={effectiveIframeLayerLayouts}
+                  drivenFrames={drivenFrames}
                   hideResizeHandles={
                     editingDocumentLayerId !== null ||
                     selectedGroupIds.size > 0 ||
                     !showsLayerDetail(zoom) ||
                     // An interacting frame is for using the preview, not
                     // resizing it: its edges belong to the page.
-                    focusedIframeLayerId !== null
+                    focusedIframeLayerId !== null ||
+                    // Nor is one someone else drives (#1387).
+                    [...selectedIframeLayerIds].some((id) =>
+                      drivenByOther(frameControl.driverOf(id))
+                    )
                   }
                   gapHandles={gapHandles}
                   reorderHandles={reorderHandles}
