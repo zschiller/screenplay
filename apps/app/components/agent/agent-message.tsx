@@ -876,7 +876,7 @@ function PlanMessage({
     approved: (
       <Badge
         variant="outline"
-        className="h-4 gap-1 px-1.5 py-0 text-xs text-success-text"
+        className="h-4 gap-1 px-1.5 py-0 text-xs text-success"
       >
         <CheckCircleIcon className="size-3 text-success" /> Approved
       </Badge>

@@ -13,7 +13,7 @@ import { Badge } from "@workspace/ui/components/badge"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
-import { prStateColor, prStateTextColor } from "@/components/pr-state-color"
+import { prStateColor } from "@/components/pr-state-color"
 import type { WorkspaceStatusLine } from "@/lib/branch/workspace-state"
 import type { WorkspaceState } from "@/lib/branch/workspace-state"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -137,14 +137,11 @@ export function WorkspacePrBadge({
       data-slot="workspace-pr"
       className={cn(
         "shrink-0 gap-0.5 px-1.5 tabular-nums",
-        prStateTextColor(state),
+        prStateColor(state),
         className
       )}
     >
-      <Icon
-        aria-hidden
-        className={cn("size-3! shrink-0", prStateColor(state))}
-      />
+      <Icon aria-hidden className="size-3! shrink-0" />
       <span className="sr-only">PR </span>#{number}
       <span className="sr-only">, {state}</span>
     </Badge>
