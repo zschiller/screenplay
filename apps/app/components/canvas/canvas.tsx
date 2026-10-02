@@ -195,6 +195,7 @@ import { CanvasZoomMenu } from "./canvas-zoom-menu"
 
 import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
 import { viewRequests } from "@/lib/canvas/view-requests"
+import { MacDriveRelay } from "@/lib/live-frame/mac-drive.prototype/client"
 import { roomChatId } from "@/lib/chat/room-chat"
 
 import { ShortcutSheet } from "./shortcut-sheet"
@@ -1646,6 +1647,8 @@ export function Canvas({
 
   return (
     <>
+      {/* PROTOTYPE (#1367) */}
+      <MacDriveRelay />
       {chatTarget.pendingProbes.map(({ agentId, sandboxName }) => (
         <LogProbe
           key={agentId}

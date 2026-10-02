@@ -1,0 +1,282 @@
+{
+ "results": [
+  {
+   "name": "open a dialog two clicks deep",
+   "pass": true
+  },
+  {
+   "name": "type into React controlled inputs",
+   "pass": true
+  },
+  {
+   "name": "open a native <select> popup",
+   "pass": false,
+   "note": "TypeError: el.showPicker is not a function. (In 'el.showPicker()', 'el.showPicker' is undefined)"
+  },
+  {
+   "name": "set a native <select> by value",
+   "pass": true
+  },
+  {
+   "name": "custom menu that opens on pointerdown",
+   "pass": true
+  },
+  {
+   "name": "toggle a checkbox",
+   "pass": true
+  },
+  {
+   "name": "Enter submits the form",
+   "pass": true,
+   "note": "Saved: agent@example.com · 12 seats · team · eu-west · annual (form.requestSubmit)"
+  },
+  {
+   "name": "frame has user activation",
+   "pass": false,
+   "note": "{\"isActive\":false,\"hasBeenActive\":false,\"focused\":false}"
+  },
+  {
+   "name": "open the file picker",
+   "pass": false,
+   "note": "click reached the page (untrusted); showPicker: NotAllowedError: Input showPicker() requires a user gesture."
+  },
+  {
+   "name": "open a date picker",
+   "pass": false,
+   "note": "SecurityError: Input showPicker() called from cross-origin iframe."
+  },
+  {
+   "name": "set a date input by value",
+   "pass": true
+  },
+  {
+   "name": "page's own copy button (clipboard.writeText)",
+   "pass": false,
+   "note": "copy FAILED trusted=false NotAllowedError"
+  },
+  {
+   "name": "probe clipboardWrite",
+   "pass": false,
+   "note": "NotAllowedError: The request is not allowed by the user agent or the platform in the current context, possibly because the user denied permission."
+  },
+  {
+   "name": "probe clipboardRead",
+   "pass": false,
+   "note": "NotAllowedError: The request is not allowed by the user agent or the platform in the current context, possibly because the user denied permission."
+  },
+  {
+   "name": "probe execCopy",
+   "pass": false,
+   "note": "false"
+  },
+  {
+   "name": "probe execPaste",
+   "pass": false,
+   "note": "false"
+  },
+  {
+   "name": "CSS :hover menu",
+   "pass": false,
+   "note": ":hover=false, JS mouseenter fired"
+  },
+  {
+   "name": "keyboard shortcut handled by the page (⌘Enter)",
+   "pass": true
+  },
+  {
+   "name": "a key event types its character",
+   "pass": false,
+   "note": "value=hello"
+  },
+  {
+   "name": "Tab moves focus",
+   "pass": true,
+   "note": "active after Tab: body"
+  },
+  {
+   "name": "type into contenteditable (execCommand)",
+   "pass": false
+  },
+  {
+   "name": "HTML5 drag and drop (synthetic DataTransfer)",
+   "pass": true,
+   "note": "bravo,charlie,alpha,"
+  },
+  {
+   "name": "pointer drag (slider)",
+   "pass": true,
+   "note": "slider: 150; setPointerCapture: capture ok"
+  },
+  {
+   "name": "scroll an inner scroller",
+   "pass": true,
+   "note": "{\"scroller\":\"#scroller\",\"before\":[0,0],\"after\":[0,1163]}"
+  },
+  {
+   "name": "scroll the page",
+   "pass": true,
+   "note": "{\"scroller\":\"window\",\"before\":[0,181],\"after\":[0,581]}"
+  },
+  {
+   "name": "click something below the fold",
+   "pass": true
+  },
+  {
+   "name": "follow a client-side link",
+   "pass": true,
+   "note": "path /drive-lab → /"
+  }
+ ],
+ "summary": {
+  "click": {
+   "n": 49,
+   "total": [
+    106,
+    201
+   ],
+   "toServer": [
+    5,
+    6
+   ],
+   "toClient": [
+    20,
+    74
+   ],
+   "toBridge": [
+    26,
+    77
+   ],
+   "dispatch": [
+    1,
+    2
+   ],
+   "callToPaint": [
+    94,
+    194
+   ],
+   "back": [
+    6,
+    8
+   ]
+  },
+  "type": {
+   "n": 5,
+   "total": [
+    97,
+    100
+   ],
+   "toServer": [
+    5,
+    8
+   ],
+   "toClient": [
+    17,
+    23
+   ],
+   "toBridge": [
+    24,
+    29
+   ],
+   "dispatch": [
+    1,
+    3
+   ],
+   "callToPaint": [
+    92,
+    93
+   ],
+   "back": [
+    6,
+    8
+   ]
+  },
+  "key": {
+   "n": 4,
+   "total": [
+    98,
+    101
+   ],
+   "toServer": [
+    4,
+    5
+   ],
+   "toClient": [
+    16,
+    17
+   ],
+   "toBridge": [
+    23,
+    25
+   ],
+   "dispatch": [
+    1,
+    2
+   ],
+   "callToPaint": [
+    92,
+    95
+   ],
+   "back": [
+    6,
+    11
+   ]
+  },
+  "list": {
+   "n": 20,
+   "total": [
+    48,
+    58
+   ],
+   "toServer": [
+    4,
+    5
+   ],
+   "toClient": [
+    16,
+    20
+   ],
+   "toBridge": [
+    null,
+    null
+   ],
+   "dispatch": [
+    null,
+    null
+   ],
+   "callToPaint": [
+    null,
+    null
+   ],
+   "back": [
+    null,
+    null
+   ]
+  },
+  "snapshot": {
+   "n": 15,
+   "rect": [
+    22,
+    33
+   ],
+   "snapshot": [
+    29,
+    32
+   ],
+   "total": [
+    57,
+    68
+   ]
+  },
+  "pageSnapshot": {
+   "n": 10,
+   "total": [
+    48,
+    63
+   ],
+   "bytes": [
+    22823,
+    22823
+   ]
+  }
+ }
+}

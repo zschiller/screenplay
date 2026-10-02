@@ -1,0 +1,177 @@
+"use client"
+
+// TEMPORARY (screenplay #1367): a page with the usual app gestures, to see
+// which of them an agent's synthetic input can perform. Delete after.
+import Link from "next/link"
+import { useRef, useState } from "react"
+
+export default function DriveLab() {
+  const [tab, setTab] = useState<"home" | "settings">("home")
+  const [dialog, setDialog] = useState(false)
+  const [email, setEmail] = useState("")
+  const [seats, setSeats] = useState("1")
+  const [plan, setPlan] = useState("free")
+  const [region, setRegion] = useState("")
+  const [menu, setMenu] = useState(false)
+  const [annual, setAnnual] = useState(false)
+  const [saved, setSaved] = useState("")
+  const [log, setLog] = useState<string[]>([])
+  const [items, setItems] = useState(["alpha", "bravo", "charlie"])
+  const [slider, setSlider] = useState(0)
+  const [note, setNote] = useState("")
+  const dragFrom = useRef<number | null>(null)
+  const add = (s: string) => setLog((l) => [...l.slice(-30), s])
+
+  return (
+    <main style={{ fontFamily: "system-ui", fontSize: 14, padding: 16, color: "#111", background: "#fff", minHeight: "100vh" }}>
+      <nav style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <button role="tab" aria-selected={tab === "home"} onClick={() => setTab("home")}>Home</button>
+        <button role="tab" aria-selected={tab === "settings"} onClick={() => setTab("settings")}>Settings</button>
+        <Link id="back" href="/">Landing</Link>
+        <div className="hovermenu" style={{ position: "relative" }}>
+          <span id="hover-trigger" onMouseEnter={() => add("mouseenter hover-trigger")}>More ▾</span>
+          <div className="hoverpanel"><button onClick={() => add("clicked Export")}>Export</button></div>
+        </div>
+      </nav>
+      <style>{`.hoverpanel{display:none;position:absolute;top:100%;left:0;background:#eee;padding:6px}.hovermenu:hover .hoverpanel{display:block}`}</style>
+
+      {tab === "home" && <p id="home">Home. Nothing to see; the plan lives under Settings → Billing.</p>}
+
+      {tab === "settings" && (
+        <section>
+          <h2>Settings</h2>
+          <button id="open-billing" onClick={() => setDialog(true)}>Billing…</button>
+          {saved && <p id="saved">Saved: {saved}</p>}
+
+          <h3>Probes</h3>
+          <p>
+            <input id="file" type="file" onClick={(e) => add(`file click trusted=${e.isTrusted}`)} onChange={(e) => add(`file change ${e.target.files?.length}`)} />
+            <input id="date" type="date" onChange={(e) => add(`date ${e.target.value}`)} />
+            <input id="color" type="color" onChange={(e) => add(`color ${e.target.value}`)} />
+          </p>
+          <p>
+            <button
+              id="copy"
+              onClick={(e) => {
+                const trusted = e.isTrusted
+                navigator.clipboard.writeText("copied-by-lab").then(
+                  () => add(`copy ok trusted=${trusted}`),
+                  (err) => add(`copy FAILED trusted=${trusted} ${err.name}`)
+                )
+              }}
+            >
+              Copy link
+            </button>
+            <input id="paste" placeholder="paste here" onPaste={(e) => add(`paste trusted=${e.isTrusted} ${e.clipboardData.getData("text")}`)} />
+          </p>
+          <textarea
+            id="note"
+            placeholder="note (⌘Enter sends)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => {
+              add(`keydown ${e.key} trusted=${e.isTrusted}`)
+              if (e.key === "Enter" && e.metaKey) add(`sent note: ${note}`)
+            }}
+          />
+          <div id="editable" contentEditable suppressContentEditableWarning onInput={(e) => add(`editable: ${e.currentTarget.textContent}`)} style={{ border: "1px solid #999", padding: 4, minHeight: 20 }} />
+
+          <h4>HTML5 drag list</h4>
+          <ul id="dnd">
+            {items.map((it, i) => (
+              <li
+                key={it}
+                draggable
+                onDragStart={(e) => { dragFrom.current = i; e.dataTransfer.setData("text/plain", it); add(`dragstart ${it} trusted=${e.isTrusted}`) }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const from = dragFrom.current
+                  if (from == null) return
+                  const next = [...items]
+                  const [m] = next.splice(from, 1)
+                  next.splice(i, 0, m)
+                  setItems(next)
+                  add(`drop → ${next.join(",")}`)
+                }}
+                style={{ padding: 4, border: "1px solid #ccc", width: 160, cursor: "grab" }}
+              >
+                {it}
+              </li>
+            ))}
+          </ul>
+
+          <h4>Pointer slider (setPointerCapture)</h4>
+          <div
+            id="slider"
+            onPointerDown={(e) => {
+              try { e.currentTarget.setPointerCapture(e.pointerId); add("capture ok") } catch (err) { add(`capture FAILED ${(err as Error).name}`) }
+              setSlider(Math.round(e.nativeEvent.offsetX))
+            }}
+            onPointerMove={(e) => { if (e.buttons) setSlider(Math.round(e.clientX - e.currentTarget.getBoundingClientRect().left)) }}
+            style={{ width: 300, height: 20, background: "#ddd", position: "relative", touchAction: "none" }}
+          >
+            <div style={{ position: "absolute", left: slider - 5, top: 0, width: 10, height: 20, background: "#06c" }} />
+          </div>
+          <p id="slider-value">slider: {slider}</p>
+
+          <div id="scroller" style={{ height: 120, overflow: "auto", border: "1px solid #ccc" }}>
+            {Array.from({ length: 60 }, (_, i) => <div key={i}>row {i}</div>)}
+            <button id="deep" onClick={() => add("clicked deep row button")}>Deep button</button>
+          </div>
+          <div style={{ height: 900 }} />
+          <button id="bottom" onClick={() => add("clicked bottom")}>Bottom of page</button>
+        </section>
+      )}
+
+      {dialog && (
+        <div role="dialog" aria-label="Billing" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.3)", display: "grid", placeItems: "center" }}>
+          <form
+            id="billing"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setSaved(`${email} · ${seats} seats · ${plan} · ${region || "no region"} · ${annual ? "annual" : "monthly"}`)
+              setDialog(false)
+            }}
+            style={{ background: "#fff", padding: 16, display: "grid", gap: 8, width: 320 }}
+          >
+            <b>Billing</b>
+            <label>Email <input id="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+            <label>Seats <input id="seats" type="number" value={seats} onChange={(e) => setSeats(e.target.value)} /></label>
+            <label>
+              Plan{" "}
+              <select id="plan" value={plan} onChange={(e) => setPlan(e.target.value)}>
+                <option value="free">Free</option>
+                <option value="team">Team</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </label>
+            {/* A Radix-style menu: opens on pointerdown, not click. */}
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                id="region-trigger"
+                aria-haspopup="menu"
+                onPointerDown={(e) => { if (e.button === 0 && !e.ctrlKey) { setMenu(true); e.preventDefault() } }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") { setMenu(true); e.preventDefault() } }}
+              >
+                Region: {region || "choose"}
+              </button>
+              {menu && (
+                <div role="menu" style={{ position: "absolute", background: "#eee", padding: 4, zIndex: 1 }}>
+                  {["us-east", "eu-west", "ap-south"].map((r) => (
+                    <div key={r} role="menuitem" tabIndex={-1} onPointerUp={() => { setRegion(r); setMenu(false) }}>{r}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <label><input id="annual" type="checkbox" checked={annual} onChange={(e) => setAnnual(e.target.checked)} /> Annual</label>
+            <button type="submit">Save</button>
+          </form>
+        </div>
+      )}
+
+      <pre id="log" style={{ position: "fixed", right: 0, bottom: 0, width: 300, maxHeight: 200, overflow: "auto", background: "#111", color: "#0f0", margin: 0, fontSize: 10, padding: 4 }}>{log.join("\n")}</pre>
+    </main>
+  )
+}

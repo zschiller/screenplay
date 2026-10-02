@@ -29,6 +29,7 @@ import {
   FloatingToolbarSeparator,
 } from "@workspace/ui/components/floating-toolbar"
 import { resolveFrameStage } from "@/components/frame-status/frame-stage"
+import { useRegisterDriveFrame } from "@/lib/live-frame/mac-drive.prototype/client"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
@@ -630,6 +631,9 @@ export function IframeLayer({
   // iframe and hide the canvas overlay. Create Flow additionally captures
   // navigation events into a history trail (handled in canvas.tsx).
   const interactive = focused || createFlow
+
+  // PROTOTYPE (#1367): lets the Mac drive relay find this frame's iframe.
+  useRegisterDriveFrame(iframeLayer.id, iframeRef, zoom)
 
   const dom = useScreenplayDom(iframeRef, {
     onWheel: (wheel) => onWheel?.(iframeLayer.id, wheel),
