@@ -61,9 +61,11 @@ import type { TurnSummary } from "@/lib/agent/turn-summary"
 import { bareToolName } from "@/lib/agent/tool-name"
 import {
   elementMarkersToPills,
+  mockupMarkersToPills,
   skillMarkersToPills,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
+import { useMockupTitle } from "@/lib/yjs/react"
 import {
   HoverCard,
   HoverCardContent,
@@ -1023,6 +1025,15 @@ function ElementHistoryToken({
 }
 
 /**
+ * A drawn Mockup named in a sent message, as an `@` mention of its live title
+ * (the box is empty and untitled when the message is sent; the chat titles it).
+ */
+function MockupMention({ id }: { id: string }) {
+  const title = useMockupTitle(id)
+  return <span className={MENTION_TEXT_CLASS}>@{title || "Mockup"}</span>
+}
+
+/**
  * The sent user-message bubble. Split into its own component so it can memoize
  * the markdown `components` map and the targeted-element detail against the
  * message: the element-token highlight re-renders the Canvas subtree
@@ -1110,9 +1121,13 @@ function UserBubble({
   // footers; recover the inline chips: `skillMarkersToPills` for the
   // `/`-skill marker and `elementMarkersToPills` for each `[element: …]`
   // element token — the same markers the composer's `serializeSkill` /
-  // `serializeElement` emit, rendered back as inline references below.
+  // `serializeElement` emit, rendered back as inline references below — and
+  // `mockupMarkersToPills` for a drawn Mockup's `[mockup: <id>]`.
   const displayContent = useMemo(
-    () => elementMarkersToPills(skillMarkersToPills(message.content)),
+    () =>
+      mockupMarkersToPills(
+        elementMarkersToPills(skillMarkersToPills(message.content))
+      ),
     [message.content]
   )
   // The terse inline label hides the messy detail; the projection carries it,
@@ -1133,6 +1148,10 @@ function UserBubble({
           (href.startsWith("skill:") || href.startsWith("mention:"))
         ) {
           return <span className={MENTION_TEXT_CLASS}>{children}</span>
+        }
+        // A drawn Mockup's `[mockup: <id>]` marker: an `@` mention of it.
+        if (typeof href === "string" && href.startsWith("mockup:")) {
+          return <MockupMention id={href.slice("mockup:".length)} />
         }
         // element tokens: a clean crosshair + `font-mono` tag name,
         // matching the composer token. Detail rides the footer, keyed by the

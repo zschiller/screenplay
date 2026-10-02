@@ -64,6 +64,11 @@ export function YjsConnectionProvider({
   return <YjsContext.Provider value={value}>{children}</YjsContext.Provider>
 }
 
+/** The current connection, or null outside a room (a bare chat in tests). */
+export function useOptionalYjs(): YjsConnection | null {
+  return useContext(YjsContext)
+}
+
 export function useYjs(): YjsConnection {
   const ctx = useContext(YjsContext)
   if (!ctx) throw new Error("useYjs must be used inside a YjsRoomProvider")

@@ -889,6 +889,21 @@ describe("AgentMessageItem — Delegated Message (#896)", () => {
     expect(screen.getByText("Hi")).toBeTruthy()
     expect(screen.queryByTestId("delegated-message")).toBeNull()
   })
+
+  it("names a drawn Mockup as an @ mention, not its raw marker", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={{
+          role: "user",
+          content: "Sketch it in Mockup [mockup: m-1] with update_mockup.",
+        }}
+      />
+    )
+    expect(container.textContent).toBe(
+      "Sketch it in Mockup @Mockup with update_mockup."
+    )
+    expect(screen.getByText("@Mockup").className).toContain("text-info")
+  })
 })
 
 describe("AgentMessageItem — Workspace task row (#896)", () => {
