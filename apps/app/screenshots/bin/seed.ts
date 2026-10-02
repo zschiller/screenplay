@@ -26,7 +26,9 @@ async function main(): Promise<void> {
   console.log(
     `Done: ${result.rooms} canvases, ${result.folders} folders, ${result.captures} frame captures.`
   )
-  console.log(`Next: pnpm screenshots:boot   (or pnpm screenshots:shots)`)
+  console.log(
+    `Next: pnpm screenshots:boot   (or pnpm screenshots:shots --screens <names>)`
+  )
 }
 
 main().catch((err) => {

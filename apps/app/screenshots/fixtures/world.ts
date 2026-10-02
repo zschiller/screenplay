@@ -36,7 +36,7 @@ import type {
  * **Every id is a stable literal, never generated.** A capture set is only
  * diffable against another branch's if the URLs are the same on both sides, and
  * `/[roomId]` puts a Room id in the URL. `nanoid()` here would make
- * `screens.ts`'s paths unwritable and every before/after pair mismatched.
+ * the screen list's paths unwritable and every before/after pair mismatched.
  *
  * **Every timestamp is relative to one pinned instant** ({@link WORLD_NOW}) for
  * the same reason: "2 days ago" has to read the same in both halves of a
@@ -219,7 +219,7 @@ export interface FixtureThread {
 // ---------------------------------------------------------------------------
 
 /**
- * Every id the world uses, in one place, so `screens.ts` and
+ * Every id the world uses, in one place, so `screens/` and
  * `interactions.ts` can build URLs against the same literals the seeder wrote.
  * Named for what they are on screen (a Canvas, a Project, a Workspace), not for
  * their storage shape.
@@ -814,7 +814,7 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
     },
     {
       // A frame chat with nothing sent yet: the empty state, and the chat the
-      // run-state screens stream into (see `screens.ts`).
+      // run-state screens stream into (see `screens/`).
       id: FIXTURE_IDS.chats.fresh,
       branchId: b.checkoutPolish,
       label: "New chat",

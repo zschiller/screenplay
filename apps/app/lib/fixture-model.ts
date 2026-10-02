@@ -6,7 +6,7 @@ import { isFixtureWorld } from "@/lib/fixture-world"
  * A **reachable model** for a Fixture World capture. The capture machine has no
  * hosted key and no signed-in harness CLI, so model-assisted settings detection
  * on Add project has nothing to call there. A screen in
- * `screenshots/screens.ts` seeds this cookie to have that call answer with
+ * `screenshots/screens/list/` seeds this cookie to have that call answer with
  * {@link FIXTURE_DETECTION_REPLY}, the reply a model gives for the fixture
  * `storefront` checkout. Without the cookie the Fixture World has no model, so
  * every other capture keeps the rule-based result and never shells a real CLI.

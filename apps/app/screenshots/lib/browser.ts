@@ -115,6 +115,17 @@ export async function openThemedContext(
     route.fulfill({ status: 200, json: { ok: true } })
   )
 
+  // The Canvas's thumbnail heartbeat asks the server to re-shoot the room's
+  // frames a few seconds after it mounts, and the server answers by launching
+  // its own headless Chromium for every frame: CPU the capture browser is
+  // competing for, on nearly every canvas screen. It would also overwrite the
+  // seeded thumbnails mid-run, so a home screen shot after a canvas screen
+  // would differ from one shot before it. The fixture world seeds every
+  // thumbnail it shows, so the heartbeat is told there is nothing to do.
+  await context.route("**/api/thumbnail/**", (route) =>
+    route.fulfill({ status: 200, json: { skipped: true } })
+  )
+
   // Passed as a **source string**, not a function. `tsx` runs this harness
   // through esbuild with name-keeping on, which rewrites a function literal to
   // reference an `__name` helper that exists in this process and not in the

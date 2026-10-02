@@ -7,10 +7,10 @@ design-polish PR (issue #716). Full contributor docs:
 ```bash
 pnpm screenshots:browsers   # once per machine
 pnpm screenshots:boot       # seed a fresh world, serve it at :3947
-pnpm screenshots:shots      # every named screen, light and dark
+pnpm screenshots:shots --screens canvas   # named screens, light and dark
 pnpm screenshots:video open-canvas     # GIF to embed + MP4 to link
 pnpm screenshots:review-video x.webm  # same, for a recording made elsewhere
-pnpm screenshots:shots --hosted   # the hosted build's screens (comments)
+pnpm screenshots:shots --hosted --screens player-comments   # hosted-only screens
 pnpm screenshots:docs       # regenerate the product docs' screenshots
 ```
 
@@ -22,7 +22,8 @@ pnpm screenshots:docs       # regenerate the product docs' screenshots
 | `fixtures/world.ts`          | The **fixture world**, as data. Add the state your ticket needs here.                                           |
 | `fixtures/seed.ts`           | The single writer: PGlite rows, `.ydoc` files, blobs.                                                           |
 | `fixtures/frame-captures.ts` | Synthetic Frame Captures so the home grid composes real cards.                                                  |
-| `screens.ts`                 | The **named screen list**. A new screen is a name, a path, and maybe a `prepare`.                               |
+| `screens/list/`              | The **named screen list**, one file per surface. New screens go in a new file; nothing else to edit.            |
+| `screens/helpers.ts`         | Shared steps and stubs the screen files use.                                                                    |
 | `interactions.ts`            | The **named interactions** recorded to video.                                                                   |
 | `lib/preview-server.ts`      | Serves fixture pages for Iframe Layers, with the real Sandbox Bridge inlined.                                   |
 | `lib/capture.ts`             | Runs a capture set; one context per screen-and-theme.                                                           |

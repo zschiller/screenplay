@@ -9,7 +9,7 @@ import { isFixtureWorld } from "@/lib/fixture-world"
  *
  * Failures of client-side calls (a server action from a dialog, the sign-in
  * request) need nothing here: the harness fails those at the network with
- * Playwright. A screen in `screenshots/screens.ts` seeds this cookie for the
+ * Playwright. A screen in `screenshots/screens/list/` seeds this cookie for the
  * rest, the same way it seeds an entry state (`@/lib/fixture-entry`).
  *
  * Only ever honoured under {@link isFixtureWorld}, so the hosted app and a real
