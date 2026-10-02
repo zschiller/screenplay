@@ -21,6 +21,7 @@ import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { frameWorkspaceOf, type FrameWorkspace } from "./frame-nav"
+import { WorkspaceChooser } from "./group-label"
 import { LayerLabelRow } from "./layer-title-bar"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
@@ -68,10 +69,28 @@ export function IframeLayerLabel({
     branchId ? assignableBranches?.find((a) => a.id === branchId) : undefined
   )
   let trailing: React.ReactNode = null
-  if (!workspace) {
-    // An unassigned frame offers the list, as its body does, unless its
-    // Group's label offers it for every frame at once (#871).
-    if (onAssignBranch && showWorkspace) {
+  if (!showWorkspace) {
+    // The Group's label names the Workspace (or offers one for every frame);
+    // hovering this frame's name offers "Set workspace" for just this frame,
+    // like a mixed Group's label does for all of them (#1276).
+    if (onAssignBranch) {
+      trailing = (
+        <WorkspaceChooser
+          switcher={{
+            branches: assignableBranches ?? [],
+            summary: [],
+            onPick: onAssignBranch,
+          }}
+          currentBranchId={workspace?.branchId}
+          title="Set workspace"
+          placeholder={`Show ${label || "Untitled"} from…`}
+          className="hidden group-hover/layer-label:flex data-[state=open]:flex"
+        />
+      )
+    }
+  } else if (!workspace) {
+    // An unassigned frame offers the list, as its body does.
+    if (onAssignBranch) {
       trailing = (
         <BranchPicker
           assignableBranches={assignableBranches ?? []}
@@ -79,7 +98,7 @@ export function IframeLayerLabel({
         />
       )
     }
-  } else if (showWorkspace) {
+  } else {
     trailing = onAssignBranch ? (
       <BranchPicker
         workspace={workspace}
