@@ -18,7 +18,8 @@ import { isLocalBuild } from "@/lib/local-mode"
 import type { ToolModeController } from "./use-tool-mode"
 
 /** Why the Frame tool is off on a canvas with no repository. */
-export const NO_REPOSITORY_HINT = "Add a repository first to preview its app"
+export const NO_REPOSITORY_HINT =
+  "Frames run your app from a repository. Add one to preview it."
 
 /**
  * The bottom tool toolbar (PRD #571) — the Select / Frame / Mockup / Document /

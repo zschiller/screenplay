@@ -296,7 +296,7 @@ export function BranchOverflowMenuContent({
         onClick={() => onNewBranchFromHere(branch.id)}
       >
         <GitForkIcon />
-        New workspace from here…
+        New chat from here…
       </DropdownMenuItem>
     ),
     restart: (

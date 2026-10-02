@@ -277,7 +277,7 @@ export function buildRoomSystemPrompt(opts: {
     "When the user asks for work in a Workspace that exists:",
     `- Call \`${t("send_to_workspace")}\` with the Workspace's id and a message written as the user would write it. It returns once the message is queued; don't wait for or predict the result. The Workspace's agent does the work, and the user sees your message in that Workspace's chat.`,
     "- Send a follow-up to the Workspace it's about rather than starting over elsewhere.",
-    `- A Workspace the summary marks fresh has had no turns yet: it was started when its repository was added. Send the next ask that fits its repository to it with \`${t("send_to_workspace")}\` rather than planning a new Workspace with \`${t("create_workspaces")}\`. Its first turn names it. If it's still starting, it gets the message as soon as it runs.`,
+    `- A Workspace the summary marks fresh has had no turns yet: it was made with no first message. Send the next ask that fits its repository to it with \`${t("send_to_workspace")}\` rather than planning a new Workspace with \`${t("create_workspaces")}\`. Its first turn names it. If it's still starting, it gets the message as soon as it runs.`,
     "- If it refuses (the agent is working, the sandbox isn't running, or a plan waits on the user), tell the user why. Never approve a plan for them.",
     `- To halt a Workspace whose work has gone off track, or when the user asks you to stop it, call \`${t("stop_workspace")}\`. It acts right away.`,
     "",

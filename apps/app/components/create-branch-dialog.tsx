@@ -81,7 +81,7 @@ interface CreateBranchDialogProps {
   repoId: string
   /**
    * The base each row starts on. Defaults to the Repo's default branch; the
-   * "New workspace from here…" menu item (#353) seeds it with the originating
+   * "New chat from here…" menu item (#353) seeds it with the originating
    * branch's ref so the dialog opens pre-based on that branch (a base ≠ the
    * default resolves to the planner's `duplicate-branch` flow), still with an
    * empty prompt.
@@ -216,9 +216,9 @@ export function CreateBranchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="px-5 pt-5 pb-3">
-          <DialogTitle>Create workspaces</DialogTitle>
+          <DialogTitle>New chat</DialogTitle>
           <DialogDescription>
-            Create one or more workspaces, each with an optional prompt.
+            Start one or more chats, each with an optional prompt.
           </DialogDescription>
         </DialogHeader>
 
@@ -301,13 +301,10 @@ export function CreateBranchDialog({
   )
 }
 
-/** The create button's label: chats when no row has a repository. */
+/** The create button's label. */
 function createLabel(rows: readonly ComposerRow[]): string {
   const n = rows.length
-  if (rows.every((r) => r.repoId === NO_REPOSITORY_ID)) {
-    return n === 1 ? "Create chat" : `Create ${n} chats`
-  }
-  return n === 1 ? "Create workspace" : `Create ${n} workspaces`
+  return n === 1 ? "Create chat" : `Create ${n} chats`
 }
 
 interface WorkspaceRowProps {

@@ -807,8 +807,7 @@ async function sendToWorkspace(
       )
     }
     const title = workspaceLabel(branch)
-    // A fresh Workspace still starting (the one adding a repository makes,
-    // #1182) takes the message as its seed, sent once its sandbox runs.
+    // A fresh Workspace still starting (#1182) takes the message as its seed, sent once its sandbox runs.
     const starting =
       branch.status === "creating" || branch.status === "starting"
     if (starting && branch.pendingSeed) {

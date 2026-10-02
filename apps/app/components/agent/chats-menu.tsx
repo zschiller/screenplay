@@ -663,7 +663,7 @@ export function ChatsMenuProvider({
       ) : null}
       {/* "Open existing git branch" reattaches to a remote branch: a single
           Enter action, no new branch and no prompt. Forking lives in the
-          Workspace menu's "New workspace from here…" (#353). */}
+          Workspace menu's "New chat from here…" (#353). */}
       <Dialog
         open={!!pickerRepo}
         onOpenChange={(next) => {

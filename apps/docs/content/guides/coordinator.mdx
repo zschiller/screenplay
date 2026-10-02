@@ -56,11 +56,12 @@ When the ask isn't about any workspace's code, or the canvas has no
 document or mockup instead, and sends follow-ups there. On a canvas with no
 repository its empty chat suggests a few such asks.
 
-On a new canvas, the workspace that adding a repository started hasn't been
-asked anything yet. The Coordinator sends your next ask for that repository
-there, straight away, instead of planning a new workspace; if its app is still
-starting, the ask runs as soon as it's up. Until then its empty chat asks what
-should change in the repository.
+Adding a repository only adds it. Until a workspace has been asked
+something, the Coordinator's empty chat asks what should change in the
+repository, and your first ask starts a workspace for it. A workspace that
+hasn't been asked anything yet takes the next ask that fits its repository
+instead of a new one being planned; if its app is still starting, the ask runs
+as soon as it's up.
 
 ## Messages to workspaces
 

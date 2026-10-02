@@ -57,8 +57,14 @@ describe("coordinatorStart", () => {
     ).toEqual({ kind: "busy" })
   })
 
-  it("asks about the canvas with no Workspace or no repository", () => {
-    expect(coordinatorStart({ repos: [repo], branches: [] }).kind).toBe("busy")
+  it("asks what should change once a repository is added", () => {
+    expect(coordinatorStart({ repos: [repo], branches: [] })).toEqual({
+      kind: "fresh",
+      repoName: "storefront",
+    })
+  })
+
+  it("offers Mockups and Documents with no repository", () => {
     expect(coordinatorStart({ repos: [], branches: [] }).kind).toBe(
       "no-repository"
     )

@@ -248,8 +248,9 @@ describe("adding a repository (#1182)", () => {
     vi.unstubAllGlobals()
   })
 
-  it("starts a Workspace with its frame but leaves the panel on the Coordinator", async () => {
+  it("only adds the repository: no Workspace, frame or sandbox", async () => {
     const { collections, result, addPending } = mountIntake()
+    const layers = collections.iframeLayers.toArray().length
 
     await act(async () => {
       result.current.createRepo({
@@ -270,17 +271,11 @@ describe("adding a repository (#1182)", () => {
       .toArray()
       .find((r) => r.repoFullName === "acme/widget")
     expect(repo).toBeDefined()
-    const workspace = collections.branches
-      .toArray()
-      .find((b) => b.repoId === repo!.id)
-    expect(workspace).toMatchObject({ status: "creating", createFlow: "new" })
-    expect(workspace!.autoNamedBranch).not.toBe(false)
     expect(
-      collections.iframeLayers
-        .toArray()
-        .some((l) => l.branchId === workspace!.id)
-    ).toBe(true)
-    // Nothing waits to select it once its sandbox runs.
+      collections.branches.toArray().some((b) => b.repoId === repo!.id)
+    ).toBe(false)
+    expect(collections.iframeLayers.toArray()).toHaveLength(layers)
+    expect(fetchMock).not.toHaveBeenCalled()
     expect(addPending).not.toHaveBeenCalled()
   })
 })

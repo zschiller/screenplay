@@ -74,7 +74,7 @@ function renderDialog(repos: RepoData[], repoId: string) {
   return { dialog: screen.getByRole("dialog"), onSubmit }
 }
 
-describe("Create workspaces' repository chip (#884)", () => {
+describe("New chat dialog' repository chip (#884)", () => {
   it("offers No repository, which starts a chat with no base branch", () => {
     const { dialog, onSubmit } = renderDialog([web], web.id)
     fireEvent.keyDown(within(dialog).getByTitle("Choose the repository"), {
@@ -107,7 +107,7 @@ describe("Create workspaces' repository chip (#884)", () => {
 
     expect(within(dialog).queryByText("trunk")).not.toBeNull()
     fireEvent.click(
-      within(dialog).getByRole("button", { name: /Create workspace/ })
+      within(dialog).getByRole("button", { name: /Create chat/ })
     )
     expect(onSubmit).toHaveBeenCalledWith([
       expect.objectContaining({ repoId: api.id, baseBranch: "trunk" }),
@@ -115,7 +115,7 @@ describe("Create workspaces' repository chip (#884)", () => {
   })
 })
 
-describe("Create workspaces with no coding agent (#1257)", () => {
+describe("New chat dialog with no coding agent (#1257)", () => {
   function renderWith(models: ModelInfo[]) {
     const catalog = createModelCatalog(inMemoryCatalogSource({ models }))
     render(
@@ -140,7 +140,7 @@ describe("Create workspaces with no coding agent (#1257)", () => {
     ).not.toBeNull()
     expect(
       within(dialog)
-        .getByRole("button", { name: /Create workspace/ })
+        .getByRole("button", { name: /Create chat/ })
         .hasAttribute("disabled")
     ).toBe(true)
   })
@@ -156,7 +156,7 @@ describe("Create workspaces with no coding agent (#1257)", () => {
     expect(await within(dialog).findByText("Opus")).not.toBeNull()
     expect(
       within(dialog)
-        .getByRole("button", { name: /Create workspace/ })
+        .getByRole("button", { name: /Create chat/ })
         .hasAttribute("disabled")
     ).toBe(false)
   })

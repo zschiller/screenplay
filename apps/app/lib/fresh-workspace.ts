@@ -16,8 +16,8 @@ export type FreshnessFields = Pick<
 >
 
 /**
- * A fresh Workspace (#1182): a new branch whose chats have had no turn yet,
- * like the one adding a repository starts. The Coordinator sends the next ask
+ * A fresh Workspace (#1182): a new branch whose chats have had no turn yet.
+ * The Coordinator sends the next ask
  * that fits its repository there rather than planning a new Workspace, and the
  * Coordinator's empty chat reads for a new canvas while every Workspace is.
  *
@@ -48,14 +48,14 @@ export type CoordinatorStart =
       repoName?: string
     }
   | { kind: "busy" }
-  /** No repository yet: the Coordinator makes Mockups and Documents itself. */
+  /** No repository yet: the Coordinator starts chats with no repository. */
   | { kind: "no-repository" }
 
 /**
  * Which empty state the Coordinator shows (#1182): a canvas with no repository
- * offers Mockups and Documents, which it makes itself; a fresh canvas (at
- * least one repository, a fresh Workspace on it, and no Workspace that has had
- * a turn) asks what should change; any other canvas asks about the canvas.
+ * offers Mockups and Documents, made by chats it starts; a fresh canvas (at
+ * least one repository and no Workspace that has had a turn) asks what should
+ * change; any other canvas asks about the canvas.
  */
 export function coordinatorStart({
   repos,
@@ -65,9 +65,7 @@ export function coordinatorStart({
   branches: readonly FreshnessFields[]
 }): CoordinatorStart {
   if (repos.length === 0) return { kind: "no-repository" }
-  if (branches.length === 0 || !branches.every(isFreshWorkspace)) {
-    return { kind: "busy" }
-  }
+  if (!branches.every(isFreshWorkspace)) return { kind: "busy" }
   return repos.length === 1
     ? { kind: "fresh", repoName: repoShortName(repos[0]!) }
     : { kind: "fresh" }

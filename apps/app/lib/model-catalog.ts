@@ -4,7 +4,7 @@ import { resolveDefaultModel } from "@/lib/model-selection"
 
 /**
  * The model and skill catalog behind every Composer and model picker: the
- * Workspace chat, Create workspaces and the Settings default-agent picker all
+ * Workspace chat, the New chat dialog and the Settings default-agent picker all
  * read this one module instead of each fetching, retrying and resolving the
  * default on their own.
  *
