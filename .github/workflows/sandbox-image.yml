@@ -9,6 +9,9 @@ name: Sandbox image
 # Signs in to VCR with GitHub OIDC, so no secret is stored. Needs a Vercel OIDC
 # policy for this repository and workflow, and three repository variables:
 # VERCEL_TEAM_ID, VERCEL_TEAM_SLUG and VERCEL_PROJECT_SLUG (the app project).
+# The job runs in the app's production GitHub environment, which holds the
+# app's VERCEL_PROJECT_SLUG (the repo has several Vercel projects), so the
+# Vercel OIDC policy must allow that environment.
 # Until they're set, the job is skipped.
 
 on:
@@ -33,6 +36,7 @@ jobs:
   push:
     if: vars.VERCEL_TEAM_ID != ''
     runs-on: ubuntu-latest
+    environment: "Production – screenplay-app"
     env:
       REPOSITORY: vcr.vercel.com/${{ vars.VERCEL_TEAM_SLUG }}/${{ vars.VERCEL_PROJECT_SLUG }}/screenplay-workspace
     steps:

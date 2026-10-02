@@ -52,6 +52,10 @@ OIDC, so it needs no secret:
    `.github/workflows/sandbox-image.yml`.
 2. In your GitHub repository, add the variables `VERCEL_TEAM_ID`,
    `VERCEL_TEAM_SLUG` and `VERCEL_PROJECT_SLUG` (the app project).
+   The job runs in the GitHub environment `Production – screenplay-app`
+   (the one Vercel creates for the app project), so variables there count
+   too, and the OIDC policy must allow that environment. If yours is
+   named differently, change `environment:` in the workflow.
 3. Run the workflow once from the **Actions** tab.
 
 To push it by hand instead, from a linked project:
