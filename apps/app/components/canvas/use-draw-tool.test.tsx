@@ -8,6 +8,8 @@ import { useToolMode } from "./use-tool-mode"
 import type { ToolMode } from "@/lib/canvas/tool-mode"
 
 function setup(armed: ToolMode) {
+  const onFrameDrawn = vi.fn()
+  const addFrame = vi.fn(() => "drawn-frame")
   const addIframeLayerToGroup = vi.fn(() => "frame-new")
   const addDocumentLayerToGroup = vi.fn(() => "doc-new")
   const hook = renderHook(() => {
@@ -19,7 +21,7 @@ function setup(armed: ToolMode) {
       documentMode: toolMode.documentMode,
       frameMode: toolMode.frameMode,
       addDocumentLayer: () => "drawn-doc",
-      addFrame: () => "drawn-frame",
+      addFrame,
       addIframeLayerToGroup,
       addDocumentLayerToGroup,
       toolMode,
@@ -27,12 +29,66 @@ function setup(armed: ToolMode) {
       setSelectedDocumentLayerIds: setDocumentIds,
       setSelectedGroupIds: setGroupIds,
       setEditingDocumentLayerId: () => {},
+      onFrameDrawn,
     })
     return { toolMode, draw, iframeIds, documentIds, groupIds }
   })
   act(() => hook.result.current.toolMode.set(armed))
-  return { hook, addIframeLayerToGroup, addDocumentLayerToGroup }
+  return {
+    hook,
+    addFrame,
+    addIframeLayerToGroup,
+    addDocumentLayerToGroup,
+    onFrameDrawn,
+  }
 }
+
+describe("useDrawTool frame release", () => {
+  it("asks for the frame it drew, at the drawn rect, back on Select", () => {
+    const { hook, addFrame, onFrameDrawn } = setup("frame")
+    const { drawTool } = hook.result.current.draw
+    act(() => {
+      drawTool.beginDraft({ x: 100, y: 200 })
+      drawTool.updateDraft({ x: 490, y: 1044 })
+      drawTool.commitDraft()
+    })
+
+    expect(addFrame).toHaveBeenCalledWith(100, 200, 390, 844)
+    expect(onFrameDrawn).toHaveBeenCalledWith("drawn-frame", {
+      x: 100,
+      y: 200,
+      width: 390,
+      height: 844,
+    })
+    expect(hook.result.current.toolMode.mode).toBe("select")
+    expect([...hook.result.current.iframeIds]).toEqual(["drawn-frame"])
+  })
+
+  it("asks on a click too, at the default size centred on it", () => {
+    const { hook, onFrameDrawn } = setup("frame")
+    const { drawTool } = hook.result.current.draw
+    act(() => {
+      drawTool.beginDraft({ x: 0, y: 0 })
+      drawTool.commitDraft()
+    })
+
+    expect(onFrameDrawn).toHaveBeenCalledTimes(1)
+    const rect = onFrameDrawn.mock.calls[0]![1]
+    expect(rect.x).toBe(-rect.width / 2)
+    expect(rect.y).toBe(-rect.height / 2)
+  })
+
+  it("doesn't ask for a Document", () => {
+    const { hook, onFrameDrawn } = setup("document")
+    const { drawTool } = hook.result.current.draw
+    act(() => {
+      drawTool.beginDraft({ x: 0, y: 0 })
+      drawTool.commitDraft()
+    })
+
+    expect(onFrameDrawn).not.toHaveBeenCalled()
+  })
+})
 
 describe("useDrawTool addAtPlaceholder", () => {
   it("adds a frame to the group, selects it, and drops back to Select", () => {

@@ -142,6 +142,7 @@ import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 import { resolveRepoListDrop, type RepoListDropHint } from "@/lib/sidebar-drop"
 
 import { sortForSidebar } from "@/lib/sidebar-order"
+import { defaultNewWorkspaceRepoId } from "@/lib/frame-ask"
 
 import type {
   BranchData,
@@ -385,14 +386,10 @@ export function ChatsMenuProvider({
     [flatBranches, stateOf]
   )
   // New workspace starts in the Repo used last: the newest Workspace's.
-  const lastUsedRepoId = useMemo(() => {
-    let newest: BranchData | undefined
-    for (const b of branches) {
-      if (!reposById.has(b.repoId)) continue
-      if (!newest || b.createdAt > newest.createdAt) newest = b
-    }
-    return newest?.repoId ?? sortedRepos[0]?.id ?? null
-  }, [branches, reposById, sortedRepos])
+  const lastUsedRepoId = useMemo(
+    () => defaultNewWorkspaceRepoId(repos, branches),
+    [repos, branches]
+  )
 
   // Open a Workspace when it finishes setting up. The callback is read through
   // a ref so this runs on `branches` changes only.

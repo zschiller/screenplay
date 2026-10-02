@@ -105,6 +105,7 @@ const VIEW = {
   overview: { x: 48, y: 110, zoom: 0.262 },
   hero: { x: 16, y: 80, zoom: 0.31 },
   frameCloseUp: { x: 60, y: 96, zoom: 0.62 },
+  emptyLeft: { x: 1000, y: 120, zoom: 0.62 },
   pricing: { x: 16, y: -250, zoom: 0.31 },
   document: { x: -1080, y: -600, zoom: 0.62 },
   /** Far enough left that the selection toolbar clears the chat panel. */
@@ -1257,6 +1258,33 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.evaluate("document.activeElement?.blur()")
       await page.mouse.move(640, 790)
       await sleep(page, 500)
+    },
+  }),
+  screen({
+    name: "frame-ask",
+    description:
+      "A frame drawn with the Frame tool asks what it should show (#1356).",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [300, 120, 440, 620],
+    // Last in the list: drawing writes a frame to the room, which every later
+    // screen would show. The dark pass first deletes the light pass's frame.
+    prepare: async (page) => {
+      // Empty canvas left of the Homepage group.
+      await camera(page, VIEW.emptyLeft)
+      await clickAt(page, { x: 540, y: 300 }, 300)
+      await page.keyboard.press("Delete")
+      await page.keyboard.press("f")
+      // A phone-sized frame: 390 × 844 at 62%.
+      await page.mouse.move(420, 160)
+      await page.mouse.down()
+      await page.mouse.move(500, 400, { steps: 8 })
+      await page.mouse.move(662, 683, { steps: 8 })
+      await page.mouse.up()
+      // The card takes focus a frame after it opens.
+      await sleep(page, 500)
+      await page.keyboard.type("A mobile checkout with Apple Pay")
+      await sleep(page, 600)
     },
   }),
 ]

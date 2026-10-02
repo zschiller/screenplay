@@ -88,6 +88,13 @@ type CollectionKey = keyof RecordByKey
 export type CreateBranchSpec = {
   branch: Omit<BranchData, "id" | "pendingIframeLayerSeed">
   chat?: { label: string; model?: string }
+  /**
+   * A frame already on the canvas to show the new Branch in (a drawn frame
+   * answered by New chat, #1356). It is assigned in the same transaction and
+   * the Branch skips its own frame seed; a frame that's gone by then is
+   * ignored and the deferred seed runs as usual.
+   */
+  frameId?: string
 }
 
 export type CanvasOps = {
@@ -196,7 +203,8 @@ export type CanvasOps = {
   ): { docId: string; groupId: string }
   /**
    * Create a Branch record from `spec`, allocating its id and setting the
-   * deferred-seed flag `pendingIframeLayerSeed`. When `spec.chat` is given,
+   * deferred-seed flag `pendingIframeLayerSeed` (unless `spec.frameId` hands
+   * it a frame to show it in). When `spec.chat` is given,
    * also pre-creates a Chat Session targeting the Branch and returns its
    * `chatId`; otherwise `chatId` is `undefined`. The caller owns all
    * surrounding orchestration (branch-name generation, the provisioning fetch,
@@ -769,11 +777,16 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       // The verb owns the deferred-seed flag: the reactive "previewDomain
       // arrived → seed" trigger in canvas.tsx clears it via `seedFrameForAgent`
       // once and never re-seeds (parent decision 7).
+      const frameId =
+        spec.frameId && collections.iframeLayers.has(spec.frameId)
+          ? spec.frameId
+          : undefined
       collections.branches.set(branchId, {
         ...spec.branch,
         id: branchId,
-        pendingIframeLayerSeed: true,
+        pendingIframeLayerSeed: !frameId,
       })
+      if (frameId) assignBranch(frameId, branchId)
       if (spec.chat) {
         chatId = nanoid()
         collections.chatSessions.set(chatId, {

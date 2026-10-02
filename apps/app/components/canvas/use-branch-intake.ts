@@ -99,7 +99,16 @@ export interface BranchIntake {
     pick: RepoPickerSelection,
     settings?: ResolvedRepoSettings
   ) => void
-  createBranch: (repoId: string, specs: ComposerSpec[]) => Promise<void>
+  /**
+   * Create one Branch per spec. With `frameId` (a single spec: a drawn
+   * frame's ask, #1356) the Branch shows in that frame instead of seeding
+   * its own.
+   */
+  createBranch: (
+    repoId: string,
+    specs: ComposerSpec[],
+    opts?: { frameId?: string }
+  ) => Promise<void>
   createBranchFromGitBranch: (repoId: string, branch: string) => void
   removeRepo: (
     id: string,
@@ -378,9 +387,15 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // through unchanged. A non-default base derives `flow:"duplicate-branch"`
   // (#325); the chosen base rides along as the source the server forks from.
   const createBranch = useCallback(
-    async (repoId: string, specs: ComposerSpec[]) => {
+    async (
+      repoId: string,
+      specs: ComposerSpec[],
+      opts?: { frameId?: string }
+    ) => {
       const repo = repos.find((w) => w.id === repoId)
       if (!repo || specs.length === 0) return
+      // A drawn frame stands in for the one Branch's eager frame.
+      const frameId = specs.length === 1 ? opts?.frameId : undefined
 
       const plans = planBranchCreations(
         { defaultBranch: repo.defaultBranch },
@@ -486,6 +501,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             },
             // Seed a Chat Session only for prompted rows; bare rows get none.
             ...(plan.seedChat ? { chat: { label, model } } : {}),
+            ...(frameId ? { frameId } : {}),
           })
 
           // Queue the seed prompt; the dispatch effect below fires it exactly
@@ -506,7 +522,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             label,
             hasSeededChat: plan.seedChat,
           })
-          frameSpecs.push(seed.frame)
+          if (!frameId) frameSpecs.push(seed.frame)
           if (seed.tab) tabSpecs.push(seed.tab)
 
           dispatched.push({
@@ -531,7 +547,10 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       // view once its frames have mounted. Zooming to the first member's DOM
       // node (rather than `handleZoomToGroup`, which reads not-yet-updated React
       // state) mirrors the routes-group and deferred-seed flows.
-      if (frameGroup) {
+      if (frameId) {
+        setSelectedGroupIds(new Set())
+        setSelectedIframeLayerIds(new Set([frameId]))
+      } else if (frameGroup) {
         const { groupId, layerIds } = frameGroup
         setSelectedGroupIds(new Set([groupId]))
         setSelectedIframeLayerIds(new Set())

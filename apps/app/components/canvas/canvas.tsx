@@ -176,6 +176,9 @@ import {
 } from "./use-canvas-gesture"
 
 import { useDrawTool } from "./use-draw-tool"
+import { FrameAskCard } from "./frame-ask-card"
+import type { ComposerSubmitPayload } from "@/components/agent/composer"
+import { defaultNewWorkspaceRepoId, withViewport } from "@/lib/frame-ask"
 
 import { useGestureIntent } from "./use-gesture-intent"
 
@@ -1388,6 +1391,20 @@ export function Canvas({
   // drifting off-axis lives on the Canvas Camera controller now (PRD #588),
   // beside the viewport transform it guards.
 
+  // The drawn frame whose ask card is open (#1356). Per-viewer, never in the
+  // room doc. It only opens when there's a Repo for a new chat to start in.
+  const [askFrameId, setAskFrameId] = useState<string | null>(null)
+  const newChatRepoId = useMemo(
+    () => defaultNewWorkspaceRepoId(repos, agents),
+    [repos, agents]
+  )
+  const handleFrameDrawn = useCallback(
+    (frameId: string) => {
+      if (newChatRepoId) setAskFrameId(frameId)
+    },
+    [newChatRepoId]
+  )
+
   // Draw tools (Document / Frame) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
   // draws; the gesture seam shares its pointer stream with `drawTool`.
@@ -1404,7 +1421,36 @@ export function Canvas({
       setSelectedDocumentLayerIds,
       setSelectedGroupIds,
       setEditingDocumentLayerId,
+      onFrameDrawn: handleFrameDrawn,
     }
+  )
+
+  // Sending the ask starts a new Workspace with the New Workspace dialog's
+  // defaults, shown in the drawn frame, with the frame's size as the viewport.
+  const askFrame = askFrameId
+    ? iframeLayers.find((layer) => layer.id === askFrameId && !layer.branchId)
+    : undefined
+  const sendFrameAsk = useCallback(
+    (payload: ComposerSubmitPayload) => {
+      const frame = askFrameId
+        ? collections.iframeLayers.get(askFrameId)
+        : undefined
+      const repo = repos.find((r) => r.id === newChatRepoId)
+      setAskFrameId(null)
+      if (!frame || !repo) return
+      void createBranch(
+        repo.id,
+        [
+          {
+            baseBranch: repo.defaultBranch,
+            model: payload.model,
+            prompt: withViewport(payload.text, frame),
+          },
+        ],
+        { frameId: frame.id }
+      )
+    },
+    [askFrameId, collections, repos, newChatRepoId, createBranch]
   )
 
   // Repopulate the gesture seam's inputs every render so its pointer handlers
@@ -2147,6 +2193,15 @@ export function Canvas({
                   toolMode={toolMode}
                   onClearMode={reference.clearMode}
                 />
+                {askFrame ? (
+                  <FrameAskCard
+                    key={askFrame.id}
+                    frameId={askFrame.id}
+                    markdownLayers={markdownLayers}
+                    onSubmit={sendFrameAsk}
+                    onClose={() => setAskFrameId(null)}
+                  />
+                ) : null}
                 <ShortcutSheet
                   open={shortcutSheetOpen}
                   onOpenChange={setShortcutSheetOpen}
