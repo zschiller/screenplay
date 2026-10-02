@@ -50,11 +50,12 @@ a [mockup](/guides/mockups). When you ask it for any of these, it sends the
 ask to the workspace it's about, and that workspace's agent does the work and
 owns what it makes. When no workspace fits, it starts a new one for the ask.
 
-A canvas with no [repository](/guides/repositories) has no workspaces to ask,
-so there the Coordinator writes documents and mockups itself, and owns them.
-Its empty chat says so and offers **Add repository**. Code and frames wait
-for a repository; once one is added, the Coordinator goes back to sending
-asks to workspaces.
+When the ask isn't about any workspace's code, or the canvas has no
+[repository](/guides/repositories) yet, the Coordinator starts a
+[chat with no repository](/guides/agent#chats-with-no-repository) for a
+document or mockup instead, and sends follow-ups there. On a canvas with no
+repository its empty chat says so and offers **Add repository**: code and
+frames wait for one.
 
 On a new canvas, the workspace that adding a repository started hasn't been
 asked anything yet. The Coordinator sends your next ask for that repository

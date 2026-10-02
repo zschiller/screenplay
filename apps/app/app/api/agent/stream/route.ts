@@ -6,6 +6,7 @@ import {
   liveTurnLaunchDeps,
   roomTurn,
   sandboxTurn,
+  sketchTurn,
 } from "@/lib/agent/turn-launch-live"
 
 export const runtime = "nodejs"
@@ -16,8 +17,11 @@ interface RequestBody {
   chatId: string
   /** Required when the chat targets an agent (sandbox-backed flow). */
   sandboxName?: string
-  /** `"room"` for the Room's Coordinator chat (no sandbox, whole canvas). */
-  target?: "room"
+  /**
+   * `"room"` for the Room's Coordinator chat (no sandbox, whole canvas);
+   * `"sketch"` for a chat with no repository (`lib/chat/sketch-chat.ts`).
+   */
+  target?: "room" | "sketch"
   message: string
   isFirstChat?: boolean
   planMode?: boolean
@@ -35,10 +39,12 @@ export async function POST(req: Request) {
     return new Response("Missing required fields", { status: 400 })
   }
   const isRoomTarget = body.target === "room"
-  if (!isRoomTarget && !sandboxName) {
-    return new Response("Missing target: sandboxName or target: room", {
-      status: 400,
-    })
+  const isSketchTarget = body.target === "sketch"
+  if (!isRoomTarget && !isSketchTarget && !sandboxName) {
+    return new Response(
+      "Missing target: sandboxName, target: room or target: sketch",
+      { status: 400 }
+    )
   }
   // The Coordinator chat's id is derived from its Room. Refusing that shape
   // anywhere else means no one can claim a Room's Coordinator chat by naming
@@ -54,26 +60,33 @@ export async function POST(req: Request) {
 
   // One chat per Workspace (#1315): an earlier chat on an old canvas stays
   // readable, but only the Workspace's own chat changes its code.
-  if (!isRoomTarget && (await isEarlierChatInRoom(room, chatId))) {
+  if (
+    !isRoomTarget &&
+    !isSketchTarget &&
+    (await isEarlierChatInRoom(room, chatId))
+  ) {
     return Response.json({ error: "earlier_chat" }, { status: 409 })
   }
 
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,
   // drive after the response) and whether a message sent while the chat's
   // agent is working steers it; this route only picks the Chat Target.
+  // A sketch turn finds nothing (404) unless the chat is a Sketch Chat.
   const target = isRoomTarget
     ? roomTurn({ room, chatId, message, model })
-    : sandboxTurn({
-        room,
-        chatId,
-        sandboxName: sandboxName!,
-        userId,
-        message,
-        isFirstChat: body.isFirstChat,
-        planMode: body.planMode,
-        model,
-        commentThreadIds: body.commentThreadIds,
-      })
+    : isSketchTarget
+      ? sketchTurn({ room, chatId, message, model })
+      : sandboxTurn({
+          room,
+          chatId,
+          sandboxName: sandboxName!,
+          userId,
+          message,
+          isFirstChat: body.isFirstChat,
+          planMode: body.planMode,
+          model,
+          commentThreadIds: body.commentThreadIds,
+        })
 
   const result = await launchTurn(
     liveTurnLaunchDeps(room),
@@ -81,7 +94,7 @@ export async function POST(req: Request) {
       roomId,
       chatId,
       message,
-      sandboxName,
+      sandboxName: isSketchTarget ? undefined : sandboxName,
       model,
       userId,
       retry: body.retry === true,

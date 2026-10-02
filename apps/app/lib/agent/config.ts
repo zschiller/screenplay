@@ -184,6 +184,52 @@ export function buildAgentSystemPrompt(opts: {
 }
 
 /**
+ * System prompt for a Sketch Chat (`lib/chat/sketch-chat.ts`): a chat with no
+ * repository, so no sandbox. It writes Documents and Mockups and nothing else,
+ * and says so when it's asked for code. `toolNaming` names its tools the way
+ * the turn's engine exposes them (#1223).
+ */
+export function buildSketchSystemPrompt(opts: {
+  layerDirectory: LayerDirectory
+  /** The chat the prompt is for, which owns the Documents it made. */
+  chatId: string
+  skills: readonly SkillMetadata[]
+  memory?: readonly MemoryData[]
+  toolNaming?: ToolNaming
+}): string {
+  const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
+  const directoryBlock = renderLayerDirectory(
+    opts.layerDirectory,
+    t,
+    opts.chatId
+  )
+  const memoryBlock = renderCanvasMemory(opts.memory)
+  return [
+    "You are a design and writing partner on a collaborative canvas in Screenplay. This chat has no repository: there is no code, sandbox or dev server here, and you can't run commands. You make two things on the canvas: Documents and Mockups.",
+    "",
+    `Mockups: when the user wants to see a design idea, or to compare takes side by side, call \`${t("create_mockup")}\` with a self-contained HTML page (inline styles and scripts, no network). Make one Mockup per take, and rewrite your own with \`${t("update_mockup")}\`. Each Mockup shows a status, Set aside, Current or Built, that the user can change on the canvas and you can set with \`${t("update_mockup")}\`. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with \`${t("update_mockup")}\` instead of creating a new one. \`${t("read_mockup")}\` reads any Mockup's page.`,
+    "",
+    `Documents: for a plan, notes, a spec or any other write-up, call \`${t("create_document")}\` with a title and the body as markdown. You can edit only the Documents you made (marked "(yours)" in the layer directory): rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Anyone's Document can be read with \`${t("read_document")}\`. In a body, separate paragraphs with a blank line and don't repeat the title as a \`#\` heading.`,
+    "",
+    "Code: when the user asks you to change code or a running app, say this chat has no repository, so it can sketch the idea as a Mockup but not build it; building needs a chat on a repository, which the user starts from the Chats menu once one is added to the canvas.",
+    "",
+    `Mentions: the user's message may reference canvas documents as \`${MENTION_MARKER_TOKEN}\` markers, listed with their ids under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer; read them with \`${t("read_document")}\`.`,
+    ...(opts.skills.length
+      ? [
+          "",
+          "Skills:",
+          `- When a request matches one of these, call \`${t("read_skill")}\` with its name and follow it.`,
+          ...opts.skills.map((s) => `- **${s.name}**: ${s.description}`),
+        ]
+      : []),
+    "",
+    "Keep replies short: say what you made and where it is.",
+    ...(memoryBlock ? [memoryBlock] : []),
+    ...(directoryBlock ? [directoryBlock] : []),
+  ].join("\n")
+}
+
+/**
  * System prompt for the Room Target chat (the Coordinator): a chat about the
  * whole canvas rather than one Workspace's sandbox or one document.
  * `canvasSummary` is the `read_canvas` summary as of the turn's start, baked in
@@ -194,20 +240,14 @@ export function buildAgentSystemPrompt(opts: {
 export function buildRoomSystemPrompt(opts: {
   canvasSummary: string
   memory?: readonly MemoryData[]
-  /**
-   * False on a canvas with no repository: there are no Workspaces, so the
-   * Coordinator writes Documents and Mockups itself. Defaults to true.
-   */
-  hasRepository?: boolean
   skills?: readonly SkillMetadata[]
   toolNaming?: ToolNaming
 }): string {
   const skills = opts.skills ?? []
   const naming = opts.toolNaming ?? BARE_TOOL_NAMING
   const t = naming.name
-  const hasRepository = opts.hasRepository ?? true
   return [
-    `You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, mockups, and Terminal Tabs. You see the whole canvas. ${hasRepository ? "You make nothing yourself: Workspace chats write the code, documents and mockups, and you start and steer them, then arrange what they make." : "This canvas has no repository yet, so it has no Workspaces: until one is added, you write its documents and mockups yourself."}`,
+    "You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, mockups, and Terminal Tabs. You see the whole canvas. You make nothing yourself: Workspace chats write the code, documents and mockups, and you start and steer them, then arrange what they make.",
     ...(naming.note ? ["", naming.note] : []),
     "",
     "When the user asks about the canvas:",
@@ -229,15 +269,8 @@ export function buildRoomSystemPrompt(opts: {
     `- When the user asks to see, find, zoom to or go to something, call it rather than describing where it is. After you create or arrange what the user asked for, call it on the result so they see it.`,
     "",
     "Documents and mockups:",
-    ...(hasRepository
-      ? [
-          `- You can't write or edit a document or a mockup. When the user asks for one (a plan, notes, a spec, a design idea to look at or compare), start a chat that makes it: send the ask to the Workspace it's about with \`${t("send_to_workspace")}\`, or, when none fits, create one with \`${t("create_workspaces")}\` and put the ask in its seed prompt. The same goes for any change to the code. The chat owns what it makes, so send changes to one back to that chat.`,
-        ]
-      : [
-          `- With no repository, you write documents and mockups yourself. For a plan, notes, a spec or any other write-up, call \`${t("create_document")}\` with a title and the body as markdown; change the ones you made with \`${t("replace_document_body")}\`, \`${t("append_to_document_body")}\` and \`${t("set_document_title")}\`. In a body, separate paragraphs with a blank line and don't repeat the title as a \`#\` heading.`,
-          `- For a design idea to look at or compare, call \`${t("create_mockup")}\` with a self-contained HTML page (inline styles, no network), one Mockup per take, and rewrite your own with \`${t("update_mockup")}\`. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with \`${t("update_mockup")}\` instead of creating a new one.`,
-          "- Code and live previews need a repository. When the user asks for a change to code or a running app, say they need to add a repository first (Add repository, on the canvas or in this panel); you can still sketch it as a mockup meanwhile.",
-        ]),
+    `- You can't write or edit a document or a mockup. When the user asks for one (a plan, notes, a spec, a design idea to look at or compare), start a chat that makes it: send the ask to the Workspace it's about with \`${t("send_to_workspace")}\`, or, when none fits, create one with \`${t("create_workspaces")}\` and put the ask in its seed prompt. The same goes for any change to the code. The chat owns what it makes, so send changes to one back to that chat.`,
+    `- When the canvas has no repository, or the ask isn't about any repository's code, start a chat with no repository with \`${t("start_chat")}\` instead: it writes Documents and Mockups only. Send follow-ups to it with \`${t("send_to_chat")}\`. With no repository there are no Workspaces, so code and frames wait until the user adds one.`,
     "",
     "When the user asks for work in a Workspace that exists:",
     `- Call \`${t("send_to_workspace")}\` with the Workspace's id and a message written as the user would write it. It returns once the message is queued; don't wait for or predict the result. The Workspace's agent does the work, and the user sees your message in that Workspace's chat.`,
@@ -263,7 +296,7 @@ export function buildRoomSystemPrompt(opts: {
         ]
       : []),
     "Workspace updates:",
-    `- Each time a Workspace's turn ends, whoever started it, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn't see it.`,
+    `- Each time a turn ends in a Workspace or a chat with no repository, whoever started it, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn't see it.`,
     "- Stay quiet unless there is something the user needs: a result worth reporting, a blocker, or a decision only they can make. With nothing to say, end your turn without writing anything. Don't narrate progress or repeat what the Workspace said.",
     "- When a Workspace is waiting for the user to approve its plan, say which one in one line and link it. You have no way to approve plans; the user approves them in the Workspace.",
     "- You may follow up yourself, for example by sending a Workspace its next step when the user already asked for it.",

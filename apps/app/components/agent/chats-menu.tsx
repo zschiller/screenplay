@@ -37,6 +37,7 @@ import {
   ArrowsDownUpIcon,
   CaretDownIcon,
   CaretRightIcon,
+  ChatCircleIcon,
   ChatsIcon,
   CheckIcon,
   DotsThreeIcon,
@@ -96,7 +97,10 @@ import { cn } from "@workspace/ui/lib/utils"
 import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 
-import { CreateBranchDialog } from "@/components/create-branch-dialog"
+import {
+  CreateBranchDialog,
+  NO_REPOSITORY_ID,
+} from "@/components/create-branch-dialog"
 
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 
@@ -146,6 +150,7 @@ import { defaultNewWorkspaceRepoId } from "@/lib/frame-ask"
 
 import type {
   BranchData,
+  ChatSessionData,
   IframeLayerData,
   MarkdownLayerData,
   RepoData,
@@ -168,6 +173,7 @@ import {
 } from "@/lib/workspace-list-view"
 
 import { useChatSessions } from "@/lib/yjs/react"
+import { isSketchChat } from "@/lib/chat/sketch-chat"
 
 /**
  * The chat panel's Chats menu (#1152, #1317): one button pinned to the far
@@ -187,7 +193,10 @@ import { useChatSessions } from "@/lib/yjs/react"
 
 /** Which chat the panel shows, for the menu's check marks. */
 export type ChatsMenuCurrent =
-  { kind: "room" } | { kind: "agent"; id: string } | { kind: "none" }
+  | { kind: "room" }
+  | { kind: "agent"; id: string }
+  | { kind: "sketch"; id: string }
+  | { kind: "none" }
 
 export interface ChatsMenuProviderProps {
   userId: string
@@ -203,6 +212,13 @@ export interface ChatsMenuProviderProps {
   onShowRoomChat: () => void
   /** Open a Workspace's chat; `expandPanel` defaults to true. */
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
+  /** Open a chat with no repository (a Sketch Chat). */
+  onSelectSketchChat: (chatId: string) => void
+  /**
+   * Start a chat with no repository and open it, sending `prompt` as its
+   * first message when there is one.
+   */
+  onCreateSketchChat: (spec?: { prompt?: string; model?: string }) => void
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRebaseOnDefault: (branchId: string) => void
@@ -238,6 +254,8 @@ type ChatsMenuValue = Omit<
   activeBranches: BranchData[]
   /** Done Workspaces, most recently done first. */
   doneBranches: BranchData[]
+  /** Chats with no repository, newest first. */
+  sketchChats: ChatSessionData[]
   needsYou: boolean
   /** A Workspace's state: its icon, section and whether its agent works. */
   stateOf: (branch: BranchData) => WorkspaceState
@@ -450,6 +468,14 @@ export function ChatsMenuProvider({
     setPendingRenameBranchId(id)
   }, [])
 
+  const sketchChats = useMemo(
+    () =>
+      chatSessions
+        .filter(isSketchChat)
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [chatSessions]
+  )
+
   const value: ChatsMenuValue = {
     ...props,
     open,
@@ -458,6 +484,7 @@ export function ChatsMenuProvider({
     reposById,
     activeBranches,
     doneBranches,
+    sketchChats,
     needsYou,
     stateOf,
     lastUsedRepoId,
@@ -581,11 +608,20 @@ export function ChatsMenuProvider({
           baseBranch={newWorkspaceBaseBranch ?? undefined}
           markdownLayers={markdownLayers}
           onSubmit={(specs) => {
+            // A row with no repository starts a chat with none.
+            for (const spec of specs) {
+              if (spec.repoId !== NO_REPOSITORY_ID) continue
+              props.onCreateSketchChat({
+                prompt: spec.prompt,
+                model: spec.model,
+              })
+            }
+            const withRepo = specs.filter((s) => s.repoId !== NO_REPOSITORY_ID)
             // One create per Repo, each keeping its rows' order.
-            for (const repoId of new Set(specs.map((s) => s.repoId))) {
+            for (const repoId of new Set(withRepo.map((s) => s.repoId))) {
               onCreateWorkspace(
                 repoId,
-                specs
+                withRepo
                   .filter((s) => s.repoId === repoId)
                   .map(({ repoId: _, ...spec }) => spec)
               )
@@ -673,6 +709,7 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
     reposById,
     activeBranches,
     doneBranches,
+    sketchChats,
     stateOf,
     setOpen,
   } = menu
@@ -704,6 +741,27 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
     select()
     setOpen(false)
   }
+
+  const sketchRows = (list: ChatSessionData[]) =>
+    list.map((chat) => (
+      <CommandItem
+        key={chat.id}
+        value={`${chat.label} ${chat.id}`}
+        onSelect={() => pick(() => menu.onSelectSketchChat(chat.id))}
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          <ChatCircleIcon className="size-3.5 opacity-70" />
+        </span>
+        <span className="truncate">{chat.label}</span>
+        <CheckIcon
+          className={cn(
+            "ml-auto size-3.5",
+            !(current.kind === "sketch" && current.id === chat.id) &&
+              "opacity-0"
+          )}
+        />
+      </CommandItem>
+    ))
 
   const rows = (list: BranchData[]) =>
     list.map((branch) => {
@@ -752,21 +810,42 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
         </CommandGroup>
 
         {sortedRepos.length === 0 ? (
-          // A canvas with no repository says why, and adds one straight
+          // A canvas with no repository has chats with none, which write
+          // Mockups and Documents; code needs a repository, added straight
           // from the picker (#1182).
-          <div className="flex flex-col items-center gap-3 px-4 py-6">
-            <p className="text-center text-xs text-balance text-muted-foreground">
-              Chats need a repository to work in.
-            </p>
-            <AddRepositoryTrigger align="center" onPick={() => setOpen(false)}>
-              <Button type="button" variant="outline" size="sm">
-                Add repository
-              </Button>
-            </AddRepositoryTrigger>
-          </div>
+          <>
+            <CommandGroup heading="Chats">
+              {sketchRows(sketchChats)}
+              <CommandItem
+                value="New chat"
+                onSelect={() => pick(() => menu.onCreateSketchChat())}
+              >
+                <span className="flex size-4 shrink-0 items-center justify-center">
+                  <PlusIcon className="size-3.5 opacity-70" />
+                </span>
+                New chat
+              </CommandItem>
+            </CommandGroup>
+            {!searching && (
+              <div className="flex flex-col items-center gap-3 border-t px-4 py-4">
+                <p className="text-center text-xs text-balance text-muted-foreground">
+                  Add a repository to change code and preview it in frames.
+                </p>
+                <AddRepositoryTrigger
+                  align="center"
+                  onPick={() => setOpen(false)}
+                >
+                  <Button type="button" variant="outline" size="sm">
+                    Add repository
+                  </Button>
+                </AddRepositoryTrigger>
+              </div>
+            )}
+          </>
         ) : searching ? (
           <CommandGroup heading="Chats">
             {rows([...activeBranches, ...doneBranches])}
+            {sketchRows(sketchChats)}
           </CommandGroup>
         ) : (
           <>
@@ -805,6 +884,11 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
             ) : (
               <CommandGroup className="pt-0">
                 {rows(listedBranches)}
+              </CommandGroup>
+            )}
+            {sketchChats.length > 0 && (
+              <CommandGroup heading="No repository">
+                {sketchRows(sketchChats)}
               </CommandGroup>
             )}
             {doneBranches.length > 0 && (

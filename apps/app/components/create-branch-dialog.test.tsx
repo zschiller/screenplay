@@ -7,7 +7,10 @@ import {
   screen,
   within,
 } from "@testing-library/react"
-import { CreateBranchDialog } from "@/components/create-branch-dialog"
+import {
+  CreateBranchDialog,
+  NO_REPOSITORY_ID,
+} from "@/components/create-branch-dialog"
 import type { RepoData } from "@/lib/types"
 import type { ModelInfo } from "@/lib/models-store"
 import { createModelCatalog, inMemoryCatalogSource } from "@/lib/model-catalog"
@@ -72,9 +75,20 @@ function renderDialog(repos: RepoData[], repoId: string) {
 }
 
 describe("Create workspaces' repository chip (#884)", () => {
-  it("never mentions the repository on a canvas with one", () => {
-    const { dialog } = renderDialog([web], web.id)
-    expect(within(dialog).queryByTitle("Choose the repository")).toBeNull()
+  it("offers No repository, which starts a chat with no base branch", () => {
+    const { dialog, onSubmit } = renderDialog([web], web.id)
+    fireEvent.keyDown(within(dialog).getByTitle("Choose the repository"), {
+      key: "Enter",
+    })
+    fireEvent.click(
+      screen.getByRole("menuitemradio", { name: "No repository" })
+    )
+
+    expect(within(dialog).queryByTitle("Choose the base branch")).toBeNull()
+    fireEvent.click(within(dialog).getByRole("button", { name: /Create chat/ }))
+    expect(onSubmit).toHaveBeenCalledWith([
+      expect.objectContaining({ repoId: NO_REPOSITORY_ID }),
+    ])
   })
 
   it("starts on the given repository and its default branch", () => {

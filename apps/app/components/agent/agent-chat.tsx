@@ -468,7 +468,7 @@ export function AgentChat({
                     wakeBranch ? (
                       `Catching up on ${workspaceLabel(wakeBranch)}…`
                     ) : (
-                      "Catching up on a Workspace…"
+                      "Catching up…"
                     )
                   ) : (
                     "Thinking…"
@@ -587,8 +587,9 @@ function ChatEmptyState({
   onPickStarter: (text: string) => void
 }) {
   const fresh = roomStart?.kind === "fresh"
-  // With no repository the Coordinator makes Mockups and Documents itself;
-  // code waits for a repository, so the way to add one sits right here.
+  // With no repository the Coordinator starts chats with none, which make
+  // Mockups and Documents; code waits for a repository, so the way to add
+  // one sits right here.
   if (roomStart?.kind === "no-repository") {
     return (
       <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
@@ -597,8 +598,8 @@ function ChatEmptyState({
             Sketch or write something
           </p>
           <p className="text-xs text-muted-foreground">
-            Ask for a Mockup or a Document. Add a repository to change code and
-            preview it in frames.
+            Ask for a Mockup or a Document and a chat starts to make it. Add a
+            repository to change code and preview it in frames.
           </p>
         </div>
         <AddRepositoryTrigger align="center">

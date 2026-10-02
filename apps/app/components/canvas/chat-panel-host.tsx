@@ -17,7 +17,8 @@ import type { TabPool } from "./use-tab-pool"
  * The right chat panel host (PRD #571) — consumes the resolved `ChatPanelTarget`
  * from the Chat-Target controller (#569) and renders the `ChatPanel`. With
  * nothing targeted it shows the panel's home, `ChatPanel` with the Room target
- * (the Coordinator chat, #893), on a canvas with no repository too.
+ * (the Coordinator chat, #893), on a canvas with no repository too. A
+ * selected chat with no repository (a Sketch Chat) shows on its own.
  *
  * The target-resolution decision lives in the controller; this component only
  * derives the per-target view of the synced collections — the target's chat
@@ -58,13 +59,15 @@ export function ChatPanelHost({
 }) {
   // The panel's current target is resolved by the Chat-Target
   // controller (#569): an agent (sandbox-backed) when one is selected
-  // and ready, otherwise the Room (the Coordinator). On a canvas with no
-  // repository the Coordinator makes Mockups and Documents itself.
+  // and ready, a chat with no repository when one is, otherwise the Room
+  // (the Coordinator).
   const target: ChatPanelTarget = chatTarget.target ?? ROOM_TARGET
   const filteredSessions = chatSessions.filter((c) =>
     target.kind === "room"
       ? c.id === roomChatId(roomId)
-      : c.branchId === target.agent.id
+      : target.kind === "sketch"
+        ? c.id === target.chat.id
+        : c.branchId === target.agent.id
   )
   // This client's local terminal tabs for an agent target. Passed as a
   // separate collection (never merged into `chatSessions`), so a

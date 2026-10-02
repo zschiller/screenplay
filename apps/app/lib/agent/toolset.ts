@@ -11,8 +11,7 @@ import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import { buildQuestionTools } from "@/lib/agent/question-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
-import { buildNoRepositoryTools } from "@/lib/agent/no-repository-tools"
-import { roomChatId } from "@/lib/chat/room-chat"
+import { buildSketchTools } from "@/lib/agent/sketch-tools"
 
 /**
  * What a chat target needs to assemble its toolset. The sandbox kind carries a
@@ -23,17 +22,14 @@ import { roomChatId } from "@/lib/chat/room-chat"
  */
 export type ToolTarget =
   | { kind: "sandbox"; room: RoomDoc; sandbox: ToolContext; chatId: string }
+  /** A Sketch Chat: no repository, so Documents and Mockups only. */
+  | { kind: "sketch"; room: RoomDoc; chatId: string }
   | {
       kind: "room"
       room: RoomDoc
       ports: RoomToolPorts
       /** The turn the tools' canvas changes are logged under (a new one by default). */
       turnId?: string
-      /**
-       * False on a canvas with no repository, where the Coordinator makes
-       * Documents and Mockups itself. Defaults to true: it only delegates.
-       */
-      hasRepository?: boolean
     }
 
 /**
@@ -59,17 +55,9 @@ export function toolsetFor(target: ToolTarget): ToolSet {
             sandboxName: target.sandbox.sandboxName,
           }),
         }
-      : {
-          ...buildRoomTools(target.room.roomId, target.ports, target.turnId),
-          // On a canvas with no repository the Coordinator makes Documents
-          // and Mockups itself: there are no Workspace chats to ask.
-          ...(target.hasRepository === false
-            ? buildNoRepositoryTools({
-                room: target.room,
-                chatId: roomChatId(target.room.roomId),
-              })
-            : {}),
-        }
+      : target.kind === "sketch"
+        ? buildSketchTools({ room: target.room, chatId: target.chatId })
+        : buildRoomTools(target.room.roomId, target.ports, target.turnId)
   return withRedactedOutput({ ...own, ...read, ...ask })
 }
 

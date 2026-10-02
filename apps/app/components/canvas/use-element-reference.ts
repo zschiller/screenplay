@@ -33,7 +33,10 @@ export interface ElementReferenceInputs {
    */
   iframeLayerLayouts: IframeLayerLayoutMap
   /** Opens the panel through the Chat-Target controller, not raw setters. */
-  chatTarget: Pick<ChatTarget, "expandPanel" | "selectAgentChat">
+  chatTarget: Pick<
+    ChatTarget,
+    "expandPanel" | "selectAgentChat" | "selectSketchChat"
+  >
   /**
    * The open chat that made a Document, and its Workspace (#1314), or null
    * for a Document made by hand (or whose chat is closed or gone).
@@ -41,6 +44,8 @@ export interface ElementReferenceInputs {
   documentOwnerChat: (
     documentId: string
   ) => { chatId: string; branchId: string } | null
+  /** The chat with no repository that made a Document, if one did. */
+  sketchOwnerChatId: (documentId: string) => string | null
 }
 
 /** Comment-mode placement position — layer-local for frame/doc-anchored pins. */
@@ -273,6 +278,12 @@ export function useElementReference(
           remember: true,
         })
         chatQuoteStore.quoteInto(owner.chatId, quote)
+        return
+      }
+      const sketchOwner = inputs?.sketchOwnerChatId(quote.documentId)
+      if (sketchOwner) {
+        inputs?.chatTarget.selectSketchChat(sketchOwner)
+        chatQuoteStore.quoteInto(sketchOwner, quote)
         return
       }
       inputs?.chatTarget.expandPanel()

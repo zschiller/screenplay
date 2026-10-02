@@ -181,10 +181,10 @@ import { FrameAskCard, frameAskTarget } from "./frame-ask-card"
 import type { ComposerSubmitPayload } from "@/components/agent/composer"
 import {
   defaultFrameAnswerer,
-  COORDINATOR,
   defaultNewWorkspaceRepoId,
   forMockup,
   NEW_CHAT,
+  NEW_SKETCH_CHAT,
   withViewport,
   type FrameAnswerer,
 } from "@/lib/frame-ask"
@@ -211,6 +211,7 @@ import { CanvasZoomMenu } from "./canvas-zoom-menu"
 import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
 import { viewRequests } from "@/lib/canvas/view-requests"
 import { roomChatId } from "@/lib/chat/room-chat"
+import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
 
 import { ShortcutSheet } from "./shortcut-sheet"
 
@@ -960,6 +961,23 @@ export function Canvas({
       documentOwnerChatOf(documentId, markdownLayers, chatSessions),
     [markdownLayers, chatSessions]
   )
+  // The chat with no repository that made a Document, if one did.
+  const sketchOwnerChatId = useCallback(
+    (documentId: string) => {
+      const owner = markdownLayers.find((d) => d.id === documentId)?.ownerChatId
+      const chat = owner ? chatSessions.find((c) => c.id === owner) : undefined
+      return chat && isSketchChat(chat) ? chat.id : null
+    },
+    [markdownLayers, chatSessions]
+  )
+  // Every chat with no repository, newest first.
+  const sketchChats = useMemo(
+    () =>
+      chatSessions
+        .filter(isSketchChat)
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [chatSessions]
+  )
 
   const agentDomains = useMemo(() => {
     const domains: Record<
@@ -1289,14 +1307,13 @@ export function Canvas({
       const mockup = mockupLayers.find((m) => m.id === mockupId)
       if (!mockup) return
       const prompt = `Add a knob to the Mockup "${mockup.title || "Untitled"}" that controls `
-      // A Mockup the Coordinator made on a canvas with no repository.
-      if (mockup.ownerChatId === roomChatId(roomId)) {
-        chatTarget.showRoomChat()
-        chatTarget.expandPanel()
-        inputStore.prefill(mockup.ownerChatId, prompt)
+      const chat = chatSessions.find((c) => c.id === mockup.ownerChatId)
+      // A Mockup a chat with no repository made.
+      if (chat && isSketchChat(chat)) {
+        chatTarget.selectSketchChat(chat.id)
+        inputStore.prefill(chat.id, prompt)
         return
       }
-      const chat = chatSessions.find((c) => c.id === mockup.ownerChatId)
       if (!chat?.branchId) return
       chatTarget.selectAgentChat(chat.branchId, chat.id, {
         expandPanel: true,
@@ -1304,7 +1321,31 @@ export function Canvas({
       })
       inputStore.prefill(chat.id, prompt)
     },
-    [mockupLayers, chatSessions, chatTarget, roomId]
+    [mockupLayers, chatSessions, chatTarget]
+  )
+
+  // A new chat with no repository (a Sketch Chat), opened in the panel; a
+  // prompt from the New chat dialog is its first message.
+  const createSketchChat = useCallback(
+    (spec?: { prompt?: string; model?: string }) => {
+      const chatId = nanoid()
+      addChatSession(chatId, {
+        ...sketchChatSession(chatId, Date.now()),
+        ...(spec?.model ? { model: spec.model } : {}),
+      })
+      chatTarget.selectSketchChat(chatId)
+      const prompt = spec?.prompt?.trim()
+      if (prompt) {
+        chatStore.sendMessage({
+          roomId,
+          chatId,
+          target: { kind: "sketch", chatId },
+          message: prompt,
+          model: spec?.model,
+        })
+      }
+    },
+    [addChatSession, chatTarget, roomId]
   )
 
   // Repopulate the Element Reference controller's live inputs every render so
@@ -1316,6 +1357,7 @@ export function Canvas({
       iframeLayerLayouts,
       chatTarget,
       documentOwnerChat,
+      sketchOwnerChatId,
     }
   })
 
@@ -1465,17 +1507,21 @@ export function Canvas({
     () => defaultNewWorkspaceRepoId(repos, agents),
     [repos, agents]
   )
-  const answererFromSelection = useCallback(() => {
-    const selected = selection.current()
-    return defaultFrameAnswerer({
-      frameIds: selected.iframeLayerIds,
-      ownedLayerIds: selected.markdownLayerIds,
-      frames: iframeLayers,
-      ownedLayers: sizedLayers,
-      chatSessions,
-      pickable: pickableWorkspaces(agents),
-    })
-  }, [selection, iframeLayers, sizedLayers, chatSessions, agents])
+  const answererFromSelection = useCallback(
+    (opts: { sketch?: boolean } = {}) => {
+      const selected = selection.current()
+      return defaultFrameAnswerer({
+        frameIds: selected.iframeLayerIds,
+        ownedLayerIds: selected.markdownLayerIds,
+        frames: iframeLayers,
+        ownedLayers: sizedLayers,
+        chatSessions,
+        pickable: pickableWorkspaces(agents),
+        sketch: opts.sketch,
+      })
+    },
+    [selection, iframeLayers, sizedLayers, chatSessions, agents]
+  )
   const handleFrameDrawn = useCallback(
     (frameId: string) => {
       if (!newChatRepoId) return
@@ -1487,10 +1533,13 @@ export function Canvas({
   // The drawn Mockup box whose ask card is open (#1359). Per-viewer and only a
   // box until sent: Esc or clicking away drops it, leaving nothing behind.
   const [askMockupBox, setAskMockupBox] = useState<DrawnRect | null>(null)
-  // With no repository there are no Workspaces, so the Coordinator answers.
+  // With no repository there are no Workspaces, so a chat with none answers.
   const handleMockupDrawn = useCallback(
     (rect: DrawnRect) => {
-      setAskAnswerer(newChatRepoId ? answererFromSelection() : COORDINATOR)
+      const answerer = answererFromSelection({ sketch: true })
+      setAskAnswerer(
+        newChatRepoId || answerer.kind === "sketch" ? answerer : NEW_SKETCH_CHAT
+      )
       setAskFrameId(null)
       setAskMockupBox(rect)
     },
@@ -1629,10 +1678,16 @@ export function Canvas({
         showMockup()
         return
       }
-      // No repository: the Coordinator owns the Mockup and sketches it, in
-      // the panel's home chat.
-      if (answerer.kind === "coordinator") {
-        const chatId = roomChatId(roomId)
+      // A chat with no repository owns the Mockup and sketches it: the one
+      // picked, else a new one.
+      if (answerer.kind === "sketch") {
+        const existing = answerer.chatId
+          ? chatSessions.find((c) => c.id === answerer.chatId)
+          : undefined
+        const chatId = existing?.id ?? nanoid()
+        if (!existing) {
+          addChatSession(chatId, sketchChatSession(chatId, Date.now()))
+        }
         ops.createMockup({
           id: mockup.id,
           html: "",
@@ -1643,14 +1698,14 @@ export function Canvas({
           anchor: { x: box.x, y: box.y },
         })
         showMockup()
-        chatTarget.showRoomChat()
-        chatTarget.expandPanel()
+        chatTarget.selectSketchChat(chatId)
         chatStore.sendMessage({
           roomId,
           chatId,
-          target: { kind: "room" },
+          target: { kind: "sketch", chatId },
           message: prompt,
-          model: payload.model,
+          // An existing chat keeps its own model.
+          model: existing?.model ?? payload.model,
         })
         return
       }
@@ -1673,6 +1728,8 @@ export function Canvas({
       createBranch,
       roomId,
       chatTarget,
+      chatSessions,
+      addChatSession,
       setSelectedGroupIds,
       setSelectedIframeLayerIds,
       setSelectedDocumentLayerIds,
@@ -1956,10 +2013,14 @@ export function Canvas({
           current={
             chatTarget.target?.kind === "agent"
               ? { kind: "agent", id: chatTarget.target.agent.id }
-              : { kind: "room" }
+              : chatTarget.target?.kind === "sketch"
+                ? { kind: "sketch", id: chatTarget.target.chat.id }
+                : { kind: "room" }
           }
           onShowRoomChat={chatTarget.showRoomChat}
           onSelectWorkspace={chatTarget.selectAgent}
+          onSelectSketchChat={chatTarget.selectSketchChat}
+          onCreateSketchChat={createSketchChat}
           onCreateBranchFromGitBranch={createBranchFromGitBranch}
           onCreateWorkspace={createBranch}
           onRebaseOnDefault={branchActions.rebaseOnDefault}
@@ -2460,6 +2521,7 @@ export function Canvas({
                     locate={locateMockupBox}
                     markdownLayers={markdownLayers}
                     workspaces={agents}
+                    sketchChats={sketchChats}
                     defaultAnswerer={askAnswerer}
                     onSubmit={sendMockupAsk}
                     onClose={closeFrameAsk}

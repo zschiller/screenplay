@@ -9,6 +9,22 @@ import {
 import { parseUserMessage } from "./message-markers"
 
 describe("Coordinator wakes (#897)", () => {
+  it("names a chat with no repository by its title, without a Workspace link", () => {
+    const message = wakeMessage({
+      workspaceId: "s-1",
+      title: "Pricing sketch",
+      status: "completed",
+      lastTurn: "Last reply: done",
+      sketch: true,
+    })
+    const { body, wakeFrom } = parseUserMessage(message)
+    expect(wakeFrom).toBe("s-1")
+    expect(body).toContain(
+      'Chat "Pricing sketch" (a chat with no repository) [chat s-1] finished its turn.'
+    )
+    expect(body).not.toContain("workspace:")
+  })
+
   it("wakes on every terminal Workspace run state but a superseded one", () => {
     expect(isWakeStatus("completed")).toBe(true)
     expect(isWakeStatus("failed")).toBe(true)

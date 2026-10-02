@@ -15,9 +15,12 @@ import {
   Composer,
   type ComposerSubmitPayload,
 } from "@/components/agent/composer"
-import { NEW_CHAT, type FrameAnswerer } from "@/lib/frame-ask"
-import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
-import type { BranchData, MarkdownLayerData } from "@/lib/types"
+import { NEW_CHAT, NEW_SKETCH_CHAT, type FrameAnswerer } from "@/lib/frame-ask"
+import type {
+  BranchData,
+  ChatSessionData,
+  MarkdownLayerData,
+} from "@/lib/types"
 import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
 
 /** Keeps the card clear of the canvas edges and the bottom tool toolbar. */
@@ -81,6 +84,7 @@ export function FrameAskCard({
   locate,
   markdownLayers,
   workspaces,
+  sketchChats,
   defaultAnswerer,
   onSubmit,
   onClose,
@@ -91,6 +95,12 @@ export function FrameAskCard({
   markdownLayers: MarkdownLayerData[]
   /** Every Workspace, for the chip's menu. */
   workspaces: BranchData[]
+  /**
+   * The chats with no repository, for a Mockup box's chip. Given, the chip
+   * offers them and a new one; on a canvas with no repository it offers only
+   * those.
+   */
+  sketchChats?: ChatSessionData[]
   defaultAnswerer: FrameAnswerer
   onSubmit: (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => void
   onClose: () => void
@@ -187,6 +197,7 @@ export function FrameAskCard({
           <AnswererChip
             answerer={answerer}
             workspaces={workspaces}
+            sketchChats={sketchChats}
             onChange={setAnswerer}
           />
         }
@@ -200,31 +211,48 @@ export function FrameAskCard({
 
 /**
  * Who answers, in the model pill's place and look (#1357). Its menu is the
- * frames' Workspace list with New chat first.
+ * frames' Workspace list with New chat first, and for a Mockup box the chats
+ * with no repository after it. On a canvas with no repository a new chat with
+ * none is the default; with nothing else to pick, the chip only says so.
  */
 function AnswererChip({
   answerer,
   workspaces,
+  sketchChats,
   onChange,
 }: {
   answerer: FrameAnswerer
   workspaces: BranchData[]
+  sketchChats?: ChatSessionData[]
   onChange: (answerer: FrameAnswerer) => void
 }) {
   const [open, setOpen] = useState(false)
-  // With no repository the Coordinator is the only one who can answer, so the
-  // chip only says so.
-  if (answerer.kind === "coordinator") {
-    return (
-      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2 text-xs text-foreground">
-        {ROOM_CHAT_LABEL}
-      </span>
-    )
-  }
   const workspace =
     answerer.kind === "workspace"
       ? workspaces.find((b) => b.id === answerer.branchId)
       : undefined
+  const sketchChat =
+    answerer.kind === "sketch" && answerer.chatId
+      ? sketchChats?.find((c) => c.id === answerer.chatId)
+      : undefined
+  // No repository: only chats with none can answer.
+  const noRepository = answerer.kind === "sketch" && workspaces.length === 0
+  if (noRepository && !sketchChats?.length) {
+    return (
+      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2 text-xs text-foreground">
+        New chat
+      </span>
+    )
+  }
+  const label = workspace ? (
+    <WorkspaceName workspace={workspace} />
+  ) : sketchChat ? (
+    <span className="truncate">{sketchChat.label}</span>
+  ) : answerer.kind === "sketch" && !noRepository ? (
+    "New chat, no repository"
+  ) : (
+    "New chat"
+  )
   const pick = (next: FrameAnswerer) => {
     onChange(next)
     setOpen(false)
@@ -238,7 +266,7 @@ function AnswererChip({
             aria-label="Who answers"
             className="max-w-48 text-xs text-foreground"
           >
-            {workspace ? <WorkspaceName workspace={workspace} /> : "New chat"}
+            {label}
             <CaretDownIcon />
           </InputGroupButton>
         </PopoverTrigger>
@@ -253,7 +281,27 @@ function AnswererChip({
           branches={workspaces}
           currentBranchId={workspace?.id}
           onPick={(branchId) => pick({ kind: "workspace", branchId })}
-          newChat={{ current: !workspace, onPick: () => pick(NEW_CHAT) }}
+          newChat={
+            noRepository
+              ? undefined
+              : {
+                  current: answerer.kind === "new-chat",
+                  onPick: () => pick(NEW_CHAT),
+                }
+          }
+          sketch={
+            sketchChats
+              ? {
+                  chats: sketchChats,
+                  current:
+                    answerer.kind === "sketch"
+                      ? (answerer.chatId ?? "new")
+                      : null,
+                  onPick: (chatId) =>
+                    pick(chatId ? { kind: "sketch", chatId } : NEW_SKETCH_CHAT),
+                }
+              : undefined
+          }
         />
       </PopoverContent>
     </Popover>

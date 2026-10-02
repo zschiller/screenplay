@@ -52,7 +52,9 @@ import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
 
 /** A Workspace target: its chat over the Terminal Pane. */
-type WorkspaceTarget = Exclude<ChatPanelTarget, { kind: "room" }>
+type WorkspaceTarget = Extract<ChatPanelTarget, { kind: "agent" }>
+/** A chat with no repository: its chat alone, no sandbox or terminals. */
+type SketchTarget = Extract<ChatPanelTarget, { kind: "sketch" }>
 
 const NO_TERMINALS: TerminalTabData[] = []
 
@@ -170,8 +172,9 @@ interface ChatPanelProps {
 
 /**
  * The right chat panel for one target. A Workspace gets its one chat over the
- * Terminal Pane; the Room gets its one Coordinator chat (#893). Both sit under
- * the same {@link ChatPanelHeader}.
+ * Terminal Pane; the Room gets its one Coordinator chat (#893); a chat with no
+ * repository gets just its chat. All sit under the same
+ * {@link ChatPanelHeader}.
  */
 export function ChatPanel(props: ChatPanelProps) {
   const { target } = props
@@ -200,7 +203,64 @@ export function ChatPanel(props: ChatPanelProps) {
       </div>
     )
   }
+  if (target.kind === "sketch") {
+    return <SketchChatPanel {...props} target={target} />
+  }
   return <WorkspaceChatPanel {...props} target={target} />
+}
+
+/** The Coordinator crumb that leads a Workspace or sketch chat's header. */
+function CoordinatorCrumb({ onShowRoomChat }: { onShowRoomChat?: () => void }) {
+  if (!onShowRoomChat) return null
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onShowRoomChat}
+        className="shrink-0 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {ROOM_CHAT_LABEL}
+      </button>
+      <span
+        aria-hidden
+        className="mx-1.5 shrink-0 text-sm text-muted-foreground"
+      >
+        /
+      </span>
+    </>
+  )
+}
+
+function SketchChatPanel({
+  target,
+  roomId,
+  onShowRoomChat,
+  onModelChange,
+  onCollapse,
+}: ChatPanelProps & { target: SketchTarget }) {
+  const chat = target.chat
+  return (
+    <div className="flex h-full flex-col bg-background">
+      <ChatPanelHeader
+        onCollapse={onCollapse}
+        className="box-content border-b border-border"
+      >
+        <CoordinatorCrumb onShowRoomChat={onShowRoomChat} />
+        <h2 className="min-w-0 truncate text-sm font-medium">{chat.label}</h2>
+      </ChatPanelHeader>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <AgentChat
+          key={chat.id}
+          chatId={chat.id}
+          roomId={roomId}
+          target={chatTargetOf(target)}
+          model={chat.model}
+          onModelChange={(m) => onModelChange(chat.id, m)}
+          isActive
+        />
+      </div>
+    </div>
+  )
 }
 
 function WorkspaceChatPanel({
@@ -370,23 +430,7 @@ function WorkspaceChatPanel({
         onCollapse={onCollapse}
         className="box-content border-b border-border"
       >
-        {onShowRoomChat && (
-          <>
-            <button
-              type="button"
-              onClick={onShowRoomChat}
-              className="shrink-0 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {ROOM_CHAT_LABEL}
-            </button>
-            <span
-              aria-hidden
-              className="mx-1.5 shrink-0 text-sm text-muted-foreground"
-            >
-              /
-            </span>
-          </>
-        )}
+        <CoordinatorCrumb onShowRoomChat={onShowRoomChat} />
         {/* Where you are, not a switcher: the Coordinator crumb goes back to
             the top level, where the Workspaces button lives (#1152). */}
         <TargetPill target={target} />

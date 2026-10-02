@@ -56,16 +56,24 @@ export function wakeMessage(input: {
   title: string
   status: WakeStatus
   lastTurn: string
+  /**
+   * True when `workspaceId` is a chat with no repository (a Sketch Chat),
+   * which has no Workspace to link.
+   */
+  sketch?: boolean
 }): string {
   const { workspaceId, title, status, lastTurn } = input
-  const link = workspaceLink(title, workspaceId)
+  const link = input.sketch
+    ? `"${title}" (a chat with no repository) [chat ${workspaceId}]`
+    : workspaceLink(title, workspaceId)
+  const subject = input.sketch ? "Chat" : "Workspace"
   const nudge =
     status === "paused_for_plan"
       ? `Tell the user that ${link} is waiting for them to approve its plan, in one line with that link. You can't approve plans; the user does.`
       : "Reply only if the user needs to hear a result, a blocker or a decision only they can make. Otherwise end your turn without writing anything."
   return prependTurnMarkers(
     [
-      `Workspace ${link} ${ENDING[status]}. This is an automatic update, not a message from the user.`,
+      `${subject} ${link} ${ENDING[status]}. This is an automatic update, not a message from the user.`,
       "",
       lastTurn,
       "",

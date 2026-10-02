@@ -1,5 +1,6 @@
 import type { BranchData, ChatSessionData } from "@/lib/types"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
+import { isSketchChat } from "@/lib/chat/sketch-chat"
 
 /**
  * Chat-Target selection — the pure decisions behind *which* Chat Target the
@@ -25,7 +26,8 @@ import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
 /**
  * What one chat talks to, on the client (`apps/app/CONTEXT.md`, "Chat
- * Target"): a Branch's sandbox or the whole Room. One value, so an impossible
+ * Target"): a Branch's sandbox, the whole Room, or a Sketch Chat with no
+ * repository (`lib/chat/sketch-chat.ts`). One value, so an impossible
  * combination (a sandbox and a Room at once) can't be written. The chat store
  * maps it to the wire target in one place. A Document is no longer a target
  * (#1314): the chat that made one edits it with its own tools.
@@ -38,15 +40,19 @@ export type ChatTarget =
       sandboxName: string
     }
   | { kind: "room" }
+  | { kind: "sketch"; chatId: string }
 
 /**
- * The chat panel can target one of two top-level kinds:
+ * The chat panel can target one of three top-level kinds:
  *  - an *agent* (sandbox-backed flow): file editing, git, PR creation, logs.
  *  - the *room*: the canvas's one Coordinator chat, the panel's home when
  *    nothing else is selected (#893).
+ *  - a *sketch* chat: no repository, Documents and Mockups only.
  */
 export type ChatPanelTarget =
-  { kind: "agent"; agent: BranchData } | { kind: "room" }
+  | { kind: "agent"; agent: BranchData }
+  | { kind: "room" }
+  | { kind: "sketch"; chat: ChatSessionData }
 
 /** The {@link ChatTarget} of a chat shown in the panel for `target`. */
 export function chatTargetOf(target: ChatPanelTarget): ChatTarget {
@@ -59,20 +65,27 @@ export function chatTargetOf(target: ChatPanelTarget): ChatTarget {
       }
     case "room":
       return { kind: "room" }
+    case "sketch":
+      return { kind: "sketch", chatId: target.chat.id }
   }
 }
 
 /**
  * Resolve the panel's current target from the live selection: the selected
  * agent once its Sandbox exists (a still-provisioning agent has no
- * `sandboxName`, so the panel would otherwise show an empty chat), otherwise
- * none, and the panel shows the Room.
+ * `sandboxName`, so the panel would otherwise show an empty chat), else the
+ * selected chat when it's a Sketch Chat, otherwise none, and the panel shows
+ * the Room.
  */
 export function resolveChatPanelTarget(
-  selectedAgent: BranchData | undefined
+  selectedAgent: BranchData | undefined,
+  selectedChat?: ChatSessionData
 ): ChatPanelTarget | null {
   if (selectedAgent?.sandboxName) {
     return { kind: "agent", agent: selectedAgent }
+  }
+  if (!selectedAgent && selectedChat && isSketchChat(selectedChat)) {
+    return { kind: "sketch", chat: selectedChat }
   }
   return null
 }

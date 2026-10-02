@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useRef, useState } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
 import { isRoomChatId } from "@/lib/chat/room-chat"
+import { isSketchChat } from "@/lib/chat/sketch-chat"
 import {
   pendingProbes,
   resolveChatPanelTarget,
@@ -62,6 +63,11 @@ export interface ChatTarget {
    * Workspace (the "Coordinator" crumb does this).
    */
   showRoomChat: () => void
+  /**
+   * Show a chat with no repository (a Sketch Chat): clear the selected
+   * Workspace and expand the panel.
+   */
+  selectSketchChat: (chatId: string) => void
   /** Select a specific chat, tracking its agent and remembering it. */
   selectChat: (chatId: string | null) => void
   /** Point the panel at an agent and a specific chat on it. */
@@ -147,6 +153,18 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
     setSelectedChatId(null)
   }, [selectedAgentId, selectedChatId])
 
+  const selectSketchChat = useCallback(
+    (chatId: string) => {
+      if (selectedAgentId && selectedChatId) {
+        selectedChatByAgentRef.current[selectedAgentId] = selectedChatId
+      }
+      setSelectedAgentId(null)
+      setSelectedChatId(chatId)
+      expandPanel()
+    },
+    [selectedAgentId, selectedChatId, expandPanel]
+  )
+
   const selectChat = useCallback(
     (chatId: string | null) => {
       if (chatId && isRoomChatId(chatId)) {
@@ -157,7 +175,8 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
       if (chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
         if (!chat) return
-        if (chat.branchId) {
+        if (isSketchChat(chat)) setSelectedAgentId(null)
+        else if (chat.branchId) {
           setSelectedAgentId(chat.branchId)
           selectedChatByAgentRef.current[chat.branchId] = chatId
         }
@@ -219,7 +238,12 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
   // once its sandbox streams logs (see `handlePendingReady`).
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const target = resolveChatPanelTarget(selectedAgent)
+  const target = resolveChatPanelTarget(
+    selectedAgent,
+    selectedChatId
+      ? chatSessions.find((c) => c.id === selectedChatId)
+      : undefined
+  )
 
   return {
     target,
@@ -229,6 +253,7 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
     pendingProbes: pendingProbes(pendingAgentIds, agents),
     selectAgent,
     showRoomChat,
+    selectSketchChat,
     selectChat,
     selectAgentChat,
     selectChatId,
