@@ -1,4 +1,5 @@
 @import "@workspace/ui/globals.css";
+@import "../components/canvas/canvas-selection.css";
 
 /* Type (#1005, #1077): Instrument Sans is the UI face, Unbounded sets the
    titles that use `font-heading` (dialogs, empty states, page titles) at the
