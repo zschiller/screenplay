@@ -1287,6 +1287,35 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await sleep(page, 600)
     },
   }),
+  screen({
+    name: "frame-ask-answerer",
+    description:
+      "With a frame selected, a drawn frame's ask goes to that frame's Workspace; the chip switches who answers (#1357).",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [300, 120, 440, 620],
+    // After frame-ask, drawing in the same spot: each pass deletes the frame
+    // the last one drew.
+    prepare: async (page) => {
+      await camera(page, VIEW.emptyLeft)
+      await clickAt(page, { x: 540, y: 300 }, 300)
+      await page.keyboard.press("Delete")
+      // Select the Home frame from the sidebar, then draw beside it.
+      await page.getByText("Home", { exact: true }).first().click()
+      await sleep(page, 400)
+      await camera(page, VIEW.emptyLeft)
+      await page.keyboard.press("f")
+      await page.mouse.move(420, 160)
+      await page.mouse.down()
+      await page.mouse.move(500, 400, { steps: 8 })
+      await page.mouse.move(662, 683, { steps: 8 })
+      await page.mouse.up()
+      await sleep(page, 500)
+      await page.keyboard.type("The same hero for a phone")
+      await page.getByRole("button", { name: "Who answers" }).click()
+      await sleep(page, 600)
+    },
+  }),
 ]
 
 /** Pick the Home frame's "Start free trial" button with the element-target tool. */

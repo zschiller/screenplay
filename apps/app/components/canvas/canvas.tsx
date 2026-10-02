@@ -178,7 +178,16 @@ import {
 import { useDrawTool } from "./use-draw-tool"
 import { FrameAskCard } from "./frame-ask-card"
 import type { ComposerSubmitPayload } from "@/components/agent/composer"
-import { defaultNewWorkspaceRepoId, withViewport } from "@/lib/frame-ask"
+import {
+  defaultFrameAnswerer,
+  defaultNewWorkspaceRepoId,
+  NEW_CHAT,
+  withViewport,
+  type FrameAnswerer,
+} from "@/lib/frame-ask"
+import { pickableWorkspaces } from "./workspace-list"
+import { workspaceLabel } from "@/lib/workspace-label"
+import { toast } from "sonner"
 
 import { useGestureIntent } from "./use-gesture-intent"
 
@@ -1394,15 +1403,30 @@ export function Canvas({
   // The drawn frame whose ask card is open (#1356). Per-viewer, never in the
   // room doc. It only opens when there's a Repo for a new chat to start in.
   const [askFrameId, setAskFrameId] = useState<string | null>(null)
+  // Who answers by default (#1357), worked out from what was selected before
+  // the frame was drawn (drawing selects the new frame).
+  const [askAnswerer, setAskAnswerer] = useState<FrameAnswerer>(NEW_CHAT)
   const newChatRepoId = useMemo(
     () => defaultNewWorkspaceRepoId(repos, agents),
     [repos, agents]
   )
   const handleFrameDrawn = useCallback(
     (frameId: string) => {
-      if (newChatRepoId) setAskFrameId(frameId)
+      if (!newChatRepoId) return
+      const selected = selection.current()
+      setAskAnswerer(
+        defaultFrameAnswerer({
+          frameIds: selected.iframeLayerIds,
+          ownedLayerIds: selected.markdownLayerIds,
+          frames: iframeLayers,
+          ownedLayers: sizedLayers,
+          chatSessions,
+          pickable: pickableWorkspaces(agents),
+        })
+      )
+      setAskFrameId(frameId)
     },
-    [newChatRepoId]
+    [newChatRepoId, selection, iframeLayers, sizedLayers, chatSessions, agents]
   )
 
   // Draw tools (Document / Frame) — the Tool Mode sibling that turns a released
@@ -1425,19 +1449,41 @@ export function Canvas({
     }
   )
 
-  // Sending the ask starts a new Workspace with the New Workspace dialog's
-  // defaults, shown in the drawn frame, with the frame's size as the viewport.
+  // Sending the ask shows the answering Workspace in the drawn frame, with the
+  // frame's size as the viewport. An existing Workspace takes the prompt in its
+  // chat (#1357); a new chat starts a Workspace with the New Workspace
+  // dialog's defaults.
   const askFrame = askFrameId
     ? iframeLayers.find((layer) => layer.id === askFrameId && !layer.branchId)
     : undefined
+  const closeFrameAsk = useCallback(() => {
+    setAskFrameId(null)
+    setAskAnswerer(NEW_CHAT)
+  }, [])
   const sendFrameAsk = useCallback(
-    (payload: ComposerSubmitPayload) => {
+    (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => {
       const frame = askFrameId
         ? collections.iframeLayers.get(askFrameId)
         : undefined
+      closeFrameAsk()
+      if (!frame) return
+      if (answerer.kind === "workspace") {
+        ops.assignBranch(frame.id, answerer.branchId)
+        const sent = branchActions.sendPrompt(
+          answerer.branchId,
+          withViewport(payload.text, frame)
+        )
+        // A Workspace still starting has no agent to ask yet.
+        if (!sent) {
+          const agent = agents.find((a) => a.id === answerer.branchId)
+          toast.error(
+            `${agent ? workspaceLabel(agent) : "That Workspace"} isn't running yet. Ask again once it is.`
+          )
+        }
+        return
+      }
       const repo = repos.find((r) => r.id === newChatRepoId)
-      setAskFrameId(null)
-      if (!frame || !repo) return
+      if (!repo) return
       void createBranch(
         repo.id,
         [
@@ -1450,7 +1496,17 @@ export function Canvas({
         { frameId: frame.id }
       )
     },
-    [askFrameId, collections, repos, newChatRepoId, createBranch]
+    [
+      askFrameId,
+      collections,
+      closeFrameAsk,
+      ops,
+      branchActions,
+      agents,
+      repos,
+      newChatRepoId,
+      createBranch,
+    ]
   )
 
   // Repopulate the gesture seam's inputs every render so its pointer handlers
@@ -2198,8 +2254,10 @@ export function Canvas({
                     key={askFrame.id}
                     frameId={askFrame.id}
                     markdownLayers={markdownLayers}
+                    workspaces={agents}
+                    defaultAnswerer={askAnswerer}
                     onSubmit={sendFrameAsk}
-                    onClose={() => setAskFrameId(null)}
+                    onClose={closeFrameAsk}
                   />
                 ) : null}
                 <ShortcutSheet

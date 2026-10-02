@@ -116,6 +116,12 @@ export interface BranchActions {
     message: string,
     threadIds: string[]
   ) => boolean
+  /**
+   * Send a prompt to the Workspace's chat and show it (a drawn frame's ask,
+   * #1357), steering or queuing if it's busy. False when the Workspace has no
+   * running agent to ask.
+   */
+  sendPrompt: (agentId: string, message: string) => boolean
 }
 
 export function useBranchActions(deps: BranchActionsDeps): BranchActions {
@@ -290,6 +296,11 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
         const agent = agents.find((a) => a.id === agentId)
         if (!agent) return false
         return applyEngine(message, agent, { commentThreadIds: threadIds })
+      },
+      sendPrompt: (agentId, message) => {
+        const agent = agents.find((a) => a.id === agentId)
+        if (!agent) return false
+        return applyEngine(message, agent)
       },
     }),
     [run, recoveryDeps, agents, applyEngine, iframeLayers, iframeLayerGroups]

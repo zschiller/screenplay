@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckIcon } from "@workspace/ui/components/icons"
+import { CheckIcon, PlusIcon } from "@workspace/ui/components/icons"
 import {
   Command,
   CommandEmpty,
@@ -77,7 +77,8 @@ export function CompactWorkspaceMention({
  * picker and the address bar's host, issue #867): each row the shared Workspace
  * mention (#974: state icon, plain name, PR badge or line count) and a check on
  * the current one. The Group switcher (#869) opens it too, with a footer
- * saying what the pick moves.
+ * saying what the pick moves. A drawn frame's ask card (#1357) opens it with
+ * New chat as its first row.
  */
 export function WorkspaceCommandList({
   branches,
@@ -85,6 +86,7 @@ export function WorkspaceCommandList({
   onPick,
   placeholder = "Search workspaces…",
   footer,
+  newChat,
 }: {
   branches: BranchData[]
   currentBranchId?: string
@@ -93,6 +95,8 @@ export function WorkspaceCommandList({
   placeholder?: string
   /** Muted lines under the list, read before picking (#869). */
   footer?: string[]
+  /** A New chat row above the Workspaces, checked when it's the pick. */
+  newChat?: { current: boolean; onPick: () => void }
 }) {
   const stateOf = useWorkspaceStates()
   return (
@@ -101,6 +105,15 @@ export function WorkspaceCommandList({
       <CommandList>
         <CommandEmpty>No workspaces found.</CommandEmpty>
         <CommandGroup>
+          {newChat && (
+            <CommandItem value="New chat" onSelect={newChat.onPick}>
+              <PlusIcon className="text-muted-foreground" />
+              <span className="flex-1">New chat</span>
+              <CheckIcon
+                className={cn("size-3.5", !newChat.current && "invisible")}
+              />
+            </CommandItem>
+          )}
           {pickableWorkspaces(branches).map((a) => {
             const hasDiff =
               a.status === "running" &&

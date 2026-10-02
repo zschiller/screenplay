@@ -19,16 +19,28 @@ view, so hot reload, client-side routing, and app state all work as normal.
 - The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
   or draws one where you drag. As you let go, the frame asks what it should
   show. Type what to build and press <kbd>Enter</kbd> (<kbd>Shift</kbd>
-  <kbd>Enter</kbd> for a new line): a new chat starts on it, and its workspace
-  boots in that frame. The frame's size is sent along as the viewport, so a
-  phone-sized frame gets a mobile layout.
+  <kbd>Enter</kbd> for a new line). The frame's size is sent along as the
+  viewport, so a phone-sized frame gets a mobile layout.
+- The chip beside **Send** says who answers. With nothing selected it's
+  **New chat**: a new chat starts on it, and its workspace boots in that
+  frame. If you had a frame, mockup or document selected when you drew, it's
+  that layer's workspace instead: the frame shows that workspace, and your
+  message goes to its chat, as if you'd sent it there (see
+  [Sending while the agent works](/guides/agent#sending-while-the-agent-works)).
+  Click the chip to switch between **New chat** and any workspace.
+
+  <Screenshot
+    name="frame-ask-answerer"
+    alt="A frame drawn with the Home frame selected: the chip names the Home frame's workspace, and its menu lists New chat and every workspace"
+  />
+
 - Press <kbd>Esc</kbd> or click elsewhere to skip the question. The frame
   stays and shows **No Workspace** until you pick a workspace for it from its
   title (**Choose a workspace**).
 
   <Screenshot
     name="frame-ask"
-    alt="A frame just drawn, asking what it should show, with New chat beside the Send button"
+    alt="A frame just drawn, asking what it should show, with the New chat chip beside the Send button"
   />
 
 - **Show all routes** in the workspace menu adds a group with a frame for

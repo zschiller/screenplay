@@ -1,15 +1,23 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
-import { InputGroupText } from "@workspace/ui/components/input-group"
+import { CaretDownIcon } from "@workspace/ui/components/icons"
+import { InputGroupButton } from "@workspace/ui/components/input-group"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
 
 import {
   Composer,
   type ComposerSubmitPayload,
 } from "@/components/agent/composer"
-import type { MarkdownLayerData } from "@/lib/types"
+import { NEW_CHAT, type FrameAnswerer } from "@/lib/frame-ask"
+import type { BranchData, MarkdownLayerData } from "@/lib/types"
+import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
 
 /** Keeps the card clear of the canvas edges and the bottom tool toolbar. */
 const INSET = 8
@@ -24,8 +32,10 @@ export const COMPOSER_POPUP_ATTRIBUTE = "data-composer-popup"
 /**
  * The ask a drawn frame opens (#1356, spec #1355): the chat composer on the
  * shared floating surface, centred on the frame in screen space, so it reads
- * the same at any zoom. A chip where the model pill sits says who answers
- * (New chat for now), and the turn uses the default model.
+ * the same at any zoom. A chip where the model pill sits says who answers and
+ * switches it (#1357): New chat or any Workspace, starting from the default the
+ * canvas worked out from the selection. A new chat's turn uses the default
+ * model; a Workspace's chat keeps its own.
  *
  * Per-viewer: the canvas holds which frame is asking in local state, never in
  * the room doc. Enter sends; Esc or a pointer-down outside closes it, leaving
@@ -34,15 +44,21 @@ export const COMPOSER_POPUP_ATTRIBUTE = "data-composer-popup"
 export function FrameAskCard({
   frameId,
   markdownLayers,
+  workspaces,
+  defaultAnswerer,
   onSubmit,
   onClose,
 }: {
   frameId: string
   markdownLayers: MarkdownLayerData[]
-  onSubmit: (payload: ComposerSubmitPayload) => void
+  /** Every Workspace, for the chip's menu. */
+  workspaces: BranchData[]
+  defaultAnswerer: FrameAnswerer
+  onSubmit: (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => void
   onClose: () => void
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
+  const [answerer, setAnswerer] = useState(defaultAnswerer)
   const onCloseRef = useRef(onClose)
   useEffect(() => {
     onCloseRef.current = onClose
@@ -126,18 +142,73 @@ export function FrameAskCard({
       <Composer
         markdownLayers={markdownLayers}
         onModelChange={() => {}}
-        onSubmit={onSubmit}
+        onSubmit={(payload) => onSubmit(payload, answerer)}
         focusKey={1}
         placeholder="What should this frame show?"
         modelSlot={
-          <InputGroupText className="h-6 text-xs font-medium text-foreground">
-            New chat
-          </InputGroupText>
+          <AnswererChip
+            answerer={answerer}
+            workspaces={workspaces}
+            onChange={setAnswerer}
+          />
         }
         // The card is the surface: the composer's own box goes borderless.
         className="relative [&_[data-slot=input-group]]:border-transparent dark:[&_[data-slot=input-group]]:bg-transparent"
       />
     </FloatingToolbar>,
     portal
+  )
+}
+
+/**
+ * Who answers, in the model pill's place and look (#1357). Its menu is the
+ * frames' Workspace list with New chat first.
+ */
+function AnswererChip({
+  answerer,
+  workspaces,
+  onChange,
+}: {
+  answerer: FrameAnswerer
+  workspaces: BranchData[]
+  onChange: (answerer: FrameAnswerer) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const workspace =
+    answerer.kind === "workspace"
+      ? workspaces.find((b) => b.id === answerer.branchId)
+      : undefined
+  const pick = (next: FrameAnswerer) => {
+    onChange(next)
+    setOpen(false)
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <span className="-ml-1.5 inline-flex min-w-0">
+        <PopoverTrigger asChild>
+          <InputGroupButton
+            size="xs"
+            aria-label="Who answers"
+            className="max-w-48 text-xs text-foreground"
+          >
+            {workspace ? <WorkspaceName workspace={workspace} /> : "New chat"}
+            <CaretDownIcon />
+          </InputGroupButton>
+        </PopoverTrigger>
+      </span>
+      <PopoverContent
+        {...{ [COMPOSER_POPUP_ATTRIBUTE]: "" }}
+        className="w-72 p-0"
+        side="bottom"
+        align="start"
+      >
+        <WorkspaceCommandList
+          branches={workspaces}
+          currentBranchId={workspace?.id}
+          onPick={(branchId) => pick({ kind: "workspace", branchId })}
+          newChat={{ current: !workspace, onPick: () => pick(NEW_CHAT) }}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
