@@ -23,6 +23,13 @@ On the project's **Storage** tab, connect a **Blob** store. This injects
 `BLOB_READ_WRITE_TOKEN`. Vercel Sandbox authenticates with Vercel's OIDC
 token, which is also injected automatically.
 
+### Push the sandbox image
+
+Workspaces boot from a custom image in the project's Vercel Container
+Registry. Set up the `Sandbox image` workflow or push it by hand, as
+[Sandbox image](/self-hosting/configuration/sandbox-provider#sandbox-image)
+describes.
+
 ### Add environment variables
 
 Add each variable in the right scope. See the table below.

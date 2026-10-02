@@ -106,6 +106,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 | Variable | Required | Description |
 | --- | --- | --- |
 | `VERCEL_OIDC_TOKEN` | Local dev only | Authenticates the default Vercel Sandbox provider. It's injected automatically on Vercel; locally, `vercel env pull` fetches a ~12-hour token. See [Sandbox provider](/self-hosting/configuration/sandbox-provider). |
+| `SANDBOX_IMAGE` | Optional | The Vercel Container Registry image workspace sandboxes boot from. Default: `screenplay-workspace`, the image built from `apps/app/sandbox-image` in the app's own Vercel project. See [Sandbox image](/self-hosting/configuration/sandbox-provider#sandbox-image). |
 
 ## Serving
 

@@ -1,0 +1,58 @@
+name: Sandbox image
+
+# Builds the image hosted Workspace Sandboxes boot from (apps/app/sandbox-image)
+# and pushes it to the app project's Vercel Container Registry as
+# `screenplay-workspace`, which the app creates Sandboxes from by default
+# (`SANDBOX_IMAGE`). Rebuilt weekly so the base image's and Chrome's security
+# updates reach new Sandboxes.
+#
+# Signs in to VCR with GitHub OIDC, so no secret is stored. Needs a Vercel OIDC
+# policy for this repository and workflow, and three repository variables:
+# VERCEL_TEAM_ID, VERCEL_TEAM_SLUG and VERCEL_PROJECT_SLUG (the app project).
+# Until they're set, the job is skipped.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/app/sandbox-image/**"
+      - ".github/workflows/sandbox-image.yml"
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: sandbox-image
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  push:
+    if: vars.VERCEL_TEAM_ID != ''
+    runs-on: ubuntu-latest
+    env:
+      REPOSITORY: vcr.vercel.com/${{ vars.VERCEL_TEAM_SLUG }}/${{ vars.VERCEL_PROJECT_SLUG }}/screenplay-workspace
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to VCR
+        uses: vercel/vcr-action/login@v1
+        with:
+          team: ${{ vars.VERCEL_TEAM_ID }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/app/sandbox-image
+          platforms: linux/amd64
+          provenance: false
+          pull: true
+          tags: |
+            ${{ env.REPOSITORY }}:latest
+            ${{ env.REPOSITORY }}:${{ github.sha }}
+          outputs: type=image,push=true,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true

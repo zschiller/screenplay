@@ -18,8 +18,8 @@ import { parseProcStat, parsePs, runningCommand } from "@/lib/terminal/busy"
 
 // Pin a known-good static ttyd build (the spike validated 1.7.7's prebuilt
 // binaries in the @vercel/sandbox image). The binary lives under
-// /tmp/screenplay because sandbox commands run as the unprivileged
-// `vercel-sandbox` user, which can write there without sudo.
+// /tmp/screenplay because sandbox commands run as the Sandbox's unprivileged
+// user, which can write there without sudo.
 const TTYD_VERSION = "1.7.7"
 const TTYD_BIN = "/tmp/screenplay/ttyd"
 
@@ -66,7 +66,7 @@ const terminalLogPath = (name: string) =>
 // tmux/tmux-builds publishes musl-static release tarballs per architecture,
 // named tmux-<ver>-linux-<arch>; each archive is flat (a single `tmux` binary
 // at its root). Lives under /tmp/screenplay alongside ttyd because that's where
-// the unprivileged `vercel-sandbox` user can write without sudo.
+// the Sandbox's unprivileged user can write without sudo.
 const TMUX_VERSION = "3.6b"
 const TMUX_BIN = "/tmp/screenplay/tmux"
 const TMUX_TARBALL = "/tmp/screenplay/tmux.tar.gz"
