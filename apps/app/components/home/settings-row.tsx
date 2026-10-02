@@ -72,7 +72,7 @@ export function SettingsRow({
               variant="outline"
               className={cn(
                 "shrink-0 gap-1 font-normal",
-                status === "on" ? "text-success-text" : "text-muted-foreground"
+                status === "on" ? "text-success" : "text-muted-foreground"
               )}
             >
               {status === "on" && (

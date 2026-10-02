@@ -12,12 +12,3 @@ export function prStateColor(state: BranchPrInfo["state"]): string {
       ? "text-destructive"
       : "text-success"
 }
-
-/** The same hue a shade calmer, for a PR badge's number beside its glyph. */
-export function prStateTextColor(state: BranchPrInfo["state"]): string {
-  return state === "merged"
-    ? "text-merged-text"
-    : state === "closed"
-      ? "text-destructive-text"
-      : "text-success-text"
-}
