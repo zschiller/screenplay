@@ -1,0 +1,84 @@
+<!doctype html>
+<!-- PROTOTYPE (shared live frame over WebRTC), not for main. The "app" running in the streamed
+     browser. A probe square changes colour on every click or key (the bench watches it), an
+     optional animation (?spinner / ?busy) stands in for a live app, and a small Settings flow
+     gives the agent something buried to drive to, including a native <select>. -->
+<meta charset="utf-8" />
+<title>Demo app</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #f6f6f4; color: #1a1a1a; height: 100vh; overflow: hidden }
+  header { display: flex; gap: 8px; padding: 12px 16px; background: #fff; border-bottom: 1px solid #ddd; align-items: center }
+  header b { margin-right: 16px }
+  button { font: inherit; padding: 6px 12px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer }
+  button:hover { background: #eee }
+  button[aria-current] { background: #1a1a1a; color: #fff; border-color: #1a1a1a }
+  main { padding: 24px; display: grid; grid-template-columns: 220px 1fr; gap: 24px }
+  #probe { position: fixed; left: 24px; bottom: 24px; width: 96px; height: 96px; border-radius: 8px; background: rgb(255, 0, 0) }
+  #spinner { position: fixed; right: 24px; bottom: 24px; width: 18px; height: 18px; border: 3px solid #ccc; border-top-color: #333; border-radius: 50%; animation: spin 0.8s linear infinite; display: none }
+  #busy { position: fixed; left: 160px; right: 160px; bottom: 24px; height: 220px; border-radius: 12px; display: none;
+    background: linear-gradient(90deg, #f06, #fc0, #0cf, #90f, #f06); background-size: 400% 100%; animation: slide 2s linear infinite }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  @keyframes slide { to { background-position: 400% 0 } }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px }
+  nav { display: flex; flex-direction: column; gap: 4px }
+  nav button { text-align: left }
+  label { display: block; margin: 12px 0 4px }
+  input, select { font: inherit; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; width: 260px }
+  .hidden { display: none }
+  #toast { margin-top: 12px; color: #070 }
+</style>
+<header>
+  <b>Acme</b>
+  <button data-page="home" aria-current="page">Home</button>
+  <button data-page="settings">Settings</button>
+  <input id="search" placeholder="Search…" style="margin-left:auto" />
+</header>
+<main>
+  <section id="home" class="card" style="grid-column: 1 / -1">
+    <h2>Welcome back</h2>
+    <p>Nothing to see here. The interesting bit is under Settings → Billing.</p>
+  </section>
+  <nav id="settings-nav" class="hidden">
+    <button data-sub="profile">Profile</button>
+    <button data-sub="billing">Billing</button>
+    <button data-sub="team">Team</button>
+  </nav>
+  <section id="profile" class="card hidden"><h2>Profile</h2><label>Name</label><input value="Zack" /></section>
+  <section id="team" class="card hidden"><h2>Team</h2><p>3 members.</p></section>
+  <section id="billing" class="card hidden">
+    <h2>Billing</h2>
+    <label for="seats">Seats</label>
+    <input id="seats" type="number" value="3" />
+    <label for="plan">Plan</label>
+    <select id="plan"><option>Hobby</option><option>Pro</option><option>Team</option><option>Enterprise</option></select>
+    <div><button id="upgrade" style="margin-top:16px">Review upgrade</button></div>
+    <div id="toast"></div>
+  </section>
+</main>
+<div id="probe"></div>
+<div id="spinner"></div>
+<div id="busy"></div>
+<script>
+  const q = location.search
+  if (q.includes("spinner")) spinner.style.display = "block"
+  if (q.includes("busy")) busy.style.display = "block"
+  // The probe cycles colours on every press, so the bench can time input → picture.
+  const colours = ["rgb(255, 0, 0)", "rgb(0, 0, 255)", "rgb(0, 160, 0)", "rgb(255, 160, 0)"]
+  let n = 0
+  const bump = () => { n = (n + 1) % colours.length; probe.style.background = colours[n] }
+  probe.addEventListener("mousedown", bump)
+  addEventListener("keydown", (e) => { if (e.key === "F2") bump() })
+  const show = (id, on) => document.getElementById(id).classList.toggle("hidden", !on)
+  document.querySelectorAll("[data-page]").forEach((b) => b.onclick = () => {
+    document.querySelectorAll("[data-page]").forEach((x) => x.removeAttribute("aria-current"))
+    b.setAttribute("aria-current", "page")
+    const s = b.dataset.page === "settings"
+    show("home", !s); show("settings-nav", s)
+    for (const id of ["profile", "billing", "team"]) show(id, s && id === "profile")
+  })
+  document.querySelectorAll("[data-sub]").forEach((b) => b.onclick = () => {
+    for (const id of ["profile", "billing", "team"]) show(id, id === b.dataset.sub)
+  })
+  upgrade.onclick = () => { toast.textContent = `Upgrade to ${plan.value} with ${seats.value} seats: $${({ Hobby: 0, Pro: 20, Team: 40, Enterprise: 99 })[plan.value] * seats.value}/mo` }
+</script>
