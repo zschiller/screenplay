@@ -1,0 +1,23 @@
+/* Text selection on the canvas: as in Figma, the canvas and its chrome (top
+   bar, toolbar, frame labels and bars, the empty plane) take no text
+   selection, so a drag that misses its target highlights nothing. Selection
+   stays where text is meant to be selected: fields (inline renames,
+   composers), a Document being edited, and anything marked
+   `data-selectable-text` (comment bodies). Frames and mockups are iframes, so
+   their pages keep their own selection; menus and popovers portal outside the
+   canvas and are untouched. */
+[data-canvas-wrapper] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+[data-canvas-wrapper]
+  :is(
+    input,
+    textarea,
+    [contenteditable]:not([contenteditable="false"]),
+    [data-selectable-text]
+  ) {
+  -webkit-user-select: text;
+  user-select: text;
+}
