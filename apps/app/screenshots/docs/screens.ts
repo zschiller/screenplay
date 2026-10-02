@@ -16,7 +16,7 @@ import { DOCS_CLOCK, DOCS_IDS } from "./world"
  * The **docs screen list** — every screenshot the product docs embed
  * (`<Screenshot name="…">` in `apps/docs/content`), in the docs world.
  *
- * Same shape as the design-review list (`../screens.ts`), plus a `crop`: a
+ * Same shape as the design-review list (`../screens/`), plus a `crop`: a
  * detail screen names the region worth reading, in CSS px of the capture, and
  * `./frame.ts` magnifies it; a screen without one is framed as the whole
  * window. Every screen is shot at {@link DOCS_VIEWPORT}, the size the crops are

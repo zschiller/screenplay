@@ -9,7 +9,7 @@ import type { GitHubRepo } from "@/lib/github-actions"
  * A capture container has no `gh` login and no device token, so every
  * GitHub-backed list in the app is empty there. The Add project dialog's GitHub
  * tab is one of those lists, and its populated state is the one worth
- * reviewing. A screen in `screenshots/screens.ts` seeds this cookie to have the
+ * reviewing. A screen in `screenshots/screens/` seeds this cookie to have the
  * repo list answer with {@link FIXTURE_GITHUB_REPOS}, the same way it seeds an
  * entry state (`@/lib/fixture-entry`) or a fault (`@/lib/fixture-faults`).
  *

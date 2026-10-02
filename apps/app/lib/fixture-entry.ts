@@ -11,7 +11,7 @@ import { isFixtureWorld } from "@/lib/fixture-world"
  * The local build never reaches them on its own: it runs as the seeded local
  * user (so there is no signed-out home), and in fixture mode the setup gate
  * reads as released (see `getLocalSetupGateStatus`). A screen in
- * `screenshots/screens.ts` seeds this cookie to ask for one of them instead, the
+ * `screenshots/screens/` seeds this cookie to ask for one of them instead, the
  * same way it seeds a panel layout.
  *
  * Only ever honoured under {@link isFixtureWorld}, which is itself `and`-ed with

@@ -140,13 +140,17 @@ async function warmRoutes(
 ): Promise<void> {
   const paths = [...new Set(screens.map((s) => s.path))]
   log(`• warming ${paths.length} routes`)
-  for (const path of paths) {
-    await fetch(new URL(path, profile.baseUrl), {
-      signal: AbortSignal.timeout(180_000),
-    })
-      .then((res) => res.arrayBuffer())
-      .catch(() => {})
-  }
+  // All at once: Turbopack compiles routes in parallel, and most of a cold
+  // run's wait is compiling, so one at a time costs the sum of the compiles.
+  await Promise.all(
+    paths.map((path) =>
+      fetch(new URL(path, profile.baseUrl), {
+        signal: AbortSignal.timeout(180_000),
+      })
+        .then((res) => res.arrayBuffer())
+        .catch(() => {})
+    )
+  )
 }
 
 /**
@@ -180,9 +184,10 @@ async function captureOne(
     })
     // Freeze only after `prepare`: frozen animations stop at their first frame,
     // so a menu or popover a `prepare` opens would be caught mid-entrance at
-    // opacity 0, and a menu it closes would never finish leaving.
-    await settle(page, { freeze: !screen.prepare })
+    // opacity 0, and a menu it closes would never finish leaving. A screen with
+    // no `prepare` settles once, frozen, rather than settling twice.
     if (screen.prepare) {
+      await settle(page, { freeze: false })
       // A `prepare` that can't find its affordance shouldn't sink the run: the
       // shot it produces (the screen without that step) is still worth having,
       // and the warning says exactly which screen to go fix. A hard failure here

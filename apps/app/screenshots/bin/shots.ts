@@ -26,7 +26,8 @@ import { THEMES, type Theme } from "../lib/browser"
  *
  *   --label <name>      output directory name (default: `capture`; use before/after)
  *   --out <dir>         capture root to write the label into
- *   --screens a,b       only these screens (default: all of them)
+ *   --screens a,b       the screens to shoot (bare names work too: `shots a b`)
+ *   --all               every screen instead: a long run, rarely what a PR needs
  *   --themes light      only these themes (default: light,dark)
  *   --list              print the screen list and exit
  *   --no-seed           capture whatever is in the state dir already
@@ -37,6 +38,10 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
 
   applyHostedFlag(args)
+  if (boolFlag(args, "help") || boolFlag(args, "h")) {
+    console.log(USAGE)
+    return
+  }
   if (boolFlag(args, "list")) {
     for (const screen of selectScreens([], { hosted: isHostedCapture() })) {
       console.log(
@@ -52,9 +57,16 @@ async function main(): Promise<void> {
   if (out) process.env.SCREENSHOTS_CAPTURE_DIR = out
   const profile = resolveCaptureProfile()
   const label = stringFlag(args, "label") ?? "capture"
-  const screens = selectScreens(listFlag(args, "screens"), {
-    hosted: profile.hosted,
-  })
+  const names = [...listFlag(args, "screens"), ...args.positionals]
+  // Every screen in both themes is hundreds of shots. Make that a choice
+  // (`--all`) rather than what a forgotten or misspelt `--screens` does.
+  if (names.length === 0 && !boolFlag(args, "all")) {
+    console.error(
+      `Name the screens to shoot: --screens a,b (see --list), or --all for every one.\n\n${USAGE}`
+    )
+    process.exit(1)
+  }
+  const screens = selectScreens(names, { hosted: profile.hosted })
   const themes = resolveThemes(listFlag(args, "themes"))
   const fresh = boolFlag(args, "fresh")
   const seed = !boolFlag(args, "no-seed")
@@ -88,6 +100,18 @@ async function main(): Promise<void> {
     await stack.stop()
   }
 }
+
+const USAGE = `pnpm screenshots:shots --screens a,b [options]
+
+  --screens a,b    the screens to shoot (bare names work too)
+  --all            every screen, instead of --screens
+  --label <name>   output directory name (default: capture)
+  --out <dir>      capture root to write the label into
+  --themes light   only these themes (default: light,dark)
+  --list           print the screen list and exit
+  --no-seed        capture whatever is in the state dir already
+  --fresh          re-seed a clean world first
+  --hosted         the hosted build and its screens (comments)`
 
 function resolveThemes(names: string[]): Theme[] {
   if (names.length === 0) return [...THEMES]

@@ -8,7 +8,7 @@ screenshots for design review, and the screenshots in these docs
 Every design-polish ticket ships before/after screenshots on its PR, so design
 can be reviewed in the pull request instead of by cloning the branch. The
 harness is the scripted path to those images: one command boots the local build against a seeded fixture world, one
-captures the named screens in light and dark, one records a short video of a
+captures the screens you name in light and dark, one records a short video of a
 named interaction.
 
 ## The three commands
@@ -18,7 +18,7 @@ Run them from `apps/app`.
 ```bash
 pnpm screenshots:browsers   # once per machine: download Chromium + ffmpeg
 pnpm screenshots:boot       # seed a fresh world and serve it at :3947
-pnpm screenshots:shots      # capture every named screen, light and dark
+pnpm screenshots:shots --screens canvas   # capture named screens, light and dark
 pnpm screenshots:video open-canvas   # record one named interaction (GIF + MP4)
 ```
 
@@ -31,14 +31,15 @@ iterate. Whichever one started the server stops it again.
 
 ## The before/after workflow
 
-Capture the base branch first, then your own, into two labels:
+Capture the base branch first, then your own, into two labels. Name only the
+screens your change shows up on:
 
 ```bash
 git switch main
-pnpm --filter app screenshots:shots --label before
+pnpm --filter app screenshots:shots --label before --screens canvas,settings
 
 git switch my-polish-branch
-pnpm --filter app screenshots:shots --label after
+pnpm --filter app screenshots:shots --label after --screens canvas,settings
 ```
 
 Both runs shoot the same named screens at the same size, so
@@ -53,21 +54,33 @@ worktree instead:
 ```bash
 git worktree add ../screenplay-before <old-base>
 cd ../screenplay-before && pnpm install
-pnpm --filter app screenshots:shots --label before \
+pnpm --filter app screenshots:shots --label before --screens canvas \
   --out ../screenplay/apps/app/.screenshots/captures
 ```
 
-### Narrowing a run
+Your scratch screens (see [Adding a screen](#adding-a-screen)) aren't in the
+worktree. Copy your file from `screenshots/screens/scratch/` into the
+worktree's `scratch/` folder before the "before" run.
+
+### Choosing screens
 
 ```bash
-pnpm screenshots:shots --list                    # the named screens
-pnpm screenshots:shots --screens canvas,settings # just these
-pnpm screenshots:shots --themes dark             # just one theme
-pnpm screenshots:shots --fresh                   # re-seed a clean world first
+pnpm screenshots:shots --list                         # the named screens
+pnpm screenshots:shots --screens canvas,settings      # just these
+pnpm screenshots:shots --screens canvas --themes dark # just one theme
+pnpm screenshots:shots --screens canvas --fresh       # re-seed a clean world first
+pnpm screenshots:shots --all                          # every screen
 ```
 
+`shots` needs `--screens` or `--all`. Every screen in both themes is over 500
+shots and a long wait, which a PR almost never needs, so it has to be asked for.
 `--fresh` needs the database to itself, so stop a running `boot` before using
 it.
+
+Most of a short run is booting the app and compiling each route on its first
+request, which the first run in a fresh checkout pays in full. To shoot several
+times in a row, keep `pnpm screenshots:boot` running in another terminal:
+`shots` reuses it and goes straight to capturing.
 
 ### Recording an interaction
 
@@ -101,18 +114,38 @@ the same one on their branch and compare like for like.
 
 ## Adding a screen
 
-`apps/app/screenshots/screens.ts` is the named screen list, and adding to it is
-a few lines. Light and dark, the viewport, settling, and the output filename are
-the runner's job:
+Most screens you shoot aren't committed. The harness keeps a short **core**
+list (`apps/app/screenshots/screens/core.ts`, one or two screens per main
+surface) as a shared baseline. The exact state your change shows up in goes in
+a **scratch** file: any `.ts` file in `apps/app/screenshots/screens/scratch/`,
+which is gitignored. Write it, shoot before and after, attach the images to the
+PR, and leave the file out of the commit. Because the folder is untracked, it
+stays put when you switch branches, so the same screens shoot on both sides.
+Light and dark, the viewport, settling, and the output filename are the
+runner's job:
 
 ```ts
-{
-  name: "canvas-narrow",
-  description: "The Canvas at a narrow window, where the panels compete for width.",
-  path: `/${ids.rooms.checkout}`,
-  viewport: { width: 1024, height: 768 },
-}
+// apps/app/screenshots/screens/scratch/canvas-narrow.ts
+import type { Screen } from "../screen"
+import { ids } from "../helpers"
+
+const screens: Screen[] = [
+  {
+    name: "canvas-narrow",
+    description: "The Canvas at a narrow window, where the panels compete for width.",
+    path: `/${ids.rooms.checkout}`,
+    viewport: { width: 1024, height: 768 },
+  },
+]
+
+export default screens
 ```
+
+Shared steps (opening a chat tab, replaying a chat run, stubbing a stream) are
+in `screenshots/screens/helpers.ts`. Earlier PRs' screens are in git history
+and make good starting points: `git log -- apps/app/screenshots/screens.ts`
+finds the old single-file list. Add to `core.ts` only when a surface has no
+baseline screen at all.
 
 A screen that needs a panel open or a tab selected adds `cookies` (preferred —
 the screen paints correct rather than being clicked correct) or a `prepare`
@@ -123,14 +156,15 @@ A surface whose content streams in over the network — the terminal's
 WebSocket, the sandbox logs — adds `beforeNavigate` stubs, installed before the first
 navigation, since the fixture world has no running sandbox to answer.
 `screenshots/fixtures/streams.ts` has the terminal and logs stubs the
-`terminal`, `logs-reconnecting` and `logs-error` screens use.
+`terminal` screen uses.
 
 A failure state is simulated rather than staged. `failServerActions` (in
-`screens.ts`) answers every server action with a 500, from `beforeNavigate` to
+`screens/helpers.ts`) answers every server action with a 500, from `beforeNavigate` to
 fail a page's loads or from `prepare` to fail only the mutation it then drives.
 A failure the browser can't cause, such as the home layout's server-side load,
 is a **fixture fault**: a cookie `apps/app/lib/fixture-faults.ts` honours only
-in the fixture world (`fixtureFault("home-load")`).
+in the fixture world (`fixtureFault("home-load")`, in
+`screens/helpers.ts`).
 
 Interactions live next door in `interactions.ts`, same shape.
 
@@ -260,7 +294,7 @@ in a plain capture:
 Add `--hosted` to any harness command to shoot the **hosted build** instead:
 
 ```bash
-pnpm screenshots:shots --hosted --label after
+pnpm screenshots:shots --hosted --label after --screens player-comments
 ```
 
 It runs the same fixture world with the multi-user surface switched back on:
@@ -271,16 +305,14 @@ capture browser carries, so there's no GitHub sign-in. Its state lives in
 `.screenshots/hosted/` and it serves on port 3949, so it never collides with a
 local run.
 
-A screen with `hosted: true` in `screens.ts` is shot only by hosted runs, and a
+A screen with `hosted: true` is shot only by hosted runs, and a
 hosted run shoots only those, so each set still diffs file-for-file. The
-comment screens (`player-comments`, `canvas-comments-list`, …) live there.
+core comment screens are `player-comments` and `canvas-comments-list`.
 
-Two more things vary by machine rather than by branch, so ignore them in a diff
-(or leave those screens out of it):
+**Settings → Coding agents** reads the host live, so it shows whichever CLIs
+are installed where you ran the capture. That varies by machine rather than by
+branch, so ignore it in a diff or leave those screens out of it.
 
-- **Settings → Coding agents** reads the host live, so it shows whichever CLIs
-  are installed where you ran the capture.
-- **Thumbnail capture**: the harness seeds each Canvas's thumbnail itself, but a
-  running app may re-capture frames with headless Chromium. It can't launch as
-  root (so a container run logs a skip and keeps the seeded images) and the
-  seeded and re-captured versions differ slightly.
+Canvas thumbnails are always the seeded ones: the harness answers the Canvas's
+requests to re-capture them, so a capture run never launches the app's own
+headless Chromium.

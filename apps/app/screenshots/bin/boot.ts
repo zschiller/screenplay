@@ -45,7 +45,9 @@ async function main(): Promise<void> {
   console.log(
     `  Screenplay (${build} build, fixture world) → ${profile.baseUrl}`
   )
-  console.log(`  Capture it:  pnpm screenshots:shots --label after${flag}`)
+  console.log(
+    `  Capture it:  pnpm screenshots:shots --label after --screens <names>${flag}`
+  )
   console.log(`  Stop it:     Ctrl-C`)
   console.log("")
 

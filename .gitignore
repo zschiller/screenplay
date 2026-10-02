@@ -69,3 +69,6 @@ apps/desktop/src-tauri/icons/dmg-volume.icns
 
 # Pagefind search index, built by `pnpm build` (apps/docs)
 apps/docs/public/_pagefind
+# A PR's own screenshot screens: written for its before/after, never committed.
+apps/app/screenshots/screens/scratch/*
+!apps/app/screenshots/screens/scratch/README.md
