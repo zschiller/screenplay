@@ -48,11 +48,14 @@ export type CoordinatorStart =
       repoName?: string
     }
   | { kind: "busy" }
+  /** No repository yet: the Coordinator makes Mockups and Documents itself. */
+  | { kind: "no-repository" }
 
 /**
- * Which empty state the Coordinator shows (#1182): a fresh canvas (at least
- * one repository, a fresh Workspace on it, and no Workspace that has had a
- * turn) asks what should change; any other canvas asks about the canvas.
+ * Which empty state the Coordinator shows (#1182): a canvas with no repository
+ * offers Mockups and Documents, which it makes itself; a fresh canvas (at
+ * least one repository, a fresh Workspace on it, and no Workspace that has had
+ * a turn) asks what should change; any other canvas asks about the canvas.
  */
 export function coordinatorStart({
   repos,
@@ -61,11 +64,8 @@ export function coordinatorStart({
   repos: readonly RepoNaming[]
   branches: readonly FreshnessFields[]
 }): CoordinatorStart {
-  if (
-    repos.length === 0 ||
-    branches.length === 0 ||
-    !branches.every(isFreshWorkspace)
-  ) {
+  if (repos.length === 0) return { kind: "no-repository" }
+  if (branches.length === 0 || !branches.every(isFreshWorkspace)) {
     return { kind: "busy" }
   }
   return repos.length === 1

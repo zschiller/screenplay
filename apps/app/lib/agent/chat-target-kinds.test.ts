@@ -203,6 +203,31 @@ describe("the Coordinator only delegates", () => {
     )
   })
 
+  it("makes Documents and Mockups itself on a canvas with no repository", () => {
+    const tools = names(
+      roomChatTarget.buildTools(room, {
+        userId: "user-1",
+        hasRepository: false,
+      })
+    )
+
+    expect(tools).toEqual(expect.arrayContaining(documentAndMockupWrites))
+    expect(tools).toEqual(expect.arrayContaining(arrangeAndCamera))
+  })
+
+  it("tells the Coordinator to write them itself when there's no repository", () => {
+    const prompt = roomChatTarget.buildSystemPrompt(
+      { canvasSummary: "", memory: [], hasRepository: false },
+      {}
+    )
+
+    expect(prompt).not.toContain("You can't write or edit a document")
+    expect(prompt).toContain("call `create_document`")
+    expect(prompt).toContain("call `create_mockup`")
+    expect(prompt).toContain("[mockup: <id>]")
+    expect(prompt).toContain("add a repository first")
+  })
+
   it("gives a Workspace chat no arrange or camera tools", () => {
     const sandbox: ToolContext = { sandboxName: "sb-1", room, userId: "user-1" }
     const tools = names(

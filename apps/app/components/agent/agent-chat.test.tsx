@@ -109,4 +109,22 @@ describe("AgentChat — affordances per Chat Target", () => {
       screen.getByRole("button", { name: "What's on this canvas?" })
     ).toBeTruthy()
   })
+  it("offers Mockups, Documents and Add repository on a canvas with no repository", () => {
+    render(
+      <AgentChat
+        chatId="chat-room"
+        roomId="room-1"
+        target={{ kind: "room" }}
+        roomStart={{ kind: "no-repository" }}
+        onPlanModeChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText("Sketch or write something")).toBeTruthy()
+    expect(screen.getByText(/Ask for a Mockup or a Document/)).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Add repository" })).toBeTruthy()
+    expect(
+      screen.queryByRole("button", { name: "What's on this canvas?" })
+    ).toBeNull()
+  })
 })

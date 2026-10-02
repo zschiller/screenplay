@@ -529,6 +529,8 @@ or document: it sees every Repo, Branch and Layer, arranges the Canvas, creates
 Branches, and hands work to their agents through **Delegated Messages**. It
 makes nothing itself: Documents, Mockups and code all come from a Branch's
 chat, and only the Room Target arranges the Canvas or moves the view (#1316).
+The one exception is a Room with no Repo: with no Branches to ask, the Room
+Target writes Documents and Mockups itself and owns them, until a Repo is added.
 Its kind is `room`, named for its target like the other kinds, never for its role.
 It works like a Claude Projects chat: a Room has **exactly one** Room Target
 chat, it hears every Branch's turns (Branches are its threads), and it stays

@@ -59,6 +59,8 @@ describe("coordinatorStart", () => {
 
   it("asks about the canvas with no Workspace or no repository", () => {
     expect(coordinatorStart({ repos: [repo], branches: [] }).kind).toBe("busy")
-    expect(coordinatorStart({ repos: [], branches: [] }).kind).toBe("busy")
+    expect(coordinatorStart({ repos: [], branches: [] }).kind).toBe(
+      "no-repository"
+    )
   })
 })

@@ -14,6 +14,7 @@ import {
   roomChatTarget,
 } from "./chat-target-kinds"
 import { ensureRoomChat } from "@/lib/room-chat"
+import { roomHasRepository } from "./no-repository-tools"
 import type { RoomAccess } from "@/lib/room-access"
 import { DEFAULT_MODEL } from "./providers"
 import {
@@ -244,6 +245,7 @@ export function roomTurn(input: {
         roomChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
         coordinatorTarget(room, chatId, {
           requesterId: input.requesterId,
+          hasRepository: await roomHasRepository(room),
         }) as unknown as never,
         undefined,
         { toolNaming: toolNamingForTurn(input.model) }
@@ -280,12 +282,13 @@ export function roomTurn(input: {
 export function coordinatorTarget(
   room: RoomAccess,
   coordinatorChatId: string,
-  opts: { turnId?: string; requesterId?: string } = {}
+  opts: { turnId?: string; requesterId?: string; hasRepository?: boolean } = {}
 ): RoomTarget {
   return {
     userId: room.userId,
     turnId: opts.turnId,
     requesterId: opts.requesterId,
+    hasRepository: opts.hasRepository,
     coordinatorChatId,
     launchWorkspaceTurn: delegatedTurnLauncher(room, coordinatorChatId),
     // Provisioned with the owner's GitHub account, as the create they asked

@@ -205,11 +205,19 @@ export interface RoomTarget {
    * turn, the owner of the Workspace that woke it (`wakeRequesterId`).
    */
   requesterId?: string
+  /**
+   * False on a canvas with no repository (`roomHasRepository`): there are no
+   * Workspaces, so the Coordinator writes Documents and Mockups itself.
+   * Defaults to true, where it only delegates.
+   */
+  hasRepository?: boolean
 }
 
 interface RoomContext {
   canvasSummary: string
   memory: MemoryData[]
+  /** False on a canvas with no repository: the Coordinator makes Documents and Mockups itself. */
+  hasRepository?: boolean
 }
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
@@ -262,12 +270,13 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       ),
       loadCanvasMemory(room),
     ])
-    return { canvasSummary, memory }
+    return { canvasSummary, memory, hasRepository: target.hasRepository }
   },
   buildSystemPrompt(ctx, { toolNaming }) {
     return buildRoomSystemPrompt({
       canvasSummary: ctx.canvasSummary,
       memory: ctx.memory,
+      hasRepository: ctx.hasRepository,
       skills: getSkillIndex("coordinator"),
       toolNaming,
     })
@@ -278,6 +287,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       room,
       ports: liveRoomToolPorts(room, target),
       turnId: target.turnId,
+      hasRepository: target.hasRepository,
     })
   },
   // No turn markers: there is no branch, and plan mode belongs to sandbox

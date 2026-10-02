@@ -181,6 +181,7 @@ import { FrameAskCard, frameAskTarget } from "./frame-ask-card"
 import type { ComposerSubmitPayload } from "@/components/agent/composer"
 import {
   defaultFrameAnswerer,
+  COORDINATOR,
   defaultNewWorkspaceRepoId,
   forMockup,
   NEW_CHAT,
@@ -1286,18 +1287,24 @@ export function Canvas({
   const handleAskForMockupKnob = useCallback(
     (mockupId: string) => {
       const mockup = mockupLayers.find((m) => m.id === mockupId)
-      const chat = chatSessions.find((c) => c.id === mockup?.ownerChatId)
-      if (!mockup || !chat?.branchId) return
+      if (!mockup) return
+      const prompt = `Add a knob to the Mockup "${mockup.title || "Untitled"}" that controls `
+      // A Mockup the Coordinator made on a canvas with no repository.
+      if (mockup.ownerChatId === roomChatId(roomId)) {
+        chatTarget.showRoomChat()
+        chatTarget.expandPanel()
+        inputStore.prefill(mockup.ownerChatId, prompt)
+        return
+      }
+      const chat = chatSessions.find((c) => c.id === mockup.ownerChatId)
+      if (!chat?.branchId) return
       chatTarget.selectAgentChat(chat.branchId, chat.id, {
         expandPanel: true,
         remember: true,
       })
-      inputStore.prefill(
-        chat.id,
-        `Add a knob to the Mockup "${mockup.title || "Untitled"}" that controls `
-      )
+      inputStore.prefill(chat.id, prompt)
     },
-    [mockupLayers, chatSessions, chatTarget]
+    [mockupLayers, chatSessions, chatTarget, roomId]
   )
 
   // Repopulate the Element Reference controller's live inputs every render so
@@ -1480,10 +1487,10 @@ export function Canvas({
   // The drawn Mockup box whose ask card is open (#1359). Per-viewer and only a
   // box until sent: Esc or clicking away drops it, leaving nothing behind.
   const [askMockupBox, setAskMockupBox] = useState<DrawnRect | null>(null)
+  // With no repository there are no Workspaces, so the Coordinator answers.
   const handleMockupDrawn = useCallback(
     (rect: DrawnRect) => {
-      if (!newChatRepoId) return
-      setAskAnswerer(answererFromSelection())
+      setAskAnswerer(newChatRepoId ? answererFromSelection() : COORDINATOR)
       setAskFrameId(null)
       setAskMockupBox(rect)
     },
@@ -1622,6 +1629,31 @@ export function Canvas({
         showMockup()
         return
       }
+      // No repository: the Coordinator owns the Mockup and sketches it, in
+      // the panel's home chat.
+      if (answerer.kind === "coordinator") {
+        const chatId = roomChatId(roomId)
+        ops.createMockup({
+          id: mockup.id,
+          html: "",
+          title: "",
+          width: box.width,
+          height: box.height,
+          ownerChatId: chatId,
+          anchor: { x: box.x, y: box.y },
+        })
+        showMockup()
+        chatTarget.showRoomChat()
+        chatTarget.expandPanel()
+        chatStore.sendMessage({
+          roomId,
+          chatId,
+          target: { kind: "room" },
+          message: prompt,
+          model: payload.model,
+        })
+        return
+      }
       const repo = repos.find((r) => r.id === newChatRepoId)
       if (!repo) return
       void createBranch(
@@ -1639,6 +1671,8 @@ export function Canvas({
       repos,
       newChatRepoId,
       createBranch,
+      roomId,
+      chatTarget,
       setSelectedGroupIds,
       setSelectedIframeLayerIds,
       setSelectedDocumentLayerIds,
@@ -1922,9 +1956,7 @@ export function Canvas({
           current={
             chatTarget.target?.kind === "agent"
               ? { kind: "agent", id: chatTarget.target.agent.id }
-              : repos.length > 0
-                ? { kind: "room" }
-                : { kind: "none" }
+              : { kind: "room" }
           }
           onShowRoomChat={chatTarget.showRoomChat}
           onSelectWorkspace={chatTarget.selectAgent}
@@ -2356,7 +2388,10 @@ export function Canvas({
                     onClose={closeCursorChat}
                   />
                 ) : null}
-                {isCanvasEmpty && <CanvasEmptyState toolMode={toolMode} />}
+                {/* A drawn Mockup box asking what to show already took the click. */}
+                {isCanvasEmpty && !askMockupBox && (
+                  <CanvasEmptyState toolMode={toolMode} />
+                )}
                 {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
                 (same layer, earlier in DOM order) so the pills stay clickable
@@ -2541,7 +2576,6 @@ export function Canvas({
                 tabPool={tabPool}
                 chatSessions={chatSessions}
                 localTerminals={terminalTabs.tabs}
-                repos={repos}
                 roomId={roomId}
                 diffStats={diffStats}
                 branchPrs={branchPrs}

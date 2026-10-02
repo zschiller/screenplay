@@ -7,11 +7,17 @@ import {
   useRef,
   useSyncExternalStore,
 } from "react"
-import { ClockIcon, FileTextIcon, XIcon } from "@workspace/ui/components/icons"
+import {
+  ClockIcon,
+  FileTextIcon,
+  FolderPlusIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { GripSpinner } from "@/components/grip-spinner"
+import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { chatStore, sentTurn } from "@/lib/chat-store"
 import { describeSendError } from "@/lib/agent/chat-errors"
@@ -581,6 +587,29 @@ function ChatEmptyState({
   onPickStarter: (text: string) => void
 }) {
   const fresh = roomStart?.kind === "fresh"
+  // With no repository the Coordinator makes Mockups and Documents itself;
+  // code waits for a repository, so the way to add one sits right here.
+  if (roomStart?.kind === "no-repository") {
+    return (
+      <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">
+            Sketch or write something
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Ask for a Mockup or a Document. Add a repository to change code and
+            preview it in frames.
+          </p>
+        </div>
+        <AddRepositoryTrigger align="center">
+          <Button type="button" variant="outline" size="sm">
+            <FolderPlusIcon />
+            Add repository
+          </Button>
+        </AddRepositoryTrigger>
+      </div>
+    )
+  }
   const starters = fresh ? [] : capabilities.starters
   return (
     <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">

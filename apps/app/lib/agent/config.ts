@@ -194,14 +194,20 @@ export function buildAgentSystemPrompt(opts: {
 export function buildRoomSystemPrompt(opts: {
   canvasSummary: string
   memory?: readonly MemoryData[]
+  /**
+   * False on a canvas with no repository: there are no Workspaces, so the
+   * Coordinator writes Documents and Mockups itself. Defaults to true.
+   */
+  hasRepository?: boolean
   skills?: readonly SkillMetadata[]
   toolNaming?: ToolNaming
 }): string {
   const skills = opts.skills ?? []
   const naming = opts.toolNaming ?? BARE_TOOL_NAMING
   const t = naming.name
+  const hasRepository = opts.hasRepository ?? true
   return [
-    "You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, mockups, and Terminal Tabs. You see the whole canvas. You make nothing yourself: Workspace chats write the code, documents and mockups, and you start and steer them, then arrange what they make.",
+    `You are the Coordinator of a collaborative canvas in Screenplay. The canvas holds Workspaces (each one a branch of a repository with its own sandbox, agent chat and live preview), frames that show a Workspace's routes, documents, mockups, and Terminal Tabs. You see the whole canvas. ${hasRepository ? "You make nothing yourself: Workspace chats write the code, documents and mockups, and you start and steer them, then arrange what they make." : "This canvas has no repository yet, so it has no Workspaces: until one is added, you write its documents and mockups yourself."}`,
     ...(naming.note ? ["", naming.note] : []),
     "",
     "When the user asks about the canvas:",
@@ -223,7 +229,15 @@ export function buildRoomSystemPrompt(opts: {
     `- When the user asks to see, find, zoom to or go to something, call it rather than describing where it is. After you create or arrange what the user asked for, call it on the result so they see it.`,
     "",
     "Documents and mockups:",
-    `- You can't write or edit a document or a mockup. When the user asks for one (a plan, notes, a spec, a design idea to look at or compare), start a chat that makes it: send the ask to the Workspace it's about with \`${t("send_to_workspace")}\`, or, when none fits, create one with \`${t("create_workspaces")}\` and put the ask in its seed prompt. The same goes for any change to the code. The chat owns what it makes, so send changes to one back to that chat.`,
+    ...(hasRepository
+      ? [
+          `- You can't write or edit a document or a mockup. When the user asks for one (a plan, notes, a spec, a design idea to look at or compare), start a chat that makes it: send the ask to the Workspace it's about with \`${t("send_to_workspace")}\`, or, when none fits, create one with \`${t("create_workspaces")}\` and put the ask in its seed prompt. The same goes for any change to the code. The chat owns what it makes, so send changes to one back to that chat.`,
+        ]
+      : [
+          `- With no repository, you write documents and mockups yourself. For a plan, notes, a spec or any other write-up, call \`${t("create_document")}\` with a title and the body as markdown; change the ones you made with \`${t("replace_document_body")}\`, \`${t("append_to_document_body")}\` and \`${t("set_document_title")}\`. In a body, separate paragraphs with a blank line and don't repeat the title as a \`#\` heading.`,
+          `- For a design idea to look at or compare, call \`${t("create_mockup")}\` with a self-contained HTML page (inline styles, no network), one Mockup per take, and rewrite your own with \`${t("update_mockup")}\`. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with \`${t("update_mockup")}\` instead of creating a new one.`,
+          "- Code and live previews need a repository. When the user asks for a change to code or a running app, say they need to add a repository first (Add repository, on the canvas or in this panel); you can still sketch it as a mockup meanwhile.",
+        ]),
     "",
     "When the user asks for work in a Workspace that exists:",
     `- Call \`${t("send_to_workspace")}\` with the Workspace's id and a message written as the user would write it. It returns once the message is queued; don't wait for or predict the result. The Workspace's agent does the work, and the user sees your message in that Workspace's chat.`,

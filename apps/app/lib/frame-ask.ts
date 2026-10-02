@@ -68,11 +68,19 @@ export function forMockup(
   return text ? `${text}\n\n${target}` : target
 }
 
-/** Who answers a drawn frame's ask: a new chat, or a Workspace's own chat. */
+/**
+ * Who answers a drawn frame's ask: a new chat, or a Workspace's own chat. On a
+ * canvas with no repository a drawn Mockup box's ask goes to the Coordinator,
+ * which makes Mockups itself while there are no Workspaces.
+ */
 export type FrameAnswerer =
-  { kind: "new-chat" } | { kind: "workspace"; branchId: string }
+  | { kind: "new-chat" }
+  | { kind: "workspace"; branchId: string }
+  | { kind: "coordinator" }
 
 export const NEW_CHAT: FrameAnswerer = { kind: "new-chat" }
+
+export const COORDINATOR: FrameAnswerer = { kind: "coordinator" }
 
 /**
  * Who answers by default (#1357, spec #1355), from the canvas selection when

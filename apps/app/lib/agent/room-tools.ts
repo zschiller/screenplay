@@ -18,6 +18,8 @@ import {
 } from "@/lib/agent/room-read-tools"
 import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
 import { QUESTION_TOOL_ANNOTATIONS } from "@/lib/agent/question-tools"
+import { DOCUMENT_TOOL_ANNOTATIONS } from "@/lib/agent/document-tools"
+import { MOCKUP_TOOL_ANNOTATIONS } from "@/lib/agent/mockup-tools"
 import {
   addMemory,
   editMemory,
@@ -173,6 +175,10 @@ export const ROOM_TOOL_ANNOTATIONS: Readonly<
   // Shared by every chat's toolset (`layer-read-tools.ts`, `question-tools.ts`).
   read_document: { readOnlyHint: true, openWorldHint: false },
   ...QUESTION_TOOL_ANNOTATIONS,
+  // Documents and Mockups the Coordinator makes on a canvas with no
+  // repository (`no-repository-tools.ts`).
+  ...DOCUMENT_TOOL_ANNOTATIONS,
+  ...MOCKUP_TOOL_ANNOTATIONS,
   // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
   // undoable with `undo_changes`, so none is destructive.
   create_frames: { destructiveHint: false, openWorldHint: false },

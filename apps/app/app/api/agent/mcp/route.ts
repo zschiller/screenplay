@@ -1,6 +1,7 @@
 import { openRoomForRoute } from "@/lib/room-access"
 import { isLocalBuild } from "@/lib/local-mode"
 import { roomChatTarget } from "@/lib/agent/chat-target-kinds"
+import { roomHasRepository } from "@/lib/agent/no-repository-tools"
 import {
   buildDocumentTools,
   DOCUMENT_TOOL_ANNOTATIONS,
@@ -127,7 +128,10 @@ export async function POST(req: Request) {
     version: "1",
     tools: roomChatTarget.buildTools(
       room,
-      coordinatorTarget(room, binding.chatId, { turnId: run?.id })
+      coordinatorTarget(room, binding.chatId, {
+        turnId: run?.id,
+        hasRepository: await roomHasRepository(room),
+      })
     ),
     annotations: ROOM_TOOL_ANNOTATIONS,
     // A wrong URL or token only ever shows up as "the tools aren't there", so

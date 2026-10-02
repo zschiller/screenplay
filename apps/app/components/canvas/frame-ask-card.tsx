@@ -16,6 +16,7 @@ import {
   type ComposerSubmitPayload,
 } from "@/components/agent/composer"
 import { NEW_CHAT, type FrameAnswerer } from "@/lib/frame-ask"
+import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
 import type { BranchData, MarkdownLayerData } from "@/lib/types"
 import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
 
@@ -211,6 +212,15 @@ function AnswererChip({
   onChange: (answerer: FrameAnswerer) => void
 }) {
   const [open, setOpen] = useState(false)
+  // With no repository the Coordinator is the only one who can answer, so the
+  // chip only says so.
+  if (answerer.kind === "coordinator") {
+    return (
+      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2 text-xs text-foreground">
+        {ROOM_CHAT_LABEL}
+      </span>
+    )
+  }
   const workspace =
     answerer.kind === "workspace"
       ? workspaces.find((b) => b.id === answerer.branchId)
