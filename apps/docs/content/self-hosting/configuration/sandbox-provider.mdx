@@ -38,18 +38,18 @@ effect after a restart that loses every running process.
 Sandboxes boot from a custom image: Vercel's Ubuntu image
 (`vercel/sandbox/universal`, with Node, pnpm, git and the coding CLIs) plus
 Google Chrome, Xvfb and ffmpeg for shared frames. Its Dockerfile is in
-`apps/app/sandbox-image/`. The app creates sandboxes from the
+`apps/app/vercel-sandbox-image/`. The app creates sandboxes from the
 `screenplay-workspace` repository in your app project's
 [Vercel Container Registry](https://vercel.com/docs/container-registry), or
-from `SANDBOX_IMAGE` if you set it. Push the image before your first deploy,
+from `VERCEL_SANDBOX_IMAGE` if you set it. Push the image before your first deploy,
 or creating a workspace fails with an error naming the missing image.
 
-The `Sandbox image` GitHub workflow builds and pushes it whenever the image
+The `Vercel Sandbox image` GitHub workflow builds and pushes it whenever the image
 changes on `main`, and weekly for security updates. It signs in with GitHub
 OIDC, so it needs no secret:
 
 1. In Vercel, add an OIDC policy that trusts your repository's
-   `.github/workflows/sandbox-image.yml`.
+   `.github/workflows/vercel-sandbox-image.yml`.
 2. In your GitHub repository, add the variables `VERCEL_TEAM_ID`,
    `VERCEL_TEAM_SLUG` and `SCREENPLAY_APP_VERCEL_PROJECT_SLUG` (the app
    project). Add them as repository variables, not environment variables: the
@@ -65,7 +65,7 @@ from the repository root of a linked project:
 git clone --depth 1 https://github.com/vercel/sandbox vercel-sandbox
 vercel vcr login docker
 TAGS=vcr.vercel.com/<team>/<project>/screenplay-workspace:latest PUSH=true \
-  docker buildx bake -f apps/app/sandbox-image/docker-bake.hcl workspace
+  docker buildx bake -f apps/app/vercel-sandbox-image/docker-bake.hcl workspace
 ```
 
 Sandbox VMs **hibernate**. Idle sandboxes are snapshotted and reclaimed, and

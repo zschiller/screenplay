@@ -1,9 +1,9 @@
-name: Sandbox image
+name: Vercel Sandbox image
 
-# Builds the image hosted Workspace Sandboxes boot from (apps/app/sandbox-image)
+# Builds the image hosted Workspace Sandboxes boot from (apps/app/vercel-sandbox-image)
 # and pushes it to the app project's Vercel Container Registry as
 # `screenplay-workspace`, which the app creates Sandboxes from by default
-# (`SANDBOX_IMAGE`). Rebuilt weekly so the base image's and Chrome's security
+# (`VERCEL_SANDBOX_IMAGE`). Rebuilt weekly so the base image's and Chrome's security
 # updates reach new Sandboxes.
 #
 # Signs in to VCR with GitHub OIDC, so no secret is stored. Needs a Vercel OIDC
@@ -16,14 +16,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/app/sandbox-image/**"
-      - ".github/workflows/sandbox-image.yml"
+      - "apps/app/vercel-sandbox-image/**"
+      - ".github/workflows/vercel-sandbox-image.yml"
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
 concurrency:
-  group: sandbox-image
+  group: vercel-sandbox-image
   cancel-in-progress: true
 
 permissions:
@@ -61,8 +61,8 @@ jobs:
           team: ${{ vars.VERCEL_TEAM_ID }}
 
       - name: Build and push
-        run: docker buildx bake -f apps/app/sandbox-image/docker-bake.hcl workspace
+        run: docker buildx bake -f apps/app/vercel-sandbox-image/docker-bake.hcl workspace
         env:
-          VERCEL_SANDBOX_IMAGES: vercel-sandbox/images
+          VERCEL_BASE_DOCKERFILES: vercel-sandbox/images
           TAGS: ${{ env.REPOSITORY }}:latest ${{ env.REPOSITORY }}:${{ github.sha }}
           PUSH: "true"

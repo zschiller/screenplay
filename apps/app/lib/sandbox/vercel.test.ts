@@ -76,8 +76,8 @@ describe("VercelSandboxProvider.create", () => {
     expect(params.ports).toEqual([3000, 4000, 7681])
   })
 
-  it("uses SANDBOX_IMAGE when it's set", async () => {
-    vi.stubEnv("SANDBOX_IMAGE", "team/project/custom:v2")
+  it("uses VERCEL_SANDBOX_IMAGE when it's set", async () => {
+    vi.stubEnv("VERCEL_SANDBOX_IMAGE", "team/project/custom:v2")
     sdk.create.mockResolvedValue(fakeSdkSandbox())
     await getVercelSandboxProvider().create(gitOpts)
     expect(sdk.create.mock.calls[0][0].image).toBe("team/project/custom:v2")
