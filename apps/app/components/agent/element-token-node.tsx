@@ -57,7 +57,11 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
               (zero width) and composer-only; the sent bubble uses renderHTML.
             */}
             {"\u200B"}
-            <CrosshairIcon aria-hidden className="inline-ref-icon" />
+            <CrosshairIcon
+              aria-hidden
+              weight="bold"
+              className="inline-ref-icon"
+            />
             <span className="inline-ref-label">{label}</span>
           </span>
         </HoverCardTrigger>

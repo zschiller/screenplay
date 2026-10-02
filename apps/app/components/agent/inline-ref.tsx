@@ -47,7 +47,7 @@ export function InlineRef({
       {icon ? (
         <span className="inline-ref-icon">{icon}</span>
       ) : (
-        Icon && <Icon aria-hidden className="inline-ref-icon" />
+        Icon && <Icon aria-hidden weight="bold" className="inline-ref-icon" />
       )}
       <span className="inline-ref-label">{children}</span>
     </>
