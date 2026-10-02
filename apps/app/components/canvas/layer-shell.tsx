@@ -84,6 +84,8 @@ interface LayerShellProps {
 
   // ── Zoom & selection ───────────────────────────────────────────────────────
   zoom: number
+  /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
+  labelHidden?: boolean
   selected: boolean
   groupSelected?: boolean
   multiSelected: boolean
@@ -161,6 +163,7 @@ export function LayerShell({
   containerRef,
   containerProps,
   zoom,
+  labelHidden,
   selected,
   groupSelected,
   multiSelected,
@@ -335,6 +338,7 @@ export function LayerShell({
         layerId={layerId}
         layerWidth={width}
         zoom={zoom}
+        hidden={labelHidden}
         dragHandlers={titleDragDisabled ? undefined : dragHandlers}
         onRequestReorderDrag={onRequestReorderDrag}
         groupLabel={groupLabel}

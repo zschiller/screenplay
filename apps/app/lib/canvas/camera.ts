@@ -137,9 +137,9 @@ export function unionRect(rects: Iterable<Rect>): Rect | null {
 }
 
 /**
- * Below this zoom, Layer labels and resize handles hide: the labels collapse
- * into overlapping stubs and the handles' constant-size hit zones swallow the
- * tiles they wrap.
+ * Below this zoom, resize handles hide (their constant-size hit zones swallow
+ * the tiles they wrap) and Layer labels shrink to the bare name (see
+ * `hiddenLayerLabels`).
  */
 export const LAYER_DETAIL_MIN_ZOOM = 0.25
 

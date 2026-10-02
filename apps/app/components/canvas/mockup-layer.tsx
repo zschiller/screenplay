@@ -58,6 +58,8 @@ interface MockupLayerProps {
    */
   ownerWorkspace?: FrameWorkspace
   zoom: number
+  /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
+  labelHidden?: boolean
   selected: boolean
   multiSelected: boolean
   spaceHeld: boolean
@@ -143,6 +145,7 @@ export function MockupLayer({
   layer,
   ownerWorkspace,
   zoom,
+  labelHidden,
   selected,
   multiSelected,
   spaceHeld,
@@ -280,6 +283,7 @@ export function MockupLayer({
       containerClassName={`absolute flex flex-col bg-background ${LAYER_SURFACE_CLASS}`}
       containerProps={{ "data-mockup-layer": "" }}
       zoom={zoom}
+      labelHidden={labelHidden}
       selected={selected}
       groupSelected={groupSelected}
       multiSelected={multiSelected}

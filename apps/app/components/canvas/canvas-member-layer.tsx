@@ -1,6 +1,6 @@
 "use client"
 
-import { memo } from "react"
+import { memo, useMemo } from "react"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
 import {
@@ -34,6 +34,7 @@ import type { ElementReference } from "./use-element-reference"
 import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
+import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -212,6 +213,10 @@ function CanvasMemberLayerImpl({
   const handleIframeLayerSelect = selection.selectIframeLayer
   const handleGroupSelect = selection.selectGroup
   const handleDocumentLayerSelect = selection.selectDocumentLayer
+  const labelsHidden = useMemo(
+    () => hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
+    [effectiveIframeLayerLayouts, zoom]
+  )
 
   return (
     <>
@@ -342,6 +347,7 @@ function CanvasMemberLayerImpl({
                 key={doc.id}
                 layer={doc}
                 zoom={zoom}
+                labelHidden={labelsHidden.has(doc.id)}
                 selected={selectedDocumentLayerIds.has(doc.id)}
                 multiSelected={
                   selectedIframeLayerIds.size + selectedDocumentLayerIds.size >
@@ -420,6 +426,7 @@ function CanvasMemberLayerImpl({
                     : workspaceOf(documentWorkspaces.get(mockup.id))
                 }
                 zoom={zoom}
+                labelHidden={labelsHidden.has(mockup.id)}
                 // Mockups share the Document selection Set.
                 selected={selectedDocumentLayerIds.has(mockup.id)}
                 multiSelected={
@@ -524,6 +531,7 @@ function CanvasMemberLayerImpl({
                 iframeUrl: agentInfo?.previewDomain,
               }}
               zoom={zoom}
+              labelHidden={labelsHidden.has(iframeLayer.id)}
               focused={focusedIframeLayerId === iframeLayer.id}
               createFlow={createFlowIframeLayerId === iframeLayer.id}
               selected={selectedIframeLayerIds.has(iframeLayer.id)}

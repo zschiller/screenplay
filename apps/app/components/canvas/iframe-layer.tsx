@@ -125,6 +125,8 @@ export interface IframeLayerData {
 interface IframeLayerProps {
   iframeLayer: IframeLayerData
   zoom: number
+  /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
+  labelHidden?: boolean
   focused: boolean
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
@@ -320,6 +322,7 @@ interface IframeLayerProps {
 export function IframeLayer({
   iframeLayer,
   zoom,
+  labelHidden,
   focused,
   createFlow,
   selected,
@@ -864,6 +867,7 @@ export function IframeLayer({
       containerRef={frameRef}
       containerProps={{ "data-iframe-layer": "" }}
       zoom={zoom}
+      labelHidden={labelHidden}
       selected={selected}
       groupSelected={groupSelected}
       multiSelected={multiSelected}

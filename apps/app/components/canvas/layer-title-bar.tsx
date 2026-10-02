@@ -18,6 +18,8 @@ interface LayerTitleBarProps {
    *  extend past the tile's footprint. */
   layerWidth: number
   zoom: number
+  /** Hides the bar, kept mounted so measurements and rename state survive. */
+  hidden?: boolean
   /** Base move-drag handlers (translate the parent group). Pass `undefined`
    *  to detach all gesture handling (e.g. while a frame is in interactive
    *  mode or the user holds space to pan). */
@@ -78,6 +80,7 @@ export function LayerTitleBar({
   layerId,
   layerWidth,
   zoom,
+  hidden,
   dragHandlers,
   onRequestReorderDrag,
   groupLabel,
@@ -111,10 +114,8 @@ export function LayerTitleBar({
   return (
     <div
       className={cn(
-        "canvas-frame-label absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap",
-        // At very low zoom the labels shrink to overlapping stubs; hide them
-        // (kept mounted so measurements and rename state survive).
-        !showsLayerDetail(zoom) && "invisible"
+        "canvas-frame-label group/title-bar absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap",
+        hidden && "invisible"
       )}
       style={{
         // `--label-promote` resolves to `translateZ(0)`, which lifts the label
@@ -136,10 +137,14 @@ export function LayerTitleBar({
         maxWidth: layerWidth * zoom,
         marginBottom: 4 / zoom,
       }}
+      // Far out, a label is just the Layer's name: the group label and the
+      // name's accessories would crowd the rows of Layers above.
+      data-compact={showsLayerDetail(zoom) ? undefined : ""}
       {...labelDragHandlers}
     >
       {groupLabel && !reorderDragPopped && (
         <div
+          className="group-data-compact/title-bar:hidden"
           style={
             reorderDragTranslateX != null || reorderDragTranslateY != null
               ? {
@@ -282,9 +287,18 @@ export function LayerLabelRow({
       className="flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible"
       style={style}
     >
-      {leading}
+      {leading && <AccessorySlot>{leading}</AccessorySlot>}
       <LayerTitleText {...titleProps} />
-      {trailing}
+      {trailing && <AccessorySlot>{trailing}</AccessorySlot>}
+    </div>
+  )
+}
+
+/** A name's accessory, dropped while the title bar is compact (far out). */
+function AccessorySlot({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="contents group-data-compact/title-bar:hidden">
+      {children}
     </div>
   )
 }
