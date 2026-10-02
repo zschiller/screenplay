@@ -81,3 +81,29 @@ rendering ~40% plus encoding). WebRTC decoded a steady 60 fps (13 ms jitter buff
 - A Mac. The desktop preview is WKWebView, which can't be grabbed this way. The Mac would need its
   own Chromium plus Xvfb-style offscreen capture, or ScreenCaptureKit on a hidden window.
 - H.264 decode in a real browser, hardware encode, and HiDPI (2x) streams.
+
+## Idle pause and resume (#1368)
+
+`server.mjs --pause viewers [--pause-after ms]` stops a frame's encoder when nobody is watching and
+starts it again when someone looks. The browser keeps running throughout, so no state is lost.
+`--decimate` drops frames identical to the last one before they are encoded. `join.mjs` times a
+viewer's wait for its first picture.
+
+| | CPU (of 200%) | Memory |
+|---|---|---|
+| Paused (no viewers) | about 1% | the browser stays (about 330 MB PSS for the demo page) |
+| Watched, still page, 60 fps, H.264 | 82% | |
+| Watched, still page, 60 fps, H.264 + skip unchanged | 50% (the 60 fps screen grab is most of it) | |
+| Watched, busy page, 60 fps, with or without skipping | about 118% | |
+
+| Join | First picture p50 / p90 |
+|---|---|
+| Encoder already running | 32 / 43 ms |
+| Resume from paused (encoder restart, first frame is a keyframe) | 185 / 218 ms |
+
+- Skipping unchanged frames costs nothing in latency: click to picture stayed at 34–40 ms p50.
+- With H.264 over the WebSocket, the newest access unit must be flushed when the pipe goes quiet.
+  Otherwise each picture waits for the next one, which never comes on a still page. Fixed in
+  `server.mjs`.
+- Not built: capture that grabs only when Chromium repaints (XDamage, or CDP repaint events as the
+  trigger). It would remove the remaining ~40% grab cost on watched still frames.

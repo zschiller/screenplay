@@ -32,7 +32,10 @@ const CHROME = process.env.CHROME ?? "/opt/pw-browsers/chromium"
 const CPUS = arg("cpus", "")
 // h264 is what shipping browsers (Chrome, Safari, the Mac webview) decode in hardware. The Playwright
 // Chromium in this container has no H.264, so the bench here runs vp8.
-const CODEC = arg("codec", "h264") // e.g. "0,1": pin the streamed stack, as a 2-vCPU Sandbox stand-in
+const CODEC = arg("codec", "h264")
+const PAUSE = arg("pause", "off") // "viewers": stop encoding while nobody watches
+const PAUSE_AFTER = Number(arg("pause-after", 0))
+const DECIMATE = process.argv.includes("--decimate") // e.g. "0,1": pin the streamed stack, as a 2-vCPU Sandbox stand-in
 const pin = (cmd, args) => (CPUS ? ["taskset", ["-c", CPUS, cmd, ...args]] : [cmd, args])
 const kids = []
 const run = (cmd, args, opts = {}) => { const [c, a] = pin(cmd, args); const p = spawn(c, a, { stdio: ["ignore", "pipe", "pipe"], ...opts }); kids.push(p); return p }
@@ -62,11 +65,26 @@ async function startFrame(i) {
   if (!page) throw new Error(`frame ${i}: Chromium didn't come up`)
   const cdp = await connectCdp(page.webSocketDebuggerUrl)
 
-  // One encode per frame. tee writes the same H.264 to stdout (ws transport) and to RTP (webrtc).
   const rtpPort = 5100 + 2 * i
+  const frame = { i, display, xvfb, chrome, enc: null, cdp, rtpPort, ws: new Set(), rtc: new Set(), gop: [], driver: null, requests: [], bytesOut: 0, rtpBytes: 0, aus: 0, idleTimer: null }
+  if (PAUSE === "off") startEncoder(frame)
+
+  // webrtc transport: ffmpeg's RTP packets go straight into every peer's track.
+  const udp = createSocket("udp4")
+  udp.on("message", (pkt) => { frame.rtpBytes += pkt.length; for (const t of frame.rtc) t.writeRtp(pkt) })
+  udp.bind(rtpPort, "127.0.0.1")
+  return frame
+}
+
+// One encode per frame. tee writes the same video to stdout (ws transport) and to RTP (webrtc).
+function startEncoder(frame) {
+  if (frame.enc) return
+  const t0 = Date.now()
   const enc = run("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-f", "x11grab", "-draw_mouse", "0", "-framerate", String(FPS),
-    "-video_size", `${W}x${H}`, "-i", `${display}.0`,
+    "-video_size", `${W}x${H}`, "-i", `${frame.display}.0`,
+    // --decimate: drop frames identical to the last one before encoding, so a still page costs only the grab
+    ...(DECIMATE ? ["-vf", "mpdecimate=max=0", "-fps_mode", "vfr"] : []),
     ...(CODEC === "h264"
       ? ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "baseline",
          "-x264-params", "aud=1:repeat-headers=1", "-bf", "0"]
@@ -74,15 +92,20 @@ async function startFrame(i) {
          "-threads", "2", "-static-thresh", "0", "-max-intra-rate", "300"]),
     "-pix_fmt", "yuv420p", "-g", String(FPS * 2), "-b:v", "3M", "-maxrate", "4M", "-bufsize", "1M",
     "-f", "tee", "-map", "0:v",
-    `[f=${CODEC === "h264" ? "h264" : "ivf"}]pipe\\:1|[f=rtp:payload_type=96]rtp\\://127.0.0.1\\:${rtpPort}?pkt_size=1200`,
+    `[f=${CODEC === "h264" ? "h264" : "ivf"}]pipe\\:1|[f=rtp:payload_type=96]rtp\\://127.0.0.1\\:${frame.rtpPort}?pkt_size=1200`,
   ])
-  enc.stderr.on("data", (d) => process.stderr.write(`[ffmpeg ${i}] ${d}`))
-
-  const frame = { i, display, xvfb, chrome, enc, cdp, rtpPort, ws: new Set(), rtc: new Set(), gop: [], driver: null, requests: [], bytesOut: 0, rtpBytes: 0, aus: 0 }
-
+  frame.enc = enc
+  frame.gop = []
+  enc.stderr.on("data", (d) => process.stderr.write(`[ffmpeg ${frame.i}] ${d}`))
+  let first = true
+  const au = (data, key) => {
+    if (first) { first = false; console.log(`frame ${frame.i}: encoder up, first picture ${Date.now() - t0} ms after start`) }
+    onAccessUnit(frame, data, key)
+  }
   // ws transport: split the Annex B stream into access units on the AUD (00 00 00 01 09), keep the
   // current GOP so a viewer joining mid-stream can start at the last keyframe.
   let buf = Buffer.alloc(0)
+  let flushTimer = null
   if (CODEC === "vp8") {
     // IVF: 32-byte file header, then [4-byte size][8-byte pts][frame] per frame.
     let headerDone = false
@@ -94,7 +117,7 @@ async function startFrame(i) {
         if (buf.length < 12 + size) break
         const f = buf.subarray(12, 12 + size)
         buf = buf.subarray(12 + size)
-        onAccessUnit(frame, Buffer.from(f), (f[0] & 1) === 0)
+        au(Buffer.from(f), (f[0] & 1) === 0)
       }
     })
   } else enc.stdout.on("data", (d) => {
@@ -103,17 +126,32 @@ async function startFrame(i) {
     for (;;) {
       const next = buf.indexOf(AUD, start + 4)
       if (start < 0 || next < 0) break
-      onAccessUnit(frame, buf.subarray(start, next))
+      au(buf.subarray(start, next))
       start = next
     }
     if (start > 0) buf = buf.subarray(start)
+    // ffmpeg writes one access unit per packet, so a pause in the pipe means the last one is whole.
+    // Without this the newest picture waits for the next one (a frame of lag, forever with --decimate).
+    clearTimeout(flushTimer)
+    flushTimer = setTimeout(() => { if (buf.length > AUD.length && buf.indexOf(AUD) === 0) { au(Buffer.from(buf)); buf = Buffer.alloc(0) } }, 2)
   })
 
-  // webrtc transport: ffmpeg's RTP packets go straight into every peer's track.
-  const udp = createSocket("udp4")
-  udp.on("message", (pkt) => { frame.rtpBytes += pkt.length; for (const t of frame.rtc) t.writeRtp(pkt) })
-  udp.bind(rtpPort, "127.0.0.1")
-  return frame
+}
+function stopEncoder(frame) {
+  if (!frame.enc) return
+  frame.enc.kill("SIGKILL")
+  frame.enc = null
+  frame.gop = []
+  console.log(`frame ${frame.i}: paused (no viewers)`)
+}
+// --pause viewers: a frame with nobody watching stops its encoder (the browser keeps running, so no
+// state is lost) and starts it again when someone looks. --pause-after ms waits before pausing.
+function viewersChanged(frame) {
+  if (PAUSE === "off") return
+  const n = frame.ws.size + (frame.wsControl?.size ?? 0)
+  clearTimeout(frame.idleTimer)
+  if (n > 0) startEncoder(frame)
+  else frame.idleTimer = setTimeout(() => stopEncoder(frame), PAUSE_AFTER)
 }
 const AUD = Buffer.from([0, 0, 0, 1, 9])
 
@@ -188,7 +226,7 @@ let last = null
 function sample() {
   const now = Date.now()
   const procs = { server: [process.pid] }
-  for (const f of frames) { procs[`xvfb${f.i}`] = [f.xvfb.pid]; procs[`chrome${f.i}`] = [f.chrome.pid]; procs[`ffmpeg${f.i}`] = [f.enc.pid] }
+  for (const f of frames) { procs[`xvfb${f.i}`] = [f.xvfb.pid]; procs[`chrome${f.i}`] = [f.chrome.pid]; if (f.enc) procs[`ffmpeg${f.i}`] = [f.enc.pid] }
   const cur = { t: now, cpu: {}, pss: {}, bytes: frames.map((f) => [f.bytesOut, f.rtpBytes, f.aus]) }
   for (const [k, [pid]] of Object.entries(procs)) {
     const t = k === "server" ? [{ pid, cpu: (() => { const s = readFileSync(`/proc/${pid}/stat`, "utf8"); const f = s.slice(s.lastIndexOf(")") + 2).split(" "); return +f[11] + +f[12] })() }] : tree(pid)
@@ -272,6 +310,7 @@ wss.on("connection", (sock, req) => {
   // webrtc viewers' sockets carry only control; their video arrives by RTP
   if (transport === "ws") frame.ws.add(v)
   else frame.wsControl = (frame.wsControl ?? new Set()).add(v)
+  viewersChanged(frame)
   send(v, JSON.stringify({ type: "hello", you: v.who, width: W, height: H, codec: CODEC }))
   broadcastState(frame)
   if (transport === "ws") for (const msg of frame.gop) send(v, msg)
@@ -305,6 +344,7 @@ wss.on("connection", (sock, req) => {
     // #981: a driver who leaves passes control to the oldest requester (prototype skips the 5s grace)
     if (frame.driver === v.who) frame.driver = frame.requests.shift() ?? null
     frame.requests = frame.requests.filter((r) => r !== v.who)
+    viewersChanged(frame)
     broadcastState(frame)
   })
 })
@@ -312,4 +352,4 @@ wss.on("connection", (sock, req) => {
 await new Promise((r) => server.listen(PORT, "127.0.0.1", r))
 for (let i = 0; i < FRAMES; i++) frames.push(await startFrame(i))
 sample()
-console.log(`live frames on http://127.0.0.1:${PORT}/  (${FRAMES} frame${FRAMES > 1 ? "s" : ""}, ${W}x${H}@${FPS}, page=${PAGE || "still"}, delay=${DELAY}ms, ${CODEC})`)
+console.log(`live frames on http://127.0.0.1:${PORT}/  (${FRAMES} frame${FRAMES > 1 ? "s" : ""}, ${W}x${H}@${FPS}, page=${PAGE || "still"}, delay=${DELAY}ms, ${CODEC}, pause=${PAUSE}${DECIMATE ? ", decimate" : ""})`)

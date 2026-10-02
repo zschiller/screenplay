@@ -112,7 +112,9 @@
     const med = q(0.5)
     return { fps: +(frameTimes.length / seconds).toFixed(1), intervalP50: med, p95: q(0.95), p99: q(0.99), max: q(1), stalls: d.filter((x) => x > med * 1.9).length, rtc: rtcStats }
   }
-  function onPicture() { frameTimes.push(performance.now()); lastColor = probeColour(); if (waiter && lastColor !== waiter.from) { const w = waiter; waiter = null; w.resolve(performance.now() - w.t0) } }
+  window.firstPicture = null
+  sock.addEventListener("open", () => (window.sockOpenAt = performance.now()))
+  function onPicture() { if (window.firstPicture == null) window.firstPicture = Math.round(performance.now() - window.sockOpenAt); frameTimes.push(performance.now()); lastColor = probeColour(); if (waiter && lastColor !== waiter.from) { const w = waiter; waiter = null; w.resolve(performance.now() - w.t0) } }
   const sendInput = (kind, e) => send({ type: "input", kind, e })
   window.sendInput = sendInput
   window.runBench = async (n, kind = "click") => {
