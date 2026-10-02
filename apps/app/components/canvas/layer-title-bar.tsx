@@ -279,7 +279,7 @@ export function LayerLabelRow({
 }: LayerLabelRowProps) {
   return (
     <div
-      className="flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible"
+      className="group/layer-label flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible"
       style={style}
     >
       {leading}

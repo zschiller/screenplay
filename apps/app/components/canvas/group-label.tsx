@@ -20,8 +20,9 @@ import { useWorkspaceHoverProps } from "@/lib/workspace-hover-store"
 import type { FrameWorkspace } from "./frame-nav"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
-/** Switching a whole Group's Workspace from its label (#869). */
-interface GroupWorkspaceSwitch {
+/** Switching a whole Group's Workspace from its label (#869), or one frame's
+ *  from its own label. */
+export interface GroupWorkspaceSwitch {
   /** Workspaces to offer, filtered like every Workspace list. */
   branches: BranchData[]
   /** Footer lines: what the pick moves. */
@@ -93,7 +94,7 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
     <div className="group/group-label mb-0.5 flex max-w-full min-w-0 items-center gap-2">
       <GroupName {...props} />
       {"mixed" in workspace ? (
-        <GroupWorkspaceChooser
+        <WorkspaceChooser
           switcher={workspace.switcher}
           title="Set workspace"
           placeholder={`Show ${props.label} from…`}
@@ -101,7 +102,7 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
           className="hidden group-hover/group-label:flex data-[state=open]:flex"
         />
       ) : workspace.branchId === undefined ? (
-        <GroupWorkspaceChooser switcher={workspace.switcher} />
+        <WorkspaceChooser switcher={workspace.switcher} />
       ) : workspace.switcher ? (
         <GroupWorkspaceSwitcher
           label={props.label}
@@ -198,16 +199,20 @@ function GroupWorkspaceSwitcher({
 /**
  * "Choose a workspace" on the label of a Group whose frames have none yet
  * (#871), styled like the unassigned frame label it replaces, and "Set
- * workspace" on a hovered Group whose frames differ. Picking one sets the
- * Group and every frame in it.
+ * workspace" on a hovered Group whose frames differ, or on a hovered frame
+ * whose Group names its Workspace. Picking one sets everything the switcher
+ * covers.
  */
-function GroupWorkspaceChooser({
+export function WorkspaceChooser({
   switcher,
+  currentBranchId,
   title = "Choose a workspace",
   placeholder,
   className,
 }: {
   switcher: GroupWorkspaceSwitch
+  /** Checked in the list: what the frame shows now, when it shows one. */
+  currentBranchId?: string
   title?: string
   placeholder?: string
   className?: string
@@ -244,10 +249,11 @@ function GroupWorkspaceChooser({
       >
         <WorkspaceCommandList
           branches={switcher.branches}
+          currentBranchId={currentBranchId}
           placeholder={placeholder}
           footer={switcher.summary}
           onPick={(id) => {
-            switcher.onPick(id)
+            if (id !== currentBranchId) switcher.onPick(id)
             setOpen(false)
           }}
         />
