@@ -1,5 +1,6 @@
 import { planRepoTeardown } from "@/lib/branch/intake"
 import { createCanvasOps } from "@/lib/canvas/ops"
+import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName, repoSource } from "@/lib/repo-identity"
 import type { RepoData } from "@/lib/types"
@@ -15,8 +16,8 @@ import type { RoomCollections } from "@/lib/yjs/schema"
 
 /** The run settings a Repository hands to the Canvas Repos switched on from
  *  it. Env var values are copied but left out of "customized" until #1416
- *  decides where they live. */
-type RunSettings = Pick<
+ *  decides where they live. Exported for the edit form's Reset to Settings. */
+export type RunSettings = Pick<
   RepoData,
   | "setupScript"
   | "devScript"
@@ -41,7 +42,7 @@ export function sameRepository(
 }
 
 /** Copies just the run settings, from a Repository or a Canvas Repo. */
-function runSettings(source: RunSettings): RunSettings {
+export function runSettings(source: RunSettings): RunSettings {
   return {
     setupScript: source.setupScript,
     devScript: source.devScript,
@@ -51,6 +52,42 @@ function runSettings(source: RunSettings): RunSettings {
     defaultIframeLayerSizeId: source.defaultIframeLayerSizeId,
     systemPrompt: source.systemPrompt,
   }
+}
+
+/** What a Canvas Repo takes from its Repository: its name and run settings. */
+function settingsFrom(
+  repository: RepoConfig
+): Pick<RepoData, "name"> & RunSettings {
+  return { name: repository.name, ...runSettings(repository) }
+}
+
+/** The settings "customized" compares, with unset fields at their defaults
+ *  so a Repo saved through a form that fills them doesn't read as changed.
+ *  Env var values stay out (#1416). */
+function comparable(source: Pick<RepoData, "name"> & RunSettings) {
+  return [
+    source.name ?? "",
+    source.setupScript ?? "",
+    source.devScript ?? "",
+    source.devServerPort ?? 3000,
+    source.copyPatterns ?? "",
+    source.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
+    source.systemPrompt ?? "",
+  ]
+}
+
+/**
+ * Whether a Canvas Repo has been customized for its Canvas: its name or any
+ * run setting differs from its Repository's. Derived, never stored, so
+ * Resetting (or editing back by hand) clears it. Env var values don't count.
+ */
+export function isCustomized(
+  repo: Pick<RepoData, "name"> & RunSettings,
+  repository: RepoConfig
+): boolean {
+  const a = comparable(repo)
+  const b = comparable(repository)
+  return a.some((v, i) => v !== b[i])
 }
 
 /** Every Canvas Repo, read fresh by id (a server-side `toArray()` snapshot can
@@ -99,6 +136,45 @@ export function switchOn(
   }
   createCanvasOps(collections).createRepo(id, repo)
   return id
+}
+
+/**
+ * Reset to Settings: give a Canvas Repo its Repository's name and run
+ * settings again, env var values included, so it's no longer customized.
+ */
+export function resetToRepository(
+  collections: RoomCollections,
+  repoId: string,
+  repository: RepoConfig
+): void {
+  if (!collections.repos.get(repoId)) return
+  createCanvasOps(collections).patch("repos", repoId, settingsFrom(repository))
+}
+
+/**
+ * An edit made in Settings reaching one Canvas: every Repo linked to the
+ * Repository that wasn't customized against its settings `before` the edit
+ * takes the new ones. Customized Repos keep theirs. Env var values follow only
+ * where the Canvas still had the old values, so a Canvas's own env vars
+ * survive. Returns the ids of the Repos it updated.
+ */
+export function applyRepositoryEdit(
+  collections: RoomCollections,
+  before: RepoConfig,
+  after: RepoConfig
+): string[] {
+  const ops = createCanvasOps(collections)
+  const updated: string[] = []
+  ops.batch(() => {
+    for (const repo of canvasRepos(collections)) {
+      if (repo.repositoryId !== after.id || isCustomized(repo, before)) continue
+      const next = settingsFrom(after)
+      if (repo.envVars !== before.envVars) next.envVars = repo.envVars
+      ops.patch("repos", repo.id, next)
+      updated.push(repo.id)
+    }
+  })
+  return updated
 }
 
 /** What switching off removed, for the caller to finish today's remove path:

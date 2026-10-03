@@ -83,6 +83,16 @@ settings. Changes apply to workspaces you create afterwards.
 
 <Screenshot name="project-settings" alt="The Repository settings dialog" />
 
+### Customizing a repository for one canvas
+
+**Edit** in Canvas settings changes the repository on this canvas only. Once
+its label or any setting differs from [your repository](#your-repositories)
+in Settings, a small orange dot follows its name, with the tooltip
+**Customized for this canvas**. Environment variable values don't count.
+
+To undo it, click **Edit** and then **Reset to Settings**: the repository
+takes your Settings again and the dot goes away.
+
 ## Turning a repository off
 
 In Canvas settings, turn off a repository's switch. Without workspaces it
@@ -96,9 +106,10 @@ default. The repository stays in Settings, so you can turn it back on later.
 
 **Settings → Repositories** lists your repositories and how each one runs.
 Check **Save as a preset** when adding a repository to keep it there, or click
-**New repository** in Settings. A repository in Settings is a starting point:
-once it has been copied into a canvas, editing it in Settings doesn't change
-the canvases already using it, and vice versa.
+**New repository** in Settings. Editing a repository in Settings updates every
+canvas that uses it, except the ones where it's
+[customized](#customizing-a-repository-for-one-canvas). A canvas keeps its own
+environment variable values if you changed them there.
 
 <Screenshot
   name="settings-presets"

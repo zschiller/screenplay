@@ -18,20 +18,27 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
+import type { RepoConfig } from "@/lib/repo-configs.types"
+import { isCustomized, runSettings } from "@/lib/repository-library"
 import type { RepoData } from "@/lib/types"
 
 /**
  * A Repo's run settings (label, scripts, port, env vars), edited in place on
  * the canvas so every collaborator's new Workspaces start from them. Opened by
  * Edit in Canvas settings and by Settings on the sidebar's repository row.
+ * Saving changes this canvas only; given the `repository` it links to and
+ * differs from, the footer offers Reset to Settings (#1424).
  */
 export function RepoSettingsDialog({
   repo,
+  repository,
   open,
   onOpenChange,
   onUpdate,
 }: {
   repo: RepoData | null
+  /** The Repository (Settings) this Repo is linked to, when it's yours. */
+  repository?: RepoConfig
   open: boolean
   onOpenChange: (open: boolean) => void
   onUpdate: (id: string, data: Partial<RepoData>) => void
@@ -54,6 +61,7 @@ export function RepoSettingsDialog({
             // last one's unsaved edits.
             key={repo.id}
             repo={repo}
+            repository={repository}
             onUpdate={onUpdate}
             onClose={() => onOpenChange(false)}
           />
@@ -65,10 +73,12 @@ export function RepoSettingsDialog({
 
 function RepoSettingsForm({
   repo,
+  repository,
   onUpdate,
   onClose,
 }: {
   repo: RepoData
+  repository?: RepoConfig
   onUpdate: (id: string, data: Partial<RepoData>) => void
   onClose: () => void
 }) {
@@ -135,8 +145,7 @@ function RepoSettingsForm({
       <DialogHeader>
         <DialogTitle>Repository settings</DialogTitle>
         <DialogDescription>
-          Defaults applied when new workspaces for {repo.repoFullName} are
-          created.
+          Defaults for new workspaces of {repo.repoFullName} on this canvas.
         </DialogDescription>
       </DialogHeader>
 
@@ -174,6 +183,22 @@ function RepoSettingsForm({
       </div>
 
       <DialogFooter>
+        {repository && isCustomized(repo, repository) && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="sm:mr-auto"
+            onClick={() => {
+              onUpdate(repo.id, {
+                name: repository.name,
+                ...runSettings(repository),
+              })
+              onClose()
+            }}
+          >
+            Reset to Settings
+          </Button>
+        )}
         <Button variant="ghost" size="sm" onClick={onClose}>
           Cancel
         </Button>

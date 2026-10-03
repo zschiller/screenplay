@@ -1,6 +1,6 @@
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { RoomCollections } from "@/lib/yjs/schema"
-import { linkCanvasRepos, sameRepository } from "./canvas"
+import { applyRepositoryEdit, linkCanvasRepos, sameRepository } from "./canvas"
 
 /** Where one person's Repositories live, plus whether their one-time
  *  migration has run. Production is the encrypted per-user KV (`./store`). */
@@ -84,6 +84,23 @@ export function createRepositoryLibrary({
     if (!failed) await store.markMigrated()
   }
 
+  /**
+   * Settings edits reach the Canvases: every Canvas the person can open gets
+   * the edit on its uncustomized Repos linked to the Repository. A Canvas
+   * that won't open keeps its old copy rather than failing the save.
+   */
+  async function propagate(before: RepoConfig, after: RepoConfig) {
+    for (const roomId of await rooms.list()) {
+      try {
+        await rooms.mutate(roomId, (collections) =>
+          applyRepositoryEdit(collections, before, after)
+        )
+      } catch (err) {
+        console.error(`Couldn't update repositories on canvas ${roomId}`, err)
+      }
+    }
+  }
+
   function ensureMigrated(): Promise<void> {
     let run = migrating.get(userId)
     if (!run) {
@@ -104,21 +121,22 @@ export function createRepositoryLibrary({
      * Create or update a Repository; returns the new list. Idempotent by
      * identity: an id match (editing one) wins, else a Repository with the
      * same remote + name is updated in place, keeping its id and createdAt,
-     * so re-saving one you already have never duplicates it.
+     * so re-saving one you already have never duplicates it. An update then
+     * reaches every Canvas Repo linked to it that isn't customized.
      */
     async save(repository: RepoConfig): Promise<RepoConfig[]> {
       const list = await store.load()
       const target =
         list.find((r) => r.id === repository.id) ??
         list.find((r) => sameRepository(r, repository))
+      const saved = target
+        ? { ...repository, id: target.id, createdAt: target.createdAt }
+        : repository
       const next = target
-        ? list.map((r) =>
-            r.id === target.id
-              ? { ...repository, id: target.id, createdAt: target.createdAt }
-              : r
-          )
+        ? list.map((r) => (r.id === target.id ? saved : r))
         : [...list, repository]
       await store.save(next)
+      if (target) await propagate(target, saved)
       return next
     },
 

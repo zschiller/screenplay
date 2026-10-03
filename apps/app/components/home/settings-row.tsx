@@ -25,6 +25,7 @@ export function SettingsRow({
   iconClassName,
   media,
   title,
+  marker,
   state,
   status = "off",
   detail,
@@ -37,6 +38,8 @@ export function SettingsRow({
   /** Leading content in place of an icon (an avatar). */
   media?: React.ReactNode
   title: React.ReactNode
+  /** A small mark right after the title (a customized repository's dot). */
+  marker?: React.ReactNode
   /** The row's state, drawn as a chip after the title ("Signed in"). */
   state?: React.ReactNode
   status?: "on" | "off"
@@ -67,6 +70,7 @@ export function SettingsRow({
           >
             {title}
           </span>
+          {marker}
           {state && (
             <Badge
               variant="outline"
