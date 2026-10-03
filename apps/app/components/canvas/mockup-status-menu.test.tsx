@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { MockupStatusMenu } from "./mockup-status-menu"
+import { MockupStatusMark, MockupStatusMenu } from "./mockup-status-menu"
 
 afterEach(cleanup)
 
@@ -41,5 +41,16 @@ describe("MockupStatusMenu (#1310)", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "Built" }))
 
     expect(onChange).toHaveBeenCalledWith("built")
+  })
+})
+
+describe("MockupStatusMark", () => {
+  it("is a check for Built and nothing for the others", () => {
+    const { container, rerender } = render(<MockupStatusMark status="built" />)
+    expect(screen.getByRole("img", { name: "Built" })).toBeTruthy()
+    rerender(<MockupStatusMark status="current" />)
+    expect(container.innerHTML).toBe("")
+    rerender(<MockupStatusMark status="set-aside" />)
+    expect(container.innerHTML).toBe("")
   })
 })

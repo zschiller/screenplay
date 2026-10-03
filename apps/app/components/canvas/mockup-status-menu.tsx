@@ -15,6 +15,12 @@ import {
   CheckCircleIcon,
   CircleIcon,
 } from "@workspace/ui/components/icons"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
 
 /** Each status's icon, in the label and in the menu. */
@@ -27,6 +33,33 @@ const STATUS_ICONS = {
 /** Built reads green, text and icon alike; the others stay muted. */
 function statusColor(status: MockupStatus) {
   return status === "built" ? "text-success" : "text-muted-foreground"
+}
+
+/**
+ * What a Mockup's label keeps of its status while the title bar is compact
+ * (far out): Built's green check, named in a tooltip. Current is implied and
+ * Set aside already strikes the name through, so neither shows anything.
+ */
+export function MockupStatusMark({ status }: { status: MockupStatus }) {
+  if (status !== "built") return null
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="img"
+            aria-label={MOCKUP_STATUS_LABELS[status]}
+            className="flex shrink-0 text-success"
+          >
+            <CheckCircleIcon aria-hidden className="size-3" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {MOCKUP_STATUS_LABELS[status]}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 /**

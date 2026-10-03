@@ -291,6 +291,9 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
   leading?: React.ReactNode
   /** Content after the name (a frame's route picker). */
   trailing?: React.ReactNode
+  /** Shown after the name only while the title bar is compact (far out), in
+   *  place of `trailing`: a Mockup's Built check. */
+  compactTrailing?: React.ReactNode
   style?: React.CSSProperties
 }
 
@@ -305,6 +308,7 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
 export function LayerLabelRow({
   leading,
   trailing,
+  compactTrailing,
   style,
   ...titleProps
 }: LayerLabelRowProps) {
@@ -316,6 +320,11 @@ export function LayerLabelRow({
       {leading && <AccessorySlot>{leading}</AccessorySlot>}
       <LayerTitleText {...titleProps} />
       {trailing && <AccessorySlot>{trailing}</AccessorySlot>}
+      {compactTrailing && (
+        <div className="hidden group-data-compact/title-bar:contents">
+          {compactTrailing}
+        </div>
+      )}
     </div>
   )
 }
