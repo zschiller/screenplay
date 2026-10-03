@@ -10,7 +10,9 @@ import {
 import {
   canvasRepositoryRows,
   createRepositoryLibrary,
+  isCustomized,
   linkedRepo,
+  resetToRepository,
   switchOff,
   switchOn,
   type RepositoryStore,
@@ -377,5 +379,144 @@ describe("migration", () => {
     broken = false
     await library.list()
     expect(await store.isMigrated()).toBe(true)
+  })
+})
+
+describe("customizing a repository on a canvas", () => {
+  const on = (
+    canvas: ReturnType<typeof makeHarness>,
+    from: RepoConfig,
+    id: string
+  ) => switchOn(canvas.collections, from, { id, createdAt: 5, addedBy: "zack" })
+
+  it("an edit on the canvas changes only that canvas, and marks it customized", () => {
+    const web = repository("web")
+    const a = makeHarness()
+    const b = makeHarness()
+    on(a, web, "repo-a")
+    on(b, web, "repo-b")
+
+    a.ops.patch("repos", "repo-a", { devScript: "pnpm dev --turbo" })
+
+    expect(isCustomized(repoOf(a, "repo-a")!, web)).toBe(true)
+    expect(repoOf(b, "repo-b")?.devScript).toBe("pnpm dev")
+    expect(isCustomized(repoOf(b, "repo-b")!, web)).toBe(false)
+  })
+
+  it("counts a renamed label, but not env var values", () => {
+    const web = repository("web")
+    const canvas = makeHarness()
+    on(canvas, web, "repo-1")
+    canvas.ops.patch("repos", "repo-1", { envVars: "API_KEY=mine" })
+    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
+    canvas.ops.patch("repos", "repo-1", { name: "frontend" })
+    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(true)
+  })
+
+  it("treats unset fields as their defaults", () => {
+    const web = repository("web")
+    const canvas = makeHarness()
+    on(canvas, web, "repo-1")
+    canvas.ops.patch("repos", "repo-1", {
+      copyPatterns: "",
+      systemPrompt: "",
+      defaultIframeLayerSizeId: "desktop-default",
+    })
+    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
+  })
+
+  it("Reset to Settings restores the repository's settings", () => {
+    const web = repository("web", { envVars: "A=1" })
+    const canvas = makeHarness()
+    on(canvas, web, "repo-1")
+    canvas.ops.patch("repos", "repo-1", {
+      name: "mine",
+      devServerPort: 4000,
+      systemPrompt: "Be brief",
+      envVars: "A=2",
+    })
+
+    resetToRepository(canvas.collections, "repo-1", web)
+
+    expect(repoOf(canvas, "repo-1")).toMatchObject({
+      name: "",
+      devServerPort: 3000,
+      envVars: "A=1",
+    })
+    expect(repoOf(canvas, "repo-1")?.systemPrompt).toBeUndefined()
+    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
+  })
+})
+
+describe("editing a repository in Settings", () => {
+  it("reaches every linked canvas that hasn't customized it", async () => {
+    const web = repository("web", { envVars: "A=1" })
+    const plain = makeHarness()
+    const custom = makeHarness()
+    const unlinked = canvasWith(
+      baseRepo("r-x", { repoFullName: "acme/web", name: "" })
+    )
+    switchOn(plain.collections, web, { id: "p", createdAt: 5, addedBy: "zack" })
+    switchOn(custom.collections, web, {
+      id: "c",
+      createdAt: 5,
+      addedBy: "zack",
+    })
+    custom.ops.patch("repos", "c", { devServerPort: 4000 })
+    const { library, store } = setup({
+      repositories: [web],
+      canvases: { plain, custom, unlinked },
+    })
+    await store.markMigrated()
+
+    await library.save({ ...web, devScript: "pnpm start", envVars: "A=9" })
+
+    expect(repoOf(plain, "p")).toMatchObject({
+      devScript: "pnpm start",
+      envVars: "A=9",
+    })
+    expect(isCustomized(repoOf(plain, "p")!, (await library.list())[0]!)).toBe(
+      false
+    )
+    expect(repoOf(custom, "c")).toMatchObject({
+      devScript: "pnpm dev",
+      devServerPort: 4000,
+      envVars: "A=1",
+    })
+    expect(repoOf(unlinked, "r-x")?.devScript).toBe("")
+  })
+
+  it("keeps a canvas's own env var values", async () => {
+    const web = repository("web", { envVars: "A=1" })
+    const canvas = makeHarness()
+    switchOn(canvas.collections, web, {
+      id: "r",
+      createdAt: 5,
+      addedBy: "zack",
+    })
+    canvas.ops.patch("repos", "r", { envVars: "A=mine" })
+    const { library, store } = setup({
+      repositories: [web],
+      canvases: { canvas },
+    })
+    await store.markMigrated()
+
+    await library.save({ ...web, setupScript: "pnpm i", envVars: "A=9" })
+
+    expect(repoOf(canvas, "r")).toMatchObject({
+      setupScript: "pnpm i",
+      envVars: "A=mine",
+    })
+  })
+
+  it("creating a repository touches no canvas", async () => {
+    const canvas = canvasWith(
+      baseRepo("r1", { repoFullName: "acme/web", name: "" })
+    )
+    const { library, store } = setup({ canvases: { canvas } })
+    await store.markMigrated()
+    await library.save(repository("web", { devScript: "pnpm start" }))
+    expect(repoOf(canvas, "r1")?.repositoryId).toBeUndefined()
+    expect(repoOf(canvas, "r1")?.devScript).not.toBe("pnpm start")
   })
 })

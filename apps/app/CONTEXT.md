@@ -1370,6 +1370,11 @@ changes going back in, pass through one viewer, the frame's **primary** (its
 driver, else whoever has watched longest), so the room is written once. The
 wire protocol is `lib/frame-stream/protocol.ts`; the client connection, one
 per Workspace, is `lib/frame-stream/client.ts`.
+A frame nobody watches **pauses** (#1393): encoding stops and its page is
+frozen, keeping its state, and its last pictures go to the next viewer first.
+Past a cap of running browsers per Workspace, the least recently viewed paused
+frame is **evicted**: its browser closes and reopens at its URL, cookies,
+storage and profile restored, when someone watches it again.
 _Avoid_: "streamed iframe" (there is no iframe); trusting a viewer's claim to
 drive without a grant; WebRTC (it can't connect from a Vercel Sandbox, #1366).
 

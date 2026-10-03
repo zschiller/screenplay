@@ -331,6 +331,55 @@ describe("CanvasSettingsDialog", () => {
     )
   })
 
+  it("marks a repository customized on this canvas, and resets it to Settings", async () => {
+    const { onUpdateRepo } = renderDialog([
+      { ...STOREFRONT, devScript: "pnpm dev --turbo" },
+      DOCS,
+    ])
+
+    const dot = await screen.findByRole("img", {
+      name: "Customized for this canvas",
+    })
+    // Only the repository that differs from its Settings gets the dot.
+    expect(
+      screen.getAllByRole("img", { name: "Customized for this canvas" })
+    ).toHaveLength(1)
+    expect(dot.closest("div")?.textContent).toContain("storefront")
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
+    const form = await screen.findByRole("dialog", {
+      name: "Repository settings",
+    })
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Reset to Settings" })
+    )
+
+    expect(onUpdateRepo).toHaveBeenCalledWith(
+      "r1",
+      expect.objectContaining({
+        devScript: "pnpm dev",
+        setupScript: "pnpm install",
+      })
+    )
+  })
+
+  it("offers no reset when the repository matches its Settings", async () => {
+    renderDialog()
+    await waitFor(() => expect(listRepositories).toHaveBeenCalled())
+    await screen.findByRole("switch", { name: "Use api on this canvas" })
+
+    expect(
+      screen.queryByRole("img", { name: "Customized for this canvas" })
+    ).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
+    const form = await screen.findByRole("dialog", {
+      name: "Repository settings",
+    })
+    expect(
+      within(form).queryByRole("button", { name: "Reset to Settings" })
+    ).toBeNull()
+  })
+
   describe("Memory", () => {
     it("lists each entry with who saved it", () => {
       renderDialog()

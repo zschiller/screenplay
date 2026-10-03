@@ -32,6 +32,8 @@ const INTERNAL: Record<string, string> = {
   SCREENPLAY_STREAM_FPS: "Frame Stream tuning, defaulted in the service",
   SCREENPLAY_STREAM_SCALE: "Frame Stream tuning, defaulted in the service",
   SCREENPLAY_STREAM_MAX_PIXELS: "Frame Stream tuning, defaulted in the service",
+  SCREENPLAY_STREAM_IDLE_MS: "Frame Stream tuning, defaulted in the service",
+  SCREENPLAY_STREAM_MAX_FRAMES: "Frame Stream tuning, defaulted in the service",
   SCREENPLAY_STREAM_CODEC: "Frame Stream test switch (VP8 for test browsers)",
   SCREENPLAY_STREAM_DISPLAY: "Frame Stream test switch (first X display)",
   SCREENPLAY_SHELL_PID: "set by the desktop shell for its own watchdog",

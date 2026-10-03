@@ -45,6 +45,12 @@ import {
 } from "@workspace/ui/components/sidebar"
 import { Switch } from "@workspace/ui/components/switch"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
+import {
   AddRepositoryDialog,
   AddRepositoryMenuItems,
   useAddRepositoryFlow,
@@ -58,11 +64,12 @@ import {
 import { RemoveRepositoryDialog } from "@/components/remove-repository-dialog"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import { RepoSettingsDialog } from "@/components/repo-settings-dialog"
+import { NeedsYouDot } from "@/components/workspace-mention"
 import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName } from "@/lib/repo-identity"
-import { canvasRepositoryRows } from "@/lib/repository-library"
+import { canvasRepositoryRows, isCustomized } from "@/lib/repository-library"
 import { listRepositories } from "@/lib/repository-library/actions"
 import type { BranchData, MemoryData, RepoData } from "@/lib/types"
 import { MemorySection } from "./canvas-memory-section"
@@ -212,7 +219,8 @@ export function CanvasSettingsDialog({
  * switch for whether this canvas uses it, plus the canvas's other Repos
  * (unlinked, or a member's) switched on. Each row's subtitle is its run
  * scripts. Turning one off goes through today's remove path, confirming first
- * when Workspaces use it.
+ * when Workspaces use it. Edit changes this canvas only; a Repo that differs
+ * from its Repository gets an orange dot (#1424).
  */
 function RepositoriesSection({
   repos,
@@ -333,10 +341,15 @@ function RepositoriesSection({
             {rows.map((row) => {
               const source = row.on ? row.repo : row.repository
               const name = repoShortName(source)
+              const customized =
+                row.on &&
+                row.repository !== undefined &&
+                isCustomized(row.repo, row.repository)
               return (
                 <SettingsRow
                   key={row.on ? row.repo.id : row.repository.id}
                   title={name}
+                  marker={customized && <CustomizedDot />}
                   detail={<RunScripts source={source} />}
                   action={
                     <>
@@ -371,6 +384,9 @@ function RepositoriesSection({
       <AddRepositoryDialog flow={addRepository} onCreateRepo={onCreateRepo} />
       <RepoSettingsDialog
         repo={repos.find((r) => r.id === editingId) ?? null}
+        repository={repositories.find(
+          (r) => r.id === repos.find((p) => p.id === editingId)?.repositoryId
+        )}
         open={editingId !== null}
         onOpenChange={(open) => {
           if (!open) setEditingId(null)
@@ -387,6 +403,27 @@ function RepositoriesSection({
         onRemoveRepo={onRemoveRepo}
       />
     </>
+  )
+}
+
+/** A Repo edited on this canvas so it differs from its Repository: the
+ *  attention-fill dot, explained on hover. */
+function CustomizedDot() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="img"
+            aria-label="Customized for this canvas"
+            className="flex size-4 shrink-0 items-center justify-center"
+          >
+            <NeedsYouDot />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>Customized for this canvas</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
