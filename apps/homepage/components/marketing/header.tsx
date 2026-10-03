@@ -1,6 +1,6 @@
 import Link from "next/link"
 
-import { docsUrl, githubUrl, releasesUrl } from "@/lib/app-url"
+import { docsUrl, downloadUrl, githubUrl } from "@/lib/app-url"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { buttonClass, focusRing, measure } from "./site/editorial"
@@ -65,12 +65,7 @@ export function Header() {
           >
             GitHub
           </a>
-          <a
-            href={releasesUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={buttonClass("solid")}
-          >
+          <a href={downloadUrl} className={buttonClass("solid")}>
             Download
           </a>
         </div>

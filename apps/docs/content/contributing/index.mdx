@@ -141,13 +141,16 @@ This needs the Rust and Tauri toolchains. See
 Releases are cut on a Mac with one command:
 
 ```bash
-pnpm --filter desktop release patch   # or minor, major, or an exact X.Y.Z
+pnpm --filter desktop release patch --notes notes.md   # or minor, major, or an exact X.Y.Z
 ```
 
 It bumps the version, builds a signed and notarized `.dmg`, checks it with
 Gatekeeper, then commits the bump, tags `desktop-v<version>` and publishes a
 [GitHub Release](https://github.com/zschiller/screenplay/releases) with the
-`.dmg` attached. Nothing is tagged or published unless the build verifies. It
+`.dmg` attached, once under its version and once as `Screenplay.dmg`, the name
+the homepage's Download buttons link to. `--notes` takes a few lines of
+Markdown saying what changed for people using the app; they go above GitHub's
+list of merged pull requests. Nothing is tagged or published unless the build verifies. It
 needs Node 23 or later, the `gh` CLI signed in, a clean working tree, and the
 Apple signing keys in `apps/desktop/.env.release` (copy
 `.env.release.example`).

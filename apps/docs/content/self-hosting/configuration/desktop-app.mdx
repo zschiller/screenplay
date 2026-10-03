@@ -105,6 +105,8 @@ Prerequisites: the Rust + Tauri toolchain and `node` on `PATH`.
 
 Signed macOS builds are published as `desktop-v<version>`
 [GitHub Releases](https://github.com/zschiller/screenplay/releases) with the
-`.dmg` attached, by `pnpm --filter desktop release` on a Mac (see
-[Releasing the desktop app](/contributing#releasing-the-desktop-app)). There's no
+`.dmg` attached twice: as `Screenplay_<version>_aarch64.dmg`, and as
+`Screenplay.dmg` so that `releases/latest/download/Screenplay.dmg` always
+fetches the newest build. They're published by
+`pnpm --filter desktop release` on a Mac (see [Releasing the desktop app](/contributing#releasing-the-desktop-app)). There's no
 auto-update yet.

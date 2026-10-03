@@ -1,7 +1,10 @@
 // The real desktop release mechanism (issue #631, PRD #629): one command turns a
 // bump keyword into a signed, notarized, published macOS build.
 //
-//   pnpm --filter desktop release <patch|minor|major|none|X.Y.Z>
+//   pnpm --filter desktop release <patch|minor|major|none|X.Y.Z> [--notes <file>]
+//
+// --notes takes a short Markdown summary for people downloading the app; it
+// goes above GitHub's generated list of merged PRs in the Release.
 //
 // This is thin orchestration around the pure, unit-tested version seam (#630) —
 // all version resolution and file rewriting lives in
@@ -27,7 +30,10 @@
 //   5. Build the sidecar, then `tauri build` → signed + notarized .app/.dmg,
 //      with the disk-drive volume icon swapped into the dmg.
 //   6. Verify signature, Gatekeeper assessment, and notarization staple.
-//   7. Only then: commit the bump → tag desktop-v<version> → create the Release.
+//   7. Only then: commit the bump → tag desktop-v<version> → create the Release,
+//      with the dmg attached twice: under its versioned name, and as
+//      Screenplay.dmg so releases/latest/download/Screenplay.dmg (the homepage's
+//      Download link) always fetches the newest build.
 
 import { execFileSync } from "node:child_process"
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
@@ -50,6 +56,10 @@ const packageJsonPath = join(desktopDir, "package.json")
 const tauriConfPath = join(srcTauri, "tauri.conf.json")
 const cargoTomlPath = join(srcTauri, "Cargo.toml")
 const cargoLockPath = join(srcTauri, "Cargo.lock")
+
+// The stable asset name the homepage's Download buttons link to
+// (apps/homepage/lib/app-url.ts). Renaming it breaks every Download button.
+const STABLE_DMG_NAME = "Screenplay.dmg"
 
 // Signing + notarization must be present, or Tauri silently ships an unsigned
 // bundle — fail before the ~20 min build rather than after.
@@ -116,7 +126,19 @@ function loadReleaseEnv() {
   return env
 }
 
-// ── 1. Credentials ─────────────────────────────────────────────────────────
+// ── 1. Arguments and credentials ──────────────────────────────────────────
+const args = process.argv.slice(2)
+const notesFlag = args.indexOf("--notes")
+let notesPath = null
+if (notesFlag !== -1) {
+  if (!args[notesFlag + 1]) fail("--notes needs a file: --notes <file>")
+  notesPath = resolve(process.cwd(), args[notesFlag + 1])
+  if (!existsSync(notesPath)) fail(`--notes points at a missing file: ${notesPath}`)
+  args.splice(notesFlag, 2)
+} else {
+  warn("no --notes file — the Release will list merged PRs only.")
+}
+
 const releaseEnv = loadReleaseEnv()
 
 const missingRequired = REQUIRED_ENV.filter((k) => !releaseEnv[k])
@@ -144,7 +166,7 @@ if (capture("git", ["status", "--porcelain"]) !== "") {
 }
 
 // ── 3. Resolve target version via the #630 seam ──────────────────────────────
-const bump = process.argv[2] ?? "patch"
+const bump = args[0] ?? "patch"
 const currentVersion = JSON.parse(readFileSync(packageJsonPath, "utf8")).version
 const existingTags = capture("git", ["tag", "--list", "desktop-v*"])
   .split("\n")
@@ -291,6 +313,10 @@ if (staged !== "") {
 run("git", ["tag", tag])
 run("git", ["push", "origin", tag])
 
+// The same verified dmg under the stable name; gh names assets by file name.
+const stableDmgPath = join(dirname(dmgPath), STABLE_DMG_NAME)
+copyFileSync(dmgPath, stableDmgPath)
+
 log("creating GitHub Release…")
 run("gh", [
   "release",
@@ -298,8 +324,11 @@ run("gh", [
   tag,
   "--title",
   `Screenplay Desktop ${version}`,
+  // With --notes-file, gh puts the file's text above the generated notes.
+  ...(notesPath ? ["--notes-file", notesPath] : []),
   "--generate-notes",
   dmgPath,
+  stableDmgPath,
 ])
 
 log(`done → released ${tag}`)
