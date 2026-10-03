@@ -588,7 +588,10 @@ message the chat draws: the human's text without server markers or footers,
 plus typed fields saying whether it is a Coordinator wake or a Delegated
 Message and which preview elements it targets (`lib/agent/user-turn.ts`). The
 server runs it, on reload and in every live echo (Turn Launch and taken
-Steers), and the Composer hands the same shape for the sender's own message.
+Steers). Its send-side mirror is the **Outgoing Turn**
+(`lib/agent/outgoing-turn.ts`): the one builder that turns what the sender
+wrote (and its quote, footers and Canvas view) into the wire text and the
+projected turn together, so the sender's own message needs no parsing.
 The UI reads those fields, never the markers, so a chat looks the same live
 and after a reload.
 _Avoid_: parsing markers in the UI.

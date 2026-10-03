@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest"
 import {
   chatQuoteStore,
   quoteRangeLabel,
-  withChatQuote,
   type ChatQuote,
 } from "./chat-quote-store"
 
@@ -74,16 +73,6 @@ describe("chatQuoteStore", () => {
     expect(listener).toHaveBeenCalledTimes(1)
     unsubscribe()
     leave()
-  })
-})
-
-describe("withChatQuote", () => {
-  it("sends the Document, line range and quoted lines before the text", () => {
-    expect(
-      withChatQuote(quote("Ship on Friday\nAfter the review"), "Why Friday?")
-    ).toBe(
-      "**Launch plan · Lines 3–4**\n> Ship on Friday  \n> After the review\n\nWhy Friday?"
-    )
   })
 })
 

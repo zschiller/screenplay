@@ -10,9 +10,9 @@ import { applyToolCallUpdate } from "@/lib/agent/acp/record"
 import { describeSendError, describeTurnError } from "@/lib/agent/chat-errors"
 import { withBasePath } from "@/lib/base-path"
 import {
-  buildCanvasViewFooter,
-  type CanvasView,
-} from "@/lib/agent/message-markers"
+  buildOutgoingTurn,
+  type OutgoingTurnParts,
+} from "@/lib/agent/outgoing-turn"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
 import { isFixtureWorld } from "@/lib/fixture-world"
@@ -117,12 +117,20 @@ function wireTarget(target: ChatTarget): {
 
 /** What a message this client sends shows, before the server echoes it. */
 export function sentTurn(opts: SendMessageOptions): UserTurn {
-  return opts.turn ?? { body: opts.message }
+  return buildOutgoingTurn(opts).turn
 }
 
-/** A send's text as posted: the message plus its Canvas view footer (#1414). */
+/** A send's text as posted, its Canvas view footer (#1414) included. */
 function wireMessage(opts: SendMessageOptions): string {
-  return opts.message + buildCanvasViewFooter(opts.canvasView ?? null)
+  return buildOutgoingTurn(opts).wire
+}
+
+/**
+ * A send's text as held for Edit (failed, queued or returned): as posted, but
+ * without the Canvas view, which is taken again when it's sent.
+ */
+function heldMessage(opts: SendMessageOptions): string {
+  return buildOutgoingTurn({ ...opts, canvasView: null }).wire
 }
 
 /** A message waiting for the current run to finish (#802). */
@@ -133,18 +141,17 @@ export interface QueuedMessage {
   options: SendMessageOptions
 }
 
-export interface SendMessageOptions {
+/**
+ * A send: the message and the parts {@link buildOutgoingTurn} adds to it
+ * (footers, quote, Canvas view), plus where it goes and how it runs. The parts
+ * stay apart until the post, so a held, queued or pending message shows and
+ * edits without them.
+ */
+export interface SendMessageOptions extends OutgoingTurnParts {
   roomId: string
   chatId: string
   /** What the chat talks to; mapped to the wire target by {@link wireTarget}. */
   target: ChatTarget
-  message: string
-  /**
-   * What the message shows, when it carries more than plain text (the
-   * Composer's footers): the body and fields the server's echo will project
-   * from `message`, so the sender draws it without parsing marker strings.
-   */
-  turn?: UserTurn
   isFirstChat?: boolean
   planMode?: boolean
   model?: string
@@ -156,12 +163,6 @@ export interface SendMessageOptions {
    * (mentions and element tokens included), not as flattened wire text.
    */
   draft?: unknown
-  /**
-   * What the sender had selected and on screen when they sent it, taken then.
-   * The model reads it in a `Canvas view:` footer added only on the way out,
-   * so a held, queued or pending message shows and edits without it.
-   */
-  canvasView?: CanvasView | null
 }
 
 /**
@@ -563,7 +564,7 @@ class ChatStore {
         this.addPendingSteer(chatId, {
           key: answer.steerId,
           id: answer.steerId,
-          message: opts.message,
+          message: heldMessage(opts),
           turn: sentTurn(opts),
           local: { draft: opts.draft, wire: wireMessage(opts) },
         })
@@ -587,7 +588,7 @@ class ChatStore {
         error: msg,
         ...dropOptimistic(),
         failedSend: {
-          message: opts.message,
+          message: heldMessage(opts),
           error: msg,
           draft: opts.draft,
           options: opts,
@@ -613,7 +614,7 @@ class ChatStore {
         ...this.getOrCreate(chatId).pendingSteers,
         {
           key,
-          message: opts.message,
+          message: heldMessage(opts),
           turn: sentTurn(opts),
           local: { draft: opts.draft, wire: wireMessage(opts) },
         },
@@ -648,7 +649,7 @@ class ChatStore {
         error: msg,
         pendingSteers: without(),
         failedSend: {
-          message: opts.message,
+          message: heldMessage(opts),
           error: msg,
           draft: opts.draft,
           options: opts,
@@ -713,7 +714,7 @@ class ChatStore {
         ...this.getOrCreate(chatId).queued,
         {
           id: `q_${++queueSeq}`,
-          message: opts.message,
+          message: heldMessage(opts),
           draft: opts.draft,
           options: opts,
         },

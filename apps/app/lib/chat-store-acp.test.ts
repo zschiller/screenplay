@@ -466,8 +466,8 @@ describe("chat-store — user turns, reload == live (#1252, #1253)", () => {
         roomId: "room-1",
         chatId,
         target: { kind: "room" },
-        message: wire,
-        turn: { body, targetedElements: [element] },
+        message: body,
+        targetedElements: [element],
       })
     } finally {
       vi.unstubAllGlobals()
