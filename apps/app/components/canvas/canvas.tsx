@@ -247,6 +247,7 @@ import { CanvasTopBar } from "./canvas-top-bar"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 
 import { addMemory, editMemory, removeMemory } from "@/lib/memory/canvas"
+import { LiveZoomContext } from "./live-zoom"
 
 import { ChatPanelHost } from "./chat-panel-host"
 
@@ -2240,77 +2241,87 @@ export function Canvas({
                       height: CANVAS_SIZE,
                     }}
                   >
-                    <div
-                      className="relative"
-                      style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
-                      // Hides frame labels mid-zoom (CSS in globals.css). They read
-                      // the deferred `zoom` for their counter-scale, so they'd
-                      // balloon/snap during a zoom — cheaper to hide than thread
-                      // `isZooming` down through every layer.
-                      data-zooming={isZooming || undefined}
-                      // For two frames after a zoom settles, drop each label's GPU
-                      // promotion so WebKit re-rasterizes it crisp at the resting
-                      // scale (see globals.css `.canvas-frame-label`).
-                      data-zoom-settling={zoomSettling || undefined}
-                    >
-                      <CanvasMemberLayer
-                        iframeLayerGroups={iframeLayerGroups}
-                        iframeLayers={iframeLayers}
-                        markdownLayers={markdownLayers}
-                        documentWorkspaces={documentWorkspaces}
-                        mockupLayers={mockupLayers}
-                        selection={selection}
-                        onIframeWheel={camera.handleIframeWheel}
-                        reference={reference}
-                        gesturePreview={gesturePreview}
-                        gestureLayerHandlers={gestureLayerHandlers}
-                        effectiveIframeLayerLayouts={
-                          effectiveIframeLayerLayouts
-                        }
-                        iframeLayerLayouts={iframeLayerLayouts}
-                        groupZIndex={groupZIndex}
-                        groupDisplayNames={groupDisplayNames}
-                        placeholderRects={placeholderRects}
-                        placeholderTool={
-                          frameMode ? "frame" : documentMode ? "document" : null
-                        }
-                        onPlaceholderAdd={addAtPlaceholder}
-                        remoteSelectionColors={remoteSelectionColors}
-                        remoteGroupSelectionColors={remoteGroupSelectionColors}
-                        agentDomains={agentDomains}
-                        agents={agents}
-                        onRestartWorkspace={branchActions.startWorkspace}
-                        onOpenLogs={openBranchLogs}
-                        onStartChat={drawAsk.startFrameChat}
-                        repos={repos}
-                        zoom={zoom}
-                        spaceHeld={spaceHeld}
-                        commentMode={commentMode}
-                        pickActive={targeting.pickActive}
-                        dimmedIframeLayerIds={targeting.dimmedIds}
-                        selfName={self?.identity.name || "Anonymous"}
-                        selfColor={self?.color || "#888888"}
-                        editingDocumentLayerId={editingDocumentLayerId}
-                        setEditingDocumentLayerId={setEditingDocumentLayerId}
-                        focusedIframeLayerId={focusedIframeLayerId}
-                        setFocusedIframeLayerId={setFocusedIframeLayerId}
-                        frameControl={frameControl}
-                        sharedFrames={sharedFrames}
-                        createFlowIframeLayerId={createFlowIframeLayerId}
-                        setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
-                        removeIframeLayer={removeIframeLayer}
-                        removeMockup={removeMockup}
-                        removeDocument={removeDocument}
-                        handlePlayIframeLayer={handlePlayIframeLayer}
-                        onAskForKnob={handleAskForKnob}
-                        askableMockupIds={askableMockupIds}
-                        onAskForMockupKnob={handleAskForMockupKnob}
-                        handleCaptureReadyChange={handleCaptureReadyChange}
-                        handleCaptureDirty={handleCaptureDirty}
-                        layerMutations={layerMutations}
-                        groupActions={groupActions}
-                      />
-                    </div>
+                    <LiveZoomContext.Provider value={camera.liveZoom}>
+                      <div
+                        className="relative"
+                        style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+                        // Hides frame labels mid-zoom (CSS in globals.css). They read
+                        // the deferred `zoom` for their counter-scale, so they'd
+                        // balloon/snap during a zoom — cheaper to hide than thread
+                        // `isZooming` down through every layer.
+                        data-zooming={isZooming || undefined}
+                        // For two frames after a zoom settles, drop each label's GPU
+                        // promotion so WebKit re-rasterizes it crisp at the resting
+                        // scale (see globals.css `.canvas-frame-label`).
+                        data-zoom-settling={zoomSettling || undefined}
+                      >
+                        <CanvasMemberLayer
+                          iframeLayerGroups={iframeLayerGroups}
+                          iframeLayers={iframeLayers}
+                          markdownLayers={markdownLayers}
+                          documentWorkspaces={documentWorkspaces}
+                          mockupLayers={mockupLayers}
+                          selection={selection}
+                          onIframeWheel={camera.handleIframeWheel}
+                          reference={reference}
+                          gesturePreview={gesturePreview}
+                          gestureLayerHandlers={gestureLayerHandlers}
+                          effectiveIframeLayerLayouts={
+                            effectiveIframeLayerLayouts
+                          }
+                          iframeLayerLayouts={iframeLayerLayouts}
+                          groupZIndex={groupZIndex}
+                          groupDisplayNames={groupDisplayNames}
+                          placeholderRects={placeholderRects}
+                          placeholderTool={
+                            frameMode
+                              ? "frame"
+                              : documentMode
+                                ? "document"
+                                : null
+                          }
+                          onPlaceholderAdd={addAtPlaceholder}
+                          remoteSelectionColors={remoteSelectionColors}
+                          remoteGroupSelectionColors={
+                            remoteGroupSelectionColors
+                          }
+                          agentDomains={agentDomains}
+                          agents={agents}
+                          onRestartWorkspace={branchActions.startWorkspace}
+                          onOpenLogs={openBranchLogs}
+                          onStartChat={drawAsk.startFrameChat}
+                          repos={repos}
+                          zoom={zoom}
+                          spaceHeld={spaceHeld}
+                          commentMode={commentMode}
+                          pickActive={targeting.pickActive}
+                          dimmedIframeLayerIds={targeting.dimmedIds}
+                          selfName={self?.identity.name || "Anonymous"}
+                          selfColor={self?.color || "#888888"}
+                          editingDocumentLayerId={editingDocumentLayerId}
+                          setEditingDocumentLayerId={setEditingDocumentLayerId}
+                          focusedIframeLayerId={focusedIframeLayerId}
+                          setFocusedIframeLayerId={setFocusedIframeLayerId}
+                          frameControl={frameControl}
+                          sharedFrames={sharedFrames}
+                          createFlowIframeLayerId={createFlowIframeLayerId}
+                          setCreateFlowIframeLayerId={
+                            setCreateFlowIframeLayerId
+                          }
+                          removeIframeLayer={removeIframeLayer}
+                          removeMockup={removeMockup}
+                          removeDocument={removeDocument}
+                          handlePlayIframeLayer={handlePlayIframeLayer}
+                          onAskForKnob={handleAskForKnob}
+                          askableMockupIds={askableMockupIds}
+                          onAskForMockupKnob={handleAskForMockupKnob}
+                          handleCaptureReadyChange={handleCaptureReadyChange}
+                          handleCaptureDirty={handleCaptureDirty}
+                          layerMutations={layerMutations}
+                          groupActions={groupActions}
+                        />
+                      </div>
+                    </LiveZoomContext.Provider>
                   </TransformComponent>
                 </TransformWrapper>
 

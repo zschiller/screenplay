@@ -6,6 +6,6 @@
     "noEmit": true,
     "lib": ["es2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["index.js", "index.d.ts"],
+  "include": ["index.js", "index.d.ts", "test/*.ts"],
   "exclude": ["node_modules"]
 }

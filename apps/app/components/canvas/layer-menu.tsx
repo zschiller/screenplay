@@ -85,6 +85,7 @@ export function LayerMenuContent({
   actions,
   layerId,
   onRename,
+  onCloseAutoFocus,
   ...contentProps
 }: {
   /** The menu, or the fallback when `layerId`'s Layer hasn't published one. */
@@ -93,6 +94,8 @@ export function LayerMenuContent({
   layerId?: string
   /** Starts the inline rename of the object's name where the menu opened. */
   onRename?: () => void
+  /** The menu's close when no rename is pending, e.g. to move focus. */
+  onCloseAutoFocus?: (e: Event) => void
 } & Pick<
   ComponentProps<typeof DropdownMenuContent>,
   "side" | "align" | "sideOffset"
@@ -104,7 +107,7 @@ export function LayerMenuContent({
       {...contentProps}
       onCloseAutoFocus={(e) => {
         const pending = pendingRef.current
-        if (!pending) return
+        if (!pending) return onCloseAutoFocus?.(e)
         pendingRef.current = null
         e.preventDefault()
         if (pending.kind === "layer") onRename?.()

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { FrameStatus } from "./frame-status"
+import { FrameStatus, statusScale } from "./frame-status"
 
 afterEach(cleanup)
 
@@ -29,5 +29,55 @@ describe("FrameStatus on an unanswered frame (#1358)", () => {
   it("only offers it while the frame has no Workspace", () => {
     render(<FrameStatus stage="booting" onStartChat={vi.fn()} />)
     expect(screen.queryByRole("button", { name: "Start a chat" })).toBeNull()
+  })
+})
+
+describe("FrameStatus zoomed out (I17)", () => {
+  it("counter-scales the block, not the frame's background", () => {
+    const { container } = render(
+      <FrameStatus
+        stage="booting"
+        zoom={0.25}
+        frameWidth={1440}
+        frameHeight={900}
+      />
+    )
+    const root = container.firstElementChild as HTMLElement
+    expect(root.style.transform).toBe("")
+    const block = root.querySelector<HTMLElement>(
+      "[data-slot=frame-status-block]"
+    )
+    expect(block?.style.transform).toBe("scale(2.5)")
+  })
+
+  it("scales with the canvas at 100% and closer", () => {
+    const { container } = render(
+      <FrameStatus
+        stage="booting"
+        zoom={2}
+        frameWidth={1440}
+        frameHeight={900}
+      />
+    )
+    const block = container.querySelector<HTMLElement>(
+      "[data-slot=frame-status-block]"
+    )
+    expect(block?.style.transform).toBe("")
+  })
+})
+
+describe("statusScale", () => {
+  it("is 1/zoom while the frame has room", () => {
+    expect(statusScale(0.5, 1440, 1080)).toBe(2)
+  })
+
+  it("is capped by the frame's size", () => {
+    expect(statusScale(0.1, 1440, 900)).toBe(2.5)
+    expect(statusScale(0.1, 960, 2000)).toBe(2)
+  })
+
+  it("never shrinks the block", () => {
+    expect(statusScale(1.5, 1440, 900)).toBe(1)
+    expect(statusScale(0.5, 480, 320)).toBe(1)
   })
 })

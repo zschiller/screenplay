@@ -28,6 +28,7 @@ import {
 import { renameOnF2 } from "./rename-key"
 import { frameRowActionClass, frameRowButtonClass } from "./row-action"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
+import { useFocusNeighbourOnDelete } from "./row-focus"
 
 /** Per-row props the iframeLayer renderer needs that the generic
  *  contract doesn't carry — used to look up the Branch for the branch
@@ -159,9 +160,11 @@ export function IframeLayerRowMenu({
 }: LayerRowMenuProps<IframeLayerData>) {
   // The frame's one menu (I7), the same as its toolbar's …: the canvas frame
   // publishes it; Rename and Delete stand in until it has.
+  const { triggerRef, onOpenChange, onCloseAutoFocus } =
+    useFocusNeighbourOnDelete()
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger ref={triggerRef} asChild>
         <IconButton label="Frame options" tooltipSide="right" asChild>
           <SidebarMenuAction
             className={cn(
@@ -177,6 +180,7 @@ export function IframeLayerRowMenu({
         layerId={item.id}
         actions={{ noun: "frame", onDelete: () => onRemove(item.id) }}
         onRename={() => editableRef?.current?.startEditing()}
+        onCloseAutoFocus={onCloseAutoFocus}
         side="right"
         align="start"
       />

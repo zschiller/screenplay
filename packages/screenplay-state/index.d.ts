@@ -46,6 +46,16 @@ export function setSharedState(
   value: JsonValue | undefined,
 ): () => void
 
+/**
+ * Subscribe to updates of a key from other viewers (non-React). Returns an
+ * unsubscribe function. Outside a screenplay frame the callback is never
+ * invoked and the unsubscribe is a no-op.
+ */
+export function subscribeSharedState(
+  key: string,
+  onChange: (value: JsonValue | undefined) => void,
+): () => void
+
 /** Drop a key from the published state. */
 export function clearSharedState(key: string): void
 

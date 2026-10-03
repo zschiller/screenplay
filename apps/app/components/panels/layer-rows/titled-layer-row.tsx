@@ -30,6 +30,7 @@ import type {
   LayerRowMenuProps,
   LayerRowProps,
 } from "./types"
+import { useFocusNeighbourOnDelete } from "./row-focus"
 
 /** The record shape a titled row reads: an id and a title. */
 type TitledLayer = { id: string; title: string }
@@ -141,9 +142,11 @@ function TitledLayerRowMenu<T extends TitledLayer>({
   const noun = descriptor.singularLabel as "document" | "mockup"
   // The Layer's one menu (I7), the same as its canvas …: a Mockup publishes
   // its own (with Duplicate); a document's is Rename and Delete.
+  const { triggerRef, onOpenChange, onCloseAutoFocus } =
+    useFocusNeighbourOnDelete()
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger ref={triggerRef} asChild>
         <IconButton label={layerMenuLabel(noun)} tooltipSide="right" asChild>
           <SidebarMenuAction
             className={cn(
@@ -159,6 +162,7 @@ function TitledLayerRowMenu<T extends TitledLayer>({
         layerId={item.id}
         actions={{ noun, onDelete: () => onRemove(item.id) }}
         onRename={() => editableRef?.current?.startEditing()}
+        onCloseAutoFocus={onCloseAutoFocus}
         side="right"
         align="start"
       />
