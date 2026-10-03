@@ -83,7 +83,8 @@ describe("AgentChat — affordances per Chat Target", () => {
   it("gives an agent chat skills, plan mode and element picking", () => {
     renderChat({ kind: "agent", branchId: "b1", sandboxName: "sbx-1" })
 
-    expect(skillSource()).toEqual({ sandboxName: "sbx-1" })
+    // Its Branch for Repo Skills, its canvas for the ones chats saved (#1555).
+    expect(skillSource()).toEqual({ sandboxName: "sbx-1", roomId: "room-1" })
     expect(screen.getByRole("button", { name: "Plan" })).toBeTruthy()
     expect(
       screen.getByRole("button", { name: /target an element/i })

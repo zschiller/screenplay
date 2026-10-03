@@ -52,6 +52,16 @@ vi.mock("@/lib/env-store", () => ({
   sandboxSecrets: async (sandboxName: string) =>
     sandboxName ? ["correct-horse-battery-staple"] : [],
 }))
+// Saved files' and Skills' bytes, in memory.
+vi.mock("@/lib/files", async () => {
+  const { memoryFileStore } = await import("@/lib/files/store")
+  const { canvasFilesOn } = await import("@/lib/files/canvas-files")
+  const fileStore = memoryFileStore()
+  return {
+    fileStore,
+    canvasFiles: (room: RoomDoc) => canvasFilesOn(room, fileStore),
+  }
+})
 // The Sandbox is unreachable, so read_skill falls back to the App Skills.
 vi.mock("@/lib/sandbox", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/sandbox")>()),
@@ -356,7 +366,7 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards, saved files (#1514) and its PR and Skill tools (#1480)", async () => {
+  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards, saved files (#1514), its PR tool (#1480) and its Skill tools (#1555)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -397,6 +407,8 @@ describe("a Workspace chat's MCP route", () => {
       "make_saved_folder",
       "create_pr",
       "read_skill",
+      "save_skill",
+      "delete_skill",
     ])
     const annotations = (name: string) =>
       result.tools.find((t: { name: string }) => t.name === name).annotations
@@ -511,6 +523,34 @@ describe("a Workspace chat's MCP route", () => {
     ).json()
     expect(result.isError).toBe(false)
     expect(result.content[0].text).toContain("name: screenplay-add-knob")
+  })
+
+  it("saves a canvas Skill that read_skill then loads (#1555)", async () => {
+    const saved = (
+      await (
+        await call(8, "tools/call", {
+          name: "save_skill",
+          arguments: {
+            scope: "canvas",
+            name: "release-notes",
+            content:
+              "---\nname: release-notes\ndescription: Write release notes.\n---\nGroup by feature.",
+          },
+        })
+      ).json()
+    ).result
+    expect(saved.isError).toBe(false)
+    expect(saved.content[0].text).toContain(
+      'Saved the canvas skill "release-notes"'
+    )
+
+    const { result } = await (
+      await call(9, "tools/call", {
+        name: "read_skill",
+        arguments: { name: "release-notes" },
+      })
+    ).json()
+    expect(result.content[0].text).toContain("Group by feature.")
   })
 
   it("makes Documents owned by the chat its token is bound to", async () => {

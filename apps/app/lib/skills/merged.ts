@@ -1,64 +1,73 @@
 import type { SkillMetadata } from "./frontmatter"
 
 /**
- * The merged Skill index and body resolver — the one place that owns the
- * App-vs-Repo collision rule.
+ * The merged Skill index and body resolver: the one place that owns which
+ * Skill wins when two share a name.
  *
- * A Branch sees two Skill sources: App Skills (bundled `lib/skills/`) and Repo
- * Skills (its sandbox `.claude/skills/`). They merge into a single
- * origin-tagged list the agent's prompt and the `/` menu both draw from, and a
- * single body resolver `read_skill` routes through. The rule, stated once
- * here: **Repo wins on a name collision** — the checked-out repo overrides
- * screenplay's bundled default, the shadowed App row is dropped, and a body
- * lookup reads sandbox-first then falls back to the App Skill.
+ * A chat sees Skills from several sources: Repo Skills (its Branch's
+ * `.claude/skills/`, Workspace chats only), Canvas Skills (saved by any chat
+ * on the canvas, `canvas.ts`) and App Skills (bundled `lib/skills/`). They
+ * merge into a single origin-tagged list the agent's prompt and the `/` menu
+ * both draw from, and a single body resolver `read_skill` routes through. The
+ * rule, stated once here as {@link SKILL_ORIGIN_RANK}: **Repo, then Canvas,
+ * then App** (spec #1554). A shadowed row is dropped, and a body lookup tries
+ * each source in that order.
  */
 
-export type SkillOrigin = "app" | "repo"
+export type SkillOrigin = "repo" | "canvas" | "app"
+
+/** Which source wins a name collision, first to last. */
+export const SKILL_ORIGIN_RANK: readonly SkillOrigin[] = [
+  "repo",
+  "canvas",
+  "app",
+]
 
 export interface OriginTaggedSkill extends SkillMetadata {
   origin: SkillOrigin
 }
 
 /**
- * Merge the App and Repo indexes into one deduped, origin-tagged, name-sorted
- * list. On a name collision the Repo row is kept (tagged `"repo"`) and the
- * App row dropped, so a Repo Skill shadows the bundled default it shares a
- * name with.
+ * Merge the sources' indexes into one deduped, origin-tagged, name-sorted
+ * list. On a name collision only the row from the highest-ranked source
+ * ({@link SKILL_ORIGIN_RANK}) is kept. A source a chat doesn't have is left
+ * out.
  */
 export function mergeSkillIndexes(
-  app: SkillMetadata[],
-  repo: SkillMetadata[]
+  sources: Partial<Record<SkillOrigin, readonly SkillMetadata[]>>
 ): OriginTaggedSkill[] {
   const byName = new Map<string, OriginTaggedSkill>()
-  for (const s of app) {
-    byName.set(s.name, { ...s, origin: "app" })
-  }
-  // Repo entries overwrite any App entry of the same name — Repo wins.
-  for (const s of repo) {
-    byName.set(s.name, { ...s, origin: "repo" })
+  for (const origin of SKILL_ORIGIN_RANK) {
+    for (const s of sources[origin] ?? []) {
+      if (byName.has(s.name)) continue
+      byName.set(s.name, { name: s.name, description: s.description, origin })
+    }
   }
   return Array.from(byName.values()).sort((a, b) =>
     a.name.localeCompare(b.name)
   )
 }
 
+/** Reads one source's Skill by name; `null` when it has none. */
+export type SkillBodyReader = (
+  name: string
+) => Promise<string | null> | string | null
+
 /**
- * Resolve a Skill's full body by name, sandbox-first then app. Tries the Repo
- * Skill reader first so an override takes effect; falls back to the App Skill
- * reader when the Branch has no Repo Skill of that name. Returns `null` when
- * neither source has it — the caller turns that into an "unknown skill"
+ * Resolve a Skill's full content by name, trying each source in
+ * {@link SKILL_ORIGIN_RANK} order so an override takes effect. Returns `null`
+ * when no source has it; the caller turns that into an "unknown skill"
  * listing over {@link mergeSkillIndexes}.
  */
 export async function resolveSkillBody(
   name: string,
-  readers: {
-    readRepoBody: (name: string) => Promise<string | null>
-    readAppBody: (name: string) => string | null
-  }
+  readers: Partial<Record<SkillOrigin, SkillBodyReader>>
 ): Promise<string | null> {
-  const repoBody = await readers.readRepoBody(name)
-  if (repoBody !== null) return repoBody
-  return readers.readAppBody(name)
+  for (const origin of SKILL_ORIGIN_RANK) {
+    const body = await readers[origin]?.(name)
+    if (body !== null && body !== undefined) return body
+  }
+  return null
 }
 
 /**

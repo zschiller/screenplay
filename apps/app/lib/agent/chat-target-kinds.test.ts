@@ -3,8 +3,19 @@ import { describe, expect, it, vi } from "vitest"
 // The agent kind enumerates Skills from its sandbox and the room kind lists
 // the member's Terminal Tabs from the database; neither matters to memory.
 vi.mock("@/lib/skills/sandbox-index", () => ({
-  getMergedSkillIndexForSandbox: vi.fn().mockResolvedValue([]),
+  enumerateRepoSkillsForSandbox: vi.fn().mockResolvedValue([]),
+  repoSkillFsForSandbox: vi.fn().mockResolvedValue(null),
 }))
+// Saved files' and Skills' bytes, in memory.
+vi.mock("@/lib/files", async () => {
+  const { memoryFileStore } = await import("@/lib/files/store")
+  const { canvasFilesOn } = await import("@/lib/files/canvas-files")
+  const fileStore = memoryFileStore()
+  return {
+    fileStore,
+    canvasFiles: (room: RoomDoc) => canvasFilesOn(room, fileStore),
+  }
+})
 vi.mock("@/lib/terminal-tabs", () => ({
   listTerminalTabs: vi.fn().mockResolvedValue([]),
 }))
@@ -24,7 +35,11 @@ vi.mock("@/lib/memory/account-store", async () => {
   }
 })
 
-import type { ChatTargetSpec } from "@/lib/agent/chat-target-kinds"
+import {
+  prepareChatTarget,
+  type ChatTargetSpec,
+} from "@/lib/agent/chat-target-kinds"
+import { enumerateRepoSkillsForSandbox } from "@/lib/skills/sandbox-index"
 import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
@@ -112,6 +127,7 @@ describe("room chat target", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
       {
         canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"',
+        skills: [],
         memory: [],
         files: [],
         accountMemory: [],
@@ -126,7 +142,13 @@ describe("room chat target", () => {
 
   it("sends the next ask to a fresh Workspace instead of planning one (#1182)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [], files: [], accountMemory: [] },
+      {
+        canvasSummary: "",
+        skills: [],
+        memory: [],
+        files: [],
+        accountMemory: [],
+      },
       BARE_TOOL_NAMING
     )
 
@@ -135,11 +157,15 @@ describe("room chat target", () => {
     )
   })
 
-  it("lists the Coordinator's Skills, and only those, in its prompt (#905)", () => {
-    const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [], files: [], accountMemory: [] },
-      BARE_TOOL_NAMING
-    )
+  it("lists the Coordinator's Skills, and only those, in its prompt (#905)", async () => {
+    const { collections } = makeHarness()
+    const room: RoomDoc = {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+    const ctx = await roomChatTarget.loadContext(room, { userId: "user-1" })
+    const prompt = roomChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
 
     expect(prompt).toContain("**screenplay-try-variants**")
     expect(prompt).not.toContain("screenplay-add-knob")
@@ -163,6 +189,7 @@ describe("room chat target", () => {
       "create_frames",
       "create_workspaces",
       "delete_saved_file",
+      "delete_skill",
       "list_changes",
       "list_saved_files",
       "make_saved_folder",
@@ -183,6 +210,7 @@ describe("room chat target", () => {
       "remove_workspace",
       "rename",
       "save_file",
+      "save_skill",
       "send_to_chat",
       "send_to_workspace",
       "show_on_canvas",
@@ -264,7 +292,13 @@ describe("the Coordinator only delegates", () => {
 
   it("tells the Coordinator to start a chat for a Document or Mockup", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [], files: [], accountMemory: [] },
+      {
+        canvasSummary: "",
+        skills: [],
+        memory: [],
+        files: [],
+        accountMemory: [],
+      },
       BARE_TOOL_NAMING
     )
 
@@ -502,6 +536,146 @@ describe("account memory at chat target loading", () => {
     })
     const prompt = await kinds.Workspace(room, { userId: "ana" })
     expect(prompt).not.toContain("Account memory (")
+  })
+})
+
+/**
+ * Canvas Skills (#1555): any chat saves one, and every chat on the canvas
+ * lists it in its prompt from its next turn and reads it, ranked Repo, then
+ * Canvas, then App.
+ */
+describe("canvas skills in every kind", () => {
+  function room(): RoomDoc {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { repoId: "repo-1", sandboxName: "sb-1" })
+    )
+    return {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+  }
+  const workspaceTarget = {
+    sandboxName: "sb-1",
+    chatId: "chat-1",
+    userId: "user-1",
+  }
+
+  async function call(
+    tools: Record<string, { execute?: unknown }>,
+    name: string,
+    input: object
+  ): Promise<string> {
+    const execute = tools[name]!.execute as (
+      input: object,
+      options: object
+    ) => Promise<string>
+    return execute(input, { toolCallId: "t1", messages: [], context: {} })
+  }
+
+  const skillMd = (name: string, description: string, body = "") =>
+    `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
+
+  it("a Skill a Workspace chat saves, the Coordinator and a sketch chat list and read", async () => {
+    const r = room()
+    const workspace = inProcess(workspaceChatTarget.tools(r, workspaceTarget))
+    expect(
+      await call(workspace, "save_skill", {
+        scope: "canvas",
+        name: "release-notes",
+        content: skillMd(
+          "release-notes",
+          "Write release notes.",
+          "Group by feature."
+        ),
+      })
+    ).toContain('Saved the canvas skill "release-notes"')
+
+    const coordinator = await prepareChatTarget(r, roomChatTarget, {
+      userId: "user-1",
+    })
+    const sketch = await prepareChatTarget(r, sketchChatTarget, {
+      chatId: "s-1",
+      userId: "user-1",
+    })
+    for (const prepared of [coordinator!, sketch!]) {
+      expect(prepared.systemPrompt).toContain(
+        "- **release-notes**: Write release notes."
+      )
+      expect(prepared.systemPrompt).toContain("save_skill")
+      expect(
+        await call(prepared.tools, "read_skill", { name: "release-notes" })
+      ).toContain("Group by feature.")
+    }
+  })
+
+  it("lists a Skill saved mid-chat in the next turn's prompt and its note for a resumed session", async () => {
+    const r = room()
+    const before = await prepareChatTarget(
+      r,
+      workspaceChatTarget,
+      workspaceTarget
+    )
+    expect(before!.systemPrompt).not.toContain("**review**")
+
+    await call(before!.tools, "save_skill", {
+      name: "review",
+      content: skillMd("review", "Review a PR."),
+    })
+
+    const next = await prepareChatTarget(
+      r,
+      workspaceChatTarget,
+      workspaceTarget,
+      harnessToolNaming("claude-code", "screenplay")
+    )
+    expect(next!.systemPrompt).toContain("- **review**: Review a PR.")
+    expect(next!.skillsNote).toContain("- **review**: Review a PR.")
+    expect(next!.skillsNote).toContain("`mcp__screenplay__read_skill`")
+  })
+
+  it("ranks a Repo Skill over a canvas Skill over an App Skill in the prompt", async () => {
+    const r = room()
+    const tools = inProcess(workspaceChatTarget.tools(r, workspaceTarget))
+    for (const name of ["deploy", "screenplay-add-knob"]) {
+      await call(tools, "save_skill", {
+        name,
+        content: skillMd(name, `Canvas ${name}.`),
+      })
+    }
+    vi.mocked(enumerateRepoSkillsForSandbox).mockResolvedValueOnce([
+      { name: "deploy", description: "Repo deploy.", origin: "repo" },
+    ])
+
+    const ctx = await workspaceChatTarget.loadContext(r, workspaceTarget)
+    const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+
+    expect(prompt).toContain("- **deploy**: Repo deploy.")
+    expect(prompt).not.toContain("Canvas deploy.")
+    expect(prompt).toContain(
+      "- **screenplay-add-knob**: Canvas screenplay-add-knob."
+    )
+    expect(ctx!.skills.filter((s) => s.name === "screenplay-add-knob")).toEqual(
+      [
+        {
+          name: "screenplay-add-knob",
+          description: "Canvas screenplay-add-knob.",
+          origin: "canvas",
+        },
+      ]
+    )
+  })
+
+  it("gives the Coordinator canvas Skills but no Repo Skills", async () => {
+    const r = room()
+    vi.mocked(enumerateRepoSkillsForSandbox).mockClear()
+    const ctx = await roomChatTarget.loadContext(r, { userId: "user-1" })
+
+    expect(enumerateRepoSkillsForSandbox).not.toHaveBeenCalled()
+    expect(ctx!.skills.every((s) => s.origin !== "repo")).toBe(true)
   })
 })
 
@@ -779,6 +953,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
       {
         chatId: "s-1",
         layerDirectory: { documents: [] },
+        skills: [],
         memory: [],
         files: [],
         accountMemory: [],
@@ -841,6 +1016,7 @@ describe("every kind's prompt names only tools its turn has", () => {
         roomChatTarget.buildSystemPrompt(
           {
             canvasSummary: "Documents (1)",
+            skills: [],
             memory,
             files: [],
             accountMemory: [],
@@ -857,6 +1033,7 @@ describe("every kind's prompt names only tools its turn has", () => {
           {
             chatId: "chat-1",
             layerDirectory,
+            skills: [],
             memory,
             files: [],
             accountMemory: [],

@@ -863,9 +863,13 @@ read_document, …). Each Tool's availability is scoped by Chat Target.
 
 **Skill**:
 A markdown instruction document (`SKILL.md` with `name` + `description`
-frontmatter) that teaches the agent how to perform a screenplay-specific task.
-Surfaced to the model by name + description and loaded in full on demand, never
-always-on. Exists as either an App Skill or a Repo Skill.
+frontmatter) that teaches the agent how to perform a task. Surfaced to the
+model by name + description and loaded in full on demand (`read_skill`), never
+always-on. Exists as a Repo Skill, a Canvas Skill or an App Skill (spec #1554
+adds Account and Harness Skills). Every chat sees one merged index; when two
+share a name, the higher-ranked one **shadows** the other, Repo, then Canvas,
+then App (`lib/skills/merged.ts`). The Coordinator and chats with no
+repository get no Repo Skills.
 _Avoid_: command, macro, plugin.
 
 **App Skill**:
@@ -876,9 +880,20 @@ _Avoid_: bundled skill (casual/UI word), built-in.
 
 **Repo Skill**:
 A Skill discovered in the Branch's checked-out sandbox repo (`.claude/skills/`);
-varies per branch. On a name collision it **shadows** the App Skill of the same
-name — the checked-out repo overrides screenplay's bundled default.
+varies per branch. On a name collision it **shadows** a Canvas Skill or App
+Skill of the same name — the checked-out repo's way of doing things holds.
 _Avoid_: project skill, local skill.
+
+**Canvas Skill** (`lib/skills/canvas.ts`, #1555):
+A Skill any chat on a Room saved with `save_skill`, shared with the Room's
+members: every chat on the Room lists it from its next turn. A folder named
+after it holding `SKILL.md` and optional supporting text files, kept by the
+**skills module** (`lib/skills/saved.ts`) over the files module with its own
+index (the Room's `skills` collection), so it never shows in Canvas Files.
+Saving strips `allowed-tools` and inline `` !`command` `` lines. Shadows an App
+Skill of the same name; a Repo Skill shadows it.
+_Shown to users as_: "Canvas" (the `/` menu's source tag).
+_Avoid_: shared skill, team skill.
 
 **Engine** (Agent Loop):
 A seam that drives one turn of a Chat Session to completion, **speaking ACP**:

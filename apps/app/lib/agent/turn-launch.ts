@@ -15,6 +15,11 @@ import { projectUserTurn, userTurnEcho } from "./user-turn"
  */
 export interface PreparedTurn {
   systemPrompt: string
+  /**
+   * The turn's Skill index as a note, for an Engine that resumes a session
+   * holding an older system prompt (#1555). Absent or "" for none.
+   */
+  skillsNote?: string
   model: string
   tools: Record<string, Tool>
   /** The user message as persisted: plan/branch markers already applied. */
@@ -103,6 +108,8 @@ export interface EngineTurnLaunch {
   chatId: string
   runId: string
   systemPrompt: string
+  /** See {@link PreparedTurn.skillsNote}. */
+  skillsNote?: string
   model: string
   tools: Record<string, Tool>
   planMode?: boolean
@@ -325,6 +332,7 @@ export async function launchTurn(
       chatId,
       runId,
       systemPrompt: prepared.systemPrompt,
+      skillsNote: prepared.skillsNote,
       model: prepared.model,
       tools: prepared.tools,
       planMode: prepared.planMode,

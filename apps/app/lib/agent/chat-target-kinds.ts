@@ -1,7 +1,7 @@
 import "server-only"
 
 import type { ToolSet } from "ai"
-import type { LayerDirectory } from "./config"
+import { renderSkillsNote, type LayerDirectory } from "./config"
 import { turnToolset, type ChatTools } from "./toolset"
 import { BARE_TOOL_NAMING, type ToolNaming } from "./tool-name"
 import type { RoomDoc, RoomReader } from "@/lib/room-access"
@@ -9,6 +9,7 @@ import { readMemory } from "@/lib/memory/canvas"
 import { readAccountMemory } from "@/lib/memory/account"
 import { kvAccountMemoryStore } from "@/lib/memory/account-store"
 import type { MemoryData } from "@/lib/types"
+import type { SkillMetadata } from "@/lib/skills/frontmatter"
 
 /**
  * The seam every chat target kind fills: a Branch's Workspace
@@ -21,6 +22,8 @@ import type { MemoryData } from "@/lib/types"
  *   - `loadContext` reads the live state of the target from Yjs.
  *   - `buildSystemPrompt` turns that state into a system prompt, naming tools
  *     only through `naming`, which knows just the turn's toolset.
+ *   - `skillIndex` picks the turn's merged Skill index out of that state, for
+ *     the note a resumed harness session gets in place of a new prompt.
  *   - `tools` lists the kind's tools, once (#1487): the in-process turn and
  *     the agent MCP route both take theirs from it (`toolset.ts`).
  *   - `decorateUserMessage` lets the kind pre-process the user message (e.g.
@@ -34,6 +37,7 @@ export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
   loadContext(room: RoomDoc, target: TTarget): Promise<TContext | null>
   buildSystemPrompt(ctx: TContext, naming: ToolNaming): string
+  skillIndex(ctx: TContext): readonly SkillMetadata[]
   tools(room: RoomDoc, target: TTarget): ChatTools
   decorateUserMessage(message: string, opts: MessageDecoration): string
 }
@@ -52,6 +56,11 @@ export interface PreparedChatTarget<TContext> {
   kind: string
   context: TContext
   systemPrompt: string
+  /**
+   * The turn's Skill index as a note on the user turn, for an engine that
+   * resumes a session holding an older prompt (#1555); "" with no Skills.
+   */
+  skillsNote: string
   tools: ToolSet
   decorateUserMessage: (message: string, opts: MessageDecoration) => string
 }
@@ -76,6 +85,7 @@ export async function prepareChatTarget<TTarget, TContext>(
     kind: spec.kind,
     context,
     systemPrompt: spec.buildSystemPrompt(context, toolset.naming),
+    skillsNote: renderSkillsNote(spec.skillIndex(context), toolset.naming.name),
     tools: toolset.tools,
     decorateUserMessage: (message, opts) =>
       spec.decorateUserMessage(message, opts),

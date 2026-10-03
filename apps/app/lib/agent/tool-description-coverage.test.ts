@@ -13,7 +13,7 @@ import { toolsetOn } from "@/lib/agent/toolset"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
 import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
-import { buildPrAndSkillTools } from "@/lib/agent/tools"
+import { buildPrTools } from "@/lib/agent/tools"
 
 const room = {
   roomId: "room-1",
@@ -39,7 +39,7 @@ function servedToolNames(): string[] {
       "in-process"
     ),
     toolsetOn(roomChatTarget.tools(room, { userId: "user-1" }), "in-process"),
-    buildPrAndSkillTools(sandbox),
+    buildPrTools(sandbox),
   ]) {
     for (const name of Object.keys(tools)) names.add(name)
   }

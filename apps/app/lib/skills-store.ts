@@ -9,32 +9,45 @@ export type { SkillMenuItem }
 /**
  * Client fetch for the `/`-composer skill index.
  *
- * Unlike `models-store`, the merged App ∪ Repo index is *branch-specific* —
- * a Branch carries its own Repo Skills in `.claude/skills/`, and those can
- * change as the agent edits the working tree. So this isn't cached app-wide:
- * the index is fetched per sandbox on chat open and held by the chat for its
- * lifetime, which means reopening a chat after editing a Repo Skill picks up
- * the refreshed list. Concurrent calls for the same sandbox are de-duped so a
- * burst of opens issues a single request.
+ * Unlike `models-store`, the merged index is *branch- and canvas-specific* —
+ * a Branch carries its own Repo Skills in `.claude/skills/`, which change as
+ * the agent edits the working tree, and any chat can save a Skill to the
+ * canvas. So this isn't cached app-wide: the index is fetched per source on
+ * chat open and held by the chat for its lifetime, which means reopening a
+ * chat picks up the refreshed list. Concurrent calls for the same source are
+ * de-duped so a burst of opens issues a single request.
  */
 const pending = new Map<string, Promise<SkillsResponse>>()
 
+/** Where a Composer's `/` Skills come from: its Branch and its canvas. */
+export interface SkillSource {
+  /** The Branch's Sandbox, for its Repo Skills. */
+  sandboxName?: string
+  /** The canvas, for the Skills its chats saved. */
+  roomId?: string
+}
+
+/** One string per source, for de-duping requests. */
+export function skillSourceKey(source: SkillSource = {}): string {
+  return `${source.roomId ?? ""}/${source.sandboxName ?? ""}`
+}
+
 /**
- * Fetch the merged skill index for `sandboxName`'s Branch (App ∪ Repo). With
- * no sandbox the route returns App Skills only — used by chats with no
- * working tree to enumerate.
+ * Fetch the merged skill index for `source`: its Branch's Repo Skills and its
+ * canvas's saved Skills, merged with the App Skills. With neither the route
+ * returns App Skills only.
  */
 export async function getSkillMenuItems(
-  sandboxName?: string
+  source: SkillSource = {}
 ): Promise<SkillMenuItem[]> {
-  const key = sandboxName ?? ""
+  const key = skillSourceKey(source)
   let inflight = pending.get(key)
   if (!inflight) {
-    const url = withBasePath(
-      sandboxName
-        ? `/api/agent/skills?sandbox=${encodeURIComponent(sandboxName)}`
-        : "/api/agent/skills"
-    )
+    const query = new URLSearchParams()
+    if (source.sandboxName) query.set("sandbox", source.sandboxName)
+    if (source.roomId) query.set("room", source.roomId)
+    const qs = query.toString()
+    const url = withBasePath(`/api/agent/skills${qs ? `?${qs}` : ""}`)
     inflight = fetch(url)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)

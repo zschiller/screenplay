@@ -94,4 +94,44 @@ describe("resolveSkillMenuSource", () => {
       "screenplay-share-state",
     ])
   })
+
+  it("lists canvas Skills, between Repo and App Skills in rank", () => {
+    const canvas: SkillMetadata[] = [
+      { name: "screenplay-add-knob", description: "Canvas knob." },
+      { name: "deploy", description: "Canvas deploy." },
+      { name: "review", description: "Canvas review." },
+    ]
+    const repo: SkillMetadata[] = [
+      { name: "deploy", description: "Repo deploy." },
+    ]
+
+    const menu = resolveSkillMenuSource(app, repo, canvas)
+
+    expect(menu).toEqual([
+      { name: "deploy", description: "Repo deploy.", origin: "repo" },
+      { name: "review", description: "Canvas review.", origin: "canvas" },
+      {
+        name: "screenplay-add-knob",
+        description: "Canvas knob.",
+        origin: "canvas",
+      },
+      {
+        name: "screenplay-share-state",
+        description: "Share state.",
+        origin: "app",
+      },
+    ])
+  })
+
+  it("lists canvas Skills before a Sandbox exists", () => {
+    const menu = resolveSkillMenuSource(app, null, [
+      { name: "review", description: "Canvas review." },
+    ])
+
+    expect(menu.map((s) => [s.name, s.origin])).toEqual([
+      ["review", "canvas"],
+      ["screenplay-add-knob", "app"],
+      ["screenplay-share-state", "app"],
+    ])
+  })
 })

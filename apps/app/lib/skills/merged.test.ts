@@ -19,7 +19,7 @@ const repo: OriginTaggedSkill[] = [
 
 describe("mergeSkillIndexes", () => {
   it("tags origin and sorts by name", () => {
-    const merged = mergeSkillIndexes(app, repo)
+    const merged = mergeSkillIndexes({ app, repo })
 
     expect(merged).toEqual([
       { name: "deploy", description: "Repo deploy.", origin: "repo" },
@@ -33,7 +33,7 @@ describe("mergeSkillIndexes", () => {
       { name: "knobs", description: "Repo override of knobs.", origin: "repo" },
     ]
 
-    const merged = mergeSkillIndexes(app, collidingRepo)
+    const merged = mergeSkillIndexes({ app, repo: collidingRepo })
 
     const knobs = merged.filter((s) => s.name === "knobs")
     expect(knobs).toEqual([
@@ -44,11 +44,54 @@ describe("mergeSkillIndexes", () => {
   })
 })
 
+describe("mergeSkillIndexes with canvas Skills", () => {
+  const canvas: SkillMetadata[] = [
+    { name: "knobs", description: "Canvas knobs." },
+    { name: "deploy", description: "Canvas deploy." },
+    { name: "review", description: "Canvas review." },
+  ]
+
+  it("ranks Repo over Canvas over App", () => {
+    const merged = mergeSkillIndexes({ app, canvas, repo })
+
+    expect(merged).toEqual([
+      { name: "deploy", description: "Repo deploy.", origin: "repo" },
+      { name: "knobs", description: "Canvas knobs.", origin: "canvas" },
+      { name: "review", description: "Canvas review.", origin: "canvas" },
+      { name: "state", description: "App state.", origin: "app" },
+    ])
+  })
+
+  it("leaves out a source the chat doesn't have (the Coordinator's repo)", () => {
+    const merged = mergeSkillIndexes({ app, canvas })
+
+    expect(merged.map((s) => [s.name, s.origin])).toEqual([
+      ["deploy", "canvas"],
+      ["knobs", "canvas"],
+      ["review", "canvas"],
+      ["state", "app"],
+    ])
+  })
+})
+
 describe("resolveSkillBody", () => {
+  it("reads Repo, then Canvas, then App", async () => {
+    const readers = {
+      repo: async (n: string) => (n === "a" ? "REPO A" : null),
+      canvas: async (n: string) =>
+        n === "a" || n === "b" ? `CANVAS ${n}` : null,
+      app: (n: string) => `APP ${n}`,
+    }
+
+    expect(await resolveSkillBody("a", readers)).toBe("REPO A")
+    expect(await resolveSkillBody("b", readers)).toBe("CANVAS b")
+    expect(await resolveSkillBody("c", readers)).toBe("APP c")
+  })
+
   it("reads sandbox-first when a Repo Skill exists", async () => {
     const body = await resolveSkillBody("knobs", {
-      readRepoBody: async () => "REPO BODY",
-      readAppBody: () => "APP BODY",
+      repo: async () => "REPO BODY",
+      app: () => "APP BODY",
     })
 
     expect(body).toBe("REPO BODY")
@@ -56,8 +99,8 @@ describe("resolveSkillBody", () => {
 
   it("falls back to the App Skill when no Repo Skill matches", async () => {
     const body = await resolveSkillBody("knobs", {
-      readRepoBody: async () => null,
-      readAppBody: () => "APP BODY",
+      repo: async () => null,
+      app: () => "APP BODY",
     })
 
     expect(body).toBe("APP BODY")
@@ -65,8 +108,8 @@ describe("resolveSkillBody", () => {
 
   it("returns null when neither source has the skill", async () => {
     const body = await resolveSkillBody("nope", {
-      readRepoBody: async () => null,
-      readAppBody: () => null,
+      repo: async () => null,
+      app: () => null,
     })
 
     expect(body).toBeNull()
@@ -75,7 +118,7 @@ describe("resolveSkillBody", () => {
 
 describe("formatMergedListing", () => {
   it("lists the merged set as name + description bullets", () => {
-    const listing = formatMergedListing(mergeSkillIndexes(app, repo))
+    const listing = formatMergedListing(mergeSkillIndexes({ app, repo }))
 
     expect(listing).toContain("- deploy: Repo deploy.")
     expect(listing).toContain("- knobs: App knobs.")

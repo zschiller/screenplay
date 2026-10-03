@@ -277,6 +277,7 @@ export function roomTurn(input: {
       })
       return {
         systemPrompt: prepared.systemPrompt,
+        skillsNote: prepared.skillsNote,
         model,
         tools: prepared.tools,
         userText: prepared.decorateUserMessage(input.message, {
@@ -547,6 +548,7 @@ export function sandboxTurn(input: {
 
       return {
         systemPrompt,
+        skillsNote: prepared.skillsNote,
         model,
         tools: prepared.tools,
         // The Chat Target spec owns the marker policy (branch only on the
@@ -654,6 +656,7 @@ export function sketchTurn(input: {
 
       return {
         systemPrompt: prepared.systemPrompt,
+        skillsNote: prepared.skillsNote,
         model,
         tools: prepared.tools,
         userText: prepared.decorateUserMessage(message, {

@@ -35,7 +35,7 @@ describe("getSkillMenuItems", () => {
       .mockResolvedValue(jsonResponse({ skills: [repoItem, appItem] }))
     vi.stubGlobal("fetch", fetchMock)
 
-    const skills = await getSkillMenuItems("sbx-1")
+    const skills = await getSkillMenuItems({ sandboxName: "sbx-1" })
 
     expect(fetchMock).toHaveBeenCalledWith("/api/agent/skills?sandbox=sbx-1")
     expect(skills).toEqual([repoItem, appItem])
@@ -58,7 +58,10 @@ describe("getSkillMenuItems", () => {
       .mockResolvedValue(jsonResponse({ skills: [appItem] }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await Promise.all([getSkillMenuItems("sbx-1"), getSkillMenuItems("sbx-1")])
+    await Promise.all([
+      getSkillMenuItems({ sandboxName: "sbx-1" }),
+      getSkillMenuItems({ sandboxName: "sbx-1" }),
+    ])
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -70,11 +73,24 @@ describe("getSkillMenuItems", () => {
       .mockResolvedValueOnce(jsonResponse({ skills: [repoItem, appItem] }))
     vi.stubGlobal("fetch", fetchMock)
 
-    const first = await getSkillMenuItems("sbx-1")
-    const second = await getSkillMenuItems("sbx-1")
+    const first = await getSkillMenuItems({ sandboxName: "sbx-1" })
+    const second = await getSkillMenuItems({ sandboxName: "sbx-1" })
 
     expect(first).toEqual([appItem])
     expect(second).toEqual([repoItem, appItem])
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("asks for the canvas's Skills too when the chat is on one", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ skills: [appItem] }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await getSkillMenuItems({ sandboxName: "sbx-1", roomId: "room-1" })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agent/skills?sandbox=sbx-1&room=room-1"
+    )
   })
 })

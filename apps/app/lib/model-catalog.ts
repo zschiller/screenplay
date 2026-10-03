@@ -1,5 +1,9 @@
 import type { ModelInfo, ModelsResponse } from "@/lib/models-store"
-import type { SkillMenuItem } from "@/lib/skills-store"
+import {
+  skillSourceKey,
+  type SkillMenuItem,
+  type SkillSource,
+} from "@/lib/skills-store"
 import { resolveDefaultModel } from "@/lib/model-selection"
 
 /**
@@ -20,10 +24,10 @@ export interface CatalogSource {
   /** The models this deployment can run and its suggested default. */
   loadModels(): Promise<ModelsResponse>
   /**
-   * The `/`-Skill index for a Sandbox's Branch (App ∪ Repo), or App Skills
-   * only with no Sandbox.
+   * The `/`-Skill index for a Sandbox's Branch and a canvas, merged with the
+   * App Skills; App Skills only with neither.
    */
-  loadSkills(sandboxName?: string): Promise<SkillMenuItem[]>
+  loadSkills(source?: SkillSource): Promise<SkillMenuItem[]>
 }
 
 /**
@@ -48,8 +52,8 @@ export interface ModelCatalog {
   retry(): void
   getState(): CatalogState
   subscribe(onChange: () => void): () => void
-  /** The Skill index for `sandboxName`; concurrent calls share one fetch. */
-  loadSkills(sandboxName?: string): Promise<SkillMenuItem[]>
+  /** The Skill index for `source`; concurrent calls share one fetch. */
+  loadSkills(source?: SkillSource): Promise<SkillMenuItem[]>
 }
 
 const IDLE: CatalogState = { status: "idle", models: [], serverDefault: null }
@@ -88,11 +92,11 @@ export function createModelCatalog(source: CatalogSource): ModelCatalog {
       listeners.add(onChange)
       return () => listeners.delete(onChange)
     },
-    loadSkills(sandboxName) {
-      const key = sandboxName ?? ""
+    loadSkills(skillSource) {
+      const key = skillSourceKey(skillSource)
       let inflight = pendingSkills.get(key)
       if (!inflight) {
-        inflight = source.loadSkills(sandboxName).finally(() => {
+        inflight = source.loadSkills(skillSource).finally(() => {
           pendingSkills.delete(key)
         })
         pendingSkills.set(key, inflight)
@@ -156,8 +160,8 @@ export function inMemoryCatalogSource({
         ? Promise.reject(new Error("models unavailable"))
         : Promise.resolve({ models, defaultModelId })
     },
-    loadSkills(sandboxName?: string) {
-      return Promise.resolve(skills[sandboxName ?? ""] ?? [])
+    loadSkills(skillSource?: SkillSource) {
+      return Promise.resolve(skills[skillSource?.sandboxName ?? ""] ?? [])
     },
   }
   return source

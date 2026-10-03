@@ -9,7 +9,7 @@ import {
   type ChatTargetSpec,
 } from "./chat-target-kinds"
 import { prependTurnMarkers } from "./message-markers"
-import { buildPrAndSkillTools, buildSandboxTools } from "./tools"
+import { buildPrTools, buildSandboxTools } from "./tools"
 import { buildDevServerTools } from "./dev-server-tools"
 import { liveDevServerPorts } from "./dev-server-ports"
 import { chatFrameReadTools } from "./frame-read-ports"
@@ -23,8 +23,14 @@ import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import { canvasFiles } from "@/lib/files"
 import { loadCanvasFiles } from "@/lib/files/canvas-files"
 import { sandboxProvider } from "@/lib/sandbox"
-import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
-import type { OriginTaggedSkill } from "@/lib/skills/merged"
+import { buildSkillTools } from "./skill-tools"
+import { appSkillSource, getSkillIndex } from "@/lib/skills"
+import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import {
+  enumerateRepoSkillsForSandbox,
+  repoSkillFsForSandbox,
+} from "@/lib/skills/sandbox-index"
+import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import type { FileEntryData, MemoryData } from "@/lib/types"
 
 /** A chat on a Branch's sandbox: the Workspace's one chat (#1315). */
@@ -45,7 +51,10 @@ export interface WorkspaceContext {
   branch?: { ref: string; autoNamed: boolean }
   repoSystemPrompt: string | undefined
   layerDirectory: LayerDirectory
-  /** Merged App ∪ Repo Skill index, enumerated once from this Branch's sandbox. */
+  /**
+   * The merged Skill index (Repo, then Canvas, then App), read fresh every
+   * turn so a Skill saved mid-chat is known on the next one.
+   */
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
@@ -58,12 +67,12 @@ export const workspaceChatTarget: ChatTargetSpec<
   WorkspaceContext
 > = {
   kind: "agent",
-  // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
-  // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
-  // the per-Agent prompt.
+  // Repo-scoped optional system prompt + the merged Skill index: this
+  // Branch's Repo Skills (`.claude/skills/` in its sandbox), the canvas's and
+  // the App Skills, baked into the prompt.
   async loadContext(room, target) {
     const { sandboxName, chatId } = target
-    const [branch, layerDirectory, skills, memory, files, accountMemory] =
+    const [branch, layerDirectory, repo, canvas, memory, files, accountMemory] =
       await Promise.all([
         room
           .readDoc(({ branches, repos }) => {
@@ -81,7 +90,8 @@ export const workspaceChatTarget: ChatTargetSpec<
           })
           .catch(() => undefined),
         loadLayerDirectory(room),
-        getMergedSkillIndexForSandbox(sandboxName),
+        enumerateRepoSkillsForSandbox(sandboxName),
+        loadCanvasSkills(room),
         loadCanvasMemory(room),
         loadCanvasFiles(room),
         loadAccountMemory(turnSender(target)),
@@ -91,12 +101,13 @@ export const workspaceChatTarget: ChatTargetSpec<
       branch: branch && { ref: branch.ref, autoNamed: branch.autoNamed },
       repoSystemPrompt: branch?.systemPrompt ?? undefined,
       layerDirectory,
-      skills,
+      skills: mergeSkillIndexes({ repo, canvas, app: getSkillIndex() }),
       memory,
       files,
       accountMemory,
     }
   },
+  skillIndex: (ctx) => ctx.skills,
   buildSystemPrompt(ctx, naming) {
     return buildAgentSystemPrompt({
       repoSystemPrompt: ctx.repoSystemPrompt,
@@ -140,8 +151,15 @@ export const workspaceChatTarget: ChatTargetSpec<
               { path }
             ),
         }),
-        // Opening the branch's PR and loading Skills (#1480).
-        ...buildPrAndSkillTools(sandbox),
+        // Opening the branch's PR (#1480).
+        ...buildPrTools(sandbox),
+        // Loading Skills, and saving them to the canvas (#1555).
+        ...buildSkillTools({
+          canvas: canvasSkills(room),
+          chatId,
+          app: appSkillSource(),
+          repo: () => repoSkillFsForSandbox(sandboxName),
+        }),
       },
     }
   },
