@@ -7,6 +7,7 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import { getGroupMembers, placeNewGroupBeside } from "@/lib/canvas/layout"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
+import { editRight } from "@/lib/canvas/document-owner"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -18,7 +19,8 @@ import {
  * A chat's Document tools (#1314): it creates Documents, and edits the ones it
  * made. A Document records the chat that made it (`ownerChatId`), so the edit
  * tools refuse any other: a Document someone made by hand, or another chat's,
- * is theirs to change. Reading any Document is the shared `read_document`
+ * is theirs to change. Once the chat that made one is deleted, any chat may
+ * edit it, and the first that does becomes its owner. Reading any Document is the shared `read_document`
  * (`layer-read-tools.ts`), which every chat has.
  *
  * Every mutation goes through the turn's `room.mutateDoc` so concurrent edits
@@ -38,8 +40,9 @@ const DOCUMENT_SIZE = { width: 480, height: 640 }
 
 export function buildDocumentTools(ctx: DocumentToolContext) {
   /**
-   * One edit of a Document this chat owns. Reads through a fresh collection
-   * view: nothing observes a server doc, so a cached one can read stale.
+   * One edit of a Document this chat owns, or claims because its chat was
+   * deleted. Reads through a fresh collection view: nothing observes a server
+   * doc, so a cached one can read stale.
    */
   const editOwned = (
     documentId: string,
@@ -49,16 +52,28 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       const c = createRoomCollections(doc)
       const layer = c.markdownLayers.get(documentId)
       if (!layer) return `Error: no document ${documentId}.`
-      if (layer.ownerChatId !== ctx.chatId) {
+      const right = editRight(
+        layer.ownerChatId,
+        ctx.chatId,
+        (id) => !!c.chatSessions.get(id)
+      )
+      if (right === "theirs") {
         return `Error: "${layer.title || "Untitled"}" wasn't made by this chat, so you can read it but not change it.`
       }
-      return edit(c)
+      let result = ""
+      createCanvasOps(c).batch(() => {
+        if (right === "claim") {
+          c.markdownLayers.update(documentId, { ownerChatId: ctx.chatId })
+        }
+        result = edit(c)
+      })
+      return result
     })
 
   const tools = {
     create_document: tool({
       description:
-        "Create a Document on the canvas, beside this chat's other frames and Documents. It is yours: only you can edit it with these tools, and the person sees your name on it. `content` is its body as CommonMark markdown (don't repeat the title as a `#` heading). Returns its id.",
+        "Create a Document on the canvas, beside this chat's other frames and Documents. It is yours: only you can edit it with these tools (until this chat is deleted), and the person sees your name on it. `content` is its body as CommonMark markdown (don't repeat the title as a `#` heading). Returns its id.",
       inputSchema: jsonSchema<{ title?: string; content?: string }>({
         type: "object",
         properties: {
@@ -97,7 +112,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     replace_document_body: tool({
       description:
-        "Replace the body of a Document you made, below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, and inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`) all work. The title is set separately; don't repeat it as a top-level `#` heading. Use this when you've redrafted the Document; for incremental edits prefer `append_to_document_body`.",
+        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, and inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`) all work. The title is set separately; don't repeat it as a top-level `#` heading. Use this when you've redrafted the Document; for incremental edits prefer `append_to_document_body`.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -118,7 +133,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     append_to_document_body: tool({
       description:
-        "Append a block of text to the end of a Document you made. Use the same markdown as `replace_document_body`. Keeps everything already in the Document, but flattens inline marks already present in it — the appended text keeps its own marks. Use `replace_document_body` when the Document's existing marks must survive.",
+        "Append a block of text to the end of a Document you made (or one whose chat was deleted, which makes it yours). Use the same markdown as `replace_document_body`. Keeps everything already in the Document, but flattens inline marks already present in it — the appended text keeps its own marks. Use `replace_document_body` when the Document's existing marks must survive.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -144,7 +159,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     set_document_title: tool({
       description:
-        "Retitle a Document you made. Use a short, descriptive heading — it shows at the top of the Document, in the sidebar, and in the @-mention list.",
+        "Retitle a Document you made (or one whose chat was deleted, which makes it yours). Use a short, descriptive heading — it shows at the top of the Document, in the sidebar, and in the @-mention list.",
       inputSchema: jsonSchema<{ document_id: string; title: string }>({
         type: "object",
         properties: {

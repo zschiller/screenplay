@@ -67,7 +67,8 @@ Every mockup remembers the chat that made it, and shows that chat's
 workspace next to its title, as a chat's documents do. When everything in a
 group comes from the same workspace, the group's label names it once instead.
 Only the chat that made a mockup can change it; ask that chat to continue the
-work.
+work. Once that chat is deleted, any chat can change the mockup, and the first
+one that does becomes its chat.
 
 ## Status
 
@@ -124,8 +125,10 @@ chat gives its page [knobs](/building/knobs#knobs-on-a-mockup), the button
 opens them: sliders, switches, text fields, selects and color pickers that
 change the page as you drag, for everyone on the canvas. With none yet,
 **Ask the agent to add a knob** opens the chat that drew the mockup (for a
-mockup a workspace drew, that workspace's chat) with a request started. A
-mockup you made by hand, or whose chat was deleted, has no Ask.
+mockup a workspace drew, that workspace's chat) with a request started. When
+that chat was deleted, it opens the chat the agent panel is showing instead,
+or a new chat with no repository when the panel shows the Coordinator. A
+mockup you made by hand has no Ask.
 
 A mockup's page can also [share its state](/building/shared-state#on-a-mockup),
 such as the open tab or what's in a cart, so everyone looking at it sees the

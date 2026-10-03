@@ -13,25 +13,34 @@ import { toolsetOn } from "@/lib/agent/toolset"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
 import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
+import { buildPrAndSkillTools } from "@/lib/agent/tools"
 
 const room = {
   roomId: "room-1",
   readDoc: vi.fn(),
   mutateDoc: vi.fn(),
 } as never
+const sandbox = { sandboxName: "sandbox-a", room, userId: "user-1" }
 
 /** Every tool any chat target serves, in-process or over MCP. */
 function servedToolNames(): string[] {
   const names = new Set<string>()
   for (const tools of [
-    workspaceChatTarget.tools(room, {
-      sandboxName: "sandbox-a",
-      chatId: "chat-1",
-      userId: "user-1",
-    }),
-    sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" }),
-    roomChatTarget.tools(room, { userId: "user-1" }),
-  ].map((tools) => toolsetOn(tools, "in-process"))) {
+    toolsetOn(
+      workspaceChatTarget.tools(room, {
+        sandboxName: "sandbox-a",
+        chatId: "chat-1",
+        userId: "user-1",
+      }),
+      "in-process"
+    ),
+    toolsetOn(
+      sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" }),
+      "in-process"
+    ),
+    toolsetOn(roomChatTarget.tools(room, { userId: "user-1" }), "in-process"),
+    buildPrAndSkillTools(sandbox),
+  ]) {
     for (const name of Object.keys(tools)) names.add(name)
   }
   return [...names].sort()

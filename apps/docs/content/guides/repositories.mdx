@@ -11,24 +11,22 @@ click **…** next to the canvas name at the top left and choose **Settings**.
 
 <Screenshot
   name="canvas-settings"
-  alt="Canvas settings open on Repositories, listing northwind-web with its scripts, Edit and a switch"
+  alt="Canvas settings open on Repositories, listing northwind-web with its scripts, Edit and Remove"
 />
 
-The list holds every one of [your repositories](#your-repositories), each
-with a switch for whether this canvas uses it, plus any other repository
-already on the canvas. Each row shows the repository's short name (its label,
-or the repository's own name) over its setup and run scripts. Turn a switch
-on and the repository is on the canvas: chats can use it and new workspaces
-start from its settings. On a shared canvas these settings are shared with
-everyone on it, so a collaborator's new workspaces start the same way as
-yours.
+The list comes in two parts: **On this canvas**, every repository on the
+canvas, each with **Edit** and **Remove**, then **Your other repositories**,
+the ones of [yours](#your-repositories) it doesn't use yet, each with
+**Add**. Each row shows the repository's short name (its label, or the
+repository's own name) over its setup and run scripts. Add one and it's on
+the canvas: chats can use it and new workspaces start from its settings. On a
+shared canvas these settings are shared with everyone on it, so a
+collaborator's new workspaces start the same way as yours.
 
-_Hosted._ There are no switches. The list comes in two parts: **On this
-canvas**, every repository anyone on the canvas has added, each with
-**Remove**, then **Your other repositories**, the ones of yours it doesn't use
-yet, each with **Add**. On a shared canvas, a repository a teammate added says
-who after its name. Removing one always asks first, since it goes for
-everyone on the canvas.
+_Hosted._ **On this canvas** holds every repository anyone on the canvas has
+added, and one a teammate added says who after its name. When a teammate has
+already added a repository you also have, under the same name, yours isn't
+offered: the canvas uses theirs.
 
 The Chats menu lists chats, not repositories: when a canvas has two
 or more repositories, each [workspace](/guides/workspaces)'s row ends with its
@@ -57,7 +55,7 @@ change.
 **Configure repository** then opens with settings already detected from the
 repository (**Detecting settings…**). Check them and click **Add repository**.
 Picking a repository you already have, with the same name, updates that one
-rather than adding a second; to use one you already have, turn its switch on
+rather than adding a second; to use one you already have, click its **Add**
 instead.
 
 <Screenshot
@@ -134,15 +132,18 @@ your repository in Settings and to every canvas that uses it, including ones
 where it was customized, so none of them has the dot afterwards. A canvas
 keeps its own environment variable values if you changed them there.
 
-## Turning a repository off
+## Removing a repository
 
-In Canvas settings, turn off a repository's switch. Without workspaces it
-comes off this canvas straight away. On hosted, click **Remove** instead,
-which always asks first. When workspaces use it, the confirm says
-how many and lists each one, since they come off the canvas with it, and
-warns if uncommitted work would be lost. When you're connected to GitHub, it
-also offers **Also delete these _N_ branches on GitHub**, which is off by
-default. The repository stays in Settings, so you can turn it back on later.
+In Canvas settings, click **Remove** on the repository. On desktop, one
+without workspaces or [canvas changes](#customizing-a-repository-for-one-canvas)
+comes off this canvas straight away; otherwise it asks first. On hosted it
+always asks first, since it goes for everyone on the canvas. When workspaces
+use it, the confirm says how many and lists each one, since they come off the
+canvas with it, and warns if uncommitted work would be lost. When it was
+customized, the confirm says its changes on this canvas are lost. When you're
+connected to GitHub, it also offers **Also delete these _N_ branches on
+GitHub**, which is off by default. The repository stays in Settings, so you
+can add it back later.
 
 ## Your repositories
 

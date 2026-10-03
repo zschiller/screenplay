@@ -17,12 +17,15 @@ import type { BranchData, RepoData } from "@/lib/types"
 export function RemoveRepositoryDialog({
   repo,
   branches,
+  changesLost,
   onOpenChange,
   onRemoveRepo,
 }: {
   /** The repository to confirm removing; `null` keeps the dialog closed. */
   repo: RepoData | null
   branches: BranchData[]
+  /** It was customized for this canvas, so its edits go with it. */
+  changesLost?: boolean
   onOpenChange: (open: boolean) => void
   onRemoveRepo: (
     id: string,
@@ -60,6 +63,7 @@ export function RemoveRepositoryDialog({
       }))}
       canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
       localBranchKept={isLocalBuild}
+      changesLost={changesLost}
       onConfirm={async ({ deleteBranchesOnRemote }) => {
         if (!repo) return
         await onRemoveRepo(repo.id, { deleteBranchesOnRemote })

@@ -1380,8 +1380,8 @@ export function Canvas({
   // The empty Knobs popover's "Ask the agent to add a knob": open the frame's
   // Workspace chat (its one chat, #1315, or a fresh one when it has none) and
   // start the request in its composer for the user to finish. Nothing is sent.
-  const handleAskForKnob = useCallback(
-    (branchId: string) => {
+  const openWorkspaceChat = useCallback(
+    (branchId: string): string => {
       let chatId = workspaceChatId(chatSessions, branchId)
       if (!chatId) {
         chatId = nanoid()
@@ -1396,13 +1396,21 @@ export function Canvas({
         expandPanel: true,
         remember: true,
       })
-      inputStore.prefill(chatId, ASK_FOR_KNOB_PROMPT)
+      return chatId
     },
     [chatSessions, chatTarget, addChatSession]
+  )
+  const handleAskForKnob = useCallback(
+    (branchId: string) =>
+      inputStore.prefill(openWorkspaceChat(branchId), ASK_FOR_KNOB_PROMPT),
+    [openWorkspaceChat]
   )
 
   // The same for a Mockup's empty Knobs popover, in the chat that can rewrite
   // the page (#1309): the Sketch Chat that made it, or its Workspace's chat.
+  // A Mockup whose chat was deleted goes to the chat the panel shows, which
+  // claims it by editing it, or to a new chat with no repository when the
+  // panel shows the Coordinator.
   const mockupAskTargets = useMemo(
     () => mockupAskTargetsOf(mockupLayers, chatSessions),
     [mockupLayers, chatSessions]
@@ -1413,6 +1421,21 @@ export function Canvas({
       const target = mockupAskTargets.get(mockupId)
       if (!mockup || !target) return
       const prompt = `Add a knob to the mockup "${mockup.title || "Untitled"}" that controls `
+      if (target.kind === "shown") {
+        const shown = chatTarget.target
+        if (shown?.kind === "agent") {
+          inputStore.prefill(openWorkspaceChat(shown.agent.id), prompt)
+          return
+        }
+        let chatId = shown?.kind === "sketch" ? shown.chat.id : null
+        if (!chatId) {
+          chatId = nanoid()
+          addChatSession(chatId, sketchChatSession(chatId, Date.now()))
+        }
+        chatTarget.selectSketchChat(chatId)
+        inputStore.prefill(chatId, prompt)
+        return
+      }
       if (target.kind === "sketch") {
         chatTarget.selectSketchChat(target.chatId)
       } else {
@@ -1423,7 +1446,13 @@ export function Canvas({
       }
       inputStore.prefill(target.chatId, prompt)
     },
-    [mockupLayers, mockupAskTargets, chatTarget]
+    [
+      mockupLayers,
+      mockupAskTargets,
+      chatTarget,
+      openWorkspaceChat,
+      addChatSession,
+    ]
   )
 
   // A new chat with no repository (a Sketch Chat), opened in the panel; a

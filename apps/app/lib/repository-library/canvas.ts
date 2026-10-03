@@ -359,19 +359,25 @@ export type CanvasRepositoryRow =
   | { on: false; repository: RepoConfig }
 
 /**
- * The Canvas's switch list: every one of your Repositories, on when this
+ * The Canvas's Repositories list: every one of your Repositories, on when this
  * Canvas has a Repo linked to it, plus every other Canvas Repo (unlinked, or
- * another member's) as on. Sorted by name, then source, so the list keeps its
- * order as switches flip.
+ * another member's) as on. One of yours the Canvas already has under the same
+ * remote and name (a teammate added theirs) is left out, so Add can't make a
+ * second Repo nobody could tell apart (#1420's identity rule). Sorted by name,
+ * then source, so the list keeps its order as Repos are added and removed.
  */
 export function canvasRepositoryRows(
   repositories: readonly RepoConfig[],
   repos: readonly RepoData[]
 ): CanvasRepositoryRow[] {
-  const rows: CanvasRepositoryRow[] = repositories.map((repository) => {
+  const rows: CanvasRepositoryRow[] = []
+  for (const repository of repositories) {
     const repo = repos.find((r) => r.repositoryId === repository.id)
-    return repo ? { on: true, repo, repository } : { on: false, repository }
-  })
+    if (repo) rows.push({ on: true, repo, repository })
+    else if (!repos.some((r) => sameRepository(r, repository))) {
+      rows.push({ on: false, repository })
+    }
+  }
   for (const repo of repos) {
     if (!repositories.some((r) => r.id === repo.repositoryId)) {
       rows.push({ on: true, repo })
@@ -386,4 +392,21 @@ export function canvasRepositoryRows(
     const [bn, bs] = key(b)
     return an.localeCompare(bn) || as.localeCompare(bs)
   })
+}
+
+/** One labelled run of a Canvas's Repositories list. */
+export interface CanvasRepositoryGroup {
+  label: string
+  rows: CanvasRepositoryRow[]
+}
+
+/** The Canvas's Repositories list in its groups: the Canvas's Repos (every
+ *  member's) first, then your others to add. Empty groups are left out. */
+export function canvasRepositoryGroups(
+  rows: readonly CanvasRepositoryRow[]
+): CanvasRepositoryGroup[] {
+  return [
+    { label: "On this canvas", rows: rows.filter((row) => row.on) },
+    { label: "Your other repositories", rows: rows.filter((row) => !row.on) },
+  ].filter((group) => group.rows.length > 0)
 }
