@@ -222,7 +222,7 @@ async function runWakeTurn(
       },
     },
     { roomId: room.roomId, chatId, message, model },
-    roomTurn({ room, chatId, message, model, requesterId })
+    roomTurn({ room, chatId, message, model, requesterId, senderless: true })
   )
   await drive?.()
 }
@@ -248,6 +248,8 @@ export function roomTurn(input: {
   model?: string
   /** Who owns Workspaces this turn creates, when not the acting member. */
   requesterId?: string
+  /** A wake nobody sent: no account memory (#1513). */
+  senderless?: boolean
 }): TurnTarget {
   const { room, chatId } = input
   return {
@@ -256,7 +258,10 @@ export function roomTurn(input: {
       const prepared = await prepareChatTarget(
         room,
         roomChatTarget,
-        coordinatorTarget(room, chatId, { requesterId: input.requesterId }),
+        coordinatorTarget(room, chatId, {
+          requesterId: input.requesterId,
+          senderless: input.senderless,
+        }),
         toolNamingForTurn(input.model)
       )
       if (!prepared) return null
@@ -291,16 +296,22 @@ export function roomTurn(input: {
 export function coordinatorTarget(
   room: RoomAccess,
   coordinatorChatId: string,
-  opts: { turnId?: string; requesterId?: string } = {}
+  opts: { turnId?: string; requesterId?: string; senderless?: boolean } = {}
 ): RoomTarget {
+  const { senderless } = opts
   return {
     userId: room.userId,
+    ...(senderless ? { senderless } : {}),
     turnId: opts.turnId,
     requesterId: opts.requesterId,
     coordinatorChatId,
-    launchWorkspaceTurn: delegatedTurnLauncher(room, coordinatorChatId),
+    launchWorkspaceTurn: delegatedTurnLauncher(room, coordinatorChatId, {
+      senderless,
+    }),
     launchSketchTurn: (request) =>
-      launchDelegatedSketchTurn(room, coordinatorChatId, request),
+      launchDelegatedSketchTurn(room, coordinatorChatId, request, {
+        senderless,
+      }),
     // Provisioned with the owner's GitHub account, as the create they asked
     // for; the seed message follows once the sandbox runs.
     async provisionWorkspace(request) {
@@ -367,15 +378,18 @@ export async function sendPendingSeed(
  */
 export function delegatedTurnLauncher(
   room: RoomAccess,
-  coordinatorChatId: string
+  coordinatorChatId: string,
+  opts: { senderless?: boolean } = {}
 ): (request: WorkspaceTurnRequest) => Promise<void> {
-  return (request) => launchDelegatedTurn(room, coordinatorChatId, request)
+  return (request) =>
+    launchDelegatedTurn(room, coordinatorChatId, request, opts)
 }
 
 async function launchDelegatedTurn(
   room: RoomAccess,
   coordinatorChatId: string,
-  request: WorkspaceTurnRequest
+  request: WorkspaceTurnRequest,
+  { senderless }: { senderless?: boolean } = {}
 ): Promise<void> {
   const { chatId, sandboxName, message, model } = request
   const result = await launchTurn(
@@ -398,6 +412,7 @@ async function launchDelegatedTurn(
       isFirstChat: request.isFirstChat,
       model,
       delegatedFrom: coordinatorChatId,
+      senderless,
     })
   )
   if (result.kind === "target-not-found") {
@@ -414,7 +429,8 @@ async function launchDelegatedTurn(
 async function launchDelegatedSketchTurn(
   room: RoomAccess,
   coordinatorChatId: string,
-  request: SketchTurnRequest
+  request: SketchTurnRequest,
+  { senderless }: { senderless?: boolean } = {}
 ): Promise<void> {
   const { chatId, message, model } = request
   const result = await launchTurn(
@@ -433,6 +449,7 @@ async function launchDelegatedSketchTurn(
       message,
       model,
       delegatedFrom: coordinatorChatId,
+      senderless,
     })
   )
   if (result.kind === "target-not-found") {
@@ -456,6 +473,8 @@ export function sandboxTurn(input: {
   commentThreadIds?: string[]
   /** The sending Coordinator chat, when this turn is a Delegated Message. */
   delegatedFrom?: string
+  /** Delegated by a wake nobody sent: no account memory (#1513). */
+  senderless?: boolean
 }): TurnTarget {
   const { room, chatId, sandboxName, userId, message, planMode } = input
   const { roomId } = room
@@ -469,7 +488,12 @@ export function sandboxTurn(input: {
         prepareChatTarget(
           room,
           workspaceChatTarget,
-          { sandboxName, chatId, userId },
+          {
+            sandboxName,
+            chatId,
+            userId,
+            ...(input.senderless ? { senderless: true } : {}),
+          },
           toolNamingForTurn(input.model)
         ),
         // Recent activity (#885): this Workspace just saw a turn start.
@@ -571,6 +595,8 @@ export function sketchTurn(input: {
   model?: string
   /** The sending Coordinator chat, when this turn is a Delegated Message. */
   delegatedFrom?: string
+  /** Delegated by a wake nobody sent: no account memory (#1513). */
+  senderless?: boolean
 }): TurnTarget {
   const { room, chatId, message } = input
   const { roomId } = room
@@ -592,7 +618,11 @@ export function sketchTurn(input: {
       const prepared = await prepareChatTarget(
         room,
         sketchChatTarget,
-        { chatId, userId: room.userId },
+        {
+          chatId,
+          userId: room.userId,
+          ...(input.senderless ? { senderless: true } : {}),
+        },
         toolNamingForTurn(input.model)
       )
       if (!prepared) return null

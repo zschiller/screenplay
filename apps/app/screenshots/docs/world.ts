@@ -252,6 +252,29 @@ export async function buildDocsWorld(
       { id: "pin-marketing", folderId: ids.folders.marketing, position: 1 },
     ],
     repoConfigs: repoConfigs(now),
+    accountMemory: [
+      {
+        id: "mem-account-copy",
+        text: "Write UI copy in plain sentences, and keep buttons to one or two words.",
+        source: "member",
+        createdAt: now - 9 * DAY,
+        updatedAt: now - 9 * DAY,
+      },
+      {
+        id: "mem-account-fixes",
+        text: "Prefers small fixes inside the current design over redesigns.",
+        source: "agent",
+        createdAt: now - 4 * DAY,
+        updatedAt: now - 4 * DAY,
+      },
+      {
+        id: "mem-account-tests",
+        text: "Run the tests before saying a change is done.",
+        source: "agent",
+        createdAt: now - DAY,
+        updatedAt: now - DAY,
+      },
+    ],
     // The docs are shot from the local build, which has no people or
     // comment threads to seed.
     hosted: { userName: "Sam Rivera", collaborators: [], threads: [] },
@@ -465,14 +488,14 @@ function northwindRoom(
         {
           id: "mem-northwind-tone",
           text: "Headlines are sentence case, and prices always show the monthly amount first.",
-          source: "coordinator",
+          source: "agent",
           createdAt: now - 5 * DAY,
           updatedAt: now - 5 * DAY,
         },
         {
           id: "mem-northwind-tokens",
           text: "Use the CSS variables in src/styles.css; never hard-code hex values.",
-          source: "coordinator",
+          source: "agent",
           createdAt: now - 2 * DAY,
           updatedAt: now - 2 * DAY,
         },

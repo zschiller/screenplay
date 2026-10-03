@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
-import { addMemory, removeMemory } from "@/lib/canvas/memory"
+import { addMemory, removeMemory } from "@/lib/memory/canvas"
 import { createCanvasUndo } from "@/lib/canvas/undo"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { mockupHtml } from "@/lib/yjs/mockup-html"

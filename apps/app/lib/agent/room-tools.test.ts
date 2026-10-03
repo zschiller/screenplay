@@ -10,7 +10,7 @@ import {
   type WorkspaceTurnRequest,
 } from "@/lib/agent/room-tools"
 import type { RoomCollections } from "@/lib/yjs/schema"
-import { readMemory } from "@/lib/canvas/memory"
+import { readMemory } from "@/lib/memory/canvas"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import {
@@ -286,7 +286,7 @@ describe("write_memory", () => {
     expect(rest).toEqual([])
     expect(entry).toMatchObject({
       text: "Use pnpm, never npm.",
-      source: "coordinator",
+      source: "agent",
     })
     expect(out).toContain(`[${entry!.id}]`)
   })

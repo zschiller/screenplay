@@ -783,11 +783,22 @@ describe("CanvasSettingsDialog", () => {
 
   describe("Memory", () => {
     it("lists each entry with who saved it", () => {
-      renderDialog()
+      renderDialog(undefined, [
+        ...MEMORIES,
+        {
+          id: "mem-2",
+          text: "Staging deploys on merge.",
+          source: "member",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ])
       openMemory()
 
       expect(screen.getByText("Use pnpm, never npm.")).not.toBeNull()
-      expect(screen.getByText("Saved by the Coordinator")).not.toBeNull()
+      // Saved by the Coordinator before #1513, so it says `coordinator`.
+      expect(screen.getByText("Saved by agent")).not.toBeNull()
+      expect(screen.getByText("Added in settings")).not.toBeNull()
     })
 
     it("says so when the canvas has no memory yet", () => {

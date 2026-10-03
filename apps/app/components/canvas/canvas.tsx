@@ -244,7 +244,7 @@ import { CanvasTopBar } from "./canvas-top-bar"
 
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 
-import { addMemory, editMemory, removeMemory } from "@/lib/canvas/memory"
+import { addMemory, editMemory, removeMemory } from "@/lib/memory/canvas"
 
 import { ChatPanelHost } from "./chat-panel-host"
 

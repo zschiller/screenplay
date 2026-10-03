@@ -1,6 +1,12 @@
-import { nanoid } from "nanoid"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
 import type { MemoryData } from "@/lib/types"
+import { newMemoryEntry, normalizeMemoryText, type MemorySource } from "./entry"
+
+export {
+  MEMORY_ENTRY_MAX_LENGTH,
+  MEMORY_PROMPT_LIMIT,
+  normalizeMemoryText,
+} from "./entry"
 
 /**
  * **Canvas memory** (#902): the canvas's shared preferences, decisions and
@@ -11,13 +17,8 @@ import type { MemoryData } from "@/lib/types"
  *
  * These verbs are the one way either writer changes the list, so the Canvas
  * settings section and the Coordinator tool can't disagree on the shape.
+ * Account memory (`./account`) has the same verbs over a per-person store.
  */
-
-/** The longest entry kept, in characters. Memory is notes, not documents. */
-export const MEMORY_ENTRY_MAX_LENGTH = 1000
-
-/** The most entries a system prompt carries; the newest win. */
-export const MEMORY_PROMPT_LIMIT = 100
 
 /** Every entry, oldest first (the order they were saved in). */
 export function readMemory(collections: RoomCollections): MemoryData[] {
@@ -29,30 +30,13 @@ export function readMemory(collections: RoomCollections): MemoryData[] {
   return entries.sort((a, b) => a.createdAt - b.createdAt)
 }
 
-/** Trim an entry's text and cap its length; empty text is `null`. */
-export function normalizeMemoryText(text: string): string | null {
-  const trimmed = text.trim()
-  if (!trimmed) return null
-  return trimmed.length > MEMORY_ENTRY_MAX_LENGTH
-    ? trimmed.slice(0, MEMORY_ENTRY_MAX_LENGTH)
-    : trimmed
-}
-
 /** Save a new entry. Returns it, or `null` when the text is empty. */
 export function addMemory(
   collections: RoomCollections,
-  input: { text: string; source: MemoryData["source"]; now?: number }
+  input: { text: string; source: MemorySource; now?: number }
 ): MemoryData | null {
-  const text = normalizeMemoryText(input.text)
-  if (!text) return null
-  const now = input.now ?? Date.now()
-  const entry: MemoryData = {
-    id: `mem-${nanoid(8)}`,
-    text,
-    source: input.source,
-    createdAt: now,
-    updatedAt: now,
-  }
+  const entry = newMemoryEntry(input)
+  if (!entry) return null
   collections.memories.set(entry.id, entry)
   return entry
 }

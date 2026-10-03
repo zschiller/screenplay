@@ -184,6 +184,8 @@ export interface FixtureWorld {
   pins: FixturePin[]
   /** Saved Project presets, encrypted into `kv_store` by the seeder. */
   repoConfigs: RepoConfig[]
+  /** Account memory (#1513), shown in Settings › Memory. */
+  accountMemory?: MemoryData[]
   /** The hosted build's half, seeded only by a `--hosted` run (#789). */
   hosted: FixtureHostedWorld
 }
@@ -538,6 +540,7 @@ export function buildFixtureWorld(options: BuildWorldOptions): FixtureWorld {
       },
     ],
     repoConfigs: repoConfigs(now),
+    accountMemory: accountMemory(now),
     hosted: hostedWorld(now),
   }
 }
@@ -896,14 +899,14 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
         {
           id: "mem-checkout-pnpm",
           text: "Use pnpm, never npm: the lockfile is pnpm-lock.yaml.",
-          source: "coordinator",
+          source: "agent",
           createdAt: daysAgo(now, 6),
           updatedAt: daysAgo(now, 6),
         },
         {
           id: "mem-checkout-mobile",
           text: "Design mobile-first. The summary rail becomes a sticky footer under 768px, and nothing on the checkout may shift when it pins.",
-          source: "coordinator",
+          source: "agent",
           createdAt: daysAgo(now, 3),
           updatedAt: daysAgo(now, 3),
         },
@@ -1795,6 +1798,26 @@ function oneLineChat(
  * one, and a local-folder preset (`localPath`, the desktop acquisition hint),
  * because each renders a different badge.
  */
+function accountMemory(now: number): MemoryData[] {
+  const day = 24 * 60 * 60 * 1000
+  return [
+    {
+      id: "mem-account-fixes",
+      text: "Prefers small fixes inside the current UX over redesigns.",
+      source: "agent",
+      createdAt: now - 6 * day,
+      updatedAt: now - 6 * day,
+    },
+    {
+      id: "mem-account-copy",
+      text: "Write UI copy in plain sentences, no puns.",
+      source: "member",
+      createdAt: now - 3 * day,
+      updatedAt: now - 3 * day,
+    },
+  ]
+}
+
 function repoConfigs(now: number): RepoConfig[] {
   return [
     {

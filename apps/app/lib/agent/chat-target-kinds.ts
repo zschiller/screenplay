@@ -5,7 +5,9 @@ import type { LayerDirectory } from "./config"
 import { turnToolset, type ChatTools } from "./toolset"
 import { BARE_TOOL_NAMING, type ToolNaming } from "./tool-name"
 import type { RoomDoc, RoomReader } from "@/lib/room-access"
-import { readMemory } from "@/lib/canvas/memory"
+import { readMemory } from "@/lib/memory/canvas"
+import { readAccountMemory } from "@/lib/memory/account"
+import { kvAccountMemoryStore } from "@/lib/memory/account-store"
 import type { MemoryData } from "@/lib/types"
 
 /**
@@ -88,6 +90,27 @@ export async function loadCanvasMemory(
   room: RoomReader
 ): Promise<MemoryData[]> {
   return (await room.readDoc(readMemory).catch(() => null)) ?? []
+}
+
+/**
+ * The account memory (#1513) of the person who sent the turn, for its system
+ * prompt. `null` is a turn nobody sent (a Coordinator wake), which reads none,
+ * so nobody's personal context leaks into it. A read that fails leaves the
+ * prompt without it rather than failing the turn.
+ */
+export async function loadAccountMemory(
+  senderId: string | null
+): Promise<MemoryData[]> {
+  if (!senderId) return []
+  return readAccountMemory(kvAccountMemoryStore(senderId)).catch(() => [])
+}
+
+/** Who sent a target's turn: its member, unless nobody did. */
+export function turnSender(target: {
+  userId: string
+  senderless?: boolean
+}): string | null {
+  return target.senderless ? null : target.userId
 }
 
 /**

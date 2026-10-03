@@ -637,6 +637,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: "/settings?section=repositories",
   }),
   screen({
+    name: "settings-memory",
+    description: "Settings → Memory: your account memory.",
+    path: "/settings?section=memory",
+    prepare: async (page) => {
+      await page.getByText("Saved by agent").first().waitFor()
+    },
+  }),
+  screen({
     name: "preset-form",
     description: "Editing a repository in Settings.",
     path: "/settings?section=repositories",
@@ -757,7 +765,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.getByRole("button", { name: "Canvas options" }).click()
       await clickMenuItem(page, "Settings", 1200)
       await page.getByRole("button", { name: "Memory" }).click()
-      await page.getByText("Saved by the Coordinator").first().waitFor()
+      await page.getByText("Saved by agent").first().waitFor()
     },
   }),
   screen({

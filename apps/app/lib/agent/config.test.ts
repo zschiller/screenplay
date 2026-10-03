@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   buildAgentSystemPrompt,
   buildRoomSystemPrompt,
+  buildSketchSystemPrompt,
 } from "@/lib/agent/config"
+import { MEMORY_PROMPT_LIMIT } from "@/lib/memory/entry"
 import { CANVAS_VIEW_FOOTER_TOKEN } from "@/lib/agent/message-markers"
 import { harnessToolNaming } from "@/lib/agent/tool-name"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
@@ -235,5 +237,72 @@ describe("the Canvas view footer", () => {
         "read the footer of the message you're answering"
       )
     }
+  })
+})
+
+/**
+ * Account memory (#1513): every kind's prompt carries the sender's account
+ * memory as its own labeled block beside canvas memory, capped like it.
+ */
+describe("account memory in every kind's system prompt", () => {
+  const entry = (n: number) => ({
+    id: `mem-${n}`,
+    text: `Preference ${n}.`,
+    source: "agent" as const,
+    createdAt: n,
+    updatedAt: n,
+  })
+  const accountMemory = [entry(1)]
+  const memory = [{ ...entry(2), text: "Use pnpm, never npm." }]
+
+  const prompts = {
+    Workspace: (opts: { accountMemory?: typeof accountMemory }) =>
+      buildAgentSystemPrompt({
+        layerDirectory: EMPTY_DIRECTORY,
+        skills: [],
+        memory,
+        ...opts,
+      }),
+    sketch: (opts: { accountMemory?: typeof accountMemory }) =>
+      buildSketchSystemPrompt({
+        layerDirectory: EMPTY_DIRECTORY,
+        chatId: "chat-1",
+        skills: [],
+        memory,
+        ...opts,
+      }),
+    Coordinator: (opts: { accountMemory?: typeof accountMemory }) =>
+      buildRoomSystemPrompt({ canvasSummary: "", memory, ...opts }),
+  }
+
+  for (const [kind, build] of Object.entries(prompts)) {
+    it(`gives a ${kind} chat the sender's account memory as its own block`, () => {
+      const prompt = build({ accountMemory })
+      const account = prompt.indexOf("Account memory (")
+      const canvas = prompt.indexOf("Canvas memory (")
+      expect(account).toBeGreaterThan(-1)
+      expect(canvas).toBeGreaterThan(account)
+      expect(prompt.slice(account, canvas)).toContain("- Preference 1.")
+      expect(prompt.slice(account, canvas)).not.toContain("pnpm")
+    })
+
+    it(`leaves the block out of a ${kind} chat's prompt with no account memory`, () => {
+      expect(build({})).not.toContain("Account memory (")
+      expect(build({ accountMemory: [] })).not.toContain("Account memory (")
+    })
+  }
+
+  it("keeps the newest entries past the prompt limit", () => {
+    const many = Array.from({ length: MEMORY_PROMPT_LIMIT + 5 }, (_, i) =>
+      entry(i + 1)
+    )
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: [],
+      accountMemory: many,
+    })
+    expect(prompt).not.toContain("- Preference 5.\n")
+    expect(prompt).toContain("- Preference 6.\n")
+    expect(prompt).toContain(`- Preference ${MEMORY_PROMPT_LIMIT + 5}.`)
   })
 })

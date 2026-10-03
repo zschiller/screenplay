@@ -456,6 +456,14 @@ async function seedDatabase(db: DB, world: FixtureWorld): Promise<void> {
       target: schema.kvStore.key,
       set: { value: encrypt(JSON.stringify(world.repoConfigs)) },
     })
+  // Account memory (#1513), under the key `lib/memory/account-store.ts` reads.
+  if (world.accountMemory) {
+    const value = encrypt(JSON.stringify(world.accountMemory))
+    await db
+      .insert(schema.kvStore)
+      .values({ key: `account-memory:${world.userId}`, value, expiresAt: null })
+      .onConflictDoUpdate({ target: schema.kvStore.key, set: { value } })
+  }
   // Canvas Repos' env var values (#1416), under the key `lib/repo-env` reads.
   for (const room of world.rooms) {
     for (const [repoId, text] of Object.entries(room.doc?.repoEnv ?? {})) {

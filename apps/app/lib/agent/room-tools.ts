@@ -22,7 +22,7 @@ import {
   editMemory,
   MEMORY_ENTRY_MAX_LENGTH,
   removeMemory,
-} from "@/lib/canvas/memory"
+} from "@/lib/memory/canvas"
 import { isBranchBusy } from "@/lib/branch-busy"
 import {
   createdWorkspacesResult,
@@ -65,7 +65,7 @@ import type {
  * write through Canvas Operations inside `mutateDoc` (a server-side room
  * mutation, ADR 0001), logged per turn so the Coordinator can undo a turn when
  * asked (`room-arrange-tools.ts`, `room-change-log.ts`). `write_memory` writes canvas
- * memory (#902) through `lib/canvas/memory.ts`.
+ * memory (#902) through `lib/memory/canvas.ts`.
  */
 export interface RoomToolPorts extends WorkspaceReadPorts {
   /** Read-only access to the Room's doc, as `RoomAccess.readDoc`. */
@@ -751,7 +751,7 @@ async function writeMemory(
   if (action === "add") {
     if (!text?.trim()) return "Nothing saved: an entry needs text."
     const entry = await ports.mutateDoc((c) =>
-      addMemory(c, { text, source: "coordinator" })
+      addMemory(c, { text, source: "agent" })
     )
     return entry ? `Saved [${entry.id}] ${entry.text}` : "Nothing saved."
   }

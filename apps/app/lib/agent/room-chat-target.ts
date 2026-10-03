@@ -1,7 +1,12 @@
 import "server-only"
 
 import { buildRoomSystemPrompt } from "./config"
-import { loadCanvasMemory, type ChatTargetSpec } from "./chat-target-kinds"
+import {
+  loadAccountMemory,
+  loadCanvasMemory,
+  turnSender,
+  type ChatTargetSpec,
+} from "./chat-target-kinds"
 import {
   buildRoomTools,
   summarizeCanvas,
@@ -22,6 +27,12 @@ import type { FileEntryData, MemoryData } from "@/lib/types"
 export interface RoomTarget {
   /** The member whose message this turn answers (Terminal Tabs are per user). */
   userId: string
+  /**
+   * Nobody sent this turn: a server wake (#897) answers no member's message,
+   * so it reads no account memory (#1513), and neither do the turns it
+   * delegates.
+   */
+  senderless?: boolean
   /**
    * The turn canvas changes are logged under for undo. Omitted, each tool set
    * built is its own turn; the desktop MCP route builds one per request, so it
@@ -57,6 +68,8 @@ export interface RoomContext {
   canvasSummary: string
   memory: MemoryData[]
   files: FileEntryData[]
+  /** The sender's account memory (#1513); none on a wake. */
+  accountMemory: MemoryData[]
 }
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
@@ -104,20 +117,22 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   async loadContext(room, target) {
     const ports = liveRoomToolPorts(room, target)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-    const [canvasSummary, memory, files] = await Promise.all([
+    const [canvasSummary, memory, files, accountMemory] = await Promise.all([
       ports.readDoc((collections) =>
         summarizeCanvas(collections, terminalTabs)
       ),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
+      loadAccountMemory(turnSender(target)),
     ])
-    return { canvasSummary, memory, files }
+    return { canvasSummary, memory, files, accountMemory }
   },
   buildSystemPrompt(ctx, naming) {
     return buildRoomSystemPrompt({
       canvasSummary: ctx.canvasSummary,
       memory: ctx.memory,
       files: ctx.files,
+      accountMemory: ctx.accountMemory,
       skills: getSkillIndex("coordinator"),
       toolNaming: naming,
     })
