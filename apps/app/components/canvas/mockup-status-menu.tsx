@@ -30,6 +30,15 @@ const STATUS_ICONS = {
   built: CheckCircleIcon,
 } satisfies Record<MockupStatus, unknown>
 
+/**
+ * A status's icon in the menu's own ink, for the ⋯ menu's Status submenu
+ * trigger: a highlighted row inks its icons anyway, so green would flicker.
+ */
+export function StatusIcon({ status }: { status: MockupStatus }) {
+  const Icon = STATUS_ICONS[status]
+  return <Icon aria-hidden />
+}
+
 /** Built reads green, text and icon alike; the others stay muted. */
 function statusColor(status: MockupStatus) {
   return status === "built" ? "text-success" : "text-muted-foreground"

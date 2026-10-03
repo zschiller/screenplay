@@ -11,6 +11,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -43,6 +46,7 @@ import {
   MockupStatusMark,
   MockupStatusMenu,
   MockupStatusRadioGroup,
+  StatusIcon,
 } from "@/components/canvas/mockup-status-menu"
 import { KnobsPopover } from "@/components/canvas/knobs-popover"
 import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
@@ -436,20 +440,23 @@ export function MockupLayer({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent side="bottom" align="end" sideOffset={8}>
                     {onDuplicate && (
-                      <>
-                        <DropdownMenuItem
-                          onSelect={() => onDuplicate(layer.id)}
-                        >
-                          <CopyIcon />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
+                      <DropdownMenuItem onSelect={() => onDuplicate(layer.id)}>
+                        <CopyIcon />
+                        Duplicate
+                      </DropdownMenuItem>
                     )}
-                    <MockupStatusRadioGroup
-                      status={mockupStatusOf(layer)}
-                      onChange={(status) => onSetStatus(layer.id, status)}
-                    />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <StatusIcon status={mockupStatusOf(layer)} />
+                        Status
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <MockupStatusRadioGroup
+                          status={mockupStatusOf(layer)}
+                          onChange={(status) => onSetStatus(layer.id, status)}
+                        />
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                     {onRemove && (
                       <>
                         <DropdownMenuSeparator />
