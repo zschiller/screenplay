@@ -19,6 +19,7 @@ import { buildQuestionTools } from "./question-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { appSkillSource, getSkillIndex } from "@/lib/skills"
 import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildSkillTools } from "./skill-tools"
 import type { RoomDoc } from "@/lib/room-access"
@@ -67,11 +68,15 @@ export interface RoomTarget {
    * turn, the owner of the Workspace that woke it (`wakeRequesterId`).
    */
   requesterId?: string
+  /** The desktop Harness running the turn, whose own Skills the chat lists
+   *  (#1560); unset off the desktop or on the in-process engine. */
+  harnessKey?: string | null
 }
 
 export interface RoomContext {
   canvasSummary: string
-  /** The canvas's Skills, then the Coordinator's App Skills; no Repo Skills. */
+  /** The canvas's Skills, the agent's own, then the Coordinator's App
+   *  Skills; no Repo Skills. */
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
@@ -124,19 +129,24 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   async loadContext(room, target) {
     const ports = liveRoomToolPorts(room, target)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-    const [canvasSummary, canvas, memory, files, accountMemory] =
+    const [canvasSummary, canvas, agent, memory, files, accountMemory] =
       await Promise.all([
         ports.readDoc((collections) =>
           summarizeCanvas(collections, terminalTabs)
         ),
         loadCanvasSkills(room),
+        loadAgentSkills(agentSkillsFor(target.harnessKey)),
         loadCanvasMemory(room),
         loadCanvasFiles(room),
         loadAccountMemory(turnSender(target)),
       ])
     return {
       canvasSummary,
-      skills: mergeSkillIndexes({ canvas, app: getSkillIndex("coordinator") }),
+      skills: mergeSkillIndexes({
+        canvas,
+        agent,
+        app: getSkillIndex("coordinator"),
+      }),
       memory,
       files,
       accountMemory,
@@ -178,6 +188,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
           canvas: canvasSkills(room),
           chatId: target.coordinatorChatId ?? "",
           app: appSkillSource("coordinator"),
+          agent: agentSkillsFor(target.harnessKey),
         }),
       },
     }

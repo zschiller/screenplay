@@ -45,20 +45,21 @@ export async function enumerateRepoSkillsForSandbox(
 
 /**
  * The `/`-menu Skill source for a Composer, honest about the pre-Sandbox case.
- * With a `sandboxName` it returns the Branch's merged index (Repo, then
- * Canvas, then App); without one (the seed Composer of the New-Workspace
+ * With a `sandboxName` it returns the Branch's merged index (Repo, Canvas,
+ * the agent's own, App); without one (the seed Composer of the New-Workspace
  * dialog, which renders before any Sandbox exists) it leaves out Repo Skills
  * rather than bailing. `canvas` is the canvas's saved Skills, when the
- * Composer is on one.
+ * Composer is on one, and `agent` the desktop agent's own (#1560).
  */
 export async function getSkillMenuSource(
   sandboxName: string | null | undefined,
-  canvas: readonly SkillMetadata[] = []
+  canvas: readonly SkillMetadata[] = [],
+  agent: readonly SkillMetadata[] = []
 ): Promise<OriginTaggedSkill[]> {
   const repo = sandboxName
     ? await enumerateRepoSkillsForSandbox(sandboxName)
     : null
-  return resolveSkillMenuSource(getSkillIndex(), repo, canvas)
+  return resolveSkillMenuSource(getSkillIndex(), repo, canvas, agent)
 }
 
 /**

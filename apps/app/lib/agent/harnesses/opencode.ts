@@ -152,6 +152,12 @@ export async function probeOpencodeAuth(
  * carries the same probe/install/sign-in — spread into each descriptor so they
  * stay identical by construction.
  */
+/** opencode's global Skill folders, its own then Claude's and Codex's. */
+const opencodeOwnSkills = {
+  agentName: "opencode",
+  dirs: [".config/opencode/skills", ".claude/skills", ".agents/skills"],
+}
+
 const opencodeSetup = {
   probeAuth: probeOpencodeAuth,
   buildInstallCommand: buildOpencodeInstallCommand,
@@ -261,6 +267,7 @@ export const opencodeGatewayHarness: Harness = {
   launchArgv: ["opencode"],
   // Both opencode slots share one host binary; detection probes `opencode` once.
   hostBinary: "opencode",
+  ownSkills: opencodeOwnSkills,
   // Terminal-only today: no ACP adapter wired, so the chat-capability filter
   // drops it (opencode backs the Terminal Tab, not the external Engine).
   acpAdapter: null,
@@ -308,6 +315,7 @@ export const opencodeCompatHarness: Harness = {
   launchArgv: ["opencode"],
   // Both opencode slots share one host binary; detection probes `opencode` once.
   hostBinary: "opencode",
+  ownSkills: opencodeOwnSkills,
   // Terminal-only today: no ACP adapter wired, so the chat-capability filter
   // drops it (opencode backs the Terminal Tab, not the external Engine).
   acpAdapter: null,

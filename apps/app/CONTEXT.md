@@ -872,11 +872,11 @@ read_document, …). Each Tool's availability is scoped by Chat Target.
 A markdown instruction document (`SKILL.md` with `name` + `description`
 frontmatter) that teaches the agent how to perform a task. Surfaced to the
 model by name + description and loaded in full on demand (`read_skill`), never
-always-on. Exists as a Repo Skill, a Canvas Skill or an App Skill (spec #1554
-adds Account and Harness Skills). Every chat sees one merged index; when two
-share a name, the higher-ranked one **shadows** the other, Repo, then Canvas,
-then App (`lib/skills/merged.ts`). The Coordinator and chats with no
-repository get no Repo Skills.
+always-on. Exists as a Repo Skill, a Canvas Skill, a Harness Skill or an App
+Skill (spec #1554 adds Account Skills). Every chat sees one merged index; when
+two share a name, the higher-ranked one **shadows** the other, Repo, then
+Canvas, then Harness, then App (`lib/skills/merged.ts`). The Coordinator and
+chats with no repository get no Repo Skills.
 _Avoid_: command, macro, plugin.
 
 **App Skill**:
@@ -901,6 +901,16 @@ Saving strips `allowed-tools` and inline `` !`command` `` lines. Shadows an App
 Skill of the same name; a Repo Skill shadows it.
 _Shown to users as_: "Canvas" (the `/` menu's source tag).
 _Avoid_: shared skill, team skill.
+
+**Harness Skill** (`lib/skills/agent-skills.ts`, #1560):
+A Skill the desktop chat's Harness loads itself from the user's home folder
+(`~/.claude/skills` for Claude Code, `~/.agents/skills` for Codex; the folders
+are the Harness descriptor's `ownSkills`). The Harness keeps loading it its own
+way; screenplay only lists it in the merged index and the `/` menu and reads it
+for `read_skill`, never writes it. Hosted chats have none. Shadows an App Skill
+of the same name; Repo and Canvas Skills shadow it.
+_Shown to users as_: the agent's name, e.g. "Claude Code".
+_Avoid_: personal skill, user skill, Mac skill.
 
 **Engine** (Agent Loop):
 A seam that drives one turn of a Chat Session to completion, **speaking ACP**:

@@ -15,12 +15,14 @@ import {
   type RepoSkillFs,
 } from "@/lib/skills/repo-skills"
 import type { SavedSkills, SkillFile } from "@/lib/skills/saved"
+import { loadAgentSkills, type AgentSkills } from "@/lib/skills/agent-skills"
 
 /**
  * A chat's Skill tools (#1555): `read_skill` loads a Skill from the chat's
  * merged index, and `save_skill` and `delete_skill` keep the canvas's saved
  * Skills. Every chat kind gets all three, from its own App Skills and, on a
- * Workspace chat, its Branch's Repo Skills. Each write takes a `scope`; only
+ * Workspace chat, its Branch's Repo Skills. On a desktop harness, `read_skill`
+ * also reads the agent's own Skills (#1560). Each write takes a `scope`; only
  * `canvas` exists until account skills land.
  */
 export interface SkillToolContext {
@@ -38,6 +40,8 @@ export interface SkillToolContext {
    * can't be reached. The Coordinator and chats with no repository have none.
    */
   repo?: () => Promise<RepoSkillFs | null>
+  /** The coding agent's own Skills, on a desktop harness (#1560). */
+  agent?: AgentSkills | null
 }
 
 const scopeProperty: JSONSchema7 = {
@@ -86,6 +90,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
               ? renderSavedSkill(read.value.content, read.value.files)
               : null
           },
+          ...(ctx.agent ? { agent: ctx.agent.read } : {}),
           app: (n) => ctx.app.read(n),
         })
         if (content) return content
@@ -93,6 +98,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
         const merged = mergeSkillIndexes({
           app: ctx.app.index(),
           canvas: await ctx.canvas.list().catch(() => []),
+          agent: await loadAgentSkills(ctx.agent ?? null),
           ...(fs
             ? { repo: await enumerateRepoSkills(fs).catch(() => []) }
             : {}),

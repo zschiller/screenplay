@@ -131,6 +131,48 @@ describe("skill tools", () => {
     expect(out).toContain("- screenplay-add-knob:")
   })
 
+  it("reads the desktop agent's own Skills below the canvas's (#1560)", async () => {
+    const skills = canvas()
+    await skills.save({
+      name: "review",
+      content: skillMd("review", "Canvas.", "CANVAS review"),
+      author: { addedBy: "agent", addedById: "chat-a" },
+    })
+    const own: Record<string, string> = {
+      review: skillMd("review", "Mine.", "MINE review"),
+      tidy: skillMd("tidy", "Tidy up.", "MINE tidy"),
+      "screenplay-add-knob": skillMd(
+        "screenplay-add-knob",
+        "Mine.",
+        "MINE knob"
+      ),
+    }
+    const tools = buildSkillTools({
+      canvas: skills,
+      chatId: "chat-a",
+      app: appSkillSource(),
+      agent: {
+        agentName: "Claude Code",
+        index: async () =>
+          Object.keys(own).map((name) => ({ name, description: "Mine." })),
+        read: async (name) => own[name] ?? null,
+      },
+    })
+
+    expect(await run(tools, "read_skill", { name: "tidy" })).toContain(
+      "MINE tidy"
+    )
+    expect(await run(tools, "read_skill", { name: "review" })).toContain(
+      "CANVAS review"
+    )
+    expect(
+      await run(tools, "read_skill", { name: "screenplay-add-knob" })
+    ).toContain("MINE knob")
+    expect(await run(tools, "read_skill", { name: "nope" })).toContain(
+      "- tidy: Mine."
+    )
+  })
+
   it("falls through to the canvas and App Skills when the sandbox is unreachable", async () => {
     const tools = buildSkillTools({
       canvas: canvas(),

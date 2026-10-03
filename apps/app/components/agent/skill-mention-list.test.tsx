@@ -64,6 +64,18 @@ describe("SkillMentionList", () => {
     expect(row("screenplay-add-knob").textContent).toContain("Built in")
   })
 
+  it("names the desktop agent on its own Skills (#1560)", () => {
+    renderList([
+      {
+        name: "tidy",
+        description: "Tidy up.",
+        origin: "agent",
+        agentName: "Claude Code",
+      },
+    ])
+    expect(row("tidy").textContent).toContain("Claude Code")
+  })
+
   it("moves the highlight with the composer's arrows and picks on Enter", () => {
     const { command, ref } = renderList()
     expect(row("brand-voice").getAttribute("data-selected")).toBe("true")

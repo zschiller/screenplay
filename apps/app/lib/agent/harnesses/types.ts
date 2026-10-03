@@ -167,6 +167,14 @@ export interface HostFacts {
  * descriptor in the array — the selection fold, brokered-env fold, and
  * installer all generalize over it for free.
  */
+/** See {@link Harness.ownSkills}. */
+export interface HarnessOwnSkills {
+  /** How the `/` menu names the agent, e.g. "Claude Code". */
+  agentName: string
+  /** Skill folders relative to the home folder, e.g. `.claude/skills`. */
+  dirs: readonly string[]
+}
+
 export interface Harness {
   /**
    * Stable key named in `SANDBOX_HARNESSES` (comma-separated). Must contain
@@ -237,6 +245,13 @@ export interface Harness {
    * once and lists whichever slots are configured.
    */
   hostBinary: string
+
+  /**
+   * The agent's own Skills on the desktop host (#1560): its name as the `/`
+   * menu shows it, and the folders under the user's home it loads Skills from
+   * itself, first wins. Screenplay only lists and reads them, never writes.
+   */
+  ownSkills?: HarnessOwnSkills
 
   /**
    * The ACP adapter spawn argv for backing **agent chat** on the external Engine

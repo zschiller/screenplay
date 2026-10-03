@@ -93,6 +93,7 @@ export function useSkillIndex(source: SkillSource | undefined): {
   const sandboxName = source?.sandboxName
   const roomId = source?.roomId
   const chat = source?.chat
+  const model = source?.model
   const [index, setIndex] = useState<{
     key: string | null
     skills: SkillMenuItem[]
@@ -102,7 +103,7 @@ export function useSkillIndex(source: SkillSource | undefined): {
     if (key === null) return undefined
     let cancelled = false
     catalog
-      .loadSkills({ sandboxName, roomId, chat })
+      .loadSkills({ sandboxName, roomId, chat, model })
       .catch(() => [] as SkillMenuItem[])
       .then((skills) => {
         if (!cancelled) setIndex({ key, skills })
@@ -110,7 +111,7 @@ export function useSkillIndex(source: SkillSource | undefined): {
     return () => {
       cancelled = true
     }
-  }, [catalog, key, sandboxName, roomId, chat])
+  }, [catalog, key, sandboxName, roomId, chat, model])
 
   // A result for another Sandbox is stale: loading until this one lands.
   const current = index.key === key

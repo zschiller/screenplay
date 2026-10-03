@@ -5,6 +5,8 @@ import { getSkillIndex } from "@/lib/skills"
 import { loadCanvasSkills } from "@/lib/skills/canvas"
 import { mergeSkillIndexes, type SkillOrigin } from "@/lib/skills/merged"
 import { getSkillMenuSource } from "@/lib/skills/sandbox-index"
+import { turnHarnessKey } from "@/lib/agent/acp/engine-choice"
+import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 
 /**
  * Origin-tagged skill metadata for the `/` composer menu. With a `sandbox`
@@ -17,11 +19,17 @@ import { getSkillMenuSource } from "@/lib/skills/sandbox-index"
  * Coordinator) lists the canvas's and the Coordinator's App Skills, `sketch`
  * the canvas's and the Mockup App Skills, each what that chat's `read_skill`
  * reads. Neither gets Repo Skills.
+ *
+ * A `model` param is the chat's model. On the desktop it picks the coding
+ * agent running the chat, whose own Skills (`~/.claude/skills` for Claude
+ * Code) rank below the canvas's and above App Skills (#1560).
  */
 export interface SkillMenuItem {
   name: string
   description: string
   origin: SkillOrigin
+  /** The agent's name, on its own Skills (`origin: "agent"`). */
+  agentName?: string
 }
 
 export interface SkillsResponse {
@@ -46,18 +54,25 @@ export async function GET(request: Request) {
       origin: "canvas",
     }))
   }
+  const agentSkills = agentSkillsFor(
+    turnHarnessKey(params.get("model") ?? undefined)
+  )
+  const agent = await loadAgentSkills(agentSkills)
   const chat = params.get("chat")
   const tagged =
     chat === "room"
-      ? mergeSkillIndexes({ canvas, app: getSkillIndex("coordinator") })
+      ? mergeSkillIndexes({ canvas, agent, app: getSkillIndex("coordinator") })
       : chat === "sketch"
-        ? mergeSkillIndexes({ canvas, app: sketchSkillIndex() })
-        : await getSkillMenuSource(params.get("sandbox"), canvas)
+        ? mergeSkillIndexes({ canvas, agent, app: sketchSkillIndex() })
+        : await getSkillMenuSource(params.get("sandbox"), canvas, agent)
 
   const skills: SkillMenuItem[] = tagged.map((s) => ({
     name: s.name,
     description: s.description,
     origin: s.origin,
+    ...(s.origin === "agent" && agentSkills
+      ? { agentName: agentSkills.agentName }
+      : {}),
   }))
   const body: SkillsResponse = { skills }
   return Response.json(body)

@@ -8,6 +8,7 @@ import { BROKERED_VALUE } from "./types"
 import type {
   AcpAdapter,
   Harness,
+  HarnessOwnSkills,
   HarnessSelection,
   SkippedHarness,
 } from "./types"
@@ -16,6 +17,7 @@ export { BROKERED_VALUE } from "./types"
 export type {
   AcpAdapter,
   Harness,
+  HarnessOwnSkills,
   HarnessSelection,
   SkippedHarness,
 } from "./types"
@@ -59,6 +61,17 @@ export function harnessAcpAdapter(
 ): AcpAdapter | null {
   if (!key) return null
   return HARNESSES_BY_KEY.get(key)?.acpAdapter ?? null
+}
+
+/**
+ * Where harness `key` keeps its own Skills on the desktop host (#1560), or
+ * `null` for an unknown key or one with none.
+ */
+export function harnessOwnSkills(
+  key: string | null | undefined
+): HarnessOwnSkills | null {
+  if (!key) return null
+  return HARNESSES_BY_KEY.get(key)?.ownSkills ?? null
 }
 
 /**

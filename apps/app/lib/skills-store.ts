@@ -28,11 +28,14 @@ export interface SkillSource {
   /** A chat with no Branch (#1556), for the App Skills that chat reads:
    *  the Coordinator's (`room`) or the Mockup ones (`sketch`). */
   chat?: "room" | "sketch"
+  /** The chat's model, on the desktop: its coding agent's own Skills join
+   *  the menu (#1560). */
+  model?: string
 }
 
 /** One string per source, for de-duping requests. */
 export function skillSourceKey(source: SkillSource = {}): string {
-  return `${source.chat ?? ""}:${source.roomId ?? ""}/${source.sandboxName ?? ""}`
+  return `${source.chat ?? ""}:${source.roomId ?? ""}/${source.sandboxName ?? ""}@${source.model ?? ""}`
 }
 
 /**
@@ -50,6 +53,7 @@ export async function getSkillMenuItems(
     if (source.sandboxName) query.set("sandbox", source.sandboxName)
     if (source.roomId) query.set("room", source.roomId)
     if (source.chat) query.set("chat", source.chat)
+    if (source.model) query.set("model", source.model)
     const qs = query.toString()
     const url = withBasePath(`/api/agent/skills${qs ? `?${qs}` : ""}`)
     inflight = fetch(url)

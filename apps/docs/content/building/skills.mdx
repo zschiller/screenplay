@@ -1,6 +1,6 @@
 ---
 title: Agent skills
-description: Teach the agent workflows with SKILL.md files in your repository or saved to a canvas, and use the skills Screenplay ships.
+description: Teach the agent workflows with SKILL.md files in your repository or saved to a canvas, use your coding agent's own skills on the Mac, and use the skills Screenplay ships.
 ---
 
 import { FileTree } from "nextra/components"
@@ -20,20 +20,24 @@ the skills that chat can use, and each row ends with where its skill comes
 from.
 The agent also loads skills on its own when a request matches a description.
 
-<Screenshot name="composer-skills" alt="The / menu listing Screenplay's built-in skills" />
+<Screenshot
+  name="composer-skills"
+  alt="The / menu listing Screenplay's built-in skills"
+/>
 
 ## Where skills come from
 
-Every chat sees one list of skills, gathered from three places:
+Every chat sees one list of skills, gathered from these places:
 
-| In the menu | Where it lives | Which chats see it |
-| --- | --- | --- |
-| **Repository** | The workspace's repository, under `.claude/skills/` | That workspace's chat |
-| **Canvas** | Saved to the canvas by any chat on it | Every chat on the canvas |
-| **Built in** | Ships with Screenplay | Every chat, each kind its own |
+| In the menu                             | Where it lives                                      | Which chats see it                                |
+| --------------------------------------- | --------------------------------------------------- | ------------------------------------------------- |
+| **Repository**                          | The workspace's repository, under `.claude/skills/` | That workspace's chat                             |
+| **Canvas**                              | Saved to the canvas by any chat on it               | Every chat on the canvas                          |
+| Your agent's name, like **Claude Code** | Your coding agent's own skills folder on your Mac   | Every chat on the Mac app that runs on that agent |
+| **Built in**                            | Ships with Screenplay                               | Every chat, each kind its own                     |
 
 When two skills share a name, only one is used: the repository's wins, then
-the canvas's, then Screenplay's. The one that loses is left out of the list
+the canvas's, then your coding agent's own, then Screenplay's. The one that loses is left out of the list
 and the <kbd>/</kbd> menu, so what you pick is what runs. The
 [Coordinator](/guides/coordinator) and chats with no repository don't see
 repository skills, since they have no single repository.
@@ -42,11 +46,11 @@ repository skills, since they have no single repository.
 
 Screenplay ships three skills, marked **Built in** in the menu:
 
-| Skill | What it teaches |
-| --- | --- |
-| `screenplay-add-knob` | Adding [knobs](/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs. |
+| Skill                             | What it teaches                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `screenplay-add-knob`             | Adding [knobs](/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs.                       |
 | `screenplay-explore-with-mockups` | Exploring a design as [mockups](/guides/mockups), asking you to pick at forks, and [building the take you choose](/guides/mockups#building-one). |
-| `screenplay-share-state` | Bridging UI state to the canvas with [shared state](/building/shared-state). |
+| `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/building/shared-state).                                                                     |
 
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
@@ -55,6 +59,24 @@ It's in the Coordinator's <kbd>/</kbd> menu only, and workspace agents don't
 see it. A chat with no repository lists `screenplay-add-knob` and
 `screenplay-share-state`, the two that work on a mockup.
 
+## Your coding agent's own skills
+
+On the Mac app, chats run on the coding agent you installed, and its <kbd>/</kbd>
+menu also lists the skills that agent keeps in your home folder, marked with
+the agent's name:
+
+| Agent       | Folders                                      |
+| ----------- | -------------------------------------------- |
+| Claude Code | `~/.claude/skills/`                          |
+| Codex       | `~/.agents/skills/`, then `~/.codex/skills/` |
+
+Pick one from <kbd>/</kbd> like any other skill. The agent keeps loading these
+skills itself as it always does; Screenplay only lists and reads them, and
+never changes those folders. Add, edit or remove one there and the menu shows
+it the next time you open the chat. Switching the chat's model to another
+agent shows that agent's skills instead. Hosted canvases don't list them,
+since the agent there runs in a sandbox, not on your computer.
+
 ## Saving a skill to the canvas
 
 Ask any chat on the canvas (a workspace chat, the Coordinator or a chat with
@@ -62,8 +84,9 @@ no repository) to save what you just worked out as a skill: "save this review
 checklist as a skill". The agent writes the `SKILL.md`, and a **Save skill**
 row shows in the chat. Every chat on the canvas can use it from its next
 message, including chats your teammates start, and every chat lists it in its
-<kbd>/</kbd> menu as **Canvas**. An agent may also save a
-procedure it worked out on its own, and the same row shows when it does.
+
+<kbd>/</kbd> menu as **Canvas**. An agent may also save a procedure it worked
+out on its own, and the same row shows when it does.
 
 To change a canvas skill, ask a chat to change it; it saves the skill again
 under the same name. To remove one, ask a chat to delete it, and a **Delete

@@ -232,6 +232,8 @@ export const codexHarness: Harness = {
   launchArgv: ["codex"],
   // The desktop detector probes `codex` on PATH (the global install exposes it).
   hostBinary: "codex",
+  // User Skills; `~/.codex/skills` is Codex's older, still-read folder.
+  ownSkills: { agentName: "Codex", dirs: [".agents/skills", ".codex/skills"] },
   // Backs agent chat via the maintained codex ACP adapter (#1271), which rides
   // `codex login` / `CODEX_API_KEY` like the CLI does. It is built on the Codex
   // App Server and bundles a current Codex core, so today's models run.
