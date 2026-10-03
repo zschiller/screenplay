@@ -19,7 +19,7 @@ export default function OgImage() {
     >
       <div className="flex items-end justify-between gap-8">
         <h1 className="font-headline text-[88px] leading-[0.92] font-normal tracking-[-0.025em] whitespace-nowrap">
-          Every branch, <em>side by side</em>.
+          From idea to code, <em>on one canvas</em>.
         </h1>
         <div className="pb-2.5">
           <Wordmark />

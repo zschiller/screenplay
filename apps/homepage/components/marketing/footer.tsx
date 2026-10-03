@@ -36,8 +36,8 @@ export function Footer() {
         <div className="flex flex-col gap-3">
           <Wordmark />
           <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-            A multiplayer canvas where every branch your agents write is live,
-            side by side.
+            A multiplayer canvas where coding agents plan, mock up and build
+            from your own repo.
           </p>
           <p className={cn(monoLabel, "text-muted-foreground")}>MIT licensed</p>
         </div>
