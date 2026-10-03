@@ -162,6 +162,9 @@ interface IframeLayerProps {
   /** Go live or end it, for everyone (the Go live toggle). Absent where frames can't go live:
    *  the desktop app, `SHARED_FRAMES=off`. */
   onToggleLive?: () => void
+  /** This viewer turned the frame live and waits for its first picture
+   *  (#1520): the toggle spins. */
+  liveStarting?: boolean
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
   selected: boolean
@@ -369,6 +372,7 @@ export function IframeLayer({
   live = false,
   liveDriver = NOBODY_DRIVES,
   onToggleLive,
+  liveStarting = false,
   createFlow,
   selected,
   onFocus,
@@ -1033,6 +1037,7 @@ export function IframeLayer({
                   onDeclineControl={onDeclineControl}
                   live={live}
                   onToggleLive={onToggleLive}
+                  liveStarting={liveStarting}
                   onAskForKnob={onAskForKnob}
                   theme={
                     shared && onColorSchemeChange

@@ -224,6 +224,7 @@ export const CORE_SCREENS: Screen[] = [
     beforeNavigate: stubFrameStream,
     prepare: async (page) => {
       await selectCheckoutFrame(page)
+      await endLive(page)
       await frameToolbarButton(page, "Go live").hover({ timeout: 15_000 })
       await showTooltip(page)
     },
@@ -238,7 +239,7 @@ export const CORE_SCREENS: Screen[] = [
     beforeNavigate: stubFrameStream,
     prepare: async (page) => {
       await selectCheckoutFrame(page)
-      await frameToolbarButton(page, "Go live").click({ timeout: 15_000 })
+      await goLive(page)
       await frameToolbarButton(page, "Live").hover({ timeout: 15_000 })
       await showTooltip(page)
     },
@@ -330,10 +331,34 @@ export const CORE_SCREENS: Screen[] = [
 ]
 
 /** A button in the selected frame's toolbar, by its label. */
-function frameToolbarButton(page: Page, name: string) {
+export function frameToolbarButton(page: Page, name: string) {
   return page
     .locator("#frame-toolbar-portal")
     .getByRole("button", { name, exact: true })
+}
+
+/**
+ * End live on the selected frame if it's live. Live is the frame's, stored in
+ * the room like its route, so an earlier shot (the other theme) can leave it
+ * on.
+ */
+export async function endLive(page: Page): Promise<void> {
+  const goLive = frameToolbarButton(page, "Go live")
+  const live = frameToolbarButton(page, "Live")
+  await goLive.or(live).first().waitFor({ timeout: 15_000 })
+  if (await live.isVisible()) {
+    await live.click()
+    // Own copies open once they're seeded (the stub answers at once): until
+    // then the frame still shows, and watches, the live stream.
+    await page.waitForTimeout(500)
+  }
+  await goLive.waitFor({ timeout: 15_000 })
+}
+
+/** Go live on the selected frame, from off. */
+export async function goLive(page: Page): Promise<void> {
+  await endLive(page)
+  await frameToolbarButton(page, "Go live").click()
 }
 
 /**
