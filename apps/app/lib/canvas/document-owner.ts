@@ -12,7 +12,6 @@ import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
  */
 
 type Doc = Pick<MarkdownLayerData, "id" | "ownerChatId">
-type Chat = Pick<ChatSessionData, "id" | "branchId">
 
 /**
  * Whether a chat may change a Document or Mockup with its tools: `own` when it
@@ -40,75 +39,84 @@ export function isOrphaned(
   return !!ownerChatId && !chats.some((c) => c.id === ownerChatId)
 }
 
+/** A chat on the canvas, as far as the owner rule reads it. */
+type OwnerChat = Pick<ChatSessionData, "id" | "branchId" | "target"> & {
+  /** Picks the Workspace chat among several; a chat without it reads oldest. */
+  createdAt?: number
+}
+
 /**
- * The Workspace each chat-made Document shows: its owning chat's Workspace,
- * by Document id. A Document made by hand, or whose chat is gone, has none.
+ * Who a chat-made Document or Mockup goes back to: the one rule Documents,
+ * Mockups, Reply in chat, Send to agent, the Knobs Ask, Draw-and-ask and the
+ * Workspace grouping all read. A layer a Sketch Chat made belongs to that
+ * chat. A layer a Workspace's chat made belongs to the Workspace chat (#1315):
+ * the same chat unless an earlier, read-only chat of the Workspace made it.
  */
-export function documentWorkspaceIds(
-  documents: readonly Doc[],
-  chats: readonly Chat[]
-): Map<string, string> {
-  const chatBranch = new Map(
-    chats.flatMap((c) => (c.branchId ? [[c.id, c.branchId] as const] : []))
-  )
-  const out = new Map<string, string>()
-  for (const d of documents) {
-    const branchId = d.ownerChatId ? chatBranch.get(d.ownerChatId) : undefined
-    if (branchId) out.set(d.id, branchId)
+export type LayerOwner =
+  | { kind: "sketch"; chatId: string }
+  | { kind: "workspace"; chatId: string; branchId: string }
+
+/**
+ * The owner of a layer whose `ownerChatId` is given. Null for a layer made by
+ * hand, one whose chat was deleted ({@link isOrphaned}), or one the
+ * Coordinator made.
+ */
+export function layerOwner(
+  ownerChatId: string | undefined,
+  chats: readonly OwnerChat[]
+): LayerOwner | null {
+  const chat = ownerChatId ? chats.find((c) => c.id === ownerChatId) : undefined
+  if (!chat) return null
+  if (isSketchChat(chat)) return { kind: "sketch", chatId: chat.id }
+  if (!chat.branchId) return null
+  const chatId =
+    workspaceChatId(
+      chats.map((c) => ({ ...c, createdAt: c.createdAt ?? 0 })),
+      chat.branchId
+    ) ?? chat.id
+  return { kind: "workspace", chatId, branchId: chat.branchId }
+}
+
+/** {@link layerOwner} for each layer that has one, by layer id. */
+export function layerOwners(
+  layers: readonly Doc[],
+  chats: readonly OwnerChat[]
+): Map<string, LayerOwner> {
+  const byChat = new Map<string, LayerOwner | null>()
+  const out = new Map<string, LayerOwner>()
+  for (const l of layers) {
+    if (!l.ownerChatId) continue
+    if (!byChat.has(l.ownerChatId)) {
+      byChat.set(l.ownerChatId, layerOwner(l.ownerChatId, chats))
+    }
+    const owner = byChat.get(l.ownerChatId)
+    if (owner) out.set(l.id, owner)
   }
   return out
 }
 
-/**
- * The chat a Document goes back to, and its Workspace: where its Send to agent
- * and Reply in chat go. That is the Workspace chat of the chat that made it
- * (#1315), the same chat unless it was made in one of the Workspace's earlier
- * chats. Null for a Document made by hand, or whose chat is gone; those go to
- * the chat on screen instead.
- */
-export function documentOwnerChat(
-  documentId: string,
-  documents: readonly Doc[],
-  chats: readonly (Chat & Pick<ChatSessionData, "createdAt">)[]
-): { chatId: string; branchId: string } | null {
-  const ownerChatId = documents.find((d) => d.id === documentId)?.ownerChatId
-  const chat = ownerChatId ? chats.find((c) => c.id === ownerChatId) : undefined
-  if (!chat?.branchId) return null
-  const chatId = workspaceChatId(chats, chat.branchId) ?? chat.id
-  return { chatId, branchId: chat.branchId }
+/** The ids of the layers whose chat was deleted. */
+export function orphanedLayerIds(
+  layers: readonly Doc[],
+  chats: readonly Pick<ChatSessionData, "id">[]
+): Set<string> {
+  return new Set(
+    layers.filter((l) => isOrphaned(l.ownerChatId, chats)).map((l) => l.id)
+  )
 }
 
 /**
- * Where a Mockup's empty Knobs popover sends "Ask the agent to add a knob", by
- * Mockup id: the Sketch Chat that made it, or the Workspace chat of the chat
- * that made it (#1315, the same resolution as {@link documentOwnerChat}), never
- * an earlier, read-only chat. A Mockup whose chat was deleted goes to whichever
- * chat the panel shows (`shown`), which claims it by editing it. A Mockup made
- * by hand has none and offers no Ask.
+ * The Workspace each chat-made Document or Mockup shows, by layer id: its
+ * {@link layerOwner}'s Workspace. A layer made by hand, by a Sketch Chat, or
+ * whose chat is gone has none.
  */
-export type MockupAskTarget =
-  | { kind: "sketch"; chatId: string }
-  | { kind: "workspace"; chatId: string; branchId: string }
-  | { kind: "shown" }
-
-export function mockupAskTargets(
-  mockups: readonly Doc[],
-  chats: readonly (Chat & Pick<ChatSessionData, "createdAt" | "target">)[]
-): Map<string, MockupAskTarget> {
-  const out = new Map<string, MockupAskTarget>()
-  for (const m of mockups) {
-    if (!m.ownerChatId) continue
-    const chat = chats.find((c) => c.id === m.ownerChatId)
-    if (!chat) {
-      out.set(m.id, { kind: "shown" })
-      continue
-    }
-    if (isSketchChat(chat)) {
-      out.set(m.id, { kind: "sketch", chatId: chat.id })
-    } else if (chat.branchId) {
-      const chatId = workspaceChatId(chats, chat.branchId) ?? chat.id
-      out.set(m.id, { kind: "workspace", chatId, branchId: chat.branchId })
-    }
+export function documentWorkspaceIds(
+  documents: readonly Doc[],
+  chats: readonly OwnerChat[]
+): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const [id, owner] of layerOwners(documents, chats)) {
+    if (owner.kind === "workspace") out.set(id, owner.branchId)
   }
   return out
 }

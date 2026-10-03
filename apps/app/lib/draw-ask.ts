@@ -1,5 +1,5 @@
 import { sortForSidebar } from "@/lib/sidebar-order"
-import { isSketchChat } from "@/lib/chat/sketch-chat"
+import { layerOwners } from "@/lib/canvas/document-owner"
 import type {
   BranchData,
   ChatSessionData,
@@ -126,25 +126,23 @@ export function defaultFrameAnswerer(input: {
   sketch?: boolean
 }): FrameAnswerer {
   const framesById = new Map(input.frames.map((f) => [f.id, f]))
-  const ownedById = new Map(input.ownedLayers.map((l) => [l.id, l]))
-  const chatsById = new Map(input.chatSessions.map((c) => [c.id, c]))
+  const owners = layerOwners(input.ownedLayers, input.chatSessions)
 
   const frameIds = [...input.frameIds]
   const owned = [...input.ownedLayerIds]
   if (input.sketch && owned.length > 0 && frameIds.length === 0) {
-    const owners = new Set(owned.map((id) => ownedById.get(id)?.ownerChatId))
-    const [owner] = owners
-    const chat = owner ? chatsById.get(owner) : undefined
-    if (owners.size === 1 && chat && isSketchChat(chat)) {
-      return { kind: "sketch", chatId: chat.id }
+    const chatIds = new Set(owned.map((id) => owners.get(id)?.chatId))
+    const owner = owners.get(owned[0])
+    if (chatIds.size === 1 && owner?.kind === "sketch") {
+      return { kind: "sketch", chatId: owner.chatId }
     }
   }
 
   const branchIds = new Set<string | undefined>()
   for (const id of frameIds) branchIds.add(framesById.get(id)?.branchId)
   for (const id of owned) {
-    const owner = ownedById.get(id)?.ownerChatId
-    branchIds.add(owner ? chatsById.get(owner)?.branchId : undefined)
+    const owner = owners.get(id)
+    branchIds.add(owner?.kind === "workspace" ? owner.branchId : undefined)
   }
 
   if (branchIds.size !== 1) return NEW_CHAT

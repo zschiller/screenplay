@@ -37,9 +37,9 @@ import {
 
 import { createCanvasOps } from "@/lib/canvas/ops"
 import {
-  documentOwnerChat as documentOwnerChatOf,
   documentWorkspaceIds,
-  mockupAskTargets as mockupAskTargetsOf,
+  layerOwners,
+  orphanedLayerIds,
 } from "@/lib/canvas/document-owner"
 
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
@@ -1075,20 +1075,15 @@ export function Canvas({
   const diffStats = useDiffStats(agents, repos)
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
-  // Where Reply in chat and Send to agent on a chat-made Document go.
-  const documentOwnerChat = useCallback(
-    (documentId: string) =>
-      documentOwnerChatOf(documentId, markdownLayers, chatSessions),
+  // Where Reply in chat and Send to agent on a chat-made Document go: the
+  // Sketch Chat that made it, or its Workspace's chat.
+  const documentOwners = useMemo(
+    () => layerOwners(markdownLayers, chatSessions),
     [markdownLayers, chatSessions]
   )
-  // The chat with no repository that made a Document, if one did.
-  const sketchOwnerChatId = useCallback(
-    (documentId: string) => {
-      const owner = markdownLayers.find((d) => d.id === documentId)?.ownerChatId
-      const chat = owner ? chatSessions.find((c) => c.id === owner) : undefined
-      return chat && isSketchChat(chat) ? chat.id : null
-    },
-    [markdownLayers, chatSessions]
+  const documentOwner = useCallback(
+    (documentId: string) => documentOwners.get(documentId) ?? null,
+    [documentOwners]
   )
   // Every chat with no repository, newest first.
   const sketchChats = useMemo(
@@ -1445,17 +1440,26 @@ export function Canvas({
   // A Mockup whose chat was deleted goes to the chat the panel shows, which
   // claims it by editing it, or to a new chat with no repository when the
   // panel shows the Coordinator.
-  const mockupAskTargets = useMemo(
-    () => mockupAskTargetsOf(mockupLayers, chatSessions),
+  const mockupOwners = useMemo(
+    () => layerOwners(mockupLayers, chatSessions),
     [mockupLayers, chatSessions]
+  )
+  const orphanedMockupIds = useMemo(
+    () => orphanedLayerIds(mockupLayers, chatSessions),
+    [mockupLayers, chatSessions]
+  )
+  // A Mockup made by hand offers no Ask.
+  const askableMockupIds = useMemo(
+    () => new Set([...mockupOwners.keys(), ...orphanedMockupIds]),
+    [mockupOwners, orphanedMockupIds]
   )
   const handleAskForMockupKnob = useCallback(
     (mockupId: string) => {
       const mockup = mockupLayers.find((m) => m.id === mockupId)
-      const target = mockupAskTargets.get(mockupId)
-      if (!mockup || !target) return
+      if (!mockup || !askableMockupIds.has(mockupId)) return
+      const target = mockupOwners.get(mockupId)
       const prompt = `Add a knob to the mockup "${mockup.title || "Untitled"}" that controls `
-      if (target.kind === "shown") {
+      if (!target) {
         const shown = chatTarget.target
         if (shown?.kind === "agent") {
           inputStore.prefill(openWorkspaceChat(shown.agent.id), prompt)
@@ -1482,7 +1486,8 @@ export function Canvas({
     },
     [
       mockupLayers,
-      mockupAskTargets,
+      mockupOwners,
+      askableMockupIds,
       chatTarget,
       openWorkspaceChat,
       addChatSession,
@@ -1532,8 +1537,7 @@ export function Canvas({
     referenceInputsRef.current = {
       iframeLayerLayouts,
       chatTarget,
-      documentOwnerChat,
-      sketchOwnerChatId,
+      documentOwner,
     }
   })
 
@@ -1617,8 +1621,10 @@ export function Canvas({
   // chat the panel shows (#1314).
   const commentDocumentChat = useCallback(
     (documentId: string) => {
-      const owner = documentOwnerChat(documentId)
-      if (owner) return owner
+      const owner = documentOwner(documentId)
+      if (owner?.kind === "workspace") {
+        return { chatId: owner.chatId, branchId: owner.branchId }
+      }
       if (chatTarget.target?.kind !== "agent") return null
       const branchId = chatTarget.target.agent.id
       const shown = chatSessions.find(
@@ -1626,7 +1632,7 @@ export function Canvas({
       )
       return { branchId, chatId: shown?.id }
     },
-    [documentOwnerChat, chatTarget, chatSessions]
+    [documentOwner, chatTarget, chatSessions]
   )
   const commentDocumentTitle = useCallback(
     (documentId: string) =>
@@ -2314,7 +2320,7 @@ export function Canvas({
                         removeMockup={removeMockup}
                         handlePlayIframeLayer={handlePlayIframeLayer}
                         onAskForKnob={handleAskForKnob}
-                        mockupAskTargets={mockupAskTargets}
+                        askableMockupIds={askableMockupIds}
                         onAskForMockupKnob={handleAskForMockupKnob}
                         handleCaptureReadyChange={handleCaptureReadyChange}
                         handleCaptureDirty={handleCaptureDirty}
