@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode, RefObject } from "react"
 
 import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
@@ -148,6 +148,11 @@ export interface LivePage {
   record: LivePageRecord
   writes?: LivePageWrites
   interactive: boolean
+  /**
+   * The page takes the pointer: in Interact, or for the moment a gesture the
+   * agent plays with real input on the Mac lands (#1385).
+   */
+  takesPointer: boolean
   driver: FrameDriverView
   width: number
   height: number
@@ -230,7 +235,11 @@ export function useLivePage({
   })
 
   // The agent drives the page through the drive channel (#1389, #1391).
-  useDriveFrame(id, dom, iframeRef, zoom, { snapshot })
+  const [agentPointer, setAgentPointer] = useState(false)
+  useDriveFrame(id, dom, iframeRef, zoom, {
+    snapshot,
+    setTakesPointer: setAgentPointer,
+  })
 
   // Leaving interaction (Esc, the toolbar, or a deselect) hands keyboard focus
   // back to the canvas. Otherwise it stays inside the iframe, and canvas
@@ -287,6 +296,7 @@ export function useLivePage({
     record,
     writes,
     interactive,
+    takesPointer: interactive || agentPointer,
     driver,
     width,
     height,
@@ -325,7 +335,9 @@ export function LivePageContent({
       />
     )
   }
-  const pointer = { pointerEvents: page.interactive ? "auto" : "none" } as const
+  const pointer = {
+    pointerEvents: page.takesPointer ? "auto" : "none",
+  } as const
   if (source.kind === "srcdoc") {
     if (source.srcDoc === undefined) return null
     return (
@@ -399,7 +411,7 @@ export function LivePageOverlay({
         <div className="pointer-events-none absolute inset-0 z-10 bg-background/60 transition-opacity" />
       )}
       {/* While interacting, the page takes the pointer instead. */}
-      {!page.interactive && (
+      {!page.takesPointer && (
         <div
           data-live-page-overlay=""
           className="absolute inset-0 touch-none"

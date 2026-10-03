@@ -6,6 +6,9 @@
 //! same way but runs a script in the page instead and answers with the string
 //! it resolves to (an agent reading a frame's HTML, #1268). It also can't open OS
 //! dialogs, so `/pick-directory` opens a native folder picker (see `dialog`).
+//! `/snapshot-main` and `/drive-input` let the agent see and drive the frames
+//! on the person's canvas (#1389, #1385; see `drive_input`), so they want the
+//! per-launch token only the sidecar holds.
 //! The server binds its own ephemeral port (passed to the sidecar as
 //! `TAURI_CONTROL_URL`) so it never collides with the app's port.
 
@@ -143,11 +146,7 @@ fn serve(server: &Server, app: &AppHandle, token: &str) {
         // how the agent checks a frame it drives (#1389). It shows the person's
         // screen, so only the sidecar, holding the token, may ask.
         if request.url().starts_with("/snapshot-main") {
-            let authorized = request.headers().iter().any(|h| {
-                h.field.equiv("x-screenplay-control-token")
-                    && same_token(h.value.as_str(), token)
-            });
-            if !authorized {
+            if !authorized(&request, token) {
                 let _ = request.respond(Response::from_string("unauthorized").with_status_code(401));
                 continue;
             }
@@ -159,6 +158,32 @@ fn serve(server: &Server, app: &AppHandle, token: &str) {
                     let header =
                         Header::from_bytes(&b"Content-Type"[..], &b"image/png"[..]).unwrap();
                     let _ = request.respond(Response::from_data(bytes).with_header(header));
+                }
+                Err(e) => {
+                    let _ = request.respond(Response::from_string(e).with_status_code(500));
+                }
+            }
+            continue;
+        }
+
+        // Real input for the agent driving a frame (#1385): it acts on the
+        // person's canvas and clipboard, so only the sidecar may ask.
+        if request.url().starts_with("/drive-input") {
+            if !authorized(&request, token) {
+                let _ = request.respond(Response::from_string("unauthorized").with_status_code(401));
+                continue;
+            }
+            let mut body = String::new();
+            let _ = request.as_reader().read_to_string(&mut body);
+            let answer = serde_json::from_str::<crate::drive_input::DriveInputRequest>(&body)
+                .map_err(|e| format!("bad request: {e}"))
+                .and_then(|parsed| crate::drive_input::handle(app, parsed));
+            match answer {
+                Ok(answer) => {
+                    let header =
+                        Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                    let body = serde_json::to_string(&answer).unwrap_or_else(|_| "{}".into());
+                    let _ = request.respond(Response::from_string(body).with_header(header));
                 }
                 Err(e) => {
                     let _ = request.respond(Response::from_string(e).with_status_code(500));
@@ -227,6 +252,13 @@ fn serve(server: &Server, app: &AppHandle, token: &str) {
             }
         }
     }
+}
+
+/// Whether the request carries the per-launch token only the sidecar holds.
+fn authorized(request: &tiny_http::Request, token: &str) -> bool {
+    request.headers().iter().any(|h| {
+        h.field.equiv("x-screenplay-control-token") && same_token(h.value.as_str(), token)
+    })
 }
 
 /// 32 bytes of CSPRNG output, hex.

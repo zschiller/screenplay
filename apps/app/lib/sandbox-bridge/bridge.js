@@ -1607,6 +1607,15 @@
     const out = {
       target: driveDescribe(el),
       file: control.nodeName === "INPUT" && control.type === "file",
+      // A click there opens the browser's own popup, which the Mac's real
+      // input can't answer either (#1385).
+      popup:
+        control.nodeName === "SELECT"
+          ? "native-select"
+          : control.nodeName === "INPUT" &&
+              NATIVE_PICKER_TYPES.indexOf(control.type) !== -1
+            ? "native-picker"
+            : undefined,
       // Input there goes to a nested frame, which this page doesn't hear.
       nested: el.nodeName === "IFRAME",
       // Dragging it starts an HTML5 drag (a draggable element, a link, an

@@ -8,9 +8,12 @@ import {
 import type {
   CanvasAnswer,
   FrameWhere,
+  PageAnswer,
+  PageAsk,
   PageInView,
   ServerToCanvas,
 } from "@/lib/frame-drive/canvas/protocol"
+import { PAGE_UNSUPPORTED } from "@/lib/frame-drive/canvas/protocol"
 
 /**
  * The asker's-canvas channel: the server's one way to reach the canvas of the
@@ -49,6 +52,12 @@ export interface AskerCanvas {
   /** Bring the frame into the asker's view, and nobody else's. Null when it
    *  did, otherwise why not. */
   reveal(frameId: string): Promise<string | null>
+  /** One step of a gesture played with real input (#1385). Throws when the
+   *  canvas can't be reached. */
+  page<A extends PageAsk>(
+    frameId: string,
+    ask: A
+  ): Promise<PageAnswer<A["kind"]>>
 }
 
 export type AskerCanvasTimeouts = {
@@ -111,6 +120,19 @@ export function askerCanvas(
       if (typeof answer === "string") return answer
       if (answer.type !== "snapshot") return UNEXPECTED
       return answer.snapshot ?? NOT_LOADED
+    },
+
+    async page(frameId, ask) {
+      const answer = await transport.ask(
+        { type: "page", id: randomUUID(), frameId, ask },
+        ask.kind === "locate" || ask.kind === "cursor"
+          ? opTimeoutMs
+          : readTimeoutMs
+      )
+      if (typeof answer === "string") throw new Error(answer)
+      if (answer.type !== "page") throw new Error(UNEXPECTED)
+      if (answer.value === PAGE_UNSUPPORTED) throw new Error(NOT_LOADED)
+      return answer.value as PageAnswer<(typeof ask)["kind"]>
     },
 
     async reveal(frameId) {

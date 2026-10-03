@@ -27,6 +27,6 @@ export function chatFrameDriveTools(opts: {
         : viewAgentDriver(opts.room, opts.userId),
     opts.room,
     { kind: "chat", sandboxName: opts.sandboxName },
-    { asker: opts.userId, frames: runtime !== null }
+    { asker: opts.userId, frames: runtime !== null, files: runtime === "mac" }
   )
 }

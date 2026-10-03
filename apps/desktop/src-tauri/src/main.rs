@@ -10,6 +10,7 @@
 //! de-risked in spike #407; the load-bearing details are commented inline.
 
 mod dialog;
+mod drive_input;
 mod secrets;
 mod sidecar;
 mod thumbnail;

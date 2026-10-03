@@ -78,11 +78,14 @@ the WebP and serves it back from the sidecar's own `/blobs` route.
 
 The same control server snapshots the canvas window itself when a chat's agent
 [drives a frame](/guides/frames#the-agent-driving-a-frame) and checks a step.
-That picture shows your screen, so the shell mints a token at launch and hands
-it only to the sidecar (`TAURI_CONTROL_TOKEN`); a snapshot request without it
-is refused. The agent's steps reach the canvas over a WebSocket on the local
-Yjs server's port, behind the same per-launch secret and Origin check as the
-Yjs sync connection.
+It also plays the agent's clicks and keys as real input to the canvas window,
+sets your clipboard aside around a step that copies or pastes, and answers a
+file picker the agent's click opens with files from the frame's workspace.
+These act on your screen and clipboard, so the shell mints a token at launch
+and hands it only to the sidecar (`TAURI_CONTROL_TOKEN`); a snapshot or input
+request without it is refused. The agent's steps reach the canvas over a
+WebSocket on the local Yjs server's port, behind the same per-launch secret and
+Origin check as the Yjs sync connection.
 
 ## Building
 
