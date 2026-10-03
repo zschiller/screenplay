@@ -593,6 +593,7 @@ function CanvasMemberLayerImpl({
               }}
               sharedStream={stream}
               live={live.live}
+              liveFaces={sharedFrames.facesOf(iframeLayer.id)}
               liveDriver={frameControl.liveDriverOf(iframeLayer.id)}
               onToggleLive={
                 liveStream

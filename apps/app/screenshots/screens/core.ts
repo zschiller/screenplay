@@ -24,6 +24,7 @@ import {
   openCanvasSettings,
   newWorkspaceButton,
   openAddProject,
+  injectYjsUpdate,
 } from "./helpers"
 
 /**
@@ -233,10 +234,17 @@ export const CORE_SCREENS: Screen[] = [
   {
     name: "canvas-frame-live",
     description:
-      "A hosted frame you went live on: the pressed Go live toggle, its tooltip, and the Live tag.",
+      "A hosted frame you went live on with Ana on the canvas: the pressed Go live toggle, its tooltip, and the Live tag with both faces.",
     hosted: true,
     path: `/${ids.rooms.checkout}`,
-    beforeNavigate: stubFrameStream,
+    beforeNavigate: async (page) => {
+      // Ana's client is online, so she's on the live frame too (#1519).
+      // Before the Frame Stream stub: the later route answers its socket.
+      await injectYjsUpdate(page, () => {}, [
+        { id: "user-ana", name: "Ana", color: "#7FD4FF" },
+      ])
+      await stubFrameStream(page)
+    },
     prepare: async (page) => {
       await selectCheckoutFrame(page)
       await goLive(page)

@@ -593,6 +593,7 @@ export function Canvas({
     agents,
     iframeLayers,
     viewerId: userId ?? null,
+    self,
     others,
     frameControl: collections.frameControl,
   })
