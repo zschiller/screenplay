@@ -212,6 +212,53 @@ describe("the env var server actions", () => {
     expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1\nB=mine")
   })
 
+  it("replace is refused for a member who can't reveal, and nothing changes", async () => {
+    access.room = canvas(repo("r1", { addedBy: "grace" })).room
+    await kvCanvasRepoEnvStore.set("room-1", "r1", "A=1\nB=2")
+
+    await expect(
+      saveCanvasRepoEnv("room-1", "r1", "", "replace")
+    ).rejects.toThrow(
+      "Only the person who added this repository can replace its values"
+    )
+    await expect(
+      saveCanvasRepoEnv("room-1", "r1", "A=mine", "replace")
+    ).rejects.toThrow()
+    access.role = "owner"
+    await expect(
+      saveCanvasRepoEnv("room-1", "r1", "A=mine", "replace")
+    ).rejects.toThrow()
+
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1\nB=2")
+  })
+
+  it("the adder can replace, and the owner when there's no adder", async () => {
+    access.room = canvas(repo("r1", { addedBy: "grace" })).room
+    await kvCanvasRepoEnvStore.set("room-1", "r1", "A=1\nB=2")
+    access.userId = "grace"
+    await saveCanvasRepoEnv("room-1", "r1", "C=3", "replace")
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("C=3")
+
+    access.room = canvas(repo("r2")).room
+    await kvCanvasRepoEnvStore.set("room-1", "r2", "A=1")
+    access.userId = "ada"
+    access.role = "owner"
+    await saveCanvasRepoEnv("room-1", "r2", "D=4", "replace")
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r2")).toBe("D=4")
+  })
+
+  it("a just-added repository not yet in the room doc saves while nothing is stored", async () => {
+    access.room = canvas().room
+
+    await saveCanvasRepoEnv("room-1", "r1", "A=1", "replace")
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1")
+
+    await expect(
+      saveCanvasRepoEnv("room-1", "r1", "", "replace")
+    ).rejects.toThrow()
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1")
+  })
+
   it("non-members and viewers can't save", async () => {
     access.room = canvas(repo("r1")).room
     access.member = false

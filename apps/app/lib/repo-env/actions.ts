@@ -11,11 +11,15 @@ import { envDocFields, kvCanvasRepoEnvStore, loadCanvasRepoEnv } from "./store"
 export type EnvDocFields = Pick<RepoData, "envVarNames" | "envVarsDigest">
 
 /**
- * Save a Canvas Repo's env var values (#1416). Any member who can edit the Canvas can: `replace`
- * stores `text` as the whole set (the adder after revealing, or the add
- * flow), `merge` lays the typed lines over the stored values (a member who
- * can't see them setting their own). Returns the names and digest for the
- * caller to write into the room doc; the values never go there.
+ * Save a Canvas Repo's env var values (#1416). Any member who can edit the
+ * Canvas can `merge`: lay the typed lines over the stored values (a member
+ * who can't see them setting their own). `replace` stores `text` as the whole
+ * set, so only whoever {@link canRevealEnv} allows may use it (the adder after
+ * revealing, the add flow, Reset on desktop); for anyone else it would wipe
+ * values they can't see (#1475). A Repo the server doesn't see in the room doc
+ * yet (just added, still syncing) can be replaced only while nothing is
+ * stored. Returns the names and digest for the caller to write into the room
+ * doc; the values never go there.
  */
 export async function saveCanvasRepoEnv(
   roomId: string,
@@ -25,15 +29,28 @@ export async function saveCanvasRepoEnv(
 ): Promise<EnvDocFields> {
   const room = await openRoom(roomId)
   if (room.role === "viewer") throw new Error("Viewers can't change settings")
+  const repo = await room.readDoc(({ repos }) => repos.get(repoId))
+  const stored = await loadCanvasRepoEnv(
+    kvCanvasRepoEnvStore,
+    roomId,
+    repo ?? { id: repoId }
+  )
   let next = text
   if (mode === "merge") {
-    const repo = await room.readDoc(({ repos }) => repos.get(repoId))
-    const stored = await loadCanvasRepoEnv(
-      kvCanvasRepoEnvStore,
-      roomId,
-      repo ?? { id: repoId }
-    )
     next = mergeEnvVars(stored, text)
+  } else {
+    const allowed = repo
+      ? canRevealEnv(repo, {
+          userId: room.userId,
+          isOwner: room.role === "owner",
+          localBuild: isLocalBuild,
+        })
+      : stored === ""
+    if (!allowed) {
+      throw new Error(
+        "Only the person who added this repository can replace its values"
+      )
+    }
   }
   await kvCanvasRepoEnvStore.set(roomId, repoId, next)
   const { envVarNames, envVarsDigest } = envDocFields(next)
