@@ -282,7 +282,7 @@ describe("account memory in every kind's system prompt", () => {
       const canvas = prompt.indexOf("Canvas memory (")
       expect(account).toBeGreaterThan(-1)
       expect(canvas).toBeGreaterThan(account)
-      expect(prompt.slice(account, canvas)).toContain("- Preference 1.")
+      expect(prompt.slice(account, canvas)).toContain("- [mem-1] Preference 1.")
       expect(prompt.slice(account, canvas)).not.toContain("pnpm")
     })
 
@@ -301,8 +301,49 @@ describe("account memory in every kind's system prompt", () => {
       skills: [],
       accountMemory: many,
     })
-    expect(prompt).not.toContain("- Preference 5.\n")
-    expect(prompt).toContain("- Preference 6.\n")
-    expect(prompt).toContain(`- Preference ${MEMORY_PROMPT_LIMIT + 5}.`)
+    expect(prompt).not.toContain("] Preference 5.\n")
+    expect(prompt).toContain("- [mem-6] Preference 6.\n")
+    expect(prompt).toContain(`] Preference ${MEMORY_PROMPT_LIMIT + 5}.`)
   })
+})
+
+/**
+ * Every chat saves memory (#1515): each kind's prompt says when to save and
+ * which scope a note belongs in, and a turn nobody sent saves to the canvas
+ * only.
+ */
+describe("saving memory in every kind's system prompt", () => {
+  const prompts = {
+    Workspace: (accountMemory?: null) =>
+      buildAgentSystemPrompt({
+        layerDirectory: EMPTY_DIRECTORY,
+        skills: [],
+        accountMemory,
+      }),
+    sketch: (accountMemory?: null) =>
+      buildSketchSystemPrompt({
+        layerDirectory: EMPTY_DIRECTORY,
+        chatId: "chat-1",
+        skills: [],
+        accountMemory,
+      }),
+    Coordinator: (accountMemory?: null) =>
+      buildRoomSystemPrompt({ canvasSummary: "", accountMemory }),
+  }
+
+  for (const [kind, build] of Object.entries(prompts)) {
+    it(`tells a ${kind} chat to save preferences to account memory and canvas facts to canvas memory`, () => {
+      const prompt = build()
+      expect(prompt).toContain("`write_memory`")
+      expect(prompt).toContain("go to `account` memory")
+      expect(prompt).toContain("go to `canvas` memory")
+      expect(prompt).not.toMatch(/Only you write it/)
+    })
+
+    it(`tells a ${kind} chat on a turn nobody sent to save to the canvas only`, () => {
+      const prompt = build(null)
+      expect(prompt).toContain("save to `canvas` only")
+      expect(prompt).not.toContain("go to `account` memory")
+    })
+  }
 })

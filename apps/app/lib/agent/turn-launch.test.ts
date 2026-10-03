@@ -56,8 +56,10 @@ function recordingDeps(
   // Whether each run takes Steers, as recorded when its Engine reported.
   const recorded = new Map<string, boolean>()
   const deps: TurnLaunchDeps = {
-    async resolveEngine() {
-      log.push("resolve engine")
+    async resolveEngine(input) {
+      log.push(
+        input.senderless ? "resolve engine senderless" : "resolve engine"
+      )
       if (opts.engineFails) throw new Error("AGENT_ENGINE misconfigured")
       return ENGINE
     },
@@ -240,6 +242,12 @@ describe("Turn Launch", () => {
     await launchTurn(deps, { ...request, userId: "user_maya" }, target(log))
     expect(log).toContain("persist fix it by user_maya")
     expect(echoedUserTurn(echoes[0]!)).toMatchObject({ sentBy: "user_maya" })
+  })
+
+  it("resolves a turn nobody sent with an engine whose tools get no account memory (#1515)", async () => {
+    const { deps, log } = recordingDeps()
+    await launchTurn(deps, { ...request, senderless: true }, target(log))
+    expect(log[0]).toBe("resolve engine senderless")
   })
 
   it("starts and settles comments on a sandbox turn that queues none (an earlier plan-paused turn may still owe them)", async () => {

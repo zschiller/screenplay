@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import type { ToolSet } from "ai"
 
 // The agent kind enumerates Skills from its sandbox and the room kind lists
 // the member's Terminal Tabs from the database; neither matters to memory.
@@ -50,8 +51,8 @@ import {
   type ToolNaming,
 } from "@/lib/agent/tool-name"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
-import { addMemory } from "@/lib/memory/canvas"
-import { addAccountMemory } from "@/lib/memory/account"
+import { addMemory, readMemory } from "@/lib/memory/canvas"
+import { addAccountMemory, readAccountMemory } from "@/lib/memory/account"
 import { kvAccountMemoryStore } from "@/lib/memory/account-store"
 import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
 import { buildViewTools } from "@/lib/agent/room-view-tools"
@@ -345,7 +346,8 @@ describe("canvas memory in every kind's system prompt", () => {
     const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
 
     expect(prompt).toContain("Canvas memory")
-    expect(prompt).toContain("- Use pnpm, never npm.")
+    expect(prompt).toMatch(/- \[mem-[^\]]+\] Use pnpm, never npm\./)
+    expect(prompt).toContain("write_memory")
   })
 
   it("includes memory, with the ids it edits by, in the Coordinator's prompt", async () => {
@@ -516,7 +518,9 @@ describe("account memory at chat target loading", () => {
       const room = await setup()
       const prompt = await load(room, { userId: "ben" })
       expect(prompt).toContain("Account memory (")
-      expect(prompt).toContain("- Ben: small fixes over redesigns.")
+      expect(prompt).toMatch(
+        /- \[mem-[^\]]+\] Ben: small fixes over redesigns\./
+      )
       expect(prompt).not.toContain("Ana:")
     })
 
@@ -525,6 +529,7 @@ describe("account memory at chat target loading", () => {
       const prompt = await load(room, { userId: "ana", senderless: true })
       expect(prompt).not.toContain("Account memory (")
       expect(prompt).not.toContain("Ana:")
+      expect(prompt).toContain("save to `canvas` only")
     })
   }
 
@@ -537,6 +542,93 @@ describe("account memory at chat target loading", () => {
     const prompt = await kinds.Workspace(room, { userId: "ana" })
     expect(prompt).not.toContain("Account memory (")
   })
+})
+
+/**
+ * Every chat saves memory (#1515): each kind's toolset has `write_memory`,
+ * saving account memory to the turn's sender and canvas memory to the Room,
+ * and refusing account memory on a turn nobody sent.
+ */
+describe("every kind saves memory", () => {
+  function setup() {
+    accountStores.clear()
+    const { collections } = makeHarness()
+    const room: RoomDoc = {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+    return { room, collections }
+  }
+
+  const kinds = {
+    Workspace: (
+      room: RoomDoc,
+      target: { userId: string; senderless?: boolean }
+    ) =>
+      toolsetOn(
+        workspaceChatTarget.tools(room, {
+          sandboxName: "sb-1",
+          chatId: "chat-1",
+          ...target,
+        }),
+        "in-process"
+      ),
+    sketch: (room: RoomDoc, target: { userId: string; senderless?: boolean }) =>
+      toolsetOn(
+        sketchChatTarget.tools(room, { chatId: "chat-1", ...target }),
+        "in-process"
+      ),
+    Coordinator: (
+      room: RoomDoc,
+      target: { userId: string; senderless?: boolean }
+    ) => toolsetOn(roomChatTarget.tools(room, target), "in-process"),
+  }
+
+  const write = async (tools: ToolSet, input: Record<string, unknown>) =>
+    (await tools.write_memory!.execute!(input, {
+      toolCallId: "t1",
+      messages: [],
+      context: {},
+    })) as string
+
+  for (const [kind, toolsFor] of Object.entries(kinds)) {
+    it(`saves canvas memory and the sender's account memory from a ${kind} chat`, async () => {
+      const { room, collections } = setup()
+      const tools = toolsFor(room, { userId: "ben" })
+
+      await write(tools, { scope: "canvas", action: "add", text: "Use pnpm." })
+      await write(tools, {
+        scope: "account",
+        action: "add",
+        text: "Prefers small fixes.",
+      })
+
+      expect(readMemory(collections).map((m) => m.text)).toEqual(["Use pnpm."])
+      expect(
+        (await readAccountMemory(kvAccountMemoryStore("ben"))).map(
+          (m) => m.text
+        )
+      ).toEqual(["Prefers small fixes."])
+      expect(await readAccountMemory(kvAccountMemoryStore("ana"))).toEqual([])
+    })
+
+    it(`refuses account memory on a ${kind} turn nobody sent`, async () => {
+      const { room, collections } = setup()
+      const tools = toolsFor(room, { userId: "ana", senderless: true })
+
+      const out = await write(tools, {
+        scope: "account",
+        action: "add",
+        text: "Prefers small fixes.",
+      })
+
+      expect(out).toMatch(/nobody sent this turn/)
+      expect(await readAccountMemory(kvAccountMemoryStore("ana"))).toEqual([])
+      await write(tools, { scope: "canvas", action: "add", text: "Use pnpm." })
+      expect(readMemory(collections).map((m) => m.text)).toEqual(["Use pnpm."])
+    })
+  }
 })
 
 /**
@@ -741,7 +833,7 @@ describe("a Workspace chat's Document tools", () => {
         "read_document",
       ])
     )
-    expect(Object.keys(tools)).not.toContain("write_memory")
+    expect(Object.keys(tools)).not.toContain("send_to_workspace")
   })
 
   it("creates a Document the chat owns, with its title and body", async () => {

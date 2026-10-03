@@ -63,17 +63,15 @@ function renderLayerDirectory(
  * Renders canvas memory (#902) as a system-prompt block. Every chat target
  * kind includes it, the same way a Workspace chat includes its repository's
  * system prompt, so preferences saved once reach every chat on the canvas.
- * Only the Coordinator writes memory, so only its block carries the ids its
- * `write_memory` tool takes. Past {@link MEMORY_PROMPT_LIMIT} the newest win.
+ * Every kind writes it (#1515), so each entry carries the id `write_memory`
+ * edits it by. Past {@link MEMORY_PROMPT_LIMIT} the newest win.
  */
 export function renderCanvasMemory(
-  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined,
-  opts: { withIds?: boolean } = {}
+  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined
 ): string {
   return renderMemory(
     "Canvas memory (preferences, decisions and facts saved for this canvas; follow them unless the user says otherwise):",
-    memory,
-    opts
+    memory
   )
 }
 
@@ -83,27 +81,39 @@ export function renderCanvasMemory(
  * A turn nobody sent (a Coordinator wake) passes none and gets no block.
  */
 export function renderAccountMemory(
-  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined
+  memory: readonly Pick<MemoryData, "id" | "text">[] | null | undefined
 ): string {
   return renderMemory(
     "Account memory (preferences of the person who sent this message, saved across all their canvases; follow them unless they say otherwise):",
-    memory
+    memory ?? undefined
   )
 }
 
 function renderMemory(
   heading: string,
-  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined,
-  opts: { withIds?: boolean } = {}
+  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined
 ): string {
   if (!memory || memory.length === 0) return ""
   const kept = memory.slice(-MEMORY_PROMPT_LIMIT)
+  return ["", heading, ...kept.map((m) => `- [${m.id}] ${m.text}`)].join("\n")
+}
+
+/**
+ * How every chat kind saves memory (#1515): when to save, and which scope a
+ * note belongs in. `accountMemory` null is a turn nobody sent, which can only
+ * save to the canvas.
+ */
+export function renderMemorySaving(
+  t: (name: string) => string,
+  accountMemory: readonly MemoryData[] | null | undefined
+): string {
   return [
-    "",
-    heading,
-    ...kept.map((m) =>
-      opts.withIds ? `- [${m.id}] ${m.text}` : `- ${m.text}`
-    ),
+    "Memory:",
+    `- Every later chat reads the memory below in its prompt. Save to it with \`${t("write_memory")}\` when the user states a preference or decision, asks you to remember something, or you learn something later chats would otherwise have to ask for. It saves right away; don't ask first. One short, self-contained sentence per entry.`,
+    accountMemory === null
+      ? "- Nobody sent this turn, so it has no account memory: save to `canvas` only."
+      : "- Personal preferences of the person who sent this message (how they like to work, write or be answered) go to `account` memory, which follows them to every canvas. Facts about this canvas's work (decisions, conventions, its repositories) go to `canvas` memory, shared with its members.",
+    "- Edit an entry that has become wrong rather than adding a contradicting one, and remove one the user asks you to forget, by the id in brackets. Never save secrets or credentials.",
   ].join("\n")
 }
 
@@ -305,8 +315,8 @@ export function buildAgentSystemPrompt(opts: {
   skills: OriginTaggedSkill[]
   memory?: readonly MemoryData[]
   files?: readonly FileEntryData[]
-  /** The sender's account memory (#1513); none on a turn nobody sent. */
-  accountMemory?: readonly MemoryData[]
+  /** The sender's account memory (#1513); `null` on a turn nobody sent. */
+  accountMemory?: readonly MemoryData[] | null
   toolNaming?: ToolNaming
 }): string {
   const { repoSystemPrompt, layerDirectory, skills, memory } = opts
@@ -338,6 +348,7 @@ export function buildAgentSystemPrompt(opts: {
     skillsBlock +
     agentSystemPromptTail(naming) +
     repoBlock +
+    `\n\n${renderMemorySaving(t, opts.accountMemory)}` +
     (accountBlock ? `\n${accountBlock}` : "") +
     (memoryBlock ? `\n${memoryBlock}` : "") +
     `\n${renderCanvasFiles(opts.files, t)}` +
@@ -358,8 +369,8 @@ export function buildSketchSystemPrompt(opts: {
   skills: readonly SkillMetadata[]
   memory?: readonly MemoryData[]
   files?: readonly FileEntryData[]
-  /** The sender's account memory (#1513); none on a turn nobody sent. */
-  accountMemory?: readonly MemoryData[]
+  /** The sender's account memory (#1513); `null` on a turn nobody sent. */
+  accountMemory?: readonly MemoryData[] | null
   toolNaming?: ToolNaming
 }): string {
   const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
@@ -394,6 +405,8 @@ export function buildSketchSystemPrompt(opts: {
       : []),
     "",
     "Keep replies short: say what you made and where it is.",
+    "",
+    renderMemorySaving(t, opts.accountMemory),
     ...(accountBlock ? [accountBlock] : []),
     ...(memoryBlock ? [memoryBlock] : []),
     renderCanvasFiles(opts.files, t),
@@ -413,8 +426,8 @@ export function buildRoomSystemPrompt(opts: {
   canvasSummary: string
   memory?: readonly MemoryData[]
   files?: readonly FileEntryData[]
-  /** The sender's account memory (#1513); none on a wake nobody sent. */
-  accountMemory?: readonly MemoryData[]
+  /** The sender's account memory (#1513); `null` on a wake nobody sent. */
+  accountMemory?: readonly MemoryData[] | null
   skills?: readonly SkillMetadata[]
   toolNaming?: ToolNaming
 }): string {
@@ -479,11 +492,7 @@ export function buildRoomSystemPrompt(opts: {
     "- When a Workspace is waiting for the user to approve its plan, say which one in one line and link it. You have no way to approve plans; the user approves them in the Workspace.",
     "- You may follow up yourself, for example by sending a Workspace its next step when the user already asked for it.",
     "",
-    "Canvas memory:",
-    `- Every chat on this canvas, yours and each Workspace agent's, reads the canvas memory below. Only you write it, with \`${t("write_memory")}\`.`,
-    "- Save a preference, decision or fact about the repositories when the user states one, asks you to remember something, or you learn one that later chats would otherwise have to ask for. One short, self-contained sentence per entry.",
-    "- Edit an entry that has become wrong rather than adding a contradicting one, and remove one the user asks you to forget. Never save secrets or credentials.",
-    "- Account memory, when shown, is the preferences of the person who sent this message, from all their canvases. Follow it, but you can't change it: they edit it in Settings › Memory.",
+    renderMemorySaving(t, opts.accountMemory),
     "",
     `Mentions: the user's message may reference canvas documents as \`${MENTION_MARKER_TOKEN}\` markers, listed with their ids under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer; read them with \`${t("read_document")}\`.`,
     "",
@@ -494,8 +503,7 @@ export function buildRoomSystemPrompt(opts: {
     "Canvas summary:",
     opts.canvasSummary || "(the canvas is empty)",
     ...[renderAccountMemory(opts.accountMemory)].filter(Boolean),
-    renderCanvasMemory(opts.memory, { withIds: true }) ||
-      "\nCanvas memory: (empty)",
+    renderCanvasMemory(opts.memory) || "\nCanvas memory: (empty)",
     renderCanvasFiles(opts.files, t),
   ].join("\n")
 }

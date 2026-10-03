@@ -75,7 +75,7 @@ export function AccountMemoryPanel({
       header={header}
       copy={{
         emptyDescription:
-          "Add a preference you want every chat to follow, like how you like UI copy written.",
+          "Tell a chat how you like to work, or add a preference yourself.",
         dialogDescription: "Every chat you message reads it, on any canvas.",
         placeholder: "Write UI copy in plain sentences, no puns.",
         memberSource: "Added by you",

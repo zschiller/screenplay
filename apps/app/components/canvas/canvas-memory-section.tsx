@@ -4,8 +4,8 @@ import { MemoryEntries } from "@/components/memory/memory-entries"
 import type { MemoryData } from "@/lib/types"
 
 /**
- * Canvas settings › Memory (#902): the canvas's shared memory. The
- * Coordinator saves most entries; members can add, fix or remove any of them.
+ * Canvas settings › Memory (#902): the canvas's shared memory. Every chat on
+ * the canvas saves entries (#1515); members can add, fix or remove any of them.
  */
 export function MemorySection({
   memories,
@@ -21,14 +21,14 @@ export function MemorySection({
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        Preferences, decisions and facts every chat on this canvas follows. The
-        Coordinator saves what it learns here.
+        Preferences, decisions and facts every chat on this canvas follows.
+        Chats save what they learn here.
       </p>
       <MemoryEntries
         memories={memories}
         copy={{
           emptyDescription:
-            "Tell the Coordinator what to remember, or add a memory yourself.",
+            "Tell a chat what to remember, or add a memory yourself.",
           dialogDescription: "Every chat on this canvas reads it.",
           placeholder: "Use pnpm, never npm.",
           memberSource: "Added in settings",

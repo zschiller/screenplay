@@ -2,6 +2,7 @@ import "server-only"
 
 import { buildSketchSystemPrompt, type LayerDirectory } from "./config"
 import {
+  accountMemoryStore,
   loadAccountMemory,
   loadCanvasMemory,
   loadLayerDirectory,
@@ -18,6 +19,7 @@ import { buildSkillTools } from "./skill-tools"
 import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
 import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildFileTools } from "./file-tools"
+import { buildMemoryTools } from "./memory-tools"
 import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import { canvasFiles } from "@/lib/files"
 import { loadCanvasFiles } from "@/lib/files/canvas-files"
@@ -41,8 +43,8 @@ export interface SketchContext {
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
-  /** The sender's account memory (#1513). */
-  accountMemory: MemoryData[]
+  /** The sender's account memory (#1513); `null` on a turn nobody sent. */
+  accountMemory: MemoryData[] | null
 }
 
 /** No sandbox: Documents and Mockups only, and nothing that touches code. */
@@ -78,7 +80,8 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
       toolNaming: naming,
     })
   },
-  tools(room, { chatId, userId }) {
+  tools(room, target) {
+    const { chatId, userId } = target
     return {
       shared: {
         ...buildDocumentTools({ room, chatId }),
@@ -93,6 +96,11 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
         }),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
+        // Account and canvas memory (#1515).
+        ...buildMemoryTools({
+          canvas: room,
+          account: accountMemoryStore(target),
+        }),
         // The canvas's saved files (#1514): text only, with no sandbox.
         ...buildFileTools({ canvas: canvasFiles(room), chatId }),
       },

@@ -62,6 +62,20 @@ vi.mock("@/lib/files", async () => {
     canvasFiles: (room: RoomDoc) => canvasFilesOn(room, fileStore),
   }
 })
+// Each person's account memory, in memory.
+const accountStores = vi.hoisted(
+  () => new Map<string, import("@/lib/memory/account").AccountMemoryStore>()
+)
+vi.mock("@/lib/memory/account-store", async () => {
+  const { inMemoryAccountMemoryStore } = await import("@/lib/memory/account")
+  return {
+    kvAccountMemoryStore: (userId: string) => {
+      if (!accountStores.has(userId))
+        accountStores.set(userId, inMemoryAccountMemoryStore())
+      return accountStores.get(userId)!
+    },
+  }
+})
 // The Sandbox is unreachable, so read_skill falls back to the App Skills.
 vi.mock("@/lib/sandbox", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/sandbox")>()),
@@ -102,6 +116,9 @@ import { toolsetOn, type ChatTools } from "@/lib/agent/toolset"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
 import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
+import { readAccountMemory } from "@/lib/memory/account"
+import { kvAccountMemoryStore } from "@/lib/memory/account-store"
+import { readMemory } from "@/lib/memory/canvas"
 
 const PORT = process.env.PORT || "3000"
 const binding = { roomId: "room-1", chatId: "room-chat-room-1" }
@@ -399,6 +416,7 @@ describe("a Workspace chat's MCP route", () => {
       "find_code_files",
       "read_document",
       "ask_question",
+      "write_memory",
       "list_saved_files",
       "read_saved_file",
       "save_file",
@@ -671,6 +689,68 @@ describe("every chat kind's MCP toolset", () => {
         inProcess.filter((name) => !native.includes(name)).sort()
       )
       for (const tool of served) expect(tool.annotations).toBeDefined()
+    })
+  }
+})
+
+/**
+ * Every chat saves memory (#1515): a harness chat of each kind gets
+ * `write_memory` over the route, saving account memory to the app's user
+ * and refusing it on a token minted for a turn nobody sent.
+ */
+describe("write_memory over the MCP route", () => {
+  const bindings = {
+    Coordinator: binding,
+    Workspace: { roomId: "room-1", chatId: "chat-ws-1", sandboxName: "sp-1" },
+    Sketch: { roomId: "room-1", chatId: "sketch-1", sketch: true },
+  }
+  const write = async (
+    token: Parameters<typeof coordinatorToken>[0],
+    args: Record<string, unknown>
+  ): Promise<string> => {
+    const res = await POST(
+      rpc(
+        {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "write_memory", arguments: args },
+        },
+        { authorization: `Bearer ${coordinatorToken(token)}` }
+      )
+    )
+    return (await res.json()).result.content[0].text
+  }
+  const accountTexts = async (userId: string) =>
+    (await readAccountMemory(kvAccountMemoryStore(userId))).map((m) => m.text)
+
+  beforeEach(() => accountStores.clear())
+
+  for (const [kind, token] of Object.entries(bindings)) {
+    it(`saves account and canvas memory from a ${kind} chat on a harness`, async () => {
+      expect(
+        await write(token, {
+          scope: "account",
+          action: "add",
+          text: "Prefers plain UI copy.",
+        })
+      ).toMatch(/^Saved to account memory: /)
+      await write(token, { scope: "canvas", action: "add", text: "Use pnpm." })
+
+      expect(await accountTexts("local-user")).toEqual([
+        "Prefers plain UI copy.",
+      ])
+      expect(readMemory(collections).map((m) => m.text)).toEqual(["Use pnpm."])
+    })
+
+    it(`refuses account memory to a ${kind} chat's turn nobody sent`, async () => {
+      const out = await write(
+        { ...token, senderless: true },
+        { scope: "account", action: "add", text: "Prefers plain UI copy." }
+      )
+
+      expect(out).toMatch(/nobody sent this turn/)
+      expect(await accountTexts("local-user")).toEqual([])
     })
   }
 })

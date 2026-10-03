@@ -44,6 +44,11 @@ export interface CoordinatorBinding {
   sandboxName?: string
   /** True for a Sketch Chat. */
   sketch?: boolean
+  /**
+   * Nobody sent the turn the token is for (a Coordinator wake and the turns
+   * it delegates): its `write_memory` refuses account memory (#1515).
+   */
+  senderless?: boolean
 }
 
 /**
@@ -69,7 +74,8 @@ export function coordinatorToken(binding: CoordinatorBinding): string {
     existing &&
     bound?.roomId === binding.roomId &&
     bound.sandboxName === binding.sandboxName &&
-    bound.sketch === binding.sketch
+    bound.sketch === binding.sketch &&
+    !bound.senderless === !binding.senderless
   ) {
     return existing
   }
