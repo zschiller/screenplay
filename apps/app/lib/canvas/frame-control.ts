@@ -20,6 +20,11 @@
  *   which queues behind the person who took over).
  * - Asking the agent in chat to show you something (`chat-ask`) grants it
  *   control when the asker drives or nobody does; otherwise its ask queues.
+ * - A person who drives but leaves the frame alone keeps it only until
+ *   someone asks: once a person's request has waited
+ *   {@link FRAME_CONTROL_IDLE_MS} with no input from the driver, control
+ *   passes to the oldest person asking (audit P7). The agent's requests wait
+ *   on the driver, idle or not.
  *
  * The record lives in the Room's Yjs doc (`frameControl`), keyed by the copy
  * of the frame it governs ({@link frameControlKey}); awareness says who is
@@ -31,6 +36,14 @@ export const AGENT_PARTY = "@agent"
 
 /** How long a driver who left keeps control, so a reload is harmless. */
 export const FRAME_CONTROL_GRACE_MS = 5000
+
+/** How long a person's request waits on a driver who sends the frame no
+ *  input before control passes to them. */
+export const FRAME_CONTROL_IDLE_MS = 3 * 60_000
+
+/** How often the driver's input moves {@link FrameControlRecord.activeAt}:
+ *  coarse, so input doesn't write to the shared doc on every event. */
+export const FRAME_CONTROL_ACTIVE_STEP_MS = 15_000
 
 export type FrameControlRequest = {
   /** The party asking to drive. */
@@ -50,6 +63,12 @@ export type FrameControlRecord = {
   driver: string | null
   /** Waiting requests, in the order they were made. */
   requests: FrameControlRequest[]
+  /**
+   * When the driver last sent the frame input, or took control (ms). Absent
+   * until the driver's client stamps it, as when control changed hands
+   * without a clock (Give control, a release); the idle rule waits for it.
+   */
+  activeAt?: number
 }
 
 export const EMPTY_FRAME_CONTROL: FrameControlRecord = {
@@ -83,8 +102,11 @@ export type FrameControlAction =
   | { type: "release"; by: string; presence: FrameControlPresence }
   /** Someone asked the agent in chat to show them something. */
   | { type: "chat-ask"; asker: string; at: number }
-  /** Time passed or someone left: apply the grace period and drop requests
-   *  from people who are gone. */
+  /** The driver sent the frame input. Only moves `activeAt` in steps of
+   *  {@link FRAME_CONTROL_ACTIVE_STEP_MS}, or when it's missing. */
+  | { type: "active"; by: string; at: number }
+  /** Time passed or someone left: apply the grace period, drop requests
+   *  from people who are gone, and pass control from an idle driver. */
   | { type: "settle"; now: number; presence: FrameControlPresence }
 
 export function isOnline(
@@ -118,16 +140,50 @@ export function oldestOnlineRequester(
   return next?.by ?? null
 }
 
-/** The one place the driver changes: the new driver's own request is spent. */
+/** The oldest request from a person (not the agent) online, or null. */
+function oldestPersonRequest(
+  record: FrameControlRecord,
+  presence: FrameControlPresence
+): FrameControlRequest | null {
+  let next: FrameControlRequest | null = null
+  for (const r of record.requests) {
+    if (r.by === AGENT_PARTY || !isOnline(presence, r.by)) continue
+    if (!next || r.at < next.at) next = r
+  }
+  return next
+}
+
+/**
+ * When a person driving goes idle enough to hand over to `request`: its
+ * wait and the driver's quiet both reach {@link FRAME_CONTROL_IDLE_MS}. Null
+ * when the driver's clock isn't stamped yet.
+ */
+function idleHandoverAt(
+  record: FrameControlRecord,
+  request: FrameControlRequest
+): number | null {
+  if (record.activeAt === undefined) return null
+  return Math.max(record.activeAt, request.at) + FRAME_CONTROL_IDLE_MS
+}
+
+/** The one place the driver changes: the new driver's own request is spent,
+ *  and their idle clock starts at `at` (or waits for their client to stamp
+ *  it). */
 function withDriver(
   record: FrameControlRecord,
-  driver: string | null
+  driver: string | null,
+  at?: number
 ): FrameControlRecord {
-  return {
+  const next: FrameControlRecord = {
     ...record,
     driver,
     requests: record.requests.filter((r) => r.by !== driver),
+    activeAt: at,
   }
+  // The idle rule is between people: the agent's clock isn't kept.
+  if (driver === null || driver === AGENT_PARTY || at === undefined)
+    delete next.activeAt
+  return next
 }
 
 function withRequest(
@@ -151,10 +207,10 @@ export function reduceFrameControl(
     case "request": {
       const { by, at } = action
       if (record.driver === by) return record
-      if (record.driver === null) return withDriver(record, by)
+      if (record.driver === null) return withDriver(record, by, at)
       // The agent always yields: a person takes control from it at once.
       if (record.driver === AGENT_PARTY && by !== AGENT_PARTY)
-        return withDriver(record, by)
+        return withDriver(record, by, at)
       return withRequest(record, by, at)
     }
     case "grant": {
@@ -176,8 +232,18 @@ export function reduceFrameControl(
       const { asker, at } = action
       if (record.driver === AGENT_PARTY) return record
       if (record.driver === null || record.driver === asker)
-        return withDriver(record, AGENT_PARTY)
+        return withDriver(record, AGENT_PARTY, at)
       return withRequest(record, AGENT_PARTY, at)
+    }
+    case "active": {
+      const { by, at } = action
+      if (record.driver !== by) return record
+      if (
+        record.activeAt !== undefined &&
+        at - record.activeAt < FRAME_CONTROL_ACTIVE_STEP_MS
+      )
+        return record
+      return { ...record, activeAt: at }
     }
     case "settle": {
       const { now, presence } = action
@@ -186,7 +252,14 @@ export function reduceFrameControl(
       // control never passes to someone who is gone too.
       next = dropRequests(next, (r) => goneForGood(presence, r.by, now))
       if (next.driver !== null && goneForGood(presence, next.driver, now)) {
-        next = withDriver(next, oldestOnlineRequester(next, presence))
+        next = withDriver(next, oldestOnlineRequester(next, presence), now)
+      }
+      // A person driving who left the frame alone while someone waited.
+      if (next.driver !== null && next.driver !== AGENT_PARTY) {
+        const waiting = oldestPersonRequest(next, presence)
+        const due = waiting && idleHandoverAt(next, waiting)
+        if (waiting && due !== null && now >= due)
+          next = withDriver(next, waiting.by, now)
       }
       return next
     }
@@ -204,8 +277,9 @@ function dropRequests(
 
 /**
  * When the next `settle` can change something: the earliest moment a gone
- * driver or requester runs out of grace. Null when nothing is waiting on the
- * clock. The canvas sets a timer for it.
+ * driver or requester runs out of grace, or a person driving has been idle
+ * long enough to hand over. Null when nothing is waiting on the clock. The
+ * canvas sets a timer for it.
  */
 export function nextSettleAt(
   record: FrameControlRecord,
@@ -221,6 +295,11 @@ export function nextSettleAt(
     if (goneAt === undefined) return 0
     const due = goneAt + FRAME_CONTROL_GRACE_MS
     if (at === null || due < at) at = due
+  }
+  if (record.driver !== null && record.driver !== AGENT_PARTY) {
+    const waiting = oldestPersonRequest(record, presence)
+    const due = waiting && idleHandoverAt(record, waiting)
+    if (due !== null && (at === null || due < at)) at = due
   }
   return at
 }
