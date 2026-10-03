@@ -10,6 +10,7 @@ import { CursorIcon } from "@workspace/ui/components/icons"
 import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
+import { useIframeBridgePort } from "@/hooks/use-bridge-port"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import {
   useScreenplayDom,
@@ -190,8 +191,9 @@ export function MockupLayer({
   const containerRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
+  const port = useIframeBridgePort(iframeRef)
   usePostMessage({
-    iframeRef,
+    port,
     iframeLayerId: layer.id,
     iframeState: NO_STATE,
     knobValues: layer.knobValues,
@@ -201,7 +203,7 @@ export function MockupLayer({
     onSharedStateChanged,
   })
 
-  const dom = useScreenplayDom(iframeRef, {
+  const dom = useScreenplayDom(port, {
     onWheel: (wheel) => onWheel?.(layer.id, wheel),
     // Esc the page didn't claim, forwarded by the bridge because keydowns
     // never leave the iframe: replay it on the canvas so it leaves Interact.

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { iframeBridgePort } from "@/lib/bridge-port"
 import { usePostMessage } from "./use-postmessage"
 
 describe("usePostMessage shared-state request", () => {
@@ -9,9 +10,10 @@ describe("usePostMessage shared-state request", () => {
     const iframeRef = {
       current: { contentWindow: frameWindow } as unknown as HTMLIFrameElement,
     }
+    const port = iframeBridgePort(iframeRef)
     renderHook(() =>
       usePostMessage({
-        iframeRef,
+        port,
         iframeLayerId: "layer-1",
         iframeState: {},
         sharedState: { billing: "annual" },

@@ -3,10 +3,22 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { beforeAll, beforeEach, describe, expect, it } from "vitest"
 
+import {
+  FrameStreamConnection,
+  type FrameStreamDeps,
+} from "@/lib/frame-stream/client"
+import type {
+  FrameStreamClientMessage,
+  FrameStreamServerMessage,
+} from "@/lib/frame-stream/protocol"
+import type { CanvasToIframeMessage } from "@/lib/postmessage-protocol"
 import { pageSnapshotScript } from "./page-snapshot"
 
 // The bridge is a plain script injected into every frame; run it in jsdom and
-// talk to it over postMessage the way the canvas does.
+// talk to it the ways the canvas does: postMessage into a local iframe, and
+// for a Shared Frame (#1394) the Frame Stream, whose service relays the same
+// messages to the page in the Sandbox (frame-stream.test.ts runs that relay
+// in a real browser).
 const BRIDGE = readFileSync(
   join(process.cwd(), "lib", "sandbox-bridge", "bridge.js"),
   "utf8"
@@ -14,9 +26,7 @@ const BRIDGE = readFileSync(
 
 let nextId = 1
 
-function query(op: string, payload: Record<string, unknown>) {
-  return send({ type: "screenplay:dom-query", op, ...payload })
-}
+type Send = (msg: Record<string, unknown>) => Promise<unknown>
 
 function send(msg: Record<string, unknown>) {
   const id = `q${nextId++}`
@@ -38,7 +48,92 @@ function send(msg: Record<string, unknown>) {
   })
 }
 
+// The Frame Stream from the canvas's side: the real client connection, over
+// a socket that stands in for the service. Every message crosses it as JSON,
+// as on the wire; the stand-in hands the bridge's messages to the page and
+// what the page posts to its parent back to the canvas.
+const FRAME = "f1"
+const relayed = new WeakSet<object>()
+let stream: FrameStreamConnection | null = null
+
+async function openStream(): Promise<FrameStreamConnection> {
+  if (stream) return stream
+  const socket: ReturnType<FrameStreamDeps["openSocket"]> = {
+    binaryType: "",
+    readyState: 1,
+    onopen: null,
+    onclose: null,
+    onerror: null,
+    onmessage: null,
+    close() {},
+    send(data: string) {
+      const msg = JSON.parse(data) as FrameStreamClientMessage
+      if (msg.t === "auth") reply({ t: "ready", codec: "h264" })
+      if (msg.t !== "bridge") return
+      const message = msg.message as object
+      relayed.add(message)
+      window.dispatchEvent(
+        new MessageEvent("message", { data: message, source: window })
+      )
+    },
+  }
+  const reply = (msg: FrameStreamServerMessage) =>
+    socket.onmessage?.({ data: JSON.stringify(msg) })
+  window.addEventListener("message", (e) => {
+    const d = e.data
+    if (typeof d?.type !== "string" || !d.type.startsWith("screenplay:")) return
+    if (relayed.has(d)) return
+    reply({ t: "bridge", frame: FRAME, message: d })
+  })
+  const conn = new FrameStreamConnection({
+    fetchEndpoint: async () => ({
+      shared: true,
+      url: "ws://stream",
+      token: "t",
+    }),
+    openSocket: () => {
+      setTimeout(() => socket.onopen?.({}), 0)
+      return socket
+    },
+    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    clearTimeout: (id) => clearTimeout(id as ReturnType<typeof setTimeout>),
+  })
+  conn.watch(
+    FRAME,
+    { route: "/", width: 800, height: 600 },
+    { onMessage() {}, onVideo() {} }
+  )
+  while (!conn.isReady()) await new Promise((r) => setTimeout(r, 0))
+  stream = conn
+  return conn
+}
+
+async function sendOverStream(msg: Record<string, unknown>) {
+  const port = (await openStream()).bridgePort(FRAME)
+  const id = `s${nextId++}`
+  return new Promise<unknown>((resolve, reject) => {
+    const off = port.subscribe((d) => {
+      if (d.type !== "screenplay:dom-result" || d.id !== id) return
+      off()
+      if (d.ok) resolve(d.value)
+      else reject(new Error(d.error))
+    })
+    if (!port.post({ ...msg, id } as CanvasToIframeMessage))
+      reject(new Error("not sent"))
+  })
+}
+
 type Resolved = { path: string; rects: (object | null)[] }
+
+type Snapshot = {
+  url: string
+  title: string
+  htmlAttributes: string
+  bodyAttributes: string
+  markup: string
+  css: string
+  stylesheetLinks: string[]
+}
 
 beforeAll(() => {
   // jsdom lacks CSS.escape.
@@ -57,43 +152,129 @@ beforeEach(() => {
     </main>`
 })
 
-describe("bridge resolveAnchors", () => {
-  it("finds an element by id, test id, text, then path", async () => {
-    const res = (await query("resolveAnchors", {
-      anchors: [
-        { path: "nope", tag: "button", id: "pay" },
-        { path: "nope", tag: "button", testId: "apply" },
-        { path: "nope", tag: "a", text: "Hats" },
-        { path: "main > ul > li:nth-of-type(1) > a", tag: "a" },
-        { path: "main > button:nth-of-type(1)", tag: "a" },
-        { path: "nope", tag: "a", text: "Socks" },
-      ],
-    })) as Resolved
-    expect(res.path).toBe(window.location.pathname)
-    expect(res.rects.map((r) => r !== null)).toEqual([
-      true,
-      true,
-      true,
-      true,
-      // A path that now lands on another kind of element isn't a match.
-      false,
-      false,
-    ])
+// The reads the canvas's frame features make (comment pins, the element
+// picker, Element References, Fit to content, a chat's page read) go over
+// both transports.
+describe.each<{ transport: string; send: Send }>([
+  { transport: "postMessage", send },
+  { transport: "the Frame Stream", send: sendOverStream },
+])("bridge reads over $transport", ({ send }) => {
+  const query = (op: string, payload: Record<string, unknown>) =>
+    send({ type: "screenplay:dom-query", op, ...payload })
+
+  describe("bridge resolveAnchors", () => {
+    it("finds an element by id, test id, text, then path", async () => {
+      const res = (await query("resolveAnchors", {
+        anchors: [
+          { path: "nope", tag: "button", id: "pay" },
+          { path: "nope", tag: "button", testId: "apply" },
+          { path: "nope", tag: "a", text: "Hats" },
+          { path: "main > ul > li:nth-of-type(1) > a", tag: "a" },
+          { path: "main > button:nth-of-type(1)", tag: "a" },
+          { path: "nope", tag: "a", text: "Socks" },
+        ],
+      })) as Resolved
+      expect(res.path).toBe(window.location.pathname)
+      expect(res.rects.map((r) => r !== null)).toEqual([
+        true,
+        true,
+        true,
+        true,
+        // A path that now lands on another kind of element isn't a match.
+        false,
+        false,
+      ])
+    })
+
+    it("reports the anchor keys for an element at a point", async () => {
+      document.elementFromPoint = () => document.getElementById("pay")
+      const res = (await query("elementAtPoint", { x: 1, y: 1 })) as {
+        anchor: Record<string, string>
+        path: string
+      }
+      expect(res.anchor).toEqual({
+        path: "#pay",
+        tag: "button",
+        id: "pay",
+        text: "Pay now",
+      })
+      expect(res.path).toBe(window.location.pathname)
+    })
   })
 
-  it("reports the anchor keys for an element at a point", async () => {
-    document.elementFromPoint = () => document.getElementById("pay")
-    const res = (await query("elementAtPoint", { x: 1, y: 1 })) as {
-      anchor: Record<string, string>
-      path: string
+  describe("bridge getPageSnapshot", () => {
+    function addStyle(css: string) {
+      const style = document.createElement("style")
+      style.textContent = css
+      document.head.appendChild(style)
+      return style
     }
-    expect(res.anchor).toEqual({
-      path: "#pay",
-      tag: "button",
-      id: "pay",
-      text: "Pay now",
+
+    it("returns the markup without scripts and the CSS that styles it", async () => {
+      const style = addStyle(`
+      .card { color: red; }
+      .unused { color: blue; }
+      button:hover { color: green; }
+      @media (min-width: 1px) { .card { padding: 4px; } .gone { margin: 0; } }
+      @media (min-width: 2px) { .gone { margin: 0; } }
+      .hero { background: url(/img/hero.png); }
+    `)
+      document.documentElement.className = "dark"
+      document.body.innerHTML = `
+      <div class="card hero">Hi<script>alert(1)</script></div>
+      <button>Go</button>`
+      try {
+        const snap = (await query("getPageSnapshot", {})) as Snapshot
+        expect(snap.htmlAttributes).toBe('class="dark"')
+        expect(snap.markup).toContain('<div class="card hero">Hi</div>')
+        expect(snap.markup).not.toContain("<script")
+        expect(snap.markup).not.toContain("<style")
+        expect(snap.css).toContain(".card")
+        expect(snap.css).toContain("button:hover")
+        expect(snap.css).not.toContain(".unused")
+        expect(snap.css).not.toContain(".gone")
+        expect(snap.css).toMatch(/@media \(min-width: 1px\)/)
+        expect(snap.css).not.toMatch(/@media \(min-width: 2px\)/)
+        expect(snap.css).toContain(`url("${location.origin}/img/hero.png")`)
+      } finally {
+        style.remove()
+        document.documentElement.className = ""
+      }
     })
-    expect(res.path).toBe(window.location.pathname)
+
+    it("scopes to one element, keeping only the rules under it", async () => {
+      const style = addStyle(
+        `#pay { color: red; } main li { color: blue; } body { font-family: serif; }`
+      )
+      try {
+        const snap = (await query("getPageSnapshot", {
+          selector: "#pay",
+        })) as Snapshot
+        expect(snap.markup).toBe('<button id="pay">Pay now</button>')
+        expect(snap.css).toContain("#pay")
+        expect(snap.css).not.toContain("li")
+        // The body's rules still reach the element through inheritance.
+        expect(snap.css).toContain("font-family: serif")
+      } finally {
+        style.remove()
+      }
+    })
+
+    it("returns null when the selector matches nothing", async () => {
+      await expect(
+        query("getPageSnapshot", { selector: "#nope" })
+      ).resolves.toBeNull()
+    })
+  })
+})
+
+describe("bridge headless read", () => {
+  it("answers the headless read script, where the page is its own parent", async () => {
+    const run = new Function(
+      `return (async () => {${pageSnapshotScript("#pay")}})()`
+    ) as () => Promise<string>
+    const snap = JSON.parse(await run()) as Snapshot
+    expect(snap.markup).toBe('<button id="pay">Pay now</button>')
   })
 })
 
@@ -157,89 +338,6 @@ describe("bridge navigate", () => {
   it("does nothing for the route the page is already on", async () => {
     await expect(navigate("/start")).resolves.toBe(true)
     expect(location.pathname).toBe("/start")
-  })
-})
-
-type Snapshot = {
-  url: string
-  title: string
-  htmlAttributes: string
-  bodyAttributes: string
-  markup: string
-  css: string
-  stylesheetLinks: string[]
-}
-
-describe("bridge getPageSnapshot", () => {
-  function addStyle(css: string) {
-    const style = document.createElement("style")
-    style.textContent = css
-    document.head.appendChild(style)
-    return style
-  }
-
-  it("returns the markup without scripts and the CSS that styles it", async () => {
-    const style = addStyle(`
-      .card { color: red; }
-      .unused { color: blue; }
-      button:hover { color: green; }
-      @media (min-width: 1px) { .card { padding: 4px; } .gone { margin: 0; } }
-      @media (min-width: 2px) { .gone { margin: 0; } }
-      .hero { background: url(/img/hero.png); }
-    `)
-    document.documentElement.className = "dark"
-    document.body.innerHTML = `
-      <div class="card hero">Hi<script>alert(1)</script></div>
-      <button>Go</button>`
-    try {
-      const snap = (await query("getPageSnapshot", {})) as Snapshot
-      expect(snap.htmlAttributes).toBe('class="dark"')
-      expect(snap.markup).toContain('<div class="card hero">Hi</div>')
-      expect(snap.markup).not.toContain("<script")
-      expect(snap.markup).not.toContain("<style")
-      expect(snap.css).toContain(".card")
-      expect(snap.css).toContain("button:hover")
-      expect(snap.css).not.toContain(".unused")
-      expect(snap.css).not.toContain(".gone")
-      expect(snap.css).toMatch(/@media \(min-width: 1px\)/)
-      expect(snap.css).not.toMatch(/@media \(min-width: 2px\)/)
-      expect(snap.css).toContain(`url("${location.origin}/img/hero.png")`)
-    } finally {
-      style.remove()
-      document.documentElement.className = ""
-    }
-  })
-
-  it("scopes to one element, keeping only the rules under it", async () => {
-    const style = addStyle(
-      `#pay { color: red; } main li { color: blue; } body { font-family: serif; }`
-    )
-    try {
-      const snap = (await query("getPageSnapshot", {
-        selector: "#pay",
-      })) as Snapshot
-      expect(snap.markup).toBe('<button id="pay">Pay now</button>')
-      expect(snap.css).toContain("#pay")
-      expect(snap.css).not.toContain("li")
-      // The body's rules still reach the element through inheritance.
-      expect(snap.css).toContain("font-family: serif")
-    } finally {
-      style.remove()
-    }
-  })
-
-  it("returns null when the selector matches nothing", async () => {
-    await expect(
-      query("getPageSnapshot", { selector: "#nope" })
-    ).resolves.toBeNull()
-  })
-
-  it("answers the headless read script, where the page is its own parent", async () => {
-    const run = new Function(
-      `return (async () => {${pageSnapshotScript("#pay")}})()`
-    ) as () => Promise<string>
-    const snap = JSON.parse(await run()) as Snapshot
-    expect(snap.markup).toBe('<button id="pay">Pay now</button>')
   })
 })
 
