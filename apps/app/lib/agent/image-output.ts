@@ -18,11 +18,39 @@ export type ImageToolOutput = {
   mediaType: string
 }
 
+/**
+ * A tool result that carries a document for the model, such as a PDF a chat
+ * opens from its saved files (#1514). Kept out of the transcript the same way
+ * as an {@link ImageToolOutput}.
+ */
+export type FileToolOutput = {
+  kind: "file"
+  caption: string
+  /** Base64-encoded file bytes. */
+  data: string
+  mediaType: string
+  filename: string
+}
+
 export function isImageToolOutput(output: unknown): output is ImageToolOutput {
+  return isMediaShaped(output) && (output as { kind: unknown }).kind === "image"
+}
+
+/** An image or a document for the model: the transcript keeps the caption. */
+export function isMediaToolOutput(
+  output: unknown
+): output is ImageToolOutput | FileToolOutput {
+  if (!isMediaShaped(output)) return false
+  const o = output as Record<string, unknown>
+  return (
+    o.kind === "image" || (o.kind === "file" && typeof o.filename === "string")
+  )
+}
+
+function isMediaShaped(output: unknown): boolean {
   if (!output || typeof output !== "object") return false
   const o = output as Record<string, unknown>
   return (
-    o.kind === "image" &&
     typeof o.caption === "string" &&
     typeof o.data === "string" &&
     typeof o.mediaType === "string"
@@ -30,8 +58,9 @@ export function isImageToolOutput(output: unknown): output is ImageToolOutput {
 }
 
 /**
- * A tool's `toModelOutput` for results that may be an {@link ImageToolOutput}:
- * the caption then the image, or plain text for any other result.
+ * A tool's `toModelOutput` for results that may be an {@link ImageToolOutput}
+ * or a {@link FileToolOutput}: the caption then the image or document, or
+ * plain text for any other result.
  */
 export function imageModelOutput({
   output,
@@ -44,6 +73,20 @@ export function imageModelOutput({
       value: [
         { type: "text", text: output.caption },
         { type: "image-data", data: output.data, mediaType: output.mediaType },
+      ],
+    }
+  }
+  if (isMediaToolOutput(output) && output.kind === "file") {
+    return {
+      type: "content",
+      value: [
+        { type: "text", text: output.caption },
+        {
+          type: "file-data",
+          data: output.data,
+          mediaType: output.mediaType,
+          filename: output.filename,
+        },
       ],
     }
   }

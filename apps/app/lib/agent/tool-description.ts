@@ -398,6 +398,44 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     kind: "other",
     category: "memory",
   },
+  // The canvas's saved files (#1514).
+  list_saved_files: {
+    verb: "List saved files",
+    icon: "folder",
+    kind: "search",
+    category: "search",
+    label: subject("folder", "code"),
+  },
+  read_saved_file: {
+    verb: "Open saved file",
+    icon: "file",
+    kind: "read",
+    category: "read",
+  },
+  save_file: {
+    verb: "Save file",
+    icon: "file-plus",
+    kind: "edit",
+    category: "edit",
+  },
+  move_saved_file: {
+    verb: "Move saved file",
+    icon: "move",
+    kind: "move",
+    category: "edit",
+  },
+  delete_saved_file: {
+    verb: "Delete saved file",
+    icon: "trash",
+    kind: "delete",
+    category: "edit",
+  },
+  make_saved_folder: {
+    verb: "Make folder",
+    icon: "folder",
+    kind: "edit",
+    category: "edit",
+  },
   // Frames: viewing one, and opening one to drive (#1390).
   view_frame: {
     verb: "View frame",
