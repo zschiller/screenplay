@@ -247,6 +247,32 @@ export type MemoryData = {
   updatedAt: number
 }
 
+/**
+ * One entry of **Canvas Files** (#1514): a file or folder agents saved for
+ * the canvas's members, never shown on the canvas. The entry is metadata
+ * only; a file's bytes live in the private file store under `blobKey`
+ * (`lib/files`). Folders are explicit entries, so an agent can make an empty
+ * one.
+ */
+export type FileEntryData = {
+  id: string
+  /** Folders joined by `/`, with no leading or trailing slash. */
+  path: string
+  kind: "file" | "folder"
+  /** Bytes; 0 for a folder. */
+  size: number
+  /** The file's media type; "" for a folder. */
+  mediaType: string
+  /** Who added it: an agent chat, or a member. */
+  addedBy: "agent" | "member"
+  /** The chat (for an agent) or user (for a member) that added it. */
+  addedById: string
+  /** Where its bytes live in the file store; "" for a folder. */
+  blobKey: string
+  createdAt: number
+  updatedAt: number
+}
+
 export type PlanData = {
   id: string
   chatId: string

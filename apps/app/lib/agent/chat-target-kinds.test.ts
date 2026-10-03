@@ -93,7 +93,11 @@ describe("room chat target", () => {
 
   it("bakes the canvas summary into its system prompt", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"', memory: [] },
+      {
+        canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"',
+        memory: [],
+        files: [],
+      },
       BARE_TOOL_NAMING
     )
 
@@ -104,7 +108,7 @@ describe("room chat target", () => {
 
   it("sends the next ask to a fresh Workspace instead of planning one (#1182)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [] },
+      { canvasSummary: "", memory: [], files: [] },
       BARE_TOOL_NAMING
     )
 
@@ -115,7 +119,7 @@ describe("room chat target", () => {
 
   it("lists the Coordinator's Skills, and only those, in its prompt (#905)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [] },
+      { canvasSummary: "", memory: [], files: [] },
       BARE_TOOL_NAMING
     )
 
@@ -140,14 +144,19 @@ describe("room chat target", () => {
       "ask_question",
       "create_frames",
       "create_workspaces",
+      "delete_saved_file",
       "list_changes",
+      "list_saved_files",
+      "make_saved_folder",
       "merge_groups",
       "move_group",
+      "move_saved_file",
       "move_to_group",
       "open_pull_request",
       "read_canvas",
       "read_document",
       "read_frame_html",
+      "read_saved_file",
       "read_skill",
       "read_workspace_chat",
       "read_workspace_diff",
@@ -155,6 +164,7 @@ describe("room chat target", () => {
       "remove",
       "remove_workspace",
       "rename",
+      "save_file",
       "send_to_chat",
       "send_to_workspace",
       "show_on_canvas",
@@ -236,7 +246,7 @@ describe("the Coordinator only delegates", () => {
 
   it("tells the Coordinator to start a chat for a Document or Mockup", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [] },
+      { canvasSummary: "", memory: [], files: [] },
       BARE_TOOL_NAMING
     )
 
@@ -293,6 +303,99 @@ describe("canvas memory in every kind's system prompt", () => {
 
     expect(prompt).toMatch(/- \[mem-[^\]]+\] Use pnpm, never npm\./)
     expect(prompt).toContain("write_memory")
+  })
+})
+
+/**
+ * Canvas Files (#1514): every kind's system prompt lists the canvas's files by
+ * path with size and type, read live from the Room doc, capped with a pointer
+ * to `list_saved_files`.
+ */
+describe("canvas files in every kind's system prompt", () => {
+  function roomWithFiles(count: number): RoomDoc {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { repoId: "repo-1", sandboxName: "sb-1" })
+    )
+    const entry = (path: string, kind: "file" | "folder", size = 0) => ({
+      id: `file-${path}`,
+      path,
+      kind,
+      size,
+      mediaType: kind === "file" ? "text/markdown" : "",
+      addedBy: "agent" as const,
+      addedById: "chat-1",
+      blobKey: kind === "file" ? `canvas/room-1/file-${path}` : "",
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    if (count > 0) {
+      collections.files.set("file-research", entry("research", "folder"))
+    }
+    for (let i = 0; i < count; i++) {
+      const path = `research/note-${String(i).padStart(3, "0")}.md`
+      collections.files.set(`file-${path}`, entry(path, "file", 2150))
+    }
+    return {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+  }
+
+  async function prompts(room: RoomDoc): Promise<Record<string, string>> {
+    const workspace = await workspaceChatTarget.loadContext(room, {
+      sandboxName: "sb-1",
+      chatId: "chat-1",
+      userId: "user-1",
+    })
+    const sketch = await sketchChatTarget.loadContext(room, {
+      chatId: "chat-2",
+      userId: "user-1",
+    })
+    const coordinator = await roomChatTarget.loadContext(room, {
+      userId: "user-1",
+    })
+    return {
+      Workspace: workspaceChatTarget.buildSystemPrompt(
+        workspace!,
+        BARE_TOOL_NAMING
+      ),
+      Sketch: sketchChatTarget.buildSystemPrompt(sketch!, BARE_TOOL_NAMING),
+      Coordinator: roomChatTarget.buildSystemPrompt(
+        coordinator!,
+        BARE_TOOL_NAMING
+      ),
+    }
+  }
+
+  it("lists each file with its size and type, and each folder", async () => {
+    for (const [kind, prompt] of Object.entries(
+      await prompts(roomWithFiles(2))
+    )) {
+      expect(prompt, kind).toContain("Canvas files")
+      expect(prompt, kind).toContain("- research/\n")
+      expect(prompt, kind).toContain(
+        "- research/note-001.md (2.1 KB, text/markdown)"
+      )
+      expect(prompt, kind).toContain("read_saved_file")
+    }
+  })
+
+  it("caps the list and points at list_saved_files for the rest", async () => {
+    const { Sketch } = await prompts(roomWithFiles(60))
+    expect(Sketch).toContain("- research/note-048.md")
+    expect(Sketch).not.toContain("- research/note-049.md")
+    expect(Sketch).toContain(
+      "- …and 11 more: call `list_saved_files` for all of them."
+    )
+  })
+
+  it("says there are none yet on a canvas with no files", async () => {
+    const { Coordinator } = await prompts(roomWithFiles(0))
+    expect(Coordinator).toContain("(none yet)")
   })
 })
 
@@ -571,6 +674,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
         chatId: "s-1",
         layerDirectory: { documents: [] },
         memory: [],
+        files: [],
       },
       BARE_TOOL_NAMING
     )
@@ -617,6 +721,7 @@ describe("every kind's prompt names only tools its turn has", () => {
               { name: "screenplay-add-knob", description: "x", origin: "app" },
             ],
             memory,
+            files: [],
           },
           naming
         ),
@@ -626,7 +731,7 @@ describe("every kind's prompt names only tools its turn has", () => {
       tools: () => roomChatTarget.tools(room, { userId: "user-1" }),
       prompt: (naming: ToolNaming) =>
         roomChatTarget.buildSystemPrompt(
-          { canvasSummary: "Documents (1)", memory },
+          { canvasSummary: "Documents (1)", memory, files: [] },
           naming
         ),
     },
@@ -636,7 +741,7 @@ describe("every kind's prompt names only tools its turn has", () => {
         sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" }),
       prompt: (naming: ToolNaming) =>
         sketchChatTarget.buildSystemPrompt(
-          { chatId: "chat-1", layerDirectory, memory },
+          { chatId: "chat-1", layerDirectory, memory, files: [] },
           naming
         ),
     },
