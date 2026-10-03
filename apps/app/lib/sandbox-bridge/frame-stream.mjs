@@ -127,6 +127,7 @@ const DRIVE_OPS = new Set([
   "scroll",
   "select",
   "drag",
+  "hover",
   "elements",
 ])
 // How long the agent waits for a frame's browser and page to come up.
@@ -1432,12 +1433,12 @@ class Frame {
   }
 
   /**
-   * Send input of one kind (`pointerdown`, `keydown` or `wheel`) until the
-   * page hears it. Chrome drops input to a page for a moment after its
-   * browser starts, and to a new document until it has painted, so a
-   * gesture right then would silently do nothing. Once one of a kind gets
-   * through, it does for good in that document. `undo` balances a dropped
-   * send (a press's release) before the next try. `nested`: the input goes
+   * Send input of one kind (`pointerdown`, `pointermove`, `keydown` or
+   * `wheel`) until the page hears it. Chrome drops input to a page for a
+   * moment after its browser starts, and to a new document until it has
+   * painted, so a gesture right then would silently do nothing. Once one of
+   * a kind gets through, it does for good in that document. `undo` balances
+   * a dropped send (a press's release) before the next try. `nested`: the input goes
    * to a frame inside the page, which the page can't hear, so it's sent once.
    */
   async delivered(kind, send, undo, nested = false) {
@@ -1488,14 +1489,14 @@ class Frame {
    * gesture lands. True when someone took the frame meanwhile, so the
    * gesture mustn't land.
    */
-  async showBefore(op, p) {
+  async showBefore(op, p, press = true) {
     if (op.pace !== "show") return false
     // Best effort: a page whose bridge doesn't answer still gets the step.
     await this.cursor(p ? { to: { x: p.x, y: p.y } } : { pause: true }).catch(
       () => {}
     )
     if (!this.agentDrives()) return true
-    if (p) await this.cursor({ press: true }).catch(() => {})
+    if (p && press) await this.cursor({ press: true }).catch(() => {})
     return false
   }
 
@@ -1550,6 +1551,8 @@ class Frame {
         return this.bridgeSettled({ type: "screenplay:drive", op })
       case "drag":
         return this.agentDrag(op)
+      case "hover":
+        return this.agentHover(op)
     }
     return { status: "failed", reason: "unknown drive op" }
   }
@@ -1677,6 +1680,22 @@ class Frame {
       await sleep(50)
     }
     return this.agentDone(op, at ? at.scrollerTarget : null, { scroller })
+  }
+
+  /** Rest the real pointer on the target: :hover and the page's hover
+   *  handlers, as for a person's. It stays there until the next gesture. */
+  async agentHover(op) {
+    const at = await this.locate(op.target, { show: op.pace === "show" })
+    if (!at) return { status: "not-found", target: op.target }
+    if (await this.showBefore(op, at, false)) return { status: "taken" }
+    await this.delivered(
+      "pointermove",
+      () => this.mouse("mouseMoved", at),
+      // Off by a pixel, so the next try is a move the page can't skip.
+      () => this.mouse("mouseMoved", { x: at.x - 1, y: at.y }),
+      at.nested
+    )
+    return this.agentDone(op, at.target)
   }
 
   async agentDrag(op) {

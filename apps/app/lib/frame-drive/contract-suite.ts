@@ -104,6 +104,12 @@ export function frameDriveContract(
           </select>
           <div id="slider" role="slider" aria-label="Volume">knob</div>
           <div id="track" aria-label="Track" role="button">track</div>
+          <button id="info" aria-label="Info">i</button>
+          <style>
+            #card .reveal { visibility: hidden }
+            #card:hover .reveal { visibility: visible }
+          </style>
+          <div id="card">Card <button class="reveal">Edit</button></div>
           <p id="out">idle</p>
           <script>
             // A menu that opens on pointerdown, as Radix's do.
@@ -124,6 +130,10 @@ export function frameDriveContract(
             document.getElementById("slider").addEventListener("pointerdown", () => { dragging = true })
             document.addEventListener("pointermove", () => { if (dragging) document.getElementById("out").textContent = "dragging" })
             document.addEventListener("pointerup", () => { if (dragging) { dragging = false; document.getElementById("out").textContent = "dropped" } })
+            // A tooltip that opens while the pointer is over its trigger.
+            const info = document.getElementById("info")
+            info.addEventListener("pointerenter", () => { document.getElementById("out").textContent = "tooltip open" })
+            info.addEventListener("pointerleave", () => { document.getElementById("out").textContent = "tooltip closed" })
           </script>`)
       )
 
@@ -198,6 +208,32 @@ export function frameDriveContract(
           })
         )
         expect(await out()).toBe("dropped")
+      })
+
+      it("hovers to open a tooltip, and closes it by moving on", async () => {
+        expectDone(await run({ op: "hover", target: { text: "Info" } }))
+        expect(await out()).toBe("tooltip open")
+        expectDone(await run({ op: "hover", target: { selector: "#save" } }))
+        expect(await out()).toBe("tooltip closed")
+      })
+
+      it("shows hover styles while the pointer rests on an element", async () => {
+        const edit = async () =>
+          (await read()).elements.some((e) => e.label === "Edit")
+        expect(await edit()).toBe(false)
+        expectDone(await run({ op: "hover", target: { selector: "#card" } }))
+        expect(await edit()).toBe(true)
+        expectDone(await run({ op: "hover", target: { selector: "#save" } }))
+        expect(await edit()).toBe(false)
+      })
+
+      it("hovers at show pace, to the same end", async () => {
+        const started = Date.now()
+        expectDone(
+          await run({ op: "hover", target: { text: "Info" }, pace: "show" })
+        )
+        expect(Date.now() - started).toBeGreaterThanOrEqual(SHOW_STEP_MIN_MS)
+        expect(await out()).toBe("tooltip open")
       })
 
       it("scrolls the page", async () => {

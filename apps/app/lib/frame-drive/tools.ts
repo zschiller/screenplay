@@ -325,6 +325,13 @@ export function buildFrameDriveTools(
         }),
     }),
 
+    frame_hover: tool({
+      description: `Rest the pointer on an element in ${page}, as a person would, without clicking: tooltips, hover cards and hover menus open, and hover styles show. The pointer stays there until your next click, drag or hover moves it.`,
+      inputSchema: z.object({ frameId, target: targetSchema }),
+      execute: ({ frameId, target }) =>
+        gesture(frameId, { op: "hover", target: cleanTarget(target) }),
+    }),
+
     frame_stop_driving: tool({
       description: `Hand ${page} back when you're done driving it, so it no longer shows you as its driver.`,
       inputSchema: z.object({ frameId }),
@@ -354,6 +361,7 @@ export const FRAME_DRIVE_TOOL_ANNOTATIONS: Readonly<
   frame_scroll: { destructiveHint: false, openWorldHint: false },
   frame_select: { destructiveHint: false, openWorldHint: false },
   frame_drag: { destructiveHint: false, openWorldHint: false },
+  frame_hover: { destructiveHint: false, openWorldHint: false },
   frame_stop_driving: {
     destructiveHint: false,
     idempotentHint: true,

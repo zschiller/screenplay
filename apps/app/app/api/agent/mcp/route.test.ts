@@ -349,6 +349,7 @@ describe("a Workspace chat's MCP route", () => {
       "frame_scroll",
       "frame_select",
       "frame_drag",
+      "frame_hover",
       "frame_stop_driving",
       "create_document",
       "replace_document_body",

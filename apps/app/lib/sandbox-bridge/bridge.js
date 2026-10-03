@@ -537,8 +537,10 @@
           (err) => reply(d.id, false, (err && err.message) || err)
         )
       } else if (d.type === "screenplay:drive-stop") {
-        // Someone took control from the agent: end a gesture still running.
+        // Someone took control from the agent: end a gesture still running,
+        // and take the agent's pointer off the page.
         driveStopped = true
+        clearHover()
         reply(d.id, true, null)
       } else if (d.type === "screenplay:drive-locate") {
         // Where a gesture's target is, for a shared frame's real input (#1396).
@@ -592,7 +594,8 @@
   // set of ops, never a script. They dispatch synthetic events, so they move
   // whatever the page's own code listens for, and nothing the browser does
   // itself for a real gesture: a gesture that needs that answers with the gap
-  // instead (focus, file pickers, native popups, the clipboard).
+  // instead (focus, file pickers, native popups, the clipboard). Hover styles
+  // are the exception, forced (see Hover).
 
   let driveStopped = false
 
@@ -761,14 +764,134 @@
     return el.dispatchEvent(new MouseEvent(type, mouseInit(p, extra)))
   }
 
-  function fireHover(el, p) {
-    firePointer(el, "pointerover", p, { buttons: 0 })
-    firePointer(el, "pointerenter", p, { buttons: 0, bubbles: false })
-    fireMouse(el, "mouseover", p, { buttons: 0 })
-    fireMouse(el, "mouseenter", p, { buttons: 0, bubbles: false })
-    firePointer(el, "pointermove", p, { buttons: 0 })
-    fireMouse(el, "mousemove", p, { buttons: 0 })
+  // --- Hover -----------------------------------------------------------------
+  // The agent's pointer rests on whatever it last hovered, clicked or dropped
+  // on. Its synthetic events reach the page's own handlers (a Radix tooltip
+  // or hover card opens on them), but the browser never sets :hover for them.
+  // So hover styles are forced: every :hover rule the page can read gets a
+  // twin that matches a marker instead, and the hovered element and its
+  // ancestors carry the marker, as :hover would. A cross-origin stylesheet
+  // can't be read, so its hover styles don't show. A person's own pointer
+  // moving in the page hands :hover back to the browser.
+
+  const HOVER_ATTR = "data-screenplay-hover"
+  const HOVER_SELECTOR = /:hover(?![\w-])/
+  const hoverTwinned = new WeakSet()
+  let hovered = null
+
+  function markTwinned(rule) {
+    hoverTwinned.add(rule)
+    let rules = null
+    try {
+      rules = rule.cssRules
+    } catch {}
+    if (rules) for (let i = 0; i < rules.length; i++) markTwinned(rules[i])
   }
+
+  // Give each :hover rule in `owner` (a sheet, or a rule holding rules) a
+  // twin right after it, once.
+  function twinHoverRules(owner) {
+    let rules = null
+    try {
+      rules = owner.cssRules
+    } catch {
+      return
+    }
+    if (!rules) return
+    for (let i = rules.length - 1; i >= 0; i--) {
+      const rule = rules[i]
+      if (hoverTwinned.has(rule)) continue
+      hoverTwinned.add(rule)
+      if (rule.styleSheet) twinHoverRules(rule.styleSheet)
+      twinHoverRules(rule)
+      const selector = rule.selectorText
+      if (typeof selector !== "string" || !HOVER_SELECTOR.test(selector))
+        continue
+      try {
+        owner.insertRule(rule.cssText, i + 1)
+        const twin = owner.cssRules[i + 1]
+        twin.selectorText = selector.replace(
+          new RegExp(HOVER_SELECTOR.source, "g"),
+          "[" + HOVER_ATTR + "]"
+        )
+        markTwinned(twin)
+      } catch {}
+    }
+  }
+
+  function forceHoverStyles() {
+    const sheets = Array.from(document.styleSheets || [])
+    if (document.adoptedStyleSheets)
+      sheets.push.apply(sheets, document.adoptedStyleSheets)
+    sheets.forEach(twinHoverRules)
+  }
+
+  // An element and its ancestors, innermost first: what :hover matches.
+  function hoverChain(el) {
+    const chain = []
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) chain.push(n)
+    return chain
+  }
+
+  // Move the agent's pointer onto `el` at `p`, as a real pointer moving there
+  // would: out of what it was over, into `el`, then a move.
+  function moveHover(el, p) {
+    const prev = hovered
+    const next = hoverChain(el)
+    const off = { buttons: 0 }
+    const once = { buttons: 0, bubbles: false }
+    if (prev && prev.el !== el) {
+      firePointer(prev.el, "pointerout", p, off)
+      hoverChain(prev.el)
+        .filter((n) => next.indexOf(n) === -1)
+        .forEach((n) => firePointer(n, "pointerleave", p, once))
+      fireMouse(prev.el, "mouseout", p, off)
+      hoverChain(prev.el)
+        .filter((n) => next.indexOf(n) === -1)
+        .forEach((n) => fireMouse(n, "mouseleave", p, once))
+    }
+    if (!prev || prev.el !== el) {
+      const was = prev ? hoverChain(prev.el) : []
+      const entering = next.filter((n) => was.indexOf(n) === -1).reverse()
+      firePointer(el, "pointerover", p, off)
+      entering.forEach((n) => firePointer(n, "pointerenter", p, once))
+      fireMouse(el, "mouseover", p, off)
+      entering.forEach((n) => fireMouse(n, "mouseenter", p, once))
+    }
+    firePointer(el, "pointermove", p, off)
+    fireMouse(el, "mousemove", p, off)
+    forceHoverStyles()
+    if (prev) hoverChain(prev.el).forEach((n) => n.removeAttribute(HOVER_ATTR))
+    next.forEach((n) => n.setAttribute(HOVER_ATTR, ""))
+    hovered = { el, p }
+  }
+
+  // The agent's pointer leaves the page.
+  function clearHover() {
+    if (!hovered) return
+    const { el, p } = hovered
+    hovered = null
+    const chain = hoverChain(el)
+    chain.forEach((n) => n.removeAttribute(HOVER_ATTR))
+    if (!el.isConnected) return
+    firePointer(el, "pointerout", p, { buttons: 0 })
+    chain.forEach((n) =>
+      firePointer(n, "pointerleave", p, { buttons: 0, bubbles: false })
+    )
+    fireMouse(el, "mouseout", p, { buttons: 0 })
+    chain.forEach((n) =>
+      fireMouse(n, "mouseleave", p, { buttons: 0, bubbles: false })
+    )
+  }
+
+  // A person's own pointer in the page: :hover is the browser's again.
+  window.addEventListener(
+    "pointermove",
+    (e) => {
+      if (e.isTrusted && hovered) clearHover()
+    },
+    { capture: true, passive: true }
+  )
 
   function textFieldOf(el) {
     if (!el) return null
@@ -1081,6 +1204,7 @@
     if (op.op === "scroll") return driveScroll(op)
     if (op.op === "select") return driveSelect(op)
     if (op.op === "drag") return driveDrag(op)
+    if (op.op === "hover") return driveHover(op)
     throw new Error("unknown drive op: " + op.op)
   }
 
@@ -1131,7 +1255,7 @@
     const at = hit && (el.contains(hit) || hit.contains(el)) ? hit : el
     const clipboard = watchClipboard()
     try {
-      fireHover(at, p)
+      moveHover(at, p)
       if (firePointer(at, "pointerdown", p)) fireMouse(at, "mousedown", p)
       firePointer(at, "pointerup", p, { buttons: 0 })
       fireMouse(at, "mouseup", p, { buttons: 0 })
@@ -1330,7 +1454,7 @@
     const to = centerOf(toEl, op.to)
     if (show && (await showGlide(from))) return { status: "taken" }
     const steps = show ? SHOW_DRAG_STEPS : 8
-    fireHover(el, from)
+    moveHover(el, from)
     firePointer(el, "pointerdown", from)
     fireMouse(el, "mousedown", from)
     // A draggable element takes the HTML5 route; anything else (sliders,
@@ -1367,7 +1491,23 @@
     }
     firePointer(dropOn, "pointerup", end, { buttons: 0 })
     fireMouse(dropOn, "mouseup", end, { buttons: 0 })
-    if (driveStopped) return { status: "taken" }
+    if (driveStopped) {
+      clearHover()
+      return { status: "taken" }
+    }
+    moveHover(dropOn, end)
+    return done(op, el)
+  }
+
+  // Rest the pointer on the target: its hover handlers run and its hover
+  // styles show, until the pointer moves on.
+  async function driveHover(op) {
+    const el = await driveTargetInView(op.target, isShow(op))
+    if (!el) return { status: "not-found", target: op.target }
+    const p = centerOf(el, op.target)
+    if (isShow(op) && (await showGlide(p))) return { status: "taken" }
+    const hit = document.elementFromPoint(p.x, p.y)
+    moveHover(hit && el.contains(hit) ? hit : el, p)
     return done(op, el)
   }
 
@@ -1375,10 +1515,16 @@
   // only says where a target is, and readies a field for keys. Nothing here
   // acts on the page the way a gesture does.
 
-  // Real presses, keys and wheels the page has heard, so the service can
+  // Real presses, moves, keys and wheels the page has heard, so the service can
   // tell whether one reached it: a browser that just started drops them for
   // a moment. And drag-overs, so a drop waits for the page to accept one.
-  const trustedInputs = { pointerdown: 0, keydown: 0, wheel: 0, dragover: 0 }
+  const trustedInputs = {
+    pointerdown: 0,
+    pointermove: 0,
+    keydown: 0,
+    wheel: 0,
+    dragover: 0,
+  }
   const driveDocId = Math.random().toString(36).slice(2)
   Object.keys(trustedInputs).forEach((type) =>
     window.addEventListener(

@@ -142,6 +142,7 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   frame_scroll: ArrowsDownUpIcon,
   frame_select: CaretUpDownIcon,
   frame_drag: CursorIcon,
+  frame_hover: CursorIcon,
   frame_stop_driving: SquareIcon,
   write_memory: BrainIcon,
   replace_document_body: NotePencilIcon,
@@ -198,6 +199,7 @@ const toolLabels: Record<string, string> = {
   frame_scroll: "Scroll",
   frame_select: "Pick option",
   frame_drag: "Drag",
+  frame_hover: "Hover",
   frame_stop_driving: "Stop driving",
   write_memory: "Save to memory",
   replace_document_body: "Rewrite document",
@@ -354,6 +356,7 @@ function driveDetail(
   }
   switch (title) {
     case "frame_click":
+    case "frame_hover":
       return target(input.target)
     case "frame_type":
       return str(input.text)

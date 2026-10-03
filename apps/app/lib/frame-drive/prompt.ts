@@ -20,7 +20,7 @@ export function frameDrivePrompt(
   }
 ): string {
   const shared = frames === "shared"
-  const tools = `${t("frame_click")}, ${t("frame_type")}, ${t("frame_key")}, ${t("frame_scroll")}, ${t("frame_select")} and ${t("frame_drag")}`
+  const tools = `${t("frame_click")}, ${t("frame_type")}, ${t("frame_key")}, ${t("frame_scroll")}, ${t("frame_select")}, ${t("frame_drag")} and ${t("frame_hover")}`
   const intro = shared
     ? `You can drive a frame or Mockup on the canvas, as a person would: ${tools}. A frame is one shared browser: everyone with it on screen watches each step live, and your clicks and keys there are real input, so focus, typing, Tab and hover work. A Mockup you drive in the view of the user who asked; everyone else keeps their own copy.`
     : `You can drive ${
