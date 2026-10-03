@@ -102,24 +102,40 @@ export function MockupStatusMenu({
         align="start"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <DropdownMenuRadioGroup
-          value={status}
-          onValueChange={(v) => onChange(v as MockupStatus)}
-        >
-          {MOCKUP_STATUSES.map((s) => {
-            const ItemIcon = STATUS_ICONS[s]
-            return (
-              <DropdownMenuRadioItem key={s} value={s}>
-                <ItemIcon
-                  aria-hidden
-                  className={s === "built" ? "text-success" : undefined}
-                />
-                {MOCKUP_STATUS_LABELS[s]}
-              </DropdownMenuRadioItem>
-            )
-          })}
-        </DropdownMenuRadioGroup>
+        <MockupStatusRadioGroup status={status} onChange={onChange} />
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * The status choices as a stock radio group, shared by the label's status
+ * menu and the mockup bar's ⋯ menu.
+ */
+export function MockupStatusRadioGroup({
+  status,
+  onChange,
+}: {
+  status: MockupStatus
+  onChange: (status: MockupStatus) => void
+}) {
+  return (
+    <DropdownMenuRadioGroup
+      value={status}
+      onValueChange={(v) => onChange(v as MockupStatus)}
+    >
+      {MOCKUP_STATUSES.map((s) => {
+        const ItemIcon = STATUS_ICONS[s]
+        return (
+          <DropdownMenuRadioItem key={s} value={s}>
+            <ItemIcon
+              aria-hidden
+              className={s === "built" ? "text-success" : undefined}
+            />
+            {MOCKUP_STATUS_LABELS[s]}
+          </DropdownMenuRadioItem>
+        )
+      })}
+    </DropdownMenuRadioGroup>
   )
 }

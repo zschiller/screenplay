@@ -320,6 +320,58 @@ describe("updateMockup", () => {
   })
 })
 
+describe("duplicateMockup", () => {
+  it("copies the page, size, knobs and chat to the end of its Group, as Current", () => {
+    const { doc, ops, collections } = makeHarness()
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+    const { mockupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Option A",
+      width: 400,
+      height: 300,
+      ownerChatId: "chat-1",
+      groupId: "group-1",
+    })!
+    ops.updateMockup(mockupId, { status: "built" })
+    collections.mockupLayers.update(mockupId, {
+      knobs: [{ id: "tone" }],
+      knobValues: { tone: "warm" },
+    })
+    seedGroup(collections, "group-1", [
+      { kind: "mockup-layer", id: mockupId },
+      { kind: "iframe-layer", id: "layer-1" },
+    ])
+
+    const copyId = ops.duplicateMockup(mockupId)
+
+    expect(copyId).toBeDefined()
+    expect(collections.mockupLayers.get(copyId!)).toEqual({
+      id: copyId,
+      width: 400,
+      height: 300,
+      title: "Option A copy",
+      status: "current",
+      ownerChatId: "chat-1",
+      knobs: [{ id: "tone" }],
+      knobValues: { tone: "warm" },
+    })
+    expect(mockupHtml(doc, copyId!).toString()).toBe("<p>A</p>")
+    expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
+      { kind: "mockup-layer", id: mockupId },
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "mockup-layer", id: copyId },
+    ])
+  })
+
+  it("writes nothing for a missing mockup", () => {
+    const { ops, collections } = makeHarness()
+
+    expect(ops.duplicateMockup("gone")).toBeUndefined()
+    expect(collections.mockupLayers.toArray()).toEqual([])
+  })
+})
+
 describe("removeMockups", () => {
   it("drops the mockup and prunes the Group it emptied", () => {
     const { ops, collections } = makeHarness()
