@@ -48,10 +48,11 @@ describe("patch", () => {
       baseLayer("layer-1", { label: "Home" })
     )
 
-    ops.patch("iframeLayers", "layer-1", { route: "/cart" })
+    ops.patch("iframeLayers", "layer-1", { scrollX: 10, scrollY: 20 })
 
     const layer = collections.iframeLayers.get("layer-1")
-    expect(layer?.route).toBe("/cart")
+    expect(layer?.scrollX).toBe(10)
+    expect(layer?.scrollY).toBe(20)
     // Untouched fields survive the merge.
     expect(layer?.label).toBe("Home")
     expect(layer?.width).toBe(400)

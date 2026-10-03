@@ -10,10 +10,9 @@ Change it in one person's frame and every other viewer's frame updates too.
 It's useful for things like the signed-in user, the selected plan, or a
 billing toggle, so a whole team can look at the same screen in the same state.
 
-You don't need the package for the route; every frame already shares it, and
-a frame follows another viewer's route without reloading (see
-[Frames](/guides/frames#the-title-bar)). Scroll isn't shared: each person
-scrolls their own copy. Use it for state the
+You don't need the package for the route and scroll position; every frame
+already shares those, and a frame follows another viewer's route without
+reloading (see [Frames](/guides/frames#the-title-bar)). Use it for state the
 page keeps itself.
 
 The route in the selected frame's address bar shows a `{}` when shared state
