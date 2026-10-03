@@ -1,11 +1,6 @@
 "use client"
 
-import { useCallback, useRef } from "react"
-import {
-  DotsThreeIcon,
-  PencilSimpleIcon,
-  TrashIcon,
-} from "@workspace/ui/components/icons"
+import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import {
   SidebarMenuAction,
   SidebarMenuButton,
@@ -13,9 +8,6 @@ import {
 } from "@workspace/ui/components/sidebar"
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -25,6 +17,7 @@ import {
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
+import { LayerMenuContent } from "@/components/canvas/layer-menu"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
@@ -164,20 +157,8 @@ export function IframeLayerRowMenu({
   onRemove,
   editableRef,
 }: LayerRowMenuProps<IframeLayerData>) {
-  // Rename → close menu → `onCloseAutoFocus` → preventDefault + start
-  // editing. Has to be deferred to `onCloseAutoFocus` because Radix's
-  // focus trap is still active while the menu is closing, and calling
-  // `focus()` on the inline input mid-close gets hijacked by the trap.
-  const pendingEditRef = useRef(false)
-  const onCloseAutoFocus = useCallback(
-    (e: Event) => {
-      if (!pendingEditRef.current) return
-      pendingEditRef.current = false
-      e.preventDefault()
-      editableRef?.current?.startEditing()
-    },
-    [editableRef]
-  )
+  // The frame's one menu (I7), the same as its toolbar's …: the canvas frame
+  // publishes it; Rename and Delete stand in until it has.
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -192,28 +173,13 @@ export function IframeLayerRowMenu({
           </SidebarMenuAction>
         </IconButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
+      <LayerMenuContent
+        layerId={item.id}
+        actions={{ noun: "frame", onDelete: () => onRemove(item.id) }}
+        onRename={() => editableRef?.current?.startEditing()}
         side="right"
         align="start"
-        onCloseAutoFocus={onCloseAutoFocus}
-      >
-        <DropdownMenuItem
-          onClick={() => {
-            pendingEditRef.current = true
-          }}
-        >
-          <PencilSimpleIcon />
-          Rename
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={() => onRemove(item.id)}
-        >
-          <TrashIcon />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+      />
     </DropdownMenu>
   )
 }

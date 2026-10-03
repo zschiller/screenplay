@@ -39,9 +39,7 @@ import {
   DotsThreeIcon,
   FolderIcon,
   FolderOpenIcon,
-  PencilSimpleIcon,
   SidebarSimpleIcon,
-  TrashIcon,
 } from "@workspace/ui/components/icons"
 import {
   SidebarGroup,
@@ -64,9 +62,6 @@ import {
 
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
@@ -104,6 +99,7 @@ import {
   makeIframeLayerRow,
 } from "@/components/panels/layer-rows/iframe-layer-row"
 import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
+import { LayerMenuContent } from "@/components/canvas/layer-menu"
 import {
   frameGroupRowActionClass,
   frameGroupRowButtonClass,
@@ -735,12 +731,7 @@ export function RoomSidebar({
                                   className="group/frame-collapsible flex flex-col"
                                 >
                                   <WithEditableRef>
-                                    {({
-                                      ref: groupNameRef,
-                                      triggerEdit: triggerGroupRename,
-                                      onCloseAutoFocus:
-                                        onGroupMenuCloseAutoFocus,
-                                    }) => (
+                                    {({ ref: groupNameRef }) => (
                                       <SortableRow
                                         id={`group:${group.id}`}
                                         groupId={group.id}
@@ -837,32 +828,20 @@ export function RoomSidebar({
                                               </SidebarMenuAction>
                                             </IconButton>
                                           </DropdownMenuTrigger>
-                                          <DropdownMenuContent
-                                            side="right"
-                                            align="start"
-                                            onCloseAutoFocus={
-                                              onGroupMenuCloseAutoFocus
-                                            }
-                                          >
-                                            <DropdownMenuItem
-                                              onClick={triggerGroupRename}
-                                            >
-                                              <PencilSimpleIcon />
-                                              Rename
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                              variant="destructive"
-                                              onClick={() =>
+                                          <LayerMenuContent
+                                            actions={{
+                                              noun: "group",
+                                              onDelete: () =>
                                                 onRemoveIframeLayerGroup(
                                                   group.id
-                                                )
-                                              }
-                                            >
-                                              <TrashIcon />
-                                              Delete
-                                            </DropdownMenuItem>
-                                          </DropdownMenuContent>
+                                                ),
+                                            }}
+                                            onRename={() =>
+                                              groupNameRef.current?.startEditing()
+                                            }
+                                            side="right"
+                                            align="start"
+                                          />
                                         </DropdownMenu>
                                       </SortableRow>
                                     )}
@@ -936,34 +915,17 @@ export function RoomSidebar({
 
 /** Owns a single `EditableText` handle and hands it to its children via
  *  render prop, so a row's name input and the matching dropdown's
- *  "Rename" item can share one ref without lifting state up.
- *
- *  Triggering rename from a dropdown is a two-step dance: the click sets
- *  a pending flag, the dropdown's `onCloseAutoFocus` fires once the menu
- *  has fully unmounted (and its focus trap with it), and only then do we
- *  call `startEditing` + `preventDefault` so focus lands on the inline
- *  input instead of the menu trigger. */
+ *  "Rename" item can share one ref without lifting state up. The menu
+ *  (`LayerMenuContent`) waits for its own close before starting the edit. */
 function WithEditableRef({
   children,
 }: {
   children: (api: {
     ref: React.RefObject<EditableTextHandle | null>
-    triggerEdit: () => void
-    onCloseAutoFocus: (e: Event) => void
   }) => React.ReactNode
 }) {
   const ref = useRef<EditableTextHandle | null>(null)
-  const pendingEditRef = useRef(false)
-  const triggerEdit = useCallback(() => {
-    pendingEditRef.current = true
-  }, [])
-  const onCloseAutoFocus = useCallback((e: Event) => {
-    if (!pendingEditRef.current) return
-    pendingEditRef.current = false
-    e.preventDefault()
-    ref.current?.startEditing()
-  }, [])
-  return <>{children({ ref, triggerEdit, onCloseAutoFocus })}</>
+  return <>{children({ ref })}</>
 }
 
 /** Renders one layer-row's `<Row />` + `<Menu />` pair, owning the

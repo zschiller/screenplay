@@ -8,6 +8,7 @@ import {
   shouldSelectOnPointerDown,
 } from "@/lib/canvas/layer-shell"
 import { showsLayerDetail } from "@/lib/canvas/camera"
+import type { LayerMenuActions } from "./layer-menu"
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
 import type { GroupWorkspace } from "./group-label"
@@ -128,6 +129,8 @@ interface LayerShellProps {
   remoteGroupSelectedColor?: string
   onSelectGroup?: (shiftKey: boolean) => void
   onRenameGroup?: (next: string) => void
+  /** The Group's menu, forwarded to its label (I7). */
+  groupMenu?: LayerMenuActions
   /** Layer-specific title row rendered inside the shared `LayerTitleBar`. */
   renderTitle: (api: LayerShellApi) => React.ReactNode
   /** Right-aligned to the layer on its title row: who drives a frame (#1387). */
@@ -186,6 +189,7 @@ export function LayerShell({
   remoteGroupSelectedColor,
   onSelectGroup,
   onRenameGroup,
+  groupMenu,
   renderTitle,
   titleTag,
   children,
@@ -351,6 +355,7 @@ export function LayerShell({
         groupSelectedColor={remoteGroupSelectedColor}
         onSelectGroup={handleSelectGroup}
         onRenameGroup={onRenameGroup}
+        groupMenu={groupMenu}
         groupLabelDragHandlers={
           titleDragDisabled ? undefined : groupLabelDragHandlers
         }

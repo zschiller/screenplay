@@ -19,7 +19,11 @@ function panel(collapsed = false) {
 function setup({ commentsPanelOpen = false } = {}) {
   const sidebar = panel()
   const chat = panel()
-  const selection = { clear: vi.fn(), deleteSelected: vi.fn(() => true) }
+  const selection = {
+    clear: vi.fn(),
+    deleteSelected: vi.fn(() => true),
+    duplicateSelected: vi.fn(() => true),
+  }
   const history = { undo: vi.fn(), redo: vi.fn() }
   const interaction = {
     escapeState: () => ({
@@ -99,6 +103,17 @@ describe("canvas keys inside menus and dialogs", () => {
     const { selection } = setup()
     press(document.body, "Backspace")
     expect(selection.deleteSelected).toHaveBeenCalledTimes(1)
+  })
+
+  it("⌘D duplicates the selection on the canvas, not from a menu", () => {
+    const { selection } = setup()
+    const item = mount(
+      '<div role="menu"><div role="menuitem" data-target tabindex="-1">Rename</div></div>'
+    )
+    press(item, "d", { metaKey: true })
+    expect(selection.duplicateSelected).not.toHaveBeenCalled()
+    press(document.body, "d", { metaKey: true })
+    expect(selection.duplicateSelected).toHaveBeenCalledTimes(1)
   })
 
   it("tool keys and undo don't fire from a dialog", () => {

@@ -9,10 +9,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
+import { MenuKeys as Keys } from "@/components/menu-keys"
 
 import { ZOOM_MAX, ZOOM_MIN } from "@/lib/constants"
 import { SHORTCUT_SHEET_KEY, ZOOM_SHORTCUTS } from "@/lib/canvas/shortcuts"
@@ -105,18 +104,5 @@ export function CanvasZoomMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-
-/** A menu item's key hint: one `Kbd` per key, right-aligned. */
-function Keys({ keys }: { keys: readonly string[] }) {
-  return (
-    <DropdownMenuShortcut className="tracking-normal">
-      <KbdGroup>
-        {keys.map((key) => (
-          <Kbd key={key}>{key}</Kbd>
-        ))}
-      </KbdGroup>
-    </DropdownMenuShortcut>
   )
 }

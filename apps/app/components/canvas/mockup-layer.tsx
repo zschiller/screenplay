@@ -8,16 +8,10 @@ import {
 } from "@workspace/ui/components/floating-toolbar"
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import {
-  CopyIcon,
-  DotsThreeIcon,
-  TrashIcon,
-} from "@workspace/ui/components/icons"
+import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
+import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
@@ -25,6 +19,11 @@ import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
+import {
+  LayerMenuContent,
+  useRegisterLayerMenu,
+  type LayerMenuActions,
+} from "@/components/canvas/layer-menu"
 import {
   LayerShell,
   LAYER_SURFACE_CLASS,
@@ -93,6 +92,8 @@ interface MockupLayerProps {
   remoteGroupSelectedColor?: string
   onSelectGroup?: (shiftKey: boolean) => void
   onRenameGroup?: (next: string) => void
+  /** The Group's menu, on its label while it alone is selected (I7). */
+  groupMenu?: LayerMenuActions
   onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
   onSelect: (id: string, shiftKey: boolean) => void
   onMoveGroup: Mover
@@ -226,6 +227,7 @@ export function MockupLayer({
   remoteGroupSelectedColor,
   onSelectGroup,
   onRenameGroup,
+  groupMenu,
   onRequestReorderDrag,
   onSelect,
   onMoveGroup,
@@ -324,6 +326,15 @@ export function MockupLayer({
     toolbarRef,
   })
 
+  // The mockup's one menu (I7), in the bar's … and its sidebar row's ….
+  const titleEditableRef = useRef<EditableTextHandle>(null)
+  const menuActions: LayerMenuActions = {
+    noun: "mockup",
+    onDuplicate: onDuplicate ? () => onDuplicate(layer.id) : undefined,
+    onDelete: () => onRemove?.(layer.id),
+  }
+  useRegisterLayerMenu(layer.id, menuActions)
+
   // A mockup snaps on neither axis, so drop the edge and forward the deltas.
   const handleResize = useCallback(
     (
@@ -376,8 +387,10 @@ export function MockupLayer({
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
+      groupMenu={groupMenu}
       renderTitle={(api) => (
         <LayerLabelRow
+          editableRef={titleEditableRef}
           style={{ maxWidth: layer.width * zoom }}
           title={layer.title}
           placeholder="Untitled"
@@ -449,26 +462,13 @@ export function MockupLayer({
                       <DotsThreeIcon className="text-muted-foreground" />
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent side="bottom" align="end" sideOffset={8}>
-                    {onDuplicate && (
-                      <DropdownMenuItem onSelect={() => onDuplicate(layer.id)}>
-                        <CopyIcon />
-                        Duplicate
-                      </DropdownMenuItem>
-                    )}
-                    {onRemove && (
-                      <>
-                        {onDuplicate && <DropdownMenuSeparator />}
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onSelect={() => onRemove(layer.id)}
-                        >
-                          <TrashIcon />
-                          Delete
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
+                  <LayerMenuContent
+                    actions={menuActions}
+                    onRename={() => titleEditableRef.current?.startEditing()}
+                    side="bottom"
+                    align="end"
+                    sideOffset={8}
+                  />
                 </DropdownMenu>
               </FloatingToolbar>,
               toolbarTarget

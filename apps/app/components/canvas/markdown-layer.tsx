@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react"
 import { createPortal } from "react-dom"
+import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import {
   type Icon,
   ArrowUUpLeftIcon,
@@ -62,6 +63,10 @@ import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
+import {
+  LayerLabelMenu,
+  type LayerMenuActions,
+} from "@/components/canvas/layer-menu"
 import {
   LayerShell,
   LAYER_SURFACE_CLASS,
@@ -431,6 +436,10 @@ interface MarkdownLayerProps {
    *  driven by the editor) this must also write into the editor's first
    *  heading so every peer's view updates. */
   onRename?: (id: string, title: string) => void
+  /** The menu's Delete, the same removal as the Delete key (⌘Z undoes it). */
+  onRemove?: (id: string) => void
+  /** The Group's menu, on its label while it alone is selected (I7). */
+  groupMenu?: LayerMenuActions
   onStartEdit: (id: string) => void
   onStopEdit: () => void
 }
@@ -480,6 +489,8 @@ export function MarkdownLayer({
   onResize,
   onTitleChange,
   onRename,
+  onRemove,
+  groupMenu,
   onStartEdit,
   onStopEdit,
   onEditorReady,
@@ -488,6 +499,13 @@ export function MarkdownLayer({
   onReplyInChat,
 }: MarkdownLayerProps) {
   const { awareness } = useYjs()
+  // A document has no toolbar until it's being edited, so its one menu (I7)
+  // sits on its label as … while it alone is selected.
+  const titleEditableRef = useRef<EditableTextHandle>(null)
+  const menuActions: LayerMenuActions | undefined = onRemove
+    ? { noun: "document", onDelete: () => onRemove(layer.id) }
+    : undefined
+  const showMenu = !!menuActions && selected && !multiSelected && !editing
   const provider = useMemo(() => ({ awareness }), [awareness])
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -990,6 +1008,7 @@ export function MarkdownLayer({
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
+      groupMenu={groupMenu}
       renderTitle={(api) => (
         // The explicit max-width gives the name's `truncate` something to
         // clip against inside the title bar's `items-start` column.
@@ -1001,18 +1020,33 @@ export function MarkdownLayer({
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
           onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
+          editableRef={titleEditableRef}
           trailing={
-            ownerWorkspace && (
-              <MaybeWorkspaceHoverCard
-                branchId={ownerWorkspace.branchId}
-                side="bottom"
-              >
-                {/* The mention doesn't take the trigger's props; this span
-                    does. Names win: the Workspace gives up its width first. */}
-                <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
-                  <CompactWorkspaceMention workspace={ownerWorkspace} />
-                </span>
-              </MaybeWorkspaceHoverCard>
+            (ownerWorkspace || showMenu) && (
+              <>
+                {ownerWorkspace && (
+                  <MaybeWorkspaceHoverCard
+                    branchId={ownerWorkspace.branchId}
+                    side="bottom"
+                  >
+                    {/* The mention doesn't take the trigger's props; this span
+                        does. Names win: the Workspace gives up its width first. */}
+                    <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
+                      <CompactWorkspaceMention workspace={ownerWorkspace} />
+                    </span>
+                  </MaybeWorkspaceHoverCard>
+                )}
+                {showMenu && menuActions && (
+                  <LayerLabelMenu
+                    actions={menuActions}
+                    onRename={
+                      onRename
+                        ? () => titleEditableRef.current?.startEditing()
+                        : undefined
+                    }
+                  />
+                )}
+              </>
             )
           }
         />

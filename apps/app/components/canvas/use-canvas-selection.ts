@@ -43,6 +43,10 @@ export interface CanvasSelectionDeps {
   removeDocumentLayers: (ids: string[]) => void
   /** Runs both removals as one transaction, so one Undo brings both back. */
   batch: (fn: () => void) => void
+  /** Copy a frame to the end of its Group; the copy's id, if it was made. */
+  duplicateIframeLayer: (id: string) => string | undefined
+  /** Copy a Mockup the same way; `undefined` for anything that isn't one. */
+  duplicateMockup: (id: string) => string | undefined
 }
 
 export interface CanvasSelection {
@@ -79,6 +83,10 @@ export interface CanvasSelection {
   /** Delete the current selection through `ops` and select what's next.
    *  Returns whether anything was deleted (so the keydown can preventDefault). */
   deleteSelected(): boolean
+  /** ⌘D: copy each selected frame and Mockup into its Group and select the
+   *  copies. Documents and Groups have no Duplicate. Returns whether anything
+   *  was copied. */
+  duplicateSelected(): boolean
   /** Remove a single Iframe Layer (sidebar path) and select its neighbor. */
   removeIframeLayerAndReselect(id: string): void
   /** Drop a Group from the selection (e.g. after the Group is deleted). */
@@ -91,7 +99,14 @@ export interface CanvasSelection {
 }
 
 export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
-  const { groups, removeIframeLayers, removeDocumentLayers, batch } = deps
+  const {
+    groups,
+    removeIframeLayers,
+    removeDocumentLayers,
+    batch,
+    duplicateIframeLayer,
+    duplicateMockup,
+  } = deps
 
   const [iframeLayerIds, setIframeLayerIds] = useState<Set<string>>(new Set())
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set())
@@ -248,6 +263,27 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
     return true
   }, [current, removeIframeLayers, removeDocumentLayers, batch])
 
+  const duplicateSelected = useCallback((): boolean => {
+    const { iframeLayerIds: frames, markdownLayerIds: layers } = current()
+    const frameCopies: string[] = []
+    const mockupCopies: string[] = []
+    batch(() => {
+      for (const id of frames) {
+        const copy = duplicateIframeLayer(id)
+        if (copy) frameCopies.push(copy)
+      }
+      for (const id of layers) {
+        const copy = duplicateMockup(id)
+        if (copy) mockupCopies.push(copy)
+      }
+    })
+    if (frameCopies.length + mockupCopies.length === 0) return false
+    setGroupIds(new Set())
+    setIframeLayerIds(new Set(frameCopies))
+    setDocumentLayerIds(new Set(mockupCopies))
+    return true
+  }, [current, batch, duplicateIframeLayer, duplicateMockup])
+
   const removeIframeLayerAndReselect = useCallback(
     (id: string) => {
       const next = nextIframeLayerAfterDelete(id, groupSnapshotsRef.current)
@@ -310,6 +346,7 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
       applyMarquee,
       clear,
       deleteSelected,
+      duplicateSelected,
       removeIframeLayerAndReselect,
       removeGroupFromSelection,
       setIframeLayerIds,
@@ -330,6 +367,7 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
       applyMarquee,
       clear,
       deleteSelected,
+      duplicateSelected,
       removeIframeLayerAndReselect,
       removeGroupFromSelection,
       setIframeLayerIds,

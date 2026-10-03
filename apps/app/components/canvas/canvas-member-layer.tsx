@@ -39,6 +39,7 @@ import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 import { useGoLive } from "./use-go-live"
+import type { LayerMenuActions } from "./layer-menu"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -116,6 +117,7 @@ function CanvasMemberLayerImpl({
   setCreateFlowIframeLayerId,
   removeIframeLayer,
   removeMockup,
+  removeDocument,
   handlePlayIframeLayer,
   onAskForKnob,
   askableMockupIds,
@@ -195,6 +197,8 @@ function CanvasMemberLayerImpl({
   removeIframeLayer: IframeLayerProps["onRemove"]
   /** Remove one Mockup and drop it from the selection. */
   removeMockup: (id: string) => void
+  /** Remove one Document (the label menu's Delete). */
+  removeDocument: (id: string) => void
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
   /** Start an "add a knob" request in a Workspace's chat composer. */
   onAskForKnob: (branchId: string) => void
@@ -229,6 +233,13 @@ function CanvasMemberLayerImpl({
   const handleIframeLayerSelect = selection.selectIframeLayer
   const handleGroupSelect = selection.selectGroup
   const handleDocumentLayerSelect = selection.selectDocumentLayer
+  // More than one thing selected, Groups included (I6): every toolbar and
+  // label menu hides, so nothing acts on just one of them.
+  const multiSelected =
+    selectedIframeLayerIds.size +
+      selectedDocumentLayerIds.size +
+      selectedGroupIds.size >
+    1
   // Interact on a frame or a mockup, or leave it (null). Entering goes
   // through Frame Control: it takes the page from the agent, or asks the
   // person driving it.
@@ -361,6 +372,15 @@ function CanvasMemberLayerImpl({
             !!groupWorkspace(group, framesById, documentWorkspaces)
           const groupLabelWorkspace =
             index === 0 && showGroupLabel ? groupSwitcherOf(group) : undefined
+          // The Group's menu (I7), as … on its label while it alone is
+          // selected.
+          const groupMenu: LayerMenuActions | undefined =
+            index === 0 && showGroupLabel && groupSelected && !multiSelected
+              ? {
+                  noun: "group",
+                  onDelete: () => groupActions.removeIframeLayerGroup(group.id),
+                }
+              : undefined
           // Tint this member's name (and, on the leftmost member,
           // the group label) to match a remote user's selection
           // rect. Skipped when we've selected it locally — our own
@@ -410,10 +430,7 @@ function CanvasMemberLayerImpl({
                 zoom={zoom}
                 labelHidden={labelsHidden.has(doc.id)}
                 selected={selectedDocumentLayerIds.has(doc.id)}
-                multiSelected={
-                  selectedIframeLayerIds.size + selectedDocumentLayerIds.size >
-                  1
-                }
+                multiSelected={multiSelected}
                 editing={editingDocumentLayerId === doc.id}
                 spaceHeld={spaceHeld}
                 userName={selfName}
@@ -446,6 +463,7 @@ function CanvasMemberLayerImpl({
                     ? (name) => renameIframeLayerGroup(group.id, name)
                     : undefined
                 }
+                groupMenu={groupMenu}
                 onSelect={handleDocumentLayerSelect}
                 onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
                   gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
@@ -461,6 +479,7 @@ function CanvasMemberLayerImpl({
                 onResize={layerMutations.resizeDocument}
                 onTitleChange={layerMutations.setTitleCache}
                 onRename={layerMutations.setTitle}
+                onRemove={removeDocument}
                 onStartEdit={setEditingDocumentLayerId}
                 onStopEdit={() => setEditingDocumentLayerId(null)}
                 onEditorReady={reference.onDocumentEditorReady}
@@ -499,10 +518,7 @@ function CanvasMemberLayerImpl({
                 labelHidden={labelsHidden.has(mockup.id)}
                 // Mockups share the Document selection Set.
                 selected={selectedDocumentLayerIds.has(mockup.id)}
-                multiSelected={
-                  selectedIframeLayerIds.size + selectedDocumentLayerIds.size >
-                  1
-                }
+                multiSelected={multiSelected}
                 spaceHeld={spaceHeld}
                 worldX={layout.x}
                 worldY={layout.y}
@@ -525,6 +541,7 @@ function CanvasMemberLayerImpl({
                     ? (name) => renameIframeLayerGroup(group.id, name)
                     : undefined
                 }
+                groupMenu={groupMenu}
                 onSelect={handleDocumentLayerSelect}
                 onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
                   gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
@@ -689,7 +706,7 @@ function CanvasMemberLayerImpl({
               onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
               onOpenInBrowser={openInBrowser}
               onDuplicate={() =>
-                groupActions.duplicateIframeLayer(group.id, iframeLayer.id)
+                groupActions.duplicateIframeLayer(iframeLayer.id)
               }
               onAskForKnob={
                 iframeLayer.branchId
@@ -698,9 +715,7 @@ function CanvasMemberLayerImpl({
               }
               onFitToContent={layerMutations.fitToContent}
               onSetSize={layerMutations.fitToContent}
-              multiSelected={
-                selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1
-              }
+              multiSelected={multiSelected}
               spaceHeld={spaceHeld}
               commentMode={commentMode}
               pickActive={pickActive}
@@ -734,6 +749,7 @@ function CanvasMemberLayerImpl({
                   ? (name) => renameIframeLayerGroup(group.id, name)
                   : undefined
               }
+              groupMenu={groupMenu}
               worldX={layout.x}
               worldY={layout.y}
               zIndex={zIndex}
