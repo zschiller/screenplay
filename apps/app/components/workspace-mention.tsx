@@ -9,7 +9,6 @@ import {
   GitPullRequestIcon,
   WarningIcon,
 } from "@workspace/ui/components/icons"
-import { Badge } from "@workspace/ui/components/badge"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
@@ -118,8 +117,9 @@ export function WorkspaceStateIcon({ state }: { state: WorkspaceState }) {
 export type WorkspacePr = { number: number; state: BranchPrInfo["state"] }
 
 /**
- * A Workspace's PR: the stock outline Badge holding GitHub's state glyph in its
- * state colour and `#N`.
+ * A Workspace's PR: GitHub's state glyph and `#N` in its state colour, set as
+ * plain text with no border or padding. Only the chat header's PR button has a
+ * border, because that's a button.
  */
 export function WorkspacePrBadge({
   number,
@@ -132,11 +132,10 @@ export function WorkspacePrBadge({
 }) {
   const Icon = state === "merged" ? GitMergeIcon : GitPullRequestIcon
   return (
-    <Badge
-      variant="outline"
+    <span
       data-slot="workspace-pr"
       className={cn(
-        "shrink-0 gap-0.5 px-1.5 tabular-nums",
+        "inline-flex shrink-0 items-center gap-0.5 text-xs tabular-nums",
         prStateColor(state),
         className
       )}
@@ -144,7 +143,7 @@ export function WorkspacePrBadge({
       <Icon aria-hidden className="size-3! shrink-0" />
       <span className="sr-only">PR </span>#{number}
       <span className="sr-only">, {state}</span>
-    </Badge>
+    </span>
   )
 }
 

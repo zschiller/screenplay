@@ -996,7 +996,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                     No coding agent found. Install Claude Code or Codex in{" "}
                     <Link
                       href="/settings?section=coding-agents"
-                      className="text-foreground underline underline-offset-2"
+                      className="text-foreground underline"
                     >
                       Settings
                     </Link>

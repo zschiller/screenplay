@@ -657,3 +657,9 @@ html ::selection {
   background-color: oklch(0.667 0.295 322.15);
   color: oklch(0 0 0);
 }
+
+/* Every underline sits a little below the text, as in the app
+   (packages/ui globals.css). Inherited, so Nextra's links take it. */
+html {
+  text-underline-offset: 0.25em;
+}
