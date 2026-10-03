@@ -447,7 +447,7 @@
           // The page as it is right now, for an agent's `read_frame_html`
           // (#1268): its markup and the CSS that styles it, which the server
           // assembles into one self-contained document.
-          reply(d.id, true, pageSnapshot(d.selector))
+          reply(d.id, true, pageSnapshot(d.selector, d.live === true))
         } else if (d.op === "getRectsForSelectors") {
           // Batched op: one round-trip resolves rects for many selectors at
           // once. Used by the canvas to track selector-anchored comment pins.
@@ -886,12 +886,164 @@
     }
   }
 
+  // --- Show pace (#1390) ---------------------------------------------------
+  // "Show me" plays each gesture at a pace a person can follow: a cursor
+  // glides to the target and pauses before the gesture lands, typing goes in
+  // a character at a time, and scrolls and drags move smoothly. The cursor is
+  // drawn in the page, so it's the same picture wherever the frame runs. It
+  // takes no pointer events, so nothing hits it, and reads skip it.
+
+  const SHOW_GLIDE_MS = 450
+  const SHOW_PAUSE_MS = 350
+  const SHOW_SCROLL_MS = 450
+  const SHOW_TYPE_MS = 45
+  const SHOW_TYPE_MAX_MS = 2000
+  const SHOW_DRAG_STEPS = 24
+  const SHOW_LINGER_MS = 3000
+  const SHOW_INK = "#0a0a0a"
+  let showCursor = null
+  let showAt = null
+  let showHide = null
+
+  function isShow(op) {
+    return !!op && op.pace === "show"
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  function placeShowCursor(p) {
+    showCursor.style.transform = "translate3d(" + p.x + "px," + p.y + "px,0)"
+    showAt = p
+  }
+
+  // The agent's cursor: the canvas's cursor arrow in ink, named Agent.
+  function ensureShowCursor() {
+    if (showCursor && showCursor.isConnected) return showCursor
+    const el = document.createElement("div")
+    el.id = "__screenplay-drive-cursor"
+    el.setAttribute("aria-hidden", "true")
+    Object.assign(el.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      pointerEvents: "none",
+      zIndex: "2147483647",
+      opacity: "0",
+      transition: "opacity 150ms ease",
+      willChange: "transform",
+    })
+    el.innerHTML =
+      '<svg width="16" height="20" viewBox="0 0 16 20" fill="none" ' +
+      'style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3));transition:transform 120ms ease">' +
+      '<path d="M0.928711 0.0737305L15.0713 11.3833L8.20055 11.8235L4.56463 19.0005L0.928711 0.0737305Z" ' +
+      'fill="' +
+      SHOW_INK +
+      '" stroke="#fff" stroke-width="1.25" stroke-linejoin="round"/></svg>' +
+      '<span style="display:inline-block;margin:4px 0 0 12px;padding:2px 6px;border-radius:4px;' +
+      "background:" +
+      SHOW_INK +
+      ";color:#fff;font:500 12px/16px ui-sans-serif,system-ui,-apple-system,sans-serif;" +
+      'white-space:nowrap;letter-spacing:0;box-shadow:0 0 0 1px #fff,0 1px 2px rgba(0,0,0,0.3)">Agent</span>'
+    document.documentElement.appendChild(el)
+    showCursor = el
+    showAt = null
+    return el
+  }
+
+  // Glide the cursor to `p`, then pause there. True when someone took
+  // control meanwhile, so the gesture must not land.
+  async function showGlide(p) {
+    const el = ensureShowCursor()
+    clearTimeout(showHide)
+    if (!showAt) {
+      // First step: appear where the page's middle is, then glide from there.
+      el.style.transition = "opacity 150ms ease"
+      placeShowCursor({ x: innerWidth / 2, y: innerHeight / 2 })
+      void el.offsetWidth
+    }
+    el.style.transition =
+      "opacity 150ms ease, transform " +
+      SHOW_GLIDE_MS +
+      "ms cubic-bezier(0.4, 0, 0.2, 1)"
+    el.style.opacity = "1"
+    placeShowCursor(p)
+    await wait(SHOW_GLIDE_MS)
+    if (driveStopped) return true
+    await wait(SHOW_PAUSE_MS)
+    return driveStopped
+  }
+
+  // A pause with the cursor where it is, for a step with no target.
+  async function showPause() {
+    await wait(SHOW_PAUSE_MS)
+    return driveStopped
+  }
+
+  // The press: the arrow dips as the click lands.
+  function showPress() {
+    const arrow = showCursor && showCursor.firstChild
+    if (!arrow) return
+    arrow.style.transform = "scale(0.85)"
+    setTimeout(() => {
+      arrow.style.transform = ""
+    }, 140)
+  }
+
+  // Follow the pointer without easing, for a drag.
+  function showFollow(p) {
+    if (!showCursor) return
+    showCursor.style.transition = "opacity 150ms ease"
+    placeShowCursor(p)
+  }
+
+  // The cursor stays a moment after a step, then fades, so a run of steps
+  // reads as one movement and a finished demo leaves the page clean.
+  function showLinger() {
+    clearTimeout(showHide)
+    showHide = setTimeout(hideShowCursor, SHOW_LINGER_MS)
+  }
+
+  function hideShowCursor() {
+    clearTimeout(showHide)
+    if (showCursor) showCursor.remove()
+    showCursor = null
+    showAt = null
+  }
+
+  // Bring the target into view: smoothly, and waited for, at show pace.
+  async function inViewAtPace(el, show) {
+    if (!el || !el.scrollIntoView) return
+    if (!show) {
+      el.scrollIntoView({ block: "nearest", inline: "nearest" })
+      return
+    }
+    const r = el.getBoundingClientRect()
+    const out =
+      r.top < 0 || r.bottom > innerHeight || r.left < 0 || r.right > innerWidth
+    if (!out) return
+    el.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: "smooth",
+    })
+    await wait(SHOW_SCROLL_MS)
+  }
+
   async function drive(op) {
     if (!op || typeof op !== "object") throw new Error("missing drive op")
     if (op.op === "elements") {
       return { status: "read", value: driveElements(op.selector) }
     }
     driveStopped = false
+    if (!isShow(op)) hideShowCursor()
+    const result = await driveGesture(op)
+    if (isShow(op)) showLinger()
+    return result
+  }
+
+  function driveGesture(op) {
     if (op.op === "click") return driveClick(op)
     if (op.op === "type") return driveType(op)
     if (op.op === "key") return driveKey(op)
@@ -917,15 +1069,15 @@
   }
 
   // The target, scrolled into view first as a real gesture would need.
-  function driveTargetInView(t) {
+  async function driveTargetInView(t, show) {
     const el = driveTarget(t)
-    if (el && el.scrollIntoView)
-      el.scrollIntoView({ block: "nearest", inline: "nearest" })
+    await inViewAtPace(el, show)
     return el
   }
 
   async function driveClick(op) {
-    const el = driveTargetInView(op.target)
+    const show = isShow(op)
+    const el = await driveTargetInView(op.target, show)
     if (!el) return { status: "not-found", target: op.target }
     const control = el.nodeName === "LABEL" && el.control ? el.control : el
     if (control.nodeName === "INPUT" && control.type === "file")
@@ -938,6 +1090,10 @@
       return gap("native-picker", control)
 
     const p = centerOf(el, op.target)
+    if (show) {
+      if (await showGlide(p)) return { status: "taken" }
+      showPress()
+    }
     // What's really under the point takes the click, as a real click would,
     // so an overlay covering the target gets it.
     const hit = document.elementFromPoint(p.x, p.y)
@@ -959,13 +1115,19 @@
   }
 
   async function driveType(op) {
-    const el = driveTargetInView(op.target)
+    const show = isShow(op)
+    const el = await driveTargetInView(op.target, show)
     if (!el) return { status: "not-found", target: op.target }
     const field = textFieldOf(el)
     if (!field || !isTextField(field))
       throw new Error("the target isn't a text field")
     if (isEditable(field)) return gap("rich-text", field)
     const text = String(op.text == null ? "" : op.text)
+    if (show) {
+      if (await showGlide(centerOf(field))) return { status: "taken" }
+      showPress()
+      return typeAtPace(op, field, text)
+    }
     const next = op.replace ? text : (field.value || "") + text
     field.dispatchEvent(
       new InputEvent("beforeinput", {
@@ -987,15 +1149,59 @@
     return done(op, field, { value: String(field.value) })
   }
 
+  // Type a character at a time, each its own input, as a person would.
+  async function typeAtPace(op, field, text) {
+    if (op.replace && field.value) {
+      setNativeValue(field, "")
+      field.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          inputType: "deleteContentBackward",
+        })
+      )
+    }
+    const base = field.value || ""
+    const chars = Array.from(text)
+    const per = Math.min(
+      SHOW_TYPE_MS,
+      SHOW_TYPE_MAX_MS / Math.max(1, chars.length)
+    )
+    for (let i = 0; i < chars.length; i++) {
+      if (driveStopped) return { status: "taken" }
+      field.dispatchEvent(
+        new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "insertText",
+          data: chars[i],
+        })
+      )
+      setNativeValue(field, base + chars.slice(0, i + 1).join(""))
+      field.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          inputType: "insertText",
+          data: chars[i],
+        })
+      )
+      await wait(per)
+    }
+    field.dispatchEvent(new Event("change", { bubbles: true }))
+    return done(op, field, { value: String(field.value) })
+  }
+
   async function driveKey(op) {
     const key = String(op.key || "")
     if (!key) throw new Error("missing key")
+    const show = isShow(op)
     let el = null
     if (op.target) {
-      el = driveTargetInView(op.target)
+      el = await driveTargetInView(op.target, show)
       if (!el) return { status: "not-found", target: op.target }
     }
     if (key === "Tab") return gap("tab", el)
+    if (show && (el ? await showGlide(centerOf(el)) : await showPause()))
+      return { status: "taken" }
     const target = el || document.activeElement || document.body
     const init = keyInit(key, op.modifiers)
     const typing =
@@ -1023,10 +1229,12 @@
   }
 
   async function driveScroll(op) {
+    const show = isShow(op)
     let scroller = null
     if (op.target) {
       const el = driveTarget(op.target)
       if (!el) return { status: "not-found", target: op.target }
+      if (show && (await showGlide(centerOf(el)))) return { status: "taken" }
       scroller = el
       while (scroller && scroller !== document.documentElement) {
         const cs = getComputedStyle(scroller)
@@ -1041,8 +1249,13 @@
       if (scroller === document.documentElement) scroller = null
     }
     const by = { left: Number(op.dx) || 0, top: Number(op.dy) || 0 }
+    if (show) {
+      if (!op.target && (await showPause())) return { status: "taken" }
+      by.behavior = "smooth"
+    }
     if (scroller) scroller.scrollBy(by)
     else window.scrollBy(by)
+    if (show) await wait(SHOW_SCROLL_MS)
     const scrolled = scroller
       ? { x: scroller.scrollLeft, y: scroller.scrollTop }
       : { x: scrollX, y: scrollY }
@@ -1050,7 +1263,8 @@
   }
 
   async function driveSelect(op) {
-    const el = driveTargetInView(op.target)
+    const show = isShow(op)
+    const el = await driveTargetInView(op.target, show)
     if (!el) return { status: "not-found", target: op.target }
     const select =
       el.nodeName === "SELECT"
@@ -1065,6 +1279,10 @@
       (o) => o.value === want || o.textContent.trim() === want
     )
     if (!option) throw new Error("no option " + JSON.stringify(want))
+    if (show) {
+      if (await showGlide(centerOf(select))) return { status: "taken" }
+      showPress()
+    }
     setNativeValue(select, option.value)
     select.dispatchEvent(new Event("input", { bubbles: true }))
     select.dispatchEvent(new Event("change", { bubbles: true }))
@@ -1072,13 +1290,15 @@
   }
 
   async function driveDrag(op) {
-    const el = driveTargetInView(op.target)
+    const show = isShow(op)
+    const el = await driveTargetInView(op.target, show)
     if (!el) return { status: "not-found", target: op.target }
     const toEl = driveTarget(op.to)
     if (!toEl) return { status: "not-found", target: op.to }
     const from = centerOf(el, op.target)
     const to = centerOf(toEl, op.to)
-    const steps = 8
+    if (show && (await showGlide(from))) return { status: "taken" }
+    const steps = show ? SHOW_DRAG_STEPS : 8
     fireHover(el, from)
     firePointer(el, "pointerdown", from)
     fireMouse(el, "mousedown", from)
@@ -1097,6 +1317,7 @@
         x: from.x + ((to.x - from.x) * i) / steps,
         y: from.y + ((to.y - from.y) * i) / steps,
       }
+      if (show) showFollow(p)
       const over = document.elementFromPoint(p.x, p.y) || toEl
       if (transfer) {
         over.dispatchEvent(dragEvent("dragenter", p))
@@ -1126,7 +1347,10 @@
   // that can't style anything in the markup are left out to keep it small; a
   // cross-origin stylesheet can't be read, so it stays a link. Returns null
   // when the selector matches nothing.
-  function pageSnapshot(selector) {
+  // `live`: for a screenshot rendered from the snapshot (a mockup the agent
+  // drives on hosted, #1391), also carry the form state and the scroll, so
+  // the render shows what was typed, ticked and picked, and where.
+  function pageSnapshot(selector, live) {
     const root = selector
       ? document.querySelector(selector)
       : document.documentElement
@@ -1153,7 +1377,9 @@
       if (text) css.push(text)
     }
     // The whole page is its body; the head holds nothing to show but styles.
-    const markup = (selector ? root : document.body || root).cloneNode(true)
+    const shown = selector ? root : document.body || root
+    const markup = shown.cloneNode(true)
+    if (live) mirrorFormState(shown, markup)
     markup
       .querySelectorAll(
         "script, style, link[rel~='stylesheet'], [id^='__screenplay']"
@@ -1167,6 +1393,35 @@
       markup: selector ? markup.outerHTML : markup.innerHTML,
       css: css.join("\n"),
       stylesheetLinks: links,
+      ...(live
+        ? {
+            scroll: { x: window.scrollX, y: window.scrollY },
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+          }
+        : {}),
+    }
+  }
+
+  // Form state lives in properties, which a clone's markup doesn't carry:
+  // write it into the clone's attributes.
+  function mirrorFormState(from, to) {
+    const fields = "input, textarea, select"
+    const live = from.querySelectorAll(fields)
+    const copies = to.querySelectorAll(fields)
+    for (let i = 0; i < live.length && i < copies.length; i++) {
+      const field = live[i]
+      const copy = copies[i]
+      if (field.tagName === "TEXTAREA") {
+        copy.textContent = field.value
+      } else if (field.tagName === "SELECT") {
+        Array.from(copy.options).forEach((option, j) => {
+          option.toggleAttribute("selected", !!field.options[j]?.selected)
+        })
+      } else if (field.type === "checkbox" || field.type === "radio") {
+        copy.toggleAttribute("checked", field.checked)
+      } else if (field.type !== "file") {
+        copy.setAttribute("value", field.value)
+      }
     }
   }
 

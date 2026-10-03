@@ -40,8 +40,9 @@ workspace's **+/−** diff and a **Create PR** button (see
 ## Chats with no repository
 
 A chat with no repository writes and edits
-[mockups](/guides/mockups) and [documents](/guides/documents), and nothing
-else: it has no sandbox, so it can't change code, run commands or show frames.
+[mockups](/guides/mockups) and [documents](/guides/documents), and can
+[click through a mockup](/guides/mockups#the-agent-driving-a-mockup) for you.
+It has no sandbox, so it can't change code, run commands or show frames.
 Use one to sketch an idea before there's code for it, or on a canvas with no
 repository at all.
 
@@ -263,6 +264,8 @@ you can expand for details:
 | **Run dev server**                 | Started a stopped dev server again           |
 | **View frame**                     | Took a screenshot of a frame                 |
 | **Read frame HTML**                | Read the page in a frame as HTML             |
+| **Start driving**                  | Started driving a frame or mockup            |
+| **Open frame**                     | Opened a frame to drive (desktop app)        |
 | **Read frame elements**            | Read what can be acted on in a frame         |
 | **Look at frame**                  | Looked at a frame as you see it              |
 | **Click**, **Type**, **Press key** | Drove a frame (desktop app)                  |
@@ -297,7 +300,8 @@ A few defaults are worth knowing:
 - **In the desktop app, the agent can drive your frames.** It clicks, types
   and scrolls in a frame you have open to show you something or get it into a
   state, and you can take over at any moment. See
-  [Claude driving a frame](/guides/frames#claude-driving-a-frame).
+  [The agent driving a frame](/guides/frames#the-agent-driving-a-frame). It drives
+  [mockups](/guides/mockups#the-agent-driving-a-mockup) in the browser too.
 - **Chats are shared.** On a shared canvas everyone sees every chat live,
   including history from before they joined.
 

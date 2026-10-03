@@ -13,6 +13,7 @@ import type {
   RepoData,
 } from "@/lib/types"
 import type { FrameControlRecord } from "@/lib/canvas/frame-control"
+import type { FrameDriveAsk } from "@/lib/frame-drive/view/asks"
 
 /**
  * Y.Doc layout for a room. Each domain is a top-level Y.Map of Y.Maps; the
@@ -36,6 +37,9 @@ export const COLLECTION_KEYS = {
   memories: "memories",
   /** Who drives each copy of a frame (#1387), `lib/canvas/frame-control.ts`. */
   frameControl: "frameControl",
+  /** The agent's ops waiting for one person's canvas, on hosted (#1391),
+   *  `lib/frame-drive/view/`. */
+  frameDriveAsks: "frameDriveAsks",
   // Formerly the shared tracked-pin positions of selector-anchored comments.
   // No longer written (#785): pins are placed per viewer, from their own
   // frame, so viewers can't overwrite each other's. Kept so existing docs
@@ -238,6 +242,7 @@ export type RoomCollections = {
   plans: YjsCollection<PlanData>
   memories: YjsCollection<MemoryData>
   frameControl: YjsCollection<FrameControlRecord>
+  frameDriveAsks: YjsCollection<FrameDriveAsk>
   commentPositions: YjsCollection<CommentPosition>
   savedViewport: YjsSingleton<ViewportData>
   /** Run a function as a single Yjs transaction (one update, one undo step). */
@@ -305,6 +310,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     frameControl: new YjsCollection<FrameControlRecord>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.frameControl)
+    ),
+    frameDriveAsks: new YjsCollection<FrameDriveAsk>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.frameDriveAsks)
     ),
     commentPositions: new YjsCollection<CommentPosition>(
       doc,

@@ -8,11 +8,18 @@ import {
   frameControlKey,
   type FrameControlRecord,
 } from "@/lib/canvas/frame-control"
+import { withBasePath } from "@/lib/base-path"
 import { driveFrames, runFrameDriveRelay } from "@/lib/frame-drive/mac/relay"
 import {
   FRAME_DRIVE_PATH,
   FRAME_DRIVE_ROOM_PARAM,
 } from "@/lib/frame-drive/mac/protocol"
+import {
+  docRelaySocket,
+  FRAME_DRIVE_ANSWER_PATH,
+  type FrameDriveAnswerBody,
+  type FrameDriveAsk,
+} from "@/lib/frame-drive/view/asks"
 import { fetchToken, websocketUrl } from "@/lib/yjs-host/y-websocket-client"
 import type { YjsCollection } from "@/lib/yjs/schema"
 
@@ -24,7 +31,7 @@ const RECONNECT_MAX_MS = 10_000
 
 /**
  * The canvas end of the Mac drive channel (#1389), desktop only: while this
- * canvas is open, the agent can drive its frames. Each op is checked against
+ * canvas is open, the agent can drive its frames and mockups. Each op is checked against
  * Frame Control here too, so a person who takes a frame stops the agent at
  * once. Renders nothing.
  */
@@ -32,11 +39,20 @@ export function FrameDriveRelay({
   roomId,
   viewerId,
   frameControl,
+  reveal,
 }: {
   roomId: string
   viewerId: string | null
   frameControl: YjsCollection<FrameControlRecord>
+  /** Bring a frame into this canvas's view, for the agent showing it
+   *  (#1390). */
+  reveal: (frameId: string) => Promise<boolean>
 }) {
+  // Read when asked, so a new callback doesn't reconnect the channel.
+  const revealRef = useRef(reveal)
+  useEffect(() => {
+    revealRef.current = reveal
+  })
   useEffect(() => {
     if (!viewerId) return
     let stopped = false
@@ -63,6 +79,7 @@ export function FrameDriveRelay({
               frameControl.get(frameControlKey(frameId, viewerId))?.driver ===
               AGENT_PARTY,
             subscribeControl: (listener) => frameControl.observe(listener),
+            reveal: (frameId) => revealRef.current(frameId),
           })
         },
         () => reconnect(true)
@@ -90,12 +107,65 @@ export function FrameDriveRelay({
   return null
 }
 
-/** Lets the agent drive this frame through the relay, while it's mounted. */
+/**
+ * The canvas end of the drive channel on hosted (#1391): the agent's asks for
+ * this viewer come through the Room's doc, and the answers go to the answer
+ * route. Only mockups answer (a hosted frame is one shared browser, #1396),
+ * and only in the asker's own canvas. Renders nothing.
+ */
+export function FrameDriveViewRelay({
+  roomId,
+  viewerId,
+  frameControl,
+  asks,
+}: {
+  roomId: string
+  viewerId: string | null
+  frameControl: YjsCollection<FrameControlRecord>
+  asks: YjsCollection<FrameDriveAsk>
+}) {
+  useEffect(() => {
+    if (!viewerId) return
+    const socket = docRelaySocket({
+      asks: {
+        entries: () => asks.toMap(),
+        delete: (id) => asks.delete(id),
+        observe: (listener) => asks.observe(listener),
+      },
+      viewerId,
+      post: async (answer) => {
+        const body: FrameDriveAnswerBody = { room: roomId, answer }
+        await fetch(withBasePath(FRAME_DRIVE_ANSWER_PATH), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      },
+    })
+    const relay = runFrameDriveRelay(socket, {
+      frames: driveFrames,
+      agentDrives: (frameId) =>
+        frameControl.get(frameControlKey(frameId, viewerId))?.driver ===
+        AGENT_PARTY,
+      subscribeControl: (listener) => frameControl.observe(listener),
+    })
+    return () => relay.close()
+  }, [roomId, viewerId, frameControl, asks])
+
+  return null
+}
+
+/**
+ * Lets the agent drive this frame or mockup through the relay, while it's
+ * mounted. `snapshot` reads the page for a screenshot taken away from the
+ * canvas (a hosted mockup).
+ */
 export function useDriveFrame(
   frameId: string,
   dom: ScreenplayDom,
   iframeRef: RefObject<HTMLIFrameElement | null>,
-  zoom: number
+  zoom: number,
+  { snapshot = false }: { snapshot?: boolean } = {}
 ) {
   // Read at snapshot time, so zooming doesn't re-register the frame.
   const zoomRef = useRef(zoom)
@@ -118,7 +188,8 @@ export function useDriveFrame(
             visibility: document.visibilityState,
           }
         },
+        ...(snapshot ? { snapshot: () => dom.pageSnapshot() } : {}),
       }),
-    [frameId, dom, iframeRef]
+    [frameId, dom, iframeRef, snapshot]
   )
 }

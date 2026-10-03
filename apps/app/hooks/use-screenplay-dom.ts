@@ -9,6 +9,7 @@ import type {
 } from "@/lib/postmessage-protocol"
 import type { ElementAnchor } from "@/lib/comment-anchor"
 import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
+import type { FrameSnapshot } from "@/lib/frame-drive/mac/protocol"
 
 export type Handle = string
 
@@ -132,6 +133,7 @@ export function useScreenplayDom(
         x?: number
         y?: number
         path?: string
+        live?: boolean
       },
       timeoutMs = REQUEST_TIMEOUT_MS
     ): Promise<T> => {
@@ -256,6 +258,14 @@ export function useScreenplayDom(
           type: "screenplay:dom-query",
           op: "getDocumentSize",
         }),
+      /** The page as it is now, form state and scroll included, for a
+       *  screenshot rendered away from the canvas (#1391). */
+      pageSnapshot: () =>
+        request<FrameSnapshot | null>({
+          type: "screenplay:dom-query",
+          op: "getPageSnapshot",
+          live: true,
+        }),
       /** Follow a route client-side (#999). Resolves true when the page's
        *  router took it, false when the frame has to reload onto it. */
       navigate: (path: string) =>
@@ -276,7 +286,7 @@ export function useScreenplayDom(
             ? {
                 status: "unavailable" as const,
                 reason:
-                  "The frame's page didn't answer. It may still be loading, or its dev server isn't running.",
+                  "The page didn't answer. It may still be loading, or its frame's dev server isn't running.",
               }
             : { status: "failed" as const, reason: message }
         }),

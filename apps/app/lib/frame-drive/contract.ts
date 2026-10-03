@@ -8,9 +8,10 @@
  * driving a frame must never become running arbitrary code (#1367).
  *
  * Each runtime has a backend that applies the ops: the Mac relays them to the
- * Sandbox Bridge in the person's own frame (`mac/`), hosted (#1396) will send
- * them to the shared browser. Every backend passes the same contract suite
- * (`contract-suite.ts`), so what the agent can do doesn't depend on where
+ * Sandbox Bridge in the person's own frame or mockup (`mac/`), hosted relays a
+ * mockup's to the asker's canvas through the Room's doc (`view/`, #1391), and
+ * will send a frame's to its shared browser (#1396). Every backend passes the
+ * same contract suite (`contract-suite.ts`), so what the agent can do doesn't depend on where
  * Screenplay runs. Who may drive is Frame Control's call, applied in front of
  * every backend by the agent's driver (`agent-driver.ts`).
  */
@@ -34,19 +35,32 @@ export type DriveModifiers = {
   metaKey?: boolean
 }
 
+/**
+ * How fast a gesture plays (#1383), set by what the person asked for.
+ * - `show` ("show me"): at a pace they can watch. A cursor glides to the
+ *   target and pauses before acting, typing goes in a character at a time,
+ *   and scrolls and drags move smoothly.
+ * - `jump` ("get it into that state"): at once, with nothing drawn.
+ */
+export type DrivePace = "show" | "jump"
+
+type Paced = { pace?: DrivePace }
+
 /** The gestures. Each one changes the page, so each one needs control. */
-export type DriveGesture =
-  | { op: "click"; target: DriveTarget }
-  | { op: "type"; target: DriveTarget; text: string; replace?: boolean }
-  | {
-      op: "key"
-      key: string
-      modifiers?: DriveModifiers
-      target?: DriveTarget
-    }
-  | { op: "scroll"; target?: DriveTarget; dx?: number; dy?: number }
-  | { op: "select"; target: DriveTarget; value: string }
-  | { op: "drag"; target: DriveTarget; to: DriveTarget }
+export type DriveGesture = Paced &
+  (
+    | { op: "click"; target: DriveTarget }
+    | { op: "type"; target: DriveTarget; text: string; replace?: boolean }
+    | {
+        op: "key"
+        key: string
+        modifiers?: DriveModifiers
+        target?: DriveTarget
+      }
+    | { op: "scroll"; target?: DriveTarget; dx?: number; dy?: number }
+    | { op: "select"; target: DriveTarget; value: string }
+    | { op: "drag"; target: DriveTarget; to: DriveTarget }
+  )
 
 /** The reads. They don't change the page, so they don't need control. */
 export type DriveRead = { op: "elements"; selector?: string }
@@ -129,26 +143,27 @@ export type DriveDone = {
 }
 
 /**
- * The gestures the Mac can't make for real (#1367): its input is synthetic,
- * so nothing the browser itself does for a real gesture happens. A gesture
- * that hits one returns the gap instead of pretending it worked, so the agent
- * asks the person to do that step. Trusted input that would close them is
- * #1385.
+ * The gestures the Sandbox Bridge can't make for real (#1367): it drives a
+ * page in a person's own canvas (a frame on the Mac, a Mockup anywhere, #1391)
+ * with synthetic input, so nothing the browser itself does for a real gesture
+ * happens. A gesture that hits one returns the gap instead of pretending it
+ * worked, so the agent asks the person to do that step. Trusted input that
+ * would close them on the Mac is #1385.
  */
 export const DRIVE_GAPS = {
   "file-picker":
-    "Choosing a file opens the system file picker, which Claude can't open in a frame on the Mac.",
+    "Choosing a file opens the system file picker, which the agent can't open in this page.",
   clipboard:
-    "The page used the clipboard, which Claude can't reach in a frame on the Mac, so the copy or paste didn't happen.",
+    "The page used the clipboard, which the agent can't reach in this page, so the copy or paste didn't happen.",
   "rich-text":
-    "Typing into a rich-text editor needs the keyboard focus, which Claude can't move into a frame on the Mac.",
+    "Typing into a rich-text editor needs the keyboard focus, which the agent can't move into this page.",
   "key-typing":
-    "A key event doesn't type its character on the Mac. Use frame_type to enter text.",
-  tab: "Tab doesn't move the focus in a frame on the Mac.",
+    "A key event doesn't type its character in this page. Use frame_type to enter text.",
+  tab: "Tab doesn't move the focus in this page.",
   "native-select":
-    "A native select's popup can't be opened on the Mac. Use frame_select to pick an option.",
+    "A native select's popup can't be opened in this page. Use frame_select to pick an option.",
   "native-picker":
-    "The browser's own picker (date, time or colour) can't be opened on the Mac. Use frame_type to set the field's value.",
+    "The browser's own picker (date, time or colour) can't be opened in this page. Use frame_type to set the field's value.",
 } as const
 
 export type DriveGap = keyof typeof DRIVE_GAPS
@@ -191,4 +206,9 @@ export interface FrameDriveBackend {
   unavailable(frameId?: string): Promise<string | null>
   run(frameId: string, op: DriveOp): Promise<DriveResult>
   screenshot(frameId: string): Promise<DriveScreenshotResult>
+  /**
+   * Bring the frame into view on the canvas of the person who asked, and
+   * nobody else's (#1383). Null when it did, otherwise why not.
+   */
+  reveal(frameId: string): Promise<string | null>
 }

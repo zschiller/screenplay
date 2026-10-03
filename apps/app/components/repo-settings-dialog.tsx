@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -17,11 +18,12 @@ import {
   FieldLabel,
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { revealCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
-import { repoEnvVarNames } from "@/lib/repo-env/names"
+import { mergeEnvVars, repoEnvVarNames } from "@/lib/repo-env/names"
 import { isCustomized, runSettings } from "@/lib/repository-library"
 import type { RepoData } from "@/lib/types"
 
@@ -30,9 +32,11 @@ import type { RepoData } from "@/lib/types"
  * the canvas so every collaborator's new Workspaces start from them. Opened by
  * Edit in Canvas settings and by Settings on the sidebar's repository row.
  * Saving changes this canvas only; given the `repository` it links to and
- * differs from, the footer offers Reset to Settings (#1424). Env var values
- * never pass through the room doc: they're saved and revealed through server
- * actions, and only `canRevealEnv` (the Repo's adder) sees them (#1416).
+ * differs from, the footer offers Reset to Settings (#1424). Given
+ * `onSaveToAll` too, an unchecked box saves the edit to that Repository and
+ * every canvas using it instead (#1425). Env var values never pass through
+ * the room doc: they're saved and revealed through server actions, and only
+ * `canRevealEnv` (the Repo's adder) sees them (#1416).
  */
 export function RepoSettingsDialog({
   roomId,
@@ -42,6 +46,7 @@ export function RepoSettingsDialog({
   open,
   onOpenChange,
   onUpdate,
+  onSaveToAll,
 }: {
   roomId: string
   /** Whether this person may reveal the Repo's stored env var values. */
@@ -52,6 +57,8 @@ export function RepoSettingsDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   onUpdate: (id: string, data: Partial<RepoData>) => void
+  /** Save the edited `repository` to Settings and every canvas using it. */
+  onSaveToAll?: (repository: RepoConfig) => Promise<void>
 }) {
   return (
     <Dialog open={open && !!repo} onOpenChange={onOpenChange}>
@@ -75,6 +82,7 @@ export function RepoSettingsDialog({
             repo={repo}
             repository={repository}
             onUpdate={onUpdate}
+            onSaveToAll={onSaveToAll}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -89,6 +97,7 @@ function RepoSettingsForm({
   repo,
   repository,
   onUpdate,
+  onSaveToAll,
   onClose,
 }: {
   roomId: string
@@ -96,6 +105,7 @@ function RepoSettingsForm({
   repo: RepoData
   repository?: RepoConfig
   onUpdate: (id: string, data: Partial<RepoData>) => void
+  onSaveToAll?: (repository: RepoConfig) => Promise<void>
   onClose: () => void
 }) {
   const [name, setName] = useState(repo.name ?? "")
@@ -111,12 +121,15 @@ function RepoSettingsForm({
   const [envVars, setEnvVars] = useState("")
   const [loadedEnv, setLoadedEnv] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
     repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
   )
   const [systemPrompt, setSystemPrompt] = useState(repo.systemPrompt ?? "")
+  const canSaveToAll = Boolean(repository && onSaveToAll)
+  const [saveToAll, setSaveToAll] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const parsedPort = Number.parseInt(devServerPort, 10)
   const portIsValid =
@@ -138,9 +151,32 @@ function RepoSettingsForm({
       .finally(() => setRevealing(false))
   }
 
-  const handleSave = async () => {
+  // The values Save to all sends: this canvas's, as far as this form knows
+  // them. Only the adder can read the stored ones; anyone else's typed lines
+  // go over the Repository's own.
+  const envForAll = useCallback(
+    async (from: RepoConfig): Promise<string> => {
+      if (canRevealEnv) {
+        if (envChanged || loadedEnv !== null) return envVars
+        if (hasStoredEnv) return revealCanvasRepoEnv(roomId, repo.id)
+        return ""
+      }
+      return envChanged ? mergeEnvVars(from.envVars, envVars) : from.envVars
+    },
+    [
+      canRevealEnv,
+      envChanged,
+      envVars,
+      hasStoredEnv,
+      loadedEnv,
+      roomId,
+      repo.id,
+    ]
+  )
+
+  const handleSave = useCallback(async () => {
     if (!portIsValid) return
-    const patch: Partial<RepoData> = {
+    const settings = {
       name: name.trim(),
       setupScript,
       devScript,
@@ -149,8 +185,10 @@ function RepoSettingsForm({
       defaultIframeLayerSizeId,
       systemPrompt: trimmedSystemPrompt || undefined,
     }
+    const patch: Partial<RepoData> = { ...settings }
+    setSaving(true)
+    setError(null)
     if (envChanged) {
-      setSaving(true)
       try {
         const fields = await saveCanvasRepoEnv(
           roomId,
@@ -160,14 +198,50 @@ function RepoSettingsForm({
         )
         Object.assign(patch, fields, { envVars: undefined })
       } catch {
-        toast.error("Couldn't save the environment variables.")
+        setError("Couldn't save the environment variables.")
         setSaving(false)
         return
       }
     }
+    if (saveToAll && repository && onSaveToAll) {
+      try {
+        await onSaveToAll({
+          ...repository,
+          ...settings,
+          envVars: await envForAll(repository),
+          updatedAt: Date.now(),
+        })
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to save")
+        setSaving(false)
+        return
+      }
+    }
+    // This canvas takes the edit itself as well, so it shows at once rather
+    // than when the server's write syncs back.
     onUpdate(repo.id, patch)
     onClose()
-  }
+  }, [
+    portIsValid,
+    name,
+    setupScript,
+    devScript,
+    parsedPort,
+    copyPatterns,
+    defaultIframeLayerSizeId,
+    trimmedSystemPrompt,
+    envChanged,
+    roomId,
+    repo.id,
+    envVars,
+    canRevealEnv,
+    saveToAll,
+    repository,
+    onSaveToAll,
+    envForAll,
+    onUpdate,
+    onClose,
+  ])
 
   const resetToSettings = (from: RepoConfig) => {
     onUpdate(repo.id, {
@@ -191,6 +265,15 @@ function RepoSettingsForm({
     defaultIframeLayerSizeId !==
       (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
     trimmedSystemPrompt !== (repo.systemPrompt ?? "")
+
+  // Ticked, an unedited form can still save: it sends this canvas's
+  // customized settings out to the rest.
+  const differsFromRepository =
+    repository !== undefined && isCustomized(repo, repository)
+  const canSave =
+    portIsValid &&
+    !saving &&
+    (hasChanges || (saveToAll && differsFromRepository))
 
   return (
     <>
@@ -241,6 +324,22 @@ function RepoSettingsForm({
         />
       </div>
 
+      {canSaveToAll && (
+        <Label htmlFor="repo-settings-save-to-all" className="font-normal">
+          <Checkbox
+            id="repo-settings-save-to-all"
+            checked={saveToAll}
+            onCheckedChange={(checked) => setSaveToAll(checked === true)}
+          />
+          Also update Settings and my other canvases
+        </Label>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
       <DialogFooter>
         {repository && isCustomized(repo, repository) && (
           <Button
@@ -255,12 +354,8 @@ function RepoSettingsForm({
         <Button variant="ghost" size="sm" onClick={onClose}>
           Cancel
         </Button>
-        <Button
-          size="sm"
-          onClick={() => void handleSave()}
-          disabled={!hasChanges || !portIsValid || saving}
-        >
-          Save
+        <Button size="sm" onClick={() => void handleSave()} disabled={!canSave}>
+          {saving ? "Saving…" : "Save"}
         </Button>
       </DialogFooter>
     </>

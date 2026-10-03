@@ -301,6 +301,8 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
 export interface SketchTarget {
   /** The Sketch Chat, which owns the Documents and Mockups it makes. */
   chatId: string
+  /** The member the turn acts for, in whose view it drives a Mockup. */
+  userId: string
 }
 
 interface SketchContext {
@@ -328,7 +330,12 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
     })
   },
   buildTools(room, target) {
-    return toolsetFor({ kind: "sketch", room, chatId: target.chatId })
+    return toolsetFor({
+      kind: "sketch",
+      room,
+      chatId: target.chatId,
+      userId: target.userId,
+    })
   },
   // No branch and no plan mode; a Delegated Message still says who sent it.
   decorateUserMessage(message, { delegatedFrom }) {

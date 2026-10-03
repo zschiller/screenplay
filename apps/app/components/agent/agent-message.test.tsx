@@ -413,6 +413,52 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
   })
 })
 
+// Each step of a frame drive reads as a short line in chat (#1390).
+describe("AgentMessageItem — frame drive steps", () => {
+  const row = (title: string, rawInput: Record<string, unknown>) => {
+    const { container, unmount } = render(
+      <AgentMessageItem
+        message={toolCall({ title, status: "completed", rawInput })}
+      />
+    )
+    const line = screen.getByTestId("tool-call").textContent
+    const code = container.querySelector("code")?.textContent ?? null
+    unmount()
+    return { line, code }
+  }
+
+  it("names what each step acted on", () => {
+    expect(row("frame_click", { target: { text: "Save" } })).toMatchObject({
+      line: expect.stringContaining("Click"),
+      code: "Save",
+    })
+    expect(
+      row("mcp__screenplay__frame_click", { target: { selector: "#save" } })
+        .code
+    ).toBe("#save")
+    expect(
+      row("frame_type", { target: { text: "Name" }, text: "Ada" }).code
+    ).toBe("Ada")
+    expect(
+      row("frame_key", { key: "k", modifiers: { metaKey: true } }).code
+    ).toBe("Cmd+k")
+    expect(
+      row("frame_drag", {
+        target: { text: "Volume" },
+        to: { x: 120.4, y: 40 },
+      }).code
+    ).toBe("Volume → 120, 40")
+    expect(row("frame_open", { route: "/settings" })).toMatchObject({
+      line: expect.stringContaining("Open frame"),
+      code: "/settings",
+    })
+    expect(row("frame_start_driving", { pace: "show" })).toMatchObject({
+      line: expect.stringContaining("Start driving"),
+      code: null,
+    })
+  })
+})
+
 // A thin smoke test over the render shell (issue #640): the grouping *logic*
 // lives in `groupToolCalls` and is unit-tested there without a DOM; here we only
 // confirm the container renders, its children live inside it, and it collapses.

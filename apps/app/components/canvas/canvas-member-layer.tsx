@@ -486,9 +486,16 @@ function CanvasMemberLayerImpl({
                 onKnobValuesChange={layerMutations.updateMockupKnobValues}
                 onSharedStateChanged={layerMutations.updateMockupSharedState}
                 focused={focusedIframeLayerId === mockup.id}
+                driver={frameControl.driverOf(mockup.id)}
                 onFocus={(id) => {
-                  setFocusedIframeLayerId(id)
-                  if (id !== null) setCreateFlowIframeLayerId(null)
+                  if (id === null) {
+                    setFocusedIframeLayerId(null)
+                    return
+                  }
+                  // Interact goes through Frame Control, as on a frame: it
+                  // takes the mockup from the agent.
+                  frameControl.interact(id)
+                  setCreateFlowIframeLayerId(null)
                 }}
                 commentMode={commentMode}
                 onWheel={onIframeWheel}

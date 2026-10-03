@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from "node:fs"
 import http from "node:http"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -8,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { WebSocket as NodeWebSocket } from "ws"
 
 import { frameDriveContract } from "@/lib/frame-drive/contract-suite"
-import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
+import type { DriveOp } from "@/lib/frame-drive/contract"
 import {
   macFrameDriveBackend,
   visiblePart,
@@ -22,6 +21,12 @@ import {
   runFrameDriveRelay,
 } from "@/lib/frame-drive/mac/relay"
 import {
+  askBridge,
+  PNG,
+  startTestPage,
+  testPage,
+} from "@/lib/frame-drive/test-page"
+import {
   startLocalYjsServer,
   type YjsServerHandle,
 } from "@/lib/yjs-host/y-websocket-server"
@@ -33,75 +38,17 @@ import {
  * it), and the Sandbox Bridge running in the page.
  */
 
-const BRIDGE = readFileSync(
-  join(process.cwd(), "lib", "sandbox-bridge", "bridge.js"),
-  "utf8"
-)
 const SECRET = "drive-test-secret"
 const ROOM = "drive-room"
 const FRAME = "frame-1"
-// A 1×1 PNG, standing in for the Mac shell's snapshot.
-const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-  "base64"
-)
-
 let server: YjsServerHandle
 let dataDir: string
 let agentDrives = true
 const controlListeners = new Set<() => void>()
 const snapshots: unknown[] = []
+const reveals: string[] = []
 const frames = createRelayFrames()
 let relay: { close(): void } | null = null
-
-/** Run one op through the bridge in this page, as the canvas does. */
-let nextId = 1
-function bridgeDrive(message: Record<string, unknown>): Promise<DriveResult> {
-  const id = `d${nextId++}`
-  return new Promise((resolve) => {
-    function onMessage(e: MessageEvent) {
-      const d = e.data
-      if (d?.type !== "screenplay:dom-result" || d.id !== id) return
-      window.removeEventListener("message", onMessage)
-      resolve(d.ok ? d.value : { status: "failed", reason: d.error })
-    }
-    window.addEventListener("message", onMessage)
-    window.dispatchEvent(
-      new MessageEvent("message", { data: { ...message, id }, source: window })
-    )
-  })
-}
-
-/** jsdom has no layout: give every shown element a box, and no hit-testing. */
-function fakeLayout() {
-  const g = globalThis as { CSS?: { escape?: (s: string) => string } }
-  g.CSS ??= {}
-  g.CSS.escape ??= (s: string) => s.replace(/["\\]/g, "\\$&")
-  Element.prototype.getBoundingClientRect = function (this: Element) {
-    const shown = !this.closest("[hidden]")
-    const box = shown ? { width: 100, height: 20 } : { width: 0, height: 0 }
-    return {
-      x: 10,
-      y: 10,
-      top: 10,
-      left: 10,
-      right: 10 + box.width,
-      bottom: 10 + box.height,
-      ...box,
-      toJSON() {},
-    } as DOMRect
-  }
-  document.elementFromPoint = () => null
-  window.scrollBy = () => {}
-  // WebKit refuses the clipboard to an untrusted gesture in a frame.
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: {
-      writeText: () =>
-        Promise.reject(new DOMException("denied", "NotAllowedError")),
-    },
-  })
-}
 
 function connectRelay(url: string) {
   const socket = new NodeWebSocket(url, { origin: window.location.origin })
@@ -111,6 +58,10 @@ function connectRelay(url: string) {
     subscribeControl: (listener) => {
       controlListeners.add(listener)
       return () => controlListeners.delete(listener)
+    },
+    reveal: async (frameId) => {
+      reveals.push(frameId)
+      return frameId === FRAME
     },
   })
 }
@@ -140,8 +91,7 @@ const backend = macFrameDriveBackend(ROOM, {
 beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "frame-drive-"))
   process.env.YJS_PERSISTENCE_DIR = dataDir
-  fakeLayout()
-  new Function(BRIDGE)()
+  startTestPage()
   server = await startLocalYjsServer({
     port: 0,
     secret: SECRET,
@@ -149,8 +99,8 @@ beforeAll(async () => {
     appPort: window.location.port || "80",
   })
   frames.register(FRAME, {
-    drive: (op: DriveOp) => bridgeDrive({ type: "screenplay:drive", op }),
-    stop: () => void bridgeDrive({ type: "screenplay:drive-stop" }),
+    drive: (op: DriveOp) => askBridge({ type: "screenplay:drive", op }),
+    stop: () => void askBridge({ type: "screenplay:drive-stop" }),
     where: () => ({
       rect: { x: 0, y: 0, width: 400, height: 300 },
       window: { width: 1280, height: 800 },
@@ -172,15 +122,7 @@ frameDriveContract("Mac (Sandbox Bridge in a test page)", {
   setup: async () => ({
     backend,
     frameId: FRAME,
-    async load(html) {
-      document.body.innerHTML = html
-      for (const script of document.body.querySelectorAll("script")) {
-        new Function(script.textContent ?? "")()
-      }
-    },
-    async evaluated() {
-      return (window as { __evaluated?: boolean }).__evaluated === true
-    },
+    ...testPage,
   }),
   gaps: [
     "file-picker",
@@ -263,6 +205,69 @@ describe("Mac drive channel", () => {
     const result = await backend.screenshot(FRAME)
     expect(result.status).toBe("shot")
     expect(snapshots).toEqual([{ x: 0, y: 0, width: 400, height: 300 }])
+  })
+
+  it("asks the canvas showing the frame to bring it into view", async () => {
+    reveals.length = 0
+    expect(await backend.reveal(FRAME)).toBeNull()
+    expect(reveals).toEqual([FRAME])
+    expect(await backend.reveal("not-here")).toMatch(/isn't loaded/)
+  })
+
+  it("draws the agent's cursor at show pace, typing a character at a time", async () => {
+    document.body.innerHTML = `<input id="name" aria-label="Name">`
+    const inputs: string[] = []
+    document
+      .getElementById("name")!
+      .addEventListener("input", (e) =>
+        inputs.push((e.target as HTMLInputElement).value)
+      )
+    const typing = backend.run(FRAME, {
+      op: "type",
+      target: { selector: "#name" },
+      text: "Ada",
+      pace: "show",
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    const cursor = document.getElementById("__screenplay-drive-cursor")
+    expect(cursor?.textContent).toBe("Agent")
+    expect(cursor?.style.pointerEvents).toBe("none")
+    // The field is untouched while the cursor glides to it.
+    expect(inputs).toEqual([])
+    expect(await typing).toMatchObject({ status: "done" })
+    expect(inputs).toEqual(["A", "Ad", "Ada"])
+    // Reads never list it.
+    const page = await backend.run(FRAME, { op: "elements" })
+    expect(JSON.stringify(page)).not.toContain("Agent")
+    // A step at jump pace clears it at once.
+    await backend.run(FRAME, {
+      op: "click",
+      target: { selector: "#name" },
+      pace: "jump",
+    })
+    expect(document.getElementById("__screenplay-drive-cursor")).toBeNull()
+  })
+
+  it("stops a show-pace step that's still gliding when control moves away", async () => {
+    document.body.innerHTML = `<button id="save">Save</button><p id="out">idle</p>`
+    let clicked = false
+    document.getElementById("save")!.addEventListener("click", () => {
+      clicked = true
+    })
+    const click = backend.run(FRAME, {
+      op: "click",
+      target: { selector: "#save" },
+      pace: "show",
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    agentDrives = false
+    controlListeners.forEach((listener) => listener())
+    try {
+      expect(await click).toEqual({ status: "taken" })
+      expect(clicked).toBe(false)
+    } finally {
+      agentDrives = true
+    }
   })
 
   it("says the canvas isn't open when no canvas shows the Room", async () => {

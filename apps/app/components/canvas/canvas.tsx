@@ -142,7 +142,10 @@ import { useCanvasView } from "@/components/canvas/use-canvas-view"
 
 import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import { useFrameControl } from "@/components/canvas/use-frame-control"
-import { FrameDriveRelay } from "@/components/canvas/frame-drive-relay"
+import {
+  FrameDriveRelay,
+  FrameDriveViewRelay,
+} from "@/components/canvas/frame-drive-relay"
 import { useSharedFrames } from "@/components/canvas/use-shared-frames"
 import { frameDriverRingColor } from "@/components/canvas/frame-driver"
 import { drivenByOther } from "@/lib/canvas/frame-control"
@@ -269,6 +272,8 @@ const ASK_FOR_KNOB_PROMPT = "Add a knob to this prototype that controls "
 
 /** How long a Coordinator view request waits for the doc to catch up. */
 const VIEW_REQUEST_SETTLE_MS = 250
+/** How long the agent's reveal waits for a frame it just opened to lay out. */
+const REVEAL_LAYOUT_WAIT_MS = 3000
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
@@ -578,11 +583,15 @@ export function Canvas({
   const spaceHeld = interaction.spaceHeld
   const chatAnchor = interaction.chatAnchor
 
-  // Frame Control (#1387): who drives each frame. Interact is the driver's
-  // seat; the agent always yields it.
+  // Frame Control (#1387): who drives each frame and mockup (#1391).
+  // Interact is the driver's seat; the agent always yields it.
   const frameIds = useMemo(
-    () => iframeLayers.map((layer) => layer.id),
-    [iframeLayers]
+    () => interactiveLayers.map((layer) => layer.id),
+    [interactiveLayers]
+  )
+  const mockupIds = useMemo(
+    () => new Set(mockupLayers.map((layer) => layer.id)),
+    [mockupLayers]
   )
   // Shared frames (#1392): on hosted, each Workspace's frames are one browser
   // in its Sandbox, streamed to everyone; the desktop app keeps its iframes.
@@ -594,12 +603,15 @@ export function Canvas({
   })
   // Handed a frame (Let drive, a reload): Interact needs it selected.
   const selectIframeLayer = selection.selectIframeLayer
+  const selectDocumentLayer = selection.selectDocumentLayer
   const takeFrameSeat = useCallback(
     (id: string) => {
-      selectIframeLayer(id, false)
+      // Mockups share the Document selection Set.
+      if (mockupIds.has(id)) selectDocumentLayer(id, false)
+      else selectIframeLayer(id, false)
       setFocusedIframeLayerId(id)
     },
-    [selectIframeLayer, setFocusedIframeLayerId]
+    [mockupIds, selectDocumentLayer, selectIframeLayer, setFocusedIframeLayerId]
   )
   const frameControl = useFrameControl({
     collection: collections.frameControl,
@@ -842,6 +854,24 @@ export function Canvas({
       window.clearTimeout(timer)
     }
   }, [roomId, zoomControls, cameraZoomToRect])
+
+  // The agent showing this member a frame (#1390): fit it in their view,
+  // waiting briefly for a frame it just opened to be laid out.
+  const revealFrame = useCallback(
+    async (frameId: string) => {
+      const deadline = performance.now() + REVEAL_LAYOUT_WAIT_MS
+      for (;;) {
+        const layout = iframeLayerLayoutsRef.current.get(frameId)
+        if (layout) {
+          cameraZoomToRect(layout)
+          return true
+        }
+        if (performance.now() >= deadline) return false
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    },
+    [cameraZoomToRect]
+  )
 
   // The comments panel (#787); Escape closes it from anywhere on the canvas.
   const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
@@ -2101,12 +2131,21 @@ export function Canvas({
 
   return (
     <>
-      {/* The agent drives this canvas's frames on the Mac (#1389). */}
-      {isLocalBuild && (
+      {/* The agent drives this canvas's frames and mockups on the Mac
+        (#1389), and its mockups on hosted (#1391). */}
+      {isLocalBuild ? (
         <FrameDriveRelay
           roomId={roomId}
           viewerId={userId ?? null}
           frameControl={collections.frameControl}
+          reveal={revealFrame}
+        />
+      ) : (
+        <FrameDriveViewRelay
+          roomId={roomId}
+          viewerId={userId ?? null}
+          frameControl={collections.frameControl}
+          asks={collections.frameDriveAsks}
         />
       )}
       {chatTarget.pendingProbes.map(({ agentId, sandboxName }) => (
@@ -2504,7 +2543,7 @@ export function Canvas({
                     // resizing it: its edges belong to the page.
                     focusedIframeLayerId !== null ||
                     // Nor is one someone else drives (#1387).
-                    [...selectedIframeLayerIds].some((id) =>
+                    [...selectedInteractiveIds].some((id) =>
                       drivenByOther(frameControl.driverOf(id))
                     )
                   }
