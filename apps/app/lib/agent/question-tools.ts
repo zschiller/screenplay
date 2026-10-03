@@ -1,7 +1,7 @@
 import "server-only"
 
 import { tool, jsonSchema } from "ai"
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import {
   ASK_QUESTION_TOOL,
   MAX_QUESTION_OPTIONS,
@@ -16,7 +16,7 @@ import {
  * the model to stop and wait.
  */
 export function buildQuestionTools() {
-  return {
+  const tools = {
     [ASK_QUESTION_TOOL]: tool({
       description: [
         `Ask the user a question they answer with one click. Use it for a real fork only the user can decide, with ${MIN_QUESTION_OPTIONS} to ${MAX_QUESTION_OPTIONS} short options; mark the one you'd pick as recommended.`,
@@ -68,11 +68,8 @@ export function buildQuestionTools() {
       },
     }),
   }
-}
-
-/** For a harness reaching it over MCP: showing a card changes nothing. */
-export const QUESTION_TOOL_ANNOTATIONS: Readonly<
-  Record<string, McpToolAnnotations>
-> = {
-  [ASK_QUESTION_TOOL]: { readOnlyHint: true, openWorldHint: false },
+  // For a harness reaching it over MCP: showing a card changes nothing.
+  return annotateTools(tools, {
+    [ASK_QUESTION_TOOL]: { readOnlyHint: true, openWorldHint: false },
+  })
 }

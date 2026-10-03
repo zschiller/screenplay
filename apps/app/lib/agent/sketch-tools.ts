@@ -1,12 +1,8 @@
 import "server-only"
 
-import { jsonSchema, tool, type ToolSet } from "ai"
+import { jsonSchema, tool } from "ai"
 
-import { buildDocumentTools } from "@/lib/agent/document-tools"
-import { buildMockupTools } from "@/lib/agent/mockup-tools"
-import { chatFrameDriveTools } from "@/lib/frame-drive/live"
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
-import type { RoomDoc } from "@/lib/room-access"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import { getSkill, getSkillIndex } from "@/lib/skills"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
 
@@ -23,28 +19,15 @@ export function sketchSkillIndex(): SkillMetadata[] {
 }
 
 /**
- * A Sketch Chat's own tools (`lib/chat/sketch-chat.ts`): the Document and
- * Mockup tools every chat has, owned by this chat, Frame Drive to drive a
- * Mockup in the asker's view (#1391), and `read_skill` for the Mockup App
- * Skills. No sandbox, so nothing that touches code.
+ * A Sketch Chat's own `read_skill` (`lib/chat/sketch-chat.ts`), for the
+ * Mockup App Skills only. The Sketch Chat Target lists it beside the Document,
+ * Mockup and Frame Drive tools (`sketch-chat-target.ts`).
  */
-export function buildSketchTools({
-  room,
-  chatId,
-  userId,
-}: {
-  room: RoomDoc
-  chatId: string
-  /** The asker, in whose view the chat drives a Mockup (#1391). */
-  userId: string
-}): ToolSet {
+export function buildSketchSkillTools() {
   const listing = sketchSkillIndex()
     .map((s) => `- ${s.name}: ${s.description}`)
     .join("\n")
-  return {
-    ...buildDocumentTools({ room, chatId }),
-    ...buildMockupTools({ room, chatId }),
-    ...chatFrameDriveTools({ room, userId }),
+  const tools = {
     read_skill: tool({
       description: `Load the full instructions for one of your skills. Skills:\n${listing}`,
       inputSchema: jsonSchema<{ name: string }>({
@@ -57,15 +40,8 @@ export function buildSketchTools({
         `Unknown skill: "${name}". Available skills:\n${listing}`,
     }),
   }
-}
-
-/**
- * MCP annotations for {@link buildSketchTools}' own tools and the layer read
- * every chat gets (`layer-read-tools.ts`).
- */
-export const SKETCH_TOOL_ANNOTATIONS: Readonly<
-  Record<string, McpToolAnnotations>
-> = {
-  read_skill: { readOnlyHint: true, openWorldHint: false },
-  read_document: { readOnlyHint: true, openWorldHint: false },
+  // Reading a Skill changes nothing.
+  return annotateTools(tools, {
+    read_skill: { readOnlyHint: true, openWorldHint: false },
+  })
 }

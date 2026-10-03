@@ -36,12 +36,8 @@ vi.mock("@/lib/auth-helpers", () => ({
 }))
 vi.mock("@/lib/github-pr", () => ({ createGitHubPr: vi.fn() }))
 
-import {
-  toolsetFor,
-  withRedactedOutput,
-  type ToolTarget,
-} from "@/lib/agent/toolset"
-import type { ToolContext } from "@/lib/agent/tools"
+import { toolsetOn, withRedactedOutput } from "@/lib/agent/toolset"
+import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 import { secretPatterns } from "@/lib/agent/redact"
 
 // The turn's Room: the tools reach the room doc only through it.
@@ -50,17 +46,16 @@ const room = {
   readDoc: vi.fn(async () => null),
   mutateDoc: vi.fn(async () => {}),
 } as never
-const sandboxCtx: ToolContext = {
-  sandboxName: "sandbox-a",
-  room,
-  userId: "user-1",
-}
-const sandboxTarget: ToolTarget = {
-  kind: "sandbox",
-  room,
-  sandbox: sandboxCtx,
-  chatId: "chat-1",
-}
+/** A Workspace chat's toolset on the in-process engine. */
+const workspaceToolset = () =>
+  toolsetOn(
+    workspaceChatTarget.tools(room, {
+      sandboxName: "sandbox-a",
+      chatId: "chat-1",
+      userId: "user-1",
+    }),
+    "in-process"
+  )
 
 function fakeSandboxReturning(content: string): SandboxInstance {
   const notUsed = (name: string) => () => {
@@ -90,11 +85,11 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe("toolsetFor (sandbox)", () => {
+describe("toolsetOn (a Workspace chat, in process)", () => {
   it("redacts a GitHub token from read_file output — closing the leak structurally", async () => {
     fake.setInstance(fakeSandboxReturning(`TOKEN=${TOKEN}\n`))
 
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     const out = await tools.read_file.execute!({ path: ".env" }, {} as never)
 
     expect(out).not.toContain(TOKEN)
@@ -104,7 +99,7 @@ describe("toolsetFor (sandbox)", () => {
   it("redacts a GitHub token from grep output — new tools inherit redaction", async () => {
     fake.setInstance(fakeSandboxReturning(`config.ts:1:TOKEN=${TOKEN}\n`))
 
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     const out = await tools.grep.execute!({ pattern: "TOKEN" }, {} as never)
 
     expect(out).not.toContain(TOKEN)
@@ -112,12 +107,12 @@ describe("toolsetFor (sandbox)", () => {
   })
 
   it("includes the cross-cutting read_document tool", () => {
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     expect(tools.read_document).toBeDefined()
   })
 
   it("gives every chat the ask_question tool (#1312)", async () => {
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     const ask = tools.ask_question.execute!
     expect(
       await ask(
@@ -134,7 +129,7 @@ describe("toolsetFor (sandbox)", () => {
   })
 
   it("reads other Workspaces' code, and has no tool that writes to them (#1315)", () => {
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     expect(tools.read_code_file).toBeDefined()
     expect(tools.search_code).toBeDefined()
     expect(tools.find_code_files).toBeDefined()
@@ -146,19 +141,19 @@ describe("toolsetFor (sandbox)", () => {
   })
 
   it("assembles the new grep and glob tools", () => {
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     expect(tools.grep).toBeDefined()
     expect(tools.glob).toBeDefined()
   })
 
   it("gives a Workspace chat the Mockup tools (#1309)", () => {
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     expect(tools.create_mockup).toBeDefined()
     expect(tools.update_mockup).toBeDefined()
   })
 
   it("preserves submit_plan as a human-in-the-loop tool with no execute", () => {
-    const tools = toolsetFor(sandboxTarget)
+    const tools = workspaceToolset()
     expect(tools.submit_plan).toBeDefined()
     expect(tools.submit_plan.execute).toBeUndefined()
   })

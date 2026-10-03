@@ -2,6 +2,7 @@ import { tool, jsonSchema, type ToolSet } from "ai"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import type { RoomToolPorts } from "@/lib/agent/room-tools"
+import { annotateTools } from "@/lib/mcp/tool-server"
 
 /**
  * The Coordinator's camera tool: `show_on_canvas` moves the view of the member
@@ -11,7 +12,7 @@ import type { RoomToolPorts } from "@/lib/agent/room-tools"
  * The view is per member, so nobody else's moves.
  */
 export function buildViewTools(readDoc: RoomToolPorts["readDoc"]): ToolSet {
-  return {
+  const tools = {
     show_on_canvas: tool({
       description:
         "Move the user's view of the canvas to fit frames, documents or Groups by id. Omit `ids` to fit the whole canvas. Only the view of the person who asked moves; nothing on the canvas changes.",
@@ -34,6 +35,10 @@ export function buildViewTools(readDoc: RoomToolPorts["readDoc"]): ToolSet {
         }),
     }),
   }
+  // Moves only the asker's own view.
+  return annotateTools(tools, {
+    show_on_canvas: { readOnlyHint: true, openWorldHint: false },
+  })
 }
 
 /** A frame, document or Group by name, the way tool results name them. */

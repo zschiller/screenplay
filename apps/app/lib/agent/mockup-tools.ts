@@ -1,7 +1,7 @@
 import { tool } from "ai"
 import { z } from "zod"
 
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import type { RoomDoc } from "@/lib/room-access"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { getGroupMembers } from "@/lib/canvas/layout"
@@ -44,7 +44,7 @@ const htmlSchema = z
   )
 
 export function buildMockupTools(ctx: MockupToolContext) {
-  return {
+  const tools = {
     create_mockup: tool({
       description:
         "Draw a Mockup on the canvas: a static HTML page shown beside the live frames, for sketching a design idea without building it. It needs no dev server and appears at once, next to this chat's other Mockups, or else in the Group of this Workspace's frames. Make one Mockup per take so they sit side by side. Returns the Mockup's id, which update_mockup takes.",
@@ -177,6 +177,12 @@ export function buildMockupTools(ctx: MockupToolContext) {
       },
     }),
   }
+  // MCP hints for the Mockup tools on a desktop harness.
+  return annotateTools(tools, {
+    create_mockup: { destructiveHint: false, openWorldHint: false },
+    update_mockup: { destructiveHint: false, openWorldHint: false },
+    read_mockup: { readOnlyHint: true, openWorldHint: false },
+  })
 }
 
 /**
@@ -210,13 +216,4 @@ export function mockupGroupFor(
       .map((f) => f.id)
   )
   return frames.size > 0 ? groupOf("iframe-layer", frames) : undefined
-}
-
-/** MCP hints for the Mockup tools on a desktop harness. */
-export const MOCKUP_TOOL_ANNOTATIONS: Readonly<
-  Record<string, McpToolAnnotations>
-> = {
-  create_mockup: { destructiveHint: false, openWorldHint: false },
-  update_mockup: { destructiveHint: false, openWorldHint: false },
-  read_mockup: { readOnlyHint: true, openWorldHint: false },
 }

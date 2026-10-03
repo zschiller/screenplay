@@ -1,68 +1,83 @@
 import "server-only"
 
-import type { ModelMessage, Tool } from "ai"
-import {
-  buildAgentSystemPrompt,
-  buildRoomSystemPrompt,
-  buildSketchSystemPrompt,
-  type LayerDirectory,
-} from "./config"
-import { sketchSkillIndex } from "./sketch-tools"
-import { toolsetFor } from "./toolset"
-import type { ToolNaming } from "./tool-name"
-import { prependTurnMarkers } from "./message-markers"
-import type { ToolContext } from "./tools"
-import { summarizeCanvas, type RoomToolPorts } from "./room-tools"
-import { liveWorkspaceReadPorts } from "./room-read-ports"
-import { listTerminalTabs } from "@/lib/terminal-tabs"
-import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
-import { getSkillIndex } from "@/lib/skills"
-import type { OriginTaggedSkill } from "@/lib/skills/merged"
+import type { ToolSet } from "ai"
+import type { LayerDirectory } from "./config"
+import { turnToolset, type ChatTools } from "./toolset"
+import { BARE_TOOL_NAMING, type ToolNaming } from "./tool-name"
 import type { RoomDoc, RoomReader } from "@/lib/room-access"
 import { readMemory } from "@/lib/canvas/memory"
 import type { MemoryData } from "@/lib/types"
 
 /**
- * Server-side registry of chat target kinds (a Branch's sandbox, the whole
- * Room, or a Sketch Chat with no repository). A Document is no longer a target (#1314): a Workspace chat writes the
- * Documents it owns with its own tools. Each entry contains the
- * code paths that change between targets:
+ * The seam every chat target kind fills: a Branch's Workspace
+ * (`workspace-chat-target.ts`), the whole Room's Coordinator
+ * (`room-chat-target.ts`), or a Sketch Chat with no repository
+ * (`sketch-chat-target.ts`). A Document is no longer a target (#1314): a
+ * Workspace chat writes the Documents it owns with its own tools. Each kind's
+ * module holds the code paths that change between targets:
  *
  *   - `loadContext` reads the live state of the target from Yjs.
- *   - `buildSystemPrompt` turns that state into a system prompt.
- *   - `buildTools` returns the AI-SDK tool object the agent loop runs with.
- *   - `decoratePrompt` lets the kind pre-process the user message (e.g.
- *     prepend a `[plan mode: enabled]` flag for sandbox chats).
+ *   - `buildSystemPrompt` turns that state into a system prompt, naming tools
+ *     only through `naming`, which knows just the turn's toolset.
+ *   - `tools` lists the kind's tools, once (#1487): the in-process turn and
+ *     the agent MCP route both take theirs from it (`toolset.ts`).
+ *   - `decorateUserMessage` lets the kind pre-process the user message (e.g.
+ *     prepend a `[plan mode: enabled]` flag for Workspace chats).
  *
- * Every chat target's toolset includes the cross-cutting `read_document`
- * tool (via `buildLayerReadTools`) so the model can follow `@<title>`
- * mentions to peer layers, regardless of which kind is being targeted.
- *
- * `/api/agent/stream` looks up the right entry by `target.kind` and drives the
- * Engine seam against whatever toolset the entry returns.
+ * Every kind's toolset includes the cross-cutting `read_document` and
+ * `ask_question` tools, so the model can follow `@<title>` mentions to peer
+ * layers and ask the user a Question Card, whichever kind it is.
  */
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
   loadContext(room: RoomDoc, target: TTarget): Promise<TContext | null>
-  buildSystemPrompt(
-    ctx: TContext,
-    opts: { repoSystemPrompt?: string; toolNaming?: ToolNaming }
-  ): string
-  buildTools(
-    room: RoomDoc,
-    target: TTarget,
-    sandbox?: ToolContext
-  ): Record<string, Tool>
-  decorateUserMessage?(
-    message: string,
-    opts: {
-      planMode?: boolean
-      branch?: string
-      isFirstMessage: boolean
-      /** The Coordinator chat that sent this turn, for a Delegated Message. */
-      delegatedFrom?: string
-    }
-  ): string
+  buildSystemPrompt(ctx: TContext, naming: ToolNaming): string
+  tools(room: RoomDoc, target: TTarget): ChatTools
+  decorateUserMessage(message: string, opts: MessageDecoration): string
+}
+
+/** What a kind's `decorateUserMessage` may mark a user message with. */
+export interface MessageDecoration {
+  planMode?: boolean
+  branch?: string
+  isFirstMessage: boolean
+  /** The Coordinator chat that sent this turn, for a Delegated Message. */
+  delegatedFrom?: string
+}
+
+/** A loaded chat target, produced by {@link prepareChatTarget} for a turn. */
+export interface PreparedChatTarget<TContext> {
+  kind: string
+  context: TContext
+  systemPrompt: string
+  tools: ToolSet
+  decorateUserMessage: (message: string, opts: MessageDecoration) => string
+}
+
+/**
+ * Load a target's context and build its turn's toolset and prompt. Returns
+ * `null` when the target can't be resolved so the caller can answer cleanly.
+ * `naming` is the turn's Engine's (#1223): it picks the toolset (a harness
+ * gets the shared tools only) and names them in the prompt, which can name
+ * only tools that toolset has.
+ */
+export async function prepareChatTarget<TTarget, TContext>(
+  room: RoomDoc,
+  spec: ChatTargetSpec<TTarget, TContext>,
+  target: TTarget,
+  naming: ToolNaming = BARE_TOOL_NAMING
+): Promise<PreparedChatTarget<TContext> | null> {
+  const context = await spec.loadContext(room, target)
+  if (!context) return null
+  const toolset = turnToolset(spec.tools(room, target), naming)
+  return {
+    kind: spec.kind,
+    context,
+    systemPrompt: spec.buildSystemPrompt(context, toolset.naming),
+    tools: toolset.tools,
+    decorateUserMessage: (message, opts) =>
+      spec.decorateUserMessage(message, opts),
+  }
 }
 
 /**
@@ -94,294 +109,3 @@ export async function loadLayerDirectory(
       .catch(() => null)) ?? { documents: [] }
   )
 }
-
-// ---------------------------------------------------------------------------
-// Agent (sandbox-backed) target — existing flow.
-// ---------------------------------------------------------------------------
-
-export interface AgentTarget {
-  sandboxName: string
-  branch: string
-  agentId?: string
-  /** The chat, which owns the Documents it makes (#1314). */
-  chatId: string
-}
-
-interface AgentContext {
-  chatId: string
-  repoSystemPrompt: string | undefined
-  layerDirectory: LayerDirectory
-  /** Merged App ∪ Repo Skill index, enumerated once from this Branch's sandbox. */
-  skills: OriginTaggedSkill[]
-  memory: MemoryData[]
-}
-
-export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
-  kind: "agent",
-  async loadContext(room, target) {
-    const [repoSystemPrompt, layerDirectory, skills, memory] =
-      await Promise.all([
-        room
-          .readDoc(({ branches, repos }) => {
-            const branch = branches
-              .toArray()
-              .find((a) => a.sandboxName === target.sandboxName)
-            if (!branch) return undefined
-            return repos.get(branch.repoId)?.systemPrompt
-          })
-          .catch(() => undefined),
-        loadLayerDirectory(room),
-        getMergedSkillIndexForSandbox(target.sandboxName),
-        loadCanvasMemory(room),
-      ])
-    return {
-      chatId: target.chatId,
-      repoSystemPrompt,
-      layerDirectory,
-      skills,
-      memory,
-    }
-  },
-  buildSystemPrompt(ctx, { toolNaming }) {
-    return buildAgentSystemPrompt({
-      repoSystemPrompt: ctx.repoSystemPrompt ?? undefined,
-      layerDirectory: ctx.layerDirectory,
-      chatId: ctx.chatId,
-      skills: ctx.skills,
-      memory: ctx.memory,
-      toolNaming,
-    })
-  },
-  buildTools(room, target, sandbox) {
-    if (!sandbox) {
-      throw new Error("agent chat target requires a sandbox ToolContext")
-    }
-    return toolsetFor({ kind: "sandbox", room, sandbox, chatId: target.chatId })
-  },
-  decorateUserMessage(
-    message,
-    { planMode, branch, isFirstMessage, delegatedFrom }
-  ) {
-    // Policy lives here (branch only on the first message); the codec owns
-    // the format.
-    return prependTurnMarkers(message, {
-      planMode,
-      branch: isFirstMessage ? branch : undefined,
-      delegatedFrom,
-    })
-  },
-}
-
-// ---------------------------------------------------------------------------
-// Room target — the whole canvas (the Coordinator). No sandbox:
-// its tools come from the Coordinator tools module (`room-tools.ts`).
-// ---------------------------------------------------------------------------
-
-export interface RoomTarget {
-  /** The member whose message this turn answers (Terminal Tabs are per user). */
-  userId: string
-  /**
-   * The turn canvas changes are logged under for undo. Omitted, each tool set
-   * built is its own turn; the desktop MCP route builds one per request, so it
-   * passes the chat's running turn instead.
-   */
-  turnId?: string
-  /**
-   * Starts a Workspace turn for `send_to_workspace`. Turn Launch lives above
-   * this module (`turn-launch-live.ts`), so the Room turn injects it; without
-   * it the tool reports that it can't reach Workspaces.
-   */
-  launchWorkspaceTurn?: RoomToolPorts["launchWorkspaceTurn"]
-  /** Starts a turn in a chat with no repository, injected likewise. */
-  launchSketchTurn?: RoomToolPorts["launchSketchTurn"]
-  /** Provisions a Workspace `create_workspaces` created, injected likewise. */
-  provisionWorkspace?: RoomToolPorts["provisionWorkspace"]
-  /** Stops a Workspace chat's turn for `stop_workspace`, injected likewise. */
-  stopWorkspaceTurn?: RoomToolPorts["stopWorkspaceTurn"]
-  /** Opens a Workspace's PR once the user confirms (#901), injected likewise. */
-  openPullRequest?: RoomToolPorts["openPullRequest"]
-  /** Tears down a removed Workspace's sandbox (#901), injected likewise. */
-  deleteSandbox?: RoomToolPorts["deleteSandbox"]
-  /** The Coordinator chat. */
-  coordinatorChatId?: string
-  /**
-   * Who owns the Workspaces this turn creates, when not `userId`: on a wake
-   * turn, the owner of the Workspace that woke it (`wakeRequesterId`).
-   */
-  requesterId?: string
-}
-
-interface RoomContext {
-  canvasSummary: string
-  memory: MemoryData[]
-}
-
-/** The Coordinator tools module's ports over the live Room doc and database. */
-export function liveRoomToolPorts(
-  room: RoomDoc,
-  {
-    userId,
-    launchWorkspaceTurn,
-    launchSketchTurn,
-    provisionWorkspace,
-    stopWorkspaceTurn,
-    openPullRequest,
-    deleteSandbox,
-    coordinatorChatId,
-    requesterId,
-  }: RoomTarget
-): RoomToolPorts {
-  const unavailable = (what: string) => async (): Promise<never> => {
-    throw new Error(`${what} isn't available here.`)
-  }
-  return {
-    ...liveWorkspaceReadPorts(room.roomId),
-    readDoc: (fn) => room.readDoc(fn),
-    mutateDoc: (fn) => room.mutateDoc(fn),
-    launchWorkspaceTurn: launchWorkspaceTurn ?? unavailable("Messaging chats"),
-    launchSketchTurn: launchSketchTurn ?? unavailable("Messaging chats"),
-    provisionWorkspace: provisionWorkspace ?? unavailable("Starting chats"),
-    stopWorkspaceTurn: stopWorkspaceTurn ?? unavailable("Stopping chats"),
-    openPullRequest: openPullRequest ?? unavailable("Opening pull requests"),
-    deleteSandbox: deleteSandbox ?? unavailable("Deleting chats"),
-    requesterId: requesterId ?? userId,
-    coordinatorChatId: coordinatorChatId ?? "",
-    listTerminalTabs: async () =>
-      (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
-        id: t.id,
-        label: t.label,
-        branchId: t.branch,
-      })),
-  }
-}
-
-export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
-  kind: "room",
-  async loadContext(room, target) {
-    const ports = liveRoomToolPorts(room, target)
-    const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-    const [canvasSummary, memory] = await Promise.all([
-      ports.readDoc((collections) =>
-        summarizeCanvas(collections, terminalTabs)
-      ),
-      loadCanvasMemory(room),
-    ])
-    return { canvasSummary, memory }
-  },
-  buildSystemPrompt(ctx, { toolNaming }) {
-    return buildRoomSystemPrompt({
-      canvasSummary: ctx.canvasSummary,
-      memory: ctx.memory,
-      skills: getSkillIndex("coordinator"),
-      toolNaming,
-    })
-  },
-  buildTools(room, target) {
-    return toolsetFor({
-      kind: "room",
-      room,
-      ports: liveRoomToolPorts(room, target),
-      turnId: target.turnId,
-    })
-  },
-  // No turn markers: there is no branch, and plan mode belongs to sandbox
-  // chats (#743), so a stale `planMode: true` never reaches the model.
-  decorateUserMessage(message) {
-    return message
-  },
-}
-
-// ---------------------------------------------------------------------------
-// Sketch target — a chat with no repository (`lib/chat/sketch-chat.ts`). No
-// sandbox: Documents and Mockups only.
-// ---------------------------------------------------------------------------
-
-export interface SketchTarget {
-  /** The Sketch Chat, which owns the Documents and Mockups it makes. */
-  chatId: string
-  /** The member the turn acts for, in whose view it drives a Mockup. */
-  userId: string
-}
-
-interface SketchContext {
-  chatId: string
-  layerDirectory: LayerDirectory
-  memory: MemoryData[]
-}
-
-export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
-  kind: "sketch",
-  async loadContext(room, target) {
-    const [layerDirectory, memory] = await Promise.all([
-      loadLayerDirectory(room),
-      loadCanvasMemory(room),
-    ])
-    return { chatId: target.chatId, layerDirectory, memory }
-  },
-  buildSystemPrompt(ctx, { toolNaming }) {
-    return buildSketchSystemPrompt({
-      layerDirectory: ctx.layerDirectory,
-      chatId: ctx.chatId,
-      skills: sketchSkillIndex(),
-      memory: ctx.memory,
-      toolNaming,
-    })
-  },
-  buildTools(room, target) {
-    return toolsetFor({
-      kind: "sketch",
-      room,
-      chatId: target.chatId,
-      userId: target.userId,
-    })
-  },
-  // No branch and no plan mode; a Delegated Message still says who sent it.
-  decorateUserMessage(message, { delegatedFrom }) {
-    return prependTurnMarkers(message, { delegatedFrom })
-  },
-}
-
-/** A loaded chat target — produced by `prepareChatTarget` for the route. */
-export type PreparedChatTarget = {
-  kind: string
-  systemPrompt: string
-  tools: Record<string, Tool>
-  decorateUserMessage: (
-    message: string,
-    opts: {
-      planMode?: boolean
-      branch?: string
-      isFirstMessage: boolean
-      /** The Coordinator chat that sent this turn, for a Delegated Message. */
-      delegatedFrom?: string
-    }
-  ) => string
-}
-
-/**
- * One-shot helper: pick the spec, load its context, build prompt + tools.
- * Returns `null` when the target can't be resolved so the caller can return
- * a 404 cleanly. `toolNaming` names the
- * target's tools the way the turn's engine exposes them (#1223).
- */
-export async function prepareChatTarget<TTarget, TContext>(
-  room: RoomDoc,
-  spec: ChatTargetSpec<TTarget, TContext>,
-  target: TTarget,
-  toolCtx?: ToolContext,
-  opts: { toolNaming?: ToolNaming } = {}
-): Promise<PreparedChatTarget | null> {
-  const ctx = await spec.loadContext(room, target)
-  if (!ctx) return null
-  return {
-    kind: spec.kind,
-    systemPrompt: spec.buildSystemPrompt(ctx, { toolNaming: opts.toolNaming }),
-    tools: spec.buildTools(room, target, toolCtx),
-    decorateUserMessage: (message, opts) =>
-      spec.decorateUserMessage?.(message, opts) ?? message,
-  }
-}
-
-// Re-export used types so the route doesn't need to import them from the
-// AI SDK directly.
-export type { ModelMessage }

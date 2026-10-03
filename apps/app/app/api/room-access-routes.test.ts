@@ -81,7 +81,10 @@ vi.mock("@/lib/agent/launch-turn", () => ({ launchEngineTurn: vi.fn() }))
 vi.mock("@/lib/agent/comment-request", () => ({
   settleCommentRequest: vi.fn(),
 }))
-vi.mock("@/lib/agent/toolset", () => ({ toolsetFor: () => ({}) }))
+vi.mock("@/lib/agent/toolset", () => ({
+  toolsetOn: () => ({}),
+  turnToolset: () => ({ tools: {}, naming: { name: (t: string) => t } }),
+}))
 vi.mock("@/lib/agent/one-shot-model", () => ({
   runOneShotModel: fx.runOneShotModel,
 }))

@@ -19,6 +19,7 @@ import { listTurns, recordChange, undoTurn } from "@/lib/agent/room-change-log"
 import type { RoomDoc } from "@/lib/room-access"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
+import { annotateTools } from "@/lib/mcp/tool-server"
 
 /**
  * The Coordinator's arrange tools (#894): create frames; move, group, merge
@@ -41,7 +42,7 @@ export function buildArrangeTools(
   const change = (fn: (doc: Y.Doc) => string) =>
     mutateDoc(({ doc }) => recordChange(doc, turnId, () => fn(doc)))
 
-  return {
+  const tools = {
     create_frames: tool({
       description:
         "Create frames. With `workspace_id` and `routes`, one frame per route showing that Workspace, together in a new Group. With `workspace_id` alone, one frame for it. With neither, one blank frame. Pass `group_id` to add the frames to the end of an existing Group instead of a new one.",
@@ -382,6 +383,19 @@ export function buildArrangeTools(
         }),
     }),
   }
+  // Canvas-only writes, every one undoable with `undo_changes`, so none is
+  // destructive for a harness reaching them over MCP.
+  return annotateTools(tools, {
+    create_frames: { destructiveHint: false, openWorldHint: false },
+    move_group: { destructiveHint: false, openWorldHint: false },
+    arrange_groups: { destructiveHint: false, openWorldHint: false },
+    move_to_group: { destructiveHint: false, openWorldHint: false },
+    merge_groups: { destructiveHint: false, openWorldHint: false },
+    rename: { destructiveHint: false, openWorldHint: false },
+    remove: { destructiveHint: false, openWorldHint: false },
+    undo_changes: { destructiveHint: false, openWorldHint: false },
+    list_changes: { readOnlyHint: true, openWorldHint: false },
+  })
 }
 
 const ORIGIN = { x: 0, y: 0 }

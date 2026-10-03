@@ -7,7 +7,7 @@ import {
   imageModelOutput,
   type ImageToolOutput,
 } from "@/lib/agent/image-output"
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import type {
   AgentDriveOutcome,
   AgentFrameDriver,
@@ -132,7 +132,7 @@ export function buildFrameDriveTools(
     return phrase(frame.name, await driver.run(frame.id, op))
   }
 
-  return {
+  const tools = {
     frame_start_driving: tool({
       description: `Start driving ${page} because the person asked you in chat to show them something or to get it into a state. Their ask lets you drive, so they get no second prompt. Pick \`pace\` from what they asked: \`show\` for "show me" (a cursor glides to each target and pauses before acting, and it's brought into their view), \`jump\` for "get it into that state" (every step at once, and nobody's view moves). Call it before your first step; it sets the pace of every step until frame_stop_driving.`,
       inputSchema: z.object({
@@ -343,31 +343,28 @@ export function buildFrameDriveTools(
       },
     }),
   }
+  // For a harness reaching these tools over MCP, so none of them prompts.
+  return annotateTools(tools, {
+    frame_start_driving: { destructiveHint: false, openWorldHint: false },
+    frame_open: { destructiveHint: false, openWorldHint: false },
+    frame_elements: { readOnlyHint: true, openWorldHint: false },
+    frame_screenshot: { readOnlyHint: true, openWorldHint: false },
+    frame_click: { destructiveHint: false, openWorldHint: false },
+    frame_type: { destructiveHint: false, openWorldHint: false },
+    frame_key: { destructiveHint: false, openWorldHint: false },
+    frame_scroll: { destructiveHint: false, openWorldHint: false },
+    frame_select: { destructiveHint: false, openWorldHint: false },
+    frame_drag: { destructiveHint: false, openWorldHint: false },
+    frame_hover: { destructiveHint: false, openWorldHint: false },
+    frame_stop_driving: {
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  })
 }
 
 export type FrameDriveTools = ReturnType<typeof buildFrameDriveTools>
-
-/** For a harness reaching these tools over MCP, so none of them prompts. */
-export const FRAME_DRIVE_TOOL_ANNOTATIONS: Readonly<
-  Record<keyof FrameDriveTools, McpToolAnnotations>
-> = {
-  frame_start_driving: { destructiveHint: false, openWorldHint: false },
-  frame_open: { destructiveHint: false, openWorldHint: false },
-  frame_elements: { readOnlyHint: true, openWorldHint: false },
-  frame_screenshot: { readOnlyHint: true, openWorldHint: false },
-  frame_click: { destructiveHint: false, openWorldHint: false },
-  frame_type: { destructiveHint: false, openWorldHint: false },
-  frame_key: { destructiveHint: false, openWorldHint: false },
-  frame_scroll: { destructiveHint: false, openWorldHint: false },
-  frame_select: { destructiveHint: false, openWorldHint: false },
-  frame_drag: { destructiveHint: false, openWorldHint: false },
-  frame_hover: { destructiveHint: false, openWorldHint: false },
-  frame_stop_driving: {
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: false,
-  },
-}
 
 /**
  * What a drive tool acts on: the frame or Mockup named by `id`, else the one

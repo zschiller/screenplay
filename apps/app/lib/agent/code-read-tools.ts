@@ -3,7 +3,7 @@ import "server-only"
 import { tool } from "ai"
 import { z } from "zod"
 
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import { renderFileWindow } from "@/lib/agent/render"
 import {
   buildGlobInvocation,
@@ -146,7 +146,7 @@ export function buildCodeReadTools(ports: CodeReadPorts) {
     }
   }
 
-  return {
+  const tools = {
     read_code_file: tool({
       description:
         "Read a file from another Workspace's checkout of its repository, line-numbered like `cat -n`. Reads up to 2000 lines; pass `offset` (1-based) and `limit` to window a large file. Read-only.",
@@ -188,6 +188,12 @@ export function buildCodeReadTools(ports: CodeReadPorts) {
         withCheckout(workspaceId, (sandbox) => findCodeFiles(sandbox, opts)),
     }),
   }
+  // The code reads only read, so a harness never asks before running one.
+  return annotateTools(tools, {
+    read_code_file: { readOnlyHint: true, openWorldHint: false },
+    search_code: { readOnlyHint: true, openWorldHint: false },
+    find_code_files: { readOnlyHint: true, openWorldHint: false },
+  })
 }
 
 /**
@@ -203,15 +209,6 @@ export function otherWorkspacesCodeReadTools(opts: {
     openSandbox: (name) => sandboxProvider.get({ name, resume: true }),
     ownSandboxName: opts.sandboxName,
   })
-}
-
-/** The code reads only read, so a harness never asks before running one. */
-export const CODE_READ_TOOL_ANNOTATIONS: Readonly<
-  Record<keyof ReturnType<typeof buildCodeReadTools>, McpToolAnnotations>
-> = {
-  read_code_file: { readOnlyHint: true, openWorldHint: false },
-  search_code: { readOnlyHint: true, openWorldHint: false },
-  find_code_files: { readOnlyHint: true, openWorldHint: false },
 }
 
 function pickCheckout(

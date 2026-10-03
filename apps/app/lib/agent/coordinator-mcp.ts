@@ -32,11 +32,10 @@ export const COORDINATOR_ALLOWED_TOOLS = [
 ]
 
 /**
- * Which chat a token acts for. A Coordinator chat gets the Coordinator tools;
- * a Workspace chat (one with a `sandboxName`) gets the tools for its own dev
- * server, which a harness has no other way to see (`dev-server-tools.ts`), and
- * its Document tools (`document-tools.ts`). A Sketch Chat (no repository)
- * gets its own tools (`sketch-tools.ts`).
+ * Which chat a token acts for, and so which Chat Target's tools it gets: the
+ * Coordinator's (`room-chat-target.ts`), a Workspace chat's when it has a
+ * `sandboxName` (`workspace-chat-target.ts`), or a Sketch Chat's, with no
+ * repository (`sketch-chat-target.ts`).
  */
 export interface CoordinatorBinding {
   roomId: string

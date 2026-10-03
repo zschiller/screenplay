@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { baseBranch, baseRepo, makeHarness } from "@/test/canvas/harness"
 import type { RoomCollections } from "@/lib/yjs/schema"
+import type { RoomDoc } from "@/lib/room-access"
 
 /**
  * The Coordinator's MCP route (#903), driven the way a harness adapter drives
@@ -87,6 +88,10 @@ import {
 } from "@/lib/agent/coordinator-mcp"
 import { buildAgentSystemPrompt } from "@/lib/agent/config"
 import { harnessToolNaming } from "@/lib/agent/tool-name"
+import { toolsetOn, type ChatTools } from "@/lib/agent/toolset"
+import { roomChatTarget } from "@/lib/agent/room-chat-target"
+import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
+import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 
 const PORT = process.env.PORT || "3000"
 const binding = { roomId: "room-1", chatId: "room-chat-room-1" }
@@ -538,4 +543,83 @@ describe("a Workspace chat's MCP route", () => {
     })
     expect((await res.json()).error.code).toBe(-32602)
   })
+})
+
+/**
+ * Each Chat Target kind lists its tools once (#1487): a harness gets the
+ * tools its in-process turn has, less the ones it brings its own of, and
+ * every tool it lists carries its annotations.
+ */
+describe("every chat kind's MCP toolset", () => {
+  const room: RoomDoc = {
+    roomId: "room-1",
+    readDoc: async (fn) => fn(collections),
+    mutateDoc: async (fn) => fn(collections),
+  }
+  /** A Workspace harness reads, edits, runs commands and plans itself. */
+  const HARNESS_NATIVE = [
+    "read_file",
+    "write_file",
+    "edit_file",
+    "run_command",
+    "list_files",
+    "grep",
+    "glob",
+    "submit_plan",
+  ]
+  const kinds: {
+    kind: string
+    binding: Parameters<typeof coordinatorToken>[0]
+    tools: () => ChatTools
+    native: string[]
+  }[] = [
+    {
+      kind: "Coordinator",
+      binding,
+      tools: () => roomChatTarget.tools(room, { userId: "local-user" }),
+      native: [],
+    },
+    {
+      kind: "Workspace",
+      binding: { roomId: "room-1", chatId: "chat-ws-1", sandboxName: "sp-1" },
+      tools: () =>
+        workspaceChatTarget.tools(room, {
+          sandboxName: "sp-1",
+          chatId: "chat-ws-1",
+          userId: "local-user",
+        }),
+      native: HARNESS_NATIVE,
+    },
+    {
+      kind: "Sketch",
+      binding: { roomId: "room-1", chatId: "sketch-1", sketch: true },
+      tools: () =>
+        sketchChatTarget.tools(room, {
+          chatId: "sketch-1",
+          userId: "local-user",
+        }),
+      native: [],
+    },
+  ]
+
+  for (const { kind, binding, tools, native } of kinds) {
+    it(`serves a ${kind} chat's in-process toolset minus the harness's own tools`, async () => {
+      const res = await POST(
+        rpc(
+          { jsonrpc: "2.0", id: 1, method: "tools/list" },
+          { authorization: `Bearer ${coordinatorToken(binding)}` }
+        )
+      )
+      const served: { name: string; annotations?: object }[] = (
+        await res.json()
+      ).result.tools
+      const inProcess = Object.keys(toolsetOn(tools(), "in-process"))
+
+      expect(inProcess).toEqual(expect.arrayContaining(native))
+      expect(served.map((t) => t.name).sort()).toEqual(
+        inProcess.filter((name) => !native.includes(name)).sort()
+      )
+      for (const tool of served) expect(tool.annotations).toBeDefined()
+    })
+  }
 })

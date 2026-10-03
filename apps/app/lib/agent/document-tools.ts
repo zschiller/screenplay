@@ -2,7 +2,7 @@ import "server-only"
 
 import { tool, jsonSchema } from "ai"
 import type { RoomDoc } from "@/lib/room-access"
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { getGroupMembers, placeNewGroupBeside } from "@/lib/canvas/layout"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
@@ -55,7 +55,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       return edit(c)
     })
 
-  return {
+  const tools = {
     create_document: tool({
       description:
         "Create a Document on the canvas, beside this chat's other frames and Documents. It is yours: only you can edit it with these tools, and the person sees your name on it. `content` is its body as CommonMark markdown (don't repeat the title as a `#` heading). Returns its id.",
@@ -163,6 +163,14 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         }),
     }),
   }
+  // MCP hints for a desktop harness: a chat's edits to its own Documents are
+  // undoable in the editor, never destructive.
+  return annotateTools(tools, {
+    create_document: { destructiveHint: false, openWorldHint: false },
+    replace_document_body: { destructiveHint: false, openWorldHint: false },
+    append_to_document_body: { destructiveHint: false, openWorldHint: false },
+    set_document_title: { destructiveHint: false, openWorldHint: false },
+  })
 }
 
 /**
@@ -186,18 +194,3 @@ function chatGroups(c: RoomCollections, chatId: string): Set<string> {
 }
 
 export type DocumentTools = ReturnType<typeof buildDocumentTools>
-
-/**
- * MCP hints for a chat's Document tools on a desktop harness: its own
- * Document edits (undoable in the editor, never destructive) and the shared
- * Document reader.
- */
-export const DOCUMENT_TOOL_ANNOTATIONS: Readonly<
-  Record<string, McpToolAnnotations>
-> = {
-  create_document: { destructiveHint: false, openWorldHint: false },
-  replace_document_body: { destructiveHint: false, openWorldHint: false },
-  append_to_document_body: { destructiveHint: false, openWorldHint: false },
-  set_document_title: { destructiveHint: false, openWorldHint: false },
-  read_document: { readOnlyHint: true, openWorldHint: false },
-}
