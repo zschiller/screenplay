@@ -164,6 +164,16 @@ page, and everyone's copy of that frame switches to it. The title line reads
 **Live**, and when one of you clicks through the page the others see it
 happen. Anyone who opens the canvas while the frame is live lands on it live.
 
+Until the live page's first picture arrives, a spinner takes the broadcast
+icon's place, and clicking again does nothing. If the frame can't go live, it
+goes back to everyone's own copy and a message says why:
+
+- The workspace isn't running, or its dev server is stopped. Start it, then
+  click **Go live** again.
+- The workspace didn't answer, for example while its sandbox wakes up from
+  sleep and doesn't come back.
+- The frame's browser didn't start, or took too long to show the page.
+
 The **Go live** button stays filled while the frame is live. Anyone can click
 it again to end live for everyone: each of you is back on your own copy, on
 the live frame's page, with its cookies and local storage. What the page held

@@ -132,6 +132,12 @@ describe("MockupLayer going live (#1523)", () => {
     expect(onToggleLive).not.toHaveBeenCalled()
   })
 
+  it("spins while this viewer's going live waits for its first picture", () => {
+    renderMockup({ onToggleLive: () => {}, liveStarting: true })
+    const toggle = screen.getByRole("button", { name: "Going live" })
+    expect(toggle.getAttribute("aria-busy")).toBe("true")
+  })
+
   it("shows no Go live where mockups can't go live", () => {
     renderMockup()
     expect(screen.queryByRole("button", { name: "Go live" })).toBeNull()

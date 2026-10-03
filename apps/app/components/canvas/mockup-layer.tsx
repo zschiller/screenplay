@@ -170,6 +170,8 @@ interface MockupLayerProps {
   /** No Workspace is running to host the live page: the toggle is disabled
    *  and says so. */
   liveUnavailable?: boolean
+  /** This viewer turned it live and waits for its first picture (#1520). */
+  liveStarting?: boolean
   /** The page scrolled: every copy follows, and it restores on load. */
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   /** The live page's Theme knob. */
@@ -264,6 +266,7 @@ export function MockupLayer({
   liveDriver = NOBODY_DRIVES,
   onToggleLive,
   liveUnavailable = false,
+  liveStarting = false,
   onScrollChange,
   onColorSchemeChange,
   onFocus,
@@ -446,6 +449,7 @@ export function MockupLayer({
                   live={live}
                   onToggleLive={onToggleLive}
                   liveUnavailable={liveUnavailable}
+                  liveStarting={liveStarting}
                   onAskForKnob={onAskForKnob}
                   theme={
                     shared && onColorSchemeChange

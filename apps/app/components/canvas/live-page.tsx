@@ -456,6 +456,7 @@ export function LivePageControls({
   live = false,
   onToggleLive,
   liveUnavailable = false,
+  liveStarting = false,
   onAskForKnob,
   theme,
 }: {
@@ -474,6 +475,9 @@ export function LivePageControls({
   /** The page could go live but nothing can run it now (no Workspace is
    *  running): the toggle shows, disabled. */
   liveUnavailable?: boolean
+  /** This viewer turned the page live and waits for its first picture
+   *  (#1520): the toggle spins. */
+  liveStarting?: boolean
   onAskForKnob?: () => void
   /** The Theme knob, on a shared page. */
   theme?: {
@@ -497,6 +501,7 @@ export function LivePageControls({
       {onToggleLive && (
         <FrameGoLiveToggle
           live={live}
+          pending={liveStarting}
           onToggle={onToggleLive}
           unavailable={liveUnavailable}
         />

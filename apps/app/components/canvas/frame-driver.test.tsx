@@ -7,10 +7,10 @@ import { FrameDriverTag, FrameGoLiveToggle, FrameLiveTag } from "./frame-driver"
 
 afterEach(cleanup)
 
-function renderToggle(live: boolean, onToggle = vi.fn()) {
+function renderToggle(live: boolean, onToggle = vi.fn(), pending = false) {
   render(
     <TooltipProvider>
-      <FrameGoLiveToggle live={live} onToggle={onToggle} />
+      <FrameGoLiveToggle live={live} pending={pending} onToggle={onToggle} />
     </TooltipProvider>
   )
   return onToggle
@@ -31,6 +31,16 @@ describe("FrameGoLiveToggle", () => {
     expect(button.getAttribute("aria-pressed")).toBe("true")
     fireEvent.click(button)
     expect(onToggle).toHaveBeenCalledOnce()
+  })
+
+  it("spins in place of its icon while going live, ignoring clicks", () => {
+    const onToggle = renderToggle(true, vi.fn(), true)
+    const button = screen.getByRole("button", { name: "Going live" })
+    expect(button.getAttribute("aria-busy")).toBe("true")
+    expect(button.querySelector(".animate-spin")).toBeTruthy()
+    fireEvent.click(button)
+    fireEvent.click(button)
+    expect(onToggle).not.toHaveBeenCalled()
   })
 })
 

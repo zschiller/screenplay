@@ -99,7 +99,20 @@ export type FrameStreamFrame = {
   reload(): boolean
   /** Turn a driver's DOM events into the page's input, while they interact. */
   input(surface: () => FrameSurface, options?: { mac?: boolean }): FrameInput
+  /**
+   * Wait for the frame's first picture after going live (#1520): null once a
+   * picture arrives, or why none came. Listens without watching; the frame's
+   * view watches it.
+   */
+  firstPicture(): Promise<GoLiveFailure | null>
 }
+
+/**
+ * Why a frame going live showed no picture: the stream never came up (the
+ * Workspace's Sandbox didn't answer), the browser failed to start, or no
+ * picture came in time.
+ */
+export type GoLiveFailure = "unreachable" | "failed" | "timeout"
 
 /** Where the picture is on screen, and the page's CSS size it shows. */
 export type FrameSurface = {
@@ -164,6 +177,10 @@ const MAX_CHECK_FAILURES = 4
 // How long going local waits for the shared page's cookies and storage
 // before it opens the local copy without them.
 const SNAPSHOT_TIMEOUT_MS = 5000
+// How long going live waits for the first picture. A cold browser takes
+// about half a second, six at once up to four; a hibernated Sandbox wakes
+// first.
+const FIRST_PICTURE_TIMEOUT_MS = 30_000
 // A drive grant lasts a minute; ask for the next one well before.
 const DRIVE_REFRESH_MS = 30_000
 // Frame Control's record can reach the server a moment after this viewer
@@ -182,6 +199,14 @@ export class FrameStreamConnection {
   >()
   /** The drive grant for each frame this viewer drives. */
   private grants = new Map<string, string>()
+  /** Who waits for each frame's first picture (#1520). */
+  private pictureWaiters = new Map<
+    string,
+    Set<(failure: GoLiveFailure | null) => void>
+  >()
+  /** Frames watched now that have had a picture since they were watched: a
+   *  frame going live again before its view went away (#1520). */
+  private pictured = new Set<string>()
   private bridgeListeners = new Map<
     string,
     Set<(message: IframeToCanvasMessage) => void>
@@ -210,6 +235,7 @@ export class FrameStreamConnection {
         drive: () => this.startDriving(frame),
         reload: () => this.send({ t: "reload", frame }),
         input: (surface, options) => this.input(frame, surface, options),
+        firstPicture: () => this.firstPicture(frame),
       }
       this.frames.set(frame, handle)
     }
@@ -265,6 +291,7 @@ export class FrameStreamConnection {
       current.handlers.delete(handlers)
       if (current.handlers.size) return
       this.watches.delete(frame)
+      this.pictured.delete(frame)
       if (this.ready) this.send({ t: "unwatch", frame })
     }
   }
@@ -408,6 +435,35 @@ export class FrameStreamConnection {
         return this.clipboard(frame, e.type === "cut")
       },
     }
+  }
+
+  private firstPicture(frame: string): Promise<GoLiveFailure | null> {
+    // Still watched from before, with a picture showing: a still page sends
+    // no new one.
+    if (this.pictured.has(frame)) return Promise.resolve(null)
+    return new Promise((resolve) => {
+      let waiters = this.pictureWaiters.get(frame)
+      if (!waiters) {
+        waiters = new Set()
+        this.pictureWaiters.set(frame, waiters)
+      }
+      const timer = this.deps.setTimeout(
+        () => finish(this.ready ? "timeout" : "unreachable"),
+        FIRST_PICTURE_TIMEOUT_MS
+      )
+      const finish = (failure: GoLiveFailure | null) => {
+        if (!waiters.delete(finish)) return
+        if (!waiters.size) this.pictureWaiters.delete(frame)
+        this.deps.clearTimeout(timer)
+        resolve(failure)
+      }
+      waiters.add(finish)
+    })
+  }
+
+  private settlePicture(frame: string, failure: GoLiveFailure | null) {
+    for (const finish of [...(this.pictureWaiters.get(frame) ?? [])])
+      finish(failure)
   }
 
   /** Watch a frame, with this viewer's drive grant for it if it drives it. */
@@ -595,6 +651,8 @@ export class FrameStreamConnection {
             : null
       const video = buf ? decodeVideoMessage(buf) : null
       if (!video) return
+      if (this.watches.has(video.frame)) this.pictured.add(video.frame)
+      this.settlePicture(video.frame, null)
       for (const h of this.watches.get(video.frame)?.handlers ?? [])
         h.onVideo(video)
       return
@@ -637,10 +695,13 @@ export class FrameStreamConnection {
       for (const l of this.bridgeListeners.get(frame) ?? []) l(msg.message)
       return
     }
+    if (msg.t === "frame" && msg.status === "failed")
+      this.settlePicture(frame, "failed")
     for (const h of this.watches.get(frame)?.handlers ?? []) h.onMessage(msg)
   }
 
   private notifyConnection(ready: boolean) {
+    if (!ready) this.pictured.clear()
     for (const l of this.connectionListeners) l(ready)
     for (const { handlers } of this.watches.values()) {
       for (const h of handlers) h.onConnection?.(ready)
