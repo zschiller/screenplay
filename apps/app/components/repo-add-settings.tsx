@@ -6,13 +6,11 @@ import {
   CaretRightIcon,
 } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
-import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
-import { Label } from "@workspace/ui/components/label"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import {
@@ -47,7 +45,7 @@ type DetectionStatus = "idle" | "detecting" | "done" | "failed"
  * It shows the *essential* run settings (setup script, run script, and — on
  * hosted — dev server port) always, plus an **Advanced** expander (#681) that
  * reveals the rest inline: default frame size, system prompt, and an optional
- * preset name. The env field sits in the essential group where a mechanism
+ * name. The env field sits in the essential group where a mechanism
  * exists; its presence is source-dependent (`showEnvField`) — a desktop
  * GitHub-clone has no injection path, so it hides the field entirely.
  *
@@ -60,9 +58,9 @@ type DetectionStatus = "idle" | "detecting" | "done" | "failed"
  * app), again only in untouched fields. Add is enabled throughout — detection
  * is an assist, never a gate.
  *
- * Confirm hands the resolved settings back — along with whether to remember them
- * as a preset (PRD #680) — so the caller creates the Repo + first Branch and
- * kicks off provisioning; Cancel adds nothing.
+ * Confirm hands the resolved settings back, and the caller saves the
+ * Repository (and, from a Canvas, switches it on there, #1423); Cancel adds
+ * nothing.
  */
 export function RepoAddSettings({
   detect,
@@ -85,10 +83,7 @@ export function RepoAddSettings({
   refine?: (baseline: DetectedSettings) => Promise<DetectRepoSettingsResult>
   /** Whether the source has an env-injection path — see `RepoSettingsFields`. */
   showEnvField: boolean
-  onConfirm: (
-    settings: ResolvedRepoSettings,
-    options: { savePreset: boolean }
-  ) => void
+  onConfirm: (settings: ResolvedRepoSettings) => void
   onCancel: () => void
   /** "Back" when there is a previous screen to return to (#781). */
   cancelLabel?: string
@@ -116,9 +111,6 @@ export function RepoAddSettings({
   )
   const [systemPrompt, setSystemPrompt] = useState("")
   const [presetName, setPresetName] = useState("")
-  // Remember these settings as a preset so re-adding the repo later is one
-  // click. Default on; the save is best-effort and never blocks the add.
-  const [savePreset, setSavePreset] = useState(true)
   // Start in "detecting" when there's a source to detect against, so the effect
   // never has to set that synchronously (and the indicator is up on first paint).
   const [status, setStatus] = useState<DetectionStatus>(
@@ -201,25 +193,22 @@ export function RepoAddSettings({
 
   const handleConfirm = useCallback(() => {
     if (!portIsValid) return
-    onConfirm(
-      {
-        setupScript: fields.setupScript,
-        devScript: fields.devScript,
-        devServerPort: parsedPort,
-        envVars,
-        copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
-        // Only forward advanced values the user actually set: the default frame
-        // size and an empty system prompt map to `undefined`, so a preset upsert
-        // preserves whatever the matched preset already carried (#681).
-        defaultIframeLayerSizeId:
-          defaultIframeLayerSizeId === DEFAULT_IFRAME_LAYER_SIZE_ID
-            ? undefined
-            : defaultIframeLayerSizeId,
-        systemPrompt: systemPrompt.trim() || undefined,
-        presetName: presetName.trim() || undefined,
-      },
-      { savePreset }
-    )
+    onConfirm({
+      setupScript: fields.setupScript,
+      devScript: fields.devScript,
+      devServerPort: parsedPort,
+      envVars,
+      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
+      // Only forward advanced values the user actually set: the default frame
+      // size and an empty system prompt map to `undefined`, so the upsert
+      // preserves whatever a matching Repository already carried (#681).
+      defaultIframeLayerSizeId:
+        defaultIframeLayerSizeId === DEFAULT_IFRAME_LAYER_SIZE_ID
+          ? undefined
+          : defaultIframeLayerSizeId,
+      systemPrompt: systemPrompt.trim() || undefined,
+      presetName: presetName.trim() || undefined,
+    })
   }, [
     portIsValid,
     parsedPort,
@@ -229,7 +218,6 @@ export function RepoAddSettings({
     defaultIframeLayerSizeId,
     systemPrompt,
     presetName,
-    savePreset,
     onConfirm,
   ])
 
@@ -314,23 +302,13 @@ export function RepoAddSettings({
           </CollapsibleContent>
         </Collapsible>
       </div>
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="repo-add-save-preset" className="font-normal">
-          <Checkbox
-            id="repo-add-save-preset"
-            checked={savePreset}
-            onCheckedChange={(checked) => setSavePreset(checked === true)}
-          />
-          Save as a preset
-        </Label>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            {cancelLabel}
-          </Button>
-          <Button size="sm" onClick={handleConfirm} disabled={!portIsValid}>
-            Add repository
-          </Button>
-        </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          {cancelLabel}
+        </Button>
+        <Button size="sm" onClick={handleConfirm} disabled={!portIsValid}>
+          Add repository
+        </Button>
       </div>
     </div>
   )
