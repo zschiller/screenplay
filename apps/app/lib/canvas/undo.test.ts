@@ -73,13 +73,15 @@ describe("⌘Z", () => {
   it("skips what a running prototype reports on its frame", () => {
     const { ops, collections, undo } = canvas()
     ops.patch("iframeLayers", "frame-1", { width: 800 })
-    ops.patch("iframeLayers", "frame-1", { scrollX: 0, scrollY: 400 })
+    ops.patch("iframeLayers", "frame-1", {
+      iframeState: { step: 2 },
+    })
     ops.navigateRoute("frame-1", "/cart", { cloneTrail: false })
 
     undo.undo()
     expect(collections.iframeLayers.get("frame-1")).toMatchObject({
       width: 400,
-      scrollY: 400,
+      iframeState: { step: 2 },
       route: "/cart",
     })
   })

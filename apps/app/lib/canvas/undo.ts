@@ -30,8 +30,6 @@ import { COLLECTION_KEYS } from "@/lib/yjs/schema"
 const LIVE_FRAME_FIELDS: ReadonlySet<string> = new Set([
   "iframeState",
   "route",
-  "scrollX",
-  "scrollY",
   "knobs",
   "sharedState",
   // Going live is the frame's, like its route: not an edit to undo (#1516).

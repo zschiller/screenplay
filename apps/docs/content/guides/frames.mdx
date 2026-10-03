@@ -74,8 +74,9 @@ pick a route the workspace has visited from the list under the bar. **Esc**
 puts the route back. Routes you visit while interacting
 are added to the list automatically.
 
-The route and scroll position are shared: when anyone viewing the canvas
-navigates a frame, everyone else's copy follows. Your copy changes page
+The route is shared: when anyone viewing the canvas navigates a frame,
+everyone else's copy follows. Scroll is yours: scrolling your copy never moves
+anyone else's, and a frame starts at the top when you open the canvas. Your copy changes page
 through the app's own router (Next's router, or the history API for React
 Router, Vite and similar apps), so anything you typed or opened in the frame
 stays put. Only a page with no client-side router reloads onto the new route.

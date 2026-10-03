@@ -115,7 +115,6 @@ function seedCanvas(r: ReturnType<typeof room>) {
       branchId: "ws-1",
       route: "/settings",
       label: "Settings",
-      scrollY: 120,
       iframeState: { tab: "billing" },
     })
   )

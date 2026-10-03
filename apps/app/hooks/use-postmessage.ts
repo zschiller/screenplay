@@ -13,13 +13,10 @@ interface UsePostMessageOptions {
   port: BridgePort
   iframeLayerId: string
   iframeState: JsonObject
-  iframeScrollX?: number
-  iframeScrollY?: number
   knobValues?: JsonObject
   sharedState?: JsonObject
   onStateChanged: (iframeLayerId: string, state: JsonObject) => void
   onNavigation?: (iframeLayerId: string, path: string, replace: boolean) => void
-  onScroll?: (iframeLayerId: string, scrollX: number, scrollY: number) => void
   onReady?: (iframeLayerId: string, version: string | undefined) => void
   onHmrStatus?: (iframeLayerId: string, status: HmrStatus) => void
   onKnobsDeclared?: (iframeLayerId: string, knobs: JsonValue[]) => void
@@ -30,28 +27,16 @@ export function usePostMessage({
   port,
   iframeLayerId,
   iframeState,
-  iframeScrollX,
-  iframeScrollY,
   knobValues,
   sharedState,
   onStateChanged,
   onNavigation,
-  onScroll,
   onReady,
   onHmrStatus,
   onKnobsDeclared,
   onSharedStateChanged,
 }: UsePostMessageOptions) {
   const stateRef = useRef(iframeState)
-  const scrollRef = useRef<{ x: number; y: number } | null>(
-    iframeScrollX !== undefined || iframeScrollY !== undefined
-      ? { x: iframeScrollX ?? 0, y: iframeScrollY ?? 0 }
-      : null
-  )
-  // Last scroll position we either received from or applied to the iframe.
-  // Used to avoid looping remote scrolls back to the iframe when Yjs echoes
-  // them to us a moment later.
-  const lastScrollRef = useRef<{ x: number; y: number } | null>(null)
   const knobValuesRef = useRef(knobValues)
   const sharedStateRef = useRef(sharedState)
   // Tracks the last sharedState we either received from or pushed down to the
@@ -67,10 +52,6 @@ export function usePostMessage({
   // reader below runs after commit (event handlers, post-ready callbacks).
   useEffect(() => {
     stateRef.current = iframeState
-    scrollRef.current =
-      iframeScrollX !== undefined || iframeScrollY !== undefined
-        ? { x: iframeScrollX ?? 0, y: iframeScrollY ?? 0 }
-        : null
     knobValuesRef.current = knobValues
     sharedStateRef.current = sharedState
     onReadyRef.current = onReady
@@ -103,23 +84,6 @@ export function usePostMessage({
     [port]
   )
 
-  const sendScrollTo = useCallback(
-    (x: number, y: number) => {
-      const last = lastScrollRef.current
-      if (last && last.x === x && last.y === y) return
-      if (!port.post({ type: "screenplay:scroll-to", scrollX: x, scrollY: y }))
-        return
-      lastScrollRef.current = { x, y }
-    },
-    [port]
-  )
-
-  // Push scroll changes from Yjs down into the iframe.
-  useEffect(() => {
-    if (iframeScrollX === undefined && iframeScrollY === undefined) return
-    sendScrollTo(iframeScrollX ?? 0, iframeScrollY ?? 0)
-  }, [iframeScrollX, iframeScrollY, sendScrollTo])
-
   // Push knob value changes from Yjs down into the iframe.
   useEffect(() => {
     if (!knobValues) return
@@ -141,18 +105,14 @@ export function usePostMessage({
   useEffect(() => {
     return port.subscribe((data) => {
       if (data.type === "screenplay:ready") {
+        // Scroll is each viewer's own (#1518): nothing restores it from the
+        // room, so a frame starts at the top and keeps its own scroll after.
         sendMessage("screenplay:init", stateRef.current)
-        if (scrollRef.current) {
-          sendScrollTo(scrollRef.current.x, scrollRef.current.y)
-        }
         onReadyRef.current?.(iframeLayerId, data.version)
       } else if (data.type === "screenplay:state-changed") {
         onStateChanged(iframeLayerId, data.state)
       } else if (data.type === "screenplay:navigation") {
         onNavigation?.(iframeLayerId, data.path, !!data.replace)
-      } else if (data.type === "screenplay:scroll") {
-        lastScrollRef.current = { x: data.scrollX, y: data.scrollY }
-        onScroll?.(iframeLayerId, data.scrollX, data.scrollY)
       } else if (data.type === "screenplay:hmr-status") {
         onHmrStatusRef.current?.(iframeLayerId, data.status)
       } else if (data.type === "screenplay:knobs-declared") {
@@ -193,9 +153,7 @@ export function usePostMessage({
     iframeLayerId,
     onStateChanged,
     onNavigation,
-    onScroll,
     sendMessage,
-    sendScrollTo,
     sendKnobValues,
     sendSharedState,
   ])
