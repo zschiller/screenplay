@@ -138,6 +138,11 @@ share a name, only the canvas's is written; one that shares a name with a
 repository skill isn't written at all, since the agent already loads the
 repository's from the checkout.
 
+One exception to the order above: if a skill in your own `~/.claude/skills/`
+has the same name as a canvas or account skill, Claude Code runs yours when
+it invokes that skill itself, by name or with `/name`. Give them different
+names to avoid this.
+
 ## What a saved skill can do
 
 A saved skill, on a canvas or your account, can't give itself tools or run
