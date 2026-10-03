@@ -901,6 +901,7 @@ function WorkspaceMenuRow({
       side="left"
       align="start"
       suppressed={renaming || menu.pendingBranchIds.has(branch.id)}
+      openChat={false}
     >
       {item}
     </WorkspaceHoverCard>

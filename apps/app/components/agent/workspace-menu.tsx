@@ -105,7 +105,12 @@ export function WorkspaceHeaderTitle({ branch }: { branch: BranchData }) {
 
   if (!menu) {
     return (
-      <WorkspaceHoverCard branchId={branch.id} side="bottom" align="start">
+      <WorkspaceHoverCard
+        branchId={branch.id}
+        side="bottom"
+        align="start"
+        openChat={false}
+      >
         <span className="flex min-w-0">
           <WorkspaceMention
             branch={branch}
@@ -126,6 +131,7 @@ export function WorkspaceHeaderTitle({ branch }: { branch: BranchData }) {
         side="bottom"
         align="start"
         suppressed={renaming || menu.pendingBranchIds.has(branch.id)}
+        openChat={false}
       >
         <span className="flex min-w-0 has-[[data-editable-text=editing]]:overflow-visible">
           <WorkspaceMention

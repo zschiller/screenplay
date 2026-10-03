@@ -14,7 +14,9 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
+import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
+import { useChatsMenu } from "@/components/agent/chats-menu"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import { workspaceDetails } from "@/lib/branch/workspace-details"
 import { formatElapsed } from "@/lib/branch/workspace-state"
@@ -46,18 +48,25 @@ export function useCloseWorkspaceHoverCard(): () => void {
  * its own: the card stays shut while anything in the trigger is expanded.
  * A confirm opened from that menu (Recreate, Delete) is outside the trigger,
  * so its caller passes `suppressed` while it is up.
+ *
+ * Inside the Chats menu's provider the card ends with Open chat, so a group,
+ * frame or address bar naming the Workspace gets to its chat in one click.
+ * `openChat={false}` drops it where the chat is already a click away: its
+ * own header and its Chats menu row.
  */
 export function WorkspaceHoverCard({
   branchId,
   side = "right",
   align = "start",
   suppressed = false,
+  openChat = true,
   children,
 }: {
   branchId: string
   side?: "top" | "right" | "bottom" | "left"
   align?: "start" | "center" | "end"
   suppressed?: boolean
+  openChat?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -91,7 +100,10 @@ export function WorkspaceHoverCard({
           onPointerDown={stop}
           onKeyDown={stop}
         >
-          <WorkspaceHoverDetail branchId={branchId} />
+          <WorkspaceHoverDetail
+            branchId={branchId}
+            onOpenChat={openChat ? close : undefined}
+          />
         </HoverCardContent>
       </HoverCard>
     </CloseHoverCardContext.Provider>
@@ -109,9 +121,19 @@ export function MaybeWorkspaceHoverCard({
   return <WorkspaceHoverCard branchId={branchId} {...props} />
 }
 
-/** The card's body. Mounted only while the card is open, so closed cards read nothing. */
-function WorkspaceHoverDetail({ branchId }: { branchId: string }) {
+/**
+ * The card's body. Mounted only while the card is open, so closed cards read
+ * nothing. `onOpenChat` shows Open chat and closes the card after it.
+ */
+function WorkspaceHoverDetail({
+  branchId,
+  onOpenChat,
+}: {
+  branchId: string
+  onOpenChat?: () => void
+}) {
   const branch = useBranches().find((b) => b.id === branchId)
+  const chats = useChatsMenu()
   const repos = useRepos()
   const stateOf = useWorkspaceStates()
   if (!branch) return null
@@ -175,6 +197,18 @@ function WorkspaceHoverDetail({ branchId }: { branchId: string }) {
             </>
           )}
         </dl>
+      )}
+      {onOpenChat && chats && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onOpenChat()
+            chats.onSelectWorkspace(branch.id)
+          }}
+        >
+          Open chat
+        </Button>
       )}
     </>
   )
