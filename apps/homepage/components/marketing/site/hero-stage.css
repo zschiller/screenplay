@@ -2,10 +2,13 @@
    floor that recedes to a horizon under the nav, dissolving into the dither
    veil. Plain CSS because the copies are built on the client. */
 
-/* The floor's height follows the window, so the buttons stay above the fold
-   on a laptop. */
+/* The stage starts at the top of the page, behind the nav, which is clear
+   until the page scrolls. The floor's height follows the window, so the
+   buttons stay above the fold on a laptop. */
 .hc-stage {
-  --hc-floor: clamp(300px, calc(100svh - 400px), 520px);
+  --hc-nav: 61px;
+  --hc-floor: clamp(400px, calc(100svh - 300px), 640px);
+  margin-top: calc(-1 * var(--hc-nav));
 }
 /* The floor sits behind the text rather than pushing it down, so the
    headline doesn't move when the copies are built. */
@@ -16,7 +19,7 @@
   height: var(--hc-floor);
   overflow: hidden;
   pointer-events: none;
-  perspective: 800px;
+  perspective: 1000px;
   perspective-origin: 50% 90%;
   /* The far side also sinks into the dark under the grain, so whatever the
      pointer reveals there still recedes. */

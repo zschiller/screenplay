@@ -42,7 +42,7 @@ const EDITS: {
 const SEED = [[], [1, 4], [0], [2, 6], [7], [9, 6], [10, 1], [5, 8], [11, 3]]
 
 // Rows on the canvas floor, far to near.
-const ROWS = 8
+const ROWS = 11
 // How far above the headline the veil starts thickening, in CSS px, and how
 // far down the floor the far fade reaches, so a band of rows between the two
 // shows with no grain at all.
@@ -114,9 +114,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       return [
         solid - NEAR,
         solid,
-        // The far side of the floor dissolves into the dark under the nav
-        // through the same grain.
-        [floor.top - s + 90, floor.top - s + floor.height * FAR],
+        // The far side of the floor dissolves into the dark behind the nav
+        // through the same grain, solid only at the very top of the page.
+        [floor.top - s, floor.top - s + floor.height * FAR],
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()
