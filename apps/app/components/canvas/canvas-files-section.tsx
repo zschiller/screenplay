@@ -237,11 +237,18 @@ function FileRow({
 }) {
   const { entry, name } = node
   const folder = entry.kind === "folder"
+  const [menuOpen, setMenuOpen] = useState(false)
   const row = (
     <div className="group/file-row relative">
       <SidebarMenuButton
         aria-expanded={folder ? open : undefined}
         onClick={folder ? onToggle : onOpen}
+        // The ⋯ shows over the row's end on hover, as in the Chats menu, so
+        // the meta runs to the edge instead of leaving room for it.
+        className={cn(
+          "md:group-has-data-[sidebar=menu-action]/menu-item:pr-2",
+          menuOpen && "bg-sidebar-accent text-sidebar-accent-foreground"
+        )}
       >
         {folder ? (
           <span className="relative shrink-0">
@@ -263,13 +270,15 @@ function FileRow({
         <span className="min-w-0 flex-1 truncate">{name}</span>
         <span className="shrink-0 text-xs text-muted-foreground">{detail}</span>
       </SidebarMenuButton>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <SidebarMenuAction
             // Shown on this row's own hover: an item holds its folder's
             // contents, so the stock menu-item hover would light up every
-            // folder above the pointer too.
-            className="group-focus-within/file-row:opacity-100 group-hover/file-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+            // folder above the pointer too. It covers the meta's end on the
+            // hovered row's fill, fading in from the left (on touch screens, where
+            // it always shows, the row keeps room for it).
+            className="group-hover/file-row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 md:bg-sidebar-accent md:opacity-0 md:before:pointer-events-none md:before:absolute md:before:inset-y-0 md:before:-left-4 md:before:w-4 md:before:bg-gradient-to-r md:before:from-transparent md:before:to-sidebar-accent"
             aria-label={`More actions for ${name}`}
           >
             <DotsThreeIcon />
