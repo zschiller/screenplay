@@ -8,6 +8,7 @@ import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { InlineCommentDraft } from "./markdown-layer"
+import type { LayerOwner } from "@/lib/canvas/document-owner"
 
 /**
  * Element Reference controller (PRD #570) — how the Canvas points at an element
@@ -38,14 +39,10 @@ export interface ElementReferenceInputs {
     "expandPanel" | "selectAgentChat" | "selectSketchChat"
   >
   /**
-   * The open chat that made a Document, and its Workspace (#1314), or null
-   * for a Document made by hand (or whose chat is closed or gone).
+   * Who a chat-made Document goes back to (#1314): its Sketch Chat or its
+   * Workspace's chat. Null for a Document made by hand, or whose chat is gone.
    */
-  documentOwnerChat: (
-    documentId: string
-  ) => { chatId: string; branchId: string } | null
-  /** The chat with no repository that made a Document, if one did. */
-  sketchOwnerChatId: (documentId: string) => string | null
+  documentOwner: (documentId: string) => LayerOwner | null
 }
 
 /** Comment-mode placement position — layer-local for frame/doc-anchored pins. */
@@ -271,19 +268,17 @@ export function useElementReference(
       const inputs = inputsRef.current
       // A passage from a Document a chat made goes to that chat (#1314),
       // brought on screen; any other goes to the chat on screen.
-      const owner = inputs?.documentOwnerChat(quote.documentId)
+      const owner = inputs?.documentOwner(quote.documentId)
       if (owner) {
-        inputs?.chatTarget.selectAgentChat(owner.branchId, owner.chatId, {
-          expandPanel: true,
-          remember: true,
-        })
+        if (owner.kind === "sketch") {
+          inputs?.chatTarget.selectSketchChat(owner.chatId)
+        } else {
+          inputs?.chatTarget.selectAgentChat(owner.branchId, owner.chatId, {
+            expandPanel: true,
+            remember: true,
+          })
+        }
         chatQuoteStore.quoteInto(owner.chatId, quote)
-        return
-      }
-      const sketchOwner = inputs?.sketchOwnerChatId(quote.documentId)
-      if (sketchOwner) {
-        inputs?.chatTarget.selectSketchChat(sketchOwner)
-        chatQuoteStore.quoteInto(sketchOwner, quote)
         return
       }
       inputs?.chatTarget.expandPanel()

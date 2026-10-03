@@ -35,7 +35,6 @@ import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
 import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
-import type { MockupAskTarget } from "@/lib/canvas/document-owner"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 
@@ -117,7 +116,7 @@ function CanvasMemberLayerImpl({
   removeMockup,
   handlePlayIframeLayer,
   onAskForKnob,
-  mockupAskTargets,
+  askableMockupIds,
   onAskForMockupKnob,
   handleCaptureReadyChange,
   handleCaptureDirty,
@@ -197,8 +196,8 @@ function CanvasMemberLayerImpl({
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
   /** Start an "add a knob" request in a Workspace's chat composer. */
   onAskForKnob: (branchId: string) => void
-  /** Where each chat-made Mockup's Ask goes; a Mockup missing here has no Ask. */
-  mockupAskTargets: ReadonlyMap<string, MockupAskTarget>
+  /** The Mockups that offer an Ask: chat-made ones, or ones whose chat is gone. */
+  askableMockupIds: ReadonlySet<string>
   /**
    * Start an "add a knob" request in the composer of the chat that can rewrite
    * a Mockup (its Sketch Chat or its Workspace's chat).
@@ -509,7 +508,7 @@ function CanvasMemberLayerImpl({
                 commentMode={commentMode}
                 onWheel={onIframeWheel}
                 onAskForKnob={
-                  mockupAskTargets.has(mockup.id)
+                  askableMockupIds.has(mockup.id)
                     ? () => onAskForMockupKnob(mockup.id)
                     : undefined
                 }
