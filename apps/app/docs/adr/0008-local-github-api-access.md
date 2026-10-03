@@ -2,7 +2,7 @@
 
 Date: 2026-06-09
 
-Status: Accepted
+Status: Accepted (device flow removed by ADR 0018)
 
 ## Context
 

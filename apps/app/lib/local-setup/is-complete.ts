@@ -22,8 +22,8 @@ import type { HarnessSetupRow } from "@/lib/agent/harnesses/setup"
  * the decision needs and nothing sensitive rides along with it.
  */
 export interface GitHubSatisfiedFacts {
-  /** Where a token actually resolved (`gh` or device flow), or `null` for none. */
-  tokenSource: "gh" | "device" | null
+  /** Where a token actually resolved (`gh`), or `null` for none. */
+  tokenSource: "gh" | null
 }
 
 /**
@@ -52,7 +52,7 @@ export function harnessSatisfied(harnesses: HarnessSatisfiedFacts[]): boolean {
 }
 
 /**
- * The GitHub half: a token actually resolved (via `gh` **or** device flow) —
+ * The GitHub half: a token actually resolved through `gh` —
  * exactly what the connection panel calls "Connected" — not merely
  * "`gh` installed".
  */
@@ -91,7 +91,7 @@ export function isLocalSetupComplete({
  * the `getLocalSetupGateStatus()` server action, factored out so it is
  * unit-testable against faked status results and so the action stays a thin
  * live-read wrapper. Returns **only** the two booleans: no raw credential shape
- * (token, handle, device-token presence) ever rides to the client.
+ * (token, handle) ever rides to the client.
  */
 export function deriveGateStatus(input: {
   harnesses: HarnessSatisfiedFacts[]

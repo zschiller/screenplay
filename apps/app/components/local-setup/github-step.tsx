@@ -1,10 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
-  ConnectGitHubDialog,
   GH_SETUP_SESSION_KEY,
   setupAction,
   useGitHubConnection,
@@ -16,9 +15,8 @@ import { CollapsedSetupStep, CurrentSetupStep, SetupChip } from "./setup-step"
 /**
  * Step 2 of the setup gate: GitHub, which is optional. It runs on the same
  * connection hook as the Settings panel (install `gh` and sign in, or sign in,
- * in the inline host terminal; the device code as a fallback) and adds Skip,
- * which the gate persists. Collapsed, it shows a blue tick once connected and a
- * grey dash once skipped.
+ * in the inline host terminal) and adds Skip, which the gate persists.
+ * Collapsed, it shows a blue tick once connected and a grey dash once skipped.
  */
 export function GitHubStep({
   current,
@@ -40,7 +38,6 @@ export function GitHubStep({
 }) {
   const connection = useGitHubConnection()
   const { status, redetect } = connection
-  const [deviceOpen, setDeviceOpen] = useState(false)
 
   // The gate's poll saw the connection change outside this step (a `gh auth
   // login` in another terminal): read it again so the row names the account.
@@ -79,10 +76,6 @@ export function GitHubStep({
   }
 
   const action = status ? setupAction(status) : null
-  // The device flow is the fallback (ADR 0014): offered only when it's
-  // configured and no token has resolved.
-  const showDeviceFallback =
-    status?.tokenSource === null && status.deviceFlowConfigured
 
   return (
     <CurrentSetupStep
@@ -118,22 +111,9 @@ export function GitHubStep({
       ) : (
         <div className="flex flex-wrap gap-2">
           {connected ? (
-            <>
-              <Button type="button" onClick={onCollapse}>
-                Done
-              </Button>
-              {status.hasDeviceToken && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={connection.disconnecting}
-                  onClick={connection.disconnect}
-                >
-                  {connection.disconnecting && <Spinner className="size-4" />}
-                  Disconnect
-                </Button>
-              )}
-            </>
+            <Button type="button" onClick={onCollapse}>
+              Done
+            </Button>
           ) : (
             <>
               {action && (
@@ -149,27 +129,9 @@ export function GitHubStep({
               <Button type="button" variant="ghost" onClick={onSkip}>
                 Skip
               </Button>
-              {showDeviceFallback && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-muted-foreground"
-                  onClick={() => setDeviceOpen(true)}
-                >
-                  Use a device code instead
-                </Button>
-              )}
             </>
           )}
         </div>
-      )}
-      {deviceOpen && (
-        <ConnectGitHubDialog
-          onDone={(ok) => {
-            setDeviceOpen(false)
-            if (ok) redetect()
-          }}
-        />
       )}
     </CurrentSetupStep>
   )

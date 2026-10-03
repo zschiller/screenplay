@@ -19,15 +19,13 @@
 // Signing + notarization are driven entirely by env vars for Tauri's bundler,
 // loaded from a gitignored `apps/desktop/.env.release` (see `.env.release.example`):
 // APPLE_SIGNING_IDENTITY plus the App Store Connect API key trio (APPLE_API_ISSUER,
-// APPLE_API_KEY = the Key ID, APPLE_API_KEY_PATH = the .p8). SCREENPLAY_GITHUB_CLIENT_ID
-// is passed through so the `option_env!` bake-in in sidecar.rs picks it up — the
-// OAuth client *secret* is never baked in (device flow is a public client).
+// APPLE_API_KEY = the Key ID, APPLE_API_KEY_PATH = the .p8).
 //
 // Apple Silicon only, consistent with build-sidecar.mjs (the sidecar ships this
 // machine's own `node`). Auto-update is out of scope — no updater.
 //
 // Strict ordering, so nothing is tagged or published unless the build verifies:
-//   1. Load .env.release; warn (don't fail) on a missing optional input.
+//   1. Load .env.release; fail on a missing signing/notarization input.
 //   2. Refuse to run on a dirty working tree.
 //   3. Resolve the target version via the seam; abort if its tag already exists.
 //      Then draft the release notes (or read --notes) and confirm them.
@@ -84,8 +82,6 @@ const REQUIRED_ENV = [
   "APPLE_API_KEY",
   "APPLE_API_KEY_PATH",
 ]
-// Optional build inputs: absence degrades a feature but doesn't break the build.
-const OPTIONAL_ENV = ["SCREENPLAY_GITHUB_CLIENT_ID"]
 
 function log(msg) {
   process.stdout.write(`[release] ${msg}\n`)
@@ -159,11 +155,6 @@ if (missingRequired.length > 0) {
   fail(
     `Missing required signing/notarization inputs in .env.release: ${missingRequired.join(", ")} — see .env.release.example.`
   )
-}
-for (const key of OPTIONAL_ENV) {
-  if (!releaseEnv[key]) {
-    warn(`${key} is unset — building without it (that feature stays disabled).`)
-  }
 }
 
 // The App Store Connect key path may be repo-relative; resolve it and confirm
@@ -307,11 +298,6 @@ const buildEnv = {
   APPLE_API_ISSUER: releaseEnv.APPLE_API_ISSUER,
   APPLE_API_KEY: releaseEnv.APPLE_API_KEY,
   APPLE_API_KEY_PATH: apiKeyPath,
-}
-// Passed through only when present so the compile-time option_env! reads unset
-// (not empty) when unconfigured.
-if (releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID) {
-  buildEnv.SCREENPLAY_GITHUB_CLIENT_ID = releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID
 }
 
 // Compile the Liquid Glass icon catalog (Assets.car) from icons/icon.icon.

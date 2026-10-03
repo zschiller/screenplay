@@ -2,7 +2,7 @@
 
 Date: 2026-07-03
 
-Status: Accepted (softens ADR 0008)
+Status: Accepted (softens ADR 0008; device-flow fallback removed by ADR 0018)
 
 ## Context
 

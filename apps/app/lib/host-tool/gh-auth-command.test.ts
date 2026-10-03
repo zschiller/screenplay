@@ -19,7 +19,7 @@ describe("buildGhAuthLoginArgv", () => {
     ])
   })
 
-  it("requests the `repo` scope, matching the device flow", () => {
+  it("requests the `repo` scope", () => {
     expect(GH_AUTH_SCOPE).toBe("repo")
     const argv = buildGhAuthLoginArgv()
     expect(argv[argv.indexOf("--scopes") + 1]).toBe("repo")

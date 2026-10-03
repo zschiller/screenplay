@@ -63,8 +63,7 @@ export async function getCurrentSession() {
  *
  * The local build has no `account` table — there is no login at all (#417) —
  * so the token resolves through the local resolver instead (PRD #428): the
- * host `gh` CLI's token when available, else a stored device-flow token, else
- * `null`. Git transport never needs this either way (`usesHostGitAuth`); the
+ * host `gh` CLI's token when available, else `null`. Git transport never needs this either way (`usesHostGitAuth`); the
  * token only feeds the GitHub *API* features (repo listing, Branch-via-API,
  * PRs, naming), which stay dark on `null` exactly as before.
  */

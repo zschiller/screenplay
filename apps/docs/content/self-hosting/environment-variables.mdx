@@ -152,7 +152,6 @@ yourself when running the local build by hand.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `SCREENPLAY_GITHUB_CLIENT_ID` | Optional | Client ID of the GitHub OAuth app used for the desktop's device-flow **Connect GitHub**. Baked into release builds. Without it, device-flow connect is unavailable and GitHub access comes only from the host's `gh` login. |
 | `SCREENPLAY_WORKTREE_ROOT` | Optional | Where the local sandbox provider keeps its clones and worktrees. Default: `~/.screenplay/worktrees`. |
 | `LOCAL_BLOB_DIR` | Optional | Where the local-fs blob store writes thumbnails, with `BLOB_STORE=local-fs`. Default: `.screenplay/blobs`. See [Blob store](/self-hosting/configuration/blob-store). |
 | `LOCAL_BLOB_BASE_URL` | Optional | The URL `LOCAL_BLOB_DIR` is served from, which thumbnail URLs start with. Default: `/blobs`, the app's own route. |

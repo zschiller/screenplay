@@ -9,9 +9,6 @@
  * module: the set of existing tags is *injected* rather than read from git,
  * and the file rewrites take contents in and hand contents back. That keeps
  * the whole resolution lifecycle unit-testable without running a build.
- *
- * Mirrors the "pure protocol, dependencies injected/absent" shape of
- * `apps/app/lib/github-local/device-flow.ts`.
  */
 
 /** Prefix of the git tag a desktop release is cut against (`desktop-v0.1.0`). */

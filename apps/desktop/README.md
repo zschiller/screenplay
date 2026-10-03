@@ -85,9 +85,7 @@ exercised when a release is cut:
   The notes are a readable changelog drafted before the build from the merged
   PRs that change the app (`claude -p`, reviewed in the terminal), or the
   Markdown file passed as `--notes <file>`. Signing and notarization read `APPLE_*` variables from a
-  gitignored `.env.release` (see `.env.release.example`). The optional
-  `SCREENPLAY_GITHUB_CLIENT_ID` is compiled into the shell (`option_env!` in
-  `sidecar.rs`) to enable the "Connect GitHub" device flow in released builds.
+  gitignored `.env.release` (see `.env.release.example`).
   Needs Node 23+ (the script imports TypeScript directly) and a clean tree.
 
 Apple Silicon only for now: `build-sidecar.mjs` ships the build machine's own
