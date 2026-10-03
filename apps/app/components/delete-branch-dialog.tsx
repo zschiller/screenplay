@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { ConfirmDialog, ConfirmOption } from "@/components/confirm-dialog"
-import { LostWorkAlert, joinFacts } from "@/components/delete-facts"
+import { LostWorkAlert } from "@/components/delete-facts"
 import {
   lostWork,
   lostWorkWarning,
@@ -20,8 +20,7 @@ type DeleteBranchDialogProps = {
    * an offer that can only fail is worse than no offer (issue #741).
    */
   canDeleteOnRemote: boolean
-  /** The Chat Sessions and frames the delete cascades to (history included). */
-  chatCount: number
+  /** The frames the delete cascades to. */
   frameCount: number
   /** The Workspace's PR, when it has an open one: it stays, or closes with the branch. */
   openPrNumber?: number
@@ -39,9 +38,9 @@ type DeleteBranchDialogProps = {
 }
 
 /**
- * Confirm deleting a Workspace (a Branch): what it removes, what it keeps, a
- * warning only when work would be lost, and an opt-in to take the git branch
- * off GitHub too (issue #776).
+ * Confirm deleting a chat with its Workspace (a Branch): a sentence or two on
+ * what goes and what stays, a warning only when work would be lost, and an
+ * opt-in to take the git branch off GitHub too (issue #776).
  *
  * The remote delete is strictly opt-in: it defaults **off** and is only offered
  * when it could succeed (`canDeleteOnRemote`). It used to default on, which on
@@ -54,7 +53,6 @@ export function DeleteBranchDialog({
   onOpenChange,
   branchName,
   canDeleteOnRemote,
-  chatCount,
   frameCount,
   openPrNumber,
   work,
@@ -78,26 +76,23 @@ export function DeleteBranchDialog({
   // Whether the git branch is on origin: the checkout says, and an open PR
   // implies it while the checkout is unread.
   const onOrigin = work?.onOrigin ?? !!openPrNumber
-  // The facts never read the option, so ticking it changes only the checkbox:
-  // no line rewraps, no Keeps row comes or goes, and the centred dialog
-  // doesn't jump. When the option is offered it speaks for GitHub's side (the
-  // branch, and the PR it closes); otherwise Keeps does. The branch name is
-  // already in the title, so the facts name places, not refs: "the git branch
-  // on this computer and GitHub".
-  const removes: string[] = []
-  if (chatCount > 0) removes.push(count(chatCount, "chat", "chats"))
-  if (frameCount > 0) removes.push(count(frameCount, "frame", "frames"))
-  removes.push("its sandbox")
-
-  const branchKeptOn = [
+  // The description is plain sentences that never read the option, so
+  // ticking it changes only the checkbox: nothing rewraps and the centred
+  // dialog doesn't jump. When the option is offered its label speaks for
+  // GitHub (the branch, and the PR it closes); otherwise the description does.
+  const goes =
+    frameCount > 0
+      ? `Its workspace and ${count(frameCount, "frame", "frames")} are deleted.`
+      : "Its workspace is deleted."
+  const branchStaysOn = [
     localBranchKept && "this computer",
     !canDeleteOnRemote && onOrigin && "GitHub",
   ].filter(Boolean)
-  const keeps: string[] = []
-  if (branchKeptOn.length > 0) {
-    keeps.push(`the git branch on ${branchKeptOn.join(" and ")}`)
-  }
-  if (!canDeleteOnRemote && openPrNumber) keeps.push(`PR #${openPrNumber}`)
+  const stays = [
+    branchStaysOn.length > 0 &&
+      `The branch stays on ${branchStaysOn.join(" and ")}.`,
+    !canDeleteOnRemote && openPrNumber && `PR #${openPrNumber} stays open.`,
+  ].filter(Boolean)
 
   const warning = work
     ? lostWorkWarning(lostWork(work, { localBranchKept }))
@@ -109,19 +104,8 @@ export function DeleteBranchDialog({
       onOpenChange={onOpenChange}
       verb="Delete"
       itemName={branchName}
-      itemNoun="workspace"
-      description={
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1.5">
-          <dt>Removes</dt>
-          <dd className="text-foreground">{joinFacts(removes)}</dd>
-          {keeps.length > 0 && (
-            <>
-              <dt>Keeps</dt>
-              <dd className="text-foreground">{joinFacts(keeps)}</dd>
-            </>
-          )}
-        </dl>
-      }
+      itemNoun="chat"
+      description={[goes, ...stays].join(" ")}
       onConfirm={() => onConfirm({ deleteOnRemote: remote })}
     >
       {({ pending }) =>

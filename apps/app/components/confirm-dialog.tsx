@@ -33,7 +33,7 @@ export type ConfirmDialogProps = {
   itemNoun: string
   /**
    * What the action does. Rendered in a block (not a paragraph), so it can be a
-   * sentence or a structured list such as a Removes / Keeps pair.
+   * sentence or a structured list.
    */
   description: ReactNode
   /**

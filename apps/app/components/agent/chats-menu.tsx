@@ -556,11 +556,6 @@ export function ChatsMenuProvider({
         // Remote deletion goes through the GitHub API, so it is only offered
         // when a token resolves and the Repository names a GitHub remote.
         canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(deleteRepo)}
-        chatCount={
-          deleteBranch
-            ? chatSessions.filter((c) => c.branchId === deleteBranch.id).length
-            : 0
-        }
         frameCount={
           deleteBranch
             ? iframeLayers.filter((l) => l.branchId === deleteBranch.id).length
