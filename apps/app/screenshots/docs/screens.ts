@@ -404,6 +404,30 @@ async function claudeDrivesHome(page: Page) {
   )
 }
 
+/**
+ * You drive the Home frame and Ana and Ben ask for control (#1395). The record
+ * is marked live, as a shared frame's is, so your seat is picked back up on
+ * load: Interact on, and the request popover under the driver button.
+ */
+async function othersAskForHome(page: Page) {
+  await injectYjsUpdate(
+    page,
+    (c) =>
+      c.frameControl.set(frameControlKey(ids.layers.home, LOCAL_USER_ID), {
+        live: true,
+        driver: LOCAL_USER_ID,
+        requests: [
+          { by: "user-ana", at: 1 },
+          { by: "user-ben", at: 2 },
+        ],
+      }),
+    [
+      { id: "user-ana", name: "Ana", color: "#FFB74D" },
+      { id: "user-ben", name: "Ben", color: "#4DD0E1" },
+    ]
+  )
+}
+
 /** The selected frame's floating toolbar button, by its label. */
 const frameToolbar = (label: string) =>
   `button[data-size='icon-sm'][aria-label='${label}']`
@@ -926,6 +950,23 @@ export const DOCS_SCREENS: DocsScreen[] = [
         ...xy(await centerOf(page, frameToolbar("Claude is driving")))
       )
       await showTooltip(page)
+    },
+  }),
+  screen({
+    name: "frame-control-requests",
+    description:
+      "The driver's popover when two people ask for control of a frame.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [560, 40, 720, 460],
+    focus: ["[data-slot=popover-content]", "button[aria-label=Interact]"],
+    beforeNavigate: othersAskForHome,
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await page
+        .locator("[data-frame-control-request]")
+        .first()
+        .waitFor({ timeout: 15_000 })
     },
   }),
   screen({

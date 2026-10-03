@@ -214,6 +214,9 @@ export async function serveYjsDoc(
   })
 }
 
+/** Someone else on the Canvas, as their client's awareness announces them. */
+export type InjectedPerson = { id: string; name: string; color: string }
+
 /**
  * Pass the Yjs socket through to the server, and once the server has spoken,
  * slip the client one extra update built from `build`, as if another client
@@ -221,10 +224,14 @@ export async function serveYjsDoc(
  * update it received back to the server, so the Fixture World is untouched.
  * For state the world shouldn't carry for every screen, like the agent
  * driving a frame.
+ *
+ * `people` are announced over awareness as if their clients were online,
+ * renewed so they never time out while the screen is taken.
  */
 export async function injectYjsUpdate(
   page: Page,
-  build: (collections: RoomCollections) => void
+  build: (collections: RoomCollections) => void,
+  people: readonly InjectedPerson[] = []
 ): Promise<void> {
   const doc = new Y.Doc()
   const collections = getRoomCollections(doc)
@@ -236,15 +243,49 @@ export async function injectYjsUpdate(
     Buffer.from([0, 2, ...varUint(update.length)]),
     Buffer.from(update),
   ])
+  // A made-up client id per person (Yjs picks random 32-bit ones).
+  const presence = people.map((person, i) => ({
+    clientId: 2_000_000_000 + i,
+    clock: 0,
+    state: JSON.stringify({
+      identity: { id: person.id, name: person.name },
+      pointer: null,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      color: person.color,
+      selectedIframeLayerIds: [],
+    }),
+  }))
+  // messageAwareness (1), then y-protocols' awareness update (a count, then
+  // client id, clock and JSON state each) as a length-prefixed buffer. Each
+  // renewal bumps the clock, as a live client's heartbeat does.
+  const announce = () => {
+    const entries = presence.flatMap((p) => {
+      p.clock++
+      const json = Buffer.from(p.state)
+      return [
+        ...varUint(p.clientId),
+        ...varUint(p.clock),
+        ...varUint(json.length),
+        ...json,
+      ]
+    })
+    const u = Buffer.from([...varUint(presence.length), ...entries])
+    return Buffer.concat([Buffer.from([1, ...varUint(u.length)]), u])
+  }
   await page.routeWebSocket(/^(?!.*\/_next\/)/, (ws) => {
     const server = ws.connectToServer()
     let injected = false
+    let renew: ReturnType<typeof setInterval> | undefined
     ws.onMessage((m) => server.send(m))
+    ws.onClose(() => clearInterval(renew))
     server.onMessage((m) => {
       ws.send(m)
       if (injected) return
       injected = true
       ws.send(message)
+      if (presence.length === 0) return
+      ws.send(announce())
+      renew = setInterval(() => ws.send(announce()), 10_000)
     })
   })
 }

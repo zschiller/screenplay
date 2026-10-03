@@ -62,7 +62,7 @@ import { KnobsPopover } from "./knobs-popover"
 import { FrameDriverButton, FrameDriverTag } from "./frame-driver"
 import { FrameStreamView } from "./frame-stream-view"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
-import type { FrameDriverView } from "./use-frame-control"
+import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
 import { drivenByOther } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
@@ -137,6 +137,13 @@ interface IframeLayerProps {
   /** Who drives the frame (#1387). Someone else driving it shows their mark on
    *  Interact, the title-line tag, and no resize handles. */
   driver?: FrameDriverView
+  /** This viewer asked the person driving for control (#1395). */
+  askedForControl?: boolean
+  /** People asking this viewer, the driver, for control (#1395). */
+  controlRequests?: readonly FrameRequesterView[]
+  /** Let drive / Not now on a request for control. */
+  onGrantControl?: (layerId: string, to: string) => void
+  onDeclineControl?: (layerId: string, to: string) => void
   /**
    * Set on a hosted canvas whose Workspace streams its frames (#1392): the
    * frame is one shared browser in the Sandbox, shown from its Frame Stream
@@ -340,6 +347,10 @@ export function IframeLayer({
   labelHidden,
   focused,
   driver = NOBODY_DRIVES,
+  askedForControl,
+  controlRequests,
+  onGrantControl,
+  onDeclineControl,
   sharedStream,
   createFlow,
   selected,
@@ -1053,7 +1064,19 @@ export function IframeLayer({
                 <FloatingToolbarSeparator />
                 <FrameDriverButton
                   driver={driver}
+                  asked={askedForControl}
+                  requests={controlRequests}
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                  onGrant={
+                    onGrantControl
+                      ? (to) => onGrantControl(iframeLayer.id, to)
+                      : undefined
+                  }
+                  onDecline={
+                    onDeclineControl
+                      ? (to) => onDeclineControl(iframeLayer.id, to)
+                      : undefined
+                  }
                 />
                 <KnobsPopover
                   knobs={iframeLayer.knobs}

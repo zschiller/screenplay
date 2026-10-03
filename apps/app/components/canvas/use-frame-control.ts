@@ -14,6 +14,7 @@ import {
   drivenByOther,
   frameControlKey,
   frameDriverFor,
+  isOnline,
   nextSettleAt,
   reduceFrameControl,
   type FrameControlAction,
@@ -38,6 +39,15 @@ export type FrameDriverView =
       avatar?: string
     }
 
+/** A person waiting for the driver's Let drive, as the request popover
+ *  draws them. */
+export type FrameRequesterView = {
+  id: string
+  name: string
+  color: string
+  avatar?: string
+}
+
 export interface FrameControlDeps {
   /** The Room's `frameControl` collection. */
   collection: YjsCollection<FrameControlRecord>
@@ -55,6 +65,12 @@ export interface FrameControlDeps {
    *  Interaction. Entering Interact asks to drive; leaving it lets go. */
   focusedId: string | null
   setFocusedId: Dispatch<SetStateAction<string | null>>
+  /**
+   * Take the driver's seat on a frame this viewer was handed (Let drive, a
+   * driver who left, a reload). Interact needs the frame selected, so the
+   * canvas selects it as well. Defaults to `setFocusedId`.
+   */
+  takeSeat?: (layerId: string) => void
 }
 
 export interface FrameControl {
@@ -66,6 +82,15 @@ export interface FrameControl {
    * stays as it is until they let you drive.
    */
   interact(layerId: string): void
+  /** People asking this viewer, the driver, for control, oldest first. Empty
+   *  unless this viewer drives. The agent waits without asking. */
+  requestsOf(layerId: string): FrameRequesterView[]
+  /** Whether this viewer asked the person driving for control. */
+  askedFor(layerId: string): boolean
+  /** Let drive: hand the frame to a person who asked. */
+  grant(layerId: string, to: string): void
+  /** Not now: turn a person's request down. */
+  decline(layerId: string, to: string): void
 }
 
 /**
@@ -76,7 +101,13 @@ export interface FrameControl {
  *   asks to drive; leaving it (Esc, a deselect, the button) lets go. A stale
  *   seat, from a tab that closed while interacting, is let go on load.
  * - When someone else takes the frame while this viewer interacts (the asker
- *   handing it to the agent from chat), Interact ends.
+ *   handing it to the agent from chat, Let drive), Interact ends.
+ * - When the frame is handed to this viewer (Let drive, a driver who left),
+ *   Interact starts. A shared frame's driver who reloads takes the seat back:
+ *   the grace period kept it for them.
+ * - Someone a record names who hasn't shown up in awareness yet gets the
+ *   grace period from when this viewer first noticed, so a client that just
+ *   loaded doesn't count the driver as gone before their presence arrives.
  * - Awareness says who is online; a timer re-runs the grace rules when
  *   someone who drives or waits has left.
  */
@@ -91,6 +122,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     sharedIds = NO_SHARED,
     focusedId,
     setFocusedId,
+    takeSeat = setFocusedId,
   } = deps
 
   // Re-render on any change to the collection; records are read per frame.
@@ -191,22 +223,79 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     [keyOf, revision, viewerId, peopleById]
   )
 
+  const askedFor = useCallback(
+    (layerId: string): boolean => {
+      const key = keyOf(layerId)
+      const record = key ? revision.get(key) : undefined
+      return !!record?.requests.some((r) => r.by === viewerId)
+    },
+    [keyOf, revision, viewerId]
+  )
+
   const interact = useCallback(
     (layerId: string) => {
       if (!viewerId) return
       const driver = driverOf(layerId)
       if (driver.kind === "person") {
-        dispatch(layerId, { type: "request", by: viewerId, at: Date.now() })
+        // Asking again takes the ask back.
+        dispatch(
+          layerId,
+          askedFor(layerId)
+            ? { type: "cancel", by: viewerId }
+            : { type: "request", by: viewerId, at: Date.now() }
+        )
         return
       }
       setFocusedId(layerId)
     },
-    [viewerId, driverOf, dispatch, setFocusedId]
+    [viewerId, driverOf, askedFor, dispatch, setFocusedId]
+  )
+
+  const requestsOf = useCallback(
+    (layerId: string): FrameRequesterView[] => {
+      const key = keyOf(layerId)
+      const record = key ? revision.get(key) : undefined
+      if (!record || record.driver !== viewerId) return []
+      return [...record.requests]
+        .sort((a, b) => a.at - b.at)
+        .flatMap((r) => {
+          // Only people who are here: someone gone within their grace may
+          // come back, but there's nobody to hand the frame to meanwhile.
+          const person = peopleById.get(r.by)
+          if (!person) return []
+          return [
+            {
+              id: r.by,
+              name: person.name || "Someone",
+              color: person.color,
+              avatar: person.avatar,
+            },
+          ]
+        })
+    },
+    [keyOf, revision, viewerId, peopleById]
+  )
+
+  const grant = useCallback(
+    (layerId: string, to: string) => {
+      if (viewerId) dispatch(layerId, { type: "grant", by: viewerId, to })
+    },
+    [viewerId, dispatch]
+  )
+  const decline = useCallback(
+    (layerId: string, to: string) => {
+      if (viewerId) dispatch(layerId, { type: "decline", by: viewerId, to })
+    },
+    [viewerId, dispatch]
   )
 
   // Interact is the seat: ask to drive on entering it, let go on leaving it,
-  // and let go of any seat this viewer holds on a frame it isn't in.
+  // and take it when the frame is handed over. Any other seat this viewer
+  // holds on a frame it isn't in is let go (a tab that closed mid-Interact).
   const prevFocusedRef = useRef<string | null>(null)
+  // The driver each record had when this viewer last looked; absent until
+  // the first look, so a seat found on load is told from one just handed over.
+  const seenDriverRef = useRef(new Map<string, string | null>())
   useEffect(() => {
     if (!viewerId) return
     const entered = focusedId !== prevFocusedRef.current ? focusedId : null
@@ -215,15 +304,25 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       dispatch(entered, { type: "request", by: viewerId, at: Date.now() })
     }
     for (const layerId of frameIds) {
-      if (layerId === focusedId) continue
       const key = keyOf(layerId)
-      if (key && collection.get(key)?.driver === viewerId) {
-        dispatch(layerId, {
-          type: "release",
-          by: viewerId,
-          presence: presenceNow(),
-        })
+      if (!key) continue
+      const record = collection.get(key)
+      const seen = seenDriverRef.current
+      const wasSeen = seen.has(key)
+      const before = seen.get(key) ?? null
+      seen.set(key, record?.driver ?? null)
+      if (layerId === focusedId || record?.driver !== viewerId) continue
+      // Handed over just now, or a shared frame's seat kept through a reload.
+      const handedOver = wasSeen ? before !== viewerId : record.live
+      if (handedOver && layerId !== entered) {
+        takeSeat(layerId)
+        continue
       }
+      dispatch(layerId, {
+        type: "release",
+        by: viewerId,
+        presence: presenceNow(),
+      })
     }
     // Someone else took the frame this viewer interacts with.
     if (focusedId && frameIds.includes(focusedId)) {
@@ -240,6 +339,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     presenceNow,
     dispatch,
     setFocusedId,
+    takeSeat,
     keyOf,
   ])
 
@@ -248,6 +348,20 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
   useEffect(() => {
     if (!viewerId) return
     const now = Date.now()
+    // Someone named here who hasn't shown up yet gets their grace from now:
+    // their presence may simply not have arrived on a client that just loaded.
+    for (const layerId of frameIds) {
+      const key = keyOf(layerId)
+      const record = key ? collection.get(key) : undefined
+      if (!record) continue
+      for (const party of [record.driver, ...record.requests.map((r) => r.by)])
+        if (
+          party &&
+          !isOnline(presenceNow(), party) &&
+          !goneAtRef.current.has(party)
+        )
+          goneAtRef.current.set(party, now)
+    }
     const presence = presenceNow()
     let due: number | null = null
     for (const layerId of frameIds) {
@@ -277,5 +391,8 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     keyOf,
   ])
 
-  return useMemo(() => ({ driverOf, interact }), [driverOf, interact])
+  return useMemo(
+    () => ({ driverOf, interact, requestsOf, askedFor, grant, decline }),
+    [driverOf, interact, requestsOf, askedFor, grant, decline]
+  )
 }

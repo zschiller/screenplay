@@ -554,6 +554,10 @@ function CanvasMemberLayerImpl({
               createFlow={createFlowIframeLayerId === iframeLayer.id}
               selected={selectedIframeLayerIds.has(iframeLayer.id)}
               driver={frameControl.driverOf(iframeLayer.id)}
+              askedForControl={frameControl.askedFor(iframeLayer.id)}
+              controlRequests={frameControl.requestsOf(iframeLayer.id)}
+              onGrantControl={frameControl.grant}
+              onDeclineControl={frameControl.decline}
               onFocus={(id) => {
                 if (id === null) {
                   setFocusedIframeLayerId(null)
