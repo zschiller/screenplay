@@ -8,6 +8,7 @@ const meta = {
   mockups: "Mockups",
   coordinator: "The Coordinator",
   memory: "Memory",
+  files: "Files",
   agent: "Workspace chats",
   terminals: "Terminal tabs",
   "play-mode": "Play mode",

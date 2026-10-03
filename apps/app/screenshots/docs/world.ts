@@ -11,7 +11,12 @@ import type {
   RepoData,
 } from "@/lib/types"
 
-import type { FixtureChat, FixtureRoom, FixtureWorld } from "../fixtures/world"
+import {
+  canvasFileFixtures,
+  type FixtureChat,
+  type FixtureRoom,
+  type FixtureWorld,
+} from "../fixtures/world"
 import { readSource, WORKSPACE_EDITS, type DemoPreview } from "./demo-site"
 import { PRICING_SIDE_BY_SIDE_MOCKUP, PRICING_TOGGLE_MOCKUP } from "./mockups"
 
@@ -484,6 +489,31 @@ function northwindRoom(
           resolvedAt: minutesAgo(46),
         },
       ],
+      ...canvasFileFixtures(ids.rooms.northwind, now - DAY, [
+        { folder: "research" },
+        {
+          path: "research/pricing-pages.md",
+          mediaType: "text/markdown",
+          size: 12 * 1024,
+        },
+        {
+          path: "research/customer-quotes.md",
+          mediaType: "text/markdown",
+          size: 4 * 1024,
+        },
+        { folder: "uploads" },
+        {
+          path: "uploads/brand-guidelines.pdf",
+          mediaType: "application/pdf",
+          size: 2_200_000,
+          addedById: LOCAL_USER_ID,
+        },
+        {
+          path: "launch-plan.md",
+          mediaType: "text/markdown",
+          size: 3 * 1024,
+        },
+      ]),
       memories: [
         {
           id: "mem-northwind-tone",

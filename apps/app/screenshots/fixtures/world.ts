@@ -11,6 +11,7 @@ import {
 import type {
   BranchData,
   ChatSessionData,
+  FileEntryData,
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
@@ -104,6 +105,11 @@ export interface FixtureRoom {
     plans?: PlanData[]
     /** Canvas memory entries (#902), shown in Canvas settings › Memory. */
     memories?: MemoryData[]
+    /** Canvas Files entries (#1514), shown in Canvas settings › Files. */
+    files?: FileEntryData[]
+    /** Bytes per Canvas Files path, written to the private file store under
+     *  the entry's `blobKey`. */
+    fileBodies?: Record<string, string>
     savedViewport?: ViewportData
     /** Markdown body per Markdown Layer id, written into its `markdown-layer-{id}` fragment. */
     markdownBodies?: Record<string, string>
@@ -892,6 +898,37 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       },
       chatSessions,
       plans,
+      ...canvasFileFixtures(ids.rooms.checkout, daysAgo(now, 1), [
+        { folder: "research" },
+        { folder: "research/interviews" },
+        {
+          path: "research/interviews/returning-customers.md",
+          mediaType: "text/markdown",
+          body: INTERVIEW_NOTES,
+        },
+        {
+          path: "research/checkout-benchmarks.md",
+          mediaType: "text/markdown",
+          body: CHECKOUT_BENCHMARKS,
+        },
+        {
+          path: "research/competitor-flows.pdf",
+          mediaType: "application/pdf",
+          size: 880 * 1024,
+        },
+        { folder: "uploads" },
+        {
+          path: "uploads/cart-sketch.png",
+          mediaType: "image/png",
+          size: 310 * 1024,
+          addedById: LOCAL_USER_ID,
+        },
+        {
+          path: "payment-copy.md",
+          mediaType: "text/markdown",
+          body: PAYMENT_COPY,
+        },
+      ]),
       memories: [
         {
           id: "mem-checkout-pnpm",
@@ -1871,3 +1908,84 @@ function repoConfigs(now: number): RepoConfig[] {
     },
   ]
 }
+
+/**
+ * Canvas Files fixtures (#1517): entries for a room's `files` collection, and
+ * the bodies the seeder writes to the private file store. Each spec is a
+ * path, or a file with its body, size and who added it.
+ */
+export function canvasFileFixtures(
+  roomId: string,
+  at: number,
+  specs: Array<
+    | { folder: string }
+    | {
+        path: string
+        mediaType: string
+        body?: string
+        size?: number
+        addedById?: string
+      }
+  >
+): { files: FileEntryData[]; fileBodies: Record<string, string> } {
+  const files: FileEntryData[] = []
+  const fileBodies: Record<string, string> = {}
+  specs.forEach((spec, i) => {
+    const id = `file-${roomId}-${i}`
+    const base = { id, createdAt: at - i * 60_000, updatedAt: at - i * 60_000 }
+    if ("folder" in spec) {
+      files.push({
+        ...base,
+        path: spec.folder,
+        kind: "folder",
+        size: 0,
+        mediaType: "",
+        addedBy: "agent",
+        addedById: "chat-fixture",
+        blobKey: "",
+      })
+      return
+    }
+    files.push({
+      ...base,
+      path: spec.path,
+      kind: "file",
+      size: spec.size ?? new TextEncoder().encode(spec.body ?? "").byteLength,
+      mediaType: spec.mediaType,
+      addedBy: spec.addedById ? "member" : "agent",
+      addedById: spec.addedById ?? "chat-fixture",
+      blobKey: `canvas/${roomId}/${id}`,
+    })
+    if (spec.body !== undefined) fileBodies[spec.path] = spec.body
+  })
+  return { files, fileBodies }
+}
+
+const INTERVIEW_NOTES = `# Returning customers
+
+Five interviews, all bought twice or more in the last quarter.
+
+- Four of five expected their saved card to be picked already.
+- Two abandoned a cart when shipping cost appeared on the last step.
+- Everyone wanted the order total visible while editing the address.
+`
+
+const CHECKOUT_BENCHMARKS = `# Checkout benchmarks
+
+| Store       | Steps | Guest checkout | Total shown from |
+| ----------- | ----- | -------------- | ---------------- |
+| Storefront  | 4     | Yes            | Payment          |
+| Competitor A| 3     | Yes            | Cart             |
+| Competitor B| 2     | No             | Cart             |
+
+Showing the total from the cart is the common pattern; ours appears two
+steps later.
+`
+
+const PAYMENT_COPY = `# Payment step copy
+
+Title: Pay for your order
+Button: Pay $48.00
+Saved card: Visa ending 4242, expires 08/28
+Error: That card was declined. Try another card or check the details.
+`

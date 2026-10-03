@@ -30,6 +30,7 @@ import type {
   IframeLayerGroupData,
   ChatSessionData,
   MarkdownLayerData,
+  FileEntryData,
   MemoryData,
   MockupLayerData,
   PlanData,
@@ -123,6 +124,11 @@ export function useRepos(): Array<RepoData> {
 /** Canvas memory entries (#902), in the Room doc's order; sort before showing. */
 export function useMemories(): Array<MemoryData> {
   return useCollectionArray(useRoomCollections().memories)
+}
+
+/** Canvas Files entries (#1514), for Canvas settings › Files. */
+export function useCanvasFiles(): Array<FileEntryData> {
+  return useCollectionArray(useRoomCollections().files)
 }
 
 export function useBranches(): Array<BranchData> {

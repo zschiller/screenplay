@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   BookBookmarkIcon,
+  FolderIcon,
   NotepadIcon,
   PencilSimpleIcon,
   PlusIcon,
@@ -76,11 +77,19 @@ import {
   saveRepositoryToAll,
 } from "@/lib/repository-library/actions"
 import { listCollaborators, type CollaboratorInfo } from "@/lib/rooms-actions"
-import type { BranchData, MemoryData, RepoData } from "@/lib/types"
+import type {
+  BranchData,
+  FileEntryData,
+  MemoryData,
+  RepoData,
+} from "@/lib/types"
+import { deleteCanvasFile, FilesSection } from "./canvas-files-section"
 import { MemorySection } from "./canvas-memory-section"
+import { openCanvasFileOnDesktop } from "@/lib/files/desktop-actions"
+import { isLocalBuild } from "@/lib/local-mode"
 
 /** The sections of Canvas settings. Members may join later. */
-export type CanvasSettingsSection = "repositories" | "memory"
+export type CanvasSettingsSection = "repositories" | "memory" | "files"
 
 const SECTIONS: {
   id: CanvasSettingsSection
@@ -89,6 +98,7 @@ const SECTIONS: {
 }[] = [
   { id: "repositories", title: "Repositories", icon: BookBookmarkIcon },
   { id: "memory", title: "Memory", icon: NotepadIcon },
+  { id: "files", title: "Files", icon: FolderIcon },
 ]
 
 /**
@@ -98,7 +108,7 @@ const SECTIONS: {
  * and your others to add, and edits them through the same flows as the
  * sidebar. What it edits lives in the Room's Y.Doc, so every
  * collaborator shares it. Memory (#902) lists the canvas memory every chat
- * reads.
+ * reads, and Files (#1517) the files every chat can open.
  */
 export function CanvasSettingsDialog({
   roomId,
@@ -115,6 +125,9 @@ export function CanvasSettingsDialog({
   onAddMemory,
   onEditMemory,
   onRemoveMemory,
+  files,
+  deleteFile = deleteCanvasFile,
+  openFileOnDesktop = isLocalBuild ? openCanvasFileOnDesktop : undefined,
   policy = repositoryLinkPolicy,
 }: {
   roomId: string
@@ -131,6 +144,18 @@ export function CanvasSettingsDialog({
   onAddMemory: (text: string) => void
   onEditMemory: (id: string, text: string) => void
   onRemoveMemory: (id: string) => void
+  /** Canvas Files entries (#1517), in any order. */
+  files: FileEntryData[]
+  /** Delete a file or folder for every member; the route unless a test
+   *  picks one. */
+  deleteFile?: (roomId: string, path: string) => Promise<void>
+  /** The desktop's Open and Reveal in Finder (#1517); absent on hosted
+   *  unless a test picks one. */
+  openFileOnDesktop?: (
+    roomId: string,
+    path: string,
+    how: "open" | "reveal"
+  ) => Promise<void>
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
   onRemoveRepo: (
     id: string,
@@ -146,6 +171,16 @@ export function CanvasSettingsDialog({
   const [activeId, setActiveId] =
     useState<CanvasSettingsSection>("repositories")
   const active = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0]!
+  const members = useCanvasMembers(
+    roomId,
+    policy.showsAddedBy && active.id === "files"
+  )
+  const adderName = (entry: FileEntryData) =>
+    entry.addedBy === "agent"
+      ? "Saved by agent"
+      : entry.addedById === userId
+        ? "Added by you"
+        : `Added by ${members.find((m) => m.userId === entry.addedById)?.name ?? "a member"}`
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -202,7 +237,18 @@ export function CanvasSettingsDialog({
               </Breadcrumb>
             </header>
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
-              {active.id === "memory" ? (
+              {active.id === "files" ? (
+                <FilesSection
+                  roomId={roomId}
+                  files={files}
+                  onDelete={(path) => deleteFile(roomId, path)}
+                  onDesktop={
+                    openFileOnDesktop &&
+                    ((path, how) => openFileOnDesktop(roomId, path, how))
+                  }
+                  adderName={adderName}
+                />
+              ) : active.id === "memory" ? (
                 <MemorySection
                   memories={memories}
                   onAddMemory={onAddMemory}

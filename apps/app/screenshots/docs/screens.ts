@@ -769,6 +769,21 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "canvas-settings-files",
+    description:
+      "Canvas settings on Files: the files every chat on the canvas can open, one folder expanded.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await page.getByRole("button", { name: "Canvas options" }).click()
+      await clickMenuItem(page, "Settings", 1200)
+      await page.getByRole("button", { name: "Files", exact: true }).click()
+      await page.getByRole("button", { name: /^research/ }).click()
+    },
+  }),
+  screen({
     name: "add-project-menu",
     description: "Canvas settings' New repository menu.",
     path: ROOM,

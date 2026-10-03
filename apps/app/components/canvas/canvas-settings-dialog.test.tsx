@@ -8,7 +8,12 @@ import {
   waitFor,
   within,
 } from "@testing-library/react"
-import type { BranchData, MemoryData, RepoData } from "@/lib/types"
+import type {
+  BranchData,
+  FileEntryData,
+  MemoryData,
+  RepoData,
+} from "@/lib/types"
 import { revealCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 
 // The add flow's server actions: one GitHub repository to pick, and detection that finds nothing (the form opens on plain defaults).
@@ -26,6 +31,10 @@ vi.mock("@/lib/github-actions", () => ({
       pushedAt: "2026-09-01T00:00:00Z",
     },
   ]),
+}))
+// The desktop's Open runs on the server; tests hand the dialog a fake.
+vi.mock("@/lib/files/desktop-actions", () => ({
+  openCanvasFileOnDesktop: vi.fn(),
 }))
 vi.mock("@/lib/github-local/actions", () => ({
   getGitHubLocalStatus: vi.fn().mockResolvedValue(null),
@@ -225,7 +234,15 @@ function renderDialog(
   {
     canReveal = true,
     policy = desktopLinkPolicy,
-  }: { canReveal?: boolean; policy?: RepositoryLinkPolicy } = {}
+    files = [],
+    desktop = false,
+  }: {
+    canReveal?: boolean
+    policy?: RepositoryLinkPolicy
+    files?: FileEntryData[]
+    /** Give the dialog the desktop's Open and Reveal in Finder. */
+    desktop?: boolean
+  } = {}
 ) {
   const handlers = {
     onUpdateRepo: vi.fn(),
@@ -234,6 +251,10 @@ function renderDialog(
     onEditMemory: vi.fn(),
     onRemoveMemory: vi.fn(),
     onSwitchOn: vi.fn(),
+    deleteFile: vi.fn().mockResolvedValue(undefined),
+    openFileOnDesktop: desktop
+      ? vi.fn().mockResolvedValue(undefined)
+      : undefined,
   }
   render(
     <CanvasSettingsDialog
@@ -245,6 +266,7 @@ function renderDialog(
       repos={repos}
       branches={BRANCHES}
       memories={memories}
+      files={files}
       policy={policy}
       {...handlers}
     />
@@ -866,6 +888,207 @@ describe("CanvasSettingsDialog", () => {
       fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }))
 
       expect(onRemoveMemory).toHaveBeenCalledWith("mem-1")
+    })
+  })
+
+  describe("Files (#1517)", () => {
+    const entry = (
+      path: string,
+      over: Partial<FileEntryData> = {}
+    ): FileEntryData => ({
+      id: path,
+      path,
+      kind: "file",
+      size: 2150,
+      mediaType: "text/markdown",
+      addedBy: "agent",
+      addedById: "chat-1",
+      blobKey: `canvas/room-1/${path}`,
+      createdAt: 1,
+      updatedAt: 1,
+      ...over,
+    })
+    const folder = (path: string) =>
+      entry(path, { kind: "folder", size: 0, mediaType: "", blobKey: "" })
+    // research/ holds interviews/ (one file) and two files; one file at the top.
+    const FILES = [
+      entry("zebra.md", { addedBy: "member", addedById: "zack" }),
+      folder("research"),
+      folder("research/interviews"),
+      entry("research/interviews/sam.md"),
+      entry("research/pricing.pdf", {
+        mediaType: "application/pdf",
+        size: 880 * 1024,
+        addedBy: "member",
+        addedById: "sam",
+      }),
+      entry("research/notes.md"),
+    ]
+
+    const openFiles = (files = FILES, desktop = false) => {
+      const handlers = renderDialog(undefined, undefined, { files, desktop })
+      fireEvent.click(screen.getByRole("button", { name: "Files" }))
+      return handlers
+    }
+    const rowNames = () =>
+      screen
+        .getAllByRole("button", { name: /^More actions for / })
+        .map((b) =>
+          b.getAttribute("aria-label")!.replace("More actions for ", "")
+        )
+    const menu = async (name: string) => {
+      fireEvent.pointerDown(
+        screen.getByRole("button", { name: `More actions for ${name}` }),
+        { button: 0, ctrlKey: false }
+      )
+      return screen.findByRole("menu")
+    }
+
+    afterEach(() => vi.unstubAllGlobals())
+
+    it("lists folders first with their item count, collapsed", () => {
+      openFiles()
+
+      expect(rowNames()).toEqual(["research", "zebra.md"])
+      expect(screen.getByText("3 items")).toBeTruthy()
+      expect(screen.getByText("2.1 KB · Added by you")).toBeTruthy()
+    })
+
+    it("expands and collapses a folder, folders first inside it too", () => {
+      openFiles()
+      const research = screen.getByRole("button", { name: /^research/ })
+      expect(research.getAttribute("aria-expanded")).toBe("false")
+
+      fireEvent.click(screen.getByRole("button", { name: /^research/ }))
+      expect(rowNames()).toEqual([
+        "research",
+        "interviews",
+        "notes.md",
+        "pricing.pdf",
+        "zebra.md",
+      ])
+      expect(screen.getByText("880.0 KB · Added by a member")).toBeTruthy()
+      expect(screen.getByText("2.1 KB · Saved by agent")).toBeTruthy()
+
+      fireEvent.click(screen.getByRole("button", { name: /^research/ }))
+      expect(rowNames()).toEqual(["research", "zebra.md"])
+    })
+
+    it("offers people only Open and Delete", async () => {
+      openFiles()
+
+      const items = within(await menu("zebra.md")).getAllByRole("menuitem")
+      expect(items.map((i) => i.textContent)).toEqual(["Open", "Delete"])
+      expect(
+        screen.queryByRole("button", { name: /upload|new folder|rename|move/i })
+      ).toBeNull()
+    })
+
+    it("opens a file in a dialog over Canvas settings, and closes it", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(new Response("# Zebra notes"))
+      )
+      openFiles()
+
+      fireEvent.click(
+        within(await menu("zebra.md")).getByRole("menuitem", { name: "Open" })
+      )
+
+      const file = await screen.findByRole("dialog", { name: "zebra.md" })
+      expect(await within(file).findByText("# Zebra notes")).toBeTruthy()
+      expect(within(file).getByText("2.1 KB · Added by you")).toBeTruthy()
+      expect(fetch).toHaveBeenCalledWith("/api/canvas-files/room-1/zebra.md")
+      expect(
+        within(file)
+          .getByRole("link", { name: "Download" })
+          .getAttribute("href")
+      ).toBe("/api/canvas-files/room-1/zebra.md")
+
+      fireEvent.keyDown(file, { key: "Escape" })
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "zebra.md" })).toBeNull()
+      )
+      expect(
+        screen.getByRole("dialog", { name: "Canvas settings" })
+      ).toBeTruthy()
+    })
+
+    it("on the desktop, opens a file in its own app and reveals items in Finder", async () => {
+      const { openFileOnDesktop } = openFiles(FILES, true)
+
+      fireEvent.click(
+        within(await menu("zebra.md")).getByRole("menuitem", { name: "Open" })
+      )
+      await waitFor(() =>
+        expect(openFileOnDesktop).toHaveBeenCalledWith(
+          "room-1",
+          "zebra.md",
+          "open"
+        )
+      )
+      expect(screen.queryByRole("dialog", { name: "zebra.md" })).toBeNull()
+
+      fireEvent.click(
+        within(await menu("research")).getByRole("menuitem", {
+          name: "Reveal in Finder",
+        })
+      )
+      await waitFor(() =>
+        expect(openFileOnDesktop).toHaveBeenCalledWith(
+          "room-1",
+          "research",
+          "reveal"
+        )
+      )
+    })
+
+    it("offers no Reveal in Finder on hosted", async () => {
+      openFiles()
+
+      expect(
+        within(await menu("research")).queryByRole("menuitem", {
+          name: "Reveal in Finder",
+        })
+      ).toBeNull()
+    })
+
+    it("confirms deleting a file with its name", async () => {
+      const { deleteFile } = openFiles()
+
+      fireEvent.click(
+        within(await menu("zebra.md")).getByRole("menuitem", { name: "Delete" })
+      )
+      const confirm = await screen.findByRole("alertdialog")
+      expect(within(confirm).getByText("Delete “zebra.md”?")).toBeTruthy()
+      expect(deleteFile).not.toHaveBeenCalled()
+
+      fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }))
+      await waitFor(() =>
+        expect(deleteFile).toHaveBeenCalledWith("room-1", "zebra.md")
+      )
+    })
+
+    it("confirms deleting a folder with how many items go with it", async () => {
+      const { deleteFile } = openFiles()
+
+      fireEvent.click(
+        within(await menu("research")).getByRole("menuitem", { name: "Delete" })
+      )
+      const confirm = await screen.findByRole("alertdialog")
+      expect(within(confirm).getByText("Delete “research”?")).toBeTruthy()
+      expect(within(confirm).getByText(/The 4 items in it go too/)).toBeTruthy()
+
+      fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }))
+      await waitFor(() =>
+        expect(deleteFile).toHaveBeenCalledWith("room-1", "research")
+      )
+    })
+
+    it("says so when the canvas has no files", () => {
+      openFiles([])
+
+      expect(screen.getByText("No files yet")).toBeTruthy()
     })
   })
 })
