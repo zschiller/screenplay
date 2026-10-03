@@ -451,6 +451,7 @@ export function LivePageControls({
   onDeclineControl,
   live = false,
   onToggleLive,
+  liveStarting = false,
   onAskForKnob,
   theme,
 }: {
@@ -466,6 +467,9 @@ export function LivePageControls({
   live?: boolean
   /** Go live or end it, for everyone; absent where the page can't go live. */
   onToggleLive?: () => void
+  /** This viewer turned the page live and waits for its first picture
+   *  (#1520): the toggle spins. */
+  liveStarting?: boolean
   onAskForKnob?: () => void
   /** The Theme knob, on a shared page. */
   theme?: {
@@ -487,7 +491,11 @@ export function LivePageControls({
         }
       />
       {onToggleLive && (
-        <FrameGoLiveToggle live={live} onToggle={onToggleLive} />
+        <FrameGoLiveToggle
+          live={live}
+          pending={liveStarting}
+          onToggle={onToggleLive}
+        />
       )}
       <KnobsPopover
         knobs={record.knobs}

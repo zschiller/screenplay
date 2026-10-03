@@ -7,6 +7,7 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { BroadcastIcon, CursorIcon } from "@workspace/ui/components/icons"
 import {
   Popover,
@@ -243,27 +244,35 @@ export function FrameLiveTag() {
  * canvas on the one live browser, and a click on the pressed toggle ends it
  * for everyone, back to their own copies. It stays in the bar both ways, so
  * the bar never resizes: plain on own copies, the pressed ink fill while live.
+ * From this viewer's click until the first picture (#1520) the regular
+ * spinner takes the icon's place in the same button, and clicks are ignored.
  */
 export function FrameGoLiveToggle({
   live,
+  pending = false,
   onToggle,
 }: {
   /** The frame is live. */
   live: boolean
+  /** This viewer turned it live and waits for its first picture. */
+  pending?: boolean
   onToggle: () => void
 }) {
   return (
     <FloatingToolbarButton
-      label={live ? "Live" : "Go live"}
+      label={pending ? "Going live" : live ? "Live" : "Go live"}
       hint={
-        live
-          ? "Click to end live for everyone"
-          : "Everyone on the canvas sees it live"
+        pending
+          ? undefined
+          : live
+            ? "Click to end live for everyone"
+            : "Everyone on the canvas sees it live"
       }
       pressed={live}
-      onClick={onToggle}
+      aria-busy={pending || undefined}
+      onClick={pending ? undefined : onToggle}
     >
-      <BroadcastIcon />
+      {pending ? <Spinner aria-hidden /> : <BroadcastIcon />}
     </FloatingToolbarButton>
   )
 }

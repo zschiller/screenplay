@@ -1,6 +1,7 @@
 "use client"
 
-import { memo, useMemo } from "react"
+import { memo, useCallback, useMemo } from "react"
+import { toast } from "sonner"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
 import {
@@ -37,6 +38,7 @@ import { frameWorkspaceOf } from "./frame-nav"
 import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
+import { useGoLive } from "./use-go-live"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -242,6 +244,32 @@ function CanvasMemberLayerImpl({
     () => hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
     [effectiveIframeLayerLayouts, zoom]
   )
+  // Going live (#1520): the toggle spins until the first picture, and a
+  // failure turns the frame back off and says why.
+  const liveIds = useMemo(
+    () =>
+      new Set(
+        iframeLayers
+          .filter((l) => sharedFrames.liveOf(l.id).live)
+          .map((l) => l.id)
+      ),
+    [iframeLayers, sharedFrames]
+  )
+  const letGo = frameControl.letGo
+  const updateLive = layerMutations.updateLive
+  const goLive = useGoLive({
+    liveIds,
+    setLive: useCallback(
+      (id: string, live: boolean) => {
+        // Going live or ending it switches which Frame Control record
+        // governs the frame: let go of the old one.
+        letGo(id)
+        updateLive(id, live)
+      },
+      [letGo, updateLive]
+    ),
+    onFailed: useCallback((message: string) => toast.error(message), []),
+  })
 
   return (
     <>
@@ -553,7 +581,7 @@ function CanvasMemberLayerImpl({
           const stream = sharedFrames.sharedIds.has(iframeLayer.id)
             ? sharedFrames.streamOf(iframeLayer.branchId)
             : undefined
-          const canGoLive = !!sharedFrames.streamOf(iframeLayer.branchId)
+          const liveStream = sharedFrames.streamOf(iframeLayer.branchId)
           return (
             <IframeLayer
               // Going live or ending it starts the view afresh: a new stream
@@ -567,15 +595,17 @@ function CanvasMemberLayerImpl({
               live={live.live}
               liveDriver={frameControl.liveDriverOf(iframeLayer.id)}
               onToggleLive={
-                canGoLive
-                  ? () => {
-                      // Going live or ending it switches which Frame Control
-                      // record governs the frame: let go of the old one.
-                      frameControl.letGo(iframeLayer.id)
-                      layerMutations.updateLive(iframeLayer.id, !live.live)
-                    }
+                liveStream
+                  ? () =>
+                      goLive.toggle({
+                        id: iframeLayer.id,
+                        live: live.live,
+                        stream: liveStream,
+                        workspace: assignedAgent,
+                      })
                   : undefined
               }
+              liveStarting={goLive.pendingIds.has(iframeLayer.id)}
               zoom={zoom}
               labelHidden={labelsHidden.has(iframeLayer.id)}
               focused={focusedIframeLayerId === iframeLayer.id}
