@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import {
   BookBookmarkIcon,
   BrainIcon,
@@ -8,6 +9,7 @@ import {
   PlusIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
+import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Breadcrumb,
@@ -59,6 +61,7 @@ import {
 } from "@/components/home/settings-row"
 import { RemoveRepositoryDialog } from "@/components/remove-repository-dialog"
 import { RepoSettingsDialog } from "@/components/repo-settings-dialog"
+import { RepoTitle } from "@/components/repo-title"
 import { NeedsYouDot } from "@/components/workspace-mention"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName } from "@/lib/repo-identity"
@@ -365,7 +368,7 @@ function RepositoriesSection({
                   return (
                     <SettingsRow
                       key={row.on ? row.repo.id : row.repository.id}
-                      title={name}
+                      title={<RepoTitle repo={source} />}
                       marker={
                         customized ? (
                           <CustomizedDot />
@@ -411,7 +414,20 @@ function RepositoriesSection({
               </SettingsRowList>
             </section>
           ))}
-          <div className="flex justify-end">{newButton}</div>
+          {/* Where these come from: the list in Settings, with Duplicate and
+              Delete, says how many canvases use each (H5). */}
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              asChild
+              variant="ghost"
+              className="-ml-2.5 text-muted-foreground"
+            >
+              <Link href="/settings?section=repositories">
+                Manage in Settings
+              </Link>
+            </Button>
+            {newButton}
+          </div>
         </>
       )}
       <AddRepositoryDialog

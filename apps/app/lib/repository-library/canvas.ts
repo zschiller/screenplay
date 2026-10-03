@@ -108,7 +108,7 @@ export function isCustomized(
 
 /** Every Canvas Repo, read fresh by id (a server-side `toArray()` snapshot can
  *  lag its own writes; ids are stable). */
-function canvasRepos(collections: RoomCollections): RepoData[] {
+export function canvasRepos(collections: RoomCollections): RepoData[] {
   return collections.repos
     .toArray()
     .map((r) => collections.repos.get(r.id))

@@ -284,6 +284,23 @@ describe("CanvasSettingsDialog", () => {
     ).not.toBeNull()
   })
 
+  it("names each repository by owner/name, as Settings does, and links there", async () => {
+    renderDialog()
+
+    // DOCS is labelled "docs": the label follows its owner/name, muted.
+    const docs = await screen.findByText("acme/site")
+    expect(docs.textContent).toBe("acme/site docs")
+    // A label that repeats the repository's name adds nothing.
+    expect(screen.getByText("acme/storefront").textContent).toBe(
+      "acme/storefront"
+    )
+    expect(
+      screen
+        .getByRole("link", { name: "Manage in Settings" })
+        .getAttribute("href")
+    ).toBe("/settings?section=repositories")
+  })
+
   it("adds one of your repositories", async () => {
     const { onSwitchOn } = renderDialog()
 
@@ -417,7 +434,7 @@ describe("CanvasSettingsDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
     const form = await screen.findByRole("dialog", {
-      name: "Repository settings",
+      name: "Edit repository",
     })
     fireEvent.change(within(form).getByLabelText("Name"), {
       target: { value: "web" },
@@ -437,7 +454,7 @@ describe("CanvasSettingsDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
     const form = await screen.findByRole("dialog", {
-      name: "Repository settings",
+      name: "Edit repository",
     })
     const box = within(form).getByRole("checkbox", {
       name: "Also update Settings and my other canvases",
@@ -462,7 +479,7 @@ describe("CanvasSettingsDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
     const form = await screen.findByRole("dialog", {
-      name: "Repository settings",
+      name: "Edit repository",
     })
     fireEvent.change(within(form).getByLabelText("Run script"), {
       target: { value: "pnpm dev --turbo" },
@@ -498,7 +515,7 @@ describe("CanvasSettingsDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit docs" }))
     const form = await screen.findByRole("dialog", {
-      name: "Repository settings",
+      name: "Edit repository",
     })
     expect(
       within(form).queryByRole("checkbox", {
@@ -524,7 +541,7 @@ describe("CanvasSettingsDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
     const form = await screen.findByRole("dialog", {
-      name: "Repository settings",
+      name: "Edit repository",
     })
     fireEvent.click(
       within(form).getByRole("button", { name: "Reset to Settings" })
@@ -558,7 +575,7 @@ describe("CanvasSettingsDialog", () => {
       })
       fireEvent.click(screen.getByRole("button", { name: "Edit docs" }))
       const form = await screen.findByRole("dialog", {
-        name: "Repository settings",
+        name: "Edit repository",
       })
       return { ...handlers, form }
     }
@@ -657,7 +674,7 @@ describe("CanvasSettingsDialog", () => {
     ).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
     const form = await screen.findByRole("dialog", {
-      name: "Repository settings",
+      name: "Edit repository",
     })
     expect(
       within(form).queryByRole("button", { name: "Reset to Settings" })
@@ -752,7 +769,7 @@ describe("CanvasSettingsDialog", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
       const form = await screen.findByRole("dialog", {
-        name: "Repository settings",
+        name: "Edit repository",
       })
       expect(
         within(form).queryByRole("checkbox", {

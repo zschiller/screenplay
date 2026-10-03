@@ -71,16 +71,16 @@ instead.
 
 ## Repository settings
 
-| Setting                   | What it does                                                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Setup script**          | Runs once when a workspace is set up, e.g. `npm install`.                                                                           |
-| **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                |
-| **Dev server port**       | _Hosted._ The port your dev server listens on.                                                                                      |
-| **Environment variables** | _Hosted._ `KEY=value` lines every workspace gets. Stored encrypted; see [who sees the values](#environment-variable-values).        |
-| **Files to copy**         | _Desktop._ Files from your folder to copy into each workspace (default `.env*`), so local secrets come along. One pattern per line. |
-| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                    |
-| **Agent instructions**    | Extra instructions for the agent in this repository, e.g. "Work in the Next.js app under `apps/web`". _(Advanced)_                  |
-| **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository's name. Tells apart two setups of one repository.       |
+| Setting                   | What it does                                                                                                                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Setup script**          | Runs once when a workspace is set up, e.g. `npm install`.                                                                                                                               |
+| **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                                                                    |
+| **Dev server port**       | _Hosted._ The port your dev server listens on.                                                                                                                                          |
+| **Environment variables** | _Hosted._ `KEY=value` lines every workspace gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                            |
+| **Files to copy**         | _Desktop._ Files from your folder to copy into each workspace (default `.env*`), so local secrets come along. One pattern per line.                                                     |
+| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                                                                        |
+| **Agent instructions**    | Extra instructions for the agent in this repository, e.g. "Work in the Next.js app under `apps/web`". _(Advanced)_                                                                      |
+| **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository's name in chats, and beside its `owner/name` in repository lists. Tells apart two setups of one repository. |
 
 The run script has to serve on the port Screenplay assigns. Most frameworks
 handle this automatically; see [Dev server & ports](/building/dev-server) if
@@ -89,7 +89,7 @@ yours doesn't.
 To change settings later, click **Edit** on the repository in Canvas
 settings. Changes apply to workspaces you create afterwards.
 
-<Screenshot name="project-settings" alt="The Repository settings dialog" />
+<Screenshot name="project-settings" alt="The Edit repository dialog" />
 
 ### Environment variable values
 
@@ -151,7 +151,10 @@ can add it back later.
 Every repository you add from a canvas lands here. To set one up before any
 canvas needs it, click **New repository** in Settings: it opens the same
 picker and **Configure repository** form, and only saves the repository.
-On desktop, editing a repository in Settings updates every canvas that uses
+Canvas settings names each repository the same way, by its `owner/name`,
+and **Manage in Settings** under its list opens this page.
+On desktop, each row here says how many canvases use it, such as **On 2
+canvases**, and editing a repository in Settings updates every canvas that uses
 it, except the ones where it's
 [customized](#customizing-a-repository-for-one-canvas). A canvas keeps its
 own environment variable values if someone changed them there. On hosted, an
