@@ -5,7 +5,7 @@ import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
 import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import { isLocalBuild } from "@/lib/local-mode"
-import { hasGitHubRemote } from "@/lib/repo-identity"
+import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 import type { BranchData, RepoData } from "@/lib/types"
 
 /**
@@ -19,6 +19,7 @@ export function RemoveRepositoryDialog({
   branches,
   onOpenChange,
   onRemoveRepo,
+  verb,
 }: {
   /** The repository to confirm removing; `null` keeps the dialog closed. */
   repo: RepoData | null
@@ -28,6 +29,8 @@ export function RemoveRepositoryDialog({
     id: string,
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
+  /** "Turn off" for a Canvas switch; defaults to "Remove". */
+  verb?: "Remove" | "Turn off"
 }) {
   const githubTokenAvailable = useGitHubTokenAvailable()
   const stateOf = useWorkspaceStates()
@@ -43,7 +46,7 @@ export function RemoveRepositoryDialog({
     <DeleteRepoDialog
       open={!!repo}
       onOpenChange={onOpenChange}
-      repoName={repo?.name?.trim() || repo?.repoFullName || ""}
+      repoName={repo ? repoShortName(repo) : ""}
       workspaces={targets.map((b) => ({
         id: b.id,
         ref: b.ref,
@@ -60,6 +63,7 @@ export function RemoveRepositoryDialog({
       }))}
       canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
       localBranchKept={isLocalBuild}
+      verb={verb}
       onConfirm={async ({ deleteBranchesOnRemote }) => {
         if (!repo) return
         await onRemoveRepo(repo.id, { deleteBranchesOnRemote })

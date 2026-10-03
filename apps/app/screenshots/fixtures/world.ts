@@ -567,6 +567,10 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
     systemPrompt: "Match the existing Tailwind tokens; never add new colors.",
     createdAt: daysAgo(now, 12),
     sidebarOrder: 0,
+    // Switched on from the storefront Repository, so Canvas settings shows
+    // it linked (#1422).
+    repositoryId: "cfg-storefront",
+    addedBy: LOCAL_USER_ID,
   }
 
   const branches: BranchData[] = [
@@ -949,6 +953,8 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     envVars: "",
     createdAt: daysAgo(now, 8),
     sidebarOrder: 0,
+    repositoryId: "cfg-storefront",
+    addedBy: LOCAL_USER_ID,
   }
   const apiRepo: RepoData = {
     id: "repo-pricing-api",

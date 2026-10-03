@@ -5,11 +5,13 @@
  * the server (`./actions` for callers, `./store` for the KV).
  */
 export {
+  canvasRepositoryRows,
   linkCanvasRepos,
   linkedRepo,
   sameRepository,
   switchOff,
   switchOn,
+  type CanvasRepositoryRow,
   type SwitchOffResult,
 } from "./canvas"
 export {

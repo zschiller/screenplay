@@ -31,8 +31,45 @@ vi.mock("@/lib/github-local/actions", () => ({
   getGitHubLocalStatus: vi.fn().mockResolvedValue(null),
   resolveRepoFromUrl: vi.fn(),
 }))
+// Your Repositories: storefront (on this canvas) and api (not yet).
+const { REPOSITORIES } = vi.hoisted(() => ({
+  REPOSITORIES: [
+    {
+      id: "cfg-storefront",
+      name: "",
+      repoFullName: "acme/storefront",
+      repoOwner: "acme",
+      repoName: "storefront",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/acme/storefront.git",
+      private: false,
+      setupScript: "pnpm install",
+      devScript: "pnpm dev",
+      devServerPort: 3000,
+      envVars: "",
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    {
+      id: "cfg-api",
+      name: "",
+      repoFullName: "acme/api",
+      repoOwner: "acme",
+      repoName: "api",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/acme/api.git",
+      private: false,
+      setupScript: "",
+      devScript: "go run .",
+      devServerPort: 8080,
+      envVars: "",
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  ],
+}))
 vi.mock("@/lib/repository-library/actions", () => ({
-  listRepositories: vi.fn().mockResolvedValue([]),
+  listRepositories: vi.fn().mockResolvedValue(REPOSITORIES),
   saveRepository: vi.fn().mockResolvedValue([]),
 }))
 vi.mock("@/lib/add-repo/actions", () => ({
@@ -60,6 +97,7 @@ vi.mock("@/hooks/use-github-token", () => ({
   useGitHubTokenAvailable: () => false,
 }))
 
+import { listRepositories } from "@/lib/repository-library/actions"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 
 // Radix's Dialog, menus and cmdk use pointer-capture / scroll APIs jsdom
@@ -84,7 +122,10 @@ window.matchMedia ??= ((query: string) => ({
   removeEventListener() {},
 })) as unknown as typeof window.matchMedia
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.mocked(listRepositories).mockResolvedValue(REPOSITORIES)
+})
 
 function repo(over: Partial<RepoData>): RepoData {
   return {
@@ -104,12 +145,15 @@ function repo(over: Partial<RepoData>): RepoData {
   }
 }
 
-const STOREFRONT = repo({})
+const STOREFRONT = repo({ repositoryId: "cfg-storefront" })
+// On the canvas but linked to none of your Repositories.
 const DOCS = repo({
   id: "r2",
   name: "docs",
   repoFullName: "acme/site",
   repoName: "site",
+  setupScript: "",
+  devScript: "",
   createdAt: 2,
 })
 const BRANCHES = [
@@ -143,6 +187,7 @@ function renderDialog(
     onAddMemory: vi.fn(),
     onEditMemory: vi.fn(),
     onRemoveMemory: vi.fn(),
+    onSwitchOn: vi.fn(),
   }
   render(
     <CanvasSettingsDialog
@@ -162,21 +207,80 @@ function openMemory() {
 }
 
 describe("CanvasSettingsDialog", () => {
-  it("lists each repository by its short name over its source", () => {
+  it("lists your repositories and the canvas's, switched on or off, with their run scripts", async () => {
     renderDialog()
 
-    expect(screen.getByText("storefront")).not.toBeNull()
-    expect(screen.getByText("acme/storefront")).not.toBeNull()
-    // A label wins over the repository's own name.
-    expect(screen.getByText("docs")).not.toBeNull()
-    expect(screen.getByText("acme/site")).not.toBeNull()
+    const api = await screen.findByRole("switch", {
+      name: "Use api on this canvas",
+    })
+    expect(api.getAttribute("aria-checked")).toBe("false")
+    for (const name of ["storefront", "docs"]) {
+      expect(
+        screen
+          .getByRole("switch", { name: `Use ${name} on this canvas` })
+          .getAttribute("aria-checked")
+      ).toBe("true")
+    }
+    expect(screen.getAllByText("pnpm install")).toHaveLength(1)
+    expect(screen.getByText("go run .")).not.toBeNull()
+    expect(screen.getByText("No scripts set")).not.toBeNull()
+    // Only what's on the canvas can be edited here.
+    expect(screen.queryByRole("button", { name: "Edit api" })).toBeNull()
     expect(
-      screen.getByText(/Shared with everyone on this canvas/)
+      screen.getByRole("button", { name: "Edit storefront" })
     ).not.toBeNull()
   })
 
-  it("says so when the canvas has no repository yet", () => {
+  it("turns one of your repositories on", async () => {
+    const { onSwitchOn } = renderDialog()
+
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Use api on this canvas" })
+    )
+
+    expect(onSwitchOn).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "cfg-api" })
+    )
+  })
+
+  it("turns a repository without workspaces off straight away", async () => {
+    const { onRemoveRepo } = renderDialog()
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Use docs on this canvas" })
+    )
+
+    expect(onRemoveRepo).toHaveBeenCalledWith("r2", {
+      deleteBranchesOnRemote: false,
+    })
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("confirms turning off a repository its workspaces use", async () => {
+    const { onRemoveRepo } = renderDialog()
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Use storefront on this canvas" })
+    )
+
+    const confirm = await screen.findByRole("alertdialog")
+    expect(within(confirm).getByText("Turn off “storefront”?")).not.toBeNull()
+    expect(within(confirm).getByText(/Its workspace is removed/)).not.toBeNull()
+    expect(within(confirm).getByText("Checkout polish")).not.toBeNull()
+    expect(onRemoveRepo).not.toHaveBeenCalled()
+    fireEvent.click(within(confirm).getByRole("button", { name: "Turn off" }))
+
+    await waitFor(() =>
+      expect(onRemoveRepo).toHaveBeenCalledWith("r1", {
+        deleteBranchesOnRemote: false,
+      })
+    )
+  })
+
+  it("says so when you and the canvas have no repository yet", async () => {
+    vi.mocked(listRepositories).mockResolvedValueOnce([])
     renderDialog([])
+    await waitFor(() => expect(listRepositories).toHaveBeenCalled())
 
     expect(screen.getByText("No repositories yet")).not.toBeNull()
     expect(
@@ -185,6 +289,8 @@ describe("CanvasSettingsDialog", () => {
   })
 
   it("adds a repository through the picker and its settings", async () => {
+    // None of your Repositories, so the picker lists only GitHub's.
+    vi.mocked(listRepositories).mockResolvedValue([])
     const { onCreateRepo } = renderDialog()
 
     fireEvent.click(screen.getByRole("button", { name: "Add repository" }))
@@ -222,26 +328,6 @@ describe("CanvasSettingsDialog", () => {
     expect(onUpdateRepo).toHaveBeenCalledWith(
       "r1",
       expect.objectContaining({ name: "web", devScript: "pnpm dev" })
-    )
-  })
-
-  it("removes a repository through the confirm that lists its workspaces", async () => {
-    const { onRemoveRepo } = renderDialog()
-
-    fireEvent.pointerDown(
-      screen.getByRole("button", { name: "More actions for storefront" }),
-      { button: 0, ctrlKey: false }
-    )
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove" }))
-
-    const confirm = await screen.findByRole("alertdialog")
-    expect(within(confirm).getByText("Checkout polish")).not.toBeNull()
-    fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }))
-
-    await waitFor(() =>
-      expect(onRemoveRepo).toHaveBeenCalledWith("r1", {
-        deleteBranchesOnRemote: false,
-      })
     )
   })
 
