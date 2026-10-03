@@ -22,7 +22,6 @@ import { ArrowsOutSimpleIcon as ArrowsOutSimpleBase } from "@phosphor-icons/reac
 import { BookBookmarkIcon as BookBookmarkBase } from "@phosphor-icons/react/dist/ssr/BookBookmark"
 import { BookOpenIcon as BookOpenBase } from "@phosphor-icons/react/dist/ssr/BookOpen"
 import { BracketsCurlyIcon as BracketsCurlyBase } from "@phosphor-icons/react/dist/ssr/BracketsCurly"
-import { BrainIcon as BrainBase } from "@phosphor-icons/react/dist/ssr/Brain"
 import { BroadcastIcon as BroadcastBase } from "@phosphor-icons/react/dist/ssr/Broadcast"
 import { CaretDownIcon as CaretDownBase } from "@phosphor-icons/react/dist/ssr/CaretDown"
 import { CaretLeftIcon as CaretLeftBase } from "@phosphor-icons/react/dist/ssr/CaretLeft"
@@ -86,6 +85,7 @@ import { MinusIcon as MinusBase } from "@phosphor-icons/react/dist/ssr/Minus"
 import { MonitorIcon as MonitorBase } from "@phosphor-icons/react/dist/ssr/Monitor"
 import { MoonIcon as MoonBase } from "@phosphor-icons/react/dist/ssr/Moon"
 import { NavigationArrowIcon as NavigationArrowBase } from "@phosphor-icons/react/dist/ssr/NavigationArrow"
+import { NotepadIcon as NotepadBase } from "@phosphor-icons/react/dist/ssr/Notepad"
 import { NotePencilIcon as NotePencilBase } from "@phosphor-icons/react/dist/ssr/NotePencil"
 import { PathIcon as PathBase } from "@phosphor-icons/react/dist/ssr/Path"
 import { PauseCircleIcon as PauseCircleBase } from "@phosphor-icons/react/dist/ssr/PauseCircle"
@@ -230,7 +230,6 @@ export const BracketsCurlyIcon = phosphor(
   BracketsCurlyBase,
   "ph-brackets-curly"
 )
-export const BrainIcon = phosphor(BrainBase, "ph-brain")
 export const BroadcastIcon = phosphor(BroadcastBase, "ph-broadcast")
 export const CaretDownIcon = phosphor(CaretDownBase, "ph-caret-down")
 export const CaretLeftIcon = phosphor(CaretLeftBase, "ph-caret-left")
@@ -316,6 +315,7 @@ export const NavigationArrowIcon = phosphor(
   NavigationArrowBase,
   "ph-navigation-arrow"
 )
+export const NotepadIcon = phosphor(NotepadBase, "ph-notepad")
 export const NotePencilIcon = phosphor(NotePencilBase, "ph-note-pencil")
 export const PathIcon = phosphor(PathBase, "ph-path")
 export const PauseCircleIcon = phosphor(PauseCircleBase, "ph-pause-circle")

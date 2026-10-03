@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   BookBookmarkIcon,
-  BrainIcon,
+  NotepadIcon,
   PencilSimpleIcon,
   PlusIcon,
   TrashIcon,
@@ -88,7 +88,7 @@ const SECTIONS: {
   icon: typeof BookBookmarkIcon
 }[] = [
   { id: "repositories", title: "Repositories", icon: BookBookmarkIcon },
-  { id: "memory", title: "Memory", icon: BrainIcon },
+  { id: "memory", title: "Memory", icon: NotepadIcon },
 ]
 
 /**
