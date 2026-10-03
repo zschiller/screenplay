@@ -39,6 +39,7 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import {
   documentOwnerChat as documentOwnerChatOf,
   documentWorkspaceIds,
+  mockupAskTargets as mockupAskTargetsOf,
 } from "@/lib/canvas/document-owner"
 
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
@@ -1410,28 +1411,29 @@ export function Canvas({
     [chatSessions, chatTarget, addChatSession]
   )
 
-  // The same for a Mockup's empty Knobs popover, in the chat that made it: only
-  // that chat can rewrite the page (#1309).
+  // The same for a Mockup's empty Knobs popover, in the chat that can rewrite
+  // the page (#1309): the Sketch Chat that made it, or its Workspace's chat.
+  const mockupAskTargets = useMemo(
+    () => mockupAskTargetsOf(mockupLayers, chatSessions),
+    [mockupLayers, chatSessions]
+  )
   const handleAskForMockupKnob = useCallback(
     (mockupId: string) => {
       const mockup = mockupLayers.find((m) => m.id === mockupId)
-      if (!mockup) return
+      const target = mockupAskTargets.get(mockupId)
+      if (!mockup || !target) return
       const prompt = `Add a knob to the mockup "${mockup.title || "Untitled"}" that controls `
-      const chat = chatSessions.find((c) => c.id === mockup.ownerChatId)
-      // A Mockup a chat with no repository made.
-      if (chat && isSketchChat(chat)) {
-        chatTarget.selectSketchChat(chat.id)
-        inputStore.prefill(chat.id, prompt)
-        return
+      if (target.kind === "sketch") {
+        chatTarget.selectSketchChat(target.chatId)
+      } else {
+        chatTarget.selectAgentChat(target.branchId, target.chatId, {
+          expandPanel: true,
+          remember: true,
+        })
       }
-      if (!chat?.branchId) return
-      chatTarget.selectAgentChat(chat.branchId, chat.id, {
-        expandPanel: true,
-        remember: true,
-      })
-      inputStore.prefill(chat.id, prompt)
+      inputStore.prefill(target.chatId, prompt)
     },
-    [mockupLayers, chatSessions, chatTarget]
+    [mockupLayers, mockupAskTargets, chatTarget]
   )
 
   // A new chat with no repository (a Sketch Chat), opened in the panel; a
@@ -2441,6 +2443,7 @@ export function Canvas({
                         removeIframeLayer={removeIframeLayer}
                         handlePlayIframeLayer={handlePlayIframeLayer}
                         onAskForKnob={handleAskForKnob}
+                        mockupAskTargets={mockupAskTargets}
                         onAskForMockupKnob={handleAskForMockupKnob}
                         handleCaptureReadyChange={handleCaptureReadyChange}
                         handleCaptureDirty={handleCaptureDirty}
