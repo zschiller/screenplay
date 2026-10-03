@@ -52,6 +52,9 @@ export type FrameStreamClientMessage =
   /** Read the page's URL, cookies and local storage, for a viewer going
    *  local (#1397). Answered by a `snapshot` with the same `id`. */
   | { t: "snapshot"; frame: string; id: string }
+  /** Copy (or cut) what's selected in the shared page, for the driver's own
+   *  clipboard. Answered by a `clipboard` with the same `id`. */
+  | { t: "clipboard"; frame: string; id: string; cut: boolean }
 
 /** What the shared page's `prefers-color-scheme` matches. */
 export type FrameColorScheme = "light" | "dark"
@@ -131,6 +134,9 @@ export type FrameStreamServerMessage =
   | ({ t: "snapshot"; frame: string; id: string } & (
       FrameSnapshot | { error: string }
     ))
+  /** The answer to a client `clipboard`: what the page copied, or null when
+   *  nothing was selected or this viewer doesn't drive the frame. */
+  | { t: "clipboard"; frame: string; id: string; text: string | null }
 
 /** What a viewer going local starts from (#1397): the shared page's path on
  *  the frame's origin, its cookies and its local storage. */

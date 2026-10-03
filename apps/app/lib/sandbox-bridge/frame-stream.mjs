@@ -38,10 +38,10 @@
 //
 // Wire protocol (see lib/frame-stream/protocol.ts for the client side):
 //   client → server, JSON text: auth, watch, unwatch, size, navigate,
-//     reload, drive, release, input, bridge, snapshot; the agent: agent,
-//     agent-shot
+//     reload, drive, release, input, clipboard, bridge, snapshot; the agent:
+//     agent, agent-shot
 //   server → client, JSON text: ready, frame, route, error, bridge,
-//     snapshot; the agent: agent-result, agent-shot
+//     clipboard, snapshot; the agent: agent-result, agent-shot
 //   server → client, binary video: [1][flags][u16 id length][id][access unit]
 //     flags bit 0: keyframe
 
@@ -813,6 +813,49 @@ class Frame {
       returnByValue: true,
     })
     return { cookies, storage: result?.value ?? null }
+  }
+
+  /**
+   * Copy or cut what's selected in the page, as the page's own ⌘C or ⌘X
+   * would: its copy and cut handlers run, a cut deletes the selection, and
+   * what a handler put on the clipboard wins over the selection's text.
+   * Null when nothing is selected.
+   */
+  async clipboard(cut) {
+    if (this.status !== "live" || !this.appFrame) return null
+    const { executionContextId } = await this.page("Page.createIsolatedWorld", {
+      frameId: this.appFrame,
+      worldName: "screenplay-clipboard",
+    })
+    const kind = cut ? "cut" : "copy"
+    const { result } = await this.page("Runtime.evaluate", {
+      contextId: executionContextId,
+      // A copy needs a user gesture; the driver's keypress is one.
+      userGesture: true,
+      returnByValue: true,
+      expression: `(() => {
+        const a = document.activeElement
+        const field =
+          a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") &&
+          typeof a.selectionStart === "number"
+        const selected = field
+          ? a.value.slice(a.selectionStart, a.selectionEnd)
+          : String(getSelection())
+        let handled = null
+        const take = (e) => {
+          const text = e.clipboardData && e.clipboardData.getData("text/plain")
+          if (e.defaultPrevented && text) handled = text
+        }
+        addEventListener(${JSON.stringify(kind)}, take)
+        try {
+          document.execCommand(${JSON.stringify(kind)})
+        } finally {
+          removeEventListener(${JSON.stringify(kind)}, take)
+        }
+        return handled ?? (selected || null)
+      })()`,
+    })
+    return typeof result?.value === "string" ? result.value : null
   }
 
   /** Put a reopened frame's cookies and storage back before its page loads. */
@@ -2110,6 +2153,15 @@ async function handleMessage(conn, msg) {
       // Watchers' input never reaches the page.
       if (frame.drives(conn)) await frame.input(msg)
       return
+    case "clipboard": {
+      // Only the driver copies: a cut changes the page.
+      const reqId = typeof msg.id === "string" ? msg.id.slice(0, 64) : ""
+      const text = frame.drives(conn)
+        ? await frame.clipboard(msg.cut === true).catch(() => null)
+        : null
+      conn.sendJson({ t: "clipboard", frame: id, id: reqId, text })
+      return
+    }
   }
 }
 

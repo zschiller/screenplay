@@ -413,6 +413,32 @@ describe("going local (#1397)", () => {
   })
 })
 
+describe("copying out", () => {
+  it("answers with what the page copied, and null when the stream drops", async () => {
+    const { conn, sockets } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    conn.watch("f1", { route: "/", width: 10, height: 10 }, handlers())
+    await flush()
+    const socket = sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+
+    const copied = conn.clipboard("f1", true)
+    const asked = socket.sent.at(-1)
+    expect(asked).toMatchObject({ t: "clipboard", frame: "f1", cut: true })
+    if (asked?.t !== "clipboard") throw new Error("not asked")
+    socket.serverSays({ t: "clipboard", frame: "f1", id: asked.id, text: "hi" })
+    expect(await copied).toBe("hi")
+
+    const dropped = conn.clipboard("f1", false)
+    socket.close()
+    expect(await dropped).toBeNull()
+  })
+})
+
 describe("frame stream input", () => {
   it("counts quick presses in one place as double and triple clicks", () => {
     const count = clickCounter()

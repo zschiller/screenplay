@@ -99,6 +99,7 @@ export class FrameStreamConnection {
   private disposed = false
   private snapshotSeq = 0
   private snapshots = new Map<string, (s: FrameSnapshot | null) => void>()
+  private clipboards = new Map<string, (text: string | null) => void>()
 
   constructor(private deps: FrameStreamDeps) {}
 
@@ -254,6 +255,28 @@ export class FrameStreamConnection {
     })
   }
 
+  /**
+   * Copy (or cut) what's selected in a shared page this viewer drives, as
+   * text for its own clipboard. Null when nothing is selected, the stream is
+   * down, or it takes too long to answer.
+   */
+  clipboard(frame: string, cut: boolean): Promise<string | null> {
+    const id = `c${++this.snapshotSeq}`
+    return new Promise((resolve) => {
+      const timer = this.deps.setTimeout(
+        () => finish(null),
+        SNAPSHOT_TIMEOUT_MS
+      )
+      const finish = (text: string | null) => {
+        if (!this.clipboards.delete(id)) return
+        this.deps.clearTimeout(timer)
+        resolve(text)
+      }
+      this.clipboards.set(id, finish)
+      if (!this.send({ t: "clipboard", frame, id, cut })) finish(null)
+    })
+  }
+
   isReady(): boolean {
     return this.ready
   }
@@ -307,6 +330,7 @@ export class FrameStreamConnection {
       const wasReady = this.ready
       this.ready = false
       for (const finish of [...this.snapshots.values()]) finish(null)
+      for (const finish of [...this.clipboards.values()]) finish(null)
       if (wasReady) this.notifyConnection(false)
       this.scheduleRetry()
     }
@@ -360,6 +384,10 @@ export class FrameStreamConnection {
               localStorage: msg.localStorage,
             }
       )
+      return
+    }
+    if (msg.t === "clipboard") {
+      this.clipboards.get(msg.id)?.(msg.text)
       return
     }
     const frame = "frame" in msg ? msg.frame : undefined

@@ -383,9 +383,14 @@ export function FrameStreamView({
       // Keys belong to the page, not the canvas's shortcuts. Esc goes to
       // both: the page sees it, and the canvas leaves Interact.
       if (e.key !== "Escape") e.stopPropagation()
-      // Paste goes as the paste event, with this viewer's clipboard: the
-      // shortcut itself would paste the shared browser's.
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === "KeyV") return
+      // Copy, cut and paste go as their events, with this viewer's own
+      // clipboard: the shortcuts would use the shared browser's.
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        ["KeyC", "KeyX", "KeyV"].includes(e.code)
+      )
+        return
       if (e.key !== "Escape") e.preventDefault()
       if (e.isComposing) return
       const text =
@@ -412,6 +417,26 @@ export function FrameStreamView({
       e.preventDefault()
       send({ kind: "text", text })
     }
+    // What the page copies lands on this viewer's clipboard. The text comes
+    // back over the stream, so it's written as a promise that ClipboardItem
+    // holds within the keypress; an empty copy leaves the clipboard alone.
+    const onCopy = (e: ClipboardEvent) => {
+      e.preventDefault()
+      const text = stream.clipboard(frameId, e.type === "cut")
+      const blob = text.then((t) => {
+        if (!t) throw new Error("nothing copied")
+        return new Blob([t], { type: "text/plain" })
+      })
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        navigator.clipboard
+          .write([new ClipboardItem({ "text/plain": blob })])
+          .catch(() => {})
+      } else {
+        void text
+          .then((t) => (t ? navigator.clipboard?.writeText(t) : undefined))
+          .catch(() => {})
+      }
+    }
     const onContextMenu = (e: Event) => e.preventDefault()
 
     canvas.addEventListener("pointerdown", onDown)
@@ -421,6 +446,8 @@ export function FrameStreamView({
     canvas.addEventListener("keydown", onKeyDown)
     canvas.addEventListener("keyup", onKeyUp)
     canvas.addEventListener("paste", onPaste)
+    canvas.addEventListener("copy", onCopy)
+    canvas.addEventListener("cut", onCopy)
     canvas.addEventListener("contextmenu", onContextMenu)
     canvas.focus({ preventScroll: true })
     return () => {
@@ -431,6 +458,8 @@ export function FrameStreamView({
       canvas.removeEventListener("keydown", onKeyDown)
       canvas.removeEventListener("keyup", onKeyUp)
       canvas.removeEventListener("paste", onPaste)
+      canvas.removeEventListener("copy", onCopy)
+      canvas.removeEventListener("cut", onCopy)
       canvas.removeEventListener("contextmenu", onContextMenu)
       if (document.activeElement === canvas) canvas.blur()
     }
