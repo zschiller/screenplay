@@ -104,6 +104,10 @@ import {
   makeIframeLayerRow,
 } from "@/components/panels/layer-rows/iframe-layer-row"
 import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
+import {
+  frameGroupRowActionClass,
+  frameGroupRowButtonClass,
+} from "@/components/panels/layer-rows/row-action"
 
 import {
   documentRow,
@@ -746,7 +750,10 @@ export function RoomSidebar({
                                           branchId={groupBranchById.get(
                                             group.id
                                           )}
-                                          className="!pr-2 !transition-[width,height] group-focus-within/frame-group-row:!pr-7 group-hover/frame-group-row:!pr-7 group-has-[[data-sidebar=menu-action][data-state=open]]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+                                          className={cn(
+                                            frameGroupRowButtonClass,
+                                            "!transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible"
+                                          )}
                                           isActive={selectedGroupIds.has(
                                             group.id
                                           )}
@@ -821,7 +828,11 @@ export function RoomSidebar({
                                               tooltipSide="right"
                                               asChild
                                             >
-                                              <SidebarMenuAction className="group-focus-within/frame-group-row:opacity-100 group-hover/frame-group-row:opacity-100 aria-expanded:opacity-100 md:opacity-0">
+                                              <SidebarMenuAction
+                                                className={
+                                                  frameGroupRowActionClass
+                                                }
+                                              >
                                                 <DotsThreeIcon />
                                               </SidebarMenuAction>
                                             </IconButton>
