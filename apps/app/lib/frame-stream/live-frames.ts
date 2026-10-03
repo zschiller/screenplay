@@ -7,7 +7,9 @@
  * it's the frame's, so it happens to everyone on the canvas.
  * - A frame is live while someone has turned it live (the frame bar's Go live
  *   toggle, stored on the frame like its route), or while the agent has
- *   control of it (it drives the one browser in the Sandbox).
+ *   control of it (it drives the one browser in the Sandbox). The agent
+ *   picking a frame up also turns it live (#1522, `roomFrameControlStore`),
+ *   so it stays live after the agent hands it back.
  * - Everyone on the canvas is on a live frame, and anyone who opens the
  *   canvas lands on it. Turning it off ends it for everyone, back to own
  *   copies. Nobody watching pauses its browser; the stream service does that.
