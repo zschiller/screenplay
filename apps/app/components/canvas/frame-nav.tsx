@@ -43,16 +43,18 @@ import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
  * Safari's: the frame's Workspace as the host (press it to switch, #867), the
  * route (edit it in place to go anywhere, #1149), record, and reload. Record
  * runs Create Flow; while it runs the field turns red and counts the screens
- * laid down. The preview's status shows at the field's start only when it
- * isn't live, so a healthy frame carries no dot.
+ * laid down. A preview that is down shows a dot at the field's start; one
+ * loading spins in Reload's place, so the field never shifts.
  */
 
 /** What the preview is doing, as the address field reports it. */
 export type FramePreviewStatus =
   "live" | "loading" | "disconnected" | "failed" | "stopped"
 
-const STATUS_LABEL: Record<Exclude<FramePreviewStatus, "live">, string> = {
-  loading: "Loading",
+const STATUS_LABEL: Record<
+  Exclude<FramePreviewStatus, "live" | "loading">,
+  string
+> = {
   disconnected: "Dev server disconnected",
   failed: "Preview failed",
   stopped: "Workspace stopped",
@@ -76,7 +78,7 @@ const stopPointer = {
 function StatusIndicator({
   status,
 }: {
-  status: Exclude<FramePreviewStatus, "live">
+  status: Exclude<FramePreviewStatus, "live" | "loading">
 }) {
   return (
     <TooltipProvider>
@@ -87,13 +89,7 @@ function StatusIndicator({
             aria-label={STATUS_LABEL[status]}
             className="flex size-5 shrink-0 items-center justify-center"
           >
-            {status === "loading" ? (
-              <Spinner className="size-3 text-muted-foreground" />
-            ) : (
-              <span
-                className={cn("size-1.5 rounded-full", STATUS_DOT[status])}
-              />
-            )}
+            <span className={cn("size-1.5 rounded-full", STATUS_DOT[status])} />
           </span>
         </TooltipTrigger>
         <TooltipContent>{STATUS_LABEL[status]}</TooltipContent>
@@ -138,14 +134,13 @@ export function FrameAddressBar({
 }: FrameAddressBarProps) {
   // A recording is about its screens; the host comes back when it stops.
   const showHost = !recording && (workspace?.ref || onAssignWorkspace)
-  // A Workspace setting up already spins in the host, so the bar's own
-  // loading spinner would be a second one.
+  // A Workspace setting up already spins in the host, so Reload keeps its
+  // arrow rather than spin a second time.
   const hostSpinning =
     !!showHost && !!workspace && workspaceSettingUp(workspace)
+  const loading = status === "loading" && !hostSpinning
   const shownStatus =
-    status === "live" || (status === "loading" && hostSpinning)
-      ? undefined
-      : status
+    status === "live" || status === "loading" ? undefined : status
   const leading = recording ? (
     <span
       aria-hidden
@@ -190,9 +185,10 @@ export function FrameAddressBar({
       ref={barRef}
       style={{
         width: lockedWidth,
-        // Half for the host, plus the bar's 2px padding each side.
+        // Half for the host and its 2px margin, plus the bar's 2px padding
+        // each side.
         minWidth: hostWidth
-          ? `min(28rem, max(14rem, ${hostWidth * 2 + 4}px))`
+          ? `min(28rem, max(14rem, ${hostWidth * 2 + 8}px))`
           : undefined,
       }}
       className={cn(
@@ -248,10 +244,13 @@ export function FrameAddressBar({
       {!recording && (
         <IconButton
           label="Reload"
+          hint={loading ? "Loading" : undefined}
+          aria-busy={loading || undefined}
           className="text-muted-foreground"
           onClick={onReload}
         >
-          <ArrowClockwiseIcon />
+          {/* Loading spins in Reload's own place, so nothing shifts. */}
+          {loading ? <Spinner aria-hidden /> : <ArrowClockwiseIcon />}
         </IconButton>
       )}
     </div>
@@ -297,8 +296,9 @@ function FrameWorkspaceHost({
   ) : (
     <span className="truncate">Choose a workspace</span>
   )
+  // Leading the bar, a 2px margin evens its inset with the 4px above and below.
   const hostClass =
-    "flex h-5 max-w-1/2 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-xs font-medium text-muted-foreground"
+    "flex h-5 max-w-1/2 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-xs font-medium text-muted-foreground first:ml-0.5"
 
   if (!onAssignWorkspace) {
     return (
