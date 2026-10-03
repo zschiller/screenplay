@@ -193,6 +193,14 @@ type Category =
 
 const TITLE_CATEGORY: Record<string, Category> = {
   read_file: "read",
+  read_code_file: "read",
+  read_workspace_file: "read",
+  // Searches and listings: their `path` is a directory, never a file read.
+  grep: "search",
+  glob: "search",
+  search_code: "search",
+  find_code_files: "search",
+  list_files: "search",
   write_file: "edit",
   edit_file: "edit",
   run_command: "run",

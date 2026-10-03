@@ -460,7 +460,9 @@ describe("thoughtChunksToRecord (streamed reasoning deltas → durable record)",
 describe("toolKindFor (screenplay tool → ACP kind)", () => {
   it("maps reads, edits, and execution; defaults to other", () => {
     expect(toolKindFor("read_file")).toBe("read")
-    expect(toolKindFor("list_files")).toBe("read")
+    expect(toolKindFor("list_files")).toBe("search")
+    expect(toolKindFor("search_code")).toBe("search")
+    expect(toolKindFor("grep")).toBe("search")
     expect(toolKindFor("edit_file")).toBe("edit")
     expect(toolKindFor("write_file")).toBe("edit")
     expect(toolKindFor("run_command")).toBe("execute")

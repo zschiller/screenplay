@@ -340,6 +340,27 @@ describe("summarizeSteps", () => {
     expect(text).toBe("Read 1 file, ran 1 command, searched 1 time")
   })
 
+  it("counts searches and listings as searches, even under a stored read kind (#1477)", () => {
+    const { text } = summarize([
+      call("1", {
+        title: "search_code",
+        kind: "read",
+        rawInput: { workspaceId: "w", pattern: "foo", path: "src" },
+      }),
+      call("2", { title: "find_code_files", kind: "read", rawInput: {} }),
+      call("3", {
+        title: "list_files",
+        kind: "read",
+        rawInput: { path: "apps" },
+      }),
+      call("4", {
+        title: "mcp__screenplay__read_code_file",
+        rawInput: { workspaceId: "w", path: "a.ts" },
+      }),
+    ])
+    expect(text).toBe("Read 1 file, searched 3 times")
+  })
+
   it("names each failed call, a command by its first two words", () => {
     const { failures } = summarize([
       call("1", {
