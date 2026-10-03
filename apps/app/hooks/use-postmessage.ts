@@ -142,6 +142,10 @@ export function usePostMessage({
     return port.subscribe((data) => {
       if (data.type === "screenplay:ready") {
         sendMessage("screenplay:init", stateRef.current)
+        // A page that just loaded sits at its own scroll, whatever we last
+        // sent: anything posted before ready went to the previous document
+        // (or about:blank). Forget it so the room's scroll is applied again.
+        lastScrollRef.current = null
         if (scrollRef.current) {
           sendScrollTo(scrollRef.current.x, scrollRef.current.y)
         }
