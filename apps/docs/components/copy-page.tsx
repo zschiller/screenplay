@@ -53,7 +53,7 @@ export function CopyPage({ sourceCode }: { sourceCode: string }) {
             <CaretDownIcon />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-auto">
+        <DropdownMenuContent align="end">
           <MenuItem
             icon={<CopyIcon />}
             title="Copy page"

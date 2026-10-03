@@ -67,7 +67,7 @@ export function DefaultAgentPicker({ label }: { label: string }) {
               <CaretDownIcon className="text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuContent align="start">
             {groups.map((group, idx) => (
               <div key={group.key}>
                 {idx > 0 && <DropdownMenuSeparator />}
