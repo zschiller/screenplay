@@ -627,9 +627,8 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       frame: "p1",
       token: driveToken(KEY, "cy", "p1").token,
     })
-    // A page just thawed can drop a click for a moment, as one just started
-    // does, so it clicks until the count goes up.
-    await clickUntil(c, "p1", 100, 100, () => requests.includes("/count?n=2"))
+    click(c, "p1")
+    await c.waitFor(() => requests.includes("/count?n=2") || undefined)
     expect(requests.filter((r) => r === "/app").length).toBe(loads)
     expect(serviceLog).not.toContain("frame p1: closed")
   }, 40_000)
