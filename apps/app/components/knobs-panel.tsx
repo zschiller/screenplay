@@ -6,6 +6,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Slider } from "@workspace/ui/components/slider"
 import { Switch } from "@workspace/ui/components/switch"
+import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import {
   Select,
   SelectContent,
@@ -39,26 +40,14 @@ export function hasKnobOverrides(
 
 export type KnobsTheme = "light" | "dark"
 
-/** A shared frame's Theme knob: the colour scheme its one browser renders
- *  in, for everyone. Built in, so it shows whatever the page declares. */
-const THEME_KNOB: KnobDef = {
-  type: "select",
-  id: "theme",
-  label: "Theme",
-  default: "light",
-  options: [
-    { value: "light", label: "Light" },
-    { value: "dark", label: "Dark" },
-  ],
-}
-
 interface KnobsPanelProps {
   knobs: JsonValue[] | undefined
   values: JsonObject | undefined
   onChange: (next: KnobValues) => void
   /** Shown under the header when the prototype declares no knobs. */
   empty: ReactNode
-  /** The Theme knob, above the page's own; only shared frames have one. */
+  /** A shared frame's Theme knob, above the page's own: the colour scheme
+   *  its one browser renders in, for everyone. */
   theme?: { value: KnobsTheme; onChange: (next: KnobsTheme) => void }
 }
 
@@ -76,8 +65,7 @@ export function KnobsPanel({
 }: KnobsPanelProps) {
   const defs = useMemo(() => knobDefs(knobs), [knobs])
   const hasOverrides =
-    hasKnobOverrides(defs, values) ||
-    (!!theme && theme.value !== THEME_KNOB.default)
+    hasKnobOverrides(defs, values) || (!!theme && theme.value !== "light")
 
   function setValue(id: string, next: KnobValue) {
     const merged: KnobValues = { [id]: next }
@@ -114,11 +102,20 @@ export function KnobsPanel({
       </div>
       <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3">
         {theme ? (
-          <KnobControl
-            def={THEME_KNOB}
-            value={theme.value}
-            onChange={(v) => theme.onChange(v === "dark" ? "dark" : "light")}
-          />
+          <div className="flex items-center justify-between gap-3">
+            <Label className="text-xs">Theme</Label>
+            <Tabs
+              value={theme.value}
+              onValueChange={(v) =>
+                theme.onChange(v === "dark" ? "dark" : "light")
+              }
+            >
+              <TabsList>
+                <TabsTrigger value="light">Light</TabsTrigger>
+                <TabsTrigger value="dark">Dark</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         ) : null}
         {defs.length === 0
           ? empty
