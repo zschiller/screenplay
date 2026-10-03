@@ -661,5 +661,5 @@ html ::selection {
 /* Every underline sits a little below the text, as in the app
    (packages/ui globals.css). Inherited, so Nextra's links take it. */
 html {
-  text-underline-offset: 0.35em;
+  text-underline-offset: 0.25em;
 }
