@@ -65,6 +65,7 @@ import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 
+import { switchOn } from "@/lib/repository-library"
 import { renameRoom } from "@/lib/rooms-actions"
 
 import { SelectionOverlay } from "./selection-overlay"
@@ -2585,6 +2586,13 @@ export function Canvas({
                   onCreateRepo={createRepo}
                   onUpdateRepo={updateRepoInStorage}
                   onRemoveRepo={removeRepoIntake}
+                  onSwitchOn={(repository) =>
+                    switchOn(collections, repository, {
+                      id: nanoid(),
+                      createdAt: Date.now(),
+                      addedBy: userId ?? "anonymous",
+                    })
+                  }
                   memories={memories}
                   onAddMemory={(text) =>
                     addMemory(collections, { text, source: "member" })

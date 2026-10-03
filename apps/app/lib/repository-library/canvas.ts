@@ -1,6 +1,7 @@
 import { planRepoTeardown } from "@/lib/branch/intake"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import { repoShortName, repoSource } from "@/lib/repo-identity"
 import type { RepoData } from "@/lib/types"
 import type { RoomCollections } from "@/lib/yjs/schema"
 
@@ -186,4 +187,41 @@ export function linkCanvasRepos(
     }
   })
   return created
+}
+
+/** One row of a Canvas's Repositories list: on (a Canvas Repo, linked to one
+ *  of your Repositories or not) or off (one of your Repositories this Canvas
+ *  doesn't use). */
+export type CanvasRepositoryRow =
+  | { on: true; repo: RepoData; repository?: RepoConfig }
+  | { on: false; repository: RepoConfig }
+
+/**
+ * The Canvas's switch list: every one of your Repositories, on when this
+ * Canvas has a Repo linked to it, plus every other Canvas Repo (unlinked, or
+ * another member's) as on. Sorted by name, then source, so the list keeps its
+ * order as switches flip.
+ */
+export function canvasRepositoryRows(
+  repositories: readonly RepoConfig[],
+  repos: readonly RepoData[]
+): CanvasRepositoryRow[] {
+  const rows: CanvasRepositoryRow[] = repositories.map((repository) => {
+    const repo = repos.find((r) => r.repositoryId === repository.id)
+    return repo ? { on: true, repo, repository } : { on: false, repository }
+  })
+  for (const repo of repos) {
+    if (!repositories.some((r) => r.id === repo.repositoryId)) {
+      rows.push({ on: true, repo })
+    }
+  }
+  const key = (row: CanvasRepositoryRow) => {
+    const r = row.on ? row.repo : row.repository
+    return [repoShortName(r), repoSource(r)] as const
+  }
+  return rows.sort((a, b) => {
+    const [an, as] = key(a)
+    const [bn, bs] = key(b)
+    return an.localeCompare(bn) || as.localeCompare(bs)
+  })
 }
