@@ -86,6 +86,8 @@ export interface AdapterFacts {
   modelOption?: string
   /** Whether the adapter queues a prompt sent while one runs (#1191). */
   promptQueueing?: boolean
+  /** Whether a plan turn's last reply is the plan (#1589). */
+  planAsReply?: boolean
 }
 
 /** How {@link AcpSession.open} establishes the session after the handshake. */
@@ -111,7 +113,8 @@ export interface OpenSessionOptions {
    * through the prompt instead).
    *
    * An agent with no plan mode may plan through a `collaboration_mode` config
-   * option instead (Codex's adapter, #1337): a plan turn sets it to `plan`, and
+   * option instead (Codex's adapter, #1337), or a `mode`-category one
+   * (opencode's, #1589): a plan turn sets it to `plan`, and
    * any other turn sets it back to its default, since the setting carries over
    * to later turns of the session. See {@link AcpSession.plansByCollaborationMode}.
    */
@@ -213,6 +216,12 @@ interface ModelConfig {
  * {@link PLAN_COLLABORATION_MODE}.
  */
 const COLLABORATION_MODE = "collaboration_mode"
+/**
+ * ACP's config-option category for a session mode selector. opencode's
+ * adapter offers its agents through one (`build`, `plan`) rather than through
+ * `modes` (#1589), and is planned through like a collaboration mode.
+ */
+const MODE_CATEGORY = "mode"
 /** The collaboration-mode value that plans before making changes. */
 const PLAN_COLLABORATION_MODE = "plan"
 /** The value a non-plan turn sets it back to, when the agent offers it. */
@@ -348,6 +357,8 @@ export class AcpSession {
   private outstanding = 0
   /** Whether this turn plans through the collaboration mode (see the getter). */
   private collaborationPlan = false
+  /** Whether the adapter's plan is its last reply (see {@link plansByReply}). */
+  private replyPlans = false
 
   private constructor(
     transport: AcpTransport,
@@ -409,6 +420,16 @@ export class AcpSession {
   }
 
   /**
+   * Whether this plan turn's last reply is the plan (#1589): the agent plans
+   * through a config option and, as its Harness descriptor states, ends the
+   * turn with the plan rather than asking to carry it out (opencode's
+   * adapter). True only on a plan turn.
+   */
+  get plansByReply(): boolean {
+    return this.collaborationPlan && this.replyPlans
+  }
+
+  /**
    * Set how {@link close} ends the agent: the factory that spawned it kills
    * its process. A session with none (an in-memory test agent) closes as a
    * no-op.
@@ -444,6 +465,7 @@ export class AcpSession {
       clientCapabilities: {},
     })
     session.queuesPrompts = options.adapter?.promptQueueing === true
+    session.replyPlans = options.adapter?.planAsReply === true
     session.takesSteering =
       advertisesSteering(init._meta) ||
       advertisesSteering(init.agentCapabilities?._meta)
@@ -785,7 +807,8 @@ function supportedMcpServers(
 
 /**
  * The `collaboration_mode` option an agent advertises, when it offers a `plan`
- * value (#1337), or null. `defaultValue` is what a non-plan turn sets it back
+ * value (#1337), or else its `mode`-category option offering one (opencode's
+ * agents, #1589), or null. `defaultValue` is what a non-plan turn sets it back
  * to: its `default` value, else the first value that isn't `plan`.
  */
 function readCollaborationMode(
@@ -795,9 +818,10 @@ function readCollaborationMode(
   currentValue: string
   defaultValue: string | null
 } | null {
-  const option = configOptions?.find(
-    (o) => o.category === COLLABORATION_MODE || o.id === COLLABORATION_MODE
-  )
+  const option =
+    configOptions?.find(
+      (o) => o.category === COLLABORATION_MODE || o.id === COLLABORATION_MODE
+    ) ?? configOptions?.find((o) => o.category === MODE_CATEGORY)
   if (!option || typeof option.currentValue !== "string") return null
   if (!Array.isArray(option.options)) return null
   const values = flattenModelOptions(option.options).map((v) => v.id)

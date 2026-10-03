@@ -39,6 +39,10 @@ import {
   refineRepoSettings,
 } from "@/lib/add-repo/actions"
 import { resolveNewRepository } from "@/lib/add-repo/resolver"
+import {
+  PICKER_DIALOG_CLASS,
+  PICKER_DIALOG_HEADER_CLASS,
+} from "@/components/picker-dialog"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { sameRepository } from "@/lib/repository-library"
@@ -338,9 +342,9 @@ export function AddRepositoryDialog({
             stepBack()
           }
         }}
-        className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2"
+        className={PICKER_DIALOG_CLASS}
       >
-        <DialogHeader className="px-5 pt-5 pb-2">
+        <DialogHeader className={PICKER_DIALOG_HEADER_CLASS}>
           <DialogTitle>
             {pickerView === "settings"
               ? "Configure repository"

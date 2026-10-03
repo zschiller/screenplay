@@ -67,10 +67,11 @@ On the Mac app, chats run on the coding agent you installed, and its <kbd>/</kbd
 menu also lists the skills that agent keeps in your home folder, marked with
 the agent's name:
 
-| Agent       | Folders                                                                 |
-| ----------- | ----------------------------------------------------------------------- |
-| Claude Code | `~/.claude/skills/`, including skills synced from claude.ai             |
-| Codex       | `~/.agents/skills/`, then `~/.codex/skills/` and the skills Codex ships |
+| Agent       | Folders                                                                        |
+| ----------- | ------------------------------------------------------------------------------ |
+| Claude Code | `~/.claude/skills/`, including skills synced from claude.ai                    |
+| Codex       | `~/.agents/skills/`, then `~/.codex/skills/` and the skills Codex ships        |
+| OpenCode    | `~/.config/opencode/skills/`, then `~/.claude/skills/` and `~/.agents/skills/` |
 
 Pick one from <kbd>/</kbd> like any other skill. The agent keeps loading these
 skills itself as it always does; Screenplay only lists and reads them, and
@@ -124,11 +125,12 @@ confirm. Account skills work the same on the desktop app.
   alt="Settings open on Skills, listing two account skills"
 />
 
-## Saved skills in Claude Code and Codex
+## Saved skills in Claude Code, Codex and OpenCode
 
-On the Mac app, chats that run on Claude Code or Codex get the canvas's
-skills and your account skills as the agent's own skills, so you can also
-invoke one the agent's way (`/name` in Claude Code, `$name` in Codex) and it
+On the Mac app, chats that run on Claude Code, Codex or OpenCode get the
+canvas's skills and your account skills as the agent's own skills, so you can
+also invoke one the agent's way (`/name` in Claude Code and OpenCode, `$name`
+in Codex) and it
 can read the files saved beside its `SKILL.md`. Before every message,
 Screenplay writes them to a folder in its app data, outside your checkout,
 and hands that folder to the agent, which loads skills from it without

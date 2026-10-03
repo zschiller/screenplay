@@ -1,6 +1,6 @@
 ---
 title: Coding CLIs (harnesses)
-description: Install Claude Code, Codex and opencode in sandboxes, without handing them your API keys.
+description: Install Claude Code, Codex and OpenCode in sandboxes, without handing them your API keys.
 ---
 
 # Coding CLIs (harnesses)
@@ -15,8 +15,11 @@ agent. Each CLI is a descriptor in
 | --- | --- | --- | --- |
 | `claude-code` | Claude Code | `ANTHROPIC_API_KEY` | Yes |
 | `codex` | Codex | `OPENAI_API_KEY` | Yes |
-| `opencode-gateway` | opencode via the Vercel AI Gateway | `AI_GATEWAY_API_KEY` | No (shell only) |
-| `opencode-compat` | opencode via an OpenAI-compatible endpoint | `OPENAI_COMPATIBLE_BASE_URL` + `OPENAI_COMPATIBLE_API_KEY` | No (shell only) |
+| `opencode-gateway` | OpenCode via the Vercel AI Gateway | `AI_GATEWAY_API_KEY` | Yes |
+| `opencode-compat` | OpenCode via an OpenAI-compatible endpoint | `OPENAI_COMPATIBLE_BASE_URL` + `OPENAI_COMPATIBLE_API_KEY` | Yes |
+
+On desktop the two OpenCode keys are one CLI, listed once as **OpenCode**: it
+runs on your own OpenCode login and providers, not on the hosted endpoints.
 
 ## Hosted: `SANDBOX_HARNESSES`
 
@@ -65,8 +68,9 @@ on `127.0.0.1`, behind a token that works for that one canvas. Screenplay
 allows those tools up front, so the CLI never asks you to approve them. Each
 canvas's Coordinator runs in its own folder under
 `~/.screenplay/coordinator` (set `SCREENPLAY_COORDINATOR_ROOT` to move it),
-not in a repository. The Claude and Codex CLIs can back it; opencode can't
-back any chat yet.
+not in a repository. Claude Code, Codex and OpenCode can all back it.
+OpenCode runs its own adapter, `opencode acp`, and names these tools
+`screenplay_<tool>`.
 
 A workspace chat on a CLI edits files and runs commands with the CLI's own
 tools. It reaches Screenplay's tools through the same server: the dev server,

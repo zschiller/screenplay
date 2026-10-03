@@ -84,6 +84,11 @@ type FakeAgentOpts = {
    */
   collaborationMode?: string
   /**
+   * Advertise opencode's `mode`-category agent selector (`build` / `plan`)
+   * with this current value, and no plan mode (#1589).
+   */
+  agentMode?: string
+  /**
    * Advertise Codex's steering request and answer `_session/steering` with
    * this (#1192); a thrown error answers with a JSON-RPC error.
    */
@@ -105,8 +110,24 @@ type FakeAgentOpts = {
 function modelConfigOptions(
   models: FakeModels | undefined,
   optionId?: string,
-  collaborationMode?: string
+  collaborationMode?: string,
+  agentMode?: string
 ): SessionConfigOption[] | undefined {
+  const agent: SessionConfigOption[] = agentMode
+    ? [
+        {
+          id: "mode",
+          name: "Mode",
+          category: "mode",
+          type: "select",
+          currentValue: agentMode,
+          options: [
+            { value: "build", name: "build" },
+            { value: "plan", name: "plan" },
+          ],
+        },
+      ]
+    : []
   const collaboration: SessionConfigOption[] = collaborationMode
     ? [
         {
@@ -122,9 +143,14 @@ function modelConfigOptions(
         },
       ]
     : []
-  if (!models) return collaborationMode ? collaboration : undefined
+  if (!models) {
+    return collaborationMode || agentMode
+      ? [...collaboration, ...agent]
+      : undefined
+  }
   return [
     ...collaboration,
+    ...agent,
     {
       id: optionId ?? "model",
       name: "Model",
@@ -204,7 +230,8 @@ class FakeAcpAgent implements Agent {
       configOptions: modelConfigOptions(
         this.opts.models,
         this.opts.modelOptionId,
-        this.opts.collaborationMode
+        this.opts.collaborationMode,
+        this.opts.agentMode
       ),
     }
   }
@@ -223,7 +250,8 @@ class FakeAcpAgent implements Agent {
       configOptions: modelConfigOptions(
         this.opts.models,
         this.opts.modelOptionId,
-        this.opts.collaborationMode
+        this.opts.collaborationMode,
+        this.opts.agentMode
       ),
     }
   }
@@ -761,6 +789,55 @@ describe("AcpSession — plan through the collaboration mode (#1337)", () => {
     expect(agent.setSessionModeCalls).toEqual(["plan"])
     expect(agent.calls).toEqual([])
     expect(session.plansByCollaborationMode).toBe(false)
+  })
+})
+
+describe("AcpSession — plan through opencode's mode option (#1589)", () => {
+  it("switches to the plan agent on a plan turn and says the reply is the plan", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      agentMode: "build",
+    })
+
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+      planMode: true,
+      adapter: { planAsReply: true },
+    })
+    await session.prompt([textBlock("plan it")], new AbortController().signal)
+
+    expect(agent.calls).toEqual(["set_config_option mode=plan", "prompt"])
+    expect(agent.setSessionModeCalls).toEqual([])
+    expect(session.plansByCollaborationMode).toBe(true)
+    expect(session.plansByReply).toBe(true)
+  })
+
+  it("switches a resumed session that is still planning back to build", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      agentMode: "plan",
+    })
+
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+      loadSessionId: SESSION_ID,
+      adapter: { planAsReply: true },
+    })
+
+    expect(agent.calls).toEqual(["set_config_option mode=build"])
+    expect(session.plansByReply).toBe(false)
+  })
+
+  it("plans by request, not by reply, when the descriptor doesn't say otherwise", async () => {
+    const { transport } = connectFakeAgent(async () => "end_turn", {
+      agentMode: "build",
+    })
+
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+      planMode: true,
+    })
+
+    expect(session.plansByCollaborationMode).toBe(true)
+    expect(session.plansByReply).toBe(false)
   })
 })
 
