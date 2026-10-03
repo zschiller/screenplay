@@ -14,7 +14,8 @@ const LISTEN_HOST = process.env.SCREENPLAY_LISTEN_HOST || "0.0.0.0"
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const BRIDGE_PATH = join(__dirname, "bridge.js")
 
-const BRIDGE_TAG = '<script src="/__screenplay-bridge.js" data-screenplay-bridge></script>'
+const BRIDGE_TAG =
+  '<script src="/__screenplay-bridge.js" data-screenplay-bridge></script>'
 
 function log(...args) {
   console.log("[screenplay-proxy]", ...args)
@@ -83,9 +84,155 @@ function servePlaceholder(res, statusCode = 503, upstreamError = "") {
   res.end(body)
 }
 
+// ---------- going local from a shared frame (#1397) ----------
+//
+// A viewer's local copy of a shared frame starts from the shared browser's
+// cookies and local storage. The canvas loads this page in a hidden iframe on
+// the preview's origin and posts it the snapshot; it writes local storage
+// itself and has the proxy set the cookies (HttpOnly ones included), then
+// reports back, and the canvas opens the real iframe.
+
+const SEED_PATH = "/__screenplay-seed"
+const MAX_SEED_BODY = 1 << 20
+
+const SEED_PAGE = `<!doctype html><meta charset="utf-8"><script>
+(function () {
+  if (window.parent === window) return
+  addEventListener("message", async function (e) {
+    var d = e.data
+    if (e.source !== window.parent || !d || d.type !== "screenplay:seed") return
+    var ok = true
+    try {
+      localStorage.clear()
+      for (var i = 0; i < d.localStorage.length; i++)
+        localStorage.setItem(d.localStorage[i][0], d.localStorage[i][1])
+    } catch (err) {
+      ok = false
+    }
+    try {
+      var res = await fetch("${SEED_PATH}", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-screenplay-seed": "1" },
+        body: JSON.stringify({ cookies: d.cookies, secure: isSecureContext }),
+      })
+      if (!res.ok) ok = false
+    } catch (err) {
+      ok = false
+    }
+    window.parent.postMessage({ type: "screenplay:seeded", ok: ok }, "*")
+  })
+  window.parent.postMessage({ type: "screenplay:seed-ready" }, "*")
+})()
+</script>`
+
+const COOKIE_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+const COOKIE_VALUE = /^[^;,\s\x00-\x1f\x7f]*$/
+const COOKIE_PATH = /^\/[^;\x00-\x1f\x7f]*$/
+
+/**
+ * Set-Cookie headers that replace the preview origin's cookies with the shared
+ * browser's. The local iframe is a third party on the canvas, where only
+ * `SameSite=None; Secure` cookies stick and browsers that block third-party
+ * cookies keep only `Partitioned` ones; so in a secure context (HTTPS, or
+ * localhost), where Secure cookies can be set, seeded cookies take those
+ * attributes, and keep their own otherwise.
+ */
+function seedCookieHeaders(cookies, { secure, existing = [] }) {
+  const thirdParty = "; Secure; SameSite=None; Partitioned"
+  const out = []
+  const seeded = new Set()
+  for (const c of Array.isArray(cookies) ? cookies : []) {
+    if (!c || typeof c !== "object") continue
+    const { name, value, path = "/" } = c
+    if (typeof name !== "string" || !COOKIE_NAME.test(name)) continue
+    if (typeof value !== "string" || !COOKIE_VALUE.test(value)) continue
+    if (typeof path !== "string" || !COOKIE_PATH.test(path)) continue
+    seeded.add(name)
+    let header = `${name}=${value}; Path=${path}`
+    if (typeof c.expires === "number" && c.expires > 0)
+      header += `; Expires=${new Date(c.expires * 1000).toUTCString()}`
+    if (c.httpOnly) header += "; HttpOnly"
+    if (secure) header += thirdParty
+    else {
+      if (c.secure) header += "; Secure"
+      if (["Strict", "Lax", "None"].includes(c.sameSite))
+        header += `; SameSite=${c.sameSite}`
+    }
+    out.push(header)
+  }
+  // Cookies the local copy had that the shared page doesn't: gone, in both
+  // their partitioned and unpartitioned forms.
+  const expired = "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+  for (const name of new Set(existing)) {
+    if (seeded.has(name) || !COOKIE_NAME.test(name)) continue
+    out.unshift(`${name}${expired}`)
+    if (secure) out.unshift(`${name}${expired}${thirdParty}`)
+  }
+  return out
+}
+
+function cookieNames(header) {
+  if (typeof header !== "string") return []
+  return header
+    .split(";")
+    .map((part) => part.split("=")[0].trim())
+    .filter(Boolean)
+}
+
+function serveSeed(req, res) {
+  if (req.method === "GET") {
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "content-length": Buffer.byteLength(SEED_PAGE),
+    })
+    res.end(SEED_PAGE)
+    return
+  }
+  // Only the seed page itself: the custom header makes any other origin's
+  // request a CORS preflight, which this never answers.
+  const site = req.headers["sec-fetch-site"]
+  if (
+    req.method !== "POST" ||
+    req.headers["x-screenplay-seed"] !== "1" ||
+    (site !== undefined && site !== "same-origin")
+  ) {
+    res.writeHead(403).end()
+    return
+  }
+  const chunks = []
+  let size = 0
+  req.on("data", (c) => {
+    size += c.length
+    if (size > MAX_SEED_BODY) req.destroy()
+    else chunks.push(c)
+  })
+  req.on("end", () => {
+    let body
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString("utf8"))
+    } catch {
+      res.writeHead(400).end()
+      return
+    }
+    res.writeHead(204, {
+      "cache-control": "no-store",
+      "set-cookie": seedCookieHeaders(body?.cookies, {
+        secure: body?.secure === true,
+        existing: cookieNames(req.headers.cookie),
+      }),
+    })
+    res.end()
+  })
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === "/__screenplay-bridge.js") {
     serveBridge(res)
+    return
+  }
+  if (req.url === SEED_PATH) {
+    serveSeed(req, res)
     return
   }
 
@@ -128,7 +275,7 @@ const server = http.createServer((req, res) => {
         if (!res.headersSent) servePlaceholder(res, 502)
         else res.destroy()
       })
-    },
+    }
   )
 
   upstreamReq.on("error", (err) => {
@@ -146,9 +293,15 @@ server.on("upgrade", (req, clientSocket, head) => {
     headers["host"] = `${UPSTREAM_HOST}:${UPSTREAM_PORT}`
     delete headers["origin"]
     const headerLines = Object.entries(headers)
-      .map(([k, v]) => Array.isArray(v) ? v.map((vv) => `${k}: ${vv}`).join("\r\n") : `${k}: ${v}`)
+      .map(([k, v]) =>
+        Array.isArray(v)
+          ? v.map((vv) => `${k}: ${vv}`).join("\r\n")
+          : `${k}: ${v}`
+      )
       .join("\r\n")
-    upstream.write(`${req.method} ${req.url} HTTP/1.1\r\n${headerLines}\r\n\r\n`)
+    upstream.write(
+      `${req.method} ${req.url} HTTP/1.1\r\n${headerLines}\r\n\r\n`
+    )
     if (head && head.length) upstream.write(head)
     upstream.pipe(clientSocket)
     clientSocket.pipe(upstream)
@@ -158,6 +311,8 @@ server.on("upgrade", (req, clientSocket, head) => {
 })
 
 server.listen(LISTEN_PORT, LISTEN_HOST, () => {
-  log(`listening on ${LISTEN_HOST}:${LISTEN_PORT} -> ${UPSTREAM_HOST}:${UPSTREAM_PORT}`)
+  log(
+    `listening on ${LISTEN_HOST}:${LISTEN_PORT} -> ${UPSTREAM_HOST}:${UPSTREAM_PORT}`
+  )
   log("CSP headers are stripped; intended for dev use only")
 })

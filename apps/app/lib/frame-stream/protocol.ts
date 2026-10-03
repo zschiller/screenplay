@@ -40,6 +40,9 @@ export type FrameStreamClientMessage =
   | ({ t: "agent"; id: string; op: DriveOp; grant?: string } & AgentFrame)
   /** A screenshot of the shared page for the agent. */
   | ({ t: "agent-shot"; id: string } & AgentFrame)
+  /** Read the page's URL, cookies and local storage, for a viewer going
+   *  local (#1397). Answered by a `snapshot` with the same `id`. */
+  | { t: "snapshot"; frame: string; id: string }
 
 /** Where the agent's frame starts when it isn't running. */
 export type AgentFrame = {
@@ -111,6 +114,31 @@ export type FrameStreamServerMessage =
       shot?: { data: string; mediaType: string }
       reason?: string
     }
+  /** The answer to a client `snapshot`; `error` when the page couldn't be
+   *  read (it isn't live yet). */
+  | ({ t: "snapshot"; frame: string; id: string } & (
+      FrameSnapshot | { error: string }
+    ))
+
+/** What a viewer going local starts from (#1397): the shared page's path on
+ *  the frame's origin, its cookies and its local storage. */
+export type FrameSnapshot = {
+  path: string
+  cookies: FrameCookie[]
+  localStorage: [string, string][]
+}
+
+/** A cookie of the shared page, as CDP reports it. `expires` is seconds since
+ *  the epoch, or -1 for a session cookie. */
+export type FrameCookie = {
+  name: string
+  value: string
+  path: string
+  expires: number
+  httpOnly: boolean
+  secure: boolean
+  sameSite?: "Strict" | "Lax" | "None"
+}
 
 export type FrameStreamVideo = {
   frame: string

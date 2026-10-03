@@ -5,10 +5,12 @@ import { createPortal } from "react-dom"
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  ArrowUUpLeftIcon,
   ArrowsOutSimpleIcon,
   CopyIcon,
   DotsThreeIcon,
   GitBranchIcon,
+  MonitorIcon,
   PlayIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
@@ -61,7 +63,11 @@ import {
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
-import { FrameDriverButton, FrameDriverTag } from "./frame-driver"
+import {
+  FrameDriverButton,
+  FrameDriverTag,
+  FrameLocalCopyTag,
+} from "./frame-driver"
 import { FrameStreamView } from "./frame-stream-view"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
@@ -152,6 +158,12 @@ interface IframeLayerProps {
    * instead of a per-viewer iframe.
    */
   sharedStream?: { connection: FrameStreamConnection; roomId: string }
+  /** This viewer shows its own local copy of the shared frame (#1397). */
+  localCopy?: boolean
+  /** Switch this viewer's view of the shared frame to a local copy. */
+  onGoLocal?: () => void
+  /** Drop the local copy and show the shared frame again. */
+  onRejoin?: () => void
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
   selected: boolean
@@ -354,6 +366,9 @@ export function IframeLayer({
   onGrantControl,
   onDeclineControl,
   sharedStream,
+  localCopy,
+  onGoLocal,
+  onRejoin,
   createFlow,
   selected,
   onFocus,
@@ -989,7 +1004,11 @@ export function IframeLayer({
       // Nor while someone else drives, so the size never changes under them.
       resizable={!focused && !drivenByOther(driver)}
       titleTag={
-        drivenByOther(driver) ? <FrameDriverTag driver={driver} /> : undefined
+        localCopy ? (
+          <FrameLocalCopyTag />
+        ) : drivenByOther(driver) ? (
+          <FrameDriverTag driver={driver} />
+        ) : undefined
       }
       onResize={onResize}
       onResizeStart={onResizeStart}
@@ -1130,6 +1149,19 @@ export function IframeLayer({
                       <DropdownMenuItem onSelect={onDuplicate}>
                         <CopyIcon />
                         Duplicate
+                      </DropdownMenuItem>
+                    )}
+                    {/* Going local (#1397): only this viewer's view. */}
+                    {onGoLocal && (
+                      <DropdownMenuItem onSelect={onGoLocal}>
+                        <MonitorIcon />
+                        Use a local copy
+                      </DropdownMenuItem>
+                    )}
+                    {onRejoin && (
+                      <DropdownMenuItem onSelect={onRejoin}>
+                        <ArrowUUpLeftIcon />
+                        Rejoin shared frame
                       </DropdownMenuItem>
                     )}
                     {showWorkspaceMenu && (

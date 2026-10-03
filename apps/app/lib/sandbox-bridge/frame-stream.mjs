@@ -38,9 +38,10 @@
 //
 // Wire protocol (see lib/frame-stream/protocol.ts for the client side):
 //   client → server, JSON text: auth, watch, unwatch, size, navigate,
-//     reload, drive, release, input, bridge; the agent: agent, agent-shot
-//   server → client, JSON text: ready, frame, route, error, bridge; the
-//     agent: agent-result, agent-shot
+//     reload, drive, release, input, bridge, snapshot; the agent: agent,
+//     agent-shot
+//   server → client, JSON text: ready, frame, route, error, bridge,
+//     snapshot; the agent: agent-result, agent-shot
 //   server → client, binary video: [1][flags][u16 id length][id][access unit]
 //     flags bit 0: keyframe
 
@@ -1250,6 +1251,37 @@ class Frame {
       this.unanswered = message
   }
 
+  // ---- going local (#1397) ----
+
+  /** The page's path, cookies and local storage on the frame origin, which a
+   *  viewer's local copy starts from. In-memory state can't come along. */
+  async snapshot() {
+    if (this.status !== "live") throw new Error("not live")
+    const origin = new URL(ORIGIN).origin
+    const host = new URL(ORIGIN).hostname
+    const [{ cookies }, { entries }] = await Promise.all([
+      this.cdp.send("Storage.getCookies", {}),
+      this.page("DOMStorage.getDOMStorageItems", {
+        storageId: { securityOrigin: origin, isLocalStorage: true },
+      }),
+    ])
+    return {
+      path: this.path,
+      cookies: cookies
+        .filter((c) => c.domain === host || c.domain === `.${host}`)
+        .map((c) => ({
+          name: c.name,
+          value: c.value,
+          path: c.path,
+          expires: c.session ? -1 : c.expires,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          ...(c.sameSite ? { sameSite: c.sameSite } : {}),
+        })),
+      localStorage: entries,
+    }
+  }
+
   // ---- input ----
 
   drives(conn) {
@@ -1978,6 +2010,18 @@ async function handleMessage(conn, msg) {
     case "unwatch":
       frame?.removeViewer(conn)
       return
+    case "snapshot": {
+      // Any viewer may take a local copy, watching the frame or not.
+      const reqId = typeof msg.id === "string" ? msg.id.slice(0, 64) : ""
+      try {
+        if (!frame) throw new Error("no such frame")
+        const snapshot = await frame.snapshot()
+        conn.sendJson({ t: "snapshot", frame: id, id: reqId, ...snapshot })
+      } catch (e) {
+        conn.sendJson({ t: "snapshot", frame: id, id: reqId, error: e.message })
+      }
+      return
+    }
   }
   if (!frame || !conn.watching.has(id)) return
   switch (msg.t) {
