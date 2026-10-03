@@ -28,13 +28,15 @@ The three depths:
 - **Hierarchy**: what a person sees first, what they can reach, and where flows dead-end. For a docs surface this is wayfinding; for an app it's interaction.
 - **Visual nits**: spacing, type, colour and component drift against the rules from stage 0. Build the fixes as a patch or branch, with before and after captures in every theme.
 
-Tag each finding with its depth letter and a number (P3, H7, N12). Label each capture Now, Mockup or After. Leave out anything the settled lists from stage 0 already cover.
+Tag each finding with its depth letter and a number (P3, H7, N12). Label each capture Now, Mockup or After. Leave out anything the settled lists from stage 0 already cover. When the owner names work in flight that may change a finding (an open exploration, a rewrite), add it to `NOTICES` and mark each finding it touches with `pend`.
 
-Done when every finding has a tag, every product claim has a citation, and every visual finding has captures.
+Publish the findings from [`audit-template.html`](audit-template.html), one page per thread (depths audited together share a page). Fill only its data arrays: each finding gets its captures, and a finding only the owner can decide gets a `call` with 2 or 3 options, the recommended one marked. Everything below the arrays works as is: filter tabs, captures in the viewer's theme with a Light/Dark switch, Fix or Skip and an option per call, per-finding notes, and Copy picks, which the owner pastes back. Load `artifact-design`, swap the `:root` tokens and font link for the repo's brand, and run `node --check` on the extracted script once.
+
+Done when every finding has a tag and a pick row, every product claim has a citation, every visual finding has captures, and the published page copies its picks.
 
 ## 2. Combine: one thread per surface, after all three audits are done
 
-Read [`PLAN.md`](PLAN.md) and build the surface's combined plan.
+Read [`PLAN.md`](PLAN.md) and build the surface's combined plan. When the owner pasted picks from the audit pages, a Skip drops the finding and an answered call is settled, so it needs no question in stage 3.
 
 Done when every finding from the three audits is accounted for exactly once: in a PR, merged into another finding, dropped with a reason, or moved to another surface's plan.
 
