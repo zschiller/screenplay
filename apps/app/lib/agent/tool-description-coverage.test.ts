@@ -9,7 +9,10 @@ vi.mock("@/lib/auth-helpers", () => ({
 vi.mock("@/lib/github-pr", () => ({ createGitHubPr: vi.fn() }))
 
 import { SCREENPLAY_TOOLS } from "@/lib/agent/tool-description"
-import { toolsetFor } from "@/lib/agent/toolset"
+import { toolsetOn } from "@/lib/agent/toolset"
+import { roomChatTarget } from "@/lib/agent/room-chat-target"
+import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
+import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 import { buildPrAndSkillTools } from "@/lib/agent/tools"
 
 const room = {
@@ -23,9 +26,19 @@ const sandbox = { sandboxName: "sandbox-a", room, userId: "user-1" }
 function servedToolNames(): string[] {
   const names = new Set<string>()
   for (const tools of [
-    toolsetFor({ kind: "sandbox", room, sandbox, chatId: "chat-1" }),
-    toolsetFor({ kind: "sketch", room, chatId: "chat-1", userId: "user-1" }),
-    toolsetFor({ kind: "room", room, ports: {} as never }),
+    toolsetOn(
+      workspaceChatTarget.tools(room, {
+        sandboxName: "sandbox-a",
+        chatId: "chat-1",
+        userId: "user-1",
+      }),
+      "in-process"
+    ),
+    toolsetOn(
+      sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" }),
+      "in-process"
+    ),
+    toolsetOn(roomChatTarget.tools(room, { userId: "user-1" }), "in-process"),
     buildPrAndSkillTools(sandbox),
   ]) {
     for (const name of Object.keys(tools)) names.add(name)

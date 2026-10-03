@@ -82,7 +82,8 @@ A chat edits only the documents it wrote. It can rewrite the body, append to
 it and change the title, and its edits merge live into the shared document, so
 it never overwrites what you're typing. Every chat can read every document,
 but to have a chat change one you made, ask it to write a new one or edit the
-text yourself. The agent's tool calls show as **Create document**, **Rewrite
+text yourself. When the chat that wrote a document is deleted, any chat can
+edit it, and the first one that does becomes the chat it belongs to. The agent's tool calls show as **Create document**, **Rewrite
 document**, **Append to document**, **Set title** and **Read document** rows.
 
 Comments go to the same place. **Send to agent** on a thread on a chat's

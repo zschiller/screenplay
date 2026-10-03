@@ -92,18 +92,22 @@ export async function loadCanvasMemory(
 
 /**
  * Snapshot the canvas's docs for the model's directory block. Cheap — the
- * collection is already in memory; we copy id, title and owning chat only.
+ * collection is already in memory; we copy id, title and owning chat only,
+ * and mark the ones whose chat was deleted.
  */
 export async function loadLayerDirectory(
   room: RoomDoc
 ): Promise<LayerDirectory> {
   return (
     (await room
-      .readDoc(({ markdownLayers }) => ({
+      .readDoc(({ markdownLayers, chatSessions }) => ({
         documents: markdownLayers.toArray().map((d) => ({
           id: d.id,
           title: d.title,
           ...(d.ownerChatId ? { ownerChatId: d.ownerChatId } : {}),
+          ...(d.ownerChatId && !chatSessions.get(d.ownerChatId)
+            ? { orphaned: true }
+            : {}),
         })),
       }))
       .catch(() => null)) ?? { documents: [] }

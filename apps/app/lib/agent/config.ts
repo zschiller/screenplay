@@ -18,7 +18,12 @@ import { frameDriveRuntime } from "@/lib/frame-drive/runtime"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
-  documents: Array<Pick<MarkdownLayerData, "id" | "title" | "ownerChatId">>
+  documents: Array<
+    Pick<MarkdownLayerData, "id" | "title" | "ownerChatId"> & {
+      /** Its chat was deleted, so any chat may edit it (and claim it). */
+      orphaned?: boolean
+    }
+  >
 }
 
 /**
@@ -26,7 +31,8 @@ export interface LayerDirectory {
  * target bakes this in so the model can resolve a `@<title>`-style mention (in
  * the user message *or* in a body it just fetched via a read tool) back to the
  * layer's stable id and call the right read tool. `chatId` marks the Documents
- * that chat made, the ones it can edit (#1314).
+ * that chat made, the ones it can edit (#1314), and the ones whose chat was
+ * deleted, which any chat can edit.
  */
 function renderLayerDirectory(
   dir: LayerDirectory,
@@ -41,8 +47,13 @@ function renderLayerDirectory(
   ]
   lines.push("  Documents:")
   for (const d of docs) {
-    const yours = chatId && d.ownerChatId === chatId ? " (yours)" : ""
-    lines.push(`    - ${d.id}: ${d.title || "Untitled"}${yours}`)
+    const mark =
+      chatId && d.ownerChatId === chatId
+        ? " (yours)"
+        : chatId && d.orphaned
+          ? " (its chat was deleted; you can edit it)"
+          : ""
+    lines.push(`    - ${d.id}: ${d.title || "Untitled"}${mark}`)
   }
   return lines.join("\n")
 }

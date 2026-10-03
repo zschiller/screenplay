@@ -4,13 +4,41 @@ import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
 
 /**
  * Who a Document belongs to (#1314): the chat that made it, recorded as its
- * `ownerChatId`. That chat alone edits it with its tools, its name shows on
- * it, and Send to agent and Reply in chat on it go there. A Document someone
- * made by hand has no owner. React-free, tested against plain values.
+ * `ownerChatId`. That chat edits it with its tools, its name shows on it, and
+ * Send to agent and Reply in chat on it go there. A Document someone made by
+ * hand has no owner. Once its chat is deleted a Document or Mockup is
+ * orphaned: any chat may edit it, and the first that does claims it.
+ * React-free, tested against plain values.
  */
 
 type Doc = Pick<MarkdownLayerData, "id" | "ownerChatId">
 type Chat = Pick<ChatSessionData, "id" | "branchId">
+
+/**
+ * Whether a chat may change a Document or Mockup with its tools: `own` when it
+ * made it, `claim` when the chat that made it was deleted (the edit makes it
+ * this chat's), `theirs` when another chat still on the canvas made it or a
+ * person made it by hand.
+ */
+export type EditRight = "own" | "claim" | "theirs"
+
+export function editRight(
+  ownerChatId: string | undefined,
+  chatId: string,
+  chatExists: (id: string) => boolean
+): EditRight {
+  if (!ownerChatId) return "theirs"
+  if (ownerChatId === chatId) return "own"
+  return chatExists(ownerChatId) ? "theirs" : "claim"
+}
+
+/** Whether a layer's chat was deleted, leaving it for any chat to edit. */
+export function isOrphaned(
+  ownerChatId: string | undefined,
+  chats: readonly Pick<ChatSessionData, "id">[]
+): boolean {
+  return !!ownerChatId && !chats.some((c) => c.id === ownerChatId)
+}
 
 /**
  * The Workspace each chat-made Document shows: its owning chat's Workspace,
@@ -54,12 +82,14 @@ export function documentOwnerChat(
  * Where a Mockup's empty Knobs popover sends "Ask the agent to add a knob", by
  * Mockup id: the Sketch Chat that made it, or the Workspace chat of the chat
  * that made it (#1315, the same resolution as {@link documentOwnerChat}), never
- * an earlier, read-only chat. A Mockup made by hand, or whose chat is gone, has
- * none and offers no Ask.
+ * an earlier, read-only chat. A Mockup whose chat was deleted goes to whichever
+ * chat the panel shows (`shown`), which claims it by editing it. A Mockup made
+ * by hand has none and offers no Ask.
  */
 export type MockupAskTarget =
   | { kind: "sketch"; chatId: string }
   | { kind: "workspace"; chatId: string; branchId: string }
+  | { kind: "shown" }
 
 export function mockupAskTargets(
   mockups: readonly Doc[],
@@ -67,10 +97,12 @@ export function mockupAskTargets(
 ): Map<string, MockupAskTarget> {
   const out = new Map<string, MockupAskTarget>()
   for (const m of mockups) {
-    const chat = m.ownerChatId
-      ? chats.find((c) => c.id === m.ownerChatId)
-      : undefined
-    if (!chat) continue
+    if (!m.ownerChatId) continue
+    const chat = chats.find((c) => c.id === m.ownerChatId)
+    if (!chat) {
+      out.set(m.id, { kind: "shown" })
+      continue
+    }
     if (isSketchChat(chat)) {
       out.set(m.id, { kind: "sketch", chatId: chat.id })
     } else if (chat.branchId) {
