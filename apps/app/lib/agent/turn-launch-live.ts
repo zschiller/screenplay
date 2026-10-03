@@ -3,7 +3,11 @@ import "server-only"
 import { after } from "next/server"
 import { toolsetOn } from "./toolset"
 import type { RoomDoc } from "@/lib/room-access"
-import { accountFilesFor, prepareChatTarget } from "./chat-target-kinds"
+import {
+  accountFilesFor,
+  accountSkillsFor,
+  prepareChatTarget,
+} from "./chat-target-kinds"
 import { workspaceChatTarget } from "./workspace-chat-target"
 import { roomChatTarget, type RoomTarget } from "./room-chat-target"
 import { sketchChatTarget } from "./sketch-chat-target"
@@ -89,6 +93,9 @@ import { sandboxSecrets } from "@/lib/env-store"
 import { canvasFiles } from "@/lib/files"
 import { withAttachedImages } from "@/lib/files/attach"
 import { savedFileSections } from "@/lib/files/context-folder"
+import { canvasSkills } from "@/lib/skills/canvas"
+import { savedSkillSections } from "@/lib/skills/on-disk"
+import { enumerateRepoSkillsForSandbox } from "@/lib/skills/sandbox-index"
 
 /**
  * Turn Launch over the live database, Room broadcast and `after()`, for a turn
@@ -96,15 +103,29 @@ import { savedFileSections } from "@/lib/files/context-folder"
  * doorbell through it; their `roomId` is the same Room.
  */
 export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
-  // A harness reads the canvas's and the sender's saved files on disk (#1524).
+  // A harness reads the canvas's and the sender's saved files (#1524) and
+  // Skills (#1559) on disk.
   resolveEngine: (input) =>
     resolveLiveEngine({
       ...input,
-      contextSections: () =>
-        savedFileSections(
-          canvasFiles(room),
-          accountFilesFor({ userId: room.userId, senderless: input.senderless })
-        ),
+      contextSections: () => {
+        const sender = { userId: room.userId, senderless: input.senderless }
+        const { sandboxName } = input
+        return {
+          ...savedFileSections(canvasFiles(room), accountFilesFor(sender)),
+          ...savedSkillSections({
+            canvas: canvasSkills(room),
+            account: accountSkillsFor(sender),
+            // The harness reads the Branch's own Skills from the checkout.
+            shadowed: sandboxName
+              ? async () =>
+                  (await enumerateRepoSkillsForSandbox(sandboxName)).map(
+                    (s) => s.name
+                  )
+              : undefined,
+          }),
+        }
+      },
     }),
   findPendingPlan: findPendingPlanForChat,
   resolvePlan,

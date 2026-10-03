@@ -11,8 +11,8 @@ import { syncFileMirror } from "./mirror"
  * additional directory, so reading it raises no permission prompt.
  *
  * The folder is made of named sections, each a subfolder its own sync owns:
- * `canvas` and `account` hold the saved files today, and other kinds of
- * context (Skills, #1559) add their own. Every sync rewrites the folder to
+ * `canvas` and `account` hold the saved files, and `.claude` and `.agents`
+ * the saved Skills (#1559, `lib/skills/on-disk.ts`). Every sync rewrites the folder to
  * match, so a section that's gone, and anything else left in the folder, is
  * removed. Agents never write back through it: edits made there are lost on
  * the next turn.
