@@ -227,6 +227,17 @@ function CanvasMemberLayerImpl({
   const handleIframeLayerSelect = selection.selectIframeLayer
   const handleGroupSelect = selection.selectGroup
   const handleDocumentLayerSelect = selection.selectDocumentLayer
+  // Interact on a frame or a mockup, or leave it (null). Entering goes
+  // through Frame Control: it takes the page from the agent, or asks the
+  // person driving it.
+  const focusPage = (id: string | null) => {
+    if (id === null) {
+      setFocusedIframeLayerId(null)
+      return
+    }
+    frameControl.interact(id)
+    setCreateFlowIframeLayerId(null)
+  }
   const labelsHidden = useMemo(
     () => hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
     [effectiveIframeLayerLayouts, zoom]
@@ -490,21 +501,10 @@ function CanvasMemberLayerImpl({
                 dimmed={dimmedIframeLayerIds.has(mockup.id)}
                 onHover={reference.setInspectHover}
                 onDomReady={reference.onIframeLayerDomReady}
-                onKnobsDeclared={layerMutations.updateMockupKnobs}
-                onKnobValuesChange={layerMutations.updateMockupKnobValues}
-                onSharedStateChanged={layerMutations.updateMockupSharedState}
+                writes={layerMutations.mockupPage}
                 focused={focusedIframeLayerId === mockup.id}
                 driver={frameControl.driverOf(mockup.id)}
-                onFocus={(id) => {
-                  if (id === null) {
-                    setFocusedIframeLayerId(null)
-                    return
-                  }
-                  // Interact goes through Frame Control, as on a frame: it
-                  // takes the mockup from the agent.
-                  frameControl.interact(id)
-                  setCreateFlowIframeLayerId(null)
-                }}
+                onFocus={focusPage}
                 commentMode={commentMode}
                 onWheel={onIframeWheel}
                 onAskForKnob={
@@ -587,16 +587,7 @@ function CanvasMemberLayerImpl({
               onGrantControl={frameControl.grant}
               onDeclineControl={frameControl.decline}
               onControlActivity={frameControl.active}
-              onFocus={(id) => {
-                if (id === null) {
-                  setFocusedIframeLayerId(null)
-                  return
-                }
-                // Interact goes through Frame Control: it takes the frame
-                // from the agent, or asks the person driving it.
-                frameControl.interact(id)
-                setCreateFlowIframeLayerId(null)
-              }}
+              onFocus={focusPage}
               onToggleCreateFlow={(id) => {
                 setCreateFlowIframeLayerId(id)
                 if (id !== null) setFocusedIframeLayerId(null)
@@ -621,10 +612,8 @@ function CanvasMemberLayerImpl({
               onStateChanged={layerMutations.updateState}
               onRouteChange={layerMutations.updateRoute}
               onScrollChange={layerMutations.updateScroll}
-              onKnobsDeclared={layerMutations.updateKnobs}
-              onKnobValuesChange={layerMutations.updateKnobValues}
+              writes={layerMutations.framePage}
               onColorSchemeChange={layerMutations.updateColorScheme}
-              onSharedStateChanged={layerMutations.updateSharedState}
               onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
               onOpenInBrowser={openInBrowser}
               onDuplicate={() =>

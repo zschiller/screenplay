@@ -12,6 +12,7 @@ import {
   MIN_IFRAME_LAYER_WIDTH,
 } from "@/lib/constants"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
+import type { LivePageWrites } from "./live-page"
 
 /**
  * Layer Mutation controller (PRD #579, cut 1/4) — the single home for the thin
@@ -62,16 +63,10 @@ export interface LayerMutations {
   updateState: (id: string, state: JsonObject) => void
   /** Persist the frame's scroll position. */
   updateScroll: (id: string, scrollX: number, scrollY: number) => void
-  /** Persist the knob declarations the frame's page exposed. */
-  updateKnobs: (id: string, knobs: JsonValue[]) => void
-  /** Persist the current knob values. */
-  updateKnobValues: (id: string, knobValues: JsonObject) => void
   /** Persist a shared frame's Theme knob. */
   updateColorScheme: (id: string, colorScheme: "light" | "dark") => void
   /** Turn a frame live for everyone on the canvas, or back (#1516). */
   updateLive: (id: string, live: boolean) => void
-  /** Persist the frame's shared state. */
-  updateSharedState: (id: string, sharedState: JsonObject) => void
   /**
    * Navigate (or replace) the frame's route. In Create Flow this leaves a
    * trail clone and pans the viewport so the navigated frame stays anchored;
@@ -110,12 +105,12 @@ export interface LayerMutations {
   /** Rename a mockup (its title lives on the record alone). */
   renameMockup: (id: string, title: string) => void
   setMockupStatus: (id: string, status: MockupStatus) => void
-  /** Persist the knob declarations a mockup's page exposed. */
-  updateMockupKnobs: (id: string, knobs: JsonValue[]) => void
-  /** Persist a mockup's current knob values. */
-  updateMockupKnobValues: (id: string, knobValues: JsonObject) => void
-  /** Persist the state a mockup's page shares. */
-  updateMockupSharedState: (id: string, sharedState: JsonObject) => void
+
+  // --- Live Page writers (#1493) ---
+  /** A frame's page's Knobs and shared state, on its record. */
+  framePage: LivePageWrites
+  /** A mockup's page's Knobs and shared state, on its record. */
+  mockupPage: LivePageWrites
 }
 
 export function useLayerMutations({
@@ -160,20 +155,6 @@ export function useLayerMutations({
     [ops]
   )
 
-  const updateKnobs = useCallback(
-    (id: string, knobs: JsonValue[]) => {
-      ops.patch("iframeLayers", id, { knobs })
-    },
-    [ops]
-  )
-
-  const updateKnobValues = useCallback(
-    (id: string, knobValues: JsonObject) => {
-      ops.patch("iframeLayers", id, { knobValues })
-    },
-    [ops]
-  )
-
   const updateColorScheme = useCallback(
     (id: string, colorScheme: "light" | "dark") => {
       ops.patch("iframeLayers", id, { colorScheme })
@@ -184,13 +165,6 @@ export function useLayerMutations({
   const updateLive = useCallback(
     (id: string, live: boolean) => {
       ops.patch("iframeLayers", id, { live })
-    },
-    [ops]
-  )
-
-  const updateSharedState = useCallback(
-    (id: string, sharedState: JsonObject) => {
-      ops.patch("iframeLayers", id, { sharedState })
     },
     [ops]
   )
@@ -331,30 +305,13 @@ export function useLayerMutations({
     [ops]
   )
 
-  // Every viewer's copy of a page posts its declarations as it loads, so
-  // write only a real change.
-  const updateMockupKnobs = useCallback(
-    (id: string, knobs: JsonValue[]) => {
-      const current = collections.mockupLayers.get(id)
-      if (!current) return
-      if (JSON.stringify(current.knobs ?? []) === JSON.stringify(knobs)) return
-      ops.patch("mockupLayers", id, { knobs })
-    },
+  const framePage = useMemo(
+    () => livePageWrites(ops, collections, "iframeLayers"),
     [ops, collections]
   )
-
-  const updateMockupKnobValues = useCallback(
-    (id: string, knobValues: JsonObject) => {
-      ops.patch("mockupLayers", id, { knobValues })
-    },
-    [ops]
-  )
-
-  const updateMockupSharedState = useCallback(
-    (id: string, sharedState: JsonObject) => {
-      ops.patch("mockupLayers", id, { sharedState })
-    },
-    [ops]
+  const mockupPage = useMemo(
+    () => livePageWrites(ops, collections, "mockupLayers"),
+    [ops, collections]
   )
 
   const setTitle = useCallback(
@@ -382,11 +339,8 @@ export function useLayerMutations({
       assignGroupAgent,
       updateState,
       updateScroll,
-      updateKnobs,
-      updateKnobValues,
       updateColorScheme,
       updateLive,
-      updateSharedState,
       updateRoute,
       fitToContent,
       resizeDocument,
@@ -395,9 +349,8 @@ export function useLayerMutations({
       resizeMockup,
       renameMockup,
       setMockupStatus,
-      updateMockupKnobs,
-      updateMockupKnobValues,
-      updateMockupSharedState,
+      framePage,
+      mockupPage,
     }),
     [
       rename,
@@ -405,11 +358,8 @@ export function useLayerMutations({
       assignGroupAgent,
       updateState,
       updateScroll,
-      updateKnobs,
-      updateKnobValues,
       updateColorScheme,
       updateLive,
-      updateSharedState,
       updateRoute,
       fitToContent,
       resizeDocument,
@@ -418,9 +368,34 @@ export function useLayerMutations({
       resizeMockup,
       renameMockup,
       setMockupStatus,
-      updateMockupKnobs,
-      updateMockupKnobValues,
-      updateMockupSharedState,
+      framePage,
+      mockupPage,
     ]
   )
+}
+
+/**
+ * A Live Page's writes onto its layer record, the same for a frame and a
+ * mockup. Every viewer's copy of a page posts its declarations as it loads,
+ * so the knobs are written only on a real change.
+ */
+function livePageWrites(
+  ops: CanvasOps,
+  collections: RoomCollections,
+  collection: "iframeLayers" | "mockupLayers"
+): LivePageWrites {
+  return {
+    knobsDeclared: (id: string, knobs: JsonValue[]) => {
+      const current = collections[collection].get(id)
+      if (!current) return
+      if (JSON.stringify(current.knobs ?? []) === JSON.stringify(knobs)) return
+      ops.patch(collection, id, { knobs })
+    },
+    knobValues: (id: string, knobValues: JsonObject) => {
+      ops.patch(collection, id, { knobValues })
+    },
+    sharedState: (id: string, sharedState: JsonObject) => {
+      ops.patch(collection, id, { sharedState })
+    },
+  }
 }

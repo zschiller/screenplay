@@ -1449,6 +1449,21 @@ storage and profile restored, when someone watches it again.
 _Avoid_: "streamed iframe" (there is no iframe); trusting a viewer's claim to
 drive without a grant; WebRTC (it can't connect from a Vercel Sandbox, #1366).
 
+**Live Page**:
+A sandboxed page on the canvas that runs the Sandbox Bridge (#1493): the
+Iframe Layer's and the Mockup Layer's page alike. One module
+(`components/canvas/live-page.tsx`) owns its Bridge Port, the bridge wiring
+(record replay, Knobs and shared-state writes through `LivePageWrites`),
+Interact focus, the agent's drive registration, the element hit-test, the body
+overlay (drag, double-click Interact, target hover in comment mode or a pick,
+the pick scrim), the bar's Interact / Go live / Knobs, and the title tag and
+resize rule. A layer configures it by its **source**: `url` (a frame's own
+copy), `stream` (a live frame, through its Frame Stream) or `srcdoc` (a
+Mockup). What a layer adds around the page (a frame's address bar, status
+screens and Create Flow; a Mockup's status) stays in the layer.
+_Avoid_: wiring the bridge, the overlay or the page's bar controls in a layer;
+a capability that only one kind of page gets by hand.
+
 **Frame Drive**:
 The agent driving a frame or Mockup (#1389, #1391): one contract of gestures
 and reads (`lib/frame-drive/contract.ts`) and no op that runs a script. Every

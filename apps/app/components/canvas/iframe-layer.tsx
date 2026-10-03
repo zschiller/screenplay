@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   ArrowLeftIcon,
@@ -29,17 +29,9 @@ import {
 } from "@workspace/ui/components/floating-toolbar"
 import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
-import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
-import { useIframeBridgePort } from "@/hooks/use-bridge-port"
-import { usePostMessage } from "@/hooks/use-postmessage"
-import {
-  useScreenplayDom,
-  type ScreenplayDom,
-  type WheelForward,
-} from "@/hooks/use-screenplay-dom"
-import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
+import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import {
   canGoBack,
   canGoForward,
@@ -56,17 +48,16 @@ import { DeviceSizeSubMenu } from "./device-size-menu"
 import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
-import { KnobsPopover } from "./knobs-popover"
 import {
-  FrameDriverButton,
-  FrameDriverTag,
-  FrameLiveTag,
-  FrameGoLiveToggle,
-} from "./frame-driver"
-import { FrameStreamView } from "./frame-stream-view"
+  LivePageContent,
+  LivePageControls,
+  LivePageOverlay,
+  livePageChrome,
+  useLivePage,
+  type LivePageWrites,
+} from "./live-page"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
-import { drivenByOther } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -230,11 +221,10 @@ interface IframeLayerProps {
   onStateChanged: (id: string, state: JsonObject) => void
   onRouteChange?: (id: string, route: string, replace: boolean) => void
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
-  onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
-  onKnobValuesChange?: (id: string, values: JsonObject) => void
+  /** Where the page's Knobs and shared state are written. */
+  writes?: LivePageWrites
   /** Set a shared frame's Theme knob. */
   onColorSchemeChange?: (id: string, scheme: "light" | "dark") => void
-  onSharedStateChanged?: (id: string, state: JsonObject) => void
   /** Open the prototype player route for this iframeLayer's branch in a new tab. */
   onPlay?: (id: string) => void
   /**
@@ -396,10 +386,8 @@ export function IframeLayer({
   onStateChanged,
   onRouteChange,
   onScrollChange,
-  onKnobsDeclared,
-  onKnobValuesChange,
+  writes,
   onColorSchemeChange,
-  onSharedStateChanged,
   onRemove,
   onPlay,
   onOpenInBrowser,
@@ -452,29 +440,17 @@ export function IframeLayer({
   // Declared here (rather than inside usePostMessage) so callbacks defined
   // above the usePostMessage call below — e.g. reloadIframe — can reference it.
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  // The box the page fills, which the element hit-test measures.
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   // A shared frame (#1392) has no iframe: reloads and routes go to the shared
   // browser over its stream.
   const shared = !!sharedStream
-  // The title line and the resize handles answer to whoever drives the frame
-  // as this viewer sees it, or, from an own copy, whoever drives the live one:
-  // the frame's size is everyone's.
-  const tagDriver =
-    !drivenByOther(driver) && live && !shared ? liveDriver : driver
   const sharedFrame = sharedStream?.frame(iframeLayer.id)
   const sharedFrameRef = useRef(sharedFrame)
   useEffect(() => {
     sharedFrameRef.current = sharedFrame
   })
-
-  // The page's Sandbox Bridge: the iframe's, or the shared page's over the
-  // stream (#1394), so pins, Knobs, the picker and Fit to content work on
-  // both alike.
-  const iframePort = useIframeBridgePort(iframeRef)
-  const port = useMemo(
-    () => (sharedStream ? sharedStream.bridgePort(iframeLayer.id) : iframePort),
-    [sharedStream, iframeLayer.id, iframePort]
-  )
 
   // The URL the iframe is *supposed* to show. reloadIframe reloads onto this,
   // not the DOM's current `iframe.src`: a prior recovery reload may have parked
@@ -615,7 +591,6 @@ export function IframeLayer({
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
 
   const frameRef = useRef<HTMLDivElement>(null)
-  const bodyRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   // Floating action toolbar only mounts when the frame itself is the sole
@@ -689,71 +664,64 @@ export function IframeLayer({
     [onScrollChange]
   )
 
-  usePostMessage({
-    port,
-    iframeLayerId: iframeLayer.id,
-    iframeState: iframeLayer.iframeState ?? {},
-    iframeScrollX: iframeLayer.scrollX,
-    iframeScrollY: iframeLayer.scrollY,
-    knobValues: iframeLayer.knobValues,
-    sharedState: iframeLayer.sharedState,
-    onStateChanged,
-    onNavigation: handleNavigation,
-    onScroll: handleScroll,
-    onReady: handleReady,
-    onHmrStatus: handleHmrStatus,
-    onKnobsDeclared,
-    onSharedStateChanged,
-  })
-
   // Both interact mode and Create Flow mode forward pointer events to the
   // iframe and hide the canvas overlay. Create Flow additionally captures
   // navigation events into a history trail (handled in canvas.tsx).
   const interactive = focused || createFlow
 
-  const dom = useScreenplayDom(port, {
-    onWheel: (wheel) => onWheel?.(iframeLayer.id, wheel),
-    // Esc the page didn't claim, forwarded by the bridge because keydowns
-    // never leave the iframe. Replay it on the canvas's own window so it
-    // walks the same Escape precedence (lib/canvas/escape.ts) as an Esc
-    // pressed on the canvas: an armed pick cancels first, otherwise the frame
-    // leaves interaction.
-    // Space pressed in the page with the pointer out over the canvas, so
-    // space-drag pans the canvas as it does outside Interact.
-    onSpaceDown: () => {
-      if (!interactive) return
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: " " }))
+  const desiredSrc = iframeLayer.iframeUrl
+    ? iframeLayer.iframeUrl + (iframeLayer.route ?? "")
+    : undefined
+
+  // The `src` actually applied to the iframe. We avoid changing it when the
+  // route update originated from in-iframe navigation (that would reload the
+  // iframe back onto the path it's already on).
+  const [iframeSrc, setIframeSrc] = useState<string | undefined>(desiredSrc)
+
+  // The page: this viewer's own iframe, or the shared browser's stream.
+  const page = useLivePage({
+    id: iframeLayer.id,
+    source: sharedStream
+      ? {
+          kind: "stream",
+          stream: sharedStream,
+          hasPage: !!iframeLayer.iframeUrl,
+          route: shownRoute,
+          scheme: iframeLayer.colorScheme ?? "light",
+          onRoute: handleSharedRoute,
+          onLive: setContentReady,
+          onActivity: onControlActivity
+            ? () => onControlActivity(iframeLayer.id)
+            : undefined,
+        }
+      : { kind: "url", src: iframeSrc },
+    record: iframeLayer,
+    writes,
+    app: {
+      onStateChanged,
+      onNavigation: handleNavigation,
+      onScroll: handleScroll,
+      onReady: handleReady,
+      onHmrStatus: handleHmrStatus,
     },
-    onSpaceUp: () => {
-      window.dispatchEvent(new KeyboardEvent("keyup", { key: " " }))
-    },
-    onEscape: () => {
-      if (!interactive) return
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
-    },
+    interactive,
+    driver,
+    zoom,
+    width: iframeLayer.width,
+    height: iframeLayer.height,
+    onWheel,
+    onDomReady,
+    iframeRef,
+    bodyRef,
   })
-
-  // The agent drives this frame through the Mac drive channel (#1389).
-  useDriveFrame(iframeLayer.id, dom, iframeRef, zoom)
-
-  // Leaving interaction (Esc, the toolbar, or a deselect) hands keyboard focus
-  // back to the canvas. Otherwise it stays inside the iframe, and canvas
-  // shortcuts, a second Esc included, go to the preview instead.
-  useEffect(() => {
-    if (interactive) {
-      // Entering from the toolbar leaves focus on the Interact button, where
-      // Space would press it (leaving Interact) instead of panning the canvas.
-      const active = document.activeElement
-      if (
-        active instanceof HTMLElement &&
-        active.closest("#frame-toolbar-portal")
-      )
-        active.blur()
-      return
-    }
-    const iframe = iframeRef.current
-    if (iframe && document.activeElement === iframe) iframe.blur()
-  }, [interactive])
+  const { dom } = page
+  const chrome = livePageChrome({
+    driver,
+    focused,
+    live,
+    liveDriver,
+    onLiveCopy: shared,
+  })
 
   const handleFitToContent = useCallback(async () => {
     try {
@@ -764,49 +732,6 @@ export function IframeLayer({
       // Bridge timeout / iframe not ready — ignore.
     }
   }, [dom, iframeLayer.id, onFitToContent])
-
-  const onDomReadyRef = useRef(onDomReady)
-  useEffect(() => {
-    onDomReadyRef.current = onDomReady
-  })
-  useEffect(() => {
-    onDomReadyRef.current?.(iframeLayer.id, dom)
-    return () => onDomReadyRef.current?.(iframeLayer.id, null)
-  }, [iframeLayer.id, dom])
-
-  const queryElementAtPoint = useCallback(
-    async (clientX: number, clientY: number) => {
-      // The page fills the frame's body: an iframe, or a shared frame's
-      // picture, whose page has the frame's size as its viewport.
-      const body = bodyRef.current
-      if (!body) return null
-      const rect = body.getBoundingClientRect()
-      // The body is rendered inside a zoom-transformed canvas, so its
-      // getBoundingClientRect is the visually scaled size. The page's
-      // viewport (and what elementFromPoint uses) is unscaled, so we
-      // divide by zoom to convert from screen pixels back to page-viewport
-      // pixels. Without this the hit-test drifts further off as zoom shrinks.
-      const x = (clientX - rect.left) / zoom
-      const y = (clientY - rect.top) / zoom
-      if (x < 0 || y < 0 || x > iframeLayer.width || y > iframeLayer.height)
-        return null
-      try {
-        return await dom.elementAtPoint(x, y)
-      } catch {
-        return null
-      }
-    },
-    [dom, zoom, iframeLayer.width, iframeLayer.height]
-  )
-
-  const desiredSrc = iframeLayer.iframeUrl
-    ? iframeLayer.iframeUrl + (iframeLayer.route ?? "")
-    : undefined
-
-  // The `src` actually applied to the iframe. We avoid changing it when the
-  // route update originated from in-iframe navigation (that would reload the
-  // iframe back onto the path it's already on).
-  const [iframeSrc, setIframeSrc] = useState<string | undefined>(desiredSrc)
 
   // Counts placeholder-recovery reloads for the current `iframeSrc`. Bumping it
   // re-arms the recovery effect's timer (so it retries rather than firing once),
@@ -1016,17 +941,8 @@ export function IframeLayer({
       // Interactive (focus / Create Flow) frames forward pointers to the iframe,
       // so the title bar's drag is detached just like the body overlay is hidden.
       titleDragDisabled={interactive}
-      // No resize handles while interacting: the Selection Overlay hides its
-      // drawn ones, and the edge hit areas would steal clicks from the page.
-      // Nor while someone else drives, so the size never changes under them.
-      resizable={!focused && !drivenByOther(tagDriver)}
-      titleTag={
-        drivenByOther(tagDriver) ? (
-          <FrameDriverTag driver={tagDriver} />
-        ) : live ? (
-          <FrameLiveTag />
-        ) : undefined
-      }
+      resizable={chrome.resizable}
+      titleTag={chrome.titleTag}
       onResize={onResize}
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}
@@ -1107,31 +1023,16 @@ export function IframeLayer({
                   }
                 />
                 <FloatingToolbarSeparator />
-                <FrameDriverButton
-                  driver={driver}
-                  asked={askedForControl}
-                  requests={controlRequests}
-                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                  onGrant={
-                    onGrantControl
-                      ? (to) => onGrantControl(iframeLayer.id, to)
-                      : undefined
-                  }
-                  onDecline={
-                    onDeclineControl
-                      ? (to) => onDeclineControl(iframeLayer.id, to)
-                      : undefined
-                  }
-                />
-                {onToggleLive && (
-                  <FrameGoLiveToggle live={live} onToggle={onToggleLive} />
-                )}
-                <KnobsPopover
-                  knobs={iframeLayer.knobs}
-                  values={iframeLayer.knobValues}
-                  onChange={(values) =>
-                    onKnobValuesChange?.(iframeLayer.id, values)
-                  }
+                <LivePageControls
+                  page={page}
+                  focused={focused}
+                  onFocus={onFocus}
+                  askedForControl={askedForControl}
+                  controlRequests={controlRequests}
+                  onGrantControl={onGrantControl}
+                  onDeclineControl={onDeclineControl}
+                  live={live}
+                  onToggleLive={onToggleLive}
                   onAskForKnob={onAskForKnob}
                   theme={
                     shared && onColorSchemeChange
@@ -1242,96 +1143,25 @@ export function IframeLayer({
             ref={bodyRef}
             className={`relative h-full w-full overflow-hidden bg-white dark:bg-neutral-900 ${LAYER_SURFACE_CLASS}`}
           >
-            {/* Mount the iframe as soon as there's a URL — don't gate it on the
+            {/* The iframe mounts as soon as there's a URL — not gated on the
             probe. The probe is a server-action round-trip; gating the mount on
             it meant the browser only started fetching the page *after* the probe
             had already fetched it once, serializing two full loads. Now the
-            iframe loads in parallel with the probe and the overlay below just
-            hides it until the dev server is confirmed reachable. */}
-            {sharedStream && sharedFrame && iframeLayer.iframeUrl && (
-              <FrameStreamView
-                stream={sharedStream}
-                frame={sharedFrame}
-                width={iframeLayer.width}
-                height={iframeLayer.height}
-                route={shownRoute}
-                scheme={iframeLayer.colorScheme ?? "light"}
-                interactive={interactive}
-                drives={driver.kind === "you"}
-                onRoute={handleSharedRoute}
-                onLive={setContentReady}
-                onActivity={
-                  onControlActivity
-                    ? () => onControlActivity(iframeLayer.id)
-                    : undefined
-                }
-              />
-            )}
-            {!sharedStream && iframeSrc && (
-              <iframe
-                ref={iframeRef}
-                src={iframeSrc}
-                className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-neutral-900"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                style={{ pointerEvents: interactive ? "auto" : "none" }}
-              />
-            )}
-            {/* Dim scrim for an armed pick on another branch (#619): a subtle
-            wash over the frame body so the eligible (undimmed) frames stand out.
-            Pointer-transparent — a click still falls through to the canvas-level
-            target handler, which treats a non-eligible frame as a cancel. */}
-            {dimmed && (
-              <div className="pointer-events-none absolute inset-0 z-10 bg-background/60 transition-opacity" />
-            )}
-
-            {/* Overlay sits above the iframe (which is pointer-events:none unless
-            focused). Handles drag-to-move / click; in comment mode it also
-            forwards pointer tracking to the in-iframe picker so the canvas
-            can render an element hover overlay. */}
-            {!interactive && (
-              <div
-                className="absolute inset-0 touch-none"
-                style={{ cursor: "inherit" }}
-                {...api.bodyDragHandlers}
-                {...((commentMode || pickActive) && !spaceHeld && !dimmed
-                  ? {
-                      // Hover-only: show the inspect overlay so the user can see
-                      // what element they're about to comment on / target. The
-                      // click is handled by the canvas-level handler (comment or
-                      // pick), which re-runs elementAtPoint to capture the
-                      // selector. Dimmed (pick-ineligible) frames don't track.
-                      onPointerMove: async (e: React.PointerEvent) => {
-                        const result = await queryElementAtPoint(
-                          e.clientX,
-                          e.clientY
-                        )
-                        onHover(iframeLayer.id, result ? result.rect : null)
-                      },
-                      onPointerLeave: () => onHover(iframeLayer.id, null),
-                    }
-                  : {})}
-                onPointerDownCapture={api.onBodyPointerDownCapture}
-                onDoubleClick={(e) => {
-                  if (
-                    !canInteractOnDoubleClick({
-                      hasPreview: !!iframeLayer.branchId,
-                      commentMode: !!commentMode,
-                      // A dimmed frame is ineligible for an armed pick, but
-                      // the pick still owns the pointer.
-                      pickActive: !!pickActive || !!dimmed,
-                      spaceHeld,
-                    })
-                  )
-                    return
-                  e.stopPropagation()
-                  // Interaction lives only while its frame is selected, so a
-                  // double-click on a member of a selected group narrows the
-                  // selection to this frame first.
-                  onSelect(iframeLayer.id, false)
-                  onFocus(iframeLayer.id)
-                }}
-              />
-            )}
+            iframe loads in parallel with the probe and the status screen below
+            just hides it until the dev server is confirmed reachable. */}
+            <LivePageContent page={page} iframeRef={iframeRef} />
+            <LivePageOverlay
+              page={page}
+              api={api}
+              hasPage={!!iframeLayer.branchId}
+              commentMode={commentMode}
+              pickActive={pickActive}
+              dimmed={dimmed}
+              spaceHeld={spaceHeld}
+              onHover={onHover}
+              onSelect={onSelect}
+              onFocus={onFocus}
+            />
 
             {/* The status screen covering the still-loading (or placeholder)
             iframe. It drops the instant the iframe's bridge reports the real
