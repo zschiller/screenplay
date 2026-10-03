@@ -22,7 +22,7 @@ export interface FrameActions {
   zoomToMockup: (mockupLayerId: string) => void
   /** Zoom-to-fit a whole Group's bounding box. */
   zoomToGroup: (groupId: string) => void
-  /** Add a fresh Iframe Layer for a running agent, then zoom to it. */
+  /** Add a frame for a running agent beside its frames, then pan to it. */
   addIframeLayerForAgent: (agentId: string) => void
   /** Open one frame per discovered route for an agent, then zoom to the first. */
   showRoutesForAgent: (agentId: string) => void
@@ -124,13 +124,15 @@ export function useFrameActions({
       const existing = iframeLayers.filter((a) => a.branchId === agentId)
       const newId = addIframeLayer(agentId, `Frame ${existing.length + 1}`)
       if (newId) {
-        // Wait for DOM to render the new iframeLayer, then zoom to it
+        // Wait for the DOM to render the new frame, then pan to it at the
+        // current zoom, so it shows beside the Workspace's other frames.
         requestAnimationFrame(() => {
-          selectIframeLayer(newId)
+          const el = document.getElementById(`iframe-layer-${newId}`)
+          if (el) camera.centerOnElement(el)
         })
       }
     },
-    [agents, iframeLayers, addIframeLayer, selectIframeLayer]
+    [agents, iframeLayers, addIframeLayer, camera]
   )
 
   const showRoutesForAgent = useCallback(
