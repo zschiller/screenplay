@@ -3,8 +3,12 @@
 //
 //   pnpm --filter desktop release <patch|minor|major|none|X.Y.Z> [--notes <file>]
 //
-// --notes takes a short Markdown summary for people downloading the app; it
-// goes above GitHub's generated list of merged PRs in the Release.
+// The Release body is a readable changelog, not a list of commits. Without
+// --notes, the script drafts one before the build: it collects the PRs merged
+// since the last desktop tag that change the app, and asks `claude -p` to write
+// them up for people using it (falling back to the PR titles if that fails).
+// Run in a terminal, it shows the draft and lets you edit it in $EDITOR. With
+// --notes <file>, that Markdown file is the changelog as is.
 //
 // This is thin orchestration around the pure, unit-tested version seam (#630) —
 // all version resolution and file rewriting lives in
@@ -26,6 +30,7 @@
 //   1. Load .env.release; warn (don't fail) on a missing optional input.
 //   2. Refuse to run on a dirty working tree.
 //   3. Resolve the target version via the seam; abort if its tag already exists.
+//      Then draft the release notes (or read --notes) and confirm them.
 //   4. Rewrite package.json, tauri.conf.json, Cargo.toml in lockstep.
 //   5. Build the sidecar, then `tauri build` → signed + notarized .app/.dmg,
 //      with the disk-drive volume icon swapped into the dmg.
@@ -38,6 +43,7 @@
 import { execFileSync } from "node:child_process"
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
+import { createInterface } from "node:readline/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
@@ -46,6 +52,13 @@ import {
   setTauriConfVersion,
   setCargoTomlVersion,
 } from "../../app/lib/desktop/release-version.ts"
+import {
+  changesTheApp,
+  fallbackReleaseNotes,
+  mergedPrsFromSubjects,
+  releaseNotesPrompt,
+  withCompareLink,
+} from "../../app/lib/desktop/release-notes.ts"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, "..")
@@ -60,6 +73,8 @@ const cargoLockPath = join(srcTauri, "Cargo.lock")
 // The stable asset name the homepage's Download buttons link to
 // (apps/homepage/lib/app-url.ts). Renaming it breaks every Download button.
 const STABLE_DMG_NAME = "Screenplay.dmg"
+
+const REPO = "zschiller/screenplay"
 
 // Signing + notarization must be present, or Tauri silently ships an unsigned
 // bundle — fail before the ~20 min build rather than after.
@@ -135,8 +150,6 @@ if (notesFlag !== -1) {
   notesPath = resolve(process.cwd(), args[notesFlag + 1])
   if (!existsSync(notesPath)) fail(`--notes points at a missing file: ${notesPath}`)
   args.splice(notesFlag, 2)
-} else {
-  warn("no --notes file — the Release will list merged PRs only.")
 }
 
 const releaseEnv = loadReleaseEnv()
@@ -178,6 +191,108 @@ if (!resolved.ok) {
 }
 const { version, tag } = resolved
 log(`releasing ${currentVersion} → ${version} (tag ${tag})`)
+
+// ── 3b. Release notes, settled before the long build ─────────────────────────
+/** True when `cmd` runs; used to probe for the optional `claude` CLI. */
+function commandWorks(cmd, cmdArgs) {
+  try {
+    execFileSync(cmd, cmdArgs, { stdio: "ignore" })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** A PR's description, or "" when `gh` can't fetch it (the title still goes in). */
+function prBody(number) {
+  try {
+    return capture("gh", ["api", `repos/${REPO}/pulls/${number}`, "--jq", ".body // \"\""], {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+  } catch {
+    return ""
+  }
+}
+
+/** A changelog drafted from the app-changing PRs merged since `previousTag`. */
+function draftReleaseNotes(previousTag) {
+  const range = previousTag ? `${previousTag}..HEAD` : "HEAD"
+  const commits = capture("git", ["log", "--first-parent", "--format=%H%x09%s", range])
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [sha, ...subject] = line.split("\t")
+      return { sha, subject: subject.join("\t") }
+    })
+    .filter(({ sha }) =>
+      changesTheApp(
+        capture("git", ["diff-tree", "--no-commit-id", "--name-only", "-r", sha]).split("\n")
+      )
+    )
+  const prs = mergedPrsFromSubjects(commits.map((c) => c.subject))
+  log(`${prs.length} merged PRs since ${previousTag ?? "the first commit"} change the app`)
+  if (prs.length === 0) return fallbackReleaseNotes(prs)
+
+  if (!commandWorks("claude", ["--version"])) {
+    warn("`claude` isn't installed — the notes list PR titles; edit them or pass --notes.")
+    return fallbackReleaseNotes(prs)
+  }
+  try {
+    const withBodies = prs.map((pr) => ({ ...pr, body: prBody(pr.number) }))
+    log("drafting the changelog with claude…")
+    // Run outside the repo so the model reads only the brief, not the project.
+    const notes = execFileSync("claude", ["-p", "Follow the brief on stdin."], {
+      input: releaseNotesPrompt({ version, prs: withBodies }),
+      encoding: "utf8",
+      cwd: tmpdir(),
+      maxBuffer: 16 * 1024 * 1024,
+    }).trim()
+    if (notes) return notes
+    warn("claude returned nothing — the notes list PR titles.")
+  } catch (error) {
+    warn(`couldn't draft the notes (${error.message.split("\n")[0]}) — they list PR titles.`)
+  }
+  return fallbackReleaseNotes(prs)
+}
+
+const previousTag =
+  capture("git", ["tag", "--list", "desktop-v*", "--merged", "HEAD", "--sort=-v:refname"])
+    .split("\n")
+    .find(Boolean) ?? null
+const releaseNotesPath = join(mkdtempSync(join(tmpdir(), "screenplay-notes-")), `${tag}.md`)
+writeFileSync(
+  releaseNotesPath,
+  notesPath ? readFileSync(notesPath, "utf8") : draftReleaseNotes(previousTag)
+)
+
+// In a terminal, show the notes and offer an edit before committing to the
+// build. Run by an agent (no TTY), the draft goes out as is.
+if (process.stdin.isTTY && !notesPath) {
+  const prompt = createInterface({ input: process.stdin, output: process.stdout })
+  for (;;) {
+    process.stdout.write(`\n${readFileSync(releaseNotesPath, "utf8").trim()}\n\n`)
+    const answer = (
+      await prompt.question("[release] Enter to use these notes, e to edit them, q to stop: ")
+    )
+      .trim()
+      .toLowerCase()
+    if (answer === "") break
+    if (answer === "q") {
+      prompt.close()
+      fail("stopped before building; nothing was changed.")
+    }
+    if (answer === "e") {
+      run(process.env.VISUAL || process.env.EDITOR || "vi", [releaseNotesPath])
+    }
+  }
+  prompt.close()
+}
+if (previousTag) {
+  writeFileSync(
+    releaseNotesPath,
+    withCompareLink(readFileSync(releaseNotesPath, "utf8"), { repo: REPO, previousTag, tag })
+  )
+}
 
 // ── 4. Rewrite the three version files in lockstep (Cargo.lock follows in 5) ──
 writeFileSync(packageJsonPath, setPackageJsonVersion(readFileSync(packageJsonPath, "utf8"), version))
@@ -324,9 +439,8 @@ run("gh", [
   tag,
   "--title",
   `Screenplay Desktop ${version}`,
-  // With --notes-file, gh puts the file's text above the generated notes.
-  ...(notesPath ? ["--notes-file", notesPath] : []),
-  "--generate-notes",
+  "--notes-file",
+  releaseNotesPath,
   dmgPath,
   stableDmgPath,
 ])
