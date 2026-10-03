@@ -6,7 +6,7 @@ import { SectionHeading } from "./section-heading"
 const faqs = [
   {
     q: "What do I need?",
-    a: "A Mac with Apple Silicon, a Claude Code or Codex account, and a repository with a dev server. GitHub is only needed to open pull requests.",
+    a: "For the desktop app, a Mac with Apple Silicon, a Claude Code or Codex account, and a repository with a dev server. GitHub is only needed to open pull requests. For a team, someone deploys the web app once, and then everyone needs only a browser and a GitHub account.",
   },
   {
     q: "What is Screenplay, exactly?",
@@ -22,7 +22,7 @@ const faqs = [
   },
   {
     q: "How does the multiplayer part work?",
-    a: "Deploy the web app and each Workspace runs in a hosted sandbox VM. Share a canvas and everyone sees the same frames, cursors, comments and agent streams in real time. The reference deployment uses Vercel, Postgres, Liveblocks, Vercel Blob, Vercel Sandbox, a GitHub OAuth app and at least one model provider key.",
+    a: "Deploy the web app and each Workspace runs in a cloud sandbox, with one shared browser for each of its frames. Share a canvas and everyone sees the same frames, cursors, comments and agent streams in real time. The reference deployment uses Vercel, Postgres, Liveblocks, Vercel Blob, Vercel Sandbox, a GitHub OAuth app and at least one model provider key.",
   },
   {
     q: "Do I need to change my app?",
@@ -37,11 +37,7 @@ const faqs = [
 export function Faq() {
   return (
     <section className={cn(measure, sectionTop)}>
-      <SectionHeading
-        slug="FAQ"
-        title="Before you download."
-        tier="reference"
-      />
+      <SectionHeading slug="FAQ" title="Before you start." tier="reference" />
       <div className="mt-12 border-t border-foreground">
         {faqs.map((f) => (
           <details

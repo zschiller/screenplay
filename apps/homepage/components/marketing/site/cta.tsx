@@ -11,8 +11,9 @@ export function CTA() {
         Try it on your own repository.
       </h2>
       <p className="mt-5.5 max-w-[48ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
-        Download Screenplay, add a repository, and ask your agent for a few
-        versions of a change. Review them side by side.
+        Download the Mac app, or deploy the web app for your team. Add a
+        repository, ask for a few versions of a change, and review them side by
+        side.
       </p>
       <div className="mt-8 flex flex-wrap gap-3 max-sm:flex-col">
         <a

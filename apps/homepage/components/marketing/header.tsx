@@ -9,8 +9,8 @@ import { Wordmark } from "./wordmark"
 
 const links = [
   { href: "#how", label: "How it works" },
+  { href: "#self-hosting", label: "For teams" },
   { href: "#features", label: "Features" },
-  { href: "#self-hosting", label: "Self-hosting" },
   { href: docsUrl, label: "Docs" },
 ]
 

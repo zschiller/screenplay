@@ -4,8 +4,8 @@ import { monoLabel } from "./editorial"
 
 /**
  * A section's eyebrow, serif title and intro. The story sections (Problem,
- * How it works) take the large title; reference sections (Before you build, Features,
- * Self-hosting, FAQ) a smaller one.
+ * How it works, For teams) take the large title; reference sections (Before
+ * you build, Features, FAQ) a smaller one.
  */
 export function SectionHeading({
   slug,

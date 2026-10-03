@@ -18,8 +18,8 @@ export default function HomePage() {
         <Problem />
         <Scenes />
         <BeforeYouBuild />
-        <Features />
         <SelfHosting />
+        <Features />
         <Faq />
         <CTA />
       </main>

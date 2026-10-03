@@ -10,7 +10,7 @@ import { Fit } from "./fit"
 import { Northwind } from "./northwind"
 
 /*
- * Self-hosting's figure: the canvas as a team sees it on the web app. The
+ * The For teams figure: the canvas as a team sees it on the web app. The
  * top-right pill carries the comments count, the facepile and Share; a
  * teammate's cursor and a pinned comment are on the selected frame. Drawn from the app's comment and presence components.
  */
@@ -94,6 +94,21 @@ function Cursor({
   )
 }
 
+/**
+ * "Sam has control" on the selected frame's title line, right-aligned to the
+ * frame, on Sam's cursor colour, as the app's FrameDriverTag draws a person.
+ */
+function DriverTag({ name, color }: { name: string; color: string }) {
+  return (
+    <span
+      className="absolute z-[6] flex h-[18px] -translate-x-full items-center rounded px-1.5 text-xs font-medium whitespace-nowrap text-neutral-950"
+      style={{ backgroundColor: color, left: 432, top: 62 }}
+    >
+      {name} has control
+    </span>
+  )
+}
+
 /** The comment pin: yellow, numbered, its bottom-left tip on the element. */
 function Pin({ number }: { number: number }) {
   return (
@@ -161,7 +176,8 @@ function ThreadCard({ className }: { className?: string }) {
 }
 
 /**
- * The selected frame with its bar, a teammate's cursor on its headline and a
+ * The selected frame with its bar, Sam in control of the shared frame, their
+ * cursor on its headline and a
  * pinned comment open on its button, the next Workspace's frame beside it,
  * and the people pill above. Laid out at a fixed size and scaled to the
  * column like an image, so the thread card always fits beside its pin.
@@ -173,7 +189,7 @@ export function TeamExcerpt() {
       height={440}
       initialScale={0.9}
       role="img"
-      aria-label="A shared canvas on the web app: three teammates' avatars in the top corner, a teammate's cursor on the selected frame, and a pinned comment thread open on its sign-up button."
+      aria-label="A shared canvas on the web app: three teammates' avatars in the top corner, a teammate's cursor on the selected frame they have control of, and a pinned comment thread open on its sign-up button."
       className="border border-border"
     >
       <div className="bg-plane relative size-full overflow-hidden text-foreground">
@@ -186,6 +202,7 @@ export function TeamExcerpt() {
         >
           <Northwind version="gradient" />
         </Frame>
+        <DriverTag name="Sam" color={people[1].color} />
         <FrameBar
           workspace="Hero gradient & trust line"
           className="z-[5]"
