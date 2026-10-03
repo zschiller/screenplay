@@ -294,20 +294,32 @@ export function FrameStreamView({
         if (!current()) return
         const token = await fetchDriveToken(roomId, frameId).catch(() => null)
         if (!current()) return
-        if (token && stream.send({ t: "drive", frame: frameId, token })) break
+        // The stream sends it again whenever this view watches the frame
+        // again (a hidden tab, a frame scrolled away).
+        if (token && stream.isReady()) {
+          stream.drive(frameId, token)
+          break
+        }
       }
       refresh = setTimeout(() => void grant(), DRIVE_REFRESH_MS)
     }
     void grant()
-    // A reconnect starts without the grant: ask again.
+    // A reconnect may have outlasted the grant: ask again.
     const unsubscribe = stream.subscribeConnection((ready) => {
       if (ready) void grant()
     })
+    // A hidden tab's timers may not have kept the grant fresh: ask again
+    // when it shows.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void grant()
+    }
+    document.addEventListener("visibilitychange", onVisible)
     return () => {
       run++
       unsubscribe()
+      document.removeEventListener("visibilitychange", onVisible)
       if (refresh) clearTimeout(refresh)
-      stream.send({ t: "release", frame: frameId })
+      stream.release(frameId)
     }
   }, [drives, stream, roomId, frameId])
 

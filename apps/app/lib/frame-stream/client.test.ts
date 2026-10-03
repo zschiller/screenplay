@@ -272,6 +272,75 @@ describe("FrameStreamConnection", () => {
   })
 })
 
+describe("driving", () => {
+  it("sends the drive grant again whenever it watches the frame again", async () => {
+    const { conn, sockets, timers } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    const watch = { route: "/", width: 10, height: 10 }
+    let stop = conn.watch("f1", watch, handlers())
+    await flush()
+    const first = sockets[0]!
+    first.open()
+    first.serverSays({ t: "ready", codec: "h264" })
+    conn.drive("f1", "g")
+    expect(first.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g" })
+
+    // The tab hid: the service forgets a driver who stops watching, so
+    // watching again carries the grant.
+    stop()
+    stop = conn.watch("f1", watch, handlers())
+    expect(first.sent.slice(-3)).toEqual([
+      { t: "unwatch", frame: "f1" },
+      { t: "watch", frame: "f1", ...watch },
+      { t: "drive", frame: "f1", token: "g" },
+    ])
+
+    // So does a reconnect.
+    first.close()
+    timers.shift()!()
+    await flush()
+    const next = sockets[1]!
+    next.open()
+    next.serverSays({ t: "ready", codec: "h264" })
+    expect(next.sent).toEqual([
+      { t: "auth", token: "t" },
+      { t: "watch", frame: "f1", ...watch },
+      { t: "drive", frame: "f1", token: "g" },
+    ])
+
+    // Released, it goes back to watching only.
+    conn.release("f1")
+    expect(next.sent.at(-1)).toEqual({ t: "release", frame: "f1" })
+    stop()
+    conn.watch("f1", watch, handlers())
+    expect(next.sent.at(-1)).toEqual({ t: "watch", frame: "f1", ...watch })
+  })
+
+  it("holds a grant for a frame it isn't watching until it watches it", async () => {
+    const { conn, sockets } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    const watch = { route: "/", width: 10, height: 10 }
+    const stop = conn.watch("f2", watch, handlers())
+    await flush()
+    sockets[0]!.open()
+    sockets[0]!.serverSays({ t: "ready", codec: "h264" })
+    stop()
+    conn.drive("f1", "g")
+    expect(sockets[0]!.sent.some((m) => m.t === "drive")).toBe(false)
+    conn.watch("f1", watch, handlers())
+    expect(sockets[0]!.sent.slice(-2)).toEqual([
+      { t: "watch", frame: "f1", ...watch },
+      { t: "drive", frame: "f1", token: "g" },
+    ])
+  })
+})
+
 describe("going local (#1397)", () => {
   async function connected() {
     const setupResult = setup({ shared: true, url: "wss://s", token: "t" })

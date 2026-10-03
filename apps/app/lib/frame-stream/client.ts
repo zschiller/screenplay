@@ -9,6 +9,9 @@
  * - Reconnects with backoff, watching again what it watched. A Sandbox that
  *   hibernated comes back with a fresh service, and each frame reloads at the
  *   route its viewers send.
+ * - Keeps the drive grant of each frame this viewer drives, and sends it again
+ *   whenever it watches the frame again: the service forgets a driver who
+ *   stops watching (a hidden tab, a frame scrolled away, a reconnect).
  */
 
 import { withBasePath } from "@/lib/base-path"
@@ -81,6 +84,8 @@ export class FrameStreamConnection {
     string,
     { watch: FrameWatch; handlers: Set<FrameStreamHandlers> }
   >()
+  /** The drive grant for each frame this viewer drives. */
+  private grants = new Map<string, string>()
   private bridgeListeners = new Map<
     string,
     Set<(message: IframeToCanvasMessage) => void>
@@ -136,7 +141,7 @@ export class FrameStreamConnection {
     if (!entry) {
       entry = { watch, handlers: new Set() }
       this.watches.set(frame, entry)
-      if (this.ready) this.send({ t: "watch", frame, ...watch })
+      if (this.ready) this.sendWatch(frame, watch)
     }
     entry.handlers.add(handlers)
     this.check()
@@ -148,6 +153,29 @@ export class FrameStreamConnection {
       this.watches.delete(frame)
       if (this.ready) this.send({ t: "unwatch", frame })
     }
+  }
+
+  /**
+   * Drive a frame with a grant the app signed. The service applies a driver's
+   * input only while they watch the frame, so the grant goes out now if this
+   * viewer watches it, and again each time it watches it later.
+   */
+  drive(frame: string, token: string): void {
+    this.grants.set(frame, token)
+    if (this.watches.has(frame)) this.send({ t: "drive", frame, token })
+  }
+
+  /** Stop driving a frame. */
+  release(frame: string): void {
+    this.grants.delete(frame)
+    this.send({ t: "release", frame })
+  }
+
+  /** Watch a frame, with this viewer's drive grant for it if it drives it. */
+  private sendWatch(frame: string, watch: FrameWatch) {
+    this.send({ t: "watch", frame, ...watch })
+    const token = this.grants.get(frame)
+    if (token) this.send({ t: "drive", frame, token })
   }
 
   /** Keep what a reconnect watches with current; sends the change too. */
@@ -317,7 +345,7 @@ export class FrameStreamConnection {
       this.ready = true
       this.attempts = 0
       for (const [frame, { watch }] of this.watches) {
-        this.send({ t: "watch", frame, ...watch })
+        this.sendWatch(frame, watch)
       }
       this.notifyConnection(true)
       return
