@@ -843,7 +843,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
         .click({ timeout: 15_000 })
       await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
       await page
-        .getByRole("menuitemradio", { name: "Manual" })
+        .getByRole("menuitemradio", { name: "Recent activity" })
         .waitFor({ timeout: 5_000 })
     },
   }),

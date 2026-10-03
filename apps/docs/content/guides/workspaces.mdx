@@ -141,9 +141,6 @@ The agent panel's header, a frame's workspace list and the
 then the title, then the pull request badge (the header keeps its own pull
 request button instead).
 
-Workspaces keep their repository's order, and within it the order you give
-them: drag a row to move it among its repository's workspaces.
-
 ### Sorting and grouping
 
 <Screenshot
@@ -151,19 +148,16 @@ them: drag a row to move it among its repository's workspaces.
   alt="The Chats menu's … with the Sort by submenu open"
 />
 
-The **…** beside **Chats** sets how the list is shown:
+The list is grouped by state: **Working** (the agent is working or setup is
+running), **Needs you** (setup failed, a plan waits for your approval, or its
+pull request can't merge) and **Idle** (ready or stopped, including a pull
+request waiting on review). Each section gets its own heading in place of
+**Chats**, and empty sections are hidden.
 
-- **Sort by** shows the current sort; pick **Manual** (the order you drag,
-  and the default),
-  **Recent activity** (the workspace whose agent was last asked something
-  first; one that never ran a turn counts from when it was created) or
-  **Name**. Rows drag only in **Manual** order with grouping off.
-- **Group by state** splits the list into **Working** (the agent is working
-  or setup is running), **Needs you** (setup failed, a plan waits for your
-  approval, or its pull request can't merge) and **Idle** (ready or stopped,
-  including a pull request waiting on review). Each section gets its own heading in
-  place of **Chats**, and rows inside it follow the sort you picked.
-  Empty sections are hidden.
+**Sort by**, in the **…** beside the first heading, orders the rows inside
+each section: **Recent activity** (the default: the workspace whose agent was
+last asked something first; one that never ran a turn counts from when it
+was created) or **Name**.
 
 [Done](#marking-a-workspace-done) workspaces stay in their own section at the
 bottom whatever you pick. The choice is yours alone: it's remembered for each

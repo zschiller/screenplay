@@ -7,7 +7,6 @@ import {
 import type { BranchData } from "@/lib/types"
 import {
   DEFAULT_WORKSPACE_LIST_VIEW,
-  canDragWorkspaces,
   groupWorkspaces,
   parseWorkspaceListView,
   readWorkspaceListView,
@@ -34,15 +33,6 @@ describe("sortWorkspaces", () => {
     ws("c", { title: "gamma 10", createdAt: 30 }),
     ws("d", { title: "gamma 9", createdAt: 3, lastActivityAt: 20 }),
   ]
-
-  it("keeps manual order as given", () => {
-    expect(sortWorkspaces(list, "manual").map((b) => b.id)).toEqual([
-      "b",
-      "a",
-      "c",
-      "d",
-    ])
-  })
 
   it("orders by the last turn, newest first, falling back to creation", () => {
     expect(sortWorkspaces(list, "recent").map((b) => b.id)).toEqual([
@@ -95,18 +85,6 @@ describe("groupWorkspaces", () => {
   })
 })
 
-describe("canDragWorkspaces", () => {
-  it("drags only in the ungrouped manual list", () => {
-    expect(canDragWorkspaces(DEFAULT_WORKSPACE_LIST_VIEW)).toBe(true)
-    expect(
-      canDragWorkspaces({ ...DEFAULT_WORKSPACE_LIST_VIEW, sort: "name" })
-    ).toBe(false)
-    expect(
-      canDragWorkspaces({ ...DEFAULT_WORKSPACE_LIST_VIEW, groupByState: true })
-    ).toBe(false)
-  })
-})
-
 describe("parseWorkspaceListView", () => {
   it("falls back to the default for missing or broken values", () => {
     expect(parseWorkspaceListView(null)).toEqual(DEFAULT_WORKSPACE_LIST_VIEW)
@@ -119,11 +97,17 @@ describe("parseWorkspaceListView", () => {
   })
 
   it("keeps known values", () => {
-    const view = {
-      sort: "recent",
-      groupByState: true,
-    } as const
+    const view = { sort: "name" } as const
     expect(parseWorkspaceListView(JSON.stringify(view))).toEqual(view)
+  })
+
+  it("reads a view from before the list was always grouped as the default", () => {
+    expect(DEFAULT_WORKSPACE_LIST_VIEW).toEqual({ sort: "recent" })
+    expect(
+      parseWorkspaceListView(
+        JSON.stringify({ sort: "manual", groupByState: false })
+      )
+    ).toEqual(DEFAULT_WORKSPACE_LIST_VIEW)
   })
 })
 
@@ -131,10 +115,7 @@ describe("stored view", () => {
   afterEach(() => window.localStorage.clear())
 
   it("persists per user per canvas in this browser", () => {
-    const view: WorkspaceListView = {
-      sort: "name",
-      groupByState: true,
-    }
+    const view: WorkspaceListView = { sort: "name" }
     writeWorkspaceListView("user_1", "room_1", view)
     expect(readWorkspaceListView("user_1", "room_1")).toEqual(view)
     expect(readWorkspaceListView("user_1", "room_2")).toEqual(

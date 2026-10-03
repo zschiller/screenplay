@@ -1,8 +1,8 @@
 /**
  * Workspaces list view (#885) — how one member sees the Workspaces list in
- * the chat panel's Chats menu (#1152): its sort (manual drag order,
- * recent activity, or name) and whether it is grouped into state sections. A
- * local view preference: it lives in this browser's storage, keyed by user and
+ * the chat panel's Chats menu (#1152): its sort (recent activity or name)
+ * inside the state sections the list is always grouped into. A local view
+ * preference: it lives in this browser's storage, keyed by user and
  * canvas, and never enters the room doc, so collaborators' lists don't move.
  *
  * Which section a Workspace sits in is its Workspace State's call
@@ -15,7 +15,7 @@ import type { WorkspaceSection } from "@/lib/branch/workspace-state"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 
-export type WorkspaceSort = "manual" | "recent" | "name"
+export type WorkspaceSort = "recent" | "name"
 
 /** The live state sections of a grouped list, in order. Done keeps its own. */
 export const WORKSPACE_SECTIONS: readonly WorkspaceSection[] = [
@@ -31,25 +31,17 @@ export const WORKSPACE_SECTION_LABELS: Record<WorkspaceSection, string> = {
 }
 
 export const WORKSPACE_SORT_LABELS: Record<WorkspaceSort, string> = {
-  manual: "Manual",
   recent: "Recent activity",
   name: "Name",
 }
 
 export interface WorkspaceListView {
   sort: WorkspaceSort
-  groupByState: boolean
 }
 
-/** A list never touched: manual order, ungrouped, as before #885. */
+/** A list never touched: most recent activity first. */
 export const DEFAULT_WORKSPACE_LIST_VIEW: WorkspaceListView = {
-  sort: "manual",
-  groupByState: false,
-}
-
-/** Drag reorder writes manual order, so it only makes sense where rows show it. */
-export function canDragWorkspaces(view: WorkspaceListView): boolean {
-  return view.sort === "manual" && !view.groupByState
+  sort: "recent",
 }
 
 export type SortBranch = Pick<
@@ -63,14 +55,13 @@ export function lastActivity(branch: SortBranch): number {
 }
 
 /**
- * `branches` (already in manual order) in the view's sort. Stable, so ties
- * keep manual order; non-mutating.
+ * `branches` (already in sidebar order) in the view's sort. Stable, so ties
+ * keep that order; non-mutating.
  */
 export function sortWorkspaces<T extends SortBranch>(
   branches: readonly T[],
   sort: WorkspaceSort
 ): T[] {
-  if (sort === "manual") return [...branches]
   if (sort === "recent")
     return [...branches].sort((a, b) => lastActivity(b) - lastActivity(a))
   return [...branches].sort((a, b) =>
@@ -105,9 +96,13 @@ export function workspaceListViewKey(userId: string, roomId: string): string {
   return `${STORAGE_PREFIX}:${userId}:${roomId}`
 }
 
-const SORTS: readonly WorkspaceSort[] = ["manual", "recent", "name"]
+const SORTS: readonly WorkspaceSort[] = ["recent", "name"]
 
-/** A stored view, with anything missing or unknown back at its default. */
+/**
+ * A stored view, with anything missing or unknown back at its default
+ * (including views from before the list was always grouped: `manual` sort,
+ * `groupByState`).
+ */
 export function parseWorkspaceListView(
   raw: string | null | undefined
 ): WorkspaceListView {
@@ -124,7 +119,6 @@ export function parseWorkspaceListView(
     sort: SORTS.includes(v.sort as WorkspaceSort)
       ? (v.sort as WorkspaceSort)
       : DEFAULT_WORKSPACE_LIST_VIEW.sort,
-    groupByState: v.groupByState === true,
   }
 }
 

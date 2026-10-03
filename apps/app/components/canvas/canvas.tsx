@@ -2194,7 +2194,6 @@ export function Canvas({
           onShowRoutes={handleShowRoutesForAgent}
           onUpdateBranch={updateAgentInStorage}
           onRenameBranch={renameBranch}
-          onReorderBranches={ops.reorderBranches}
         >
           <ResizablePanelGroup
             orientation="horizontal"

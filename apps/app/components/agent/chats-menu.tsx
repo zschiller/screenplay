@@ -11,28 +11,6 @@ import {
   type SyntheticEvent,
 } from "react"
 
-import { createPortal } from "react-dom"
-
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  pointerWithin,
-  useSensor,
-  useSensors,
-  type ClientRect,
-  type CollisionDetection,
-  type DragEndEvent,
-  type DragMoveEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core"
-
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-
 import {
   ArrowsDownUpIcon,
   CaretDownIcon,
@@ -43,7 +21,6 @@ import {
   DotsThreeIcon,
   GitBranchIcon,
   PlusIcon,
-  RowsIcon,
 } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
@@ -66,7 +43,6 @@ import {
 
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -141,8 +117,6 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 
-import { resolveRepoListDrop, type RepoListDropHint } from "@/lib/sidebar-drop"
-
 import { sortForSidebar } from "@/lib/sidebar-order"
 import { defaultNewWorkspaceRepoId } from "@/lib/frame-ask"
 
@@ -164,9 +138,7 @@ import { workspaceLabel } from "@/lib/workspace-label"
 import {
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SORT_LABELS,
-  canDragWorkspaces,
   groupWorkspaces,
-  sortWorkspaces,
   type WorkspaceSort,
 } from "@/lib/workspace-list-view"
 
@@ -230,8 +202,6 @@ export interface ChatsMenuProviderProps {
   onShowRoutes: (branchId: string) => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
   onRenameBranch: (branchId: string, newBranch: string) => void
-  /** Persist the room-shared order of one repo's Workspaces. */
-  onReorderBranches: (repoId: string, orderedIds: string[]) => void
   children: React.ReactNode
 }
 
@@ -736,24 +706,11 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const [doneOpen, setDoneOpen] = useState(false)
   // This member's sort and grouping (#885), a local view preference.
   const [listView, updateListView] = useWorkspaceListView(userId, roomId)
-  const listedBranches = useMemo(
-    () => sortWorkspaces(activeBranches, listView.sort),
-    [activeBranches, listView.sort]
-  )
   const sections = useMemo(
     () =>
-      listView.groupByState
-        ? groupWorkspaces(
-            activeBranches,
-            listView.sort,
-            (b) => stateOf(b).section
-          )
-        : null,
-    [activeBranches, listView, stateOf]
+      groupWorkspaces(activeBranches, listView.sort, (b) => stateOf(b).section),
+    [activeBranches, listView.sort, stateOf]
   )
-  // Drag writes manual order, so it only runs where rows show it, and not
-  // over a filtered list.
-  const canDrag = canDragWorkspaces(listView) && !searching
 
   const pick = (select: () => void) => {
     select()
@@ -775,7 +732,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
           menu={menu}
           branch={branch}
           repo={repo}
-          sortable={canDrag && !branch.doneAt}
         />
       )
     })
@@ -823,38 +779,22 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
             <WorkspacesLabel
               menu={menu}
               label={
-                sections?.[0]
+                sections[0]
                   ? WORKSPACE_SECTION_LABELS[sections[0].section]
                   : "Chats"
               }
               sort={listView.sort}
-              groupByState={listView.groupByState}
               onSort={(sort) => updateListView({ sort })}
-              onGroupByState={(groupByState) =>
-                updateListView({ groupByState })
-              }
             />
-            {sections ? (
-              sections.map(({ section, branches }, i) => (
-                <CommandGroup
-                  key={section}
-                  heading={
-                    i > 0 ? WORKSPACE_SECTION_LABELS[section] : undefined
-                  }
-                  className="pt-0"
-                >
-                  {rows(branches)}
-                </CommandGroup>
-              ))
-            ) : canDrag ? (
-              <SortableWorkspaces menu={menu} branches={listedBranches}>
-                {rows(listedBranches)}
-              </SortableWorkspaces>
-            ) : (
-              <CommandGroup className="pt-0">
-                {rows(listedBranches)}
+            {sections.map(({ section, branches }, i) => (
+              <CommandGroup
+                key={section}
+                heading={i > 0 ? WORKSPACE_SECTION_LABELS[section] : undefined}
+                className="pt-0"
+              >
+                {rows(branches)}
               </CommandGroup>
-            )}
+            ))}
             {sketchChats.length > 0 && (
               <CommandGroup heading="No repository">
                 {sketchRows(sketchChats)}
@@ -898,16 +838,12 @@ function WorkspacesLabel({
   menu,
   label,
   sort,
-  groupByState,
   onSort,
-  onGroupByState,
 }: {
   menu: ChatsMenuValue
   label: string
   sort: WorkspaceSort
-  groupByState: boolean
   onSort: (sort: WorkspaceSort) => void
-  onGroupByState: (groupByState: boolean) => void
 }) {
   const { sortedRepos } = menu
   return (
@@ -948,13 +884,6 @@ function WorkspacesLabel({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuCheckboxItem
-            checked={groupByState}
-            onCheckedChange={(checked) => onGroupByState(checked === true)}
-          >
-            <RowsIcon />
-            Group by state
-          </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           {sortedRepos.length === 1 ? (
             <DropdownMenuItem
@@ -1112,12 +1041,10 @@ function WorkspaceMenuRow({
   menu,
   branch,
   repo,
-  sortable,
 }: {
   menu: ChatsMenuValue
   branch: BranchData
   repo: RepoData
-  sortable: boolean
 }) {
   const editableRef = useRef<EditableTextHandle | null>(null)
   const pendingEditRef = useRef(false)
@@ -1289,213 +1216,5 @@ function WorkspaceMenuRow({
       {item}
     </WorkspaceHoverCard>
   )
-  if (!sortable) return withCard
-  return (
-    <SortableWorkspace id={`branch:${branch.id}`} repoId={repo.id}>
-      {withCard}
-    </SortableWorkspace>
-  )
-}
-
-// --- Drag to reorder: ungrouped Manual sort only, within a Repo's run ---
-
-type LineHint = RepoListDropHint | null
-
-const DropHintContext = createContext<LineHint>(null)
-
-type DragData = { kind?: string; repoId?: string }
-
-/** Is droppable `target` a legal landing spot for the dragged Workspace? */
-function sameRepo(active?: DragData, target?: DragData): boolean {
-  return (
-    active?.kind === "branch" &&
-    target?.kind === "branch" &&
-    target.repoId === active.repoId
-  )
-}
-
-/**
- * Pointer-driven collision: the row under the pointer, else the nearest one,
- * among the dragged Workspace's own Repo only. Over another Repo's rows there
- * is no target at all rather than a misleading line.
- */
-const workspacesCollision: CollisionDetection = (args) => {
-  const active = args.active.data.current as DragData | undefined
-  const dataOf = (id: string | number) =>
-    args.droppableContainers.find((c) => c.id === id)?.data.current as
-      DragData | undefined
-  const within = pointerWithin(args).filter((c) =>
-    sameRepo(active, dataOf(c.id))
-  )
-  if (within.length > 0) return within
-  const y = args.pointerCoordinates?.y
-  if (y == null) return []
-  let best: { id: string | number } | null = null
-  let bestDist = Number.POSITIVE_INFINITY
-  let top = Number.POSITIVE_INFINITY
-  let bottom = Number.NEGATIVE_INFINITY
-  for (const container of args.droppableContainers) {
-    if (!sameRepo(active, container.data.current as DragData | undefined))
-      continue
-    const rect = args.droppableRects.get(container.id)
-    if (!rect) continue
-    top = Math.min(top, rect.top)
-    bottom = Math.max(bottom, rect.bottom)
-    const dist =
-      y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
-    if (dist < bestDist) {
-      bestDist = dist
-      best = { id: container.id }
-    }
-  }
-  if (!best || y < top || y > bottom) return []
-  return [best]
-}
-
-function SortableWorkspaces({
-  menu,
-  branches,
-  children,
-}: {
-  menu: ChatsMenuValue
-  branches: BranchData[]
-  children: React.ReactNode
-}) {
-  const sensors = useSensors(
-    // Clicks (no movement) still pick the row; a drag past 6px moves it.
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  )
-  const [dragging, setDragging] = useState<BranchData | null>(null)
-  const [hint, setHint] = useState<LineHint>(null)
-  // dnd-kit's move events don't carry the pointer; track it while dragging.
-  const pointerYRef = useRef(0)
-  const onPointerMove = useCallback((e: PointerEvent) => {
-    pointerYRef.current = e.clientY
-  }, [])
-  const dropRepos = useMemo(
-    () =>
-      menu.sortedRepos.map((r) => ({
-        id: r.id,
-        branchIds: menu.activeBranches
-          .filter((b) => b.repoId === r.id)
-          .map((b) => b.id),
-      })),
-    [menu.sortedRepos, menu.activeBranches]
-  )
-  const resolve = (
-    activeId: string,
-    over: { id: string | number; rect: ClientRect }
-  ) =>
-    resolveRepoListDrop({
-      repos: dropRepos,
-      activeId,
-      overId: String(over.id),
-      side:
-        pointerYRef.current < over.rect.top + over.rect.height / 2
-          ? "before"
-          : "after",
-    })
-  const end = () => {
-    window.removeEventListener("pointermove", onPointerMove)
-    setDragging(null)
-    setHint(null)
-  }
-  return (
-    <DndContext
-      // Stable id keeps dnd-kit's a11y ids deterministic across hydration.
-      id="workspaces-menu"
-      sensors={sensors}
-      collisionDetection={workspacesCollision}
-      onDragStart={(event: DragStartEvent) => {
-        const id = String(event.active.id)
-        setDragging(branches.find((b) => `branch:${b.id}` === id) ?? null)
-        const ae = event.activatorEvent as { clientY?: number }
-        if (typeof ae.clientY === "number") pointerYRef.current = ae.clientY
-        window.addEventListener("pointermove", onPointerMove)
-      }}
-      onDragMove={(event: DragMoveEvent) => {
-        const next = event.over
-          ? resolve(String(event.active.id), event.over).hint
-          : null
-        setHint((prev) =>
-          prev?.rowId === next?.rowId && prev?.edge === next?.edge ? prev : next
-        )
-      }}
-      onDragEnd={(event: DragEndEvent) => {
-        const intent = event.over
-          ? resolve(String(event.active.id), event.over).intent
-          : null
-        end()
-        if (intent?.kind === "reorder-branches")
-          menu.onReorderBranches(intent.repoId, intent.orderedIds)
-      }}
-      onDragCancel={end}
-    >
-      <DropHintContext.Provider value={hint}>
-        <CommandGroup className="pt-0">
-          <SortableContext
-            items={branches.map((b) => `branch:${b.id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            {children}
-          </SortableContext>
-        </CommandGroup>
-      </DropHintContext.Provider>
-      {/* The popover is positioned with a transform, which would offset a
-          fixed overlay inside it; draw the preview from the body instead. */}
-      {typeof document !== "undefined" &&
-        createPortal(
-          <DragOverlay dropAnimation={null}>
-            {dragging ? (
-              <div className="flex items-center gap-2 rounded-sm bg-popover px-2 py-1.5 text-sm text-popover-foreground shadow-lg ring-1 ring-border">
-                <span className="flex size-4 shrink-0 items-center justify-center">
-                  <GitBranchIcon className="size-3.5 opacity-70" />
-                </span>
-                <span className="truncate">{workspaceLabel(dragging)}</span>
-              </div>
-            ) : null}
-          </DragOverlay>,
-          document.body
-        )}
-    </DndContext>
-  )
-}
-
-/**
- * A draggable Workspace row. The source goes transparent while the overlay
- * follows the pointer, and a line marks where it lands. Only the pointer
- * drags: cmdk owns the arrow keys.
- */
-function SortableWorkspace({
-  id,
-  repoId,
-  children,
-}: {
-  id: string
-  repoId: string
-  children: React.ReactNode
-}) {
-  const { listeners, setNodeRef, isDragging } = useSortable({
-    id,
-    data: { kind: "branch", repoId },
-  })
-  const hint = useContext(DropHintContext)
-  const edge = hint && hint.rowId === id ? hint.edge : null
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ opacity: isDragging ? 0 : undefined }}
-      className="relative"
-      {...listeners}
-    >
-      {children}
-      {edge ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-canvas-selection"
-          style={edge === "before" ? { top: -1 } : { bottom: -1 }}
-        />
-      ) : null}
-    </div>
-  )
+  return withCard
 }

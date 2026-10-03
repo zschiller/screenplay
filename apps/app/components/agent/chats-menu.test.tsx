@@ -111,7 +111,6 @@ function renderMenu(branches: BranchData[]) {
       onShowRoutes={noop}
       onUpdateBranch={noop}
       onRenameBranch={noop}
-      onReorderBranches={noop}
     >
       <ChatsMenuButton />
     </ChatsMenuProvider>
@@ -147,8 +146,9 @@ describe("Chats menu", () => {
     const rows = rowTexts(menu)
     // It opens from the Coordinator's header, so it doesn't list it.
     expect(menu.textContent).not.toContain("Coordinator")
-    expect(rows[0]).toContain("Checkout polish")
-    expect(rows[1]).toContain("Empty cart state")
+    // Grouped by state, most recent activity first.
+    expect(rows[0]).toContain("Empty cart state")
+    expect(rows[1]).toContain("Checkout polish")
     // A chat reads by its title, never its branch.
     expect(menu.textContent).not.toContain("checkout-polish")
     expect(menu.textContent).not.toContain("empty-cart-state")

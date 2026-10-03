@@ -7,21 +7,18 @@ import { DEFAULT_WORKSPACE_LIST_VIEW } from "@/lib/workspace-list-view"
 describe("useWorkspaceListView", () => {
   afterEach(() => window.localStorage.clear())
 
-  it("starts at manual order, ungrouped", () => {
+  it("starts at recent activity", () => {
     const { result } = renderHook(() => useWorkspaceListView("u1", "r1"))
     expect(result.current[0]).toEqual(DEFAULT_WORKSPACE_LIST_VIEW)
   })
 
   it("keeps the choice across a reload, for this user and canvas only", () => {
     const first = renderHook(() => useWorkspaceListView("u1", "r1"))
-    act(() => first.result.current[1]({ sort: "recent", groupByState: true }))
+    act(() => first.result.current[1]({ sort: "name" }))
     first.unmount()
 
     const again = renderHook(() => useWorkspaceListView("u1", "r1"))
-    expect(again.result.current[0]).toMatchObject({
-      sort: "recent",
-      groupByState: true,
-    })
+    expect(again.result.current[0]).toEqual({ sort: "name" })
     const otherCanvas = renderHook(() => useWorkspaceListView("u1", "r2"))
     expect(otherCanvas.result.current[0]).toEqual(DEFAULT_WORKSPACE_LIST_VIEW)
     const collaborator = renderHook(() => useWorkspaceListView("u2", "r1"))
