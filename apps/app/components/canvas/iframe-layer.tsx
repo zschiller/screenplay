@@ -6,9 +6,9 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowsOutSimpleIcon,
+  ChatCircleIcon,
   CopyIcon,
   DotsThreeIcon,
-  GitBranchIcon,
   PlayIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
@@ -70,6 +70,11 @@ import { drivenByOther } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
+import { useChatsMenu } from "@/components/agent/chats-menu"
+import {
+  WorkspaceMenuItems,
+  useHasWorkspaceMenu,
+} from "@/components/agent/workspace-menu"
 import type {
   DomRect,
   HmrStatus,
@@ -622,9 +627,13 @@ export function IframeLayer({
   // so its presence is the gate.
   const showOpenInBrowser = !!onOpenInBrowser
   // The `…` menu holds this frame's own actions (device size, fit,
-  // duplicate, delete); Workspace-scoped actions (prototype player, open in
-  // browser) sit in its Workspace submenu so they don't read as frame actions.
-  const showWorkspaceMenu = showPlay || showOpenInBrowser
+  // duplicate, delete); the chat's menu (H4), the same one as its header's …,
+  // sits in a Chat submenu so it doesn't read as frame actions. Outside the
+  // Chats menu's provider that's just the prototype player and open in browser.
+  const workspaceMenu = useChatsMenu()
+  const hasWorkspaceMenu = useHasWorkspaceMenu(iframeLayer.branchId)
+  const pendingWorkspaceRenameRef = useRef(false)
+  const showWorkspaceMenu = hasWorkspaceMenu || showPlay || showOpenInBrowser
 
   // Report content-ready transitions up to the thumbnail heartbeat (#474). The
   // first paint and the re-paint after a route/branch change (which drops
@@ -1131,7 +1140,20 @@ export function IframeLayer({
                       <DotsThreeIcon className="text-muted-foreground" />
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent side="bottom" align="end" sideOffset={8}>
+                  <DropdownMenuContent
+                    side="bottom"
+                    align="end"
+                    sideOffset={8}
+                    // Rename opens the Workspace's chat, whose header title
+                    // takes focus instead of this trigger.
+                    onCloseAutoFocus={(e) => {
+                      if (!pendingWorkspaceRenameRef.current) return
+                      pendingWorkspaceRenameRef.current = false
+                      e.preventDefault()
+                      if (iframeLayer.branchId)
+                        workspaceMenu?.requestRename(iframeLayer.branchId)
+                    }}
+                  >
                     {onSetSize && (
                       <DeviceSizeSubMenu
                         width={iframeLayer.width}
@@ -1156,20 +1178,39 @@ export function IframeLayer({
                         <DropdownMenuSeparator />
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger>
-                            <GitBranchIcon />
-                            Workspace
+                            <ChatCircleIcon />
+                            Chat
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
-                            {showPlay && (
-                              <DropdownMenuItem
-                                onSelect={() => onPlay?.(iframeLayer.id)}
-                              >
-                                <PlayIcon />
-                                Open prototype player
-                              </DropdownMenuItem>
-                            )}
-                            {onOpenInBrowser && (
-                              <OpenInBrowserItem onOpen={onOpenInBrowser} />
+                            {hasWorkspaceMenu && iframeLayer.branchId ? (
+                              // The Workspace's whole menu, as in its chat
+                              // header (H4), opening on this frame.
+                              <WorkspaceMenuItems
+                                branchId={iframeLayer.branchId}
+                                onRename={() => {
+                                  pendingWorkspaceRenameRef.current = true
+                                }}
+                                onPlay={
+                                  onPlay
+                                    ? () => onPlay(iframeLayer.id)
+                                    : undefined
+                                }
+                                onOpenInBrowser={onOpenInBrowser}
+                              />
+                            ) : (
+                              <>
+                                {showPlay && (
+                                  <DropdownMenuItem
+                                    onSelect={() => onPlay?.(iframeLayer.id)}
+                                  >
+                                    <PlayIcon />
+                                    Open prototype player
+                                  </DropdownMenuItem>
+                                )}
+                                {onOpenInBrowser && (
+                                  <OpenInBrowserItem onOpen={onOpenInBrowser} />
+                                )}
+                              </>
                             )}
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>

@@ -231,9 +231,21 @@ type ChatsMenuValue = Omit<
   askRecreate: (branchId: string) => void
   askRenameBranch: (branchId: string) => void
   askDeleteSketchChat: (chatId: string) => void
+  /**
+   * Rename asked for where the title can't be edited (a frame's Workspace
+   * submenu): opens the Workspace's chat, whose header title takes it.
+   */
+  renameRequest: string | null
+  requestRename: (branchId: string) => void
+  clearRenameRequest: () => void
 }
 
 const ChatsMenuContext = createContext<ChatsMenuValue | null>(null)
+
+/** The Chats menu's state and actions, or null outside its provider. */
+export function useChatsMenu() {
+  return useContext(ChatsMenuContext)
+}
 
 // Rows are cmdk items: its root handles arrow keys and Enter, and selects an
 // item on click. A row's own controls (its … menu, which portals out while its
@@ -439,6 +451,17 @@ export function ChatsMenuProvider({
     setPendingDeleteSketchId(id)
   }, [])
 
+  const [renameRequest, setRenameRequest] = useState<string | null>(null)
+  const requestRename = useCallback(
+    (id: string) => {
+      setOpen(false)
+      onSelectWorkspace(id)
+      setRenameRequest(id)
+    },
+    [onSelectWorkspace]
+  )
+  const clearRenameRequest = useCallback(() => setRenameRequest(null), [])
+
   const sketchChats = useMemo(
     () =>
       chatSessions
@@ -466,6 +489,9 @@ export function ChatsMenuProvider({
     askRecreate,
     askRenameBranch,
     askDeleteSketchChat,
+    renameRequest,
+    requestRename,
+    clearRenameRequest,
   }
   const deleteSketchChat = pendingDeleteSketchId
     ? sketchChats.find((c) => c.id === pendingDeleteSketchId)

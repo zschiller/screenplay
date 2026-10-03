@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react"
 
+import type { BranchPrInfo } from "@/lib/github-actions"
 import type { BranchData, ChatSessionData, TerminalTabData } from "@/lib/types"
 
 // The Coordinator's body talks to the Room; the panel only decides what it gets.
@@ -21,6 +22,7 @@ vi.mock("./coordinator-chat", () => ({
 }))
 vi.mock("./chats-menu", () => ({
   ChatsMenuButton: () => <button type="button">Chats</button>,
+  useChatsMenu: () => null,
 }))
 // The Workspace panel's bodies talk to the sandbox and the chat store; the
 // panel only decides which one shows where.
@@ -154,6 +156,8 @@ function renderWorkspacePanel(
     logsRequest?: { agentId: string; nonce: number } | null
     agent?: Partial<BranchData>
     devServerControls?: DevServerControls
+    diffStats?: { additions: number; deletions: number }
+    branchPr?: BranchPrInfo | null
   } = {}
 ) {
   const onSelectChat = vi.fn()
@@ -186,6 +190,8 @@ function renderWorkspacePanel(
     onCollapse: noop,
     logsRequest: options.logsRequest ?? null,
     devServerControls: options.devServerControls,
+    diffStats: options.diffStats,
+    branchPr: options.branchPr,
   }
   const view = render(<ChatPanel {...props} />)
   return { ...view, props, onSelectChat, onCloseTerminal }
@@ -199,6 +205,24 @@ const paneState = () =>
 const terminalName = (name: string) => screen.getByRole("tab", { name })
 
 describe("ChatPanel with a Workspace target", () => {
+  it("shows the +/− counts until a pull request is open", () => {
+    const diffStats = { additions: 214, deletions: 37 }
+    const pr = (state: BranchPrInfo["state"]) => ({
+      number: 482,
+      url: "https://github.com/acme/storefront/pull/482",
+      state,
+    })
+    const { unmount } = renderWorkspacePanel({ diffStats })
+    expect(screen.getByText("+214")).toBeTruthy()
+    unmount()
+    const open = renderWorkspacePanel({ diffStats, branchPr: pr("open") })
+    expect(screen.queryByText("+214")).toBeNull()
+    expect(screen.getByText(/#482/)).toBeTruthy()
+    open.unmount()
+    renderWorkspacePanel({ diffStats, branchPr: pr("merged") })
+    expect(screen.getByText("+214")).toBeTruthy()
+  })
+
   it("shows the chat with no tab strip, and a footnote naming its terminals", () => {
     renderWorkspacePanel()
     expect(screen.getByTestId("agent-chat").dataset.chatId).toBe("chat-1")

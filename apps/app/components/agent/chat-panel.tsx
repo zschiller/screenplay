@@ -35,13 +35,11 @@ import { CoordinatorChat } from "./coordinator-chat"
 import { ChatsMenuButton } from "./chats-menu"
 import { TerminalPane, type DevServerControls } from "./terminal-pane"
 import { useTerminalPaneController } from "./use-terminal-pane-controller"
-import { WorkspaceMention } from "@/components/workspace-mention"
-import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
+import { WorkspaceHeaderTitle } from "./workspace-menu"
 import type { ChatSessionData, TerminalTabData } from "@/lib/types"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import { DEV_SERVER_TERMINAL_ID } from "@/lib/chat/terminal-pane"
 import { useAppSession } from "@/lib/auth-client"
-import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
@@ -432,10 +430,13 @@ function WorkspaceChatPanel({
       >
         <CoordinatorCrumb onShowRoomChat={onShowRoomChat} />
         {/* Where you are, not a switcher: the Coordinator crumb goes back to
-            the top level, where the Workspaces button lives (#1152). */}
-        <TargetPill target={target} />
+            the top level, where the Chats button lives (#1152). The title's
+            … holds the Workspace's menu (H4). */}
+        <WorkspaceHeaderTitle branch={agent} />
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
+          {/* An open PR already carries the diff, so its counts go. */}
           {diffStats &&
+            displayPr?.state !== "open" &&
             (diffStats.additions > 0 || diffStats.deletions > 0) && (
               <span className="flex items-center gap-1 font-mono text-xs">
                 <span className="text-success">+{diffStats.additions}</span>
@@ -522,27 +523,5 @@ function WorkspaceChatPanel({
         {shownEarlierChat && renderChat(shownEarlierChat, true)}
       </TerminalPane>
     </div>
-  )
-}
-
-/**
- * The header's name for the panel's current target: the shared Workspace
- * mention without its PR, and hovering it shows the Workspace hover card.
- */
-function TargetPill({ target }: { target: WorkspaceTarget }) {
-  const stateOf = useWorkspaceStates()
-  // State icon and plain name (#974); no PR badge, since the header keeps its
-  // own PR button on the right (#799).
-  return (
-    <WorkspaceHoverCard branchId={target.agent.id} side="bottom" align="start">
-      <span className="flex min-w-0">
-        <WorkspaceMention
-          branch={target.agent}
-          state={stateOf(target.agent)}
-          pr={false}
-          className="flex-initial text-sm"
-        />
-      </span>
-    </WorkspaceHoverCard>
   )
 }
