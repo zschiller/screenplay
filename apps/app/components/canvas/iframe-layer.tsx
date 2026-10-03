@@ -153,6 +153,9 @@ interface IframeLayerProps {
   /** Give control / Not now on a request for control. */
   onGrantControl?: (layerId: string, to: string) => void
   onDeclineControl?: (layerId: string, to: string) => void
+  /** This viewer's input reached the shared frame (Frame Control's idle
+   *  clock). */
+  onControlActivity?: (layerId: string) => void
   /**
    * Set while this viewer sees the frame live (#1392, #1516): one shared
    * browser in the Sandbox, shown from its Frame Stream instead of this
@@ -371,6 +374,7 @@ export function IframeLayer({
   controlRequests,
   onGrantControl,
   onDeclineControl,
+  onControlActivity,
   sharedStream,
   live = false,
   liveDriver = NOBODY_DRIVES,
@@ -1256,6 +1260,11 @@ export function IframeLayer({
                 drives={driver.kind === "you"}
                 onRoute={handleSharedRoute}
                 onLive={setContentReady}
+                onActivity={
+                  onControlActivity
+                    ? () => onControlActivity(iframeLayer.id)
+                    : undefined
+                }
               />
             )}
             {!sharedStream && iframeSrc && (

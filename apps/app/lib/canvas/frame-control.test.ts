@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   AGENT_PARTY,
   EMPTY_FRAME_CONTROL,
+  FRAME_CONTROL_ACTIVE_STEP_MS,
   FRAME_CONTROL_GRACE_MS,
+  FRAME_CONTROL_IDLE_MS,
   frameControlKey,
   frameDriverFor,
   drivenByOther,
@@ -314,7 +316,12 @@ describe("the agent always yields", () => {
       [{ type: "request", by: "ana", at: 5 }],
       driving(AGENT_PARTY)
     )
-    expect(record).toEqual({ live: false, driver: "ana", requests: [] })
+    expect(record).toEqual({
+      live: false,
+      driver: "ana",
+      requests: [],
+      activeAt: 5,
+    })
   })
 
   it("asks through the same gate as people", () => {
@@ -383,6 +390,111 @@ describe("asking the agent in chat to show you something", () => {
     expect(
       reduceFrameControl(record, { type: "chat-ask", asker: "ana", at: 1 })
     ).toBe(record)
+  })
+})
+
+describe("a driver who leaves the frame alone", () => {
+  const IDLE = FRAME_CONTROL_IDLE_MS
+  // Ana took control at 0; Ben asked at 1000.
+  const asked: FrameControlRecord = {
+    live: true,
+    driver: "ana",
+    requests: [{ by: "ben", at: 1000 }],
+    activeAt: 0,
+  }
+  const settle = (record: FrameControlRecord, now: number) =>
+    reduceFrameControl(record, {
+      type: "settle",
+      now,
+      presence: everyoneOnline,
+    })
+
+  it("keeps control while the request hasn't waited long enough", () => {
+    expect(settle(asked, 1000 + IDLE - 1)).toBe(asked)
+  })
+
+  it("passes control to the asker once the request has waited idle", () => {
+    const record = settle(asked, 1000 + IDLE)
+    expect(record.driver).toBe("ben")
+    expect(record.requests).toEqual([])
+    expect(record.activeAt).toBe(1000 + IDLE)
+  })
+
+  it("counts the wait from the driver's last input", () => {
+    const busy = reduceFrameControl(asked, {
+      type: "active",
+      by: "ana",
+      at: 60_000,
+    })
+    expect(settle(busy, 1000 + IDLE).driver).toBe("ana")
+    expect(settle(busy, 60_000 + IDLE).driver).toBe("ben")
+  })
+
+  it("passes to the oldest person asking, never to the agent", () => {
+    const record = settle(
+      {
+        ...asked,
+        requests: [
+          { by: AGENT_PARTY, at: 10 },
+          { by: "cara", at: 2000 },
+          { by: "ben", at: 1000 },
+        ],
+      },
+      2000 + IDLE
+    )
+    expect(record.driver).toBe("ben")
+    expect(record.requests.map((r) => r.by)).toEqual([AGENT_PARTY, "cara"])
+    expect(
+      settle({ ...asked, requests: [{ by: AGENT_PARTY, at: 0 }] }, 10 * IDLE)
+        .driver
+    ).toBe("ana")
+  })
+
+  it("never hands the agent's control over: anyone takes it at once", () => {
+    const record: FrameControlRecord = { ...asked, driver: AGENT_PARTY }
+    expect(settle(record, 10 * IDLE)).toBe(record)
+  })
+
+  it("waits for the driver's clock when control changed hands without one", () => {
+    const granted = run(
+      [
+        { type: "request", by: "cara", at: 500 },
+        { type: "grant", by: "ana", to: "cara" },
+      ],
+      asked
+    )
+    expect(granted.driver).toBe("cara")
+    expect(granted.activeAt).toBeUndefined()
+    expect(settle(granted, 10 * IDLE).driver).toBe("cara")
+    // Cara's client stamps it as soon as it sees she drives.
+    const stamped = reduceFrameControl(granted, {
+      type: "active",
+      by: "cara",
+      at: 5000,
+    })
+    expect(stamped.activeAt).toBe(5000)
+    expect(settle(stamped, 5000 + IDLE).driver).toBe("ben")
+  })
+
+  it("moves the driver's clock in coarse steps, and only for the driver", () => {
+    const step = FRAME_CONTROL_ACTIVE_STEP_MS
+    expect(
+      reduceFrameControl(asked, { type: "active", by: "ana", at: step - 1 })
+    ).toBe(asked)
+    expect(
+      reduceFrameControl(asked, { type: "active", by: "ana", at: step })
+        .activeAt
+    ).toBe(step)
+    expect(
+      reduceFrameControl(asked, { type: "active", by: "ben", at: step })
+    ).toBe(asked)
+  })
+
+  it("schedules the hand-off", () => {
+    expect(nextSettleAt(asked, everyoneOnline)).toBe(1000 + IDLE)
+    expect(
+      nextSettleAt({ ...asked, activeAt: undefined }, everyoneOnline)
+    ).toBeNull()
   })
 })
 

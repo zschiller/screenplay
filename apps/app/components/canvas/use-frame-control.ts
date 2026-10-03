@@ -8,6 +8,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react"
+import { toast } from "sonner"
 
 import {
   EMPTY_FRAME_CONTROL,
@@ -94,6 +95,9 @@ export interface FrameControl {
   grant(layerId: string, to: string): void
   /** Not now: turn a person's request down. */
   decline(layerId: string, to: string): void
+  /** This viewer sent the frame input. While they drive, it keeps a
+   *  request from passing control to the asker as if they'd walked away. */
+  active(layerId: string): void
   /**
    * Step away from the frame: leave Interact, stop driving it and withdraw
    * any ask to. Going live on a frame, or leaving it (#1516),
@@ -119,7 +123,11 @@ export interface FrameControl {
  *   grace period from when this viewer first noticed, so a client that just
  *   loaded doesn't count the driver as gone before their presence arrives.
  * - Awareness says who is online; a timer re-runs the grace rules when
- *   someone who drives or waits has left.
+ *   someone who drives or waits has left, and the idle rule when a person
+ *   asks a driver who has left the frame alone.
+ * - A driver's input on the frame keeps their idle clock fresh; a driver
+ *   handed the frame without one stamps it on sight.
+ * - When the driver turns this viewer's ask down, a toast says so.
  */
 const NO_SHARED: ReadonlySet<string> = new Set()
 
@@ -243,6 +251,10 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     [viewOf]
   )
 
+  // Asks this viewer took back itself, so their disappearance isn't read as
+  // the driver's Not now.
+  const withdrawnRef = useRef(new Set<string>())
+
   const askedFor = useCallback(
     (layerId: string): boolean => {
       const key = keyOf(layerId)
@@ -258,17 +270,18 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       const driver = driverOf(layerId)
       if (driver.kind === "person") {
         // Asking again takes the ask back.
-        dispatch(
-          layerId,
-          askedFor(layerId)
-            ? { type: "cancel", by: viewerId }
-            : { type: "request", by: viewerId, at: Date.now() }
-        )
+        if (askedFor(layerId)) {
+          const key = keyOf(layerId)
+          if (key) withdrawnRef.current.add(key)
+          dispatch(layerId, { type: "cancel", by: viewerId })
+        } else {
+          dispatch(layerId, { type: "request", by: viewerId, at: Date.now() })
+        }
         return
       }
       setFocusedId(layerId)
     },
-    [viewerId, driverOf, askedFor, dispatch, setFocusedId]
+    [viewerId, driverOf, askedFor, keyOf, dispatch, setFocusedId]
   )
 
   const requestsOf = useCallback(
@@ -323,11 +336,46 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
           presence: presenceNow(),
         })
       } else if (record.requests.some((r) => r.by === viewerId)) {
+        if (key) withdrawnRef.current.add(key)
         dispatch(layerId, { type: "cancel", by: viewerId })
       }
     },
     [viewerId, keyOf, collection, dispatch, presenceNow, setFocusedId]
   )
+
+  const active = useCallback(
+    (layerId: string) => {
+      if (viewerId)
+        dispatch(layerId, { type: "active", by: viewerId, at: Date.now() })
+    },
+    [viewerId, dispatch]
+  )
+
+  // The driver's Not now: this viewer's ask is gone while the same person
+  // still drives, and this viewer didn't take it back.
+  const askedOfRef = useRef(new Map<string, string>())
+  useEffect(() => {
+    if (!viewerId) return
+    const askedOf = askedOfRef.current
+    for (const layerId of frameIds) {
+      const key = keyOf(layerId)
+      if (!key) continue
+      const record = revision.get(key)
+      const asked = !!record?.requests.some((r) => r.by === viewerId)
+      const before = askedOf.get(key)
+      if (asked && record?.driver) {
+        askedOf.set(key, record.driver)
+        withdrawnRef.current.delete(key)
+        continue
+      }
+      askedOf.delete(key)
+      const withdrawn = withdrawnRef.current.delete(key)
+      if (before && !withdrawn && record?.driver === before) {
+        const name = peopleById.get(before)?.name || "Someone"
+        toast(`${name} said not now`)
+      }
+    }
+  }, [frameIds, viewerId, keyOf, revision, peopleById])
 
   // Interact is the seat: ask to drive on entering it, let go on leaving it,
   // and take it when the frame is handed over. Any other seat this viewer
@@ -351,6 +399,14 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       const wasSeen = seen.has(key)
       const before = seen.get(key) ?? null
       seen.set(key, record?.driver ?? null)
+      // Handed a shared frame without a clock (Give control, a release):
+      // start the idle clock now.
+      if (
+        record?.live &&
+        record.driver === viewerId &&
+        record.activeAt === undefined
+      )
+        dispatch(layerId, { type: "active", by: viewerId, at: Date.now() })
       if (layerId === focusedId || record?.driver !== viewerId) continue
       // Handed over just now, or a shared frame's seat kept through a reload.
       const handedOver = wasSeen ? before !== viewerId : record.live
@@ -440,6 +496,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       askedFor,
       grant,
       decline,
+      active,
       letGo,
     }),
     [
@@ -450,6 +507,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       askedFor,
       grant,
       decline,
+      active,
       letGo,
     ]
   )

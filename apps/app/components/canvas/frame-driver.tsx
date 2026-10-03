@@ -111,7 +111,8 @@ function ControlRequests({
  * fill while you interact. Someone else drives: their mark on the quiet
  * pressed fill, with a two-line tooltip naming who drives and what a click
  * does (takes over from the agent at once, asks the person, or takes your
- * ask back). While you drive and people ask for control, their requests hang
+ * ask back). Once you've asked, it stays pressed until the driver answers.
+ * While you drive and people ask for control, their requests hang
  * under it (#1395).
  */
 export function FrameDriverButton({
@@ -133,17 +134,21 @@ export function FrameDriverButton({
 }) {
   if (driver.kind === "agent" || driver.kind === "person") {
     const name = driver.kind === "agent" ? AGENT_NAME : driver.name
+    // Asked: the button stays pressed in ink, like any toggle that's on,
+    // until the driver answers or you take the ask back.
+    const waiting = asked && driver.kind === "person"
     return (
       <FloatingToolbarButton
         label={`${name} has control`}
         hint={
           driver.kind === "agent"
             ? "Click to take control"
-            : asked
+            : waiting
               ? "Asked for control. Click to cancel"
               : "Click to ask for control"
         }
-        variant="secondary"
+        pressed={waiting}
+        variant={waiting ? "default" : "secondary"}
         onClick={onClick}
       >
         <DriverMark driver={driver} />

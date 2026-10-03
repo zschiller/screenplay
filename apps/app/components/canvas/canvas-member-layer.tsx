@@ -587,6 +587,7 @@ function CanvasMemberLayerImpl({
               controlRequests={frameControl.requestsOf(iframeLayer.id)}
               onGrantControl={frameControl.grant}
               onDeclineControl={frameControl.decline}
+              onControlActivity={frameControl.active}
               onFocus={(id) => {
                 if (id === null) {
                   setFocusedIframeLayerId(null)

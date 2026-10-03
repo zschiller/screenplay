@@ -41,6 +41,8 @@ interface FrameStreamViewProps {
   onRoute: (path: string, first: boolean) => void
   /** A picture is showing (or not, while the browser starts or restarts). */
   onLive: (live: boolean) => void
+  /** This viewer's input went to the page: the driver isn't idle. */
+  onActivity?: () => void
 }
 
 /**
@@ -66,15 +68,32 @@ export function FrameStreamView({
   drives,
   onRoute,
   onLive,
+  onActivity,
 }: FrameStreamViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   // The CSS size the picture on show was captured at. While a resize waits
   // for the stream, the picture keeps this size, never stretched.
   const pictureSize = useRef({ width, height })
-  const latest = useRef({ width, height, route, scheme, onRoute, onLive })
+  const latest = useRef({
+    width,
+    height,
+    route,
+    scheme,
+    onRoute,
+    onLive,
+    onActivity,
+  })
   useEffect(() => {
-    latest.current = { width, height, route, scheme, onRoute, onLive }
+    latest.current = {
+      width,
+      height,
+      route,
+      scheme,
+      onRoute,
+      onLive,
+      onActivity,
+    }
   })
 
   // ---- watching and decoding ----
@@ -289,12 +308,19 @@ export function FrameStreamView({
           canvas.setPointerCapture(e.pointerId)
         }
         input.pointer(type, e)
+        latest.current.onActivity?.()
       }
     const onDown = mouse("mousePressed")
     const onMove = mouse("mouseMoved")
     const onUp = mouse("mouseReleased")
-    const onWheel = (e: WheelEvent) => input.wheel(e)
-    const onKeyDown = (e: KeyboardEvent) => input.key("keyDown", e)
+    const onWheel = (e: WheelEvent) => {
+      input.wheel(e)
+      latest.current.onActivity?.()
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      input.key("keyDown", e)
+      latest.current.onActivity?.()
+    }
     const onKeyUp = (e: KeyboardEvent) => input.key("keyUp", e)
     const onPaste = (e: ClipboardEvent) => input.paste(e)
     // What the page copies lands on this viewer's clipboard. The text comes

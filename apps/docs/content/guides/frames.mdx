@@ -180,10 +180,12 @@ avatar. Ending live on a frame you control lets go of control first.
 #### Asking for control
 
 To take a turn on a frame someone else controls, click the Interact button
-(its tooltip says **Click to ask for control**). The person with control sees
-your ask under their Interact button and picks **Give control** or **Not
-now**. When they give you control, the frame is yours and you're interacting
-with it. Click the button again to take your ask back.
+(its tooltip says **Click to ask for control**). The button stays pressed
+while you wait. The person with control sees your ask under their Interact
+button and picks **Give control** or **Not now**. When they give you control,
+the frame is yours and you're interacting with it. When they pick **Not now**,
+a message tells you, and the button goes back to how it was. Click the button
+again to take your ask back.
 
 <Screenshot
   name="frame-control-requests"
@@ -195,6 +197,10 @@ the others keep waiting. When the driver leaves Interact, control passes to
 whoever asked first. A driver who reloads the page or drops their connection
 keeps control for 5 seconds. If they don't come back, control passes to
 whoever asked first and is still here, or to nobody.
+
+A driver who walks away from the frame doesn't keep it from you. Once your
+ask has waited 3 minutes without the driver clicking, scrolling or typing in
+the frame, control passes to you, or to whoever asked before you.
 
 A live frame streams at up to twice its size, so it stays sharp when you zoom in
 to 200%. When a workspace's sandbox goes to sleep, its frames' browsers stop
