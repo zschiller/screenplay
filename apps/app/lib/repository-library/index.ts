@@ -28,3 +28,10 @@ export {
   type RepositoryLibraryDeps,
   type RepositoryStore,
 } from "./library"
+export {
+  desktopLinkPolicy,
+  hostedLinkPolicy,
+  repositoryLinkPolicy,
+  type CanvasRepositoryGroup,
+  type RepositoryLinkPolicy,
+} from "./link-policy"

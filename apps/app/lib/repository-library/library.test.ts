@@ -10,11 +10,15 @@ import {
 import {
   canvasRepositoryRows,
   createRepositoryLibrary,
+  desktopLinkPolicy,
+  hostedLinkPolicy,
   isCustomized,
   linkedRepo,
   resetToRepository,
   switchOff,
   switchOn,
+  type CanvasRooms,
+  type RepositoryLinkPolicy,
   type RepositoryStore,
 } from "@/lib/repository-library"
 
@@ -80,13 +84,16 @@ function memoryEnv() {
 function setup({
   repositories = [],
   canvases = {},
-  mode = "desktop",
+  policy = desktopLinkPolicy,
   userId = "zack",
+  rooms,
 }: {
   repositories?: RepoConfig[]
   canvases?: Record<string, ReturnType<typeof makeHarness>>
-  mode?: "desktop" | "hosted"
+  policy?: RepositoryLinkPolicy
   userId?: string
+  /** In place of the canvases' own rooms. */
+  rooms?: CanvasRooms
 } = {}) {
   let n = 0
   const store = memoryStore(repositories)
@@ -95,9 +102,9 @@ function setup({
     userId,
     store,
     env,
-    mode,
+    policy,
     mint: () => ({ id: `new-${++n}`, now: 100 + n }),
-    rooms: {
+    rooms: rooms ?? {
       list: async () => Object.keys(canvases),
       read: async (roomId, fn) => fn(canvases[roomId]!.collections),
       mutate: async (roomId, fn) => fn(canvases[roomId]!.collections),
@@ -323,7 +330,10 @@ describe("migration", () => {
 
   it("on hosted, leaves an unmatched canvas repo unlinked with no adder", async () => {
     const canvas = canvasWith(baseRepo("r1", { repoFullName: "acme/api" }))
-    const { library } = setup({ canvases: { room: canvas }, mode: "hosted" })
+    const { library } = setup({
+      canvases: { room: canvas },
+      policy: hostedLinkPolicy,
+    })
 
     expect(await library.list()).toEqual([])
     expect(repoOf(canvas, "r1")?.repositoryId).toBeUndefined()
@@ -342,7 +352,7 @@ describe("migration", () => {
     const { library } = setup({
       repositories: [repository("web")],
       canvases: { room: canvas },
-      mode: "hosted",
+      policy: hostedLinkPolicy,
     })
 
     await library.list()
@@ -379,7 +389,7 @@ describe("migration", () => {
       userId: "zack",
       store,
       env: memoryEnv().env,
-      mode: "desktop",
+      policy: desktopLinkPolicy,
       mint: () => ({ id: "new", now: 1 }),
       rooms: {
         list: async () => ["broken", "good"],
@@ -726,11 +736,11 @@ describe("on hosted, a canvas's copy belongs to the canvas", () => {
     const zack = setup({
       repositories: [web],
       canvases: { team, solo },
-      mode: "hosted",
+      policy: hostedLinkPolicy,
     })
     const ada = setup({
       canvases: { team },
-      mode: "hosted",
+      policy: hostedLinkPolicy,
       userId: "ada",
     })
     return { web, team, solo, zack, ada }
@@ -847,5 +857,60 @@ describe("deleting a repository", () => {
     expect(repoOf(canvas, "r1")).toEqual(
       baseRepo("r1", { repoFullName: "acme/api" })
     )
+  })
+})
+
+describe("deleting a repository on hosted", () => {
+  /** Rooms that fail the test if anything opens them. */
+  const unreachable: CanvasRooms = {
+    list: async () => {
+      throw new Error("listed the canvases")
+    },
+    read: async () => {
+      throw new Error("read a canvas")
+    },
+    mutate: async () => {
+      throw new Error("wrote a canvas")
+    },
+  }
+
+  it("neither counts nor opens another canvas", async () => {
+    const web = repository("web")
+    const { library, store } = setup({
+      repositories: [web, repository("api", { name: "api" })],
+      policy: hostedLinkPolicy,
+      rooms: unreachable,
+    })
+    await store.markMigrated()
+
+    expect(await library.canvasCount("web")).toBe(0)
+    expect(await library.delete("web")).toEqual([
+      repository("api", { name: "api" }),
+    ])
+  })
+
+  it("leaves a canvas's copy as it was", async () => {
+    const web = repository("web")
+    const canvas = makeHarness()
+    switchOn(canvas.collections, web, {
+      id: "t",
+      createdAt: 5,
+      addedBy: "zack",
+    })
+    const before = repoOf(canvas, "t")
+    const { library, store } = setup({
+      repositories: [web],
+      canvases: { canvas },
+      policy: hostedLinkPolicy,
+    })
+    await store.markMigrated()
+
+    await library.delete("web")
+
+    expect(repoOf(canvas, "t")).toEqual(before)
+    // With nothing to link to, the list reads it as the canvas's own.
+    expect(canvasRepositoryRows([], [repoOf(canvas, "t")!])).toEqual([
+      { on: true, repo: repoOf(canvas, "t") },
+    ])
   })
 })
