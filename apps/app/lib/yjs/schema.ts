@@ -38,6 +38,8 @@ export const COLLECTION_KEYS = {
   memories: "memories",
   /** Canvas Files entries (#1514), `lib/files/canvas-files.ts`. */
   files: "files",
+  /** Canvas Skills' file entries (#1555), `lib/skills/saved.ts`. */
+  skills: "skills",
   /** Who drives each copy of a frame (#1387), `lib/canvas/frame-control.ts`. */
   frameControl: "frameControl",
   /** The agent's ops waiting for one person's canvas, on hosted (#1391),
@@ -245,6 +247,7 @@ export type RoomCollections = {
   plans: YjsCollection<PlanData>
   memories: YjsCollection<MemoryData>
   files: YjsCollection<FileEntryData>
+  skills: YjsCollection<FileEntryData>
   frameControl: YjsCollection<FrameControlRecord>
   frameDriveAsks: YjsCollection<FrameDriveAsk>
   commentPositions: YjsCollection<CommentPosition>
@@ -314,6 +317,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     files: new YjsCollection<FileEntryData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.files)
+    ),
+    skills: new YjsCollection<FileEntryData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.skills)
     ),
     frameControl: new YjsCollection<FrameControlRecord>(
       doc,

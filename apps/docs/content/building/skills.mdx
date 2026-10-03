@@ -1,6 +1,6 @@
 ---
 title: Agent skills
-description: Teach the agent repository-specific workflows with SKILL.md files, and use the skills Screenplay ships.
+description: Teach the agent workflows with SKILL.md files in your repository or saved to a canvas, and use the skills Screenplay ships.
 ---
 
 import { FileTree } from "nextra/components"
@@ -20,6 +20,22 @@ The agent also loads skills on its own when a request matches a description.
 
 <Screenshot name="composer-skills" alt="The / menu listing Screenplay's built-in skills" />
 
+## Where skills come from
+
+Every chat sees one list of skills, gathered from three places:
+
+| Tag in the menu | Where it lives | Which chats see it |
+| --- | --- | --- |
+| **Repo** | The workspace's repository, under `.claude/skills/` | That workspace's chat |
+| **Canvas** | Saved to the canvas by any chat on it | Every chat on the canvas |
+| **App** | Ships with Screenplay | Every chat, each kind its own |
+
+When two skills share a name, only one is used: the repository's wins, then
+the canvas's, then Screenplay's. The one that loses is left out of the list
+and the <kbd>/</kbd> menu, so what you pick is what runs. The
+[Coordinator](/guides/coordinator) and chats with no repository don't see
+repository skills, since they have no single repository.
+
 ## Built-in skills
 
 Screenplay ships three skills, tagged **App** in the menu:
@@ -35,7 +51,27 @@ The [Coordinator](/guides/coordinator) has its own built-in skill,
 [try something several ways](/guides/coordinator#trying-something-several-ways).
 It isn't in a workspace's <kbd>/</kbd> menu, and workspace agents don't see it.
 
-## Adding your own
+## Saving a skill to the canvas
+
+Ask any chat on the canvas (a workspace chat, the Coordinator or a chat with
+no repository) to save what you just worked out as a skill: "save this review
+checklist as a skill". The agent writes the `SKILL.md`, and a **Save skill**
+row shows in the chat. Every chat on the canvas can use it from its next
+message, including chats your teammates start, and a workspace chat lists it
+in its <kbd>/</kbd> menu tagged **Canvas**. An agent may also save a
+procedure it worked out on its own, and the same row shows when it does.
+
+To change a canvas skill, ask a chat to change it; it saves the skill again
+under the same name. To remove one, ask a chat to delete it, and a **Delete
+skill** row shows.
+
+A saved skill can't give itself tools or run commands: the agent removes
+`allowed-tools` from its frontmatter and any inline `` !`command` `` lines
+before saving. A skill's name uses lowercase letters, digits and hyphens, at
+most 64 characters, and a whole skill, with any files saved beside it, is at
+most 256 KB.
+
+## Adding your own to a repository
 
 Put skills in your repository under `.claude/skills/`, one folder per skill.
 This is the same layout Claude Code uses, so existing skills just work:
@@ -73,7 +109,7 @@ description: >-
 Repository skills show up tagged **Repo** once the workspace's sandbox is
 running. They're read from that workspace's checkout, so different branches
 can carry different skills. If a repository skill has the same name as a
-built-in one, the repository's version wins.
+canvas or built-in one, the repository's version wins.
 
 Write the `description` for the agent, not for people: say what the skill does
 **and when to use it**. That's what the agent matches requests against.

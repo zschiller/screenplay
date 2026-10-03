@@ -17,7 +17,12 @@ import {
   type ResolvedModels,
 } from "@/lib/model-catalog"
 import { fetchModelCatalog, type ModelInfo } from "@/lib/models-store"
-import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
+import {
+  getSkillMenuItems,
+  skillSourceKey,
+  type SkillMenuItem,
+  type SkillSource,
+} from "@/lib/skills-store"
 import { useDefaultModel } from "@/lib/default-model-store"
 
 /** The app's catalog, over the `/api/agent/models` and `/skills` routes. */
@@ -73,24 +78,20 @@ export function useModelCatalog(chosen?: string | null): ModelCatalogView {
   }
 }
 
-/**
- * Which `/`-Skills a Composer offers: a Sandbox's Branch (App ∪ Repo), or no
- * Sandbox for App Skills only.
- */
-export interface SkillSource {
-  sandboxName?: string
-}
+export type { SkillSource }
 
 /**
  * The `/`-Skill index for `source`, fetched when the Composer opens and again
- * when it's re-pointed at another Sandbox. No source, no fetch.
+ * when it's re-pointed at another Sandbox or canvas. No source, no fetch.
  */
 export function useSkillIndex(source: SkillSource | undefined): {
   skills: SkillMenuItem[]
   loading: boolean
 } {
   const catalog = useContext(CatalogContext)
-  const key = source ? (source.sandboxName ?? "") : null
+  const key = source ? skillSourceKey(source) : null
+  const sandboxName = source?.sandboxName
+  const roomId = source?.roomId
   const [index, setIndex] = useState<{
     key: string | null
     skills: SkillMenuItem[]
@@ -100,7 +101,7 @@ export function useSkillIndex(source: SkillSource | undefined): {
     if (key === null) return undefined
     let cancelled = false
     catalog
-      .loadSkills(key || undefined)
+      .loadSkills({ sandboxName, roomId })
       .catch(() => [] as SkillMenuItem[])
       .then((skills) => {
         if (!cancelled) setIndex({ key, skills })
@@ -108,7 +109,7 @@ export function useSkillIndex(source: SkillSource | undefined): {
     return () => {
       cancelled = true
     }
-  }, [catalog, key])
+  }, [catalog, key, sandboxName, roomId])
 
   // A result for another Sandbox is stale: loading until this one lands.
   const current = index.key === key

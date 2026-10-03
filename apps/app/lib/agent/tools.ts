@@ -11,18 +11,6 @@ import {
   getGitHubTokenForUser,
   getGitIdentityForUser,
 } from "@/lib/auth-helpers"
-import { getSkill, getSkillIndex } from "@/lib/skills"
-import {
-  enumerateRepoSkills,
-  readRepoSkillBody,
-  sandboxRepoSkillFs,
-  type RepoSkillFs,
-} from "@/lib/skills/repo-skills"
-import {
-  formatMergedListing,
-  mergeSkillIndexes,
-  resolveSkillBody,
-} from "@/lib/skills/merged"
 import { applyTextEdit } from "@/lib/agent/edit"
 import {
   findCodeFiles,
@@ -231,12 +219,12 @@ export function buildSandboxTools(ctx: ToolContext) {
 export type SandboxTools = ReturnType<typeof buildSandboxTools>
 
 /**
- * The Workspace tools a harness has no counterpart for, so the agent MCP route
- * serves them too (#1480): `create_pr` opens the branch's PR with the
- * Screenplay user's GitHub account, and `read_skill` loads an App or Repo
- * Skill from the Workspace's merged index.
+ * The Workspace tool a harness has no counterpart for, so the agent MCP route
+ * serves it too (#1480): `create_pr` opens the branch's PR with the
+ * Screenplay user's GitHub account. `read_skill` lives with the other Skill
+ * tools (`skill-tools.ts`).
  */
-export function buildPrAndSkillTools(ctx: ToolContext) {
+export function buildPrTools(ctx: ToolContext) {
   const tools = {
     create_pr: tool({
       description:
@@ -260,51 +248,15 @@ export function buildPrAndSkillTools(ctx: ToolContext) {
         }
       },
     }),
-
-    read_skill: tool({
-      description:
-        "Load the full instructions for a skill listed in your skills index. Returns markdown — read it carefully before making changes.",
-      inputSchema: z.object({ name: z.string() }),
-      execute: async ({ name }) => {
-        // Resolve sandbox-first (a Repo Skill in `.claude/skills/` overrides a
-        // bundled App Skill of the same name), then fall back to the App Skill.
-        const fs = await getRepoSkillFs(ctx)
-        const content = await resolveSkillBody(name, {
-          readRepoBody: (n) =>
-            fs ? readRepoSkillBody(fs, n) : Promise.resolve(null),
-          readAppBody: (n) => getSkill(n),
-        })
-        if (content) return content
-        // Unknown name → list the merged set (App ∪ Repo) so the model can
-        // pick a real one.
-        const repo = fs ? await enumerateRepoSkills(fs).catch(() => []) : []
-        const merged = mergeSkillIndexes(getSkillIndex(), repo)
-        return `Unknown skill: "${name}". Available skills:\n${formatMergedListing(merged)}`
-      },
-    }),
   }
-  // Their MCP annotations: a PR changes GitHub; reading a Skill changes nothing.
+  // Its MCP annotations: a PR changes GitHub.
   return annotateTools(tools, {
     create_pr: { destructiveHint: false, openWorldHint: true },
-    read_skill: { readOnlyHint: true, openWorldHint: false },
   })
 }
 
 async function getSandbox(ctx: ToolContext): Promise<SandboxInstance> {
   return sandboxProvider.get({ name: ctx.sandboxName })
-}
-
-/**
- * A Repo-Skill filesystem port backed by this chat's sandbox, or `null` when
- * the sandbox is unreachable. Lets `read_skill` degrade to App-Skill-only
- * resolution instead of failing the whole tool call when the VM is down.
- */
-async function getRepoSkillFs(ctx: ToolContext): Promise<RepoSkillFs | null> {
-  try {
-    return sandboxRepoSkillFs(await getSandbox(ctx))
-  } catch {
-    return null
-  }
 }
 
 /**

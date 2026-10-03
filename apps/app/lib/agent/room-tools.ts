@@ -35,7 +35,6 @@ import {
 } from "@/lib/agent/workspace-task"
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
-import { getSkill, getSkillIndex } from "@/lib/skills"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
@@ -339,19 +338,6 @@ export function buildRoomTools(
       execute: async ({ chat_id, message }) =>
         sendToChat(ports, chat_id, message),
     }),
-    read_skill: tool({
-      // The index rides in the description too, so a desktop harness, which
-      // gets the tools but not our system prompt, still finds the Skills.
-      description: `Load the full instructions for one of your skills. Call it before acting when a request matches a skill's description. Skills:\n${coordinatorSkillListing()}`,
-      inputSchema: jsonSchema<{ name: string }>({
-        type: "object",
-        properties: { name: { type: "string" } },
-        required: ["name"],
-      }),
-      execute: async ({ name }) =>
-        getSkill(name, "coordinator") ??
-        `Unknown skill: "${name}". Available skills:\n${coordinatorSkillListing()}`,
-    }),
   }
   return {
     ...buildArrangeTools(ports.mutateDoc, turnId),
@@ -390,17 +376,8 @@ export function buildRoomTools(
       // (#901).
       [OPEN_PULL_REQUEST_TOOL]: { destructiveHint: false, openWorldHint: true },
       [REMOVE_WORKSPACE_TOOL]: { destructiveHint: true, openWorldHint: false },
-      // Reads a bundled Coordinator App Skill (#905).
-      read_skill: { readOnlyHint: true, openWorldHint: false },
     }),
   }
-}
-
-/** The Coordinator's App Skills (#905), one `- name: description` line each. */
-function coordinatorSkillListing(): string {
-  return getSkillIndex("coordinator")
-    .map((s) => `- ${s.name}: ${s.description}`)
-    .join("\n")
 }
 
 /** One Workspace in a `create_workspaces` call, as the model writes it. */

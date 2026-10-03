@@ -61,11 +61,7 @@ import {
   getGitIdentityForUser,
 } from "@/lib/auth-helpers"
 
-import {
-  buildPrAndSkillTools,
-  buildSandboxTools,
-  type ToolContext,
-} from "@/lib/agent/tools"
+import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 
 const ctx: ToolContext = {
   sandboxName: "sandbox-a",
@@ -433,72 +429,6 @@ describe("glob", () => {
     )
 
     expect(out).toBe("./a.tsx\n./b.tsx")
-  })
-})
-
-describe("read_skill", () => {
-  it("lists available skills when the name is unknown", async () => {
-    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
-      { name: "does-not-exist" },
-      {} as never
-    )
-
-    expect(out).toContain('Unknown skill: "does-not-exist"')
-  })
-
-  it("resolves a Repo Skill from the sandbox (sandbox-first)", async () => {
-    fake.setInstance(
-      fakeSandbox({
-        files: {
-          ".claude/skills/deploy/SKILL.md":
-            "---\nname: deploy\ndescription: Deploy it.\n---\nDEPLOY BODY",
-        },
-      })
-    )
-
-    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
-      { name: "deploy" },
-      {} as never
-    )
-
-    expect(out).toContain("DEPLOY BODY")
-  })
-
-  it("falls back to an App Skill when no Repo Skill matches", async () => {
-    // Sandbox has no `.claude/skills/screenplay-add-knob` — resolution falls
-    // through to the bundled App Skill of the same name.
-    fake.setInstance(fakeSandbox({ files: {} }))
-
-    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
-      { name: "screenplay-add-knob" },
-      {} as never
-    )
-
-    expect(out).toContain("name: screenplay-add-knob")
-  })
-
-  it("lists the merged App ∪ Repo set when the name is unknown", async () => {
-    fake.setInstance(
-      fakeSandbox({
-        files: {
-          ".claude/skills/deploy/SKILL.md":
-            "---\nname: deploy\ndescription: Repo deploy.\n---\nbody",
-        },
-        command: (cmd) =>
-          cmd === "ls" ? { exitCode: 0, stdout: "deploy" } : { exitCode: 1 },
-      })
-    )
-
-    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
-      { name: "nope" },
-      {} as never
-    )
-
-    expect(out).toContain('Unknown skill: "nope"')
-    // Repo Skill from the sandbox …
-    expect(out).toContain("- deploy: Repo deploy.")
-    // … merged with the bundled App Skills.
-    expect(out).toContain("screenplay-add-knob")
   })
 })
 

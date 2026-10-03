@@ -138,6 +138,31 @@ export function renderCanvasFiles(
 }
 
 /**
+ * How any chat keeps a Skill for the canvas (#1555), said in every kind's
+ * Skills block beside its index.
+ */
+export function renderSkillSaving(t: ToolNaming["name"]): string {
+  return `- When the user asks you to remember how to do something, or you've worked out a procedure later chats on this canvas should follow, save it as a skill with \`${t("save_skill")}\`. Change one by saving it again, and remove one with \`${t("delete_skill")}\`.`
+}
+
+/**
+ * The chat's Skill index for a turn that resumes a harness's own session
+ * (#1555): that session kept the system prompt its first turn sent, so a
+ * Skill saved since then reaches it only through this note on the user turn.
+ */
+export function renderSkillsNote(
+  skills: readonly SkillMetadata[],
+  t: ToolNaming["name"]
+): string {
+  if (skills.length === 0) return ""
+  return [
+    `[Skills available now, in place of any earlier list. Call \`${t("read_skill")}\` with a skill's name before following it.`,
+    ...skills.map((s) => `- **${s.name}**: ${s.description}`),
+    "]",
+  ].join("\n")
+}
+
+/**
  * The Workspace agent's instructions before its skill index. `t` names the
  * Screenplay tools a harness reaches over our MCP server (#1223, #1314). A
  * harness edits files and runs commands with its own tools, so its
@@ -247,16 +272,14 @@ Keep your responses concise. Show the user what you changed and why.`
 
 /**
  * Build the agent's system prompt with the Branch's merged Skill index baked
- * in. Each Skill — App or Repo — contributes its name + description so the
+ * in. Each Skill — Repo, Canvas or App — contributes its name + description so the
  * model can recognize when one applies and call \`read_skill(name)\` to load
  * the full instructions: the same metadata-then-body progressive disclosure
  * native Anthropic skills use, just routed through our custom tool.
  *
- * `skills` is the merged, origin-tagged index (App ∪ Repo, Repo-wins on a
- * collision), enumerated once per Agent at chat init. Folding the Repo Skills
- * into the prompt text is what makes the prompt per-Agent: it embeds the
- * Branch's `.claude/skills/` metadata, so editing a Repo Skill rolls a fresh
- * prompt for that Branch's next chat (the persisted prompt is the cache key).
+ * `skills` is the merged, origin-tagged index (Repo, then Canvas, then App on
+ * a collision), read every turn, so a Skill saved or edited mid-chat is in
+ * the next turn's prompt.
  *
  * `repoSystemPrompt` is appended after the tail so per-repo context (e.g.
  * "this config targets apps/web in the monorepo") is part of every chat under
@@ -293,6 +316,8 @@ export function buildAgentSystemPrompt(opts: {
           `MANDATORY — explicit skill invocation: if the user's message contains a marker of the form \`${SKILL_MARKER_TOKEN}\`, the collaborator has explicitly invoked that skill. Before taking ANY other action (including reading other files or making edits), you MUST call \`${t("read_skill")}\` with \`<name>\` and follow its instructions for this turn. This is not optional — treat it as a direct instruction, not a hint.`,
           "",
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
+          "",
+          renderSkillSaving(t),
         ].join("\n")
   const repoBlock = repoSystemPrompt?.trim()
     ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
@@ -355,6 +380,7 @@ export function buildSketchSystemPrompt(opts: {
           "Skills:",
           `- When a request matches one of these, call \`${t("read_skill")}\` with its name and follow it.`,
           ...opts.skills.map((s) => `- **${s.name}**: ${s.description}`),
+          renderSkillSaving(t),
         ]
       : []),
     "",
@@ -433,6 +459,7 @@ export function buildRoomSystemPrompt(opts: {
           "Skills:",
           `- When a request matches one of these, call \`${t("read_skill")}\` with its name and follow it before doing anything else.`,
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
+          renderSkillSaving(t),
           "",
         ]
       : []),

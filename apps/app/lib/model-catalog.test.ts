@@ -102,7 +102,10 @@ describe("model catalog", () => {
       inMemoryCatalogSource({ skills: { "sbx-1": [skill], "": [app] } })
     )
 
-    const [a, b] = [catalog.loadSkills("sbx-1"), catalog.loadSkills("sbx-1")]
+    const [a, b] = [
+      catalog.loadSkills({ sandboxName: "sbx-1" }),
+      catalog.loadSkills({ sandboxName: "sbx-1" }),
+    ]
     expect(a).toBe(b)
     expect(await a).toEqual([skill])
     expect(await catalog.loadSkills()).toEqual([app])
