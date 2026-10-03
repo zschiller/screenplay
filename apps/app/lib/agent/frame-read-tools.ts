@@ -164,7 +164,7 @@ export const FRAME_READ_TOOL_ANNOTATIONS: Readonly<
   read_frame_html: { readOnlyHint: true, openWorldHint: false },
 }
 
-type FoundFrame = {
+export type FoundFrame = {
   id: string
   /** How the answer names it: `frame [id] (/route in Workspace "Title")`. */
   name: string
@@ -176,7 +176,7 @@ type FoundFrame = {
  * The frame to read and how to reach its preview, or the text to answer with
  * when there's none (or the frame was left out and there's no single one).
  */
-function findFrame(
+export function findFrame(
   c: RoomCollections,
   scope: FrameReadScope,
   frameId: string | undefined

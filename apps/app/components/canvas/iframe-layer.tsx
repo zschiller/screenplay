@@ -29,6 +29,7 @@ import {
 } from "@workspace/ui/components/floating-toolbar"
 import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
+import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useIframeBridgePort } from "@/hooks/use-bridge-port"
@@ -699,6 +700,9 @@ export function IframeLayer({
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
     },
   })
+
+  // The agent drives this frame through the Mac drive channel (#1389).
+  useDriveFrame(iframeLayer.id, dom, iframeRef, zoom)
 
   // Leaving interaction (Esc, the toolbar, or a deselect) hands keyboard focus
   // back to the canvas. Otherwise it stays inside the iframe, and canvas

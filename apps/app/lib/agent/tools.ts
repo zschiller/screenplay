@@ -27,6 +27,7 @@ import { applyTextEdit } from "@/lib/agent/edit"
 import { buildDevServerTools } from "@/lib/agent/dev-server-tools"
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
 import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
+import { chatFrameDriveTools } from "@/lib/frame-drive/mac/live"
 import {
   findCodeFiles,
   readCodeFile,
@@ -270,6 +271,9 @@ export function buildSandboxTools(ctx: ToolContext) {
     // Any frame on the canvas, its own by default: a screenshot and the
     // page's HTML (#1311).
     ...chatFrameReadTools(ctx),
+
+    // Driving a frame the person has open, on the Mac (#1389).
+    ...chatFrameDriveTools(ctx),
 
     // Human-in-the-loop: no execute. The loop halts on this tool call and
     // /api/agent/plan supplies the result after the user decides.

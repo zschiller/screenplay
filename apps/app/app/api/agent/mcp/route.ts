@@ -25,6 +25,8 @@ import {
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
 import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
 import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
+import { chatFrameDriveTools } from "@/lib/frame-drive/mac/live"
+import { FRAME_DRIVE_TOOL_ANNOTATIONS } from "@/lib/frame-drive/tools"
 import {
   buildMockupTools,
   MOCKUP_TOOL_ANNOTATIONS,
@@ -75,8 +77,8 @@ export async function POST(req: Request) {
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
 
-  // A Workspace chat's harness gets its own dev server's tools and the frame
-  // reads, bound to the Sandbox its token was minted for, its Document and
+  // A Workspace chat's harness gets its own dev server's tools, the frame
+  // reads and Frame Drive (#1389), bound to the Sandbox its token was minted for, its Document and
   // Mockup (#1309) tools, bound to its chat, Question Cards (#1312), and
   // read-only access to the other Workspaces' code (#1315).
   if (binding.sandboxName) {
@@ -92,6 +94,11 @@ export async function POST(req: Request) {
             sandboxName: binding.sandboxName,
             room,
           }),
+          ...chatFrameDriveTools({
+            sandboxName: binding.sandboxName,
+            room,
+            userId: room.userId,
+          }),
           ...buildDocumentTools({ room, chatId: binding.chatId }),
           ...buildMockupTools({ room, chatId: binding.chatId }),
           ...otherWorkspacesCodeReadTools({
@@ -104,6 +111,7 @@ export async function POST(req: Request) {
         annotations: {
           ...DEV_SERVER_TOOL_ANNOTATIONS,
           ...FRAME_READ_TOOL_ANNOTATIONS,
+          ...FRAME_DRIVE_TOOL_ANNOTATIONS,
           ...DOCUMENT_TOOL_ANNOTATIONS,
           ...MOCKUP_TOOL_ANNOTATIONS,
           ...QUESTION_TOOL_ANNOTATIONS,

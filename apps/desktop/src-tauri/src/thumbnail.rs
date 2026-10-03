@@ -88,6 +88,7 @@ impl ThumbnailRequest {
 /// sidecar's (started in `sidecar::launch`, stopped in `Sidecar::shutdown`).
 pub struct ControlServer {
     port: u16,
+    token: String,
     server: Arc<Server>,
     worker: Option<JoinHandle<()>>,
 }
@@ -101,10 +102,13 @@ impl ControlServer {
             .ok_or("control server bound to a non-IP address")?
             .port();
 
+        let token = random_token();
         let srv = Arc::clone(&server);
-        let worker = std::thread::spawn(move || serve(&srv, &app));
+        let worker_token = token.clone();
+        let worker = std::thread::spawn(move || serve(&srv, &app, &worker_token));
         Ok(Self {
             port,
+            token,
             server,
             worker: Some(worker),
         })
@@ -112,6 +116,11 @@ impl ControlServer {
 
     pub fn url(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
+    }
+
+    /// The per-launch token `/snapshot-main` wants, handed only to the sidecar.
+    pub fn token(&self) -> &str {
+        &self.token
     }
 
     pub fn stop(&mut self) {
@@ -123,10 +132,38 @@ impl ControlServer {
     }
 }
 
-fn serve(server: &Server, app: &AppHandle) {
+fn serve(server: &Server, app: &AppHandle, token: &str) {
     for mut request in server.incoming_requests() {
         if request.method() != &Method::Post {
             let _ = request.respond(Response::from_string("not found").with_status_code(404));
+            continue;
+        }
+
+        // The canvas window as the person sees it, optionally one rect of it:
+        // how the agent checks a frame it drives (#1389). It shows the person's
+        // screen, so only the sidecar, holding the token, may ask.
+        if request.url().starts_with("/snapshot-main") {
+            let authorized = request.headers().iter().any(|h| {
+                h.field.equiv("x-screenplay-control-token")
+                    && same_token(h.value.as_str(), token)
+            });
+            if !authorized {
+                let _ = request.respond(Response::from_string("unauthorized").with_status_code(401));
+                continue;
+            }
+            let mut body = String::new();
+            let _ = request.as_reader().read_to_string(&mut body);
+            let rect = serde_json::from_str::<SnapshotRect>(&body).ok();
+            match snapshot_main(app, rect) {
+                Ok(bytes) => {
+                    let header =
+                        Header::from_bytes(&b"Content-Type"[..], &b"image/png"[..]).unwrap();
+                    let _ = request.respond(Response::from_data(bytes).with_header(header));
+                }
+                Err(e) => {
+                    let _ = request.respond(Response::from_string(e).with_status_code(500));
+                }
+            }
             continue;
         }
 
@@ -190,6 +227,66 @@ fn serve(server: &Server, app: &AppHandle) {
             }
         }
     }
+}
+
+/// 32 bytes of CSPRNG output, hex.
+fn random_token() -> String {
+    let mut buf = [0u8; 32];
+    getrandom::getrandom(&mut buf).expect("OS CSPRNG unavailable");
+    buf.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Compare tokens without stopping at the first difference.
+fn same_token(given: &str, token: &str) -> bool {
+    given.len() == token.len()
+        && given
+            .bytes()
+            .zip(token.bytes())
+            .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+            == 0
+}
+
+/// A rect of the main webview, in its own CSS px.
+#[derive(Deserialize)]
+struct SnapshotRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+/// `takeSnapshot` on the main window's WKWebView, the canvas the person is
+/// looking at (iframes included), limited to `rect`. Works with the window in
+/// the background.
+fn snapshot_main(app: &AppHandle, rect: Option<SnapshotRect>) -> Result<Vec<u8>, String> {
+    let (tx, rx) = mpsc::channel::<Result<Vec<u8>, String>>();
+    let app_main = app.clone();
+    app.run_on_main_thread(move || {
+        let Some(window) = app_main.get_webview_window("main") else {
+            let _ = tx.send(Err("no main window".into()));
+            return;
+        };
+        #[cfg(target_os = "macos")]
+        {
+            let tx_inner = tx.clone();
+            let rect = rect.map(|r| (r.x, r.y, r.width, r.height));
+            let dispatched = window.with_webview(move |webview| unsafe {
+                let wk = webview.inner() as *mut objc2::runtime::AnyObject;
+                macos::take_snapshot_rect(wk, rect, tx_inner);
+            });
+            if let Err(e) = dispatched {
+                let _ = tx.send(Err(format!("with_webview failed: {e}")));
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (window, rect);
+            let _ = tx.send(Err("the window snapshot is only implemented on macOS".into()));
+        }
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv_timeout(Duration::from_secs(10))
+        .unwrap_or_else(|_| Err("the window snapshot timed out".into()))
 }
 
 /// Render `render_url` in the off-screen capture webview and return a PNG, or,
@@ -583,6 +680,43 @@ mod macos {
 
         let config: *mut AnyObject = std::ptr::null_mut();
         let _: () = msg_send![wk, takeSnapshotWithConfiguration: config, completionHandler: &*handler];
+    }
+
+    /// `take_snapshot` limited to `rect` (x, y, w, h in the webview's own
+    /// coordinates) through a `WKSnapshotConfiguration`.
+    pub unsafe fn take_snapshot_rect(
+        wk: *mut AnyObject,
+        rect: Option<(f64, f64, f64, f64)>,
+        tx: mpsc::Sender<Result<Vec<u8>, String>>,
+    ) {
+        if wk.is_null() {
+            let _ = tx.send(Err("null WKWebView".into()));
+            return;
+        }
+        let handler = RcBlock::new(move |image: *mut AnyObject, error: *mut AnyObject| {
+            if !error.is_null() {
+                let _ = tx.send(Err("WKWebView takeSnapshot reported an error".into()));
+                return;
+            }
+            match png_from_nsimage(image) {
+                Some(bytes) => {
+                    let _ = tx.send(Ok(bytes));
+                }
+                None => {
+                    let _ = tx.send(Err("could not encode snapshot to PNG".into()));
+                }
+            }
+        });
+        let config: *mut AnyObject = msg_send![class!(WKSnapshotConfiguration), new];
+        if let Some((x, y, width, height)) = rect {
+            let r = CGRect {
+                origin: CGPoint { x, y },
+                size: CGSize { width, height },
+            };
+            let _: () = msg_send![config, setRect: r];
+        }
+        let _: () = msg_send![wk, takeSnapshotWithConfiguration: config, completionHandler: &*handler];
+        let _: () = msg_send![config, release];
     }
 
     /// `wk` is the `WKWebView`. Runs `script` as the body of an async function

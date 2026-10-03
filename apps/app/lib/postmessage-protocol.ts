@@ -1,3 +1,5 @@
+import type { DriveOp } from "@/lib/frame-drive/contract"
+
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
@@ -40,6 +42,10 @@ export type CanvasToIframeMessage =
   // Follow another viewer's route client-side (#999). Answered with a
   // `dom-result` whose value is true when the page's router took the route.
   | { type: "screenplay:navigate"; id: string; path: string }
+  // Frame Drive (#1389): one agent op, answered with a `dom-result` whose
+  // value is a `DriveResult`; `drive-stop` ends a gesture still running.
+  | { type: "screenplay:drive"; id: string; op: DriveOp }
+  | { type: "screenplay:drive-stop"; id: string }
   | { type: "screenplay:knob-values"; values: JsonObject }
   | { type: "screenplay:cursor-mode"; mode: CursorMode }
   // `initial` marks the answer to `screenplay:shared-state-request`: the

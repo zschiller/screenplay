@@ -66,14 +66,14 @@ pub fn launch(app: &AppHandle) -> Result<Sidecar, Box<dyn Error>> {
     let port = free_port()?;
     let control = ControlServer::start(app.clone())?;
     let child = if use_dev_server() {
-        spawn_dev(app, port, &control.url())?
+        spawn_dev(app, port, &control)?
     } else {
         // The login-shell PATH probe can take a second or more on a heavy
         // `.zshrc`, so run it alongside the extract instead of after it.
         let shell_path = std::thread::spawn(login_shell_path);
         let dir = extract(app)?;
         let shell_path = shell_path.join().ok().flatten();
-        spawn(app, &dir, port, &control.url(), shell_path)?
+        spawn(app, &dir, port, &control, shell_path)?
     };
     Ok(Sidecar {
         port,
@@ -174,7 +174,7 @@ fn spawn(
     app: &AppHandle,
     dir: &std::path::Path,
     port: u16,
-    control_url: &str,
+    control: &ControlServer,
     shell_path: Option<String>,
 ) -> Result<Child, Box<dyn Error>> {
     let app_root = dir.join("apps").join("app");
@@ -186,7 +186,7 @@ fn spawn(
         // out to `npx` for the ACP adapter, so prepend the usual node install
         // locations (and the bundled node's own dir) to the inherited PATH.
         .env("PATH", augmented_path(dir, shell_path));
-    apply_desktop_env(&mut cmd, app, port, control_url, &app_root)?;
+    apply_desktop_env(&mut cmd, app, port, control, &app_root)?;
 
     Ok(cmd.spawn()?)
 }
@@ -196,7 +196,7 @@ fn spawn(
 /// profile as the packaged sidecar, plus the two vars `build-sidecar.mjs` bakes
 /// in at build time — set as process env here so they beat any hosted-dev
 /// `.env.local` (Next never overrides existing process env).
-fn spawn_dev(app: &AppHandle, port: u16, control_url: &str) -> Result<Child, Box<dyn Error>> {
+fn spawn_dev(app: &AppHandle, port: u16, control: &ControlServer) -> Result<Child, Box<dyn Error>> {
     // src-tauri/ → desktop/ → apps/ → repo root. Compile-time path is fine
     // here: dev builds only run on the machine that compiled them.
     let app_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -209,19 +209,19 @@ fn spawn_dev(app: &AppHandle, port: u16, control_url: &str) -> Result<Child, Box
         .current_dir(&app_root)
         .env("SCREENPLAY_DESKTOP", "1")
         .env("NEXT_PUBLIC_BASE_PATH", "");
-    apply_desktop_env(&mut cmd, app, port, control_url, &app_root)?;
+    apply_desktop_env(&mut cmd, app, port, control, &app_root)?;
 
     Ok(cmd.spawn()?)
 }
 
 /// The desktop backend profile, shared by the packaged and dev spawns. The seam
 /// selectors mirror `apps/desktop/desktop.env`; the machine-specific paths and
-/// the control URL are computed here (they can't live in a committed file).
+/// the control URL and token are computed here (they can't live in a committed file).
 fn apply_desktop_env(
     cmd: &mut Command,
     app: &AppHandle,
     port: u16,
-    control_url: &str,
+    control: &ControlServer,
     app_root: &std::path::Path,
 ) -> Result<(), Box<dyn Error>> {
     let data = app.path().app_data_dir()?;
@@ -255,7 +255,10 @@ fn apply_desktop_env(
         // only risked drift (it once read "claude", which matches no adapter and
         // broke chats with no stored model). Set it (e.g. "codex") only to back
         // chat with a different installed CLI.
-        .env("TAURI_CONTROL_URL", control_url)
+        .env("TAURI_CONTROL_URL", control.url())
+        // Required on the control server's snapshot of the canvas window
+        // (Frame Drive, #1389), so no other local process can take one.
+        .env("TAURI_CONTROL_TOKEN", control.token())
         // Our PID, so the sidecar can self-exit if this shell dies without a
         // clean quit (Ctrl-C / hot-reload / crash) instead of orphaning.
         .env("SCREENPLAY_SHELL_PID", std::process::id().to_string())
