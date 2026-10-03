@@ -347,3 +347,83 @@ describe("saving memory in every kind's system prompt", () => {
     })
   }
 })
+
+/**
+ * Account Files (#1521): each kind lists the sender's own files in a block
+ * after Canvas files, and a turn nobody sent says it has none.
+ */
+describe("account files in every kind's system prompt", () => {
+  const file = (path: string) => ({
+    id: `file-${path}`,
+    path,
+    kind: "file" as const,
+    size: 12,
+    mediaType: "text/markdown",
+    addedBy: "agent" as const,
+    addedById: "chat-1",
+    blobKey: `account/ana/file-${path}`,
+    createdAt: 1,
+    updatedAt: 1,
+  })
+  type Opts = { accountFiles?: ReturnType<typeof file>[] | null }
+  const files = [{ ...file("canvas-notes.md"), blobKey: "canvas/r/x" }]
+  const prompts = {
+    Workspace: (opts: Opts) =>
+      buildAgentSystemPrompt({
+        layerDirectory: EMPTY_DIRECTORY,
+        skills: [],
+        files,
+        ...opts,
+      }),
+    sketch: (opts: Opts) =>
+      buildSketchSystemPrompt({
+        layerDirectory: EMPTY_DIRECTORY,
+        chatId: "chat-1",
+        skills: [],
+        files,
+        ...opts,
+      }),
+    Coordinator: (opts: Opts) =>
+      buildRoomSystemPrompt({ canvasSummary: "", files, ...opts }),
+  }
+
+  for (const [kind, build] of Object.entries(prompts)) {
+    it(`lists the sender's account files after Canvas files in a ${kind} chat`, () => {
+      const prompt = build({ accountFiles: [file("style/voice.md")] })
+      const canvas = prompt.indexOf("Canvas files (")
+      const account = prompt.indexOf("Account files (")
+      expect(canvas).toBeGreaterThan(-1)
+      expect(account).toBeGreaterThan(canvas)
+      expect(prompt.slice(account)).toContain("- style/voice.md (12 B")
+      expect(prompt.slice(account)).toContain('`scope: "account"`')
+      expect(prompt.slice(canvas, account)).not.toContain("style/voice.md")
+    })
+
+    it(`says a ${kind} turn nobody sent has no account files`, () => {
+      const prompt = build({ accountFiles: null })
+      expect(prompt).toContain("Account files: nobody sent this turn")
+      expect(prompt).not.toContain("Account files (")
+    })
+
+    it(`says a ${kind} sender with no account files has none yet`, () => {
+      const prompt = build({ accountFiles: [] })
+      const account = prompt.indexOf("Account files (")
+      expect(prompt.slice(account)).toContain("(none yet)")
+    })
+  }
+
+  it("caps the list and points at list_saved_files for the rest", () => {
+    const many = Array.from({ length: 55 }, (_, i) =>
+      file(`n-${String(i).padStart(2, "0")}.md`)
+    )
+    const prompt = buildRoomSystemPrompt({
+      canvasSummary: "",
+      accountFiles: many,
+    })
+    expect(prompt).toContain("- n-49.md")
+    expect(prompt).not.toContain("- n-50.md")
+    expect(prompt).toContain(
+      '- …and 5 more: call `list_saved_files` with `scope: "account"` for all of them.'
+    )
+  })
+})

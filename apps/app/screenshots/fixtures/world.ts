@@ -1,6 +1,7 @@
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { LOCAL_USER_ID } from "@/lib/local-user"
+import { accountFileKeyPrefix } from "@/lib/files/paths"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "../lib/preview-url"
 import {
@@ -192,6 +193,11 @@ export interface FixtureWorld {
   repoConfigs: RepoConfig[]
   /** Account memory (#1513), shown in Settings › Memory. */
   accountMemory?: MemoryData[]
+  /**
+   * Account Files (#1521), shown in Settings › Files: the entries the seeder
+   * encrypts into `kv_store` and the bodies it writes to the file store.
+   */
+  accountFiles?: { files: FileEntryData[]; fileBodies: Record<string, string> }
   /** The hosted build's half, seeded only by a `--hosted` run (#789). */
   hosted: FixtureHostedWorld
 }
@@ -1909,6 +1915,16 @@ function repoConfigs(now: number): RepoConfig[] {
   ]
 }
 
+type FileFixtureSpec =
+  | { folder: string }
+  | {
+      path: string
+      mediaType: string
+      body?: string
+      size?: number
+      addedById?: string
+    }
+
 /**
  * Canvas Files fixtures (#1517): entries for a room's `files` collection, and
  * the bodies the seeder writes to the private file store. Each spec is a
@@ -1917,21 +1933,38 @@ function repoConfigs(now: number): RepoConfig[] {
 export function canvasFileFixtures(
   roomId: string,
   at: number,
-  specs: Array<
-    | { folder: string }
-    | {
-        path: string
-        mediaType: string
-        body?: string
-        size?: number
-        addedById?: string
-      }
-  >
+  specs: FileFixtureSpec[]
+): { files: FileEntryData[]; fileBodies: Record<string, string> } {
+  return fileFixtures(`canvas/${roomId}`, roomId, at, specs)
+}
+
+/**
+ * Account Files fixtures (#1521): one person's entries and bodies, as
+ * {@link canvasFileFixtures} makes a room's.
+ */
+export function accountFileFixtures(
+  userId: string,
+  at: number,
+  specs: FileFixtureSpec[]
+): { files: FileEntryData[]; fileBodies: Record<string, string> } {
+  return fileFixtures(
+    accountFileKeyPrefix(userId),
+    `account-${userId}`,
+    at,
+    specs
+  )
+}
+
+function fileFixtures(
+  keyPrefix: string,
+  idPrefix: string,
+  at: number,
+  specs: FileFixtureSpec[]
 ): { files: FileEntryData[]; fileBodies: Record<string, string> } {
   const files: FileEntryData[] = []
   const fileBodies: Record<string, string> = {}
   specs.forEach((spec, i) => {
-    const id = `file-${roomId}-${i}`
+    const id = `file-${idPrefix}-${i}`
     const base = { id, createdAt: at - i * 60_000, updatedAt: at - i * 60_000 }
     if ("folder" in spec) {
       files.push({
@@ -1954,7 +1987,7 @@ export function canvasFileFixtures(
       mediaType: spec.mediaType,
       addedBy: spec.addedById ? "member" : "agent",
       addedById: spec.addedById ?? "chat-fixture",
-      blobKey: `canvas/${roomId}/${id}`,
+      blobKey: `${keyPrefix}/${id}`,
     })
     if (spec.body !== undefined) fileBodies[spec.path] = spec.body
   })

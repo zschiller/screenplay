@@ -28,6 +28,7 @@ import { HarnessSetupPanel } from "./harness-setup-panel"
 import { DefaultAgentPicker } from "./default-agent-picker"
 import { RepoConfigsPanel } from "./repo-configs-panel"
 import { AccountMemoryPanel } from "@/components/memory/account-memory-panel"
+import { AccountFilesPanel } from "./account-files-panel"
 import {
   SettingsRow,
   SettingsRowList,
@@ -125,6 +126,13 @@ const SECTIONS: SettingsSection[] = [
     title: "Memory",
     description: "What every chat you message knows about you, on any canvas.",
     content: (header) => <AccountMemoryPanel header={header} />,
+  },
+  {
+    id: "files",
+    title: "Files",
+    description:
+      "Files every chat you message can open, on any canvas. Agents save and organize them.",
+    content: (header) => <AccountFilesPanel header={header} />,
   },
   {
     id: "account",

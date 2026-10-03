@@ -56,10 +56,21 @@ vi.mock("@/lib/env-store", () => ({
 vi.mock("@/lib/files", async () => {
   const { memoryFileStore } = await import("@/lib/files/store")
   const { canvasFilesOn } = await import("@/lib/files/canvas-files")
+  const { accountFilesOn, listFileIndex, memoryFileListStore } =
+    await import("@/lib/files/account-files")
   const fileStore = memoryFileStore()
+  const lists = new Map<string, ReturnType<typeof memoryFileListStore>>()
   return {
     fileStore,
     canvasFiles: (room: RoomDoc) => canvasFilesOn(room, fileStore),
+    accountFiles: (userId: string) => {
+      if (!lists.has(userId)) lists.set(userId, memoryFileListStore())
+      return accountFilesOn(
+        userId,
+        listFileIndex(lists.get(userId)!),
+        fileStore
+      )
+    },
   }
 })
 // Each person's account memory, in memory.

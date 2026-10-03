@@ -2,7 +2,9 @@ import "server-only"
 
 import { buildAgentSystemPrompt, type LayerDirectory } from "./config"
 import {
+  accountFilesFor,
   accountMemoryStore,
+  loadAccountFiles,
   loadAccountMemory,
   loadCanvasMemory,
   loadLayerDirectory,
@@ -66,6 +68,8 @@ export interface WorkspaceContext {
   files: FileEntryData[]
   /** The sender's account memory (#1513); `null` on a turn nobody sent. */
   accountMemory: MemoryData[] | null
+  /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
+  accountFiles: FileEntryData[] | null
 }
 
 export const workspaceChatTarget: ChatTargetSpec<
@@ -87,6 +91,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       memory,
       files,
       accountMemory,
+      accountFiles,
     ] = await Promise.all([
       room
         .readDoc(({ branches, repos }) => {
@@ -110,6 +115,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       loadCanvasMemory(room),
       loadCanvasFiles(room),
       loadAccountMemory(turnSender(target)),
+      loadAccountFiles(turnSender(target)),
     ])
     return {
       chatId,
@@ -125,6 +131,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       memory,
       files,
       accountMemory,
+      accountFiles,
     }
   },
   skillIndex: (ctx) => ctx.skills,
@@ -137,6 +144,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       memory: ctx.memory,
       files: ctx.files,
       accountMemory: ctx.accountMemory,
+      accountFiles: ctx.accountFiles,
       toolNaming: naming,
     })
   },
@@ -167,10 +175,11 @@ export const workspaceChatTarget: ChatTargetSpec<
           canvas: room,
           account: accountMemoryStore(target),
         }),
-        // The canvas's saved files (#1514); a binary file is saved from the
+        // The canvas's and the sender's saved files (#1514, #1521); a binary file is saved from the
         // sandbox.
         ...buildFileTools({
           canvas: canvasFiles(room),
+          account: accountFilesFor(target),
           chatId,
           readSource: async (path) =>
             (await sandboxProvider.get({ name: sandboxName })).readFileToBuffer(

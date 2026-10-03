@@ -168,3 +168,82 @@ describe("saved-file tools", () => {
     ).toContain("source_path")
   })
 })
+
+/**
+ * Account Files (#1521): the `account` scope reaches the sender's own files,
+ * never the canvas's, and a turn nobody sent refuses it.
+ */
+describe("saved-file tools, account scope", () => {
+  function account(): Files {
+    return createFiles({
+      index: memoryFileIndex(),
+      store: memoryFileStore(),
+      keyPrefix: "account/ana",
+    })
+  }
+
+  it("saves to and reads from the sender's files, apart from the canvas's", async () => {
+    const files = { canvas: canvas(), account: account() }
+    const tools = buildFileTools({ ...files, chatId: "chat-a" })
+
+    expect(
+      await run(tools, "save_file", {
+        scope: "account",
+        path: "voice.md",
+        content: "Plain.",
+      })
+    ).toBe("Saved voice.md (6 B, text/markdown).")
+    expect(await run(tools, "list_saved_files", {})).toBe("No saved files yet.")
+    expect(await run(tools, "list_saved_files", { scope: "account" })).toBe(
+      "- voice.md (6 B, text/markdown)"
+    )
+    expect(
+      await run(tools, "read_saved_file", {
+        scope: "account",
+        path: "voice.md",
+      })
+    ).toBe("Plain.")
+
+    await run(tools, "make_saved_folder", { scope: "account", path: "style" })
+    await run(tools, "move_saved_file", {
+      scope: "account",
+      path: "voice.md",
+      to: "style/voice.md",
+    })
+    expect(await run(tools, "list_saved_files", { scope: "account" })).toBe(
+      ["- style/", "- style/voice.md (6 B, text/markdown)"].join("\n")
+    )
+    expect(
+      await run(tools, "delete_saved_file", { scope: "account", path: "style" })
+    ).toBe("Deleted the folder and 1 item in it.")
+    const listed = await files.account.list()
+    expect(listed.ok && listed.value).toEqual([])
+  })
+
+  it("refuses every tool's account scope on a turn nobody sent", async () => {
+    for (const ctx of [
+      { canvas: canvas(), account: null, chatId: "chat-a" },
+      { canvas: canvas(), chatId: "chat-a" },
+    ]) {
+      const tools = buildFileTools(ctx)
+      for (const name of [
+        "list_saved_files",
+        "read_saved_file",
+        "save_file",
+        "move_saved_file",
+        "delete_saved_file",
+        "make_saved_folder",
+      ] as const) {
+        expect(
+          await run(tools, name, {
+            scope: "account",
+            path: "a.md",
+            to: "b.md",
+            content: "x",
+          }),
+          name
+        ).toMatch(/^Error: nobody sent this turn/)
+      }
+    }
+  })
+})

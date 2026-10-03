@@ -467,6 +467,15 @@ async function seedDatabase(db: DB, world: FixtureWorld): Promise<void> {
       .values({ key: `account-memory:${world.userId}`, value, expiresAt: null })
       .onConflictDoUpdate({ target: schema.kvStore.key, set: { value } })
   }
+  // Account Files' entries (#1521), under the key `lib/files/account-store.ts`
+  // reads; their bytes go with the rooms' (`seedRoomDocs`).
+  if (world.accountFiles) {
+    const value = encrypt(JSON.stringify(world.accountFiles.files))
+    await db
+      .insert(schema.kvStore)
+      .values({ key: `account-files:${world.userId}`, value, expiresAt: null })
+      .onConflictDoUpdate({ target: schema.kvStore.key, set: { value } })
+  }
   // Canvas Repos' env var values (#1416), under the key `lib/repo-env` reads.
   for (const room of world.rooms) {
     for (const [repoId, text] of Object.entries(room.doc?.repoEnv ?? {})) {
@@ -558,6 +567,15 @@ async function seedRoomDocs(
 
     captureCount += await seedRoomThumbnail(room, ctx)
     doc.destroy()
+  }
+
+  // Account Files' bytes, beside Canvas Files'.
+  for (const entry of world.accountFiles?.files ?? []) {
+    const body = world.accountFiles?.fileBodies[entry.path]
+    if (entry.kind !== "file" || body === undefined) continue
+    const path = join(ctx.filesDir, entry.blobKey)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, body)
   }
 
   return captureCount

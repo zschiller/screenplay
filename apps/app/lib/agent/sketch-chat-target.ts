@@ -2,7 +2,9 @@ import "server-only"
 
 import { buildSketchSystemPrompt, type LayerDirectory } from "./config"
 import {
+  accountFilesFor,
   accountMemoryStore,
+  loadAccountFiles,
   loadAccountMemory,
   loadCanvasMemory,
   loadLayerDirectory,
@@ -50,21 +52,32 @@ export interface SketchContext {
   files: FileEntryData[]
   /** The sender's account memory (#1513); `null` on a turn nobody sent. */
   accountMemory: MemoryData[] | null
+  /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
+  accountFiles: FileEntryData[] | null
 }
 
 /** No sandbox: Documents and Mockups only, and nothing that touches code. */
 export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
   kind: "sketch",
   async loadContext(room, target) {
-    const [layerDirectory, canvas, agent, memory, files, accountMemory] =
-      await Promise.all([
-        loadLayerDirectory(room),
-        loadCanvasSkills(room),
-        loadAgentSkills(agentSkillsFor(target.harnessKey)),
-        loadCanvasMemory(room),
-        loadCanvasFiles(room),
-        loadAccountMemory(turnSender(target)),
-      ])
+    const [
+      layerDirectory,
+      canvas,
+      agent,
+      memory,
+      files,
+      accountMemory,
+      accountFiles,
+    ] = await Promise.all([
+      loadLayerDirectory(room),
+      loadCanvasSkills(room),
+      loadAgentSkills(agentSkillsFor(target.harnessKey)),
+      loadCanvasMemory(room),
+      loadCanvasFiles(room),
+      loadAccountMemory(turnSender(target)),
+      loadAccountFiles(turnSender(target)),
+      loadAccountFiles(turnSender(target)),
+    ])
     return {
       chatId: target.chatId,
       layerDirectory,
@@ -72,6 +85,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
       memory,
       files,
       accountMemory,
+      accountFiles,
     }
   },
   skillIndex: (ctx) => ctx.skills,
@@ -83,6 +97,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
       memory: ctx.memory,
       files: ctx.files,
       accountMemory: ctx.accountMemory,
+      accountFiles: ctx.accountFiles,
       toolNaming: naming,
     })
   },
@@ -108,8 +123,12 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
           canvas: room,
           account: accountMemoryStore(target),
         }),
-        // The canvas's saved files (#1514): text only, with no sandbox.
-        ...buildFileTools({ canvas: canvasFiles(room), chatId }),
+        // The canvas's and the sender's saved files (#1514, #1521): text only, with no sandbox.
+        ...buildFileTools({
+          canvas: canvasFiles(room),
+          account: accountFilesFor(target),
+          chatId,
+        }),
       },
     }
   },
