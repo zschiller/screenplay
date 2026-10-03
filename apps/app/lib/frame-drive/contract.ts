@@ -10,10 +10,11 @@
  * Each runtime has a backend that applies the ops: the Mac relays them to the
  * Sandbox Bridge in the person's own frame or mockup (`mac/`), hosted relays a
  * mockup's to the asker's canvas through the Room's doc (`view/`, #1391), and
- * will send a frame's to its shared browser (#1396). Every backend passes the
- * same contract suite (`contract-suite.ts`), so what the agent can do doesn't depend on where
- * Screenplay runs. Who may drive is Frame Control's call, applied in front of
- * every backend by the agent's driver (`agent-driver.ts`).
+ * sends a frame's to its shared browser as real input (`hosted/`, #1396).
+ * Every backend passes the same contract suite (`contract-suite.ts`), so what
+ * the agent can do doesn't depend on where Screenplay runs. Who may drive is
+ * Frame Control's call, applied in front of every backend by the agent's
+ * driver (`agent-driver.ts`).
  */
 
 /**
@@ -143,16 +144,22 @@ export type DriveDone = {
 }
 
 /**
- * The gestures the Sandbox Bridge can't make for real (#1367): it drives a
- * page in a person's own canvas (a frame on the Mac, a Mockup anywhere, #1391)
- * with synthetic input, so nothing the browser itself does for a real gesture
- * happens. A gesture that hits one returns the gap instead of pretending it
- * worked, so the agent asks the person to do that step. Trusted input that
- * would close them on the Mac is #1385.
+ * What the agent can't do in a page. A gesture that hits one returns the gap
+ * instead of pretending it worked, so the agent asks the person to do that
+ * step.
+ *
+ * - Anywhere: a file picker, because the agent has no file of the person's
+ *   to give it.
+ * - Where the Sandbox Bridge drives a page in a person's own canvas (a frame
+ *   on the Mac, a Mockup anywhere, #1391), everything else here: its input
+ *   is synthetic, so nothing the browser itself does for a real gesture
+ *   happens (#1367). Trusted input that would close them on the Mac is
+ *   #1385. A hosted frame's shared browser (#1396) takes real input and has
+ *   none of these.
  */
 export const DRIVE_GAPS = {
   "file-picker":
-    "Choosing a file opens the system file picker, which the agent can't open in this page.",
+    "Choosing a file needs a file from the person's computer, which the agent can't pick.",
   clipboard:
     "The page used the clipboard, which the agent can't reach in this page, so the copy or paste didn't happen.",
   "rich-text":

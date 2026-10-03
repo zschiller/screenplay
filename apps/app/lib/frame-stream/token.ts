@@ -12,6 +12,10 @@ import { createHmac } from "node:crypto"
  *   first WebSocket message, never in the URL.
  * - `drive`: the member is the frame's driver in Frame Control, so their
  *   input may reach that frame's page. The newest grant for a frame wins.
+ * - `agent`: Frame Control let the agent drive the frame (#1396), so its
+ *   gesture may run. The agent's connection is a `view` token for
+ *   the agent's party (`@agent`); it takes a frame only from a grant older than its
+ *   own, so a person who took over keeps it.
  *
  * Token: `base64url(JSON claims) "." base64url(HMAC-SHA256(key, body))`,
  * verified by `lib/sandbox-bridge/frame-stream.mjs`.
@@ -22,6 +26,7 @@ export const FRAME_STREAM_TOKEN_TTL_MS = 60_000
 export type FrameStreamClaims =
   | { k: "view"; sub: string; exp: number }
   | { k: "drive"; sub: string; frame: string; exp: number }
+  | { k: "agent"; frame: string; exp: number }
 
 /** The Workspace's stream key, handed to its service at launch. */
 export function frameStreamKey(sandboxName: string): string {
@@ -62,6 +67,18 @@ export function driveToken(
   const exp = now + FRAME_STREAM_TOKEN_TTL_MS
   return {
     token: signFrameStreamToken(key, { k: "drive", sub: userId, frame, exp }),
+    expiresAt: exp,
+  }
+}
+
+export function agentGrant(
+  key: string,
+  frame: string,
+  now = Date.now()
+): { token: string; expiresAt: number } {
+  const exp = now + FRAME_STREAM_TOKEN_TTL_MS
+  return {
+    token: signFrameStreamToken(key, { k: "agent", frame, exp }),
     expiresAt: exp,
   }
 }

@@ -8,6 +8,7 @@
  * on a keyframe.
  */
 
+import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
 import type {
   CanvasToIframeMessage,
   IframeToCanvasMessage,
@@ -33,6 +34,20 @@ export type FrameStreamClientMessage =
    *  would post into a local iframe. Reads from any viewer; room changes
    *  only from the frame's primary. */
   | { t: "bridge"; frame: string; message: CanvasToIframeMessage }
+  /** The agent's Frame Drive op (#1396), from the app's agent connection
+   *  only. `route` and the size start the frame when nobody watches it; a
+   *  gesture carries an agent grant. */
+  | ({ t: "agent"; id: string; op: DriveOp; grant?: string } & AgentFrame)
+  /** A screenshot of the shared page for the agent. */
+  | ({ t: "agent-shot"; id: string } & AgentFrame)
+
+/** Where the agent's frame starts when it isn't running. */
+export type AgentFrame = {
+  frame: string
+  route: string
+  width: number
+  height: number
+}
 
 /** Driver input, in the frame's CSS pixels. Applied only for the driver. */
 export type FrameStreamInput =
@@ -87,6 +102,15 @@ export type FrameStreamServerMessage =
   /** What the shared page's bridge posted to its parent: a read's answer to
    *  whoever asked, what the room records to the primary. */
   | { t: "bridge"; frame: string; message: IframeToCanvasMessage }
+  /** The outcome of the agent's op. */
+  | { t: "agent-result"; id: string; result: DriveResult }
+  /** The agent's screenshot, base64, or why there's none. */
+  | {
+      t: "agent-shot"
+      id: string
+      shot?: { data: string; mediaType: string }
+      reason?: string
+    }
 
 export type FrameStreamVideo = {
   frame: string

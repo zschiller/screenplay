@@ -540,6 +540,25 @@
         // Someone took control from the agent: end a gesture still running.
         driveStopped = true
         reply(d.id, true, null)
+      } else if (d.type === "screenplay:drive-locate") {
+        // Where a gesture's target is, for a shared frame's real input (#1396).
+        driveLocate(d).then(
+          (value) => reply(d.id, true, value),
+          (err) => reply(d.id, false, (err && err.message) || err)
+        )
+      } else if (d.type === "screenplay:drive-cursor") {
+        // The agent's cursor over a shared frame's real input, at show pace
+        // (#1390, #1396): the same cursor the bridge draws for its own.
+        driveCursor(d).then(
+          () => reply(d.id, true, null),
+          (err) => reply(d.id, false, (err && err.message) || err)
+        )
+      } else if (d.type === "screenplay:drive-state") {
+        // What a shared frame's gesture left behind, once it painted.
+        driveState(d).then(
+          (value) => reply(d.id, true, value),
+          (err) => reply(d.id, false, (err && err.message) || err)
+        )
       } else if (d.type === "screenplay:pick-start") {
         startPick()
         reply(d.id, true, null)
@@ -1012,6 +1031,18 @@
     showAt = null
   }
 
+  // A shared frame's service plays show pace with real input, and draws the
+  // cursor through here: glide to a point and pause, pause where it is, dip
+  // for a press, follow a drag, linger after a step, or go.
+  async function driveCursor(d) {
+    if (d.to) return void (await showGlide(d.to))
+    if (d.pause) return void (await showPause())
+    if (d.press) return showPress()
+    if (d.follow) return showFollow(d.follow)
+    if (d.linger) return showLinger()
+    hideShowCursor()
+  }
+
   // Bring the target into view: smoothly, and waited for, at show pace.
   async function inViewAtPace(el, show) {
     if (!el || !el.scrollIntoView) return
@@ -1338,6 +1369,142 @@
     fireMouse(dropOn, "mouseup", end, { buttons: 0 })
     if (driveStopped) return { status: "taken" }
     return done(op, el)
+  }
+
+  // A shared frame (#1396) is driven with real input over CDP: the bridge
+  // only says where a target is, and readies a field for keys. Nothing here
+  // acts on the page the way a gesture does.
+
+  // Real presses, keys and wheels the page has heard, so the service can
+  // tell whether one reached it: a browser that just started drops them for
+  // a moment. And drag-overs, so a drop waits for the page to accept one.
+  const trustedInputs = { pointerdown: 0, keydown: 0, wheel: 0, dragover: 0 }
+  const driveDocId = Math.random().toString(36).slice(2)
+  Object.keys(trustedInputs).forEach((type) =>
+    window.addEventListener(
+      type,
+      (e) => {
+        if (e.isTrusted) trustedInputs[type]++
+      },
+      { capture: true, passive: true }
+    )
+  )
+
+  function scrollerOf(el) {
+    let scroller = el
+    while (scroller && scroller !== document.documentElement) {
+      const cs = getComputedStyle(scroller)
+      if (
+        /(auto|scroll)/.test(cs.overflowY + cs.overflowX) &&
+        (scroller.scrollHeight > scroller.clientHeight ||
+          scroller.scrollWidth > scroller.clientWidth)
+      )
+        return scroller
+      scroller = scroller.parentElement
+    }
+    return null
+  }
+
+  function isDraggable(el) {
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement)
+      if (n.draggable) return true
+    return false
+  }
+
+  // Put the caret at the end of a field, or select all of it to replace.
+  function caretIn(field, all) {
+    field.focus({ preventScroll: true })
+    if (isEditable(field)) {
+      const range = document.createRange()
+      range.selectNodeContents(field)
+      if (!all) range.collapse(false)
+      const sel = getSelection()
+      sel.removeAllRanges()
+      sel.addRange(range)
+      return
+    }
+    try {
+      if (all) field.select()
+      else field.setSelectionRange(field.value.length, field.value.length)
+    } catch {
+      // Email and number fields have no selection range.
+      if (all && field.select) field.select()
+    }
+  }
+
+  // `focus`: "field" readies the text field the target names for typing
+  // (`replace` selects what's in it), "element" focuses the target for a
+  // key. `scroller`: the target's scrolling area. `inPlace`: don't scroll
+  // the target into view (a drag's drop point). `show`: scroll it into view
+  // smoothly, at show pace.
+  async function driveLocate(d) {
+    const t = d.target
+    let el =
+      d.scroller || d.inPlace
+        ? driveTarget(t)
+        : await driveTargetInView(t, !!d.show)
+    if (!el) return null
+    const control = el.nodeName === "LABEL" && el.control ? el.control : el
+    const out = {
+      target: driveDescribe(el),
+      file: control.nodeName === "INPUT" && control.type === "file",
+      // Input there goes to a nested frame, which this page doesn't hear.
+      nested: el.nodeName === "IFRAME",
+      // Dragging it starts an HTML5 drag (a draggable element, a link, an
+      // image), not just pointer moves.
+      draggable: isDraggable(el),
+    }
+    if (d.focus === "field") {
+      const field = textFieldOf(el)
+      if (!field || !isTextField(field))
+        return Object.assign(out, { x: 0, y: 0, field: false })
+      caretIn(field, !!d.replace)
+      el = field
+      out.target = driveDescribe(field)
+    } else if (d.focus === "element" && typeof el.focus === "function") {
+      el.focus({ preventScroll: true })
+    }
+    if (d.scroller) {
+      const scroller = scrollerOf(el)
+      out.scroller = scroller ? cssPath(scroller) : null
+      out.scrollerTarget = scroller ? driveDescribe(scroller) : null
+      // The wheel goes to the visible middle of the scrolling area.
+      const r = (scroller || document.documentElement).getBoundingClientRect()
+      const left = Math.max(0, r.left)
+      const top = Math.max(0, r.top)
+      out.x = (left + Math.min(innerWidth, r.right)) / 2
+      out.y = (top + Math.min(innerHeight, r.bottom)) / 2
+      return out
+    }
+    const p = centerOf(el, t)
+    out.x = p.x
+    out.y = p.y
+    return out
+  }
+
+  async function driveState(d) {
+    await nextPaint()
+    const out = {
+      path: currentPath(),
+      doc: driveDocId,
+      inputs: Object.assign({}, trustedInputs),
+      // Keys go to a nested frame, which this page doesn't hear.
+      nestedFocus:
+        !!document.activeElement &&
+        document.activeElement.nodeName === "IFRAME",
+    }
+    if (d.selector) {
+      const el = safeQuery(d.selector)
+      if (el && "value" in el) out.value = String(el.value)
+      else if (el && isEditable(el)) out.value = el.innerText
+    }
+    if (d.scroller !== undefined) {
+      const s = d.scroller ? safeQuery(d.scroller) : null
+      out.scrolled = s
+        ? { x: s.scrollLeft, y: s.scrollTop }
+        : { x: scrollX, y: scrollY }
+    }
+    return out
   }
 
   // The page's rendered DOM and its styles, optionally for one element. Scripts

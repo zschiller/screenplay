@@ -416,10 +416,11 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     const [a] = viewers.slice(-2) as [Viewer, Viewer]
     const before = a.videos.length
     const requestsBefore = requests.length
-    // The frame's browser process (not its helpers).
+    // The frame's browser process (not its helpers): this service's child,
+    // so another test's service (Frame Drive's) keeps its own.
     const pids = execFileSync("sh", [
       "-c",
-      "pgrep -f 'remote-debugging-pipe' || true",
+      `pgrep -P ${service.pid} -f 'remote-debugging-pipe' || true`,
     ])
       .toString()
       .split("\n")
@@ -626,8 +627,9 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       frame: "p1",
       token: driveToken(KEY, "cy", "p1").token,
     })
-    click(c, "p1")
-    await c.waitFor(() => requests.includes("/count?n=2") || undefined)
+    // A page just thawed can drop a click for a moment, as one just started
+    // does, so it clicks until the count goes up.
+    await clickUntil(c, "p1", 100, 100, () => requests.includes("/count?n=2"))
     expect(requests.filter((r) => r === "/app").length).toBe(loads)
     expect(serviceLog).not.toContain("frame p1: closed")
   }, 40_000)

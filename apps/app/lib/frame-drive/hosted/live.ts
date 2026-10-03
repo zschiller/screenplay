@@ -1,0 +1,159 @@
+import "server-only"
+
+import { frameControlKey } from "@/lib/canvas/frame-control"
+import { AgentFrameDriver } from "@/lib/frame-drive/agent-driver"
+import {
+  hostedFrameDriveBackend,
+  type HostedFrame,
+} from "@/lib/frame-drive/hosted/backend"
+import { roomFrameControlStore } from "@/lib/frame-drive/server"
+import type { FrameDriver } from "@/lib/frame-drive/tools"
+import { viewAgentDriver } from "@/lib/frame-drive/view/live"
+import { frameStreamKey } from "@/lib/frame-stream/token"
+import type { RoomDoc } from "@/lib/room-access"
+import { ensureFrameStream } from "@/lib/sandbox/frame-stream"
+
+// One driver per Room for the process: every chat's agent is the same party
+// on a shared frame, and the driver remembers which frames it holds between
+// tool calls. On globalThis because the in-process turn and the harness MCP
+// route can load this module in separate graphs.
+const DRIVERS_KEY = Symbol.for("screenplay.hostedAgentFrameDrivers")
+type DriversHost = typeof globalThis & {
+  [DRIVERS_KEY]?: Map<string, AgentFrameDriver>
+}
+
+/**
+ * The agent's driver on hosted (#1396): it drives a frame's one shared
+ * browser, under the frame's one Frame Control record, so everyone watching
+ * sees it and anyone can take over.
+ */
+export function hostedAgentDriver(room: RoomDoc): AgentFrameDriver {
+  const host = globalThis as DriversHost
+  const drivers = (host[DRIVERS_KEY] ??= new Map())
+  let driver = drivers.get(room.roomId)
+  if (!driver) {
+    driver = new AgentFrameDriver({
+      backend: hostedFrameDriveBackend({
+        frame: (frameId) => sharedFrame(room, frameId),
+        unreachable: (stream) => forgetStream(stream.url),
+      }),
+      store: roomFrameControlStore(room, { live: true }),
+      keyOf: (frameId) => frameControlKey(frameId, "", true),
+      // The server doesn't see awareness: hand the frame to whoever waits
+      // first, and the canvas passes it on if they've gone.
+      presence: () => ({ online: EVERYONE, goneAt: new Map() }),
+    })
+    drivers.set(room.roomId, driver)
+  }
+  return driver
+}
+
+/**
+ * A hosted chat's driver: a frame goes to its shared browser, a Mockup to the
+ * asker's own view (#1391). Showing either brings it into the asker's view
+ * (#1390), which only their canvas can do.
+ */
+export function hostedChatDriver(room: RoomDoc, userId: string): FrameDriver {
+  const shared = hostedAgentDriver(room)
+  const mockups = viewAgentDriver(room, userId)
+  const isMockup = (id: string) =>
+    room.readDoc((c) => c.mockupLayers.get(id) !== undefined)
+  const pick = async (id: string) => ((await isMockup(id)) ? mockups : shared)
+  return {
+    run: async (id, op) => (await pick(id)).run(id, op),
+    async start(id, opts) {
+      const driver = await pick(id)
+      const outcome = await driver.start(id, opts)
+      if (
+        driver === shared &&
+        outcome.status === "driving" &&
+        opts.pace === "show"
+      ) {
+        // Best effort, as on the Mac: the demo runs if their canvas can't move.
+        await mockups.reveal(id).catch(() => null)
+      }
+      return outcome
+    },
+    screenshot: async (id) => (await pick(id)).screenshot(id),
+    frameUnavailable: async (id) => (await pick(id)).frameUnavailable(id),
+    letGo: async (id) => (await pick(id)).letGo(id),
+    // A shared frame runs whether or not anyone has the canvas open; a
+    // Mockup says so itself when the asker's canvas is closed.
+    canvasUnavailable: async () => null,
+  }
+}
+
+/** Every party counts as online. */
+class Everyone extends Set<string> {
+  override has(): boolean {
+    return true
+  }
+}
+const EVERYONE: ReadonlySet<string> = new Everyone()
+
+async function sharedFrame(
+  room: RoomDoc,
+  frameId: string
+): Promise<HostedFrame | string> {
+  const found = await room.readDoc((c) => {
+    const layer = c.iframeLayers.get(frameId)
+    const branch = layer?.branchId ? c.branches.get(layer.branchId) : undefined
+    return { layer, branch }
+  })
+  const { layer, branch } = found
+  if (!layer) return "The frame isn't on the canvas anymore."
+  if (!branch) {
+    return "The frame isn't in a Workspace, so there's no shared browser to drive."
+  }
+  if (!branch.previewDomain) {
+    return "The Workspace's dev server isn't running, so its frame has nothing to show."
+  }
+  const stream = await workspaceStream(branch.sandboxName, branch.port)
+  if (typeof stream === "string") return stream
+  return {
+    route: layer.route || "/",
+    width: Math.round(layer.width),
+    height: Math.round(layer.height),
+    stream,
+  }
+}
+
+// Each Workspace's stream, once its service is known to run: checking means
+// running a command in the Sandbox, too slow for every step. A failure isn't
+// kept, so the next step checks again.
+const STREAM_CHECK_MS = 60_000
+const STREAMS_KEY = Symbol.for("screenplay.hostedFrameDriveStreams")
+type StreamsHost = typeof globalThis & {
+  [STREAMS_KEY]?: Map<string, { url: string; key: string; at: number }>
+}
+
+function forgetStream(url: string): void {
+  const streams = (globalThis as StreamsHost)[STREAMS_KEY]
+  for (const [name, stream] of streams ?? [])
+    if (stream.url === url) streams!.delete(name)
+}
+
+async function workspaceStream(
+  sandboxName: string,
+  devPort: number
+): Promise<HostedFrame["stream"] | string> {
+  const host = globalThis as StreamsHost
+  const streams = (host[STREAMS_KEY] ??= new Map())
+  const cached = streams.get(sandboxName)
+  if (cached && Date.now() - cached.at < STREAM_CHECK_MS) return cached
+  const result = await ensureFrameStream(sandboxName, devPort)
+  if (!result.success) {
+    streams.delete(sandboxName)
+    return `The Workspace's shared browser didn't start: ${result.error}`
+  }
+  if (!result.value) {
+    return "This Workspace's frames aren't shared (its Sandbox predates shared frames), so they can't be driven here."
+  }
+  const stream = {
+    url: result.value.url,
+    key: frameStreamKey(sandboxName),
+    at: Date.now(),
+  }
+  streams.set(sandboxName, stream)
+  return stream
+}
