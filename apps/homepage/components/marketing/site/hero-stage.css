@@ -8,8 +8,7 @@
   --hc-floor: clamp(300px, calc(100svh - 400px), 520px);
 }
 /* The floor sits behind the text rather than pushing it down, so the
-   headline doesn't move when the copies are built. The far side fades into
-   the dark under the nav. */
+   headline doesn't move when the copies are built. */
 .hc-backdrop {
   position: absolute;
   inset: 0 0 auto;
@@ -19,11 +18,6 @@
   pointer-events: none;
   perspective: 800px;
   perspective-origin: 50% 90%;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 70px,
-    #000 calc(var(--hc-floor) * 0.6)
-  );
 }
 /* The headline's first line sinks into the nearest row, where the veil turns
    solid. */
