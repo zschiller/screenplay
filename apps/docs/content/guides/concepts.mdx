@@ -18,7 +18,7 @@ UI follows.
 ## Canvas
 
 A **canvas** is the container for one piece of work: a feature, a redesign,
-an experiment. It's an infinite, zoomable surface with the sidebar on the left
+an experiment. It’s an infinite, zoomable surface with the sidebar on the left
 and the agent panel on the right. Canvases live on the
 [home screen](/guides/home), where you can file them into folders and pin
 them. On the hosted app you can [share](/guides/collaboration) a canvas, and
@@ -28,13 +28,13 @@ name.
 
 ## Coordinator
 
-The **Coordinator** is the canvas's own chat, and where the agent panel opens.
+The **Coordinator** is the canvas’s own chat, and where the agent panel opens.
 Every canvas has exactly one, shared by everyone on it. It sees the whole
-canvas: each workspace's status, changes and pull request, and every frame and
+canvas: each workspace’s status, changes and pull request, and every frame and
 document. It arranges the canvas for you, and when you ask for a change, a
-document or a mockup it sends a message to the right workspace's agent, which
+document or a mockup it sends a message to the right workspace’s agent, which
 does the work. The Coordinator makes nothing itself. It can also start new workspaces, open a
-workspace's pull request and remove a workspace, right away.
+workspace’s pull request and remove a workspace, right away.
 → [The Coordinator](/guides/coordinator)
 
 ## Repository
@@ -61,8 +61,8 @@ A **workspace** is one git branch of a repository, running in its own isolated
 Each workspace has a title (the agent writes it from your first message), its
 own dev server, and its own agent chat and terminals. The **Chats**
 button at the top right of the agent panel lists every chat in one flat
-list, like threads in a project: each workspace's chat by its title. On a canvas with several repositories each row ends with its
-repository's name.
+list, like threads in a project: each workspace’s chat by its title. On a canvas with several repositories each row ends with its
+repository’s name.
 Workspaces are cheap: create one for every idea you want to try and compare
 them side by side.
 → [Workspaces](/guides/workspaces)
@@ -70,14 +70,14 @@ them side by side.
 ## Frame
 
 A **frame** is a live preview on the canvas. It shows one route of one
-workspace's dev server at a chosen device size. Frames are real browsers:
+workspace’s dev server at a chosen device size. Frames are real browsers:
 switch into **Interact** mode and you can click through the app.
 → [Frames](/guides/frames)
 
 ## Document
 
 A **document** is a rich-text page on the canvas for specs, checklists, notes
-and plans. Documents are edited collaboratively, and a workspace's chat can
+and plans. Documents are edited collaboratively, and a workspace’s chat can
 write one for you and keep editing it.
 → [Documents](/guides/documents)
 
@@ -85,14 +85,14 @@ write one for you and keep editing it.
 
 A **mockup** is a static page a workspace chat draws on the canvas to show a
 design option. It needs no dev server, so it shows up at once, beside its
-workspace's frames or in a group of its own. It shows the workspace of the chat
+workspace’s frames or in a group of its own. It shows the workspace of the chat
 that made it, and only that chat can change it. → [Mockups](/guides/mockups)
 
 ## Group
 
 A **group** is a row of frames, documents and mockups laid out left to right, so the
 desktop and mobile versions of a page, or the steps of a flow, stay together.
-Every frame, document and mockup lives in one. When all of a group's frames show the
+Every frame, document and mockup lives in one. When all of a group’s frames show the
 same workspace, as the screens of one flow do, the group names it once;
 otherwise each frame names its own.
 → [Groups](/guides/canvas#groups)
@@ -102,7 +102,7 @@ otherwise each frame names its own.
 A **workspace agent** does the coding. Every workspace has exactly one chat,
 and only that chat changes its code. When you (or the Coordinator) give it
 work, it reads files, edits them, runs commands, and commits inside that
-workspace's sandbox. It can read other workspaces' code, but never changes
+workspace’s sandbox. It can read other workspaces’ code, but never changes
 it. Where the agent comes
 from depends on how you run Screenplay:
 
@@ -118,7 +118,7 @@ same sandbox. → [Workspace chats](/guides/agent),
 
 ## Memory
 
-**Memory** is short notes every chat follows, like "Use pnpm, never npm."
+**Memory** is short notes every chat follows, like “Use pnpm, never npm.”
 Each canvas keeps a shared **canvas memory** that every chat on it reads;
 any chat saves to it when you tell it something worth keeping. Your
 **account memory** follows you: every chat you send a message in reads it,
@@ -129,9 +129,9 @@ in Settings. → [Memory](/guides/memory)
 reference image. Every chat on the canvas can open them; agents organize
 them, and you browse or delete them in Canvas settings. → [Files](/guides/files)
 
-## Names you'll see in the code
+## Names you’ll see in the code
 
-The UI labels are deliberately friendlier than the code's names. If you read
+The UI labels are deliberately friendlier than the code’s names. If you read
 the source or the self-hosting docs:
 
 | In the UI       | In the code        |

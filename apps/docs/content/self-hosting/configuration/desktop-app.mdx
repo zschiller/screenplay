@@ -45,18 +45,18 @@ at runtime and re-injected by the shell when it spawns the sidecar.
 ## Lifecycle
 
 Tauri owns the sidecar end-to-end. All of this runs off the main thread, so the
-window paints a loading screen (the logo, on the app's own light or dark
+window paints a loading screen (the logo, on the app’s own light or dark
 background) the moment the app opens:
 
 1. **Port** — binds `127.0.0.1:0` for a free port and hands it to the sidecar.
-2. **Spawn** — extracts the bundled tree (while recovering the login shell's
+2. **Spawn** — extracts the bundled tree (while recovering the login shell’s
    `PATH` in parallel) and runs `node apps/app/server.js` with
    the desktop profile, the machine-specific data dirs (under the OS app-data
    directory), and the per-install secrets.
 3. **Health gate** — polls `/api/health` and only navigates the webview to the
    local server once it 200s, so first paint never races the boot. A spinner
    joins the logo only if the boot runs long; if the sidecar exits or never
-   answers, the loading screen says Screenplay couldn't start instead of
+   answers, the loading screen says Screenplay couldn’t start instead of
    spinning forever.
 4. **Shutdown** — kills and reaps the sidecar on quit (no orphan).
 
@@ -70,21 +70,21 @@ launch** next to the app data — stable across restarts, unique per install.
 ## Thumbnails
 
 The desktop build ships no headless Chromium, so the
-[blob store](/self-hosting/configuration/blob-store)'s thumbnail capture happens in a webview:
-the sidecar's `TauriWebviewCapturer` POSTs each render URL to the shell's
+[blob store](/self-hosting/configuration/blob-store)’s thumbnail capture happens in a webview:
+the sidecar’s `TauriWebviewCapturer` POSTs each render URL to the shell’s
 localhost control server (`TAURI_CONTROL_URL`), which renders it off-screen and
-returns a PNG via the platform webview's snapshot API. The local-fs store writes
-the WebP and serves it back from the sidecar's own `/blobs` route.
+returns a PNG via the platform webview’s snapshot API. The local-fs store writes
+the WebP and serves it back from the sidecar’s own `/blobs` route.
 
-The same control server snapshots the canvas window itself when a chat's agent
+The same control server snapshots the canvas window itself when a chat’s agent
 [drives a frame](/guides/frames#the-agent-driving-a-frame) and checks a step.
-It also plays the agent's clicks and keys as real input to the canvas window,
+It also plays the agent’s clicks and keys as real input to the canvas window,
 sets your clipboard aside around a step that copies or pastes, and answers a
-file picker the agent's click opens with files from the frame's workspace.
+file picker the agent’s click opens with files from the frame’s workspace.
 These act on your screen and clipboard, so the shell mints a token at launch
 and hands it only to the sidecar (`TAURI_CONTROL_TOKEN`); a snapshot or input
-request without it is refused. The agent's steps reach the canvas over a
-WebSocket on the local Yjs server's port, behind the same per-launch secret and
+request without it is refused. The agent’s steps reach the canvas over a
+WebSocket on the local Yjs server’s port, behind the same per-launch secret and
 Origin check as the Yjs sync connection.
 
 ## Building
@@ -96,10 +96,10 @@ pnpm --filter desktop build           # package Screenplay.app
 ```
 
 The sidecar ships as a **tarball**, not a directory: the Next-traced
-`node_modules` keeps pnpm's peer-dependency symlinks, which Tauri's resource copy
+`node_modules` keeps pnpm’s peer-dependency symlinks, which Tauri’s resource copy
 drops — tar preserves them (and the bundled `node` exec bit). The build also
 folds in the pieces standalone tracing misses (`.next/static`, `public`, the
-`drizzle/local` migrations, and `node-pty`'s native prebuild). See
+`drizzle/local` migrations, and `node-pty`’s native prebuild). See
 `apps/desktop/README.md` for the full rationale.
 
 Prerequisites: the Rust + Tauri toolchain and `node` on `PATH`.
@@ -110,6 +110,6 @@ Signed macOS builds are published as `desktop-v<version>`
 [GitHub Releases](https://github.com/zschiller/screenplay/releases) with the
 `.dmg` attached twice: as `Screenplay_<version>_aarch64.dmg`, and as
 `Screenplay.dmg` so that `releases/latest/download/Screenplay.dmg` always
-fetches the newest build. They're published by
-`pnpm --filter desktop release` on a Mac (see [Releasing the desktop app](/contributing#releasing-the-desktop-app)). There's no
+fetches the newest build. They’re published by
+`pnpm --filter desktop release` on a Mac (see [Releasing the desktop app](/contributing#releasing-the-desktop-app)). There’s no
 auto-update yet.

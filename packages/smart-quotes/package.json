@@ -1,0 +1,22 @@
+{
+  "name": "@workspace/smart-quotes",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "bin": {
+    "smart-quotes": "./cli.js"
+  },
+  "scripts": {
+    "test": "node --test 'test/*.test.js'"
+  },
+  "dependencies": {
+    "remark-frontmatter": "^5.0.0",
+    "remark-mdx": "^3.1.1",
+    "remark-parse": "^11.0.0",
+    "typescript": "^6.0.3",
+    "unified": "^11.0.5"
+  }
+}

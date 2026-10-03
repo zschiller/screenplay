@@ -13,7 +13,7 @@ const contextItems = [
   },
   {
     title: "Files",
-    body: "Research, references and PDFs stay in the canvas's files or yours, so the next chat picks up where the last one stopped.",
+    body: "Research, references and PDFs stay in the canvas’s files or yours, so the next chat picks up where the last one stopped.",
   },
   {
     title: "Skills",
@@ -21,7 +21,7 @@ const contextItems = [
   },
   {
     title: "Attachments",
-    body: "Drop a screenshot, PDF or text file on the message box. It's saved with the canvas's files for later chats.",
+    body: "Drop a screenshot, PDF or text file on the message box. It’s saved with the canvas’s files for later chats.",
   },
 ]
 

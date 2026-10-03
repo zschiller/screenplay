@@ -9,14 +9,14 @@ Each entry starts with what you see in the app.
 
 ## Agents
 
-<Only desktop /> **"No coding agent found" in the composer**. No supported
-coding CLI is installed or signed in, so the chat can't send; the Send button's
+<Only desktop /> **“No coding agent found” in the composer**. No supported
+coding CLI is installed or signed in, so the chat can’t send; the Send button’s
 tooltip says **No coding agent detected**. Open **Settings → Agent** (the
-composer's **Settings** link goes there) and use **Install and sign in** on
+composer’s **Settings** link goes there) and use **Install and sign in** on
 Claude Code, Codex or opencode. The CLI shows up in the model picker straight
 away, with no restart. See [Settings → Agent](/guides/settings#agent).
 
-<Only hosted /> **"No models are set up on this server yet"**. The server has no
+<Only hosted /> **“No models are set up on this server yet”**. The server has no
 model provider configured. Whoever runs it adds one; see [Model
 providers](/self-hosting/configuration/model-providers).
 
@@ -24,14 +24,14 @@ providers](/self-hosting/configuration/model-providers).
 
 **A frame never shows the app.** It stays on **Starting dev server**, or ends
 on **Dev server not responding** or **Workspace failed to start**. On a
-failure, click **Open logs** on the frame: the workspace's **Dev server**
-terminal shows the dev server's and portless's output. The usual cause is a
-run script that doesn't serve on the port Screenplay assigned, covered next.
+failure, click **Open logs** on the frame: the workspace’s **Dev server**
+terminal shows the dev server’s and portless’s output. The usual cause is a
+run script that doesn’t serve on the port Screenplay assigned, covered next.
 Fix what the logs show, then click **Retry**. You can also ask the
-workspace's agent to debug the preview, since it reads the same output.
+workspace’s agent to debug the preview, since it reads the same output.
 
-<Only desktop /> **"The dev server didn't start on the port Screenplay gave
-it"**. This is `DevServerPortIgnoredError`: the dev server is running but never
+<Only desktop /> **“The dev server didn’t start on the port Screenplay gave
+it”**. This is `DevServerPortIgnoredError`: the dev server is running but never
 listened on its assigned port, usually because the run script ignores `$PORT`.
 
 1. Edit the repository in **Canvas settings** and add the port to its **Run
@@ -40,8 +40,8 @@ listened on its assigned port, usually because the run script ignores `$PORT`.
 
 See [When the preview never loads](/guides/building/dev-server#when-the-preview-never-loads).
 
-**A Turborepo dev server ignores the port.** Turborepo 2's strict env mode
-strips variables a task doesn't declare, so `$PORT` is empty inside the task,
+**A Turborepo dev server ignores the port.** Turborepo 2’s strict env mode
+strips variables a task doesn’t declare, so `$PORT` is empty inside the task,
 and a package script that hardcodes `--port 3001` wins over the variable
 anyway. Pass the port as a flag after `--`, which works for Next.js and Vite
 because the last `--port` wins:
@@ -55,16 +55,16 @@ Alternatively, add `"passThroughEnv": ["PORT"]` to the `dev` task in
 
 ## Workspaces
 
-<Only desktop /> **"The branch … is already open in another workspace on this
-computer"**. Desktop workspaces are git worktrees of one shared clone, and git
+<Only desktop /> **“The branch … is already open in another workspace on this
+computer”**. Desktop workspaces are git worktrees of one shared clone, and git
 checks out each branch only once. Close the workspace that has the branch open,
 or open a different branch. See [One branch, one
 workspace](/guides/workspaces#one-branch-one-workspace).
 
-<Only desktop /> **"The branch … is checked out in your local clone"**. The same
+<Only desktop /> **“The branch … is checked out in your local clone”**. The same
 limit, against your own checkout: the agent would be editing your clone
 directly. Switch your clone to another branch, then open the workspace again.
 
-<Only desktop /> **"Not a git repository"**. The folder you added isn't a git
+<Only desktop /> **“Not a git repository”**. The folder you added isn’t a git
 repository. Add a local clone or a GitHub repository instead; see [Adding a
 repository](/guides/repositories#adding-a-repository).

@@ -6,19 +6,19 @@ description: Provision Postgres, understand the schema, ship migrations, or swap
 # Database
 
 Screenplay keeps everything durable in Postgres. Any Postgres works. The
-default driver is Neon's serverless HTTP driver, and you can
+default driver is Neon’s serverless HTTP driver, and you can
 [swap it](#using-a-different-postgres-driver).
 
 ## Setup
 
 1. Create a database anywhere (Neon, Vercel Postgres, Supabase, your own
    server) and put its connection string in `DATABASE_URL`.
-2. That's all. The checked-in migrations in `apps/app/drizzle/` are applied
+2. That’s all. The checked-in migrations in `apps/app/drizzle/` are applied
    on every build (`drizzle-kit migrate && next build`), so each deploy
    upgrades the schema before the new code runs. To set up a local database,
    run `pnpm db:migrate` in `apps/app`.
 
-## What's in the schema
+## What’s in the schema
 
 The schema is split in two: `apps/app/lib/db/schema-core.ts` holds the tables
 every build uses, and `schema-multiuser.ts` holds the tables only the hosted
@@ -29,10 +29,10 @@ build needs. `schema.ts` combines both.
 | `user`                                                                | Accounts                                                                                                                                   |
 | `session`, `account`, `verification`                                  | Better Auth sessions, plus the GitHub OAuth token when hosted                                                                              |
 | `room`, `room_member`                                                 | Canvases and, when hosted, who can open them. Membership also gates Yjs and terminal tokens.                                               |
-| `folder`, `room_folder`, `pin`                                        | Each user's folders, filing, and sidebar pins                                                                                              |
+| `folder`, `room_folder`, `pin`                                        | Each user’s folders, filing, and sidebar pins                                                                                              |
 | `thread`, `comment`, `thread_read`                                    | <Only hosted /> Comment threads and per-user read state                                                                                    |
-| `agent_chat`, `agent_message`, `agent_run`, `agent_pending_tool_call` | Agent conversations: chats, their message history, each run's state, and tool calls waiting on the user (such as a plan awaiting approval) |
-| `terminal_tab`                                                        | Each user's terminal tabs: label, order, and, for tabs opened before shells became plain, which CLI they launch. Never scrollback.         |
+| `agent_chat`, `agent_message`, `agent_run`, `agent_pending_tool_call` | Agent conversations: chats, their message history, each run’s state, and tool calls waiting on the user (such as a plan awaiting approval) |
+| `terminal_tab`                                                        | Each user’s terminal tabs: label, order, and, for tabs opened before shells became plain, which CLI they launch. Never scrollback.         |
 | `kv_store`                                                            | Key/value cache with TTLs and locks: model catalogs, encrypted repositories and canvas env vars                                            |
 
 Live canvas state (layout, frames, documents, chat tabs) lives in the Yjs
@@ -50,11 +50,11 @@ cd apps/app && pnpm db:generate
 
 Migrations are idempotent: already-applied ones are skipped. For throwaway
 local experiments, `pnpm db:push` syncs the schema without a migration file.
-Don't commit the result.
+Don’t commit the result.
 
 <Callout type="warning">
   Preview deploys run migrations against whatever `DATABASE_URL` their scope
-  has. Point previews at a separate database, or a PR's migration reaches
+  has. Point previews at a separate database, or a PR’s migration reaches
   production before it merges. See [Deploying to
   Vercel](/self-hosting/deploying-to-vercel#environment-variable-scopes).
 </Callout>
@@ -62,8 +62,8 @@ Don't commit the result.
 ## Using a different Postgres driver
 
 The app programs against the `DB` type in `apps/app/lib/db/types.ts`, which is
-Drizzle's generic `PgDatabase`. `selectDb()` in `apps/app/lib/db/index.ts`
-chooses the concrete driver: Neon's serverless HTTP driver by default, or
+Drizzle’s generic `PgDatabase`. `selectDb()` in `apps/app/lib/db/index.ts`
+chooses the concrete driver: Neon’s serverless HTTP driver by default, or
 embedded PGlite when `SCREENPLAY_DB=pglite` (the desktop build). To use a
 different driver:
 

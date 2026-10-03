@@ -12,7 +12,7 @@ const bodyText = "text-[15px] leading-normal text-muted-foreground"
 const perks = {
   live: {
     title: "Live frames",
-    body: "Frames open as each person's own copy. Click Go live and everyone on the canvas is on one browser, watching each click.",
+    body: "Frames open as each person’s own copy. Click Go live and everyone on the canvas is on one browser, watching each click.",
   },
   agent: {
     title: "The agent at the controls",
@@ -24,7 +24,7 @@ const perks = {
   },
   chats: {
     title: "Shared agent chats",
-    body: "Watch a teammate's agent work live, then carry on in the same chat. Every message names its sender, and commits go out under their name.",
+    body: "Watch a teammate’s agent work live, then carry on in the same chat. Every message names its sender, and commits go out under their name.",
   },
   repos: {
     title: "Repositories set up once",
@@ -44,7 +44,7 @@ function TeamsHead({ figure }: { figure?: React.ReactNode }) {
         <div className="flex flex-col items-start gap-8">
           <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
             Deploy the web app and your team shares one canvas from any
-            browser, with everyone&apos;s cursors on it. Every chat runs in its
+            browser, with everyone’s cursors on it. Every chat runs in its
             own cloud sandbox, so nobody installs anything. The software is free
             and MIT licensed; you pay for hosting and model usage.
           </p>

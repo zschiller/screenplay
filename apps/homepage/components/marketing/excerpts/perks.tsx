@@ -101,7 +101,7 @@ function PerkCard({
 
 export function PerkLive() {
   return (
-    <PerkCard label="A frame gone live: the Live badge on its title line, Go live pressed in its bar, two teammates' cursors on it.">
+    <PerkCard label="A frame gone live: the Live badge on its title line, Go live pressed in its bar, two teammates’ cursors on it.">
       <Frame
         label="Home"
         workspace={split.title}

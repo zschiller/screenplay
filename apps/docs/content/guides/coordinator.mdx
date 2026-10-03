@@ -5,27 +5,27 @@ description: One chat for the whole canvas that reads every workspace, arranges 
 
 # The Coordinator
 
-The **Coordinator** is one chat for the whole canvas. It's where the panel
+The **Coordinator** is one chat for the whole canvas. It’s where the panel
 opens, and every canvas has exactly one, shared by everyone on it. It can see
 every workspace (its title, status, changed lines and pull request), every
 frame and document, and your terminal tabs, so you can ask things like
-"What's on this canvas?" or "Which chats have a PR?" without opening
+“What’s on this canvas?” or “Which chats have a PR?” without opening
 each one. It reads documents too, including ones you @ mention.
 
 It can also look inside a workspace: what its agent was last asked, a summary
 of what it did and its last reply (or the whole chat when it needs it), the
-workspace's changes and its files. And it can look at a frame, taking a
+workspace’s changes and its files. And it can look at a frame, taking a
 screenshot of the live preview, or using the last saved one when the preview
-isn't running, or read the page in a frame as HTML with its styles. So you
-can ask "What did the sign-in workspace change, and how does it look?"
+isn’t running, or read the page in a frame as HTML with its styles. So you
+can ask “What did the sign-in workspace change, and how does it look?”
 
 <Screenshot
   name="coordinator"
-  alt="The Coordinator chat, the panel's home when no workspace is selected"
+  alt="The Coordinator chat, the panel’s home when no workspace is selected"
 />
 
 The Coordinator can also arrange the canvas. Ask it to add frames for a
-workspace's routes, move frames, documents and mockups between groups, rename
+workspace’s routes, move frames, documents and mockups between groups, rename
 frames and groups, gather things into a group, merge groups, or remove frames
 and documents. It can tidy the canvas too, or line groups up side by side, in
 a column or in a grid, spaced so nothing overlaps. It does these right away,
@@ -34,47 +34,47 @@ Coordinator arranges the canvas and moves the view, so workspace chats never
 fight over the layout; it places what they make by judgment, usually beside
 the frames it relates to.
 
-It can move your view as well. Ask it to "zoom to the cart", "take me to the
-split screen variant" or "show me everything", and your canvas moves to fit
+It can move your view as well. Ask it to “zoom to the cart”, “take me to the
+split screen variant” or “show me everything”, and your canvas moves to fit
 it. After it arranges something you asked for, it shows you the result. Only
-the view of the person who asked moves; everyone else's stays where it is.
+the view of the person who asked moves; everyone else’s stays where it is.
 
-To take a change back, ask it: "undo that". It keeps what each of its replies
+To take a change back, ask it: “undo that”. It keeps what each of its replies
 changed, so a frame or document it removed comes back exactly as it was, and
 you can undo an undo the same way. Your own ⌘Z still undoes only your own
-edits, never the Coordinator's.
+edits, never the Coordinator’s.
 
 The Coordinator makes nothing itself. It never works inside a sandbox, never
-edits a workspace's files, and never writes a [document](/guides/documents) or
+edits a workspace’s files, and never writes a [document](/guides/documents) or
 a [mockup](/guides/mockups). When you ask it for any of these, it sends the
-ask to the workspace it's about, and that workspace's agent does the work and
+ask to the workspace it’s about, and that workspace’s agent does the work and
 owns what it makes. When no workspace fits, it starts a new one for the ask.
 
-When the ask isn't about any workspace's code, or the canvas has no
+When the ask isn’t about any workspace’s code, or the canvas has no
 [repository](/guides/repositories) yet, the Coordinator starts a
 [chat with no repository](/guides/agent#chats-with-no-repository) for a
 document or mockup instead, and sends follow-ups there. On a canvas with no
 repository its empty chat suggests a few such asks.
 
 Adding a repository only adds it. Until a workspace has been asked
-something, the Coordinator's empty chat asks what should change in the
+something, the Coordinator’s empty chat asks what should change in the
 repository, and your first ask starts a workspace for it. A workspace that
-hasn't been asked anything yet takes the next ask that fits its repository
+hasn’t been asked anything yet takes the next ask that fits its repository
 instead of a new one being planned; if its app is still starting, the ask runs
-as soon as it's up.
+as soon as it’s up.
 
 ## Messages to workspaces
 
 Each workspace chat the Coordinator starts or messages shows up as a card
-under the Coordinator message that started it, with the workspace's title, its
+under the Coordinator message that started it, with the workspace’s title, its
 changed lines and its state, and under them the message it was sent. The state
-reads the same as the workspace's row in the Workspaces menu:
+reads the same as the workspace’s row in the Workspaces menu:
 
 - **Sending** while the message goes out;
-- **Starting** while the workspace's sandbox comes up;
+- **Starting** while the workspace’s sandbox comes up;
 - **Working** while its agent runs;
 - **Needs you** when its plan waits for your approval, it asked you a
-  question, or its pull request can't merge;
+  question, or its pull request can’t merge;
 - **Ready** once its turn ends, including a turn that ended in an error or
   that someone stopped;
 - **Stopped** when its sandbox is stopped;
@@ -84,87 +84,87 @@ reads the same as the workspace's row in the Workspaces menu:
 - **Removed** once the workspace has been deleted.
 
 The card updates as the chat works. Click it to switch the panel to that
-workspace's chat; **Coordinator** at the start of the panel header brings you
+workspace’s chat; **Coordinator** at the start of the panel header brings you
 back.
 
-In the workspace's chat, the message shows as one line, **Received a message
+In the workspace’s chat, the message shows as one line, **Received a message
 from the Coordinator**. Click it to read what was asked. The chat is still
 yours: type in it at any time to take over.
 
-The Coordinator won't message a workspace whose agent is already working,
-whose sandbox isn't running, or whose plan is waiting on you. It tells you
+The Coordinator won’t message a workspace whose agent is already working,
+whose sandbox isn’t running, or whose plan is waiting on you. It tells you
 instead, and only you approve plans.
 
 ## Starting workspaces
 
 When an ask needs work no workspace covers, the Coordinator starts new
 workspaces right away, without asking first, and names them in its reply. If
-it started one you didn't want, ask it to remove it.
+it started one you didn’t want, ask it to remove it.
 
-Each workspace starts its sandbox, and its agent begins on the Coordinator's
+Each workspace starts its sandbox, and its agent begins on the Coordinator’s
 first message as soon as the sandbox is running. The new workspaces show up as
-cards in the Coordinator's reply, **Starting** at first, each with the first
+cards in the Coordinator’s reply, **Starting** at first, each with the first
 message it was given.
 They belong to whoever asked for them. If one fails to start, the others carry
 on: its card shows **Failed**, the Coordinator tells you, and **Retry** on the
 workspace brings it up and sends that first message then.
 
-The Coordinator can also stop a workspace's running turn, which happens right
-away. The workspace's chat keeps everything so far.
+The Coordinator can also stop a workspace’s running turn, which happens right
+away. The workspace’s chat keeps everything so far.
 
 ## Pull requests and removing workspaces
 
-Ask the Coordinator to open a workspace's pull request or to remove a
+Ask the Coordinator to open a workspace’s pull request or to remove a
 workspace, and it does it right away, without asking first. Its reply shows
-one line saying what happened, with the pull request's link when one opened. If
-it can't, because the workspace already has a pull request open or isn't in a
-GitHub repository, that line says why. A pull request you didn't want can be
+one line saying what happened, with the pull request’s link when one opened. If
+it can’t, because the workspace already has a pull request open or isn’t in a
+GitHub repository, that line says why. A pull request you didn’t want can be
 closed on GitHub.
 
-The pull request goes from the workspace's git branch into the repository's
-default branch, with its title and description taken from the branch's
-commits, as the workspace chat's **Create PR** button does. It's opened with the
+The pull request goes from the workspace’s git branch into the repository’s
+default branch, with its title and description taken from the branch’s
+commits, as the workspace chat’s **Create PR** button does. It’s opened with the
 GitHub account of whoever owns the workspace, even when someone else asked or
 the Coordinator followed up on its own.
 
 Removing a workspace works like **Delete** in the Chats menu: its chat and
 frames go and its sandbox is torn down. The git branch and any pull request
-stay on GitHub. Removing can't be undone.
+stay on GitHub. Removing can’t be undone.
 
 ## Trying something several ways
 
-Ask the Coordinator to try one thing several ways, like "try the sign-in page
-three ways", and it starts one workspace per variant, all from the same
+Ask the Coordinator to try one thing several ways, like “try the sign-in page
+three ways”, and it starts one workspace per variant, all from the same
 repository and branch, and says how each differs. Name the directions yourself
 or let the Coordinator pick them; with no number, it starts three. The
-variants' frames sit side by side in one group, so you can compare them on the
+variants’ frames sit side by side in one group, so you can compare them on the
 canvas. When every variant has finished, the Coordinator sums them up in one
 reply and leaves the pick to you.
 
 ## When a workspace finishes
 
 The Coordinator hears from every workspace on the canvas, including ones you
-started yourself. Each time a workspace's agent finishes, fails, is stopped or
+started yourself. Each time a workspace’s agent finishes, fails, is stopped or
 stops to wait for plan approval, the Coordinator reads what happened. That
 happens out of sight: while it reads, the chat shows only a quiet
 **Catching up on** line naming the workspace, and its reads never appear in
 the chat.
 
-It stays quiet unless there's something you need to know: a result, a
+It stays quiet unless there’s something you need to know: a result, a
 blocker, or a decision only you can make. When a workspace is waiting for you
 to approve its plan, it tells you which one. You approve the plan in the
-workspace; the Coordinator can't.
+workspace; the Coordinator can’t.
 
 When the Coordinator names a workspace, frame, document or mockup, the name
-shows in medium weight after its icon. A workspace's icon is its state, so you
+shows in medium weight after its icon. A workspace’s icon is its state, so you
 can see at a glance which one is working, waiting for you or done. Click a
-workspace's name to open it, or any other name to show that item on the
+workspace’s name to open it, or any other name to show that item on the
 canvas.
 
 ## Canvas memory
 
 The canvas keeps a shared **memory**: preferences, decisions and facts about
-its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
+its repositories, like “Use pnpm, never npm.” Every chat on the canvas reads
 it. The Coordinator, like every other chat, saves to it when you tell it
 something worth keeping or ask it to remember something, and edits or removes
 entries when you ask. See [Memory](/guides/memory) for managing it yourself, and for
@@ -172,19 +172,19 @@ your own account memory, which follows you to every canvas.
 
 ## Chatting with the Coordinator
 
-The Coordinator's chat works like a
-[workspace chat](/guides/agent#the-composer), with a few differences. It's
+The Coordinator’s chat works like a
+[workspace chat](/guides/agent#the-composer), with a few differences. It’s
 one chat, so there are no tabs and no chat history. You can
-[@ mention documents](/guides/agent#mentioning-documents), point at what's
+[@ mention documents](/guides/agent#mentioning-documents), point at what’s
 [selected or on screen](/guides/agent#pointing-with-the-canvas), pick its model and
 [send while it works](/guides/agent#sending-while-the-agent-works) and
 [pick a skill](/guides/building/skills#using-skills) with <kbd>/</kbd>, but its
 composer has no **Plan** toggle and no crosshair, since it never edits code.
 
-Its tool calls show as compact rows, like a workspace agent's. A row that
+Its tool calls show as compact rows, like a workspace agent’s. A row that
 reads a workspace names it, such as **Read changes in** _Checkout_. Once a
 change to the canvas finishes, its row says what changed, such as **Renamed
-Group "Hero" to "Sign-in"**.
+Group “Hero” to “Sign-in”**.
 
 | Kind    | Rows                                                                                                                                                     |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |

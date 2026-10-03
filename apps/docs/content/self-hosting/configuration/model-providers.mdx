@@ -5,13 +5,13 @@ description: Configure which LLM providers power the hosted agent, set the defau
 
 # Model providers
 
-On the hosted app the agent is Screenplay's own loop, built on the
+On the hosted app the agent is Screenplay’s own loop, built on the
 [Vercel AI SDK](https://ai-sdk.dev). It runs on whichever model providers you
 configure. Each provider turns on when its environment variables are set, and
-configured providers appear as sections in the chat's model picker.
+configured providers appear as sections in the chat’s model picker.
 
 <Callout type="info">
-  The desktop app doesn't use these providers. Its chat runs through the
+  The desktop app doesn’t use these providers. Its chat runs through the
   coding CLIs installed on the machine. See
   [Coding CLIs](/self-hosting/configuration/byo-harnesses#desktop-detected-clis).
 </Callout>
@@ -23,7 +23,7 @@ configured providers appear as sections in the chat's model picker.
 | **Anthropic** | `anthropic` | `ANTHROPIC_API_KEY` | `/v1/models` |
 | **OpenAI** | `openai` | `OPENAI_API_KEY` | `/v1/models`, chat models only |
 | **Google Gemini** | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | models supporting `generateContent` |
-| **Vercel AI Gateway** | `vercel` | `AI_GATEWAY_API_KEY` | the gateway's language models |
+| **Vercel AI Gateway** | `vercel` | `AI_GATEWAY_API_KEY` | the gateway’s language models |
 | **OpenAI-compatible** | `compat` | `OPENAI_COMPATIBLE_BASE_URL`, optional `OPENAI_COMPATIBLE_API_KEY` | `${BASE_URL}/v1/models` |
 
 At least one provider is required.
@@ -34,7 +34,7 @@ At least one provider is required.
   upstream models show up without a Screenplay release.
 - **Vercel AI Gateway** gives you hundreds of models behind one key, plus
   budgets, analytics, and failover. Set `AI_GATEWAY_API_KEY` explicitly, even
-  on Vercel: the gateway doesn't accept the OIDC token Vercel injects.
+  on Vercel: the gateway doesn’t accept the OIDC token Vercel injects.
 - **OpenAI-compatible** covers OpenRouter, Groq, Together, vLLM, LM Studio,
   Ollama, LiteLLM, and similar:
 
@@ -49,15 +49,15 @@ Model ids always name their provider: `<provider>:<model>`, for example
 `anthropic:claude-sonnet-5-5`, `openai:gpt-6-astra`,
 `vercel:anthropic/claude-sonnet-5.5`, or `compat:llama-3.3-70b`. Ids without a
 provider are rejected, so a request can never quietly reach a provider you
-didn't intend.
+didn’t intend.
 
 `AGENT_DEFAULT_MODEL` sets the default for new chats. It defaults to
-`anthropic:claude-sonnet-5-5`. If you don't run Anthropic, point it at a
-provider you do. If its provider isn't configured, new chats use the first
-enabled model instead. Each user's last-picked model is remembered in their browser.
+`anthropic:claude-sonnet-5-5`. If you don’t run Anthropic, point it at a
+provider you do. If its provider isn’t configured, new chats use the first
+enabled model instead. Each user’s last-picked model is remembered in their browser.
 
-A chat whose model belongs to a provider that's no longer configured fails
-with that provider's error. It's never rerouted to a different provider.
+A chat whose model belongs to a provider that’s no longer configured fails
+with that provider’s error. It’s never rerouted to a different provider.
 
 ## Adding a provider
 
@@ -98,4 +98,4 @@ export function getMistralProvider(): ModelProvider {
 Install the adapter (`pnpm add @ai-sdk/mistral` in `apps/app`), then add the
 factory to the `PROVIDERS` array in `providers/index.ts`. The agent, the model
 picker, and `/api/agent/models` need no other changes. Use the existing
-providers' `discover()` helper from `cache.ts` for a live, cached model list.
+providers’ `discover()` helper from `cache.ts` for a live, cached model list.

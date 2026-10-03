@@ -6,8 +6,8 @@ description: Install Claude Code, Codex and OpenCode in sandboxes, without handi
 # Coding CLIs (harnesses)
 
 Besides the built-in agent, Screenplay can install **bring-your-own coding
-CLIs** ("harnesses") in every sandbox, where anyone can run one from a
-workspace's [shells](/guides/terminals). On desktop, a harness *is* the chat
+CLIs** (“harnesses”) in every sandbox, where anyone can run one from a
+workspace’s [shells](/guides/terminals). On desktop, a harness *is* the chat
 agent. Each CLI is a descriptor in
 `apps/app/lib/agent/harnesses/`:
 
@@ -31,14 +31,14 @@ SANDBOX_HARNESSES=claude-code,codex    # several
 # unset → no CLI is installed
 ```
 
-A key takes effect only when it's a known key **and** its model provider is
+A key takes effect only when it’s a known key **and** its model provider is
 configured with a key that can be injected. Anything else is skipped quietly,
 never a startup failure.
 
 **The CLI never sees your API key.** It boots with a placeholder credential,
-and the sandbox's egress firewall adds the real key to outgoing requests for
-that provider's host. Every user on the deployment shares the operator's keys,
-unmetered. That's the single-trusted-operator model described in
+and the sandbox’s egress firewall adds the real key to outgoing requests for
+that provider’s host. Every user on the deployment shares the operator’s keys,
+unmetered. That’s the single-trusted-operator model described in
 `apps/app/docs/adr/0002-byo-harness-terminal.md`.
 
 <Callout type="warning">
@@ -56,32 +56,32 @@ subscription logins, with no API key needed. Users install and sign in from
 **Settings → Agent**.
 
 Detected chat-capable CLIs also back the **agent chat**. Screenplay starts
-each CLI's [Agent Client Protocol](https://agentclientprotocol.com) adapter,
-and its models appear in the chat's model picker, grouped by CLI. The model
+each CLI’s [Agent Client Protocol](https://agentclientprotocol.com) adapter,
+and its models appear in the chat’s model picker, grouped by CLI. The model
 you pick in a chat decides which CLI runs it.
-`SCREENPLAY_ACP_HARNESS=codex` changes the default for chats that haven't
+`SCREENPLAY_ACP_HARNESS=codex` changes the default for chats that haven’t
 picked a model (default `claude-code`).
 
 The [Coordinator](/guides/coordinator) runs on these CLIs too. Its
 canvas tools reach the CLI as an MCP server that only the desktop app serves,
 on `127.0.0.1`, behind a token that works for that one canvas. Screenplay
 allows those tools up front, so the CLI never asks you to approve them. Each
-canvas's Coordinator runs in its own folder under
+canvas’s Coordinator runs in its own folder under
 `~/.screenplay/coordinator` (set `SCREENPLAY_COORDINATOR_ROOT` to move it),
 not in a repository. Claude Code, Codex and OpenCode can all back it.
 OpenCode runs its own adapter, `opencode acp`, and names these tools
 `screenplay_<tool>`.
 
-A workspace chat on a CLI edits files and runs commands with the CLI's own
-tools. It reaches Screenplay's tools through the same server: the dev server,
+A workspace chat on a CLI edits files and runs commands with the CLI’s own
+tools. It reaches Screenplay’s tools through the same server: the dev server,
 frames, documents, mockups, skills and opening a pull request. Their output
-has the workspace's environment variable values removed, as in the built-in
+has the workspace’s environment variable values removed, as in the built-in
 agent.
 
 ## Adding a CLI
 
 A harness descriptor declares its catalog key and label, the command to
-launch, the provider it's brokered through, the binary to detect on desktop,
+launch, the provider it’s brokered through, the binary to detect on desktop,
 how to install it and sign in, and optionally an ACP adapter and a curated
 model list. Copy an existing descriptor in `apps/app/lib/agent/harnesses/` and
 register it in `index.ts`.

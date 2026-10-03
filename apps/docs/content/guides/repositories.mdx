@@ -16,25 +16,25 @@ click **…** next to the canvas name at the top left and choose **Settings**.
 
 The list comes in two parts: **On this canvas**, every repository on the
 canvas, each with **Edit** and **Remove**, then **Your other repositories**,
-the ones of [yours](#your-repositories) it doesn't use yet, each with
-**Add**. Each row shows the repository's short name (its label, or the
-repository's own name) over its setup and run scripts. Add one and it's on
+the ones of [yours](#your-repositories) it doesn’t use yet, each with
+**Add**. Each row shows the repository’s short name (its label, or the
+repository’s own name) over its setup and run scripts. Add one and it’s on
 the canvas: chats can use it and new workspaces start from its settings. On a
 shared canvas these settings are shared with everyone on it, so a
-collaborator's new workspaces start the same way as yours.
+collaborator’s new workspaces start the same way as yours.
 
 <Only hosted /> **On this canvas** holds every repository anyone on the canvas
 has added, and one a teammate added says who after its name. When a teammate has
-already added a repository you also have, under the same name, yours isn't
+already added a repository you also have, under the same name, yours isn’t
 offered: the canvas uses theirs.
 
 The Chats menu lists chats, not repositories: when a canvas has two
-or more repositories, each [workspace](/guides/workspaces)'s row ends with its
-repository's short name.
+or more repositories, each [workspace](/guides/workspaces)’s row ends with its
+repository’s short name.
 
 ## Adding a repository
 
-To set up a repository that isn't in your list yet, click **New repository**
+To set up a repository that isn’t in your list yet, click **New repository**
 at the end of the list in Canvas settings. It saves the repository to
 [your repositories](#your-repositories) and turns it on for this canvas in one
 step. On a canvas with no repository yet, **Add repository** on the empty
@@ -65,7 +65,7 @@ instead.
 
 <Callout type="info">
   GitHub browsing needs a GitHub connection. On desktop, without one you can
-  still add a local folder or paste a clone URL; git uses your machine's own
+  still add a local folder or paste a clone URL; git uses your machine’s own
   credentials.
 </Callout>
 
@@ -79,12 +79,12 @@ instead.
 | **Environment variables** | <Only hosted /> `KEY=value` lines every workspace gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                      |
 | **Files to copy**         | <Only desktop /> Files from your folder to copy into each workspace (default `.env*`), so local secrets come along. One pattern per line. Only for a local folder, not a GitHub repository or clone URL.                                               |
 | **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                                                                        |
-| **Agent instructions**    | Extra instructions for the agent in this repository, e.g. "Work in the Next.js app under `apps/web`". _(Advanced)_                                                                      |
-| **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository's name in chats, and beside its `owner/name` in repository lists. Tells apart two setups of one repository. |
+| **Agent instructions**    | Extra instructions for the agent in this repository, e.g. “Work in the Next.js app under `apps/web`”. _(Advanced)_                                                                      |
+| **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository’s name in chats, and beside its `owner/name` in repository lists. Tells apart two setups of one repository. |
 
 The run script has to serve on the port Screenplay assigns. Most frameworks
 handle this automatically; see [Dev server & ports](/guides/building/dev-server) if
-yours doesn't.
+yours doesn’t.
 
 To change settings later, click **Edit** on the repository in Canvas
 settings. Changes apply to workspaces you create afterwards.
@@ -104,7 +104,7 @@ this canvas and leave the rest as they were.
 
 Chats hide these values from what they show and store, including tool output,
 replies and pull requests, wherever they find them (values shorter than 8
-characters aren't hidden). This is a courtesy, not a security boundary: the
+characters aren’t hidden). This is a courtesy, not a security boundary: the
 values are set inside every workspace, so code running there, or an agent
 that encodes a value some other way, can still read them.
 
@@ -112,12 +112,12 @@ that encodes a value some other way, can still read them.
 
 **Edit** in Canvas settings changes the repository on this canvas only.
 
-On hosted, that's all there is to it: adding a repository copies your
-settings onto the canvas once, and from then on the canvas's copy is its own.
+On hosted, that’s all there is to it: adding a repository copies your
+settings onto the canvas once, and from then on the canvas’s copy is its own.
 Edits made on the canvas, by you or anyone else on it, stay on that canvas,
-and edits you make in Settings don't reach it.
+and edits you make in Settings don’t reach it.
 
-On desktop, the canvas's copy stays linked to your repository. Once
+On desktop, the canvas’s copy stays linked to your repository. Once
 its label or any setting differs from [your repository](#your-repositories)
 in Settings, a small orange dot follows its name, with the tooltip
 **Customized for this canvas**. That includes environment variable values
@@ -127,7 +127,7 @@ To undo it, click **Edit** and then **Reset to Settings**: the repository
 takes your Settings again and the dot goes away.
 
 To make an edit everywhere instead, tick **Also update Settings and my other
-canvases** before you click **Save**. It's off by default. The edit goes to
+canvases** before you click **Save**. It’s off by default. The edit goes to
 your repository in Settings and to every canvas that uses it, including ones
 where it was customized, so none of them has the dot afterwards. A canvas
 keeps its own environment variable values if you changed them there.
@@ -144,12 +144,12 @@ Settings, so you can add it back later.
 
 On hosted it always asks first. The repository is removed for everyone on the
 canvas, with any changes made to it here, and the confirm says so. When a
-teammate added it, the confirm names them, since it won't appear under **Your
+teammate added it, the confirm names them, since it won’t appear under **Your
 other repositories** for you to add back.
 
 When chats use the repository, the confirm says how many and lists each one,
 since they come off the canvas with it, and warns if uncommitted work would be
-lost. When you're connected to GitHub, it also offers **Also delete these _N_
+lost. When you’re connected to GitHub, it also offers **Also delete these _N_
 branches on GitHub**, which is off by default.
 
 ## Your repositories
@@ -162,21 +162,21 @@ Canvas settings names each repository the same way, by its `owner/name`,
 and **Manage in Settings** under its list opens this page.
 On desktop, each row here says how many canvases use it, such as **On 2
 canvases**, and editing a repository in Settings updates every canvas that uses
-it, except the ones where it's
+it, except the ones where it’s
 [customized](#customizing-a-repository-for-one-canvas). A canvas keeps its
 own environment variable values if someone changed them there. On hosted, an
 edit in Settings only changes what canvases get when you add it next.
 
 <Screenshot
   name="settings-presets"
-  alt="Settings → Repositories: northwind-web with a 'web' repository"
+  alt="Settings → Repositories: northwind-web with a ‘web’ repository"
 />
 
 On desktop, every repository on your canvases also has a home in Settings:
 the first time you open Settings after updating, any canvas repository that
 matches none of yours is added to the list.
 
-Deleting a repository in Settings doesn't take it off your canvases. On
+Deleting a repository in Settings doesn’t take it off your canvases. On
 desktop, the confirm says how many canvases use it; each keeps its copy, which
 keeps running its workspaces but stops getting your edits from Settings. It no
 longer shows a dot, and you can still edit it on its canvas. On hosted, every
@@ -192,4 +192,4 @@ A repository on a canvas previews **one** app. To work on two apps from the
 same monorepo, add it as two of your repositories with different names. For example,
 a `web` one running `pnpm --filter web dev` and a `docs` one running
 `pnpm --filter docs dev`. Use the **Agent instructions** field to tell the agent
-which folder is its app's root.
+which folder is its app’s root.
