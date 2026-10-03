@@ -50,12 +50,9 @@ To watch it happen, open **Dev server** under the workspace's composer (see
 [Terminals](/guides/agent#terminals)). When the server is up, the frame shows
 the app.
 
-To work on a branch that already exists, click the **…** next to **+** and
-choose **Open existing git branch** (on a canvas with several repositories,
-pick the repository first). It lists the branches on GitHub, so the **…**
-shows only when you're connected to GitHub and a repository is on GitHub. A
-branch another chat on the canvas already has is listed with that chat's
-name and can't be picked, so two agents never push to the same branch.
+Every chat starts on a branch of its own, so two agents never push to the
+same branch. To build on a branch that already exists, pick it as the row's
+**base branch**: the new chat starts from it on a new branch.
 
 A canvas with no repository yet says that workspaces need one, with an
 **Add repository** button that goes straight to
@@ -75,8 +72,6 @@ from depends on how the workspace started:
 - **From a Coordinator plan**, the workspace takes the title from the plan,
   and its branch is named from that title when it's created. Its first
   message renames neither.
-- **From Open existing git branch**, its first message changes neither the
-  branch nor the title. It reads **New chat** until you rename it.
 
 Earlier chats on a canvas from before workspaces had one chat keep their own
 names and never change the workspace's title or branch.

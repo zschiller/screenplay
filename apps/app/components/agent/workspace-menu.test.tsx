@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react"
 import type { BranchData, RepoData } from "@/lib/types"
 
-// The Open existing git branch picker lists the remote's branches; none here.
+// The create dialog's base picker lists the remote's branches; none here.
 vi.mock("@/lib/github-actions", () => ({
   listRepoBranches: vi.fn().mockResolvedValue([]),
 }))
@@ -112,7 +112,6 @@ function renderHeader(b: BranchData, { provider = true } = {}) {
         onCreateSketchChat={noop}
         onRenameSketchChat={noop}
         onDeleteSketchChat={noop}
-        onCreateBranchFromGitBranch={noop}
         onCreateWorkspace={noop}
         onRestartDevServer={noop}
         onCreatePr={noop}

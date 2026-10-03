@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react"
 import type { BranchData, RepoData } from "@/lib/types"
 
-// The Open existing git branch picker lists the remote's branches; none here.
+// The create dialog's base picker lists the remote's branches; none here.
 vi.mock("@/lib/github-actions", () => ({
   listRepoBranches: vi.fn().mockResolvedValue([]),
 }))
@@ -28,10 +28,8 @@ vi.mock("@/hooks/use-workspace-states", async () => {
 vi.mock("@/hooks/use-unsaved-work", () => ({
   useUnsavedWork: () => new Map(),
 }))
-// Whether GitHub is reachable; scripted per test.
-const github = vi.hoisted(() => ({ connected: true }))
 vi.mock("@/hooks/use-github-token", () => ({
-  useGitHubTokenAvailable: () => github.connected,
+  useGitHubTokenAvailable: () => true,
 }))
 
 import { ChatsMenuButton, ChatsMenuProvider } from "./chats-menu"
@@ -102,7 +100,6 @@ function renderMenu(
       onCreateSketchChat={onCreateSketchChat}
       onRenameSketchChat={noop}
       onDeleteSketchChat={noop}
-      onCreateBranchFromGitBranch={noop}
       onCreateWorkspace={noop}
       onRestartDevServer={noop}
       onCreatePr={noop}
@@ -187,7 +184,7 @@ describe("Chats menu", () => {
     })
   })
 
-  it("keeps New chat and … beside the search field while searching", () => {
+  it("keeps only New chat beside the search field while searching", () => {
     renderMenu([branch({})])
     const menu = openMenu()
     fireEvent.change(within(menu).getByPlaceholderText("Search chats…"), {
@@ -196,24 +193,8 @@ describe("Chats menu", () => {
     expect(within(menu).getByText("No matches.")).toBeTruthy()
     expect(within(menu).getByRole("button", { name: "New chat" })).toBeTruthy()
     expect(
-      within(menu).getByRole("button", { name: "More chat actions" })
-    ).toBeTruthy()
-  })
-
-  it("keeps only + when GitHub can't list any repository's branches", () => {
-    github.connected = false
-    try {
-      renderMenu([branch({})])
-      const menu = openMenu()
-      expect(
-        within(menu).queryByRole("button", { name: "More chat actions" })
-      ).toBeNull()
-      expect(
-        within(menu).getByRole("button", { name: "New chat" })
-      ).toBeTruthy()
-    } finally {
-      github.connected = true
-    }
+      within(menu).queryByRole("button", { name: "More chat actions" })
+    ).toBeNull()
   })
 
   it("gives the first section its own heading", () => {
@@ -226,9 +207,6 @@ describe("Chats menu", () => {
     const { onCreateSketchChat } = renderMenu([], { repos: [] })
     const menu = openMenu()
     expect(within(menu).getByText("No chats yet.")).toBeTruthy()
-    expect(
-      within(menu).queryByRole("button", { name: "More chat actions" })
-    ).toBeNull()
     fireEvent.click(within(menu).getByRole("button", { name: "New chat" }))
     expect(onCreateSketchChat).toHaveBeenCalledOnce()
   })

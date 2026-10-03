@@ -156,6 +156,11 @@ describe("removeBranch — local teardown vs. the remote branch", () => {
 })
 
 describe("create requests the server refuses (#791)", () => {
+  // A bare create: no prompt, so no name request, just the create call.
+  const bareSpec = { baseBranch: "main", model: "sonnet", prompt: "" }
+  const created = (
+    collections: ReturnType<typeof mountIntake>["collections"]
+  ) => collections.branches.toArray().find((b) => b.id !== "branch-1")
   const fetchMock = vi.fn()
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock)
@@ -173,17 +178,13 @@ describe("create requests the server refuses (#791)", () => {
     const { collections, result } = mountIntake()
 
     await act(async () => {
-      result.current.createBranchFromGitBranch("repo-1", "feature-b")
-      await Promise.resolve()
+      await result.current.createBranch("repo-1", [bareSpec])
     })
     await vi.waitFor(() => {
-      const created = collections.branches
-        .toArray()
-        .find((b) => b.ref === "feature-b")
-      expect(created).toMatchObject({
+      expect(created(collections)).toMatchObject({
         status: "error",
         error: "No GitHub token",
-        createFlow: "from-branch",
+        createFlow: "new",
       })
     })
   })
@@ -193,13 +194,10 @@ describe("create requests the server refuses (#791)", () => {
     const { collections, result } = mountIntake()
 
     await act(async () => {
-      result.current.createBranchFromGitBranch("repo-1", "feature-b")
+      await result.current.createBranch("repo-1", [bareSpec])
     })
     await vi.waitFor(() => {
-      const created = collections.branches
-        .toArray()
-        .find((b) => b.ref === "feature-b")
-      expect(created).toMatchObject({
+      expect(created(collections)).toMatchObject({
         status: "error",
         error: "Failed to fetch",
       })

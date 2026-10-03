@@ -29,12 +29,6 @@ interface BranchPickerProps {
   repo: string
   onSelect: (branch: string) => void
   onDuplicate?: (branch: string) => void
-  /**
-   * Branches a chat on this canvas already has, each with that chat's title.
-   * They list disabled with the title beside them: two agents on one branch
-   * would each commit and push over the other.
-   */
-  taken?: ReadonlyMap<string, string>
 }
 
 export function BranchPicker({
@@ -42,7 +36,6 @@ export function BranchPicker({
   repo,
   onSelect,
   onDuplicate,
-  taken,
 }: BranchPickerProps) {
   const [branches, setBranches] = useState<GitHubBranch[]>([])
   const [loading, startTransition] = useTransition()
@@ -84,7 +77,6 @@ export function BranchPicker({
             <CommandItem
               key={b.name}
               value={b.name}
-              disabled={taken?.has(b.name)}
               onSelect={() =>
                 onDuplicate && metaRef.current
                   ? onDuplicate(b.name)
@@ -93,11 +85,7 @@ export function BranchPicker({
             >
               <GitBranchIcon className="text-sidebar-foreground/70" />
               <span className="flex-1 truncate">{b.name}</span>
-              {taken?.has(b.name) ? (
-                <span className="shrink-0 truncate text-xs text-muted-foreground">
-                  {taken.get(b.name)}
-                </span>
-              ) : onDuplicate ? (
+              {onDuplicate ? (
                 <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground group-data-selected/command-item:flex">
                   <Kbd className="bg-popover">↵</Kbd>
                   <span>Open</span>

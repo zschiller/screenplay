@@ -37,8 +37,7 @@ import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
 /**
  * Branch Intake controller (PRD #562) — the Repo → Branch → Sandbox lifecycle
  * lifted out of `components/canvas/canvas.tsx`. The component calls the verbs
- * this hook returns (`createBranch`, `createBranchFromGitBranch`,
- * `removeRepo`, `removeBranch`); the orchestration — the
+ * this hook returns (`createBranch`, `removeRepo`, `removeBranch`); the orchestration — the
  * multi-collection Y.Doc writes through the Canvas Operation seam (ADR 0001),
  * the Sandbox Provider calls (ADR 0003), and above all the *ordering* — lives
  * here in one place rather than smeared across the canvas surface.
@@ -114,7 +113,6 @@ export interface BranchIntake {
     specs: ComposerSpec[],
     opts?: CreateBranchOptions
   ) => Promise<void>
-  createBranchFromGitBranch: (repoId: string, branch: string) => void
   removeRepo: (
     id: string,
     options: { deleteBranchesOnRemote: boolean }
@@ -252,54 +250,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       if (error) updateAgentInStorage(branchId, { status: "error", error })
     },
     [roomId, updateAgentInStorage]
-  )
-
-  // Eagerly seed a single new Branch's canvas frame at creation time, rather
-  // than waiting on the deferred `running`-gated seeder: a single-member Group
-  // at the viewport center, selected and zoomed once its frame mounts. The op
-  // clears `pendingIframeLayerSeed`, so the reactive seeder skips this Branch.
-  // Bulk creates seed their own shared Group inline (see createBranch).
-  const seedEagerFrameForBranch = useCallback(
-    (branchId: string) => {
-      const frame = planBranchSeed({
-        branchId,
-        hasSeededChat: false,
-      }).frame
-      const { cx, cy } = getViewportCenter()
-      const frameGroup = ops.createFramesForAgents([frame], { x: cx, y: cy })
-      if (!frameGroup) return
-      setSelectedGroupIds(new Set([frameGroup.groupId]))
-      setSelectedIframeLayerIds(new Set())
-      const firstLayerId = frameGroup.layerIds[0]
-      if (firstLayerId)
-        requestAnimationFrame(() => handleSelectIframeLayer(firstLayerId))
-    },
-    [
-      ops,
-      getViewportCenter,
-      handleSelectIframeLayer,
-      setSelectedGroupIds,
-      setSelectedIframeLayerIds,
-    ]
-  )
-
-  /**
-   * Seed a freshly-created single Branch's default tab to the user's pref via
-   * the Tab Pool seed entry (selection deferred until the sandbox is ready), so
-   * the tab shows up immediately rather than only after provisioning finishes.
-   * Since the client always pre-seeds, the server is told to skip its auto chat;
-   * the returned `seedChat` flag is forwarded to the create API.
-   */
-  const seedDefaultTabForNewBranch = useCallback(
-    (branchId: string): boolean => {
-      const { tab } = planBranchSeed({
-        branchId,
-        hasSeededChat: false,
-      })
-      if (tab) createDefaultTabForBranch(tab.branchId, { select: false })
-      return false
-    },
-    [createDefaultTabForBranch]
   )
 
   // Prompts queued by the prompt-first create handler (createBranch) that should
@@ -539,53 +489,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     ]
   )
 
-  const createBranchFromGitBranch = useCallback(
-    (repoId: string, branch: string) => {
-      const repo = repos.find((w) => w.id === repoId)
-      if (!repo) return
-      // One chat per branch: a second agent on it would push over the first.
-      if (agents.some((a) => a.repoId === repoId && a.ref === branch)) return
-
-      const sandboxName = `sp-${nanoid(10)}`
-
-      const { branchId: id } = ops.createBranch({
-        branch: {
-          repoId,
-          sandboxName,
-          gitUrl: repo.cloneUrl,
-          ref: branch,
-          previewDomain: "",
-          port: repo.devServerPort ?? DEFAULT_DEV_SERVER_PORT,
-          status: "creating",
-          statusMessage: "Cloning repository…",
-          createdAt: Date.now(),
-          autoNamedBranch: false,
-          createFlow: "from-branch",
-        },
-      })
-      chatTarget.addPending([id])
-      const seedChat = seedDefaultTabForNewBranch(id)
-      seedEagerFrameForBranch(id)
-
-      void requestCreate(id, {
-        flow: "from-branch",
-        sandboxName,
-        branch,
-        repoId,
-        seedChat,
-      })
-    },
-    [
-      agents,
-      repos,
-      ops,
-      requestCreate,
-      seedDefaultTabForNewBranch,
-      seedEagerFrameForBranch,
-      chatTarget,
-    ]
-  )
-
   // Dispatch prompts queued by the prompt-first create handler (createBranch)
   // once their agent's sandbox reaches `running`. Deleting the entry before
   // sending means the prompt fires exactly once — never before `running`, and
@@ -639,7 +542,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // Seed iframeLayers for agents whose sandbox has finished provisioning. The
   // flag is set at create time and cleared here after the first seed, so
   // deleting the last frame for a branch later does not re-spawn one. This is
-  // the deferred sibling of `seedEagerFrameForBranch` (which seeds at create
+  // the deferred sibling of createBranch's eager frame (which seeds at create
   // time): a Branch whose eager seed didn't land — e.g. a create that resumed
   // after a reload — still gets its frame once it reaches `running`.
   useEffect(() => {
@@ -796,7 +699,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
 
   return {
     createBranch,
-    createBranchFromGitBranch,
     removeRepo,
     removeBranch,
     retryBranch,

@@ -1566,7 +1566,6 @@ export function Canvas({
   // controller owns the ordering invariants and the Sandbox Provider calls.
   const {
     createBranch,
-    createBranchFromGitBranch,
     removeRepo: removeRepoIntake,
     removeBranch: removeBranchIntake,
     retryBranch,
@@ -2057,7 +2056,6 @@ export function Canvas({
             updateChatSession(chatId, { label })
           }
           onDeleteSketchChat={deleteSketchChat}
-          onCreateBranchFromGitBranch={createBranchFromGitBranch}
           onCreateWorkspace={createBranch}
           onRestartDevServer={branchActions.restartDevServer}
           onCreatePr={branchActions.createPullRequest}

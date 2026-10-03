@@ -17,7 +17,6 @@ import {
   PencilSimpleIcon,
   TrashIcon,
   DotsThreeIcon,
-  GitBranchIcon,
   PlusIcon,
 } from "@workspace/ui/components/icons"
 
@@ -33,20 +32,10 @@ import {
 } from "@workspace/ui/components/command"
 
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
-
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 
@@ -65,8 +54,6 @@ import {
 } from "@workspace/ui/components/popover"
 
 import { cn } from "@workspace/ui/lib/utils"
-
-import { BranchPicker } from "@/components/branch-picker"
 
 import {
   CreateBranchDialog,
@@ -171,7 +158,6 @@ export interface ChatsMenuProviderProps {
   onRenameSketchChat: (chatId: string, label: string) => void
   /** Delete a chat with no repository; what it made stays on the canvas. */
   onDeleteSketchChat: (chatId: string) => void
-  onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRestartDevServer: (id: string) => void
   onCreatePr: (branchId: string) => void
@@ -211,7 +197,6 @@ type ChatsMenuValue = Omit<
   /** Which Workspaces have a dialog open over them (no row hover then). */
   pendingBranchIds: Set<string>
   openNewWorkspace: (repoId: string | null, baseBranch?: string) => void
-  openBranchPicker: (repoId: string) => void
   askDelete: (branchId: string) => void
   askRecreate: (branchId: string) => void
   /**
@@ -219,12 +204,6 @@ type ChatsMenuValue = Omit<
    * remote and the GitHub API is reachable.
    */
   canCreatePr: (repo: RepoData) => boolean
-  /**
-   * Whether GitHub can list a Repository's branches for Open existing git
-   * branch: the same GitHub remote + reachable API test as
-   * {@link canCreatePr}.
-   */
-  canListBranches: (repo: RepoData) => boolean
   askDeleteSketchChat: (chatId: string) => void
   /**
    * Rename asked for where the title can't be edited (a frame's Workspace
@@ -264,14 +243,10 @@ export function ChatsMenuProvider({
     branches,
     markdownLayers,
     onSelectWorkspace,
-    onCreateBranchFromGitBranch,
     onRecreateBranch,
     onRemoveBranch,
   } = props
   const [open, setOpen] = useState(false)
-  const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
-    null
-  )
   const [newWorkspaceRepoId, setNewWorkspaceRepoId] = useState<string | null>(
     null
   )
@@ -388,10 +363,6 @@ export function ChatsMenuProvider({
     setNewWorkspaceBaseBranch(baseBranch ?? null)
     setNewWorkspaceRepoId(repoId)
   }
-  const openBranchPicker = (repoId: string) => {
-    setOpen(false)
-    setBranchPickerRepoId(repoId)
-  }
   const askDelete = (id: string) => {
     setOpen(false)
     setPendingDeleteBranchId(id)
@@ -438,11 +409,9 @@ export function ChatsMenuProvider({
     lastUsedRepoId,
     pendingBranchIds,
     openNewWorkspace,
-    openBranchPicker,
     askDelete,
     askRecreate,
     canCreatePr,
-    canListBranches: canCreatePr,
     askDeleteSketchChat,
     renameRequest,
     requestRename,
@@ -461,9 +430,6 @@ export function ChatsMenuProvider({
   const recreateBranch = pendingRecreateBranchId
     ? branches.find((b) => b.id === pendingRecreateBranchId)
     : null
-  const pickerRepo = branchPickerRepoId
-    ? reposById.get(branchPickerRepoId)
-    : undefined
 
   return (
     <ChatsMenuContext.Provider value={value}>
@@ -559,38 +525,6 @@ export function ChatsMenuProvider({
           }}
         />
       ) : null}
-      {/* "Open existing git branch" reattaches to a remote branch: a single
-          Enter action, no new branch and no prompt. Forking lives in the
-          Workspace menu's "New chat from here…" (#353). */}
-      <Dialog
-        open={!!pickerRepo}
-        onOpenChange={(next) => {
-          if (!next) setBranchPickerRepoId(null)
-        }}
-      >
-        <DialogContent className="max-w-sm gap-0 p-0">
-          <DialogHeader className="px-5 pt-5 pb-2">
-            <DialogTitle>Open existing git branch</DialogTitle>
-          </DialogHeader>
-          {pickerRepo ? (
-            <BranchPicker
-              owner={pickerRepo.repoOwner}
-              repo={pickerRepo.repoName}
-              taken={
-                new Map(
-                  branches
-                    .filter((b) => b.repoId === pickerRepo.id && b.ref)
-                    .map((b) => [b.ref, workspaceLabel(b)])
-                )
-              }
-              onSelect={(branch) => {
-                setBranchPickerRepoId(null)
-                onCreateBranchFromGitBranch(pickerRepo.id, branch)
-              }}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </ChatsMenuContext.Provider>
   )
 }
@@ -764,78 +698,25 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
 }
 
 /**
- * The list's actions beside the search field: + starts a chat, and with it its
- * Workspace, in one step (#884, #1315); the … holds the rarer Open existing git
- * branch, for the Repositories whose branches GitHub can list. With none of
- * those (a local-only repo, or no GitHub connection) there is nothing for …
- * to hold and only + shows. On a canvas with no repository + starts a chat
- * with none.
+ * The New chat button beside the search field: it starts a chat, and with it
+ * its Workspace, in one step (#884, #1315). On a canvas with no repository it
+ * starts a chat with none. Chats always start on a new branch; nothing here
+ * opens an existing one, so two agents never push to the same branch.
  */
 function ChatsMenuActions({ menu }: { menu: ChatsMenuValue }) {
-  const { sortedRepos } = menu
-  const branchRepos = sortedRepos.filter(menu.canListBranches)
-  if (sortedRepos.length === 0)
-    return (
-      <IconButton
-        label="New chat"
-        className="mb-0.5 text-muted-foreground"
-        onClick={() => {
+  return (
+    <IconButton
+      label="New chat"
+      className="mb-0.5 text-muted-foreground"
+      onClick={() => {
+        if (menu.sortedRepos.length === 0) {
           menu.onCreateSketchChat()
           menu.setOpen(false)
-        }}
-      >
-        <PlusIcon />
-      </IconButton>
-    )
-  return (
-    <>
-      {branchRepos.length > 0 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              label="More chat actions"
-              className="mb-0.5 text-muted-foreground"
-            >
-              <DotsThreeIcon />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="bottom" align="end" {...isolate}>
-            {branchRepos.length === 1 ? (
-              <DropdownMenuItem
-                onClick={() => menu.openBranchPicker(branchRepos[0]!.id)}
-              >
-                <GitBranchIcon />
-                Open existing git branch
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <GitBranchIcon />
-                  Open existing git branch
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {branchRepos.map((repo) => (
-                    <DropdownMenuItem
-                      key={repo.id}
-                      onClick={() => menu.openBranchPicker(repo.id)}
-                    >
-                      {repoShortName(repo)}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-      <IconButton
-        label="New chat"
-        className="mb-0.5 text-muted-foreground"
-        onClick={() => menu.openNewWorkspace(menu.lastUsedRepoId)}
-      >
-        <PlusIcon />
-      </IconButton>
-    </>
+        } else menu.openNewWorkspace(menu.lastUsedRepoId)
+      }}
+    >
+      <PlusIcon />
+    </IconButton>
   )
 }
 
