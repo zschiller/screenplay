@@ -36,7 +36,6 @@
     "@liveblocks/node": "^3.24.2",
     "@liveblocks/react": "^3.24.2",
     "@liveblocks/yjs": "^3.24.2",
-    "@napi-rs/keyring": "^2.1.0",
     "@neondatabase/serverless": "^1.0.3",
     "@netlify/build-info": "11.3.0",
     "@sparticuz/chromium": "^153.0.0",

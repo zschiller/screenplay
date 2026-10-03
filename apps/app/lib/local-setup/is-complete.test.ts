@@ -68,10 +68,6 @@ describe("githubSatisfied", () => {
   it("a gh-resolved token → true", () => {
     expect(githubSatisfied({ tokenSource: "gh" })).toBe(true)
   })
-
-  it("a device-flow token → true", () => {
-    expect(githubSatisfied({ tokenSource: "device" })).toBe(true)
-  })
 })
 
 describe("isLocalSetupComplete", () => {
@@ -111,14 +107,13 @@ describe("deriveGateStatus", () => {
   })
 
   it("folds the raw shapes down to booleans and leaks no credential fields", () => {
-    // A live GitHub status carries a handle, device-token presence, etc. Only
+    // A live GitHub status carries a handle and the gh state. Only
     // the resolved-token *source* is read, and only the two booleans come out —
     // no raw credential shape crosses to the client.
     const github = {
       tokenSource: "gh" as const,
       ghHandle: "octocat",
-      hasDeviceToken: true,
-      deviceFlowConfigured: true,
+      gh: "authenticated" as const,
     }
     const status = deriveGateStatus({
       harnesses: [row(true, false)],

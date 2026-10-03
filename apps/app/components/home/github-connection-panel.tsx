@@ -1,24 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useReducer, useState } from "react"
-import {
-  ArrowClockwiseIcon,
-  ArrowSquareOutIcon,
-} from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
-import { Spinner } from "@workspace/ui/components/spinner"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
-import { openExternal } from "@/lib/open-external"
-import {
-  beginGitHubDeviceFlow,
-  completeGitHubDeviceFlow,
-  disconnectGitHub,
   getGitHubLocalStatus,
   type GitHubLocalStatus,
 } from "@/lib/github-local/actions"
@@ -55,23 +39,12 @@ interface RunPlan {
  * host-tool step in a visible inline host-session terminal: from the
  * not-installed state, one button installs `gh` and chains straight into
  * `gh auth login` (issue #649); a signed-out `gh` just signs in. On PTY exit the
- * section re-detects and flips to Connected with no reload. The device flow
- * (issue #650) is the relocated fallback — offered here when configured, for a
- * user who'd rather not use `gh` — alongside a Disconnect that clears only the
- * app's own device-flow token.
+ * section re-detects and flips to Connected with no reload. There is no
+ * Disconnect: the `gh` login is the user's, and the app never signs it out.
  */
 export function GitHubConnectionPanel() {
-  const {
-    status,
-    statusFailed,
-    working,
-    start,
-    onTerminalExit,
-    redetect,
-    disconnect,
-    disconnecting,
-  } = useGitHubConnection()
-  const [deviceOpen, setDeviceOpen] = useState(false)
+  const { status, statusFailed, working, start, onTerminalExit, redetect } =
+    useGitHubConnection()
 
   // The setup terminal is live — show it in place of the status row until the
   // PTY exits and we re-detect.
@@ -99,78 +72,27 @@ export function GitHubConnectionPanel() {
   const view = describeConnection(status)
   const action = setupAction(status)
 
-  // The device flow is the fallback (ADR 0014): offered only when it's
-  // configured and no token has resolved — for a user who'd rather not use `gh`,
-  // or whose install failed / is offline.
-  const showDeviceFallback =
-    status.tokenSource === null && status.deviceFlowConfigured
-
   return (
-    <div className="space-y-2">
-      <SettingsRowList>
-        <SettingsRow
-          title="GitHub"
-          state={view.state}
-          status={view.connected ? "on" : "off"}
-          detail={view.detail}
-          action={
-            <>
-              {action && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => start(action.kind)}
-                >
-                  {action.label}
-                </Button>
-              )}
-              {/* Disconnect keys on `hasDeviceToken`, not `tokenSource` — a
-                  dormant device token can sit *under* a `gh` connection (the
-                  resolver prefers `gh`), and it clears only the app-stored
-                  device token, never the `gh` login the user relies on outside
-                  the app (ADR 0014: one-directional help, no `gh auth logout`). */}
-              {status.hasDeviceToken && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={disconnecting}
-                  onClick={disconnect}
-                >
-                  {disconnecting && <Spinner className="size-4" />}
-                  Disconnect
-                </Button>
-              )}
-            </>
-          }
-        />
-      </SettingsRowList>
-
-      {/* The fallback connect, offered under the row rather than as a second
-          row action: it's another way to do the row's one job. */}
-      {showDeviceFallback && (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          // Pull the label back onto the column's edge, under the group.
-          className="-ml-2.5 font-normal text-muted-foreground"
-          onClick={() => setDeviceOpen(true)}
-        >
-          Use a device code instead
-        </Button>
-      )}
-
-      {deviceOpen && (
-        <ConnectGitHubDialog
-          onDone={(connected) => {
-            setDeviceOpen(false)
-            if (connected) redetect()
-          }}
-        />
-      )}
-    </div>
+    <SettingsRowList>
+      <SettingsRow
+        title="GitHub"
+        state={view.state}
+        status={view.connected ? "on" : "off"}
+        detail={view.detail}
+        action={
+          action && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => start(action.kind)}
+            >
+              {action.label}
+            </Button>
+          )
+        }
+      />
+    </SettingsRowList>
   )
 }
 
@@ -190,14 +112,13 @@ export function useGitHubConnection() {
   // The command the working terminal runs, captured at click time (the pre-run
   // phase is gone once we're `working`, so we can't re-derive it there).
   const [run, setRun] = useState<RunPlan | null>(null)
-  const [disconnecting, setDisconnecting] = useState(false)
   const [statusFailed, setStatusFailed] = useState(false)
 
-  // Re-probe the resolver and re-fold the setup machine. Used by actions that
-  // change the connection outside the terminal — a device-flow success or a
-  // Disconnect — so the section reflects them at once. Mirrors the mount effect's
-  // Homebrew probe so a state that lands on "not installed" still picks the right
-  // install command.
+  // Re-probe the resolver and re-fold the setup machine. Used when the
+  // connection changes outside the terminal (a `gh auth login` elsewhere) or
+  // after a failed check, so the section reflects it at once. Mirrors the mount
+  // effect's Homebrew probe so a state that lands on "not installed" still picks
+  // the right install command.
   const redetect = useCallback(async () => {
     const s = await getGitHubLocalStatus()
     setStatus(s)
@@ -244,16 +165,6 @@ export function useGitHubConnection() {
 
   const onTerminalExit = () => dispatch({ type: "terminal-exited" })
 
-  const disconnect = async () => {
-    setDisconnecting(true)
-    try {
-      await disconnectGitHub()
-      await redetect()
-    } finally {
-      setDisconnecting(false)
-    }
-  }
-
   return {
     status,
     statusFailed,
@@ -261,8 +172,6 @@ export function useGitHubConnection() {
     start,
     onTerminalExit,
     redetect,
-    disconnect,
-    disconnecting,
   }
 }
 
@@ -289,141 +198,6 @@ function runPlan(kind: SetupActionKind, brewPresent: boolean): RunPlan {
   }
 }
 
-type ConnectState =
-  | { step: "starting" }
-  | { step: "authorize"; userCode: string; verificationUri: string }
-  | { step: "failed"; message: string }
-
-/**
- * The device-flow connect dialog (ADR 0014's fallback path, relocated from the
- * repo picker): show the short user code, send the user to github.com to
- * authorize, and wait for the poll loop (held open server-side) to land on a
- * terminal outcome. Optional and on-demand — closing it just means no
- * device-flow token, never a blocked app or a touched `gh` login.
- */
-export function ConnectGitHubDialog({
-  onDone,
-}: {
-  onDone: (connected: boolean) => void
-}) {
-  const [state, setState] = useState<ConnectState>({ step: "starting" })
-  // Bumped by "Try again" to run the flow afresh with a new code.
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const begun = await beginGitHubDeviceFlow()
-        if (cancelled) return
-        if (!begun.ok) {
-          setState({ step: "failed", message: begun.error })
-          return
-        }
-        setState({
-          step: "authorize",
-          userCode: begun.grant.userCode,
-          verificationUri: begun.grant.verificationUri,
-        })
-        const outcome = await completeGitHubDeviceFlow(begun.grant)
-        if (cancelled) return
-        if (outcome.status === "authorized") {
-          onDone(true)
-        } else {
-          setState({
-            step: "failed",
-            message:
-              outcome.status === "denied"
-                ? "Authorization was denied."
-                : outcome.status === "expired"
-                  ? "The code expired."
-                  : outcome.message,
-          })
-        }
-      } catch (err) {
-        // The action itself failed (the sidecar is unreachable), rather than
-        // returning a failure of its own.
-        console.error("GitHub device flow failed", err)
-        if (!cancelled) {
-          setState({ step: "failed", message: "Couldn't reach GitHub." })
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // Runs once per attempt: the flow must not restart on re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt])
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onDone(false)}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Connect GitHub</DialogTitle>
-          <DialogDescription>
-            Authorize Screenplay in your browser so it can list your GitHub
-            repositories and open pull requests.
-          </DialogDescription>
-        </DialogHeader>
-        {state.step === "starting" && (
-          <div className="flex items-center gap-2 py-2">
-            <Spinner className="size-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              Requesting a device code…
-            </span>
-          </div>
-        )}
-        {state.step === "authorize" && (
-          <div className="flex flex-col items-center gap-3 py-2">
-            <span className="font-mono text-2xl tracking-widest">
-              {state.userCode}
-            </span>
-            <a
-              href={state.verificationUri}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => {
-                // Desktop webview can't honor target="_blank"; route the
-                // GitHub device-flow link through the opener plugin.
-                e.preventDefault()
-                openExternal(state.verificationUri)
-              }}
-              className="inline-flex items-center gap-1 text-sm underline"
-            >
-              Enter this code at {state.verificationUri}
-              <ArrowSquareOutIcon className="size-3.5" />
-            </a>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner className="size-4" />
-              Waiting for authorization…
-            </div>
-          </div>
-        )}
-        {state.step === "failed" && (
-          <div className="flex flex-col items-start gap-3 py-2">
-            <p role="alert" className="text-sm text-destructive">
-              {state.message}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setState({ step: "starting" })
-                setAttempt((n) => n + 1)
-              }}
-            >
-              <ArrowClockwiseIcon />
-              Try again
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 /**
  * Map the resolver's status to the setup step's detection result. Keys on the
  * real `tokenSource` for the authed case (a `gh` token that actually resolved),
@@ -440,8 +214,7 @@ function detectionResult(status: GitHubLocalStatus): DetectionResult {
  * primary **Install and connect** installs `gh` and chains straight into sign-in
  * (issue #649); a signed-out-but-installed `gh` gets a primary **Sign in**; a
  * `gh` connection gets only a secondary **Sign in again** to refresh a lapsed
- * login (no other clutter — no logout, ADR 0014). A device connection (with or
- * without `gh`) already has API access, so it offers nothing here.
+ * login (no other clutter — no logout, ADR 0014).
  */
 export function setupAction(
   status: GitHubLocalStatus
@@ -449,13 +222,11 @@ export function setupAction(
   if (status.tokenSource === "gh") {
     return { kind: "auth", label: "Sign in again", primary: false }
   }
-  if (status.tokenSource === null) {
-    if (status.gh === "installed-not-authenticated") {
-      return { kind: "auth", label: "Sign in", primary: true }
-    }
-    if (status.gh === "not-installed") {
-      return { kind: "install", label: "Install and connect", primary: true }
-    }
+  if (status.gh === "installed-not-authenticated") {
+    return { kind: "auth", label: "Sign in", primary: true }
+  }
+  if (status.gh === "not-installed") {
+    return { kind: "install", label: "Install and connect", primary: true }
   }
   return null
 }
@@ -463,9 +234,8 @@ export function setupAction(
 /**
  * Turn the resolver's status into what the GitHub row shows: its state chip
  * and facts line. `connected` keys on the real `tokenSource` — never on the
- * `gh` state alone — so a signed-out `gh` with a live device token still reads
- * as connected, and an authed-looking `gh` whose token didn't resolve never
- * does.
+ * `gh` state alone — so an authed-looking `gh` whose token didn't resolve
+ * never reads as connected.
  */
 function describeConnection(status: GitHubLocalStatus): {
   connected: boolean
@@ -479,13 +249,6 @@ function describeConnection(status: GitHubLocalStatus): {
       detail: status.ghHandle
         ? `@${status.ghHandle} · gh CLI`
         : "Signed in with the gh CLI",
-    }
-  }
-  if (status.tokenSource === "device") {
-    return {
-      connected: true,
-      state: "Connected",
-      detail: "Signed in with a device code",
     }
   }
   // tokenSource is null — the API is dark. The gh state says why.

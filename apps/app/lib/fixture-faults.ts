@@ -18,21 +18,12 @@ import { isFixtureWorld } from "@/lib/fixture-world"
 export type FixtureFault =
   /** The home layout's server-side Canvas/Folder/Pin load fails. */
   | "home-load"
-  /**
-   * GitHub settings offer the device flow although no client id is set, so
-   * starting it fails the way it does on a misconfigured or offline machine.
-   */
-  | "github-device-flow"
   /** Settings lists no Project presets, so the presets empty state shows. */
   | "no-presets"
 
 const COOKIE_NAME = "screenplay_fixture_fault"
 
-const FAULTS: readonly FixtureFault[] = [
-  "home-load",
-  "github-device-flow",
-  "no-presets",
-]
+const FAULTS: readonly FixtureFault[] = ["home-load", "no-presets"]
 
 /** The cookie a capture screen sets to ask for a fault. */
 export function fixtureFaultCookieName(): string {

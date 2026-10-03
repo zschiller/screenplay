@@ -465,8 +465,7 @@ export function AddRepositoryDialog({
           <div hidden={pickerView !== "repos"}>
             <RepoPicker
               // The local build can add a Repo with no GitHub auth at
-              // all — by clone URL — and offers the on-demand
-              // device-flow connect (PRD #428).
+              // all — by clone URL (PRD #428).
               localSources={isLocalBuild}
               onSelect={(pick) => {
                 // Every pick — a GitHub repo or a pasted clone-URL source —

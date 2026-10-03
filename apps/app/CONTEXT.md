@@ -307,21 +307,19 @@ _Avoid_: permission checks or `isLocalBuild` in the comment actions.
 The local desktop build's **optional, on-demand GitHub API access** (PRD #428)
 — explicitly _not_ the multi-tenant login #417 stripped (no session, no
 `room_member`, no login gate; the app still opens as the single seeded local
-user). The existing `getGitHubToken()` seam resolves through one fixed priority
-order on the local build (`lib/github-local/`): (1) the host **`gh` CLI**'s
-token when installed and authenticated — the zero-config path; (2) a **device
-flow** token the user authorized on demand ("Connect GitHub"), kept in the OS
-keychain with a `kv_store` fallback behind one `TokenStore` interface; (3)
+user). The existing `getGitHubToken()` seam resolves on the local build
+(`lib/github-local/`) to the host **`gh` CLI**'s token when installed and
+authenticated ("Connect GitHub" installs `gh` and runs its sign-in), else
 `null`, which keeps meaning "GitHub API features dark". A token lights up repo
 listing, Branch-via-API, PRs, and Branch naming at their unchanged call sites;
 no token never blocks adding a Repo — the **no-auth floor** (add by clone URL
-or local folder) rides host git auth (#416). See ADR 0008.
+or local folder) rides host git auth (#416). See ADRs 0008, 0014 and 0018.
 _Avoid_: "login"/"auth" for the _Connection itself_ (it is API access only —
 the token layer, not a user session). Keep that distinct from the **`gh` CLI's
 own auth**, a lower layer the app may help you _set up_ (install `gh`, run its
-sign-in) but never tears down: disconnect clears only the app's stored
-device-flow token, and the app never runs `gh auth logout` — a `gh` login is
-yours, used outside the app too, so the help is one-directional (in, never out).
+sign-in) but never tears down: there is no disconnect, and the app never runs
+`gh auth logout` — a `gh` login is yours, used outside the app too, so the help
+is one-directional (in, never out).
 
 **Dev Server Restart**:
 Bouncing the `devScript` process (and its bridge proxy) inside the _existing_

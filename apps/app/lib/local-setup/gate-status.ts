@@ -21,8 +21,8 @@ import { deriveGateStatus } from "./is-complete"
  * included, so each extra CLI spawn or network call delays the first paint.
  *
  * Returns **only** `{ harnessSatisfied, githubSatisfied }` — the raw credential
- * shapes behind those reads (tokens, the GitHub handle, device-token presence)
- * never cross to the client. Off the desktop build it is a no-op
+ * shapes behind those reads (tokens, the GitHub handle) never cross to the
+ * client. Off the desktop build it is a no-op
  * `false`/`false`: the gate itself is `isLocalBuild`-gated (so this is never
  * reached on the hosted build), and the guard keeps a stray call from ever
  * probing host state on a server.

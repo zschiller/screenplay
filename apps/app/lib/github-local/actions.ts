@@ -4,17 +4,8 @@ import { execFile } from "node:child_process"
 import path from "node:path"
 import { promisify } from "node:util"
 
-import {
-  awaitDeviceAuthorization,
-  fetchDeviceFlowTransport,
-  requestDeviceCode,
-  type DeviceAuthorization,
-  type DeviceFlowOutcome,
-} from "@/lib/github-local/device-flow"
-import { hasFixtureFault } from "@/lib/fixture-faults"
 import { hasFixtureGitHub } from "@/lib/fixture-github"
 import { parseGitHubRemote } from "@/lib/github-local/parse-remote"
-import { getLocalTokenStore } from "@/lib/github-local/token-store"
 import {
   readLocalGitHubConnection,
   resolveLocalGitHubToken,
@@ -35,113 +26,23 @@ const execFileAsync = promisify(execFile)
 const NOT_LOCAL = "This only works in the desktop app."
 
 export interface GitHubLocalStatus {
-  /** Where the resolver is currently getting a token (`null` = no API access). */
-  tokenSource: "gh" | "device" | null
+  /** Whether the resolver is getting a token from `gh` (`null` = no API access). */
+  tokenSource: "gh" | null
   /** The host `gh` CLI's install/auth state, so the UI can say "install"
    *  vs. "sign in" rather than only "connected / not". */
   gh: GhConnectionState
   /** The connected GitHub handle when `tokenSource === "gh"`, else `null`. */
   ghHandle: string | null
-  /**
-   * Whether a device-flow token exists at all — reported separately from
-   * `tokenSource` because the resolver prefers `gh`, so a dormant device token
-   * can sit under a `gh` connection (ADR 0014).
-   */
-  hasDeviceToken: boolean
-  /** Whether the GitHub App client id for the device flow is configured. */
-  deviceFlowConfigured: boolean
 }
 
 export async function getGitHubLocalStatus(): Promise<GitHubLocalStatus> {
   if (!isLocalBuild) {
-    return {
-      tokenSource: null,
-      gh: "not-installed",
-      ghHandle: null,
-      hasDeviceToken: false,
-      deviceFlowConfigured: false,
-    }
+    return { tokenSource: null, gh: "not-installed", ghHandle: null }
   }
-  const connection = (await hasFixtureGitHub())
-    ? {
-        tokenSource: "gh" as const,
-        gh: "authenticated" as const,
-        ghHandle: "designer",
-        hasDeviceToken: false,
-      }
-    : await readLocalGitHubConnection()
-  return {
-    ...connection,
-    deviceFlowConfigured:
-      Boolean(process.env.SCREENPLAY_GITHUB_CLIENT_ID) ||
-      (await hasFixtureFault("github-device-flow")),
+  if (await hasFixtureGitHub()) {
+    return { tokenSource: "gh", gh: "authenticated", ghHandle: "designer" }
   }
-}
-
-export type BeginDeviceFlowResult =
-  { ok: true; grant: DeviceAuthorization } | { ok: false; error: string }
-
-/**
- * Start a device-flow login: returns the user code + verification URL for the
- * UI to surface, plus the full grant the client hands back to
- * {@link completeGitHubDeviceFlow}.
- */
-export async function beginGitHubDeviceFlow(): Promise<BeginDeviceFlowResult> {
-  if (!isLocalBuild) return { ok: false, error: NOT_LOCAL }
-  const clientId = process.env.SCREENPLAY_GITHUB_CLIENT_ID
-  if (!clientId) {
-    return {
-      ok: false,
-      error:
-        "GitHub connect isn't configured (SCREENPLAY_GITHUB_CLIENT_ID is unset)",
-    }
-  }
-  try {
-    const grant = await requestDeviceCode(fetchDeviceFlowTransport, {
-      clientId,
-      scopes: ["repo"],
-    })
-    return { ok: true, grant }
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
-  }
-}
-
-/**
- * Drive the poll loop for a grant from {@link beginGitHubDeviceFlow} to its
- * terminal outcome, storing the token on success. The sidecar is a long-lived
- * host Node server (no serverless timeout), so holding this action open for
- * the authorize wait is fine; the codes expire after ~15 minutes regardless.
- */
-export async function completeGitHubDeviceFlow(
-  grant: DeviceAuthorization
-): Promise<DeviceFlowOutcome> {
-  if (!isLocalBuild) return { status: "error", message: NOT_LOCAL }
-  const clientId = process.env.SCREENPLAY_GITHUB_CLIENT_ID
-  if (!clientId) {
-    return { status: "error", message: "SCREENPLAY_GITHUB_CLIENT_ID is unset" }
-  }
-  const outcome = await awaitDeviceAuthorization(fetchDeviceFlowTransport, {
-    clientId,
-    grant,
-    sleep: (seconds) => new Promise((r) => setTimeout(r, seconds * 1000)),
-  })
-  if (outcome.status === "authorized") {
-    const store = await getLocalTokenStore()
-    await store.set(outcome.token)
-    // Never hand the raw token to the browser — the client only needs the
-    // outcome; API calls resolve the token server-side through the seam.
-    return { status: "authorized", token: "", scopes: outcome.scopes }
-  }
-  return outcome
-}
-
-/** Clear the stored device-flow token (story 17). A `gh` login, if present,
- *  still resolves — disconnect only severs what the app itself stored. */
-export async function disconnectGitHub(): Promise<void> {
-  if (!isLocalBuild) return
-  const store = await getLocalTokenStore()
-  await store.clear()
+  return readLocalGitHubConnection()
 }
 
 export type RepoSourceResult =

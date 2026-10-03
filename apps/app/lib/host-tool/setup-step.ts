@@ -8,8 +8,7 @@
  * two kinds of input: a **detection result** (what a probe found) and a
  * **terminal-exit** signal (the inline PTY closed). A thin React wrapper runs the
  * actual detection and mounts the terminal; every decision the wrapper needs
- * lives here, so it stays unit-testable without a DOM, a process, or a socket —
- * the same pure-fold shape as `device-flow.ts`.
+ * lives here, so it stays unit-testable without a DOM, a process, or a socket.
  */
 
 /** What a detection probe found about the host tool's install/auth state. */

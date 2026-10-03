@@ -187,9 +187,7 @@ export function RepoPicker({ onSelect, localSources }: RepoPickerProps) {
 
             {/* No token: point at Settings, the one canonical connection home
                 (ADR 0014). A plain block rather than CommandEmpty so it stays
-                under the URL row too, whatever the search. Not gated on
-                `deviceFlowConfigured`: the `gh` path in Settings needs no
-                client id. */}
+                under the URL row too, whatever the search. */}
             {showConnectHint && !cloneUrl && (
               <div className="flex flex-col items-center gap-3 py-6">
                 <span className="text-sm text-muted-foreground">

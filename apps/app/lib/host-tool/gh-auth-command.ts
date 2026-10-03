@@ -6,11 +6,10 @@
  * `gh auth login --web` runs GitHub's browser flow and prints a one-time code to
  * the terminal (the visible-terminal UX this feature is about, rather than a
  * spinner that might silently fail). `--git-protocol https` matches how the app
- * clones, and `--scopes repo` requests exactly the scope the device flow does,
- * so both connect paths grant the same GitHub API access.
+ * clones, and `--scopes repo` requests the scope the GitHub API features need.
  */
 
-/** The OAuth scope requested for the connection — identical to the device flow. */
+/** The OAuth scope requested for the connection. */
 export const GH_AUTH_SCOPE = "repo"
 
 /**
