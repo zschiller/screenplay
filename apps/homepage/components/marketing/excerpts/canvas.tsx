@@ -3,14 +3,17 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowUpIcon,
+  BroadcastIcon,
   CaretDownIcon,
   CaretRightIcon,
-  CaretUpDownIcon,
+  ChatsIcon,
   CircleIcon,
   CursorIcon,
   DotsThreeIcon,
   FileTextIcon,
   FrameCornersIcon,
+  NavigationArrowIcon,
+  ScribbleIcon,
   SidebarSimpleIcon,
   SlidersHorizontalIcon,
 } from "@workspace/ui/components/icons"
@@ -32,15 +35,19 @@ export const floating =
 export function Tool({
   children,
   active,
+  className,
 }: {
   children: React.ReactNode
+  /** Pressed, in the toggle's ink fill. */
   active?: boolean
+  className?: string
 }) {
   return (
     <span
       className={cn(
         "flex size-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-4",
-        active && "bg-foreground text-background"
+        active && "bg-foreground text-background",
+        className
       )}
     >
       {children}
@@ -104,7 +111,6 @@ export function Frame({
   label,
   group,
   workspace,
-  trailing,
   selected,
   device = "desktop",
   className,
@@ -117,8 +123,6 @@ export function Frame({
   group?: [name: string, workspace: string]
   /** The Workspace a frame on its own shows, after its name. */
   workspace?: string
-  /** What the label ends with, such as a Mockup's status. */
-  trailing?: React.ReactNode
   selected?: boolean
   device?: "desktop" | "mobile"
   className?: string
@@ -136,17 +140,15 @@ export function Frame({
           className="bottom-full left-0 mb-6 max-w-full"
         />
       ) : null}
-      <div
-        className={cn(
-          "absolute bottom-full left-0 flex max-w-full items-center gap-2 overflow-hidden text-xs leading-none whitespace-nowrap text-muted-foreground",
-          // A 20px badge makes the row taller: sit it lower so its text lines
-          // up with the plain labels beside it.
-          trailing ? "mb-0.5" : "mb-1.5"
-        )}
-      >
+      <div className="absolute bottom-full left-0 mb-1.5 flex max-w-full items-center gap-2 overflow-hidden text-xs leading-none whitespace-nowrap text-muted-foreground">
         {/* The figures' names are short: kept whole, as a rounding error would
             otherwise clip them to an ellipsis. */}
-        <span className={cn("shrink-0", selected && "text-selection")}>
+        <span
+          className={cn(
+            "shrink-0 font-medium text-foreground/70",
+            selected && "text-selection"
+          )}
+        >
           {label}
         </span>
         {workspace ? (
@@ -156,7 +158,6 @@ export function Frame({
             <span className="truncate">{workspace}</span>
           </span>
         ) : null}
-        {trailing}
       </div>
       <div
         className={cn(
@@ -210,15 +211,23 @@ function GroupLabel({
 
 /**
  * The Safari-style bar under the selected frame, as wide as the frame: back
- * and forward, the address (Workspace and route, record and reload), then
- * Interact, knobs and the menu.
+ * and forward, the address (the route, then record and reload), then
+ * Interact, Go live where the frame can go live, Knobs and the menu. The
+ * frame's label names its Workspace, so the address holds only the route.
  */
 export function FrameBar({
-  workspace,
+  route = "/",
+  live,
+  driver,
   className,
   style,
 }: {
-  workspace: string
+  route?: string
+  /** The frame is live for everyone: Go live shows, pressed. Unset, the bar
+   *  has no Go live, as on the desktop app. */
+  live?: boolean
+  /** Who has control, in place of Interact: their face in their colour. */
+  driver?: { initial: string; color: string }
   className?: string
   style?: React.CSSProperties
 }) {
@@ -233,57 +242,87 @@ export function FrameBar({
       <Tool>
         <ArrowRightIcon />
       </Tool>
-      <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-muted pr-0.5 pl-2 text-xs">
-        <WorkspaceGlyph />
-        <span className="truncate font-medium">{workspace}</span>
-        <CaretUpDownIcon className="size-3 shrink-0 text-muted-foreground" />
-        <span className="flex-1 font-mono text-muted-foreground">/</span>
+      <span className="flex h-7 min-w-0 flex-1 items-center rounded-md bg-muted px-0.5 text-muted-foreground">
+        <span className="ml-0.5 flex h-5 min-w-0 flex-1 items-center truncate px-1 font-mono text-xs">
+          {route}
+        </span>
         <Tool>
-          <span className="size-2 rounded-full bg-muted-foreground" />
+          <span className="size-2 rounded-full bg-current" />
         </Tool>
         <Tool>
           <ArrowClockwiseIcon />
         </Tool>
       </span>
       <span className="mx-0.5 h-4 w-px shrink-0 bg-foreground/10" />
-      <Tool>
-        <CursorIcon />
-      </Tool>
+      {driver ? (
+        <Tool className="bg-secondary">
+          <span
+            className="flex size-4! items-center justify-center rounded-full text-xs font-medium text-neutral-950"
+            style={{ backgroundColor: driver.color }}
+          >
+            {driver.initial}
+          </span>
+        </Tool>
+      ) : (
+        <Tool>
+          <CursorIcon />
+        </Tool>
+      )}
+      {live !== undefined ? (
+        <Tool active={live}>
+          <BroadcastIcon />
+        </Tool>
+      ) : null}
       <Tool>
         <SlidersHorizontalIcon />
       </Tool>
       <Tool>
-        <DotsThreeIcon />
+        <DotsThreeIcon className="text-muted-foreground" />
       </Tool>
     </div>
   )
 }
 
-/** One Workspace's row in the Chats menu. */
+/**
+ * One chat's row in the Chats menu: its Workspace's state glyph, title and
+ * changed lines. Highlighted, its … sits over the row's end, a fade in the
+ * row's colour running under the lines it covers.
+ */
 export function WorkspaceRow({
   name,
-  selected,
+  working,
+  highlighted,
   diff,
-  menu,
 }: {
   name: string
-  selected?: boolean
+  working?: boolean
+  highlighted?: boolean
   diff?: readonly [number, number]
-  menu?: boolean
 }) {
   return (
     <div
       className={cn(
-        "flex h-8 items-center gap-2 rounded-md px-2 text-sm",
-        selected && "bg-muted"
+        "relative flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
+        highlighted && "bg-muted"
       )}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">
-        <CircleIcon weight="bold" className="size-3 opacity-50" />
+        {working ? (
+          <WorkspaceGlyph state="working" className="size-3.5 opacity-70" />
+        ) : (
+          <CircleIcon weight="bold" className="size-3 opacity-50" />
+        )}
       </span>
       <span className="min-w-0 flex-1 truncate">{name}</span>
       {diff ? <Diff add={diff[0]} del={diff[1]} /> : null}
-      {menu ? <DotsThreeIcon className="size-4 text-muted-foreground" /> : null}
+      {highlighted ? (
+        <span className="absolute inset-y-0 right-0.5 flex items-center bg-muted">
+          <span className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-muted" />
+          <Tool>
+            <DotsThreeIcon className="text-muted-foreground" />
+          </Tool>
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -386,14 +425,15 @@ function Coordinator() {
         <span className="ml-1.5 min-w-0 flex-1 truncate font-medium">
           Coordinator
         </span>
-        <span className="flex h-6 items-center gap-1 rounded-md pr-1.5 pl-2 text-xs text-muted-foreground">
+        {/* The outline Chats button that opens the Chats menu. */}
+        <span className="flex h-6 items-center gap-1 rounded-md border border-input bg-input/30 pr-2 pl-1.5 text-xs">
+          <ChatsIcon className="size-3" />
           Chats
-          <CaretDownIcon className="size-3" />
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 overflow-hidden px-3 py-4 text-[13px] leading-normal">
         <UserBubble>{ask}</UserBubble>
-        <p>Starting a Workspace for each version.</p>
+        <p>Starting a chat for each version.</p>
         <div className="flex flex-col gap-1">
           {versions.map((v) => (
             <ChatCard
@@ -412,11 +452,11 @@ function Coordinator() {
       </div>
       <div className="m-3 mt-0 flex flex-col gap-3 rounded-lg border border-border p-3 text-[13px]">
         <span className="truncate text-muted-foreground">
-          Ask the Coordinator… (@ to mention a document)
+          Ask the Coordinator… (@ document)
         </span>
         <div className="flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1">
-            Claude Code · Opus 5.5
+            Opus 5.5
             <CaretDownIcon className="size-3 text-muted-foreground" />
           </span>
           <span className="ml-auto flex size-7 items-center justify-center rounded-md bg-muted-foreground text-background">
@@ -428,22 +468,29 @@ function Coordinator() {
   )
 }
 
-/** The canvas's floating chrome: breadcrumb, zoom and the tool bar. */
+/** The canvas's floating chrome: breadcrumb, zoom and the tools: Select,
+ *  Frame, Mockup and Document. */
 function CanvasChrome({ zoom }: { zoom: string }) {
   return (
     <>
-      <div className={cn(floating, "absolute top-2 left-2 z-10 text-sm")}>
+      <div
+        className={cn(
+          floating,
+          // Clear of the zoom pill: on a narrow canvas the name truncates.
+          "absolute top-2 left-2 z-10 max-w-[calc(100%-6rem)] text-sm whitespace-nowrap"
+        )}
+      >
         {/* The sidebar is collapsed, so its toggle leads the breadcrumb. */}
         <Tool>
           <SidebarSimpleIcon />
         </Tool>
-        <span className="flex h-7 items-center gap-1.5 pl-1">
+        <span className="flex h-7 min-w-0 items-center gap-1.5 pl-1">
           <span className="text-muted-foreground">All files</span>
           <span className="text-muted-foreground">/</span>
-          <span>Northwind marketing site</span>
+          <span className="truncate">Northwind marketing site</span>
         </span>
         <Tool>
-          <DotsThreeIcon />
+          <DotsThreeIcon className="text-muted-foreground" />
         </Tool>
       </div>
       <div className={cn(floating, "absolute top-2 right-2 z-10 px-2 text-sm")}>
@@ -459,10 +506,13 @@ function CanvasChrome({ zoom }: { zoom: string }) {
         )}
       >
         <Tool active>
-          <CursorIcon />
+          <NavigationArrowIcon />
         </Tool>
         <Tool>
           <FrameCornersIcon />
+        </Tool>
+        <Tool>
+          <ScribbleIcon />
         </Tool>
         <Tool>
           <FileTextIcon />
@@ -525,7 +575,6 @@ export function CanvasExcerpt() {
           </Frame>
         ))}
         <FrameBar
-          workspace={versions[1].title}
           className="z-[5] max-sm:hidden"
           // Centred under the middle frame like the app's: as wide as the
           // frame, or 360px under a narrow one, never past the canvas's edges.
@@ -578,7 +627,6 @@ export function FrameExcerpt() {
         </Frame>
       ))}
       <FrameBar
-        workspace={versions[1].title}
         className="z-[5] max-sm:hidden"
         // Centred under the left frame, never past the excerpt's edge.
         style={{

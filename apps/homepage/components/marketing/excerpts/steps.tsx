@@ -1,12 +1,11 @@
 import {
   ArrowSquareOutIcon,
   BookBookmarkIcon,
-  ChatsIcon,
-  CheckIcon,
   GitPullRequestIcon,
   MagnifyingGlassIcon,
   PathIcon,
   PlayIcon,
+  PlusIcon,
 } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
@@ -14,6 +13,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import {
   ChatCard,
   Frame,
+  Tool,
   UserBubble,
   WorkspaceRow,
   ask,
@@ -116,7 +116,7 @@ export function CreateWorkspacesExcerpt() {
     <Card label="The ask in the Coordinator's chat, and a chat card for each of the three Workspaces it started, all working.">
       <div className="absolute inset-x-4 top-4 flex flex-col gap-3 text-[13px] leading-normal">
         <UserBubble className="ml-0 text-xs">{ask}</UserBubble>
-        <p className="text-xs">Starting a Workspace for each version.</p>
+        <p className="text-xs">Starting a chat for each version.</p>
         <div className="flex flex-col gap-1">
           {versions.map((v) => (
             <ChatCard
@@ -185,42 +185,43 @@ const menu: (
   { icon: <PathIcon />, label: "Show all routes" },
 ]
 
+/** The picked version first: the most recent activity leads. */
+const picked = [versions[1], versions[0], versions[2]]
+
 /**
- * Step 4: the Chats menu, with the picked version's Workspace menu open on
- * Create pull request, which leads it once the Workspace has changes.
+ * Step 4: the Chats menu, grouped by state, with the picked version's menu
+ * open on Create pull request, which leads it once the Workspace has changes.
  */
 export function PullRequestExcerpt() {
   return (
-    <Card label="The Chats menu listing the Coordinator and the three versions, with the picked one's menu open on Create pull request.">
+    <Card label="The Chats menu listing the three versions, with the picked one's menu open on Create pull request.">
       <div
         className={cn(
           surface,
-          // Cropped below its search field, so the open menu fits.
-          "absolute top-[-37px] left-3 flex w-[236px] flex-col text-sm"
+          "absolute top-3 left-3 flex w-[296px] flex-col pb-1 text-sm"
         )}
       >
-        <div className="flex h-9 items-center gap-2 border-b border-border px-3 text-muted-foreground">
-          <MagnifyingGlassIcon className="size-4" />
-          Search chats…
-        </div>
-        <div className="flex flex-col gap-0.5 p-1">
-          <div className="flex h-8 items-center gap-2 px-2">
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              <ChatsIcon className="size-3.5 opacity-70" />
-            </span>
-            Coordinator
-            <CheckIcon className="ml-auto size-3.5 opacity-0" />
+        <div className="flex items-end gap-0.5 pr-1.5">
+          <div className="flex-1 p-1 pb-0">
+            <div className="flex h-8 items-center gap-2 rounded-lg border border-input/30 bg-input/30 pl-2 text-muted-foreground">
+              <MagnifyingGlassIcon className="size-4 opacity-50" />
+              Search chats…
+            </div>
           </div>
-          <span className="px-2 pt-1.5 pb-1 font-mono text-xs tracking-wider text-muted-foreground uppercase">
-            Chats
+          <Tool className="mb-0.5 text-muted-foreground">
+            <PlusIcon />
+          </Tool>
+        </div>
+        <div className="flex flex-col p-1">
+          <span className="px-2 py-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
+            Idle
           </span>
-          {versions.map((v) => (
+          {picked.map((v) => (
             <WorkspaceRow
               key={v.title}
               name={v.title}
-              diff={v.version === "split" ? undefined : v.diff}
-              selected={v.version === "split"}
-              menu={v.version === "split"}
+              diff={v.diff}
+              highlighted={v.version === "split"}
             />
           ))}
         </div>
@@ -228,8 +229,10 @@ export function PullRequestExcerpt() {
       <div
         className={cn(
           surface,
-          // Menus take the other theme in the app (`inverted`, #1073).
-          "inverted absolute top-[100px] left-[128px] flex w-[200px] flex-col p-1 text-[13px]"
+          // Menus take the other theme in the app (`inverted`, #1073), sized
+          // to their widest item and never narrower than 224px. It hangs from
+          // the row's …, aligned to its end.
+          "inverted absolute top-[108px] left-[78px] flex w-56 flex-col p-1 text-sm"
         )}
       >
         {menu.map((item, i) =>
@@ -239,8 +242,8 @@ export function PullRequestExcerpt() {
             <div
               key={item.label}
               className={cn(
-                "flex h-8 items-center gap-2 rounded-md px-2 whitespace-nowrap [&_svg]:size-3.5 [&_svg]:shrink-0",
-                item.on && "bg-accent"
+                "flex items-center gap-1.5 rounded-md px-1.5 py-1 whitespace-nowrap [&_svg]:size-4 [&_svg]:shrink-0",
+                item.on && "bg-accent text-accent-foreground"
               )}
             >
               {item.icon}
