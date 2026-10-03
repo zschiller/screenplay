@@ -45,6 +45,7 @@ import {
 } from "@workspace/ui/components/empty"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
+import { toast } from "sonner"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { LoadErrorState } from "@/components/home/load-error"
 import { baseName, formatFileSize, isTextMediaType } from "@/lib/files/paths"
@@ -79,16 +80,22 @@ export function fileDetail(
  * read-only for people. Agents save and organize files; a person can open one
  * ({@link CanvasFileDialog}, over Canvas settings, as Repositories' Edit is)
  * or delete a file or folder for every member, after a confirm.
+ *
+ * On the desktop the files are on the Mac, so Open hands a file to its own
+ * app and Reveal in Finder shows a file or folder there (`onDesktop`).
  */
 export function FilesSection({
   roomId,
   files,
   onDelete,
+  onDesktop,
   adderName,
 }: {
   roomId: string
   files: FileEntryData[]
   onDelete: (path: string) => Promise<void>
+  /** The desktop's Open and Reveal in Finder; absent on hosted. */
+  onDesktop?: (path: string, how: "open" | "reveal") => Promise<void>
   /** "Saved by agent", "Added by you", "Added by Sam". */
   adderName: (entry: FileEntryData) => string
 }) {
@@ -106,6 +113,15 @@ export function FilesSection({
       return next
     })
 
+  const desktop = (node: FileTreeNode, how: "open" | "reveal") =>
+    onDesktop?.(node.entry.path, how).catch(() =>
+      toast.error(
+        how === "open"
+          ? `Couldn't open ${node.name}.`
+          : `Couldn't show ${node.name} in Finder.`
+      )
+    )
+
   const branch = (nodes: FileTreeNode[]) =>
     nodes.map((node) => (
       <FileRow
@@ -118,7 +134,10 @@ export function FilesSection({
             : fileDetail(node.entry, adderName)
         }
         onToggle={() => onToggle(node.entry.path)}
-        onOpen={() => setOpenPath(node.entry.path)}
+        onOpen={() =>
+          onDesktop ? desktop(node, "open") : setOpenPath(node.entry.path)
+        }
+        onReveal={onDesktop && (() => desktop(node, "reveal"))}
         onDelete={() => setDeleting(node)}
       >
         {node.children.length > 0 && branch(node.children)}
@@ -202,6 +221,7 @@ function FileRow({
   detail,
   onToggle,
   onOpen,
+  onReveal,
   onDelete,
   children,
 }: {
@@ -210,6 +230,8 @@ function FileRow({
   detail: string
   onToggle: () => void
   onOpen: () => void
+  /** Desktop only: show the file or folder in Finder. */
+  onReveal?: () => void
   onDelete: () => void
   children?: React.ReactNode
 }) {
@@ -261,6 +283,12 @@ function FileRow({
             <DropdownMenuItem onSelect={onOpen}>
               <ArrowSquareOutIcon />
               Open
+            </DropdownMenuItem>
+          )}
+          {onReveal && (
+            <DropdownMenuItem onSelect={onReveal}>
+              <FolderOpenIcon />
+              Reveal in Finder
             </DropdownMenuItem>
           )}
           <DropdownMenuItem variant="destructive" onSelect={onDelete}>

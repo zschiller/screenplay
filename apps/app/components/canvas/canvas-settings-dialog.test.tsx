@@ -32,6 +32,10 @@ vi.mock("@/lib/github-actions", () => ({
     },
   ]),
 }))
+// The desktop's Open runs on the server; tests hand the dialog a fake.
+vi.mock("@/lib/files/desktop-actions", () => ({
+  openCanvasFileOnDesktop: vi.fn(),
+}))
 vi.mock("@/lib/github-local/actions", () => ({
   getGitHubLocalStatus: vi.fn().mockResolvedValue(null),
   resolveRepoFromUrl: vi.fn(),
@@ -231,10 +235,13 @@ function renderDialog(
     canReveal = true,
     policy = desktopLinkPolicy,
     files = [],
+    desktop = false,
   }: {
     canReveal?: boolean
     policy?: RepositoryLinkPolicy
     files?: FileEntryData[]
+    /** Give the dialog the desktop's Open and Reveal in Finder. */
+    desktop?: boolean
   } = {}
 ) {
   const handlers = {
@@ -245,6 +252,9 @@ function renderDialog(
     onRemoveMemory: vi.fn(),
     onSwitchOn: vi.fn(),
     deleteFile: vi.fn().mockResolvedValue(undefined),
+    openFileOnDesktop: desktop
+      ? vi.fn().mockResolvedValue(undefined)
+      : undefined,
   }
   render(
     <CanvasSettingsDialog
@@ -915,8 +925,8 @@ describe("CanvasSettingsDialog", () => {
       entry("research/notes.md"),
     ]
 
-    const openFiles = (files = FILES) => {
-      const handlers = renderDialog(undefined, undefined, { files })
+    const openFiles = (files = FILES, desktop = false) => {
+      const handlers = renderDialog(undefined, undefined, { files, desktop })
       fireEvent.click(screen.getByRole("button", { name: "Files" }))
       return handlers
     }
@@ -1002,6 +1012,45 @@ describe("CanvasSettingsDialog", () => {
       expect(
         screen.getByRole("dialog", { name: "Canvas settings" })
       ).toBeTruthy()
+    })
+
+    it("on the desktop, opens a file in its own app and reveals items in Finder", async () => {
+      const { openFileOnDesktop } = openFiles(FILES, true)
+
+      fireEvent.click(
+        within(await menu("zebra.md")).getByRole("menuitem", { name: "Open" })
+      )
+      await waitFor(() =>
+        expect(openFileOnDesktop).toHaveBeenCalledWith(
+          "room-1",
+          "zebra.md",
+          "open"
+        )
+      )
+      expect(screen.queryByRole("dialog", { name: "zebra.md" })).toBeNull()
+
+      fireEvent.click(
+        within(await menu("research")).getByRole("menuitem", {
+          name: "Reveal in Finder",
+        })
+      )
+      await waitFor(() =>
+        expect(openFileOnDesktop).toHaveBeenCalledWith(
+          "room-1",
+          "research",
+          "reveal"
+        )
+      )
+    })
+
+    it("offers no Reveal in Finder on hosted", async () => {
+      openFiles()
+
+      expect(
+        within(await menu("research")).queryByRole("menuitem", {
+          name: "Reveal in Finder",
+        })
+      ).toBeNull()
     })
 
     it("confirms deleting a file with its name", async () => {

@@ -85,6 +85,8 @@ import type {
 } from "@/lib/types"
 import { deleteCanvasFile, FilesSection } from "./canvas-files-section"
 import { MemorySection } from "./canvas-memory-section"
+import { openCanvasFileOnDesktop } from "@/lib/files/desktop-actions"
+import { isLocalBuild } from "@/lib/local-mode"
 
 /** The sections of Canvas settings. Members may join later. */
 export type CanvasSettingsSection = "repositories" | "memory" | "files"
@@ -125,6 +127,7 @@ export function CanvasSettingsDialog({
   onRemoveMemory,
   files,
   deleteFile = deleteCanvasFile,
+  openFileOnDesktop = isLocalBuild ? openCanvasFileOnDesktop : undefined,
   policy = repositoryLinkPolicy,
 }: {
   roomId: string
@@ -146,6 +149,13 @@ export function CanvasSettingsDialog({
   /** Delete a file or folder for every member; the route unless a test
    *  picks one. */
   deleteFile?: (roomId: string, path: string) => Promise<void>
+  /** The desktop's Open and Reveal in Finder (#1517); absent on hosted
+   *  unless a test picks one. */
+  openFileOnDesktop?: (
+    roomId: string,
+    path: string,
+    how: "open" | "reveal"
+  ) => Promise<void>
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
   onRemoveRepo: (
     id: string,
@@ -232,6 +242,10 @@ export function CanvasSettingsDialog({
                   roomId={roomId}
                   files={files}
                   onDelete={(path) => deleteFile(roomId, path)}
+                  onDesktop={
+                    openFileOnDesktop &&
+                    ((path, how) => openFileOnDesktop(roomId, path, how))
+                  }
                   adderName={adderName}
                 />
               ) : active.id === "memory" ? (
