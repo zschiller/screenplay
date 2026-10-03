@@ -10,7 +10,6 @@ import {
   type WorkspaceTurnRequest,
 } from "@/lib/agent/room-tools"
 import type { RoomCollections } from "@/lib/yjs/schema"
-import { readMemory } from "@/lib/memory/canvas"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import {
@@ -136,7 +135,7 @@ describe("read_canvas", () => {
     expect(summary).toContain('- [term-1] "Claude Code" · Workspace ws-1')
   })
 
-  it("lists mockups, naming the chat that made each and their status", async () => {
+  it("lists mockups, naming the chat that made each", async () => {
     const { collections } = makeHarness()
     collections.chatSessions.set("chat-1", {
       id: "chat-1",
@@ -156,7 +155,6 @@ describe("read_canvas", () => {
       width: 720,
       height: 800,
       title: "Receipt",
-      status: "built",
     })
     collections.iframeLayerGroups.set("grp-1", {
       id: "grp-1",
@@ -169,11 +167,9 @@ describe("read_canvas", () => {
     const summary = await readCanvas(portsOver(collections))
 
     expect(summary).toContain(
-      '- [mock-1] "Option A" · 1280×800 · Current · by chat "Empty cart"'
+      '- [mock-1] "Option A" · 1280×800 · by chat "Empty cart"'
     )
-    expect(summary).toContain(
-      '- [mock-2] "Receipt" · 720×800 · Built · Group grp-1'
-    )
+    expect(summary).toContain('- [mock-2] "Receipt" · 720×800 · Group grp-1')
     // The Group's extent counts the mockup's box.
     expect(summary).toContain('- [grp-1] "Receipt" · at 0, 0 · 720×800')
   })
@@ -258,83 +254,6 @@ describe("read_canvas", () => {
     )
     // Counts stay truthful even when the list is cut.
     expect(summary).toContain("Frames (3000):")
-  })
-})
-
-async function writeMemory(
-  ports: RoomToolPorts,
-  input: { action: "add" | "edit" | "remove"; id?: string; text?: string }
-): Promise<string> {
-  const tools = buildRoomTools("room-1", ports)
-  const execute = tools.write_memory.execute!
-  return (await execute(input, {
-    toolCallId: "t1",
-    messages: [],
-    context: {},
-  })) as string
-}
-
-describe("write_memory", () => {
-  it("adds an entry to the Room's shared data, marked as the Coordinator's", async () => {
-    const { collections } = makeHarness()
-    const out = await writeMemory(portsOver(collections), {
-      action: "add",
-      text: "  Use pnpm, never npm.  ",
-    })
-
-    const [entry, ...rest] = readMemory(collections)
-    expect(rest).toEqual([])
-    expect(entry).toMatchObject({
-      text: "Use pnpm, never npm.",
-      source: "agent",
-    })
-    expect(out).toContain(`[${entry!.id}]`)
-  })
-
-  it("edits an entry by id", async () => {
-    const { collections } = makeHarness()
-    const ports = portsOver(collections)
-    await writeMemory(ports, { action: "add", text: "Deploy on Fridays." })
-    const id = readMemory(collections)[0]!.id
-
-    const out = await writeMemory(ports, {
-      action: "edit",
-      id,
-      text: "Never deploy on Fridays.",
-    })
-
-    expect(out).toBe(`Updated [${id}].`)
-    expect(readMemory(collections).map((m) => m.text)).toEqual([
-      "Never deploy on Fridays.",
-    ])
-  })
-
-  it("removes an entry by id", async () => {
-    const { collections } = makeHarness()
-    const ports = portsOver(collections)
-    await writeMemory(ports, { action: "add", text: "Staging is flaky." })
-    const id = readMemory(collections)[0]!.id
-
-    expect(await writeMemory(ports, { action: "remove", id })).toBe(
-      `Removed [${id}].`
-    )
-    expect(readMemory(collections)).toEqual([])
-  })
-
-  it("changes nothing for an unknown id or empty text", async () => {
-    const { collections } = makeHarness()
-    const ports = portsOver(collections)
-
-    expect(
-      await writeMemory(ports, { action: "edit", id: "mem-x", text: "hi" })
-    ).toBe("No memory entry [mem-x].")
-    expect(await writeMemory(ports, { action: "remove" })).toMatch(
-      /needs the entry's id/
-    )
-    expect(await writeMemory(ports, { action: "add", text: "   " })).toMatch(
-      /needs text/
-    )
-    expect(readMemory(collections)).toEqual([])
   })
 })
 

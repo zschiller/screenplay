@@ -1,15 +1,19 @@
 "use client"
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@workspace/ui/components/command"
 import { BookOpenIcon } from "@workspace/ui/components/icons"
 import type { SkillOrigin } from "@/lib/skills/merged"
 
 /**
- * Item shape for the `/` skill picker. `origin` is shown as a tag on each row
- * so the collaborator can tell where a Skill comes from: "App" for a bundled
- * Skill, "Repo" for one the Branch ships in its own `.claude/skills/`,
- * "Canvas" for one a chat saved to the canvas. How each source shows is
- * settled by #1556's design exploration.
+ * Item shape for the `/` skill picker. `origin` names where the Skill comes
+ * from, shown as a word at the end of its row (#1556).
  */
 export interface SkillMentionItem {
   name: string
@@ -29,17 +33,25 @@ interface SkillMentionListProps {
   loading?: boolean
 }
 
-const ORIGIN_LABEL: Record<SkillMentionItem["origin"], string> = {
-  app: "App",
-  repo: "Repo",
+/**
+ * The word each row ends with: where its Skill lives (#1556). Account Skills
+ * read "Account" and the Mac agent's own read as that agent's name, once
+ * those sources join the menu (#1558, #1560).
+ */
+export const SKILL_ORIGIN_LABEL: Record<SkillOrigin, string> = {
+  repo: "Repository",
   canvas: "Canvas",
+  app: "Built in",
 }
 
 /**
  * Suggestion popover for the `/` skill picker. Each row shows the Skill's
- * name, an origin tag, and its description. Picking one fires `command`
+ * name, where it comes from, and its description. Picking one fires `command`
  * with the Skill name as both the mention id and label so the composer
  * inserts a single atomic chip.
+ *
+ * Typing stays in the composer, so the highlight is driven from the editor's
+ * key events ({@link SkillMentionListHandle}) and the Command only draws it.
  */
 export const SkillMentionList = forwardRef<
   SkillMentionListHandle,
@@ -77,46 +89,50 @@ export const SkillMentionList = forwardRef<
     },
   }))
 
-  if (items.length === 0) {
-    // While the per-Branch index is still loading, say so rather than "No
-    // skills found" — the menu shouldn't look broken the instant it opens.
-    return (
-      <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-muted-foreground shadow-md">
-        {loading ? "Loading skills…" : "No skills found"}
-      </div>
-    )
-  }
-
   return (
-    <div className="max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-xs text-popover-foreground shadow-md">
-      <div className="px-2 py-1.5 font-mono text-xs font-normal tracking-wider text-muted-foreground uppercase">
-        Skills
-      </div>
-      {items.map((item, i) => (
-        <button
-          key={item.name}
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault()
-            command({ id: item.name, label: item.name })
-          }}
-          onMouseEnter={() => setSelected(i)}
-          className={`flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left ${
-            i === selected ? "bg-accent text-accent-foreground" : ""
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <BookOpenIcon className="size-3 shrink-0 text-muted-foreground" />
-            <span className="truncate font-medium">{item.name}</span>
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-              {ORIGIN_LABEL[item.origin]}
-            </span>
-          </span>
-          <span className="line-clamp-2 pl-5 text-xs text-muted-foreground">
-            {item.description}
-          </span>
-        </button>
-      ))}
-    </div>
+    <Command
+      shouldFilter={false}
+      label="Skills"
+      value={items[selected]?.name ?? ""}
+      onValueChange={(name) => {
+        const i = items.findIndex((s) => s.name === name)
+        if (i >= 0) setSelected(i)
+      }}
+      className="rounded-lg! shadow-md ring-1 ring-foreground/10"
+    >
+      <CommandList>
+        {/* While the per-Branch index is still loading, say so rather than
+            "No skills found": the menu shouldn't look broken the instant it
+            opens. */}
+        <CommandEmpty>
+          {loading ? "Loading skills…" : "No skills found"}
+        </CommandEmpty>
+        {items.length > 0 && (
+          <CommandGroup heading="Skills">
+            {items.map((item) => (
+              <CommandItem
+                key={item.name}
+                value={item.name}
+                // Keep the composer focused: the chip goes in where the caret is.
+                onMouseDown={(e) => e.preventDefault()}
+                onSelect={() => command({ id: item.name, label: item.name })}
+                className="flex-col items-stretch gap-0.5"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <BookOpenIcon className="text-muted-foreground" />
+                  <span className="truncate font-medium">{item.name}</span>
+                  <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">
+                    {SKILL_ORIGIN_LABEL[item.origin]}
+                  </span>
+                </span>
+                <span className="line-clamp-2 pl-6 text-xs text-muted-foreground">
+                  {item.description}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandList>
+    </Command>
   )
 })

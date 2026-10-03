@@ -3,7 +3,6 @@ import type { ReactZoomPanPinchContentRef } from "react-zoom-pan-pinch"
 
 import type { CanvasOps } from "@/lib/canvas/ops"
 import type { RoomCollections } from "@/lib/yjs/schema"
-import type { MockupStatus } from "@/lib/types"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { MOCKUP_MIN_HEIGHT, MOCKUP_MIN_WIDTH } from "@/lib/constants"
@@ -104,7 +103,15 @@ export interface LayerMutations {
   ) => void
   /** Rename a mockup (its title lives on the record alone). */
   renameMockup: (id: string, title: string) => void
-  setMockupStatus: (id: string, status: MockupStatus) => void
+  /**
+   * Turn a mockup live for everyone on the canvas, in the Workspace whose
+   * Sandbox runs it, or back (#1523).
+   */
+  updateMockupLive: (id: string, live: boolean, branchId?: string) => void
+  /** Where a mockup's page is scrolled, synced to every copy. */
+  updateMockupScroll: (id: string, scrollX: number, scrollY: number) => void
+  /** A live mockup's Theme knob, as a frame's. */
+  updateMockupColorScheme: (id: string, colorScheme: "light" | "dark") => void
 
   // --- Live Page writers (#1493) ---
   /** A frame's page's Knobs and shared state, on its record. */
@@ -298,9 +305,27 @@ export function useLayerMutations({
     [ops]
   )
 
-  const setMockupStatus = useCallback(
-    (id: string, status: MockupStatus) => {
-      ops.patch("mockupLayers", id, { status })
+  const updateMockupLive = useCallback(
+    (id: string, live: boolean, branchId?: string) => {
+      ops.patch(
+        "mockupLayers",
+        id,
+        live && branchId ? { live, liveBranchId: branchId } : { live }
+      )
+    },
+    [ops]
+  )
+
+  const updateMockupScroll = useCallback(
+    (id: string, scrollX: number, scrollY: number) => {
+      ops.patch("mockupLayers", id, { scrollX, scrollY })
+    },
+    [ops]
+  )
+
+  const updateMockupColorScheme = useCallback(
+    (id: string, colorScheme: "light" | "dark") => {
+      ops.patch("mockupLayers", id, { colorScheme })
     },
     [ops]
   )
@@ -348,7 +373,9 @@ export function useLayerMutations({
       setTitleCache,
       resizeMockup,
       renameMockup,
-      setMockupStatus,
+      updateMockupLive,
+      updateMockupScroll,
+      updateMockupColorScheme,
       framePage,
       mockupPage,
     }),
@@ -367,7 +394,9 @@ export function useLayerMutations({
       setTitleCache,
       resizeMockup,
       renameMockup,
-      setMockupStatus,
+      updateMockupLive,
+      updateMockupScroll,
+      updateMockupColorScheme,
       framePage,
       mockupPage,
     ]

@@ -70,19 +70,6 @@ Only the chat that made a mockup can change it; ask that chat to continue the
 work. Once that chat is deleted, any chat can change the mockup, and the first
 one that does becomes its chat.
 
-## Status
-
-Each mockup shows a status at the end of its label: **Set aside**,
-**Current** or **Built**. A new mockup starts as Current. Click the status,
-or pick one under **More** (⋯) › **Status** below the selected mockup, to change it, and
-everyone on the canvas sees the change. The chat that made
-the mockup can set it too, for example marking a take Built once it's in the
-app. A set-aside mockup's name is struck through, and Built shows in green.
-Zoomed far out, where labels drop the status, a Built mockup keeps a green
-check after its name.
-The status is only a note for people following the takes; it doesn't change
-the mockup's page or how it behaves.
-
 ## Building one
 
 When you've picked a take, ask the chat that drew it to build it, for
@@ -90,8 +77,7 @@ example "build take 2". The chat reads that mockup's page, builds it into
 its own workspace using your app's real components, and checks the result
 in its frame against the mockup. Its reply sums up the decisions it built
 from: the take you picked, your answers to its questions and the changes you
-asked for along the way. Then it marks the mockup **Built**. The mockup stays
-on the canvas, so the take and the live page can sit side by side.
+asked for along the way. The mockup stays on the canvas, so the take and the live page can sit side by side.
 
 There's no Build button: you ask in the chat, in your own words. How many
 takes the chat draws and how many rounds it goes through are up to the
@@ -106,9 +92,8 @@ layers list with their own icon. Delete them with <kbd>Delete</kbd>, and
 <kbd>⌘Z</kbd> brings a deleted mockup back.
 
 **More** (⋯), at the end of the bar under a selected mockup, holds
-**Duplicate**, a **Status** submenu and **Delete**. Duplicate adds a copy at the
-end of the mockup's group, with the same page, size and chat, its name ending
-in "copy" and its status Current.
+**Duplicate** and **Delete**. Duplicate adds a copy at the end of the
+mockup's group, with the same page, size and chat, its name ending in "copy".
 
 Clicking a mockup selects it rather than using the page. To click through
 it, press **Interact** under the selected mockup or double-click it, as on a
@@ -140,6 +125,36 @@ A mockup's page can also [share its state](/building/shared-state#on-a-mockup),
 such as the open tab or what's in a cart, so everyone looking at it sees the
 same thing as you click through it in Interact.
 
+A mockup's scroll position syncs the same way, as a frame's does: when
+someone scrolls the page, everyone's copy follows, and the mockup opens, and
+reloads, where it was scrolled to.
+
+## Going live
+
+On a hosted canvas, a mockup starts as your own copy, running in your
+browser, like a [frame](/guides/frames#live-frames). To look at the very same
+page together, click **Go live** (the broadcast button after **Interact**
+under the selected mockup). Going live works as it does on a frame: it
+happens for everyone on the canvas. The mockup's page opens in one browser in
+a workspace's sandbox, everyone's copy switches to it, and the title line
+reads **Live**. Anyone who opens the canvas while the mockup is live lands on
+it live.
+
+A mockup has no workspace of its own, so it borrows one to run in: the
+workspace of the chat that made it, or another running workspace when that
+one isn't running. With no workspace running, **Go live** is disabled and its
+tooltip says a workspace has to be running.
+
+On a live mockup, whoever has control is the only one whose clicks, keys and
+scrolling reach the page, and others can
+[ask for control](/guides/frames#asking-for-control), as on a live frame.
+When the chat rewrites the mockup, the live page shows the new version for
+everyone. Its Knobs gain the same **Theme** knob as a live frame's.
+
+Click **Go live** again to end it for everyone: each of you is back on your
+own copy. What the live page held only in memory, like a half typed form,
+doesn't come along. The desktop app has no **Go live**.
+
 ## The agent driving a mockup
 
 A chat's agent can click through a mockup for you, the way it
@@ -155,6 +170,9 @@ workspace chat or a [chat with no repository](/guides/agent#chats-with-no-reposi
 - **The canvas has to be open.** The agent drives only while the canvas is
   open in your browser or the desktop app. With it closed, the agent says so in the
   chat instead.
+- **A live mockup is the exception.** On a [live](#going-live) mockup the agent
+  drives the one live page, so everyone on the canvas watches each step, and
+  it works with nobody's canvas open.
 - **It shows the same signs as a frame.** **Agent has control** sits on the
   mockup's title line, an unselected mockup gets a ring, the Interact button
   shows the agent's dots, and the mockup has no resize handles while the
@@ -174,7 +192,7 @@ workspace chat or a [chat with no repository](/guides/agent#chats-with-no-reposi
   says **Click to take control**) or double-click the mockup, and the agent stops at
   once and asks before it carries on.
 
-The agent's clicks and keys are simulated inside the page, so it can't open a
+On your own copy, the agent's clicks and keys are simulated inside the page, so it can't open a
 file picker, use the clipboard or move the keyboard focus. When a step needs
 one of these, it asks you to do it. It can hover: tooltips and menus that
 open on hover do, and the mockup's hover styles show.
@@ -183,4 +201,5 @@ open on hover do, and the mockup's hover styles show.
 
 A mockup's page runs in a locked-down frame: it can run its own scripts, but
 it can't reach Screenplay, your session or the rest of the canvas, and it
-doesn't load anything from the network. Mockups are self-contained pages.
+doesn't load anything from the network. Mockups are self-contained pages. A
+live mockup runs locked down the same way, in its workspace's sandbox.

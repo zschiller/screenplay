@@ -6,7 +6,10 @@ import { turnToolset, type ChatTools } from "./toolset"
 import { BARE_TOOL_NAMING, type ToolNaming } from "./tool-name"
 import type { RoomDoc, RoomReader } from "@/lib/room-access"
 import { readMemory } from "@/lib/memory/canvas"
-import { readAccountMemory } from "@/lib/memory/account"
+import {
+  readAccountMemory,
+  type AccountMemoryStore,
+} from "@/lib/memory/account"
 import { kvAccountMemoryStore } from "@/lib/memory/account-store"
 import type { MemoryData } from "@/lib/types"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
@@ -104,15 +107,28 @@ export async function loadCanvasMemory(
 
 /**
  * The account memory (#1513) of the person who sent the turn, for its system
- * prompt. `null` is a turn nobody sent (a Coordinator wake), which reads none,
- * so nobody's personal context leaks into it. A read that fails leaves the
- * prompt without it rather than failing the turn.
+ * prompt. A turn nobody sent (a Coordinator wake, `senderId` null) has none:
+ * `null`, so nobody's personal context leaks into it and its prompt says
+ * there is no account to save to. A read that fails leaves the prompt without
+ * entries rather than failing the turn.
  */
 export async function loadAccountMemory(
   senderId: string | null
-): Promise<MemoryData[]> {
-  if (!senderId) return []
+): Promise<MemoryData[] | null> {
+  if (!senderId) return null
   return readAccountMemory(kvAccountMemoryStore(senderId)).catch(() => [])
+}
+
+/**
+ * Where `write_memory` (#1515) saves a turn's account memory: its sender's
+ * store, or `null` on a turn nobody sent, which refuses account writes.
+ */
+export function accountMemoryStore(target: {
+  userId: string
+  senderless?: boolean
+}): AccountMemoryStore | null {
+  const sender = turnSender(target)
+  return sender ? kvAccountMemoryStore(sender) : null
 }
 
 /** Who sent a target's turn: its member, unless nobody did. */

@@ -163,11 +163,11 @@ canvas.
 
 ## Canvas memory
 
-The Coordinator keeps the canvas's shared **memory**: preferences, decisions
-and facts about its repositories, like "Use pnpm, never npm." Every chat on
-the canvas reads it. The Coordinator saves to it when you tell it something
-worth keeping or ask it to remember something, and edits or removes entries
-when you ask. See [Memory](/guides/memory) for managing it yourself, and for
+The canvas keeps a shared **memory**: preferences, decisions and facts about
+its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
+it. The Coordinator, like every other chat, saves to it when you tell it
+something worth keeping or ask it to remember something, and edits or removes
+entries when you ask. See [Memory](/guides/memory) for managing it yourself, and for
 your own account memory, which follows you to every canvas.
 
 ## Chatting with the Coordinator
@@ -177,9 +177,9 @@ The Coordinator's chat works like a
 one chat, so there are no tabs and no chat history. You can
 [@ mention documents](/guides/agent#mentioning-documents), point at what's
 [selected or on screen](/guides/agent#pointing-with-the-canvas), pick its model and
-[send while it works](/guides/agent#sending-while-the-agent-works), but its
-composer has no **Plan** toggle, no <kbd>/</kbd> skills menu and no crosshair,
-since it never edits code.
+[send while it works](/guides/agent#sending-while-the-agent-works) and
+[pick a skill](/building/skills#using-skills) with <kbd>/</kbd>, but its
+composer has no **Plan** toggle and no crosshair, since it never edits code.
 
 Its tool calls show as compact rows, like a workspace agent's. A row that
 reads a workspace names it, such as **Read changes in** _Checkout_. Once a

@@ -412,12 +412,6 @@ export type MockupLayerData = {
    * Once that chat is gone the mockup stays and names none.
    */
   ownerChatId?: string
-  /**
-   * Where this take stands (#1310), set by anyone on the canvas or by its
-   * owning chat. Nothing else reads it: the chat decides what it means. Unset
-   * on a mockup made before statuses, which reads as `current`.
-   */
-  status?: MockupStatus
   /** Knob declarations the page posted, replaced wholesale on each, as a frame's are. */
   knobs?: JsonValue[]
   /** Current knob values keyed by knob id, synced down into the page. */
@@ -425,11 +419,23 @@ export type MockupLayerData = {
   /** State the page shares through `screenplay.shareState`, kept and synced
    *  to every viewer like a frame's `sharedState`. */
   sharedState?: JsonObject
+  /** Where the page is scrolled, synced to every copy and restored on load,
+   *  as a frame's is. */
+  scrollX?: number
+  scrollY?: number
+  /**
+   * Someone turned the mockup live (#1523): its page runs in one browser in
+   * a Workspace's Sandbox, streamed to everyone on the canvas, as a live
+   * frame's does. Hosted only. Absent is not live.
+   */
+  live?: boolean
+  /** The Workspace whose Sandbox runs the live page, picked when it went
+   *  live (`mockupLiveWorkspace`). */
+  liveBranchId?: string
+  /** What the live page's `prefers-color-scheme` matches: its Theme knob,
+   *  as on a frame. Light when unset. */
+  colorScheme?: "light" | "dark"
 }
-
-/** A Mockup's status (#1310), in menu order. */
-export const MOCKUP_STATUSES = ["set-aside", "current", "built"] as const
-export type MockupStatus = (typeof MOCKUP_STATUSES)[number]
 
 export type ViewportData = {
   x: number

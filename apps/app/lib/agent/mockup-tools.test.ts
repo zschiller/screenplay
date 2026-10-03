@@ -152,41 +152,6 @@ describe("update_mockup", () => {
     })
   })
 
-  it("sets the status of the chat's own Mockup, which starts Current (#1310)", async () => {
-    const { run, collections } = chatTools()
-    const mockupId = idIn(
-      await run("create_mockup", { title: "Option A", html: "<p>A</p>" })
-    )
-    expect(collections.mockupLayers.get(mockupId)?.status).toBe("current")
-
-    const out = await run("update_mockup", {
-      mockup_id: mockupId,
-      status: "set-aside",
-    })
-
-    expect(out).toBe(`Updated Mockup ${mockupId}; its status is Set aside.`)
-    expect(collections.mockupLayers.get(mockupId)?.status).toBe("set-aside")
-  })
-
-  it("refuses the status of a Mockup another chat made", async () => {
-    const { run, ops, collections } = chatTools()
-    const { mockupId } = ops.createMockup({
-      html: "<p>theirs</p>",
-      title: "Theirs",
-      width: 400,
-      height: 300,
-      ownerChatId: "chat-2",
-    })!
-
-    const out = await run("update_mockup", {
-      mockup_id: mockupId,
-      status: "built",
-    })
-
-    expect(out).toContain("made by another chat")
-    expect(collections.mockupLayers.get(mockupId)?.status).toBe("current")
-  })
-
   it("refuses a Mockup another chat made", async () => {
     const { run, doc, ops } = chatTools()
     const { mockupId } = ops.createMockup({
@@ -235,7 +200,7 @@ describe("update_mockup", () => {
 })
 
 describe("read_mockup", () => {
-  it("lists the chat's own Mockups with their statuses", async () => {
+  it("lists the chat's own Mockups", async () => {
     const { run, ops } = chatTools()
     const a = idIn(
       await run("create_mockup", { title: "Take 1", html: "<p>1</p>" })
@@ -243,7 +208,6 @@ describe("read_mockup", () => {
     const b = idIn(
       await run("create_mockup", { title: "Take 2", html: "<p>2</p>" })
     )
-    await run("update_mockup", { mockup_id: a, status: "set-aside" })
     ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
@@ -253,11 +217,7 @@ describe("read_mockup", () => {
     })
 
     expect(await run("read_mockup", {})).toBe(
-      [
-        "Your Mockups:",
-        `- ${a}: Take 1 (Set aside)`,
-        `- ${b}: Take 2 (Current)`,
-      ].join("\n")
+      ["Your Mockups:", `- ${a}: Take 1`, `- ${b}: Take 2`].join("\n")
     )
   })
 
@@ -268,14 +228,14 @@ describe("read_mockup", () => {
     )
   })
 
-  it("returns a Mockup's title, status and whole page", async () => {
+  it("returns a Mockup's title and whole page", async () => {
     const { run } = chatTools()
     const id = idIn(
       await run("create_mockup", { title: "Take 2", html: "<h1>Two</h1>" })
     )
 
     expect(await run("read_mockup", { mockup_id: id })).toBe(
-      ["# Take 2", "Status: Current", "", "<h1>Two</h1>"].join("\n")
+      ["# Take 2", "", "<h1>Two</h1>"].join("\n")
     )
   })
 
@@ -291,7 +251,7 @@ describe("read_mockup", () => {
 
     const out = await run("read_mockup", { mockup_id: mockupId })
 
-    expect(out).toContain("Status: Current (made by another chat)")
+    expect(out).toContain("# Theirs (made by another chat)")
     expect(out).toContain("<p>theirs</p>")
   })
 
@@ -306,7 +266,7 @@ describe("read_mockup", () => {
     })!
 
     expect(await run("read_mockup", { mockup_id: mockupId })).toContain(
-      "Status: Current (its chat was deleted; you can change it)"
+      "# Orphan (its chat was deleted; you can change it)"
     )
   })
 

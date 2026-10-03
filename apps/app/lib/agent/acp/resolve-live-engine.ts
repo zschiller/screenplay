@@ -128,6 +128,8 @@ export async function resolveLiveEngine(
     model?: string
     /** The turn's Room, which a Workspace chat's MCP token is bound to. */
     roomId?: string
+    /** Nobody sent the turn: its MCP tools get no account memory (#1515). */
+    senderless?: boolean
   } = {}
 ): Promise<Engine> {
   if (engineChoiceFromEnv() !== "external") {
@@ -140,7 +142,7 @@ export async function resolveLiveEngine(
   // Coordinator runs in an app-owned folder with its tools served over MCP.
   // A Sketch Chat (no sandbox) shares its Room's folder, with its own tools.
   const folderSession =
-    (await coordinatorSession(opts.chatId)) ?? (await sketchSession(opts))
+    (await coordinatorSession(opts)) ?? (await sketchSession(opts))
   const mcp = folderSession ?? workspaceSession(opts)
   const cwd = opts.sandboxName
     ? (await sandboxProvider.get({ name: opts.sandboxName })).worktreePath
@@ -208,17 +210,21 @@ async function sameHarnessAsLastTurn(
  * Claude's allow rule for them. Only the local build serves that MCP route, so
  * anywhere else the Coordinator gets no server rather than a dead one.
  */
-async function coordinatorSession(chatId: string | undefined): Promise<
+async function coordinatorSession(opts: {
+  chatId?: string
+  senderless?: boolean
+}): Promise<
   | (Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> & {
       cwd: string
     })
   | null
 > {
+  const { chatId } = opts
   const roomId = chatId ? roomIdOfRoomChat(chatId) : null
   if (!roomId || !chatId || !isLocalBuild) return null
   return {
     cwd: await ensureCoordinatorFolder(roomId),
-    mcpServers: [coordinatorMcpServer({ roomId, chatId })],
+    mcpServers: [coordinatorMcpServer({ roomId, chatId, ...senderless(opts) })],
     sessionMeta: coordinatorSessionMeta(),
   }
 }
@@ -232,6 +238,7 @@ async function sketchSession(opts: {
   sandboxName?: string
   chatId?: string
   roomId?: string
+  senderless?: boolean
 }): Promise<
   | (Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> & {
       cwd: string
@@ -243,7 +250,14 @@ async function sketchSession(opts: {
   if (roomIdOfRoomChat(chatId)) return null
   return {
     cwd: await ensureCoordinatorFolder(roomId),
-    mcpServers: [coordinatorMcpServer({ roomId, chatId, sketch: true })],
+    mcpServers: [
+      coordinatorMcpServer({
+        roomId,
+        chatId,
+        sketch: true,
+        ...senderless(opts),
+      }),
+    ],
     sessionMeta: coordinatorSessionMeta(),
   }
 }
@@ -259,11 +273,24 @@ function workspaceSession(opts: {
   sandboxName?: string
   chatId?: string
   roomId?: string
+  senderless?: boolean
 }): Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> | null {
   const { sandboxName, chatId, roomId } = opts
   if (!sandboxName || !chatId || !roomId || !isLocalBuild) return null
   return {
-    mcpServers: [coordinatorMcpServer({ roomId, chatId, sandboxName })],
+    mcpServers: [
+      coordinatorMcpServer({
+        roomId,
+        chatId,
+        sandboxName,
+        ...senderless(opts),
+      }),
+    ],
     sessionMeta: coordinatorSessionMeta(),
   }
+}
+
+/** A token's `senderless` flag, set only when it is. */
+function senderless(opts: { senderless?: boolean }): { senderless?: true } {
+  return opts.senderless ? { senderless: true } : {}
 }

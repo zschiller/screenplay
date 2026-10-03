@@ -412,6 +412,24 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     icon: "memory",
     kind: "other",
     category: "memory",
+    // "Save to account memory", "Edit canvas memory", "Remove from account
+    // memory" (#1515), with the entry's text when there is one.
+    label: (input) => {
+      const where =
+        input.scope === "account"
+          ? "account memory"
+          : input.scope === "canvas"
+            ? "canvas memory"
+            : "memory"
+      const verb =
+        input.action === "edit"
+          ? `Edit ${where}`
+          : input.action === "remove"
+            ? `Remove from ${where}`
+            : `Save to ${where}`
+      const text = str(input.text)
+      return text ? { verb, detail: text, as: "text" } : { verb }
+    },
   },
   // The canvas's saved files (#1514).
   list_saved_files: {

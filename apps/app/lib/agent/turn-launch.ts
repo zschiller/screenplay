@@ -84,6 +84,12 @@ export interface TurnRequest {
    */
   sentBy?: string | null
   /**
+   * Nobody sent this turn (a Coordinator wake, or a turn one delegated): a
+   * harness's MCP tools then get no account memory (#1515), as its target's
+   * in-process tools don't.
+   */
+  senderless?: boolean
+  /**
    * The human's decision on a paused plan, when this turn resumes from one
    * (the plan route). Without it, a plan still pending on the chat is
    * implicitly rejected, with this message as the feedback.
@@ -138,6 +144,7 @@ export interface TurnLaunchDeps {
     chatId: string
     model?: string
     roomId: string
+    senderless?: boolean
   }): Promise<Engine>
   /** The chat's most recent plan still awaiting a decision, if any. */
   findPendingPlan(chatId: string): Promise<{ id: string } | null>
@@ -272,6 +279,7 @@ export async function launchTurn(
     chatId,
     model: request.model,
     roomId,
+    ...(request.senderless ? { senderless: true } : {}),
   })
 
   // A retry that finds some other turn after the failed one sends its ask as

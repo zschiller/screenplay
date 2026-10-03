@@ -414,15 +414,15 @@ since #1314).
 **Mockup Layer** (Mockup):
 A static HTML page a chat wrote, shown on the canvas with no Sandbox
 (#1309). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
-(`MockupLayerData`: size, title, the `ownerChatId` of the chat that made
-it, and a **Mockup Status** of `set-aside`, `current` or `built` (#1310),
-which anyone on the canvas or its owning chat sets; nothing else reads it, and
-an unset status reads as `current`).
+(`MockupLayerData`: size, title and the `ownerChatId` of the chat that made
+it). Mockups have no status; the Set aside / Current / Built status (#1310)
+was removed. Older records may still carry a `status` field, which nothing
+reads.
 It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no
 `allow-same-origin` and a Content Security Policy that blocks the network, so
 the page can never reach the app, its cookies or the canvas, and has no
 browser chrome. A Workspace chat creates one with `create_mockup` and rewrites
-its own (page, title or status) with `update_mockup`; a new one joins the Group of the chat's latest
+its own (page or title) with `update_mockup`; a new one joins the Group of the chat's latest
 Mockup, else of its Workspace's frames. Like a chat-made Document, it names
 its chat's Workspace by the Group label rule. Not a Chat Target. Canvas selection carries it
 in the Markdown Layer Set: selection only tells frames apart from the other
@@ -739,7 +739,8 @@ are the comment-mode placement in **Element Reference**); cross-Branch targeting
 Short notes (preferences, decisions, facts about the repositories) shared by a
 Room's members, which every chat on the canvas reads in its system prompt as
 its own labeled block. Lives in the Room's Y.Doc as the `memories` collection
-(`MemoryData`), changed only through `lib/memory/canvas`. Members edit it in
+(`MemoryData`), changed only through `lib/memory/canvas`. Every chat kind
+saves to it with `write_memory` (`scope: "canvas"`, #1515); members edit it in
 Canvas settings › Memory. Each entry records who saved it: an agent
 (`agent`; older entries say `coordinator` and read as `agent`) or a person
 (`member`). At most 1,000 characters an entry; a prompt carries the newest 100.
@@ -752,8 +753,10 @@ the turns they send read it, on any canvas. Stored per user in the encrypted
 KV beside their Repositories (`lib/memory/account`), on hosted and desktop.
 Read by the **sender** of a turn, never the chat's starter, so a teammate's
 message in your chat reads theirs, not yours; a turn nobody sent (a Coordinator
-wake, and the turns it delegates) reads none. Same entry shape and limits as
-Canvas Memory. People edit it in Settings › Memory.
+wake, and the turns it delegates) reads none. Every chat kind saves to the
+sender's with `write_memory` (`scope: "account"`, #1515); a turn nobody sent
+refuses it. Same entry shape and limits as Canvas Memory. People edit it in
+Settings › Memory.
 _Shown to users as_: "Memory" (Settings).
 _Avoid_: profile, preferences (as a noun for the store), user memory.
 
@@ -1479,7 +1482,7 @@ the pick scrim), the bar's Interact / Go live / Knobs, and the title tag and
 resize rule. A layer configures it by its **source**: `url` (a frame's own
 copy), `stream` (a live frame, through its Frame Stream) or `srcdoc` (a
 Mockup). What a layer adds around the page (a frame's address bar, status
-screens and Create Flow; a Mockup's status) stays in the layer.
+screens and Create Flow) stays in the layer.
 _Avoid_: wiring the bridge, the overlay or the page's bar controls in a layer;
 a capability that only one kind of page gets by hand.
 

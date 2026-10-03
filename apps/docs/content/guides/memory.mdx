@@ -22,6 +22,19 @@ change you prefer) in account memory, and what's about one canvas's work in
 its canvas memory. Each chat reads both: your account memory, then the
 canvas's.
 
+## How chats save memory
+
+Every chat saves to memory: workspace chats, chats with no repository and the
+Coordinator. A chat saves when you tell it something worth keeping, ask it to
+remember something, or learns something later chats would otherwise have to
+ask you. Your personal preferences go to your account memory, and facts
+about the canvas's work go to its canvas memory. Ask a chat to change or
+forget an entry and it edits or removes it.
+
+Chats save without asking first. Each save shows in the chat as a row like
+**Save to account memory** with the entry's text, so you can see what was
+kept and fix it in settings.
+
 ## Account memory
 
 Open **Settings** from the bottom of the home screen sidebar and choose
@@ -35,18 +48,15 @@ Open **Settings** from the bottom of the home screen sidebar and choose
 
 On a shared canvas, a chat reads the account memory of whoever sent the
 message, not of whoever started the chat. A message you send in a teammate's
-chat follows your account memory, and theirs never steers it. Messages the
-Coordinator sends on its own, when a workspace finishes, read no one's
-account memory.
+chat follows your account memory, and theirs never steers it. What a chat saves to account
+memory during your message goes to your account, never the chat starter's.
+Messages the Coordinator sends on its own, when a workspace finishes, read no
+one's account memory and save only to canvas memory.
 
 Account memory works the same on the desktop app, where it belongs to the
 one person using the app.
 
 ## Canvas memory
-
-The Coordinator saves to canvas memory when you tell it something worth
-keeping or ask it to remember something, and it edits or removes entries when
-you ask.
 
 To read or change it yourself, open **Canvas settings** from the **…** next
 to the canvas name and choose **Memory**. **Edit** changes an entry, **…** ›

@@ -38,6 +38,7 @@ function router(opts: { shared?: FrameDriver; revealFails?: boolean } = {}) {
     shared: opts.shared ?? fakeDriver("shared", calls),
     mockups: fakeDriver("mockups", calls),
     isMockup: async (id) => id.startsWith("mockup"),
+    isLiveMockup: async (id) => id.startsWith("mockup-live"),
     canvas: {
       reveal: async (id) => {
         calls.push(`reveal ${id}`)
@@ -50,6 +51,16 @@ function router(opts: { shared?: FrameDriver; revealFails?: boolean } = {}) {
 }
 
 describe("a hosted chat's driver", () => {
+  it("sends a live Mockup to its shared browser", async () => {
+    const { driver, calls } = router()
+    await driver.run("mockup-live-1", CLICK)
+    await driver.screenshot("mockup-live-1")
+    expect(calls).toEqual([
+      "shared.run mockup-live-1",
+      "shared.screenshot mockup-live-1",
+    ])
+  })
+
   it("sends a Mockup to the asker's view and a frame to its shared browser", async () => {
     const { driver, calls } = router()
     await driver.run("mockup-1", CLICK)

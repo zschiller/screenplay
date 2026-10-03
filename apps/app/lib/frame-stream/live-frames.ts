@@ -74,3 +74,30 @@ export function liveFrames({
   }
   return result
 }
+
+/**
+ * The Workspace a Mockup goes live in (#1523). A Mockup is static HTML with
+ * no Workspace of its own to run in, so its live browser borrows one whose
+ * frames can go live: the one it went live in while it's live there, else its
+ * owning chat's, else the first. Going live records the answer on the Mockup
+ * (`liveBranchId`), so everyone, and the agent, find the same browser.
+ * Undefined when no Workspace's frames can go live (none is running).
+ *
+ * @param streaming the Workspaces whose frames can go live.
+ */
+export function mockupLiveWorkspace({
+  live,
+  liveBranchId,
+  ownerBranchId,
+  streaming,
+}: {
+  live: boolean
+  liveBranchId: string | undefined
+  ownerBranchId: string | undefined
+  streaming: readonly string[]
+}): string | undefined {
+  if (live && liveBranchId && streaming.includes(liveBranchId))
+    return liveBranchId
+  if (ownerBranchId && streaming.includes(ownerBranchId)) return ownerBranchId
+  return [...streaming].sort()[0]
+}

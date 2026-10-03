@@ -49,6 +49,9 @@ export async function POST(req: Request) {
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
 
+  // A token minted for a turn nobody sent gets no account memory (#1515).
+  const senderless = binding.senderless ? { senderless: true } : {}
+
   // Each binding gets its Chat Target's toolset on a harness: the tools its
   // in-process turn has, less the file, shell and plan tools the harness
   // brings its own of (#1487).
@@ -77,6 +80,7 @@ export async function POST(req: Request) {
       sandboxName: binding.sandboxName,
       chatId: binding.chatId,
       userId: room.userId,
+      ...senderless,
     })
     return serve(
       withRedactedOutput(
@@ -90,6 +94,7 @@ export async function POST(req: Request) {
     const tools = sketchChatTarget.tools(room, {
       chatId: binding.chatId,
       userId: room.userId,
+      ...senderless,
     })
     return serve(
       toolsetOn(tools, "harness"),
@@ -101,7 +106,7 @@ export async function POST(req: Request) {
   const run = await findActiveRun(binding.chatId).catch(() => null)
   const tools = roomChatTarget.tools(
     room,
-    coordinatorTarget(room, binding.chatId, { turnId: run?.id })
+    coordinatorTarget(room, binding.chatId, { turnId: run?.id, ...senderless })
   )
   return serve(
     toolsetOn(tools, "harness"),
