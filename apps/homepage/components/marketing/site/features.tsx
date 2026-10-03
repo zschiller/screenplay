@@ -10,7 +10,7 @@ const features: { title: string; body: string }[] = [
   },
   {
     title: "The Coordinator",
-    body: "One chat for the whole canvas. It starts a Workspace for each version or task, follows every chat, and tells you when one needs you.",
+    body: "One chat for the whole canvas. It starts a chat for each version or task, follows every one, and tells you when one needs you.",
   },
   {
     title: "Pick elements",

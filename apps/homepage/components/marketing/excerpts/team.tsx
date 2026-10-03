@@ -5,9 +5,7 @@ import {
 } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { floating, Frame, FrameBar, Tool } from "./canvas"
-import { Fit } from "./fit"
-import { Northwind } from "./northwind"
+import { floating, Tool } from "./canvas"
 
 /*
  * The For teams figure: the canvas as a team sees it on the web app. The
@@ -16,14 +14,14 @@ import { Northwind } from "./northwind"
  */
 
 /** Presence colours from the app's palette, with the dark ink it picks. */
-const people = [
+export const people = [
   { initials: "M", color: "#81C784" },
   { initials: "S", color: "#64B5F6" },
   { initials: "J", color: "#FFB74D" },
 ] as const
 
 /** A facepile avatar: 24px, an initial on the person's presence colour. */
-function Face({ initials, color }: { initials: string; color: string }) {
+export function Face({ initials, color }: { initials: string; color: string }) {
   return (
     <span
       className="flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium text-neutral-950 ring-2 ring-background"
@@ -35,7 +33,7 @@ function Face({ initials, color }: { initials: string; color: string }) {
 }
 
 /** The canvas's top-right pill on the web app: zoom, comments, people, Share. */
-function PeoplePill() {
+export function PeoplePill() {
   return (
     <div className={cn(floating, "absolute top-2 right-2 z-10 text-xs")}>
       <span className="flex h-6 items-center gap-1 px-1.5 text-sm tabular-nums">
@@ -58,7 +56,7 @@ function PeoplePill() {
 }
 
 /** A teammate's cursor with their name, as the canvas draws other people. */
-function Cursor({
+export function Cursor({
   name,
   color,
   className,
@@ -94,23 +92,8 @@ function Cursor({
   )
 }
 
-/**
- * "Sam has control" on the selected frame's title line, right-aligned to the
- * frame, on Sam's cursor colour, as the app's FrameDriverTag draws a person.
- */
-function DriverTag({ name, color }: { name: string; color: string }) {
-  return (
-    <span
-      className="absolute z-[6] flex h-[18px] -translate-x-full items-center rounded px-1.5 text-xs font-medium whitespace-nowrap text-neutral-950"
-      style={{ backgroundColor: color, left: 432, top: 62 }}
-    >
-      {name} has control
-    </span>
-  )
-}
-
 /** The comment pin: yellow, numbered, its bottom-left tip on the element. */
-function Pin({ number }: { number: number }) {
+export function Pin({ number }: { number: number }) {
   return (
     <span className="bg-comment flex size-6.5 items-center justify-center rounded-[13px_13px_13px_3px] text-xs font-semibold text-black tabular-nums shadow-md">
       {number}
@@ -144,7 +127,7 @@ function Comment({
 }
 
 /** The open thread's card, a popover beside its pin. */
-function ThreadCard({ className }: { className?: string }) {
+export function ThreadCard({ className }: { className?: string }) {
   return (
     <div
       className={cn(
@@ -172,65 +155,5 @@ function ThreadCard({ className }: { className?: string }) {
         </Comment>
       </div>
     </div>
-  )
-}
-
-/**
- * The selected frame, live, with its bar, Sam in control of it, their
- * cursor on its headline and a
- * pinned comment open on its button, the next Workspace's frame beside it,
- * and the people pill above. Laid out at a fixed size and scaled to the
- * column like an image, so the thread card always fits beside its pin.
- */
-export function TeamExcerpt() {
-  return (
-    <Fit
-      width={640}
-      height={440}
-      initialScale={0.9}
-      role="img"
-      aria-label="A shared canvas on the web app: three teammates' avatars in the top corner, a teammate's cursor on the selected frame they have control of, and a pinned comment thread open on its sign-up button."
-      className="border border-border"
-    >
-      <div className="bg-plane relative size-full overflow-hidden text-foreground">
-        <PeoplePill />
-        <Frame
-          label="Home"
-          workspace="Hero gradient & trust line"
-          selected
-          style={{ left: 32, top: 84, width: 400 }}
-        >
-          <Northwind version="gradient" />
-        </Frame>
-        <DriverTag name="Sam" color={people[1].color} />
-        <FrameBar
-          live
-          driver={{ initial: "S", color: people[1].color }}
-          className="z-[5]"
-          style={{ left: 32, top: 344, width: 400 }}
-        />
-        <Frame
-          label="Home"
-          workspace="Main"
-          style={{ left: 464, top: 84, width: 400 }}
-        >
-          <Northwind />
-        </Frame>
-        <Cursor
-          name="Sam"
-          color={people[1].color}
-          style={{ left: 150, top: 262 }}
-        />
-        {/* The pin's tip on the button's corner, its thread card beside it. */}
-        <div className="absolute z-[7]" style={{ left: 224, top: 230 }}>
-          <div className="absolute bottom-0 left-0">
-            <Pin number={1} />
-          </div>
-          {/* Beside the pin, centred on it, so the bar under the frame
-              stays in view. */}
-          <ThreadCard className="top-[-110px] left-[34px]" />
-        </div>
-      </div>
-    </Fit>
   )
 }
