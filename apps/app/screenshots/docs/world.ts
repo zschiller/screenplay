@@ -109,7 +109,7 @@ const ROUTES = [
   { route: "/customers", label: "Customers" },
 ]
 
-const PROMPTS = {
+export const PROMPTS = {
   hero: 'Make the hero headline use a gradient from the accent color to cyan, and add a small "Trusted by 4,000+ product teams" line under the buttons.',
   faq: "Add an FAQ section below the pricing cards with four common questions.",
 }

@@ -44,3 +44,11 @@ export function Screenshot({ name, alt, caption }: ScreenshotProps) {
     </figure>
   )
 }
+
+/**
+ * Related screenshots side by side, such as a state before and after, each
+ * with its caption. They stack on a narrow screen.
+ */
+export function ScreenshotRow({ children }: { children: React.ReactNode }) {
+  return <div className="sp-screenshot-row">{children}</div>
+}

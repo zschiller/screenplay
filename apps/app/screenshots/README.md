@@ -249,7 +249,7 @@ It lives in `apps/app/screenshots/docs/`:
 | `demo-site.ts`  | Builds the demo site in `northwind/` once per Workspace, with that Workspace's edits applied, and serves each from its own origin.           |
 | `thumbnails.ts` | Photographs those previews for the home grid's cards.                                                                                      |
 | `screens.ts`    | The **docs screen list**: one entry per `<Screenshot name="…">` in the docs.                                                                 |
-| `frame.ts`      | Frames each capture as a desktop window, or as a magnified detail centred on its focus, into `apps/docs/public/screenshots/`.               |
+| `frame.ts`      | Frames each capture as a desktop window, or crops a life-size detail around its focus, into `apps/docs/public/screenshots/`.                |
 
 Unlike the design-review world, the frames here are a real React site built
 against this repository's `@screenplay.space/knobs` and `@screenplay.space/state`, so
@@ -295,15 +295,22 @@ framing step keeps an existing image when the new render is visually the same.
 
 1. Add an entry to `DOCS_SCREENS` in `screens.ts`. Its `name` is the one you
    pass to `<Screenshot name="…">`.
-2. For a full-window shot, that's it. For a detail shot, give it a `focus`:
-   selectors for what the image is about, such as `MENU`, `DIALOG` or
-   `POPOVER`, or a function that measures it. After `prepare`, the visible
-   matches are measured, and the framing step crops a detail centred on them,
-   with room around them, as the bare UI: no window chrome, shadow or
-   backdrop. A crop edge near the window's edge is pushed out to it, rather
-   than slicing labels a few letters in. So when a UI change moves a menu,
-   the next run still frames it whole and centred. A fixed `crop`
-   (`[x, y, width, height]` in CSS px) stands in when nothing matches.
+2. For a full-window shot, that's it. Keep those for the Introduction and
+   Core concepts, where the whole layout is the point. Everywhere else, give
+   the screen a `focus`: selectors for what the image is about, such as
+   `MENU`, `DIALOG` or `POPOVER`, or a function that measures it. After
+   `prepare`, the visible matches are measured, and the framing step crops
+   them with a little room around them (`pad`, 16px by default) as the bare
+   UI at life size: the capture's own pixels, no chrome, shadow or backdrop,
+   no scaling. A crop edge near the window's edge is pushed out to it,
+   rather than slicing labels a few letters in. A dialog uses `pad: 0`, so
+   the image is the dialog. For a region rather than an open surface (a
+   page's content, a frame on the canvas, part of the chat panel), spread
+   `clipped(…)`, which pads the region and clips it to the page, canvas or
+   panel it belongs to, so the crop never slices into the UI beside it. A
+   focused text field is blurred before the capture unless the screen sets
+   `keepFocus`. A fixed `crop` (`[x, y, width, height]` in CSS px) stands in
+   when nothing matches.
 3. If the screen needs state the world doesn't have, add it to `world.ts`.
 4. Run `pnpm --filter app screenshots:docs --screens <name>` and embed it.
 

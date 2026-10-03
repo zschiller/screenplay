@@ -190,7 +190,19 @@ light and a dark variant (`name.light.webp`, `name.dark.webp`). Embed one with:
 <Screenshot name="hero" alt="Describe what the screenshot shows" />
 ```
 
-The component shows the variant that matches the reader's theme. Every
+The component shows the variant that matches the reader's theme. Put two
+related shots side by side (they stack on a phone) with:
+
+```mdx
+<ScreenshotRow>
+  <Screenshot name="frame-ask" caption="Just drawn" alt="…" />
+  <Screenshot name="frame-unanswered" caption="Skipped" alt="…" />
+</ScreenshotRow>
+```
+
+Keep full-window shots for the Introduction and Core concepts, where the
+whole layout is the point. Everywhere else, crop to the part the section is
+about. Every
 screenshot is generated: run `pnpm --filter docs screenshots` to regenerate them
 after a UI change, and see [Docs screenshots](https://github.com/zschiller/screenplay/blob/main/apps/app/screenshots/README.md#docs-screenshots) to
 add one.
