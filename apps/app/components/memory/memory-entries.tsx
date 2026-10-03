@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import {
-  BrainIcon,
   DotsThreeIcon,
+  NotepadIcon,
   PlusIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
@@ -89,7 +89,7 @@ export function MemoryEntries({
         <Empty className="flex-none border py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <BrainIcon />
+              <NotepadIcon />
             </EmptyMedia>
             <EmptyTitle>No memories yet</EmptyTitle>
             <EmptyDescription>{copy.emptyDescription}</EmptyDescription>
