@@ -946,8 +946,10 @@ describe("CanvasSettingsDialog", () => {
 
     it("expands and collapses a folder, folders first inside it too", () => {
       openFiles()
+      const research = screen.getByRole("button", { name: /^research/ })
+      expect(research.getAttribute("aria-expanded")).toBe("false")
 
-      fireEvent.click(screen.getByRole("button", { name: "Expand research" }))
+      fireEvent.click(screen.getByRole("button", { name: /^research/ }))
       expect(rowNames()).toEqual([
         "research",
         "interviews",
@@ -958,7 +960,7 @@ describe("CanvasSettingsDialog", () => {
       expect(screen.getByText("880.0 KB · Added by a member")).toBeTruthy()
       expect(screen.getByText("2.1 KB · Saved by agent")).toBeTruthy()
 
-      fireEvent.click(screen.getByRole("button", { name: "Collapse research" }))
+      fireEvent.click(screen.getByRole("button", { name: /^research/ }))
       expect(rowNames()).toEqual(["research", "zebra.md"])
     })
 

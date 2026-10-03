@@ -780,7 +780,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.getByRole("button", { name: "Canvas options" }).click()
       await clickMenuItem(page, "Settings", 1200)
       await page.getByRole("button", { name: "Files", exact: true }).click()
-      await page.getByRole("button", { name: "Expand research" }).click()
+      await page.getByRole("button", { name: /^research/ }).click()
     },
   }),
   screen({

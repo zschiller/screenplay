@@ -10,6 +10,7 @@ import {
   FilePdfIcon,
   FileTextIcon,
   FolderIcon,
+  FolderOpenIcon,
   TrashIcon,
   ArrowSquareOutIcon,
 } from "@workspace/ui/components/icons"
@@ -29,6 +30,13 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+} from "@workspace/ui/components/sidebar"
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -39,7 +47,6 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { LoadErrorState } from "@/components/home/load-error"
-import { SettingsRow, SettingsRowList } from "@/components/home/settings-row"
 import { baseName, formatFileSize, isTextMediaType } from "@/lib/files/paths"
 import { fileTree, itemCount, type FileTreeNode } from "@/lib/files/tree"
 import type { FileEntryData } from "@/lib/types"
@@ -99,27 +106,24 @@ export function FilesSection({
       return next
     })
 
-  const rows = (nodes: FileTreeNode[], depth: number): React.ReactNode[] =>
-    nodes.flatMap((node) => {
-      const open = node.entry.kind === "folder" && expanded.has(node.entry.path)
-      return [
-        <FileRow
-          key={node.entry.path}
-          node={node}
-          depth={depth}
-          open={open}
-          detail={
-            node.entry.kind === "folder"
-              ? itemCount(node.children.length)
-              : fileDetail(node.entry, adderName)
-          }
-          onToggle={() => onToggle(node.entry.path)}
-          onOpen={() => setOpenPath(node.entry.path)}
-          onDelete={() => setDeleting(node)}
-        />,
-        ...(open ? rows(node.children, depth + 1) : []),
-      ]
-    })
+  const branch = (nodes: FileTreeNode[]) =>
+    nodes.map((node) => (
+      <FileRow
+        key={node.entry.path}
+        node={node}
+        open={expanded.has(node.entry.path)}
+        detail={
+          node.entry.kind === "folder"
+            ? itemCount(node.children.length)
+            : fileDetail(node.entry, adderName)
+        }
+        onToggle={() => onToggle(node.entry.path)}
+        onOpen={() => setOpenPath(node.entry.path)}
+        onDelete={() => setDeleting(node)}
+      >
+        {node.children.length > 0 && branch(node.children)}
+      </FileRow>
+    ))
 
   return (
     <>
@@ -140,7 +144,12 @@ export function FilesSection({
           </EmptyHeader>
         </Empty>
       ) : (
-        <SettingsRowList>{rows(tree, 0)}</SettingsRowList>
+        // The canvas sidebar's layer tree: compact rows, nested lists
+        // indented on a guide line. Pulled left so icons line up with the
+        // description's text.
+        <SidebarMenu aria-label="Files" className="-mx-2 w-auto">
+          {branch(tree)}
+        </SidebarMenu>
       )}
       <CanvasFileDialog
         roomId={roomId}
@@ -182,106 +191,102 @@ export function deleteDescription(node: FileTreeNode): string {
     : `The ${node.descendants} items in it go too, and chats on this canvas can no longer open them. You can’t undo this.`
 }
 
-/** The indent per level, in px: the chevron's width, so a folder's contents
- *  line up under its name. */
-const INDENT_PX = 28
-
+/**
+ * One row of the tree, built like the canvas sidebar's layer rows: a
+ * folder's icon turns into its chevron on hover, its contents nest on a guide
+ * line, and the ⋯ menu shows on hover.
+ */
 function FileRow({
   node,
-  depth,
   open,
   detail,
   onToggle,
   onOpen,
   onDelete,
+  children,
 }: {
   node: FileTreeNode
-  depth: number
   open: boolean
   detail: string
   onToggle: () => void
   onOpen: () => void
   onDelete: () => void
+  children?: React.ReactNode
 }) {
   const { entry, name } = node
   const folder = entry.kind === "folder"
-  return (
-    // The divider spans the list; only the row's content steps in.
-    <div style={{ paddingLeft: depth * INDENT_PX }}>
-      <SettingsRow
-        media={
-          <span className="-ml-2 flex shrink-0 items-center gap-1">
-            {folder ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-expanded={open}
-                aria-label={`${open ? "Collapse" : "Expand"} ${name}`}
-                onClick={onToggle}
-                // Ghost fills while aria-expanded, which suits a menu
-                // trigger; an open folder's chevron only turns.
-                className="text-muted-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground aria-expanded:hover:bg-muted aria-expanded:hover:text-foreground"
-              >
-                <CaretRightIcon
-                  className={cn("transition-transform", open && "rotate-90")}
-                />
-              </Button>
+  const row = (
+    <div className="group/file-row relative">
+      <SidebarMenuButton
+        aria-expanded={folder ? open : undefined}
+        onClick={folder ? onToggle : onOpen}
+      >
+        {folder ? (
+          <span className="relative shrink-0">
+            {open ? (
+              <FolderOpenIcon className="block text-sidebar-foreground/70 group-hover/file-row:hidden" />
             ) : (
-              <span aria-hidden className="size-7" />
+              <FolderIcon className="block text-sidebar-foreground/70 group-hover/file-row:hidden" />
             )}
-            <EntryIcon entry={entry} />
-          </span>
-        }
-        title={
-          // The name works like its first control (expand, or Open) for a
-          // pointer; keyboards use the chevron and the menu.
-          <button
-            type="button"
-            tabIndex={-1}
-            className="max-w-full cursor-default truncate text-left"
-            onClick={folder ? onToggle : onOpen}
-          >
-            {name}
-          </button>
-        }
-        detail={detail}
-        action={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                aria-label={`More actions for ${name}`}
-              >
-                <DotsThreeIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              onCloseAutoFocus={(event) => event.preventDefault()}
-            >
-              {!folder && (
-                <DropdownMenuItem onSelect={onOpen}>
-                  <ArrowSquareOutIcon />
-                  Open
-                </DropdownMenuItem>
+            <CaretRightIcon
+              className={cn(
+                "hidden text-sidebar-foreground/70 transition-transform group-hover/file-row:block",
+                open && "rotate-90"
               )}
-              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-                <TrashIcon />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
-      />
+            />
+          </span>
+        ) : (
+          <EntryIcon entry={entry} />
+        )}
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{detail}</span>
+      </SidebarMenuButton>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction
+            // Shown on this row's own hover: an item holds its folder's
+            // contents, so the stock menu-item hover would light up every
+            // folder above the pointer too.
+            className="group-focus-within/file-row:opacity-100 group-hover/file-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+            aria-label={`More actions for ${name}`}
+          >
+            <DotsThreeIcon />
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          {!folder && (
+            <DropdownMenuItem onSelect={onOpen}>
+              <ArrowSquareOutIcon />
+              Open
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+            <TrashIcon />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
+  )
+  return (
+    <SidebarMenuItem>
+      {row}
+      {folder && open && children && (
+        // No stock 1px nudge: it adds up level by level and staggers the
+        // right-aligned sizes. The margin keeps the guide under the icon.
+        <SidebarMenuSub className="ml-[15px] translate-x-0">
+          {children}
+        </SidebarMenuSub>
+      )}
+    </SidebarMenuItem>
   )
 }
 
 function EntryIcon({ entry }: { entry: FileEntryData }) {
-  const className = "size-4 text-muted-foreground"
+  const className = "text-sidebar-foreground/70"
   if (entry.kind === "folder")
     return <FolderIcon aria-hidden className={className} />
   if (entry.mediaType === "application/pdf")
