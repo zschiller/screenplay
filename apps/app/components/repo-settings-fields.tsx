@@ -96,9 +96,9 @@ function envVarsDescription(access: EnvVarsAccess | undefined): string {
   if (access.revealed) return `${base}. Only you can see the values.`
   if (access.names.length === 0) return base
   if (access.canReveal) {
-    return "Values are hidden. Lines you type replace those variables; reveal to edit them all."
+    return "Values are hidden. Reveal them to edit, or add KEY=value here to set a variable."
   }
-  return "Only the person who added this repository can see the values. Lines you type replace those variables on this canvas."
+  return "Only the person who added this repository can see the values. Add KEY=value here to set your own on this canvas."
 }
 
 /**
