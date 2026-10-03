@@ -233,15 +233,31 @@ export function FrameLocalCopyTag() {
 }
 
 /**
- * Takes the driver button's place in the frame bar while this viewer shows
- * its own copy (#1376): there's nobody to drive with, and the way back is
- * the one thing to do here.
+ * The frame bar's Detach toggle (#1397), beside Interact on a shared frame.
+ * It stays in the bar both ways, so going to your own copy and back never
+ * resizes the bar: plain while you see the shared frame, the pressed ink
+ * fill while you're on your own copy, where a click rejoins.
  */
-export function FrameRejoinButton({ onRejoin }: { onRejoin: () => void }) {
+export function FrameDetachToggle({
+  detached,
+  onToggle,
+}: {
+  detached: boolean
+  onToggle: () => void
+}) {
   return (
-    <Button variant="outline" size="xs" onClick={onRejoin}>
-      Rejoin
-    </Button>
+    <FloatingToolbarButton
+      label={detached ? "Detached" : "Detach from shared frame"}
+      hint={
+        detached
+          ? "Click to rejoin the shared frame"
+          : "Use your own copy. Only you see it."
+      }
+      pressed={detached}
+      onClick={onToggle}
+    >
+      <MonitorIcon />
+    </FloatingToolbarButton>
   )
 }
 
