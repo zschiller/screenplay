@@ -635,6 +635,7 @@ function CanvasMemberLayerImpl({
               }
               onKnobsDeclared={layerMutations.updateKnobs}
               onKnobValuesChange={layerMutations.updateKnobValues}
+              onColorSchemeChange={layerMutations.updateColorScheme}
               onSharedStateChanged={
                 localCopy ? undefined : layerMutations.updateSharedState
               }

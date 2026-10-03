@@ -426,15 +426,21 @@ function validSize(n) {
   return Number.isFinite(n) && n >= 1 && n <= 16384
 }
 
+function validScheme(scheme) {
+  return scheme === "light" || scheme === "dark"
+}
+
 const AUD = Buffer.from([0, 0, 0, 1, 9])
 
 class Frame {
-  constructor(id, route, width, height) {
+  constructor(id, route, width, height, scheme = "light") {
     this.id = id
     this.idBytes = Buffer.from(id, "utf8")
     this.path = route
     this.width = width
     this.height = height
+    // What the page's prefers-color-scheme matches: the frame's Theme knob.
+    this.scheme = scheme
     this.viewers = new Set()
     this.driver = null
     // The room route a navigation is under way to, so every viewer sending
@@ -616,6 +622,7 @@ class Frame {
     await this.page("Network.enable")
     await this.page("Emulation.setFocusEmulationEnabled", { enabled: true })
     await this.applySize()
+    await this.applyScheme()
     await this.restore()
     await this.page("Page.navigate", { url: hostUrl(this.path) })
     if (gen !== this.generation) return
@@ -917,6 +924,19 @@ class Frame {
       this.stopEncoder()
       this.startEncoder()
     }
+  }
+
+  applyScheme() {
+    return this.page("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-color-scheme", value: this.scheme }],
+    })
+  }
+
+  async setScheme(scheme) {
+    if (scheme === this.scheme) return
+    this.scheme = scheme
+    // A browser still starting picks it up when it's ready.
+    if (this.status === "live") await this.applyScheme()
   }
 
   // ---- encoding ----
@@ -2007,7 +2027,8 @@ async function handleMessage(conn, msg) {
           id,
           msg.route,
           Math.round(msg.width),
-          Math.round(msg.height)
+          Math.round(msg.height),
+          validScheme(msg.scheme) ? msg.scheme : "light"
         )
         frames.set(id, frame)
         frame.start().catch((e) => frame.fail(e))
@@ -2018,6 +2039,7 @@ async function handleMessage(conn, msg) {
       if (frame.status === "failed" || frame.status === "evicted")
         frame.reopen()
       frame.addViewer(conn)
+      if (validScheme(msg.scheme)) await frame.setScheme(msg.scheme)
       return
     }
     case "unwatch":
@@ -2056,6 +2078,10 @@ async function handleMessage(conn, msg) {
       return
     case "reload":
       if (frame.status === "live") await frame.go(frame.path)
+      return
+    case "scheme":
+      // The room's Theme knob. Every viewer sends it; only a change applies.
+      if (validScheme(msg.scheme)) await frame.setScheme(msg.scheme)
       return
     case "drive": {
       const claims = verifyToken(msg.token)

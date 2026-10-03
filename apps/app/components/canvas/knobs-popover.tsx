@@ -15,6 +15,7 @@ import {
   hasKnobOverrides,
   knobDefs,
   KnobsPanel,
+  type KnobsTheme,
 } from "@/components/knobs-panel"
 
 interface KnobsPopoverProps {
@@ -26,6 +27,8 @@ interface KnobsPopoverProps {
    * empty state's action; absent for a frame with no Workspace.
    */
   onAskForKnob?: () => void
+  /** A shared frame's Theme knob (see `KnobsPanel`). */
+  theme?: { value: KnobsTheme; onChange: (next: KnobsTheme) => void }
 }
 
 export function KnobsPopover({
@@ -33,11 +36,13 @@ export function KnobsPopover({
   values,
   onChange,
   onAskForKnob,
+  theme,
 }: KnobsPopoverProps) {
   const [open, setOpen] = useState(false)
+  const themed = !!theme && theme.value !== "light"
   const hasOverrides = useMemo(
-    () => hasKnobOverrides(knobDefs(knobs), values),
-    [knobs, values]
+    () => themed || hasKnobOverrides(knobDefs(knobs), values),
+    [themed, knobs, values]
   )
 
   return (
@@ -64,9 +69,12 @@ export function KnobsPopover({
           knobs={knobs}
           values={values}
           onChange={onChange}
+          theme={theme}
           empty={
             <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">No knobs yet</p>
+              <p className="font-medium text-foreground">
+                {theme ? "No knobs from this page yet" : "No knobs yet"}
+              </p>
               <p>
                 Knobs let you adjust this page live, like a slider for card
                 padding.

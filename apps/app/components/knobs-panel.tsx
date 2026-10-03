@@ -37,12 +37,29 @@ export function hasKnobOverrides(
   )
 }
 
+export type KnobsTheme = "light" | "dark"
+
+/** A shared frame's Theme knob: the colour scheme its one browser renders
+ *  in, for everyone. Built in, so it shows whatever the page declares. */
+const THEME_KNOB: KnobDef = {
+  type: "select",
+  id: "theme",
+  label: "Theme",
+  default: "light",
+  options: [
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" },
+  ],
+}
+
 interface KnobsPanelProps {
   knobs: JsonValue[] | undefined
   values: JsonObject | undefined
   onChange: (next: KnobValues) => void
   /** Shown under the header when the prototype declares no knobs. */
   empty: ReactNode
+  /** The Theme knob, above the page's own; only shared frames have one. */
+  theme?: { value: KnobsTheme; onChange: (next: KnobsTheme) => void }
 }
 
 /**
@@ -55,9 +72,12 @@ export function KnobsPanel({
   values,
   onChange,
   empty,
+  theme,
 }: KnobsPanelProps) {
   const defs = useMemo(() => knobDefs(knobs), [knobs])
-  const hasOverrides = hasKnobOverrides(defs, values)
+  const hasOverrides =
+    hasKnobOverrides(defs, values) ||
+    (!!theme && theme.value !== THEME_KNOB.default)
 
   function setValue(id: string, next: KnobValue) {
     const merged: KnobValues = { [id]: next }
@@ -74,13 +94,14 @@ export function KnobsPanel({
     const next: KnobValues = {}
     for (const def of defs) next[def.id] = def.default
     onChange(next)
+    theme?.onChange("light")
   }
 
   return (
     <div className="flex max-h-90 min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-foreground/5 px-3">
         <span className="text-xs font-medium text-foreground">Knobs</span>
-        {defs.length > 0 ? (
+        {defs.length > 0 || theme ? (
           <Button
             size="xxs"
             variant="ghost"
@@ -92,6 +113,13 @@ export function KnobsPanel({
         ) : null}
       </div>
       <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3">
+        {theme ? (
+          <KnobControl
+            def={THEME_KNOB}
+            value={theme.value}
+            onChange={(v) => theme.onChange(v === "dark" ? "dark" : "light")}
+          />
+        ) : null}
         {defs.length === 0
           ? empty
           : defs.map((def) => (

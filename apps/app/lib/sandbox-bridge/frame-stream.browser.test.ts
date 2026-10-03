@@ -249,6 +249,20 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
         )
         return
       }
+      // A page that notes the colour scheme it matches, live.
+      if (url === "/scheme") {
+        res.writeHead(200, { "content-type": "text/html" })
+        res.end(
+          `<!doctype html><script>
+            const dark = matchMedia("(prefers-color-scheme: dark)")
+            const note = () =>
+              localStorage.setItem("scheme", dark.matches ? "dark" : "light")
+            note()
+            dark.addEventListener("change", note)
+          </script>`
+        )
+        return
+      }
       res.writeHead(200, { "content-type": "text/html" })
       res.end(
         url === "/bridge" ? BRIDGE_PAGE : url === "/app" ? APP : PAGE(url)
@@ -478,6 +492,47 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
         c.messages.find((m) => m.t === "snapshot" && m.id === "s2")
       )
     ).toMatchObject({ error: "no such frame" })
+  }, 30_000)
+
+  it("renders the page in the room's colour scheme", async () => {
+    const [a] = viewers.slice(-2) as [Viewer, Viewer]
+    type Snapshot = Extract<FrameStreamServerMessage, { t: "snapshot" }>
+    let n = 0
+    // What the page last noted, once it says `want`.
+    const schemeIs = async (want: string) => {
+      let seen: string | undefined
+      for (let i = 0; i < 40 && seen !== want; i++) {
+        const id = `scheme-${n++}`
+        a.send({ t: "snapshot", frame: "f1", id })
+        const reply = await a.waitFor(() =>
+          a.messages.find(
+            (m): m is Snapshot => m.t === "snapshot" && m.id === id
+          )
+        )
+        seen =
+          "localStorage" in reply
+            ? reply.localStorage.find(([k]) => k === "scheme")?.[1]
+            : undefined
+        if (seen !== want) await new Promise((r) => setTimeout(r, 100))
+      }
+      return seen
+    }
+    a.send({ t: "navigate", frame: "f1", route: "/scheme" })
+    await a.waitFor(() => routeOf(a, "f1")?.path === "/scheme" || undefined)
+    expect(await schemeIs("light")).toBe("light")
+
+    a.send({ t: "scheme", frame: "f1", scheme: "dark" })
+    expect(await schemeIs("dark")).toBe("dark")
+    // Anything but light or dark is ignored.
+    a.send({ t: "scheme", frame: "f1", scheme: "sepia" as "dark" })
+    a.send({ t: "reload", frame: "f1" })
+    expect(await schemeIs("dark")).toBe("dark")
+
+    a.send({ t: "scheme", frame: "f1", scheme: "light" })
+    expect(await schemeIs("light")).toBe("light")
+    // Back where the next test expects it.
+    a.send({ t: "navigate", frame: "f1", route: "/store" })
+    await a.waitFor(() => routeOf(a, "f1")?.path === "/store" || undefined)
   }, 30_000)
 
   it("reloads the frame at its URL when the browser restarts", async () => {

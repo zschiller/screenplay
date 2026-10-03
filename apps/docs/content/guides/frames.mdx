@@ -184,6 +184,12 @@ Comment pins, Knobs, the element picker and **Fit to content** work on a
 shared frame as on any other. A pin sits on the same element for everyone, and
 a Knob you change shows in the one shared page, so everyone sees it at once.
 
+A shared frame's Knobs also have a **Theme** knob, above the page's own, that
+switches the page between **Light** and **Dark**. It sets what the page's
+`prefers-color-scheme` matches, for everyone watching. A new frame starts in
+Light. A preview running in your own browser, like a detached frame or a frame
+in the desktop app, follows your system's appearance instead.
+
 A frame nobody has on screen pauses a few seconds later, and its page keeps
 its state. Scroll back to it and it shows its last picture at once, then picks
 up live where it left off. A workspace keeps six frames' browsers open. Past

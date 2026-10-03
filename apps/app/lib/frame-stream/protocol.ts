@@ -18,7 +18,14 @@ import type {
 export type FrameStreamClientMessage =
   | { t: "auth"; token: string }
   /** Start streaming a frame, starting its browser at `route` if needed. */
-  | { t: "watch"; frame: string; route: string; width: number; height: number }
+  | {
+      t: "watch"
+      frame: string
+      route: string
+      width: number
+      height: number
+      scheme?: FrameColorScheme
+    }
   | { t: "unwatch"; frame: string }
   /** The frame's CSS size changed. */
   | { t: "size"; frame: string; width: number; height: number }
@@ -26,6 +33,8 @@ export type FrameStreamClientMessage =
    *  already on it. */
   | { t: "navigate"; frame: string; route: string }
   | { t: "reload"; frame: string }
+  /** The room's colour scheme for the frame's page (its Theme knob). */
+  | { t: "scheme"; frame: string; scheme: FrameColorScheme }
   /** A drive grant the app signed for this viewer and frame. */
   | { t: "drive"; frame: string; token: string }
   | { t: "release"; frame: string }
@@ -43,6 +52,9 @@ export type FrameStreamClientMessage =
   /** Read the page's URL, cookies and local storage, for a viewer going
    *  local (#1397). Answered by a `snapshot` with the same `id`. */
   | { t: "snapshot"; frame: string; id: string }
+
+/** What the shared page's `prefers-color-scheme` matches. */
+export type FrameColorScheme = "light" | "dark"
 
 /** Where the agent's frame starts when it isn't running. */
 export type AgentFrame = {

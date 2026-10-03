@@ -275,6 +275,11 @@ export type IframeLayerData = {
   /** Current knob values keyed by knob id. Source of truth — synced down into the iframe. */
   knobValues?: JsonObject
   /**
+   * The colour scheme a shared frame's browser renders in, set from its
+   * Theme knob. Absent is light. A local frame follows the viewer's own.
+   */
+  colorScheme?: "light" | "dark"
+  /**
    * Bidirectional shared state published by the prototype via
    * `@screenplay.space/state`. The canvas persists the merged map and pushes
    * it back down so other clients' iframes stay in sync. Read-only on the
