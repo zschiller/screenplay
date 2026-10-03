@@ -41,6 +41,7 @@ import {
 import {
   deleteRepository,
   listRepositories,
+  repositoryCanvasCount,
 } from "@/lib/repository-library/actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { duplicateName, presetSummary } from "@/lib/preset-summary"
@@ -75,8 +76,12 @@ export function RepoConfigsPanel({
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [mode, setMode] = useState<Mode>({ kind: "list" })
-  // The preset awaiting delete confirmation; the confirm owns pending + error.
-  const [pendingDelete, setPendingDelete] = useState<RepoConfig | null>(null)
+  // The Repository awaiting delete confirmation, with how many Canvases use
+  // it (`null` when that couldn't be read); the confirm owns pending + error.
+  const [pendingDelete, setPendingDelete] = useState<{
+    config: RepoConfig
+    canvases: number | null
+  } | null>(null)
   // Whether the open form differs from what it opened with; closing a changed
   // form asks first (#784). A ref, since only the close path reads it.
   const formDirty = useRef(false)
@@ -105,6 +110,15 @@ export function RepoConfigsPanel({
     setConfigs(await listRepositories())
     setLoadFailed(false)
   }, [])
+
+  // The count comes first, so the confirm opens with its final wording.
+  const requestDelete = async (config: RepoConfig) => {
+    const canvases = await repositoryCanvasCount(config.id).catch((err) => {
+      console.error("Failed to count canvases using repository", err)
+      return null
+    })
+    setPendingDelete({ config, canvases })
+  }
 
   const handleDelete = async (id: string) => {
     const updated = await deleteRepository(id)
@@ -240,7 +254,7 @@ export function RepoConfigsPanel({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               variant="destructive"
-                              onSelect={() => setPendingDelete(config)}
+                              onSelect={() => void requestDelete(config)}
                             >
                               <TrashIcon />
                               Delete
@@ -329,20 +343,12 @@ export function RepoConfigsPanel({
             if (!open) setPendingDelete(null)
           }}
           verb="Delete"
-          itemName={pendingDelete?.name}
+          itemName={pendingDelete?.config.name}
           itemNoun="repository"
           description={
-            pendingDelete ? (
-              <>
-                Canvases already using{" "}
-                <span className="font-mono">
-                  {presetOwnerLabel(pendingDelete)}
-                </span>{" "}
-                keep their copy and its settings.
-              </>
-            ) : null
+            pendingDelete ? deleteDescription(pendingDelete.canvases) : null
           }
-          onConfirm={() => handleDelete(pendingDelete!.id)}
+          onConfirm={() => handleDelete(pendingDelete!.config.id)}
         />
       </div>
     </>
@@ -420,14 +426,20 @@ function PresetDetail({
   )
 }
 
+/** The delete confirm's body: Canvases that use the Repository keep their
+ *  copy, unlinked (#1426). `null` = the count couldn't be read. */
+function deleteDescription(canvases: number | null): string {
+  const keeps = "but it stops getting your edits."
+  if (canvases === null) return `Canvases using it keep their copy, ${keeps}`
+  if (canvases === 0) return "It isn’t on any canvas."
+  if (canvases === 1)
+    return `It’s on 1 canvas. That canvas keeps its copy, ${keeps}`
+  return `It’s on ${canvases} canvases. They keep their copy, ${keeps}`
+}
+
 /** A folder preset with no detected remote falls back to path identity. */
 function isPathIdentity(c: RepoConfig): boolean {
   return Boolean(c.localPath) && !c.repoOwner
-}
-
-/** The project a preset belongs to, as its group heading shows it. */
-function presetOwnerLabel(c: RepoConfig): string {
-  return isPathIdentity(c) ? basename(c.localPath!) : c.repoFullName
 }
 
 /** Trailing path segment, tolerant of POSIX and Windows separators. */

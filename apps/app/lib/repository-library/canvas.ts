@@ -191,6 +191,28 @@ export function applyRepositoryEdit(
   return updated
 }
 
+/**
+ * A Repository deleted from Settings, on one Canvas: every Repo linked to it
+ * stays, with its settings, Workspaces and chats, and becomes unlinked, so it
+ * shows no dot and no longer takes Settings edits. Who added it stays.
+ * Returns the ids of the Repos it unlinked.
+ */
+export function unlinkRepository(
+  collections: RoomCollections,
+  repositoryId: string
+): string[] {
+  const ops = createCanvasOps(collections)
+  const unlinked: string[] = []
+  ops.batch(() => {
+    for (const repo of canvasRepos(collections)) {
+      if (repo.repositoryId !== repositoryId) continue
+      ops.patch("repos", repo.id, { repositoryId: undefined })
+      unlinked.push(repo.id)
+    }
+  })
+  return unlinked
+}
+
 /** What switching off removed, for the caller to finish today's remove path:
  *  tear down `sandboxNames` and drop the chats' client mirrors. */
 export interface SwitchOffResult {
