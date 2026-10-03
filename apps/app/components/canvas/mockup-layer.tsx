@@ -2,7 +2,25 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
+import {
+  FloatingToolbar,
+  FloatingToolbarButton,
+} from "@workspace/ui/components/floating-toolbar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
+import {
+  CopyIcon,
+  DotsThreeIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
 import { drivenByOther } from "@/lib/canvas/frame-control"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -27,6 +45,8 @@ import { mockupStatusOf } from "@/lib/mockup-status"
 import {
   MockupStatusMark,
   MockupStatusMenu,
+  MockupStatusRadioGroup,
+  StatusIcon,
 } from "@/components/canvas/mockup-status-menu"
 import { KnobsPopover } from "@/components/canvas/knobs-popover"
 import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
@@ -95,6 +115,10 @@ interface MockupLayerProps {
   onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
   onRename: (id: string, title: string) => void
   onSetStatus: (id: string, status: MockupStatus) => void
+  /** The bar's ⋯ Duplicate: a copy at the end of the mockup's Group. */
+  onDuplicate?: (id: string) => void
+  /** The bar's ⋯ Delete, the same removal as the Delete key (⌘Z undoes it). */
+  onRemove?: (id: string) => void
   /**
    * True while a chat's element pick is armed and this mockup is one it can
    * hit (its chat's Workspace is the picker's): the overlay tracks the hovered
@@ -187,6 +211,8 @@ export function MockupLayer({
   onResize,
   onRename,
   onSetStatus,
+  onDuplicate,
+  onRemove,
   pickActive,
   dimmed,
   onHover,
@@ -404,6 +430,47 @@ export function MockupLayer({
                   onChange={(values) => onKnobValuesChange?.(layer.id, values)}
                   onAskForKnob={onAskForKnob}
                 />
+                {/* Trailing ⋯, as on the frame bar (H2): the menu is the
+                  only home for these, no right-click menu. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <FloatingToolbarButton label="More">
+                      <DotsThreeIcon className="text-muted-foreground" />
+                    </FloatingToolbarButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="bottom" align="end" sideOffset={8}>
+                    {onDuplicate && (
+                      <DropdownMenuItem onSelect={() => onDuplicate(layer.id)}>
+                        <CopyIcon />
+                        Duplicate
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <StatusIcon status={mockupStatusOf(layer)} />
+                        Status
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <MockupStatusRadioGroup
+                          status={mockupStatusOf(layer)}
+                          onChange={(status) => onSetStatus(layer.id, status)}
+                        />
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    {onRemove && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={() => onRemove(layer.id)}
+                        >
+                          <TrashIcon />
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </FloatingToolbar>,
               toolbarTarget
             )}

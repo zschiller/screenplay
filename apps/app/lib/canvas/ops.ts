@@ -338,6 +338,12 @@ export type CanvasOps = {
     patch: { html?: string; title?: string; status?: MockupStatus }
   ): boolean
   /**
+   * Copy a Mockup Layer (page, size, knobs and owning chat) to the end of its
+   * Group's row, named "<title> copy" and Current — the mockup bar's
+   * Duplicate. Returns the copy's id, or `undefined` when the mockup is gone.
+   */
+  duplicateMockup(id: string): string | undefined
+  /**
    * Remove the given Mockup Layers, dropping them from any Group (pruning a
    * Group emptied by the removal). Their HTML texts stay in the doc, like a
    * document's body, so Undo brings a mockup back whole.
@@ -1055,6 +1061,37 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return true
   }
 
+  function duplicateMockup(id: string): string | undefined {
+    const source = collections.mockupLayers.get(id)
+    const group = collections.iframeLayerGroups
+      .toArray()
+      .find((g) =>
+        getGroupMembers(g).some((m) => m.kind === "mockup-layer" && m.id === id)
+      )
+    if (!source || !group) return
+    const copyId = nanoid()
+    batch(() => {
+      createMockup({
+        id: copyId,
+        html: mockupHtml(doc, id).toString(),
+        title: source.title ? `${source.title} copy` : "",
+        width: source.width,
+        height: source.height,
+        ownerChatId: source.ownerChatId,
+        groupId: group.id,
+      })
+      // The page re-declares its knobs on load; carry them so the Knobs
+      // button and the values match the original from the first paint.
+      if (source.knobs || source.knobValues) {
+        collections.mockupLayers.update(copyId, {
+          ...(source.knobs ? { knobs: source.knobs } : {}),
+          ...(source.knobValues ? { knobValues: source.knobValues } : {}),
+        })
+      }
+    })
+    return copyId
+  }
+
   function removeMockups(ids: string[]): { removedChatIds: string[] } {
     if (ids.length === 0) return { removedChatIds: [] }
     const idSet = new Set(ids)
@@ -1316,6 +1353,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     removeDocuments,
     createMockup,
     updateMockup,
+    duplicateMockup,
     removeMockups,
     removeBranch,
     removeRepo,

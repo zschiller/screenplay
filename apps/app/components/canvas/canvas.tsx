@@ -1253,6 +1253,21 @@ export function Canvas({
   // sidebar "remove frame" path — remove + keep selection on the neighbor —
   // lives on the Canvas Selection controller as `removeIframeLayerAndReselect`.
   const removeIframeLayer = selection.removeIframeLayerAndReselect
+  // A single Mockup (the mockup bar's ⋯ or its sidebar row), dropped from the
+  // selection with it.
+  const { setDocumentLayerIds } = selection
+  const removeMockup = useCallback(
+    (id: string) => {
+      removeDocumentLayers([id])
+      setDocumentLayerIds((prev) => {
+        if (!prev.has(id)) return prev
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    },
+    [removeDocumentLayers, setDocumentLayerIds]
+  )
 
   // The route handler reads the latest Create Flow selection through the
   // Interaction controller's mirror ref, so it stays a stable callback across
@@ -2089,7 +2104,7 @@ export function Canvas({
                 onRemoveDocument={(id) => removeDocumentLayers([id])}
                 onZoomToMockup={handleZoomToMockup}
                 onRenameMockup={layerMutations.renameMockup}
-                onRemoveMockup={(id) => removeDocumentLayers([id])}
+                onRemoveMockup={removeMockup}
                 onSelectIframeLayer={handleIframeLayerSelect}
                 onZoomToIframeLayer={handleSelectIframeLayer}
                 onRenameIframeLayer={layerMutations.rename}
@@ -2286,6 +2301,7 @@ export function Canvas({
                         createFlowIframeLayerId={createFlowIframeLayerId}
                         setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
                         removeIframeLayer={removeIframeLayer}
+                        removeMockup={removeMockup}
                         handlePlayIframeLayer={handlePlayIframeLayer}
                         onAskForKnob={handleAskForKnob}
                         mockupAskTargets={mockupAskTargets}

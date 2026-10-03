@@ -76,6 +76,11 @@ export interface GroupActions {
     groupId: string,
     iframeLayerId: string
   ) => string | undefined
+  /**
+   * Append a copy of a Mockup (page, size, knobs, owning chat) to the end of
+   * its group — the mockup bar's Duplicate. Returns the copy's id.
+   */
+  duplicateMockup: (mockupId: string) => string | undefined
   /** Append a new document to an existing group, mirroring the last sibling's bounds. */
   addDocumentLayerToGroup: (groupId: string) => string | undefined
 
@@ -217,6 +222,11 @@ export function useGroupActions({
       })
     },
     [collections, ops]
+  )
+
+  const duplicateMockup = useCallback(
+    (mockupId: string): string | undefined => ops.duplicateMockup(mockupId),
+    [ops]
   )
 
   /**
@@ -408,6 +418,7 @@ export function useGroupActions({
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
       duplicateIframeLayer,
+      duplicateMockup,
       addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,
@@ -421,6 +432,7 @@ export function useGroupActions({
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
       duplicateIframeLayer,
+      duplicateMockup,
       addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,

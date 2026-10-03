@@ -114,6 +114,7 @@ function CanvasMemberLayerImpl({
   createFlowIframeLayerId,
   setCreateFlowIframeLayerId,
   removeIframeLayer,
+  removeMockup,
   handlePlayIframeLayer,
   onAskForKnob,
   mockupAskTargets,
@@ -191,6 +192,8 @@ function CanvasMemberLayerImpl({
     React.SetStateAction<string | null>
   >
   removeIframeLayer: IframeLayerProps["onRemove"]
+  /** Remove one Mockup and drop it from the selection. */
+  removeMockup: (id: string) => void
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
   /** Start an "add a knob" request in a Workspace's chat composer. */
   onAskForKnob: (branchId: string) => void
@@ -482,6 +485,8 @@ function CanvasMemberLayerImpl({
                 onResize={layerMutations.resizeMockup}
                 onRename={layerMutations.renameMockup}
                 onSetStatus={layerMutations.setMockupStatus}
+                onDuplicate={groupActions.duplicateMockup}
+                onRemove={removeMockup}
                 pickActive={pickActive}
                 dimmed={dimmedIframeLayerIds.has(mockup.id)}
                 onHover={reference.setInspectHover}
