@@ -10,6 +10,7 @@ import {
   frameDriverFor,
   drivenByOther,
   nextSettleAt,
+  recordsLiveRoute,
   reduceFrameControl,
   type FrameControlAction,
   type FrameControlPresence,
@@ -550,5 +551,20 @@ describe("frameControlKey", () => {
     expect(frameControlKey("frame-1", "ana")).not.toBe(
       frameControlKey("frame-1", "ben")
     )
+  })
+})
+
+describe("who records where a live frame's page went", () => {
+  it("is the person driving, not the people watching them", () => {
+    expect(recordsLiveRoute({ kind: "you" })).toBe(true)
+    expect(recordsLiveRoute({ kind: "person", id: "ana" })).toBe(false)
+  })
+
+  it("is every view while the agent drives, since it has no canvas", () => {
+    expect(recordsLiveRoute({ kind: "agent" })).toBe(true)
+  })
+
+  it("is every view while nobody drives", () => {
+    expect(recordsLiveRoute({ kind: "none" })).toBe(true)
   })
 })
