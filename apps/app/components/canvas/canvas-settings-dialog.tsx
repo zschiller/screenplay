@@ -4,9 +4,9 @@ import { useEffect, useState } from "react"
 import {
   BookBookmarkIcon,
   BrainIcon,
-  MinusIcon,
   PencilSimpleIcon,
   PlusIcon,
+  TrashIcon,
 } from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
@@ -413,7 +413,7 @@ function RepositoriesSection({
                                 label={`Remove ${name}`}
                                 onClick={() => switchOff(row.repo)}
                               >
-                                <MinusIcon />
+                                <TrashIcon />
                               </IconButton>
                             ) : (
                               <IconButton
