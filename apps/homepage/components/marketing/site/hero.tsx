@@ -58,7 +58,7 @@ export function Hero() {
             "mt-2.5 flex justify-between gap-4 text-muted-foreground"
           )}
         >
-          <span>Fig. 1 · Three Workspaces on one canvas</span>
+          <span>Fig. 1 · Three versions on one canvas</span>
         </figcaption>
       </figure>
     </section>

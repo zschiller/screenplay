@@ -112,6 +112,7 @@ export function Frame({
   group,
   workspace,
   selected,
+  fadeHandles,
   device = "desktop",
   className,
   style,
@@ -124,13 +125,18 @@ export function Frame({
   /** The Workspace a frame on its own shows, after its name. */
   workspace?: string
   selected?: boolean
+  /** Someone else has control: no handles, the ring stays (#1588). */
+  fadeHandles?: boolean
   device?: "desktop" | "mobile"
   className?: string
   style?: React.CSSProperties
   children: React.ReactNode
 }) {
   const handle =
-    "absolute size-[7px] border-[1.5px] border-selection bg-background"
+    cn(
+      "absolute size-[7px] border-[1.5px] border-selection bg-background",
+      fadeHandles && "hidden"
+    )
   return (
     <div className={cn("absolute", className)} style={style}>
       {group ? (
@@ -470,7 +476,7 @@ function Coordinator() {
 
 /** The canvas's floating chrome: breadcrumb, zoom and the tools: Select,
  *  Frame, Mockup and Document. */
-function CanvasChrome({ zoom }: { zoom: string }) {
+export function CanvasChrome({ zoom }: { zoom: string }) {
   return (
     <>
       <div
@@ -526,7 +532,7 @@ function CanvasChrome({ zoom }: { zoom: string }) {
  * Fig. 1's columns: where each version starts and how wide it is. Phones
  * have room for two versions, so the third drops out.
  */
-const columns =
+export const columns =
   "[--w:44%] [--h:27.5cqw] [--gap:36px] [--l0:4%] [--l1:52%] sm:[--w:29%] sm:[--h:18.125cqw] sm:[--gap:76px] sm:[--l1:35.5%] [--l2:67%]"
 
 /**
