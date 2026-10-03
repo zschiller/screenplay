@@ -8,6 +8,7 @@ import { DOCS_SCREENS } from "./screens"
 import { buildDocsWorld, DOCS_WORKSPACES, docsPreviews } from "./world"
 
 const DOCS_CONTENT = resolve(__dirname, "../../../docs/content")
+const README = resolve(__dirname, "../../../../README.md")
 
 function mdxFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -36,6 +37,19 @@ describe("the docs screen list", () => {
   it("has a screen for every screenshot the docs embed, and nothing else", () => {
     const listed = DOCS_SCREENS.map((s) => s.name).sort()
     expect(listed).toEqual([...embeddedNames()].sort())
+  })
+
+  it("has a screen for every docs screenshot the root README shows", () => {
+    // The README reuses the docs' images so they refresh with the docs.
+    const readme = readFileSync(README, "utf8")
+    const shown = [
+      ...readme.matchAll(
+        /apps\/docs\/public\/screenshots\/([\w-]+)\.(?:light|dark)\.webp/g
+      ),
+    ].map((match) => match[1]!)
+    const listed = new Set(DOCS_SCREENS.map((s) => s.name))
+    expect(shown.length).toBeGreaterThan(0)
+    expect(shown.filter((name) => !listed.has(name))).toEqual([])
   })
 
   it("names each screen once", () => {
