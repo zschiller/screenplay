@@ -13,7 +13,10 @@ import {
   opencodeConfigJson,
   opencodeDirectoriesEnv,
   opencodeGatewayHarness,
+  opencodeModelList,
   opencodePrintModel,
+  opencodeProviderLabel,
+  parseOpencodeModels,
   probeOpencodeAuth,
 } from "./opencode"
 import type { HarnessProcessRunner } from "./types"
@@ -451,5 +454,69 @@ describe("harnessLaunchArgv for opencode slots", () => {
 
   it("returns null for an unknown harness key", () => {
     expect(harnessLaunchArgv("nope")).toBeNull()
+  })
+})
+
+describe("opencode's model list (#1589)", () => {
+  /** One `opencode models --verbose` entry: the id line, then pretty JSON. */
+  function entry(meta: Record<string, unknown>): string {
+    return `${meta.providerID}/${meta.id}\n${JSON.stringify(meta, null, 2)}\n`
+  }
+
+  it("lists every model as provider/model, named and grouped by provider", () => {
+    const stdout =
+      entry({
+        id: "big-pickle",
+        providerID: "opencode",
+        name: "Big Pickle",
+        limit: { context: 1 },
+      }) +
+      entry({
+        id: "claude-opus-5.5",
+        providerID: "github-copilot",
+        name: "Claude Opus 5.5",
+      }) +
+      entry({ id: "nova-pro", providerID: "some-new-cloud", name: "Nova Pro" })
+    expect(parseOpencodeModels(stdout)).toEqual([
+      { id: "opencode/big-pickle", label: "Big Pickle", group: "OpenCode Zen" },
+      {
+        id: "github-copilot/claude-opus-5.5",
+        label: "Claude Opus 5.5",
+        group: "GitHub Copilot",
+      },
+      {
+        id: "some-new-cloud/nova-pro",
+        label: "Nova Pro",
+        group: "Some New Cloud",
+      },
+    ])
+  })
+
+  it("leaves out deprecated models and blocks that don't parse, never guessing", () => {
+    const stdout =
+      entry({
+        id: "old",
+        providerID: "openai",
+        name: "Old",
+        status: "deprecated",
+      }) +
+      'openai/broken\n{\n  "id": \n}\n' +
+      entry({ id: "gpt-6", providerID: "openai" }) +
+      "a stray log line\n"
+    expect(parseOpencodeModels(stdout)).toEqual([
+      { id: "openai/gpt-6", label: "gpt-6", group: "OpenAI" },
+    ])
+  })
+
+  it("names known providers as OpenCode does and title-cases the rest", () => {
+    expect(opencodeProviderLabel("amazon-bedrock")).toBe("Amazon Bedrock")
+    expect(opencodeProviderLabel("xai")).toBe("xAI")
+    expect(opencodeProviderLabel("my_lab-models")).toBe("My Lab Models")
+  })
+
+  it("runs `opencode models --verbose`, on both slots", () => {
+    expect(opencodeModelList.argv).toEqual(["opencode", "models", "--verbose"])
+    expect(opencodeGatewayHarness.modelList).toBe(opencodeModelList)
+    expect(opencodeCompatHarness.modelList).toBe(opencodeModelList)
   })
 })

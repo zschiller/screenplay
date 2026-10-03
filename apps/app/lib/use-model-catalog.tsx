@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -24,6 +25,10 @@ import {
   type SkillSource,
 } from "@/lib/skills-store"
 import { useDefaultModel } from "@/lib/default-model-store"
+import {
+  expandHarnessModelChoices,
+  useHarnessModelChoices,
+} from "@/lib/harness-model-choices"
 
 /** The app's catalog, over the `/api/agent/models` and `/skills` routes. */
 export const httpCatalogSource: CatalogSource = {
@@ -69,11 +74,17 @@ export function useModelCatalog(chosen?: string | null): ModelCatalogView {
   )
   // Live, so a change in Settings reaches an open chat still on the default.
   const stored = useDefaultModel()
+  // The models chosen in Settings for OpenCode stand in for its one entry.
+  const choices = useHarnessModelChoices()
+  const models = useMemo(
+    () => expandHarnessModelChoices(state.models, choices),
+    [state.models, choices]
+  )
   useEffect(() => catalog.load(), [catalog])
   return {
-    ...resolveModels(state, { chosen, stored }),
+    ...resolveModels({ ...state, models }, { chosen, stored }),
     status: state.status,
-    models: state.models,
+    models,
     retry: catalog.retry,
   }
 }

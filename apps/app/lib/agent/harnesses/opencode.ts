@@ -5,6 +5,8 @@ import {
   commitAndPushRuleMarkdown,
   type AcpAdapter,
   type Harness,
+  type HarnessModelChoice,
+  type HarnessModelList,
   type HarnessPrintModel,
   type HarnessProcessRunner,
   type HostFacts,
@@ -161,6 +163,96 @@ export const opencodePrintModel: HarnessPrintModel = {
   },
 }
 
+/**
+ * Display names for the providers people sign in to most, as OpenCode itself
+ * names them. `opencode models` prints only provider ids, so any other id is
+ * title-cased ({@link opencodeProviderLabel}).
+ */
+const OPENCODE_PROVIDER_LABELS: Record<string, string> = {
+  opencode: "OpenCode Zen",
+  "github-copilot": "GitHub Copilot",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google",
+  "google-vertex": "Google Vertex AI",
+  "amazon-bedrock": "Amazon Bedrock",
+  azure: "Azure",
+  openrouter: "OpenRouter",
+  xai: "xAI",
+  deepseek: "DeepSeek",
+  groq: "Groq",
+  mistral: "Mistral",
+}
+
+/** A provider id's display name: the known name, else the id title-cased. */
+export function opencodeProviderLabel(providerId: string): string {
+  return (
+    OPENCODE_PROVIDER_LABELS[providerId] ??
+    providerId
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((word) => word[0]!.toUpperCase() + word.slice(1))
+      .join(" ")
+  )
+}
+
+/**
+ * Parse `opencode models --verbose`: each model is its `provider/model` id on
+ * a line of its own, then its metadata as pretty-printed JSON, opening `{` and
+ * closing `}` at the start of a line. The id the ACP model option takes is the
+ * same `provider/model`; the label is the metadata's `name`. A block that
+ * doesn't parse, or a deprecated model, is left out.
+ */
+export function parseOpencodeModels(stdout: string): HarnessModelChoice[] {
+  const out: HarnessModelChoice[] = []
+  const seen = new Set<string>()
+  let block: string[] | null = null
+  for (const line of stdout.split("\n")) {
+    if (block === null) {
+      if (line.trimEnd() === "{") block = [line]
+      continue
+    }
+    block.push(line)
+    if (line.trimEnd() !== "}") continue
+    const text = block.join("\n")
+    block = null
+    let meta: {
+      id?: unknown
+      providerID?: unknown
+      name?: unknown
+      status?: unknown
+    }
+    try {
+      meta = JSON.parse(text)
+    } catch {
+      continue
+    }
+    if (typeof meta.id !== "string" || typeof meta.providerID !== "string") {
+      continue
+    }
+    if (meta.status === "deprecated") continue
+    const id = `${meta.providerID}/${meta.id}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push({
+      id,
+      label: typeof meta.name === "string" && meta.name ? meta.name : meta.id,
+      group: opencodeProviderLabel(meta.providerID),
+    })
+  }
+  return out
+}
+
+/**
+ * Every model OpenCode can run with the providers you signed in to, for the
+ * Settings row's Choose models (#1589). There can be hundreds, so OpenCode has
+ * no curated list; people pick the few the model menu shows.
+ */
+export const opencodeModelList: HarnessModelList = {
+  argv: ["opencode", "models", "--verbose"],
+  parse: parseOpencodeModels,
+}
+
 /** opencode's global Skill folders, its own then Claude's and Codex's. */
 const opencodeOwnSkills = {
   agentName: "OpenCode",
@@ -178,6 +270,7 @@ const opencodeOwnSkills = {
 const opencodeSetup = {
   probeAuth: probeOpencodeAuth,
   printModel: opencodePrintModel,
+  modelList: opencodeModelList,
   buildInstallCommand: buildOpencodeInstallCommand,
   // `opencode auth login` runs the CLI's provider sign-in (a browser/OAuth or
   // device flow shown in the terminal) and exits when it resolves — the PTY exit
@@ -186,7 +279,11 @@ const opencodeSetup = {
   authCommand: ["opencode", "auth", "login"],
 } satisfies Pick<
   Harness,
-  "probeAuth" | "buildInstallCommand" | "authCommand" | "printModel"
+  | "probeAuth"
+  | "buildInstallCommand"
+  | "authCommand"
+  | "printModel"
+  | "modelList"
 >
 
 /**

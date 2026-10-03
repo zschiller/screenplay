@@ -19,7 +19,9 @@ import {
 } from "@/lib/agent/harnesses/setup-error"
 import { initialSetupState, setupReducer } from "@/lib/host-tool/setup-step"
 import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
+import { HarnessModelsDialog } from "@/components/home/harness-models-dialog"
 import { LoadErrorRow } from "@/components/home/load-error"
+import { useHarnessModelChoices } from "@/lib/harness-model-choices"
 import {
   SettingsRow,
   SettingsRowList,
@@ -91,6 +93,8 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
   const [preparing, setPreparing] = useState(false)
   // Why the last Install or Sign in didn't work, shown under the row.
   const [error, setError] = useState<string | null>(null)
+  const [choosingModels, setChoosingModels] = useState(false)
+  const chosenModels = useHarnessModelChoices()[row.key]?.length ?? 0
 
   // Seed the setup step from the row the parent already fetched, so it renders
   // its real state on first paint without a second round-trip.
@@ -171,37 +175,67 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
   const action = row.action
 
   return (
-    <SettingsRow
-      title={row.label}
-      state={row.state}
-      status={row.connected ? "on" : "off"}
-      detail={
-        // A failed Install or Sign in says so in the facts line, where the
-        // row already reads its details.
-        error ? (
-          <span role="alert" className="text-destructive">
-            {error}
-          </span>
-        ) : (
-          [row.version && `v${row.version}`, row.path]
-            .filter(Boolean)
-            .join(" · ") || undefined
-        )
-      }
-      action={
-        action && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={preparing}
-            onClick={() => start(action.kind)}
-          >
-            {preparing && <Spinner className="size-4" />}
-            {action.label}
-          </Button>
-        )
-      }
-    />
+    <>
+      <SettingsRow
+        title={row.label}
+        state={row.state}
+        status={row.connected ? "on" : "off"}
+        detail={
+          // A failed Install or Sign in says so in the facts line, where the
+          // row already reads its details.
+          error ? (
+            <span role="alert" className="text-destructive">
+              {error}
+            </span>
+          ) : (
+            [
+              row.version && `v${row.version}`,
+              row.path,
+              row.choosesModels &&
+                chosenModels > 0 &&
+                `${chosenModels} ${chosenModels === 1 ? "model" : "models"} in the model menu`,
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          )
+        }
+        action={
+          (row.choosesModels || action) && (
+            <div className="flex items-center gap-2">
+              {row.choosesModels && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setChoosingModels(true)}
+                >
+                  Choose models
+                </Button>
+              )}
+              {action && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={preparing}
+                  onClick={() => start(action.kind)}
+                >
+                  {preparing && <Spinner className="size-4" />}
+                  {action.label}
+                </Button>
+              )}
+            </div>
+          )
+        }
+      />
+      {row.choosesModels && (
+        <HarnessModelsDialog
+          harnessKey={row.key}
+          label={row.label}
+          open={choosingModels}
+          onOpenChange={setChoosingModels}
+        />
+      )}
+    </>
   )
 }

@@ -148,6 +148,30 @@ export interface HarnessPrintModel {
 }
 
 /**
+ * One model a Harness can run, as its CLI lists it for people to choose from in
+ * Settings (#1589): `id` is the opaque model id the ACP session's model option
+ * takes, `label` its name, and `group` the provider it comes from, which the
+ * chooser groups by.
+ */
+export interface HarnessModelChoice {
+  id: string
+  label: string
+  group: string
+}
+
+/**
+ * A CLI call that lists every model the Harness can run with the user's own
+ * sign-ins (`opencode models --verbose`), for a Harness whose models are too
+ * many to curate. The Settings row offers Choose models when it's set.
+ */
+export interface HarnessModelList {
+  /** The argv, `hostBinary` first. */
+  argv: string[]
+  /** Parse its stdout; anything unreadable is left out, never guessed. */
+  parse(stdout: string): HarnessModelChoice[]
+}
+
+/**
  * The host-process boundary a harness's {@link Harness.probeAuth} shells
  * through, injected so the auth probe is unit-testable without a real CLI
  * install or a real credential store — the exact mockable-seam shape as the
@@ -366,6 +390,13 @@ export interface Harness {
    * slug. See {@link HarnessPrintModel}.
    */
   printModel?: HarnessPrintModel
+
+  /**
+   * Lists the models people can choose to show in the model menu, for a
+   * Harness with no curated {@link models} because it reaches too many
+   * (OpenCode, #1589). Omitted when the curated list is the whole story.
+   */
+  modelList?: HarnessModelList
 }
 
 /** A harness named in `SANDBOX_HARNESSES` that won't be installed, with why. */

@@ -20,7 +20,11 @@ export const defaultHarnessProcessRunner: HarnessProcessRunner = async (
   args
 ) => {
   try {
-    const { stdout } = await execFileAsync(cmd, args, { timeout: 10_000 })
+    const { stdout } = await execFileAsync(cmd, args, {
+      timeout: 10_000,
+      // A model list (`opencode models --verbose`) runs to megabytes.
+      maxBuffer: 32 * 1024 * 1024,
+    })
     return { exitCode: 0, stdout }
   } catch (err) {
     const e = err as { code?: number | string; stdout?: string }

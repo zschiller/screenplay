@@ -12,7 +12,12 @@ import {
 } from "./host-binary"
 import { HARNESSES } from "./index"
 import { defaultHarnessProcessRunner } from "./process-runner"
-import type { Harness, HarnessProcessRunner, HostFacts } from "./types"
+import type {
+  Harness,
+  HarnessModelChoice,
+  HarnessProcessRunner,
+  HostFacts,
+} from "./types"
 
 /**
  * The **Harness Setup** module (ADR 0015): the one place that knows how the
@@ -101,6 +106,11 @@ export interface HarnessSetupRow {
   path: string | null
   /** The action to offer, or `null` when this row has nothing runnable. */
   action: HarnessSetupAction | null
+  /**
+   * Whether the row offers Choose models: the CLI is installed and lists its
+   * models for people to pick from (`Harness.modelList`, OpenCode, #1589).
+   */
+  choosesModels: boolean
 }
 
 /** What a row's action runs in the inline host terminal, and how it's narrated. */
@@ -140,6 +150,12 @@ export interface HarnessSetup {
    * so a connect lands app-wide *and* the row updates without a reload.
    */
   markConnected(): Promise<HarnessSetupRow[]>
+  /**
+   * Every model harness `key` can run, as its CLI lists them right now, for
+   * the row's Choose models. `null` when the key is unknown, it has no model
+   * list, or the CLI didn't answer.
+   */
+  modelChoices(key: string): Promise<HarnessModelChoice[] | null>
 }
 
 /**
@@ -221,6 +237,18 @@ export function createHarnessSetup(
       availability.invalidate()
       return rows()
     },
+
+    async modelChoices(key) {
+      const list = harnesses.find((h) => h.key === key)?.modelList
+      const [cmd, ...args] = list?.argv ?? []
+      if (!list || !cmd) return null
+      try {
+        const result = await run(cmd, args)
+        return result.exitCode === 0 ? list.parse(result.stdout) : null
+      } catch {
+        return null
+      }
+    },
   }
 }
 
@@ -273,6 +301,7 @@ function describeRow(
     hostBinary: harness.hostBinary,
     installed,
     authenticated,
+    choosesModels: installed && harness.modelList !== undefined,
   }
   const runnable = harness.authCommand !== undefined
   const action = (a: HarnessSetupAction) => (runnable ? a : null)
