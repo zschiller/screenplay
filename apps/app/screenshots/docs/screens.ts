@@ -1074,14 +1074,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
-      // The address bar's host: frame labels name a Workspace only when it
-      // differs from the Group's (#868).
+      // The Group names the Workspace, so the frame's own chooser shows on
+      // hovering its name (#1276).
+      const name = await centerOf(page, "span,div", "Home", { minX: 250 })
+      await page.mouse.move(name.x, name.y)
       await clickAt(
         page,
-        await centerOf(
-          page,
-          "#frame-toolbar-portal button[aria-label^='Workspace: ']"
-        ),
+        await centerOf(page, "button[aria-label='Set workspace']"),
         900
       )
     },

@@ -49,8 +49,8 @@ export function WorkspaceName({
 }
 
 /**
- * A Workspace named beside something else's name (#975): canvas labels, the
- * address bar's host and the Canvas list's rows. The shared mention, muted by
+ * A Workspace named beside something else's name (#975): canvas labels and
+ * the Canvas list's rows. The shared mention, muted by
  * its container.
  *
  * - `"label"`: sized to its content, the PR badge right after the Workspace's
@@ -78,7 +78,7 @@ export function CompactWorkspaceMention({
 
 /**
  * The searchable Workspace list a frame's Workspace switchers open (the label
- * picker and the address bar's host, issue #867): each row the shared Workspace
+ * pickers, issue #867): each row the shared Workspace
  * mention (#974: state icon, plain name, PR badge or line count) and a check on
  * the current one. The Group switcher (#869) opens it too, with a footer
  * saying what the pick moves. A drawn frame's ask card (#1357) opens it with

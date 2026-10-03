@@ -1,17 +1,12 @@
 "use client"
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
-import {
-  ArrowClockwiseIcon,
-  CaretUpDownIcon,
-  CheckIcon,
-} from "@workspace/ui/components/icons"
+import { useId, useLayoutEffect, useRef, useState } from "react"
+import { ArrowClockwiseIcon, CheckIcon } from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import {
   Tooltip,
@@ -29,19 +24,15 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import type { JsonObject } from "@/lib/postmessage-protocol"
-import { workspaceLabel } from "@/lib/workspace-label"
-import { workspaceSettingUp } from "@/lib/branch/workspace-state"
 import type { BranchData } from "@/lib/types"
 import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
-import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { WorkspaceMentionBranch } from "@/components/workspace-mention"
-import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
 /**
  * The address field in a selected frame's floating toolbar (issue #795), like
- * Safari's: the frame's Workspace as the host (press it to switch, #867), the
- * route (edit it in place to go anywhere, #1149), record, and reload. Record
+ * Safari's: the route (edit it in place to go anywhere, #1149), record, and
+ * reload. The frame's Workspace is named on its label, not here. Record
  * runs Create Flow; while it runs the field turns red and counts the screens
  * laid down. A preview that is down shows a dot at the field's start; one
  * loading spins in Reload's place, so the field never shifts.
@@ -99,12 +90,6 @@ function StatusIndicator({
 }
 
 interface FrameAddressBarProps {
-  /** The frame's Workspace, shown before the route like a browser's host. */
-  workspace?: FrameWorkspace
-  /** Workspaces the frame can switch to. */
-  workspaces: BranchData[]
-  /** Unset while the frame can't switch (a read-only viewer). */
-  onAssignWorkspace?: (branchId: string) => void
   route?: string
   discoveredRoutes: { route: string; label: string }[]
   /** Unset while the frame can't navigate (a read-only viewer). */
@@ -119,9 +104,6 @@ interface FrameAddressBarProps {
 }
 
 export function FrameAddressBar({
-  workspace,
-  workspaces,
-  onAssignWorkspace,
   route,
   discoveredRoutes,
   onSelectRoute,
@@ -132,13 +114,7 @@ export function FrameAddressBar({
   recordedScreens,
   onToggleRecording,
 }: FrameAddressBarProps) {
-  // A recording is about its screens; the host comes back when it stops.
-  const showHost = !recording && (workspace?.ref || onAssignWorkspace)
-  // A Workspace setting up already spins in the host, so Reload keeps its
-  // arrow rather than spin a second time.
-  const hostSpinning =
-    !!showHost && !!workspace && workspaceSettingUp(workspace)
-  const loading = status === "loading" && !hostSpinning
+  const loading = status === "loading"
   const shownStatus =
     status === "live" || status === "loading" ? undefined : status
   const leading = recording ? (
@@ -152,45 +128,13 @@ export function FrameAddressBar({
     <StatusIndicator status={shownStatus} />
   ) : null
   const barRef = useRef<HTMLDivElement>(null)
-  // The Workspace host takes at most half the bar (#1149). The bar sizes to
-  // its content, so it's kept wide enough (up to its cap) for the host's
-  // whole mention to fit in its half; only a bar at its cap truncates it.
-  const [hostWidth, setHostWidth] = useState<number>()
   // While the route is edited the bar keeps its width, so it doesn't jump.
   const [lockedWidth, setLockedWidth] = useState<number>()
-  const [fontsReady, setFontsReady] = useState(false)
-  useEffect(() => {
-    let live = true
-    void document.fonts?.ready.then(() => live && setFontsReady(true))
-    return () => {
-      live = false
-    }
-  }, [])
-  useLayoutEffect(() => {
-    const host = barRef.current?.querySelector<HTMLElement>(
-      "[data-slot=frame-address-host]"
-    )
-    if (!host) return setHostWidth(undefined)
-    const { maxWidth, width } = host.style
-    host.style.maxWidth = "none"
-    host.style.width = "max-content"
-    const natural = host.offsetWidth
-    host.style.maxWidth = maxWidth
-    host.style.width = width
-    setHostWidth(natural)
-  }, [showHost, workspace, fontsReady])
 
   return (
     <div
       ref={barRef}
-      style={{
-        width: lockedWidth,
-        // Half for the host and its 2px margin, plus the bar's 2px padding
-        // each side.
-        minWidth: hostWidth
-          ? `min(28rem, max(14rem, ${hostWidth * 2 + 8}px))`
-          : undefined,
-      }}
+      style={{ width: lockedWidth }}
       className={cn(
         "flex h-7 max-w-[28rem] min-w-56 items-center rounded-md bg-muted px-0.5 text-muted-foreground",
         // A recording fills the bar, black on red like every solid fill.
@@ -199,14 +143,6 @@ export function FrameAddressBar({
       {...stopPointer}
     >
       {leading}
-      {showHost && (
-        <FrameWorkspaceHost
-          workspace={workspace}
-          workspaces={workspaces}
-          onAssignWorkspace={onAssignWorkspace}
-          anchorRef={barRef}
-        />
-      )}
       <FrameRouteField
         route={route}
         discoveredRoutes={discoveredRoutes}
@@ -257,8 +193,7 @@ export function FrameAddressBar({
   )
 }
 
-/** The frame's Workspace, as the address field and the canvas labels name
- *  it: enough of its Branch for the shared mention (#975). */
+/** The frame's Workspace, as the canvas labels and sidebar rows name it: enough of its Branch for the shared mention (#975). */
 export type FrameWorkspace = WorkspaceMentionBranch & { branchId: string }
 
 /** A Branch as a {@link FrameWorkspace}, or undefined while it has no ref. */
@@ -266,100 +201,6 @@ export function frameWorkspaceOf(
   branch: BranchData | undefined
 ): FrameWorkspace | undefined {
   return branch?.ref ? { ...branch, branchId: branch.id } : undefined
-}
-
-/**
- * The address field's host (issue #867): the frame's Workspace as the shared
- * mention (#975: state icon, plain name, PR badge when there's room), like the
- * site before a browser's path. Pressing it opens the Workspace list; picking
- * one switches only this frame, which keeps its route and state. It takes at
- * most half the bar (#1149) and truncates before the route does; the hover
- * card always has the full name.
- */
-function FrameWorkspaceHost({
-  workspace,
-  workspaces,
-  onAssignWorkspace,
-  anchorRef,
-}: {
-  workspace?: FrameWorkspace
-  workspaces: BranchData[]
-  onAssignWorkspace?: (branchId: string) => void
-  /** The address bar, whose left edge the menu drops from. */
-  anchorRef: React.RefObject<HTMLElement | null>
-}) {
-  const [open, setOpen] = useState(false)
-  const label = workspace ? workspaceLabel(workspace) : undefined
-
-  const host = workspace ? (
-    <CompactWorkspaceMention workspace={workspace} />
-  ) : (
-    <span className="truncate">Choose a workspace</span>
-  )
-  // Leading the bar, a 2px margin evens its inset with the 4px above and below.
-  const hostClass =
-    "flex h-5 max-w-1/2 min-w-8 shrink-[10] items-center gap-1 rounded-sm px-1 text-xs font-medium text-muted-foreground first:ml-0.5"
-
-  if (!onAssignWorkspace) {
-    return (
-      <MaybeWorkspaceHoverCard branchId={workspace?.branchId} side="bottom">
-        <span data-slot="frame-address-host" className={hostClass}>
-          {host}
-        </span>
-      </MaybeWorkspaceHoverCard>
-    )
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      {/* Keyed on open: the trigger anchors itself until Radix sees this
-          anchor, and remounting it on open hands the bar back to Popper. */}
-      <PopoverAnchor
-        key={String(open)}
-        virtualRef={anchorRef as React.RefObject<HTMLElement>}
-      />
-      <MaybeWorkspaceHoverCard
-        branchId={workspace?.branchId}
-        side="bottom"
-        suppressed={open}
-      >
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            data-slot="frame-address-host"
-            aria-label={label ? `Workspace: ${label}` : "Choose a workspace"}
-            className={cn(
-              hostClass,
-              "pr-1 outline-none hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=open]:bg-background"
-            )}
-          >
-            {host}
-            <CaretUpDownIcon
-              aria-hidden
-              className="size-2.5 shrink-0 opacity-60"
-            />
-          </button>
-        </PopoverTrigger>
-      </MaybeWorkspaceHoverCard>
-      <PopoverContent
-        className="w-72 p-0"
-        side="bottom"
-        sideOffset={8}
-        align="start"
-        onPointerDown={(e) => e.stopPropagation()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <WorkspaceCommandList
-          branches={workspaces}
-          currentBranchId={workspace?.branchId}
-          onPick={(id) => {
-            if (id !== workspace?.branchId) onAssignWorkspace(id)
-            setOpen(false)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  )
 }
 
 interface FrameRouteFieldProps {
@@ -387,9 +228,9 @@ const NO_ROW = "none"
 
 /**
  * The address field's route, edited in place like Safari's (issue #1149).
- * Hover fills it like the Workspace host and shows the I-beam; pressing it
- * turns the route into an input with all of it selected. Suggestions drop
- * from the bar's left edge at the Workspace menu's width: the discovered
+ * Hover fills it and shows the I-beam; pressing it turns the route into an
+ * input with all of it selected. Suggestions drop from the bar's left edge
+ * at 288px: the discovered
  * routes, filtered once you type, and "Go to <path>" for one not listed.
  * Enter goes, Esc or blur puts the route back.
  */
@@ -451,8 +292,9 @@ export function FrameRouteField({
       <SharedStateIndicator sharedState={sharedState} />
     </>
   )
+  // Leading the bar, a 2px margin evens its inset with the 4px above and below.
   const fieldClass =
-    "flex h-5 min-w-0 flex-1 items-center rounded-sm px-1 font-mono text-xs"
+    "flex h-5 min-w-0 flex-1 items-center rounded-sm px-1 font-mono text-xs first:ml-0.5"
 
   if (!onSelectRoute) {
     return <span className={fieldClass}>{text}</span>
@@ -563,7 +405,7 @@ export function FrameRouteField({
       )}
       <PopoverContent
         // Like an address bar's suggestions: under the bar, from its left
-        // edge, at the Workspace menu's width.
+        // edge.
         className="w-72 p-0"
         side="bottom"
         sideOffset={8}
