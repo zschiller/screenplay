@@ -234,15 +234,16 @@ export function FrameLiveTag() {
 
 /**
  * The frame bar's Go live toggle (#1516), after Interact on a frame that can
- * go live. It stays in the bar both ways, so going live and leaving never
- * resizes the bar: plain while you're on your own copy, the pressed ink fill
- * while you're live, where a click leaves for your own copy.
+ * go live. Going live is the frame's, like its route: it puts everyone on the
+ * canvas on the one live browser, and a click on the pressed toggle ends it
+ * for everyone, back to their own copies. It stays in the bar both ways, so
+ * the bar never resizes: plain on own copies, the pressed ink fill while live.
  */
 export function FrameGoLiveToggle({
   live,
   onToggle,
 }: {
-  /** This viewer is on the live frame. */
+  /** The frame is live. */
   live: boolean
   onToggle: () => void
 }) {
@@ -251,8 +252,8 @@ export function FrameGoLiveToggle({
       label={live ? "Live" : "Go live"}
       hint={
         live
-          ? "Click to leave for your own copy"
-          : "Others on the canvas can join"
+          ? "Click to end live for everyone"
+          : "Everyone on the canvas sees it live"
       }
       pressed={live}
       onClick={onToggle}

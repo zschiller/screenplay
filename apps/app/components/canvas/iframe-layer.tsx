@@ -149,17 +149,18 @@ interface IframeLayerProps {
   onGrantControl?: (layerId: string, to: string) => void
   onDeclineControl?: (layerId: string, to: string) => void
   /**
-   * Set while this viewer is on the frame's live copy (#1392, #1516): one
-   * shared browser in the Sandbox, shown from its Frame Stream instead of
-   * this viewer's own iframe.
+   * Set while this viewer sees the frame live (#1392, #1516): one shared
+   * browser in the Sandbox, shown from its Frame Stream instead of this
+   * viewer's own iframe.
    */
   sharedStream?: FrameStreamConnection
-  /** Someone is on the frame's live copy: the title line says Live (#1516). */
+  /** Someone turned the frame live, for everyone: the title line says Live
+   *  (#1516). */
   live?: boolean
   /** Who drives the live copy, for the title-line tag and the resize handles
    *  of a viewer on their own copy. */
   liveDriver?: FrameDriverView
-  /** Go live or leave (the Go live toggle). Absent where frames can't go live:
+  /** Go live or end it, for everyone (the Go live toggle). Absent where frames can't go live:
    *  the desktop app, `SHARED_FRAMES=off`. */
   onToggleLive?: () => void
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
@@ -1110,7 +1111,7 @@ export function IframeLayer({
                   }
                 />
                 {onToggleLive && (
-                  <FrameGoLiveToggle live={shared} onToggle={onToggleLive} />
+                  <FrameGoLiveToggle live={live} onToggle={onToggleLive} />
                 )}
                 <KnobsPopover
                   knobs={iframeLayer.knobs}

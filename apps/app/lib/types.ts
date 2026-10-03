@@ -286,6 +286,12 @@ export type IframeLayerData = {
    * canvas surface today (no editor UI).
    */
   sharedState?: JsonObject
+  /**
+   * Someone turned the frame live (#1516): it's one browser in its
+   * Workspace's Sandbox, streamed to everyone on the canvas, instead of each
+   * viewer's own iframe. Hosted only. Absent is not live.
+   */
+  live?: boolean
 }
 
 /**

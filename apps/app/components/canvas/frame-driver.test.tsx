@@ -17,7 +17,7 @@ function renderToggle(live: boolean, onToggle = vi.fn()) {
 }
 
 describe("FrameGoLiveToggle", () => {
-  it("offers Go live, unpressed, on your own copy", () => {
+  it("offers Go live, unpressed, on own copies", () => {
     const onToggle = renderToggle(false)
     const button = screen.getByRole("button", { name: "Go live" })
     expect(button.getAttribute("aria-pressed")).toBe("false")
@@ -25,7 +25,7 @@ describe("FrameGoLiveToggle", () => {
     expect(onToggle).toHaveBeenCalledOnce()
   })
 
-  it("is pressed while you're live, and a click leaves", () => {
+  it("is pressed while the frame is live, and a click ends it", () => {
     const onToggle = renderToggle(true)
     const button = screen.getByRole("button", { name: "Live" })
     expect(button.getAttribute("aria-pressed")).toBe("true")

@@ -1,118 +1,68 @@
 import { describe, expect, it } from "vitest"
 
 import { AGENT_PARTY } from "@/lib/canvas/frame-control"
-import {
-  landOnLiveFrames,
-  liveFrames,
-  presenceLiveFrameIds,
-  type LiveChoices,
-  type LivePresence,
-} from "./live-frames"
+import { NOT_LIVE, liveFrames } from "./live-frames"
 
-const ME = "zack"
-const NONE: LiveChoices = { joined: new Set(), left: new Set() }
-const nobodyDrives = () => null
+const FRAME = "frame-1"
 
 function rule({
-  frameIds = ["a", "b"],
-  others = [] as LivePresence[],
-  choices = NONE,
-  drivers = nobodyDrives as (id: string) => string | null,
+  turnedLive = [] as string[],
+  viewerId = "zack" as string | null,
+  others = [] as string[],
+  agentOn = [] as string[],
 } = {}) {
-  return liveFrames({ frameIds, viewerId: ME, others, choices, drivers })
+  return liveFrames({
+    frameIds: [FRAME],
+    turnedLive: (id) => turnedLive.includes(id),
+    viewerId,
+    others,
+    drivers: (id) => (agentOn.includes(id) ? AGENT_PARTY : null),
+  }).get(FRAME)
 }
 
 describe("liveFrames", () => {
-  it("keeps every frame an own copy while nobody is live", () => {
-    const frames = rule()
-    expect(frames.get("a")).toEqual({ live: false, on: [], viewerOn: false })
-    expect(frames.get("b")).toEqual({ live: false, on: [], viewerOn: false })
+  it("leaves frames as everyone's own copy until someone turns one live", () => {
+    expect(rule({ others: ["ana"] })).toEqual(NOT_LIVE)
   })
 
-  it("puts you alone on a frame you go live on", () => {
-    const frames = rule({
-      choices: { joined: new Set(["a"]), left: new Set() },
-    })
-    expect(frames.get("a")).toEqual({ live: true, on: [ME], viewerOn: true })
-    expect(frames.get("b")?.live).toBe(false)
-  })
-
-  it("shows a frame someone else is live on as live, without you on it", () => {
-    const frames = rule({ others: [{ id: "ana", liveFrameIds: ["a"] }] })
-    expect(frames.get("a")).toEqual({
+  it("puts everyone on the canvas on a frame turned live", () => {
+    expect(rule({ turnedLive: [FRAME], others: ["ana", "ben"] })).toEqual({
       live: true,
-      on: ["ana"],
-      viewerOn: false,
+      on: ["zack", "ana", "ben"],
+      viewerOn: true,
     })
   })
 
-  it("counts each person once, whatever tabs they have open", () => {
-    const frames = rule({
-      others: [
-        { id: "ana", liveFrameIds: ["a"] },
-        { id: "ana", liveFrameIds: ["a"] },
-        { id: "ben", liveFrameIds: ["b"] },
-      ],
-      choices: { joined: new Set(["a"]), left: new Set() },
-    })
-    expect(frames.get("a")?.on).toEqual([ME, "ana"])
-    expect(frames.get("b")?.on).toEqual(["ben"])
+  it("counts each person once", () => {
+    expect(
+      rule({ turnedLive: [FRAME], others: ["zack", "ana", "ana"] })?.on
+    ).toEqual(["zack", "ana"])
   })
 
-  it("drops someone off when their presence goes", () => {
-    const before = rule({ others: [{ id: "ana", liveFrameIds: ["a"] }] })
-    expect(before.get("a")?.live).toBe(true)
-    const after = rule({ others: [] })
-    expect(after.get("a")?.live).toBe(false)
-  })
-
-  it("keeps a frame live while the agent has control, with nobody on it", () => {
-    const frames = rule({
-      drivers: (id) => (id === "a" ? AGENT_PARTY : null),
-    })
-    expect(frames.get("a")).toEqual({
+  it("makes the frame live while the agent has control", () => {
+    expect(rule({ agentOn: [FRAME], others: ["ana"] })).toEqual({
       live: true,
-      on: [AGENT_PARTY],
-      viewerOn: false,
+      on: ["zack", "ana", AGENT_PARTY],
+      viewerOn: true,
     })
   })
 
-  it("never makes a frame live that can't go live", () => {
-    const frames = rule({
-      frameIds: ["a"],
-      others: [{ id: "ana", liveFrameIds: ["c"] }],
-      choices: { joined: new Set(["c"]), left: new Set() },
+  it("stays live with nobody here, so the next person lands on it", () => {
+    expect(rule({ turnedLive: [FRAME], viewerId: null })).toEqual({
+      live: true,
+      on: [],
+      viewerOn: true,
     })
-    expect(frames.has("c")).toBe(false)
-  })
-})
-
-describe("landOnLiveFrames", () => {
-  it("lands on frames already live when the canvas opens", () => {
-    const frames = rule({ others: [{ id: "ana", liveFrameIds: ["a"] }] })
-    expect(landOnLiveFrames(frames, NONE)).toEqual(["a"])
   })
 
-  it("doesn't put back someone who left this session", () => {
-    const choices = { joined: new Set<string>(), left: new Set(["a"]) }
-    const frames = rule({
-      others: [{ id: "ana", liveFrameIds: ["a"] }],
-      choices,
+  it("only covers frames that can go live", () => {
+    const frames = liveFrames({
+      frameIds: [],
+      turnedLive: () => true,
+      viewerId: "zack",
+      others: [],
+      drivers: () => null,
     })
-    expect(landOnLiveFrames(frames, choices)).toEqual([])
-  })
-
-  it("has nothing to land on while nobody is live", () => {
-    expect(landOnLiveFrames(rule(), NONE)).toEqual([])
-  })
-})
-
-describe("presenceLiveFrameIds", () => {
-  it("lists the frames this viewer is on, in a stable order", () => {
-    const frames = rule({
-      frameIds: ["b", "a"],
-      choices: { joined: new Set(["b", "a"]), left: new Set() },
-    })
-    expect(presenceLiveFrameIds(frames)).toEqual(["a", "b"])
+    expect(frames.get(FRAME)).toBeUndefined()
   })
 })

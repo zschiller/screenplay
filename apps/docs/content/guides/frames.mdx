@@ -103,7 +103,7 @@ it. From left to right:
 | **Address**           | The frame's route. Click it to type a new one. **Reload** reloads the preview, and spins in its place while the page loads. A dot at the start of the address means the dev server disconnected or the preview failed.                                                                                                                                |
 | **Record flow**       | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. The address turns red with a screen count while recording.                                                                                                  |
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame's outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
-| **Go live**           | On a hosted canvas, switches you from your own copy of the frame to one live browser others can join, and back. See [Live frames](#live-frames).                                                                                                                                                                                                      |
+| **Go live**           | On a hosted canvas, switches the frame from everyone's own copy to one live browser everyone on the canvas watches, and back. See [Live frames](#live-frames).                                                                                                                                                                                        |
 | **Knobs**             | Live controls your app declares. See [Knobs](#knobs).                                                                                                                                                                                                                                                                                                 |
 | **More**              | **Device size**, **Fit to content**, **Duplicate**, a **Workspace** submenu with **Open prototype player** and **Open in browser**, and **Delete frame**.                                                                                                                                                                                             |
 
@@ -155,28 +155,27 @@ your browser, as fast as any page. Your copy follows the canvas: when someone
 navigates the frame, or changes its [shared state](#shared-state) or Knobs,
 every copy follows.
 
-To look at the very same page with someone, click **Go live** (the broadcast
-button after **Interact** in the frame's toolbar). The frame's browser starts
-in its workspace's sandbox, on the frame's current page, and you're on it.
-Nobody else is pulled in: everyone else keeps their own copy, and the frame's
-title line reads **Live** for all of you. Anyone can click **Go live** on that
-frame to join it, and then you all watch one browser, so when one of you
-clicks through the page the others see it happen.
+To look at the very same page together, click **Go live** (the broadcast
+button after **Interact** in the frame's toolbar). Going live works like
+navigating: it's the frame's, so it happens for everyone on the canvas. The
+frame's browser starts in its workspace's sandbox, on the frame's current
+page, and everyone's copy of that frame switches to it. The title line reads
+**Live**, and when one of you clicks through the page the others see it
+happen. Anyone who opens the canvas while the frame is live lands on it live.
 
-The **Go live** button stays filled while you're on the live frame. Click it
-again to leave: you're back on your own copy, on the live frame's page, with
-its cookies and local storage. What the page held only in memory, like a half
-typed form, doesn't come along. If you open the canvas while a frame is live,
-you land on it live. Once you leave a frame, you stay on your own copy for the
-rest of your visit, until you click **Go live** again. When the last person
-leaves, or closes their tab, the frame stops being live.
+The **Go live** button stays filled while the frame is live. Anyone can click
+it again to end live for everyone: each of you is back on your own copy, on
+the live frame's page, with its cookies and local storage. What the page held
+only in memory, like a half typed form, doesn't come along. A live frame stays
+live when everyone leaves the canvas; its browser pauses while nobody is
+watching.
 
 On your own copy, **Interact** works on your copy alone. On a live frame,
 whoever has control is the only one whose clicks, keys and scrolling reach
 it. Press Interact on a live frame nobody controls to take control. On one
 someone else controls, nothing you do reaches the page: its title line says
 who has control instead of **Live**, and the Interact button shows their
-avatar. Leaving a live frame you control lets go of control first.
+avatar. Ending live on a frame you control lets go of control first.
 
 #### Asking for control
 
@@ -261,8 +260,8 @@ yours over.
 ### On a shared canvas
 
 On hosted Screenplay, the agent drives the frame's one live browser, and the
-frame is live while it has control, so everyone on the live frame watches each
-step as it happens. Everyone else sees **Agent has control** on their copy's
+frame is live for everyone while it has control, so everyone on the canvas
+watches each step as it happens, with **Agent has control** on the frame's
 title line. Anyone
 can take the frame from the agent; between people, the usual
 [asking for control](#asking-for-control) applies. The agent can drive a frame

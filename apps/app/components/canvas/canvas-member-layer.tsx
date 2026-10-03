@@ -543,16 +543,16 @@ function CanvasMemberLayerImpl({
                   })
               : undefined
           // Frames are each viewer's own copy, an iframe that follows the
-          // room, until this viewer goes live on one (#1516): then it shows
+          // room, until someone turns one live (#1516): then everyone sees
           // the shared browser's stream.
           const live = sharedFrames.liveOf(iframeLayer.id)
-          const stream = live.viewerOn
+          const stream = sharedFrames.sharedIds.has(iframeLayer.id)
             ? sharedFrames.streamOf(iframeLayer.branchId)
             : undefined
           const canGoLive = !!sharedFrames.streamOf(iframeLayer.branchId)
           return (
             <IframeLayer
-              // Going live or leaving starts the view afresh: a new stream
+              // Going live or ending it starts the view afresh: a new stream
               // view, or a new iframe.
               key={stream ? `${iframeLayer.id}:live` : iframeLayer.id}
               iframeLayer={{
@@ -565,11 +565,10 @@ function CanvasMemberLayerImpl({
               onToggleLive={
                 canGoLive
                   ? () => {
-                      // Going live or leaving switches which Frame Control
+                      // Going live or ending it switches which Frame Control
                       // record governs the frame: let go of the old one.
                       frameControl.letGo(iframeLayer.id)
-                      if (live.viewerOn) sharedFrames.leave(iframeLayer)
-                      else sharedFrames.goLive(iframeLayer)
+                      layerMutations.updateLive(iframeLayer.id, !live.live)
                     }
                   : undefined
               }

@@ -584,8 +584,8 @@ export function Canvas({
     () => new Set(mockupLayers.map((layer) => layer.id)),
     [mockupLayers]
   )
-  // Live frames (#1516): on hosted, a frame someone goes live on is one
-  // browser in its Workspace's Sandbox, streamed to the people on it; every
+  // Live frames (#1516): on hosted, a frame someone turns live is one browser
+  // in its Workspace's Sandbox, streamed to everyone on the canvas; every
   // other frame is each viewer's own iframe, as on the desktop app.
   const sharedFrames = useSharedFrames({
     roomId,
@@ -594,7 +594,6 @@ export function Canvas({
     iframeLayers,
     viewerId: userId ?? null,
     others,
-    setPresence,
     frameControl: collections.frameControl,
   })
   // Handed a frame (Let drive, a reload): Interact needs it selected.
@@ -619,21 +618,28 @@ export function Canvas({
     setFocusedId: setFocusedIframeLayerId,
     takeSeat: takeFrameSeat,
   })
+  // A frame going live or ending live (someone else's toggle) swaps which
+  // browser this viewer sees: leave Interact rather than keep a seat on the
+  // view that went away.
+  const focusedShared =
+    focusedIframeLayerId !== null &&
+    sharedFrames.sharedIds.has(focusedIframeLayerId)
+  const prevFocusedSharedRef = useRef(focusedShared)
+  const prevFocusedIdRef = useRef(focusedIframeLayerId)
+  useEffect(() => {
+    const sameFrame = prevFocusedIdRef.current === focusedIframeLayerId
+    const switched = sameFrame && prevFocusedSharedRef.current !== focusedShared
+    prevFocusedIdRef.current = focusedIframeLayerId
+    prevFocusedSharedRef.current = focusedShared
+    if (switched) setFocusedIframeLayerId(null)
+  }, [focusedIframeLayerId, focusedShared, setFocusedIframeLayerId])
   const drivenFrames = useMemo(
     () =>
       frameIds.flatMap((id) => {
-        // From an own copy of a live frame, the ring shows who drives the
-        // live one (#1516), as the title-line tag does.
-        const own = frameControl.driverOf(id)
-        const live = sharedFrames.liveOf(id)
-        const color = frameDriverRingColor(
-          drivenByOther(own) || !live.live || live.viewerOn
-            ? own
-            : frameControl.liveDriverOf(id)
-        )
+        const color = frameDriverRingColor(frameControl.driverOf(id))
         return color ? [{ id, color }] : []
       }),
-    [frameIds, frameControl, sharedFrames]
+    [frameIds, frameControl]
   )
   const closeCursorChat = interaction.closeCursorChat
 
