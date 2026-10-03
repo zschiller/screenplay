@@ -53,6 +53,11 @@ const HAS_STACK =
   !!CHROME &&
   !!which("Xvfb") &&
   !!which("ffmpeg")
+// CI's browser job installs the stack; there a missing piece is a failure,
+// not a skip, so the test can't drop out of CI unnoticed.
+if (process.env.SCREENPLAY_REQUIRE_BROWSER_STACK && !HAS_STACK) {
+  throw new Error("Chrome, Xvfb and ffmpeg are required but not all found")
+}
 
 const KEY = "test-drive-key"
 const FRAME = "drive-frame"
