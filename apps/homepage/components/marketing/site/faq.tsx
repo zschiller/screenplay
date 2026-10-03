@@ -5,32 +5,40 @@ import { SectionHeading } from "./section-heading"
 
 const faqs = [
   {
-    q: "What do I need?",
-    a: "For the desktop app, a Mac with Apple Silicon, a Claude Code or Codex account, and a repository with a dev server. GitHub is only needed to open pull requests. For a team, someone deploys the web app once, and then everyone needs only a browser and a GitHub account.",
-  },
-  {
-    q: "What is Screenplay, exactly?",
-    a: "A canvas for coding agents. Every chat works on a git branch of its own, with its own sandbox and dev server, and shows its app as a live frame. You compare the results side by side instead of one checkout at a time.",
+    q: "What is Screenplay?",
+    a: "A canvas where coding agents plan, mock up and build from your own repository. Each version of a change runs live on a branch of its own, side by side with the others, and you open a pull request for the one you keep.",
   },
   {
     q: "Which agents does it work with?",
-    a: "Claude Code and Codex, using the CLIs and accounts you already have. opencode runs in terminal tabs but not in chat. A self-hosted deployment also has a built-in agent that talks to Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint.",
+    a: "The Mac app runs Claude Code, Codex or OpenCode, using the one you already have installed and its login, subscriptions included. The hosted web app has a built-in agent that runs on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint.",
+  },
+  {
+    q: "Should I use the Mac app or host it?",
+    a: "Use the Mac app to work on your own. It needs no account, and your canvases stay on your Mac. Host the web app when a team should share canvases, comments and running apps from any browser. There’s no Screenplay-run service to sign up for; you deploy it yourself.",
+  },
+  {
+    q: "What do I need for the Mac app?",
+    a: "A Mac with Apple Silicon, Claude Code, Codex or OpenCode installed and signed in, and a project with a dev server. There’s no build for Intel Macs, Windows or Linux; on those, use a hosted deployment in the browser.",
+  },
+  {
+    q: "Do I need GitHub?",
+    a: "Not for the Mac app. Open a folder on your Mac or paste any clone URL; GitHub only adds browsing your repositories and opening pull requests. The hosted web app signs everyone in with GitHub and works on GitHub repositories.",
   },
   {
     q: "Does my code leave my machine?",
-    a: "Only through your agent. The desktop app has no account and no Screenplay servers, and everything it stores stays on your Mac. Your agent sends code to its model provider just as it does in your terminal, including your README and configs when it works out how to run a new repository.",
-  },
-  {
-    q: "How does the multiplayer part work?",
-    a: "Deploy the web app and each chat runs in a cloud sandbox. Share a canvas and everyone sees the same frames, cursors, comments and agent streams in real time, and Go live puts everyone on one browser in a frame. The reference deployment uses Vercel, Postgres, Liveblocks, Vercel Blob, Vercel Sandbox, a GitHub OAuth app and at least one model provider key.",
+    a: "Only through your agent. The Mac app has no account and no Screenplay servers, and everything it stores stays on your Mac. Your agent sends code to its model provider just as it does in your terminal, including your README and config files when it works out how to run a new repository.",
   },
   {
     q: "Do I need to change my app?",
-    a: "No. Anything with a dev server works, as long as it listens on the port Screenplay gives it. For knobs or state shared between viewers, add the two small npm packages. They no-op in production builds.",
+    a: "No. Anything with a dev server works, as long as it listens on the port Screenplay gives it. For knobs or state shared between viewers, add the two small npm packages. They do nothing in production builds.",
   },
   {
-    q: "What does it cost?",
-    a: "The software is free and MIT licensed. You bring your own agent subscriptions or API keys, and a self-hosted deployment pays for its hosting and model usage.",
+    q: "What does hosting it take?",
+    a: "The reference deployment uses Vercel, Postgres, Liveblocks, Vercel Blob, Vercel Sandbox, a GitHub OAuth app and at least one model provider key. Every chat runs in its own cloud sandbox, so your team installs nothing. The self-hosting guide shows how to swap in other providers.",
+  },
+  {
+    q: "Is it free and open source?",
+    a: "Yes. Screenplay is MIT licensed and the code is on GitHub. You bring your own agent subscriptions or API keys, and a hosted deployment pays for its own hosting and model usage.",
   },
 ]
 
