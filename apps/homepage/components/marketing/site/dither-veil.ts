@@ -9,8 +9,8 @@ import { createFluid } from "./fluid"
  * layer fades into the background at both ends the same way.
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
- * blue noise instead of Bayer's checkerboard. The grain creeps and a value
- * noise billows the edge, so the veil is always gently moving. Each grain is solid or a soft wash, so what's underneath
+ * blue noise instead of Bayer's checkerboard, and a value noise roughens the
+ * edge. The veil holds still until the pointer stirs it. Each grain is solid or a soft wash, so what's underneath
  * fades under a smooth gradient and the dots only add texture.
  *
  * The canvas must fill its parent (`width/height: 100%`): a positioned canvas
@@ -63,9 +63,6 @@ export function createDitherVeil(
   // How sharply the veil eases in down its span: 1 is an even ramp, higher
   // keeps more of the top clear.
   const EASE = 1.6
-  // How much the marbled smoke moves the fade, and its scale per CSS px.
-  const SHIMMER = 0.5
-  const SHIMMER_SCALE = 0.011
 
   let W = 0
   let H = 0
@@ -86,15 +83,12 @@ export function createDitherVeil(
   let bandFx = new Float32Array(0)
   let bandFy = new Float32Array(0)
   let inBand = new Uint8Array(0)
-  // The edge noise this frame, on the coarse grid: it's smooth, so reading it
-  // there and interpolating looks the same as working it out per grain.
+  // The edge noise on the coarse grid: it's smooth, so reading it there and
+  // interpolating looks the same as working it out per grain.
   let gc = 0
   let edge = new Float32Array(0)
   // The marbling noise at each node of the fluid, this frame.
   let marble = new Float32Array(0)
-  // The idle shimmer at each node of the fluid, this frame, drawn from where
-  // the fluid carried each spot from, so the pointer swirls it.
-  let shimmer = new Float32Array(0)
   // The dye shown this frame, on the same grid.
   let shown = new Float32Array(0)
   // Time into the fluid's current 40ms step.
@@ -109,11 +103,8 @@ export function createDitherVeil(
   let touched: [number, number, number, number] | null = null
   let rgb = [255, 255, 255]
   let raf = 0
-  let last = 0
+  let stirred = false
   let lastDraw = 0
-  // Where the grain pattern had crept to at the last full redraw.
-  let sx = 0
-  let sy = 0
   // How far through the fade the redraw has got, while the peek is running.
   let sweepAt = 0
   const t0 = performance.now()
@@ -143,8 +134,12 @@ export function createDitherVeil(
     gc = Math.ceil(W / COARSE) + 2
     const gr = Math.ceil(H / COARSE) + 2
     edge = new Float32Array(gc * gr)
+    for (let j = 0; j < edge.length; j++)
+      edge[j] = noise(
+        (j % gc) * COARSE * 0.007,
+        Math.floor(j / gc) * COARSE * 0.007
+      )
     marble = new Float32Array(gc * gr)
-    shimmer = new Float32Array(gc * gr)
     shown = new Float32Array(gc * gr)
     const [top, solid, far] = span()
     const fall = Math.max(solid - top, 1)
@@ -258,21 +253,14 @@ export function createDitherVeil(
     const bot = edge[j + gc]! + (edge[j + gc + 1]! - edge[j + gc]!) * fx
     return top + (bot - top) * fy
   }
-  function lerpShimmer(j: number, fx: number, fy: number) {
-    const top = shimmer[j]! + (shimmer[j + 1]! - shimmer[j]!) * fx
-    const bot =
-      shimmer[j + gc]! + (shimmer[j + gc + 1]! - shimmer[j + gc]!) * fx
-    return top + (bot - top) * fy
-  }
   function lerpMarble(j: number, fx: number, fy: number) {
     const top = marble[j]! + (marble[j + 1]! - marble[j]!) * fx
     const bot = marble[j + gc]! + (marble[j + gc + 1]! - marble[j + gc]!) * fx
     return top + (bot - top) * fy
   }
 
-  // Redraws the grains in `rect` that can change: the fade by distance, a
-  // billowing edge, a creeping grain and, with `peek`, a hole where the
-  // pointer is. Grains in `skip` are left alone; below the line, without
+  // Redraws the grains in `rect` that can change: the fade by distance, its
+  // noisy edge and, with `peek`, a hole where the pointer is. Grains in `skip` are left alone; below the line, without
   // `peek`, grains go back to solid.
   function paint(
     rect: [number, number, number, number],
@@ -299,10 +287,7 @@ export function createDitherVeil(
         const x0 = Math.floor(gx)
         const fx = gx - x0
         const j = y0 * gc + x0
-        let k =
-          base[i]! +
-          (lerpEdge(j, fx, fy) - 0.5) * 0.55 +
-          (lerpShimmer(j, fx, fy) - 0.5) * SHIMMER
+        let k = base[i]! + (lerpEdge(j, fx, fy) - 0.5) * 0.55
         if (peek && d) {
           const top = d[j]! + (d[j + 1]! - d[j]!) * fx
           const p =
@@ -317,7 +302,7 @@ export function createDitherVeil(
         }
         const kk = k < 0 ? 0 : k > 1 ? 1 : k
         const v = kk * kk * (3 - 2 * kk)
-        data[i * 4 + 3] = v > ign(c + sx, r - sy) ? 255 : v * 150
+        data[i * 4 + 3] = v > ign(c, r) ? 255 : v * 150
       }
     }
   }
@@ -333,10 +318,9 @@ export function createDitherVeil(
         continue
       let k = base[band[b]!]!
       k += (lerpEdge(bandAt[b]!, bandFx[b]!, bandFy[b]!) - 0.5) * 0.55
-      k += (lerpShimmer(bandAt[b]!, bandFx[b]!, bandFy[b]!) - 0.5) * SHIMMER
       const kk = k < 0 ? 0 : k > 1 ? 1 : k
       const v = kk * kk * (3 - 2 * kk)
-      data[band[b]! * 4 + 3] = v > ign(c + sx, r - sy) ? 255 : v * 150
+      data[band[b]! * 4 + 3] = v > ign(c, r) ? 255 : v * 150
     }
   }
 
@@ -398,41 +382,6 @@ export function createDitherVeil(
         }
       }
     }
-    // The shimmer: marbled smoke, thin veins where warped noise crosses its
-    // middle, read from where the fluid carried each spot from. At rest
-    // that's the spot itself; the pointer swirls it, and it settles back as
-    // the fluid does.
-    const mxs = fluid?.mx
-    const mys = fluid?.my
-    const pmx = fluid?.prevMx
-    const pmy = fluid?.prevMy
-    for (let j = 0, gx = 0, gy = 0; j < edge.length; j++) {
-      edge[j] = noise(
-        gx * COARSE * 0.007 + t * 0.45,
-        gy * COARSE * 0.007 - t * 0.3
-      )
-      let ux = gx
-      let uy = gy
-      if (mxs && mys && pmx && pmy && j < mxs.length) {
-        ux = pmx[j]! + (mxs[j]! - pmx[j]!) * blend
-        uy = pmy[j]! + (mys[j]! - pmy[j]!) * blend
-      }
-      const px = ux * COARSE * SHIMMER_SCALE
-      const py = uy * COARSE * SHIMMER_SCALE
-      const wx = noise(px + t * 0.22, py - t * 0.17)
-      const wy = noise(px + 5.2 - t * 0.18, py + 1.3 + t * 0.14)
-      const vein =
-        1 - Math.abs(2 * noise(px * 1.7 + wx * 3.2, py * 1.7 + wy * 3.2) - 1)
-      shimmer[j] = 0.3 + vein ** 4 * 1.1
-      if (++gx === gc) {
-        gx = 0
-        gy++
-      }
-    }
-    // The grain pattern creeps diagonally and the edge billows, so the veil
-    // reads as moving rather than a still texture.
-    sx = Math.floor(t * 9)
-    sy = Math.floor(t * 5)
     const box: typeof touched = lit
       ? [
           Math.max(0, Math.floor(((lit[0] - 1) * COARSE) / cell)),
@@ -496,12 +445,14 @@ export function createDitherVeil(
   }
 
   function frame(now: number) {
-    // The peek's fluid runs at the display's rate so it moves smoothly;
-    // on its own the slow drift of the fade redraws at 25fps, which is
-    // plenty.
-    if (aim.on || fluid?.active) draw(now, false, false)
-    else if (now - last > 40) {
-      last = now
+    // The peek's fluid runs at the display's rate so it moves smoothly.
+    // Otherwise the veil is still, so it's drawn once more to put back what
+    // the peek last touched and then left alone.
+    if (aim.on || fluid?.active) {
+      draw(now, false, false)
+      stirred = true
+    } else if (stirred) {
+      stirred = false
       draw(now)
     }
     raf = requestAnimationFrame(frame)
