@@ -127,7 +127,7 @@ export function LogText({ text }: { text: string }): ReactNode {
     const nl = i < all.length - 1 ? "\n" : ""
     if (ERROR_LINE.test(line)) {
       return (
-        <span key={i} style={{ color: ansiColorVar(1) }}>
+        <span key={i} style={{ color: "var(--destructive)" }}>
           {line}
           {nl}
         </span>
@@ -135,7 +135,7 @@ export function LogText({ text }: { text: string }): ReactNode {
     }
     if (WARN_LINE.test(line)) {
       return (
-        <span key={i} style={{ color: ansiColorVar(3) }}>
+        <span key={i} style={{ color: "var(--warning)" }}>
           {line}
           {nl}
         </span>
@@ -146,7 +146,7 @@ export function LogText({ text }: { text: string }): ReactNode {
       return (
         <span key={i}>
           {pass[1]}
-          <span style={{ color: ansiColorVar(2) }}>{pass[2]}</span>
+          <span style={{ color: "var(--success)" }}>{pass[2]}</span>
           {line.slice(pass[0].length)}
           {nl}
         </span>

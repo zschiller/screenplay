@@ -222,8 +222,8 @@ export function BranchOverflowMenuContent({
 }: BranchOverflowMenuContentProps) {
   return (
     <DropdownMenuContent
-      side="right"
-      align="start"
+      side="bottom"
+      align="end"
       onCloseAutoFocus={onCloseAutoFocus}
     >
       <BranchOverflowMenuItems {...props} />
