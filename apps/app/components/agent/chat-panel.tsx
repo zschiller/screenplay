@@ -434,7 +434,9 @@ function WorkspaceChatPanel({
             … holds the Workspace's menu (H4). */}
         <WorkspaceHeaderTitle branch={agent} />
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
+          {/* An open PR already carries the diff, so its counts go. */}
           {diffStats &&
+            displayPr?.state !== "open" &&
             (diffStats.additions > 0 || diffStats.deletions > 0) && (
               <span className="flex items-center gap-1 font-mono text-xs">
                 <span className="text-success">+{diffStats.additions}</span>
