@@ -5,7 +5,8 @@ import {
   isAllowedMcpOrigin,
   resolveCoordinatorToken,
 } from "@/lib/agent/coordinator-mcp"
-import { findActiveRun } from "@/lib/agent/persistence"
+import { findActiveRun, getChatModel } from "@/lib/agent/persistence"
+import { turnHarnessKey } from "@/lib/agent/acp/engine-choice"
 import { coordinatorTarget } from "@/lib/agent/turn-launch-live"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
@@ -48,6 +49,10 @@ export async function POST(req: Request) {
 
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
+  // The chat's Harness, whose own Skills `read_skill` reads (#1560).
+  const harnessKey = turnHarnessKey(
+    (await getChatModel(binding.chatId).catch(() => null)) ?? undefined
+  )
 
   // A token minted for a turn nobody sent gets no account memory (#1515).
   const senderless = binding.senderless ? { senderless: true } : {}
@@ -81,6 +86,7 @@ export async function POST(req: Request) {
       chatId: binding.chatId,
       userId: room.userId,
       ...senderless,
+      harnessKey,
     })
     return serve(
       withRedactedOutput(
@@ -95,6 +101,7 @@ export async function POST(req: Request) {
       chatId: binding.chatId,
       userId: room.userId,
       ...senderless,
+      harnessKey,
     })
     return serve(
       toolsetOn(tools, "harness"),
@@ -106,7 +113,11 @@ export async function POST(req: Request) {
   const run = await findActiveRun(binding.chatId).catch(() => null)
   const tools = roomChatTarget.tools(
     room,
-    coordinatorTarget(room, binding.chatId, { turnId: run?.id, ...senderless })
+    coordinatorTarget(room, binding.chatId, {
+      turnId: run?.id,
+      ...senderless,
+      harnessKey,
+    })
   )
   return serve(
     toolsetOn(tools, "harness"),

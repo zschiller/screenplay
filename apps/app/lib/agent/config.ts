@@ -295,7 +295,7 @@ Keep your responses concise. Show the user what you changed and why.`
  * the full instructions: the same metadata-then-body progressive disclosure
  * native Anthropic skills use, just routed through our custom tool.
  *
- * `skills` is the merged, origin-tagged index (Repo, then Canvas, then App on
+ * `skills` is the merged, origin-tagged index (Repo, Canvas, the agent's own, then App on
  * a collision), read every turn, so a Skill saved or edited mid-chat is in
  * the next turn's prompt.
  *

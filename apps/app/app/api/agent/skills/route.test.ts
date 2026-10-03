@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
 import { makeHarness } from "@/test/canvas/harness"
@@ -21,6 +24,18 @@ vi.mock("@/lib/room-access", () => ({
         }
       : new Response("Not a member", { status: 403 }),
 }))
+
+// The desktop build, whose chats run on the user's own coding agent (#1560).
+const desktop = vi.hoisted(() => ({ isLocalBuild: false, home: "" }))
+vi.mock("@/lib/local-mode", () => ({
+  get isLocalBuild() {
+    return desktop.isLocalBuild
+  },
+}))
+vi.mock("node:os", async (original) => {
+  const os = await original<typeof import("node:os")>()
+  return { ...os, homedir: () => desktop.home || os.homedir() }
+})
 
 import { GET } from "./route"
 
@@ -121,5 +136,54 @@ describe("GET /api/agent/skills", () => {
     expect(skills.every((s: { origin: string }) => s.origin === "app")).toBe(
       true
     )
+  })
+
+  it("lists the desktop agent's own Skills by its name, below the canvas's (#1560)", async () => {
+    desktop.home = await mkdtemp(join(tmpdir(), "skills-route-"))
+    const own = async (name: string) => {
+      await mkdir(join(desktop.home, ".claude/skills", name), {
+        recursive: true,
+      })
+      await writeFile(
+        join(desktop.home, ".claude/skills", name, "SKILL.md"),
+        `---\nname: ${name}\ndescription: Mine.\n---\n`
+      )
+    }
+    await own("tidy")
+    await own("review")
+    collections = makeHarness().collections
+    collections.skills.set("f-review", folder("review", "Review a PR."))
+    const url =
+      "http://localhost/api/agent/skills?room=room-1&chat=sketch&model=harness:claude-code:opus"
+    const sources = async () => {
+      const { skills } = await (await GET(new Request(url))).json()
+      return skills.filter((s: { name: string }) =>
+        ["tidy", "review"].includes(s.name)
+      )
+    }
+
+    try {
+      // Hosted: no coding agent of the user's own.
+      expect(await sources()).toEqual([
+        { name: "review", description: "Review a PR.", origin: "canvas" },
+      ])
+
+      desktop.isLocalBuild = true
+      vi.stubEnv("AGENT_ENGINE", "external")
+      expect(await sources()).toEqual([
+        { name: "review", description: "Review a PR.", origin: "canvas" },
+        {
+          name: "tidy",
+          description: "Mine.",
+          origin: "agent",
+          agentName: "Claude Code",
+        },
+      ])
+    } finally {
+      desktop.isLocalBuild = false
+      vi.unstubAllEnvs()
+      await rm(desktop.home, { recursive: true, force: true })
+      desktop.home = ""
+    }
   })
 })

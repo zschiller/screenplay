@@ -17,6 +17,7 @@ import { buildQuestionTools } from "./question-tools"
 import { sketchAppSkills, sketchSkillIndex } from "./sketch-tools"
 import { buildSkillTools } from "./skill-tools"
 import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildFileTools } from "./file-tools"
 import { buildMemoryTools } from "./memory-tools"
@@ -34,12 +35,16 @@ export interface SketchTarget {
   /** No person sent this turn (a Coordinator wake delegated it), so it reads
    *  no account memory (#1513). Otherwise `userId` sent it. */
   senderless?: boolean
+  /** The desktop Harness running the turn, whose own Skills the chat lists
+   *  (#1560); unset off the desktop or on the in-process engine. */
+  harnessKey?: string | null
 }
 
 export interface SketchContext {
   chatId: string
   layerDirectory: LayerDirectory
-  /** The canvas's Skills, then its Mockup App Skills; no repository. */
+  /** The canvas's Skills, the agent's own, then its Mockup App Skills; no
+   *  repository. */
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
@@ -51,10 +56,11 @@ export interface SketchContext {
 export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
   kind: "sketch",
   async loadContext(room, target) {
-    const [layerDirectory, canvas, memory, files, accountMemory] =
+    const [layerDirectory, canvas, agent, memory, files, accountMemory] =
       await Promise.all([
         loadLayerDirectory(room),
         loadCanvasSkills(room),
+        loadAgentSkills(agentSkillsFor(target.harnessKey)),
         loadCanvasMemory(room),
         loadCanvasFiles(room),
         loadAccountMemory(turnSender(target)),
@@ -62,7 +68,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
     return {
       chatId: target.chatId,
       layerDirectory,
-      skills: mergeSkillIndexes({ canvas, app: sketchSkillIndex() }),
+      skills: mergeSkillIndexes({ canvas, agent, app: sketchSkillIndex() }),
       memory,
       files,
       accountMemory,
@@ -81,7 +87,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
     })
   },
   tools(room, target) {
-    const { chatId, userId } = target
+    const { chatId, userId, harnessKey } = target
     return {
       shared: {
         ...buildDocumentTools({ room, chatId }),
@@ -93,6 +99,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
           canvas: canvasSkills(room),
           chatId,
           app: sketchAppSkills,
+          agent: agentSkillsFor(harnessKey),
         }),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),

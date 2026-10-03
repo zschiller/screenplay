@@ -28,6 +28,7 @@ import { sandboxProvider } from "@/lib/sandbox"
 import { buildSkillTools } from "./skill-tools"
 import { appSkillSource, getSkillIndex } from "@/lib/skills"
 import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 import {
   enumerateRepoSkillsForSandbox,
   repoSkillFsForSandbox,
@@ -45,6 +46,9 @@ export interface WorkspaceTarget {
   /** No person sent this turn (a Coordinator wake delegated it), so it reads
    *  no account memory (#1513). Otherwise `userId` sent it. */
   senderless?: boolean
+  /** The desktop Harness running the turn, whose own Skills the chat lists
+   *  (#1560); unset off the desktop or on the in-process engine. */
+  harnessKey?: string | null
 }
 
 export interface WorkspaceContext {
@@ -54,7 +58,7 @@ export interface WorkspaceContext {
   repoSystemPrompt: string | undefined
   layerDirectory: LayerDirectory
   /**
-   * The merged Skill index (Repo, then Canvas, then App), read fresh every
+   * The merged Skill index (Repo, Canvas, the agent's own, App), read fresh every
    * turn so a Skill saved mid-chat is known on the next one.
    */
   skills: OriginTaggedSkill[]
@@ -74,36 +78,50 @@ export const workspaceChatTarget: ChatTargetSpec<
   // the App Skills, baked into the prompt.
   async loadContext(room, target) {
     const { sandboxName, chatId } = target
-    const [branch, layerDirectory, repo, canvas, memory, files, accountMemory] =
-      await Promise.all([
-        room
-          .readDoc(({ branches, repos }) => {
-            // `toArray` is a cached snapshot; read the Branch itself fresh.
-            const id = branches
-              .toArray()
-              .find((a) => a.sandboxName === sandboxName)?.id
-            const branch = id ? branches.get(id) : undefined
-            if (!branch) return undefined
-            return {
-              ref: branch.ref,
-              autoNamed: branch.autoNamedBranch !== false,
-              systemPrompt: repos.get(branch.repoId)?.systemPrompt,
-            }
-          })
-          .catch(() => undefined),
-        loadLayerDirectory(room),
-        enumerateRepoSkillsForSandbox(sandboxName),
-        loadCanvasSkills(room),
-        loadCanvasMemory(room),
-        loadCanvasFiles(room),
-        loadAccountMemory(turnSender(target)),
-      ])
+    const [
+      branch,
+      layerDirectory,
+      repo,
+      canvas,
+      agent,
+      memory,
+      files,
+      accountMemory,
+    ] = await Promise.all([
+      room
+        .readDoc(({ branches, repos }) => {
+          // `toArray` is a cached snapshot; read the Branch itself fresh.
+          const id = branches
+            .toArray()
+            .find((a) => a.sandboxName === sandboxName)?.id
+          const branch = id ? branches.get(id) : undefined
+          if (!branch) return undefined
+          return {
+            ref: branch.ref,
+            autoNamed: branch.autoNamedBranch !== false,
+            systemPrompt: repos.get(branch.repoId)?.systemPrompt,
+          }
+        })
+        .catch(() => undefined),
+      loadLayerDirectory(room),
+      enumerateRepoSkillsForSandbox(sandboxName),
+      loadCanvasSkills(room),
+      loadAgentSkills(agentSkillsFor(target.harnessKey)),
+      loadCanvasMemory(room),
+      loadCanvasFiles(room),
+      loadAccountMemory(turnSender(target)),
+    ])
     return {
       chatId,
       branch: branch && { ref: branch.ref, autoNamed: branch.autoNamed },
       repoSystemPrompt: branch?.systemPrompt ?? undefined,
       layerDirectory,
-      skills: mergeSkillIndexes({ repo, canvas, app: getSkillIndex() }),
+      skills: mergeSkillIndexes({
+        repo,
+        canvas,
+        agent,
+        app: getSkillIndex(),
+      }),
       memory,
       files,
       accountMemory,
@@ -123,7 +141,7 @@ export const workspaceChatTarget: ChatTargetSpec<
     })
   },
   tools(room, target) {
-    const { sandboxName, chatId, userId } = target
+    const { sandboxName, chatId, userId, harnessKey } = target
     const sandbox = { sandboxName, room, userId }
     return {
       // Reading, writing and editing files, running commands and plan mode's
@@ -167,6 +185,7 @@ export const workspaceChatTarget: ChatTargetSpec<
           chatId,
           app: appSkillSource(),
           repo: () => repoSkillFsForSandbox(sandboxName),
+          agent: agentSkillsFor(harnessKey),
         }),
       },
     }

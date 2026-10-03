@@ -57,6 +57,7 @@ import { questionAnswers } from "@/lib/agent/question"
 import { useChatSenders } from "@/hooks/use-chat-senders"
 import { targetingStore } from "@/lib/targeting-store"
 import { useModelCatalog } from "@/lib/use-model-catalog"
+import { isLocalBuild } from "@/lib/local-mode"
 import {
   chatQuoteStore,
   quoteRangeLabel,
@@ -547,6 +548,8 @@ export function AgentChat({
                   sandboxName: capabilities.skillSandboxName,
                   roomId,
                   chat: capabilities.skillChat,
+                  // The desktop agent's own Skills (#1560) follow the model.
+                  ...(isLocalBuild ? { model: effectiveModel } : {}),
                 }
               : undefined
           }

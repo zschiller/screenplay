@@ -19,6 +19,8 @@ export interface SkillMentionItem {
   name: string
   description: string
   origin: SkillOrigin
+  /** The coding agent's name, on its own Skills (#1560). */
+  agentName?: string
 }
 
 export interface SkillMentionListHandle {
@@ -34,14 +36,22 @@ interface SkillMentionListProps {
 }
 
 /**
- * The word each row ends with: where its Skill lives (#1556). Account Skills
- * read "Account" and the Mac agent's own read as that agent's name, once
- * those sources join the menu (#1558, #1560).
+ * The word each row ends with: where its Skill lives (#1556). The desktop
+ * agent's own Skills read as that agent's name, e.g. "Claude Code" (#1560);
+ * Account Skills will read "Account" once they join the menu (#1558).
  */
 export const SKILL_ORIGIN_LABEL: Record<SkillOrigin, string> = {
   repo: "Repository",
   canvas: "Canvas",
+  agent: "Agent",
   app: "Built in",
+}
+
+/** The row's source: {@link SKILL_ORIGIN_LABEL}, or the agent's own name. */
+export function skillSourceLabel(item: SkillMentionItem): string {
+  return item.origin === "agent" && item.agentName
+    ? item.agentName
+    : SKILL_ORIGIN_LABEL[item.origin]
 }
 
 /**
@@ -122,7 +132,7 @@ export const SkillMentionList = forwardRef<
                   <BookOpenIcon className="text-muted-foreground" />
                   <span className="truncate font-medium">{item.name}</span>
                   <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">
-                    {SKILL_ORIGIN_LABEL[item.origin]}
+                    {skillSourceLabel(item)}
                   </span>
                 </span>
                 <span className="line-clamp-2 pl-6 text-xs text-muted-foreground">

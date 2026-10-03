@@ -46,7 +46,11 @@ import {
   type BranchRenameClaim,
 } from "./auto-naming"
 import { stampWorkspaceActivity } from "./workspace-activity"
-import { resolveLiveEngine, toolNamingForTurn } from "./acp/resolve-live-engine"
+import {
+  resolveLiveEngine,
+  toolNamingForTurn,
+  turnHarnessKey,
+} from "./acp/resolve-live-engine"
 import { wireToContentBlocks } from "./acp/markers"
 import { launchEngineTurn } from "./launch-turn"
 import { deduplicateBranchName, generateChatNames } from "./naming"
@@ -273,6 +277,7 @@ export function roomTurn(input: {
         coordinatorTarget(room, chatId, {
           requesterId: input.requesterId,
           senderless: input.senderless,
+          harnessKey: turnHarnessKey(input.model),
         }),
         toolNamingForTurn(input.model)
       )
@@ -309,12 +314,18 @@ export function roomTurn(input: {
 export function coordinatorTarget(
   room: RoomAccess,
   coordinatorChatId: string,
-  opts: { turnId?: string; requesterId?: string; senderless?: boolean } = {}
+  opts: {
+    turnId?: string
+    requesterId?: string
+    senderless?: boolean
+    harnessKey?: string | null
+  } = {}
 ): RoomTarget {
   const { senderless } = opts
   return {
     userId: room.userId,
     ...(senderless ? { senderless } : {}),
+    harnessKey: opts.harnessKey,
     turnId: opts.turnId,
     requesterId: opts.requesterId,
     coordinatorChatId,
@@ -508,6 +519,7 @@ export function sandboxTurn(input: {
             chatId,
             userId,
             ...(input.senderless ? { senderless: true } : {}),
+            harnessKey: turnHarnessKey(input.model),
           },
           toolNamingForTurn(input.model)
         ),
@@ -638,6 +650,7 @@ export function sketchTurn(input: {
           chatId,
           userId: room.userId,
           ...(input.senderless ? { senderless: true } : {}),
+          harnessKey: turnHarnessKey(input.model),
         },
         toolNamingForTurn(input.model)
       )
