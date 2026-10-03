@@ -170,6 +170,8 @@ interface MockupLayerProps {
   /** No Workspace is running to host the live page: the toggle is disabled
    *  and says so. */
   liveUnavailable?: boolean
+  /** The page scrolled: every copy follows, and it restores on load. */
+  onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   /** The live page's Theme knob. */
   onColorSchemeChange?: (id: string, scheme: "light" | "dark") => void
   onFocus?: (id: string | null) => void
@@ -262,6 +264,7 @@ export function MockupLayer({
   liveDriver = NOBODY_DRIVES,
   onToggleLive,
   liveUnavailable = false,
+  onScrollChange,
   onColorSchemeChange,
   onFocus,
   commentMode = false,
@@ -301,6 +304,8 @@ export function MockupLayer({
       : { kind: "srcdoc", srcDoc, title: layer.title || "Mockup" },
     record: layer,
     writes,
+    // Scroll syncs between copies, as a frame's does (#1563).
+    app: { onScroll: onScrollChange },
     interactive: focused,
     driver,
     zoom,

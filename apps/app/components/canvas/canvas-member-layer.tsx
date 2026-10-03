@@ -535,6 +535,7 @@ function CanvasMemberLayerImpl({
                       }
                     : undefined
                 }
+                onScrollChange={layerMutations.updateMockupScroll}
                 onColorSchemeChange={layerMutations.updateMockupColorScheme}
                 onFocus={focusPage}
                 commentMode={commentMode}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
@@ -144,5 +144,36 @@ describe("MockupLayer going live (#1523)", () => {
     rerender({ onColorSchemeChange, sharedStream: stream, live: true })
     fireEvent.click(screen.getByRole("button", { name: "Knobs" }))
     expect(screen.getByText("Theme")).toBeTruthy()
+  })
+})
+
+describe("MockupLayer scroll (#1563)", () => {
+  /** A message the page's bridge posts to the canvas. */
+  function fromPage(data: unknown) {
+    const iframe = document.querySelector("iframe")!
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", { data, source: iframe.contentWindow })
+      )
+    })
+    return iframe
+  }
+
+  it("writes where the page scrolled, for every copy", () => {
+    const onScrollChange = vi.fn()
+    renderMockup({ onScrollChange })
+    fromPage({ type: "screenplay:scroll", scrollX: 0, scrollY: 420 })
+    expect(onScrollChange).toHaveBeenCalledWith("mockup-1", 0, 420)
+  })
+
+  it("restores the room's scroll when the page loads", () => {
+    renderMockup({ layer: { ...LAYER, scrollX: 0, scrollY: 420 } })
+    const iframe = document.querySelector("iframe")!
+    const post = vi.spyOn(iframe.contentWindow!, "postMessage")
+    fromPage({ type: "screenplay:ready" })
+    expect(post).toHaveBeenCalledWith(
+      { type: "screenplay:scroll-to", scrollX: 0, scrollY: 420 },
+      "*"
+    )
   })
 })

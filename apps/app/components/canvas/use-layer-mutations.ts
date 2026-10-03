@@ -110,6 +110,8 @@ export interface LayerMutations {
    * Sandbox runs it, or back (#1523).
    */
   updateMockupLive: (id: string, live: boolean, branchId?: string) => void
+  /** Where a mockup's page is scrolled, synced to every copy. */
+  updateMockupScroll: (id: string, scrollX: number, scrollY: number) => void
   /** A live mockup's Theme knob, as a frame's. */
   updateMockupColorScheme: (id: string, colorScheme: "light" | "dark") => void
 
@@ -323,6 +325,13 @@ export function useLayerMutations({
     [ops]
   )
 
+  const updateMockupScroll = useCallback(
+    (id: string, scrollX: number, scrollY: number) => {
+      ops.patch("mockupLayers", id, { scrollX, scrollY })
+    },
+    [ops]
+  )
+
   const updateMockupColorScheme = useCallback(
     (id: string, colorScheme: "light" | "dark") => {
       ops.patch("mockupLayers", id, { colorScheme })
@@ -375,6 +384,7 @@ export function useLayerMutations({
       renameMockup,
       setMockupStatus,
       updateMockupLive,
+      updateMockupScroll,
       updateMockupColorScheme,
       framePage,
       mockupPage,
@@ -396,6 +406,7 @@ export function useLayerMutations({
       renameMockup,
       setMockupStatus,
       updateMockupLive,
+      updateMockupScroll,
       updateMockupColorScheme,
       framePage,
       mockupPage,

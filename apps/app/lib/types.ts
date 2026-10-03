@@ -425,6 +425,10 @@ export type MockupLayerData = {
   /** State the page shares through `screenplay.shareState`, kept and synced
    *  to every viewer like a frame's `sharedState`. */
   sharedState?: JsonObject
+  /** Where the page is scrolled, synced to every copy and restored on load,
+   *  as a frame's is. */
+  scrollX?: number
+  scrollY?: number
   /**
    * Someone turned the mockup live (#1523): its page runs in one browser in
    * a Workspace's Sandbox, streamed to everyone on the canvas, as a live
