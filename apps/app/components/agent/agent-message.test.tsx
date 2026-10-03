@@ -4,7 +4,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import { inputStore } from "@/lib/input-store"
-import { prependTurnMarkers } from "@/lib/agent/message-markers"
+import {
+  buildAttachmentsFooter,
+  prependTurnMarkers,
+} from "@/lib/agent/message-markers"
 import { renderHistory } from "@/lib/agent/history-render"
 import { userTurnMessage } from "@/lib/agent/user-turn"
 import { wireToContentBlocks } from "@/lib/agent/acp/markers"
@@ -1540,5 +1543,37 @@ describe("AgentMessageItem — tool row output", () => {
     expect(screen.queryAllByTestId("tool-call")).toHaveLength(0)
     fireEvent.click(header)
     expect(screen.getAllByTestId("tool-call")).toHaveLength(2)
+  })
+})
+
+describe("AgentMessageItem — attachments (#1525)", () => {
+  const photo = {
+    path: "uploads/shot 1.png",
+    mediaType: "image/png",
+    size: 4,
+  }
+
+  it("shows a chip per attached file that opens it, and hides the footer", () => {
+    const message = userTurnMessage(
+      "what's wrong here?" + buildAttachmentsFooter([photo])
+    )
+    render(<AgentMessageItem message={message} roomId="room-1" chatId="c" />)
+
+    const chip = screen.getByTestId("message-attachment")
+    expect(chip.textContent).toBe("shot 1.png")
+    expect(chip.getAttribute("href")).toBe(
+      "/api/canvas-files/room-1/uploads/shot%201.png"
+    )
+    expect(screen.getByText("what's wrong here?")).toBeTruthy()
+    expect(document.body.textContent).not.toContain("Attached files")
+  })
+
+  it("draws no empty bubble for a message that is only files", () => {
+    const message = userTurnMessage(buildAttachmentsFooter([photo]))
+    const { container } = render(
+      <AgentMessageItem message={message} roomId="room-1" chatId="c" />
+    )
+    expect(screen.getAllByTestId("message-attachment")).toHaveLength(1)
+    expect(container.querySelector(".chat-markdown")).toBeNull()
   })
 })

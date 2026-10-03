@@ -4,6 +4,7 @@ import type { FileEntryData } from "@/lib/types"
 import type { FileStore } from "./store"
 import {
   ancestorPaths,
+  freePath,
   isWithin,
   mediaTypeFor,
   normalizeFilePath,
@@ -64,6 +65,25 @@ export interface Files {
     fallbackMediaType: string
     author: FileAuthor
     now?: number
+    /**
+     * Keep a file already at `path` and save beside it with a suffix
+     * (`photo-2.png`) instead of replacing it. The entry says where it went.
+     */
+    keepExisting?: boolean
+  }): Promise<FileResult<{ entry: FileEntryData; replaced: boolean }>>
+  /**
+   * Add an entry for bytes already in the store under `blobKey` (a browser
+   * upload straight to the store, #1525), as {@link Files.save} would place
+   * them. The key must be one of this scope's.
+   */
+  adopt(input: {
+    path: string
+    blobKey: string
+    size: number
+    mediaType: string
+    author: FileAuthor
+    now?: number
+    keepExisting?: boolean
   }): Promise<FileResult<{ entry: FileEntryData; replaced: boolean }>>
   /** Move (or rename) a file or a folder with everything in it. */
   move(
@@ -114,6 +134,65 @@ export function createFiles(scope: {
     return null
   }
 
+  const isScopeKey = (key: string) =>
+    key.startsWith(`${keyPrefix}/`) &&
+    /^[A-Za-z0-9_-]+$/.test(key.slice(keyPrefix.length + 1))
+
+  /**
+   * Point an entry at bytes already stored: the path's file keeps its id
+   * (its bytes were just replaced), or, with `keepExisting`, the entry goes
+   * to the first free path beside it.
+   */
+  const place = async (input: {
+    path: string
+    id: string
+    blobKey: string
+    size: number
+    mediaType: string
+    author: FileAuthor
+    at: number
+    keepExisting?: boolean
+  }): Promise<FileResult<{ entry: FileEntryData; replaced: boolean }>> => {
+    const { id, blobKey, size, mediaType, author, at, keepExisting } = input
+    const outcome = await index.mutate<
+      | { error: string }
+      | { entry: FileEntryData; orphan: string | null; replaced: boolean }
+    >((tx) => {
+      const all = tx.all()
+      const path = keepExisting
+        ? freePath(input.path, (q) => all.some((e) => e.path === q))
+        : input.path
+      const existing = all.find((e) => e.path === path)
+      if (existing?.kind === "folder")
+        return { error: `"${path}" is a folder.` }
+      const blocked = ensureFolders(tx, path, author, at)
+      if (blocked) return { error: blocked }
+      const entry: FileEntryData = {
+        id: existing?.id ?? id,
+        path,
+        kind: "file",
+        size,
+        mediaType,
+        addedBy: author.addedBy,
+        addedById: author.addedById,
+        blobKey,
+        createdAt: existing?.createdAt ?? at,
+        updatedAt: at,
+      }
+      // Another save took the path between our read and this write: ours
+      // wins, and its bytes go.
+      const orphan =
+        existing && existing.blobKey !== blobKey ? existing.blobKey : null
+      if (existing && existing.id !== entry.id) tx.delete(existing.id)
+      tx.set(entry)
+      return { entry, orphan, replaced: !!existing }
+    })
+    if ("error" in outcome) return fail(outcome.error)
+    const { entry, orphan, replaced } = outcome
+    if (orphan) await store.delete([orphan]).catch(() => {})
+    return ok({ entry, replaced })
+  }
+
   return {
     async list(folder) {
       const entries = (await index.entries()).sort(byPath)
@@ -146,6 +225,7 @@ export function createFiles(scope: {
       fallbackMediaType,
       author,
       now,
+      keepExisting,
     }) {
       const p = normalizeFilePath(raw)
       if ("error" in p) return fail(p.error)
@@ -154,9 +234,10 @@ export function createFiles(scope: {
           `The file is ${bytes.byteLength} bytes; the most a file can be is ${FILE_MAX_BYTES} (25 MB).`
         )
       }
-      const at = now ?? Date.now()
       const type = mediaType?.trim() || mediaTypeFor(p.path, fallbackMediaType)
-      const before = (await index.entries()).find((e) => e.path === p.path)
+      const before = keepExisting
+        ? undefined
+        : (await index.entries()).find((e) => e.path === p.path)
       if (before?.kind === "folder") return fail(`"${p.path}" is a folder.`)
 
       // Bytes first, so an entry never points at nothing. A file already at
@@ -165,42 +246,48 @@ export function createFiles(scope: {
       const blobKey = before?.blobKey || `${keyPrefix}/${id}`
       await store.put(blobKey, bytes, type)
 
-      const outcome = await index.mutate<
-        | { error: string }
-        | { entry: FileEntryData; orphan: string | null; replaced: boolean }
-      >((tx) => {
-        const existing = tx.all().find((e) => e.path === p.path)
-        if (existing?.kind === "folder")
-          return { error: `"${p.path}" is a folder.` }
-        const blocked = ensureFolders(tx, p.path, author, at)
-        if (blocked) return { error: blocked }
-        const entry: FileEntryData = {
-          id: existing?.id ?? id,
-          path: p.path,
-          kind: "file",
-          size: bytes.byteLength,
-          mediaType: type,
-          addedBy: author.addedBy,
-          addedById: author.addedById,
-          blobKey,
-          createdAt: existing?.createdAt ?? at,
-          updatedAt: at,
-        }
-        // Another save took the path between our read and this write: ours
-        // wins, and its bytes go.
-        const orphan =
-          existing && existing.blobKey !== blobKey ? existing.blobKey : null
-        if (existing && existing.id !== entry.id) tx.delete(existing.id)
-        tx.set(entry)
-        return { entry, orphan, replaced: !!existing }
+      const outcome = await place({
+        path: p.path,
+        id,
+        blobKey,
+        size: bytes.byteLength,
+        mediaType: type,
+        author,
+        at: now ?? Date.now(),
+        keepExisting,
       })
-      if ("error" in outcome) {
-        if (!before) await store.delete([blobKey]).catch(() => {})
-        return fail(outcome.error)
+      if (!outcome.ok && !before) await store.delete([blobKey]).catch(() => {})
+      return outcome
+    },
+
+    async adopt({
+      path: raw,
+      blobKey,
+      size,
+      mediaType,
+      author,
+      now,
+      keepExisting,
+    }) {
+      const p = normalizeFilePath(raw)
+      if ("error" in p) return fail(p.error)
+      if (!isScopeKey(blobKey)) return fail("That upload isn't this scope's.")
+      if (size > FILE_MAX_BYTES) {
+        return fail(
+          `The file is ${size} bytes; the most a file can be is ${FILE_MAX_BYTES} (25 MB).`
+        )
       }
-      const { entry, orphan, replaced } = outcome
-      if (orphan) await store.delete([orphan]).catch(() => {})
-      return ok({ entry, replaced })
+      return place({
+        path: p.path,
+        id: blobKey.slice(keyPrefix.length + 1),
+        blobKey,
+        size,
+        mediaType:
+          mediaType.trim() || mediaTypeFor(p.path, "application/octet-stream"),
+        author,
+        at: now ?? Date.now(),
+        keepExisting,
+      })
     },
 
     async move(rawFrom, rawTo, now) {

@@ -66,6 +66,8 @@ interface FakeModels {
 
 type FakeAgentOpts = {
   loadSession?: boolean
+  /** Advertise `promptCapabilities.image` (#1525). */
+  images?: boolean
   mcpCapabilities?: { http?: boolean; sse?: boolean }
   modes?: FakeModes
   models?: FakeModels
@@ -165,6 +167,7 @@ class FakeAcpAgent implements Agent {
       agentCapabilities: {
         loadSession: this.opts.loadSession ?? true,
         mcpCapabilities: this.opts.mcpCapabilities,
+        ...(this.opts.images ? { promptCapabilities: { image: true } } : {}),
       },
       ...(this.opts.steering
         ? { _meta: { steering: { supported: true } } }
@@ -1166,5 +1169,44 @@ describe("AcpSession — Codex steering request (#1192)", () => {
     })
     session.cancel()
     await vi.waitFor(() => expect(agent.cancelCalls).toBe(1))
+  })
+})
+
+describe("AcpSession — attached images (#1525)", () => {
+  const image = { type: "image" as const, mimeType: "image/png", data: "UE5H" }
+
+  it("sends image blocks to an agent that takes them", async () => {
+    const prompts: PromptRequest[] = []
+    const { transport } = connectFakeAgent(
+      async ({ params }) => {
+        prompts.push(params)
+        return "end_turn"
+      },
+      { images: true }
+    )
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+    })
+    await session.prompt(
+      [textBlock("what's this?"), image],
+      new AbortController().signal
+    )
+    expect(prompts[0]!.prompt).toEqual([textBlock("what's this?"), image])
+  })
+
+  it("leaves them out for an agent that doesn't, keeping the text", async () => {
+    const prompts: PromptRequest[] = []
+    const { transport } = connectFakeAgent(async ({ params }) => {
+      prompts.push(params)
+      return "end_turn"
+    })
+    const session = await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work",
+    })
+    await session.prompt(
+      [textBlock("what's this?"), image],
+      new AbortController().signal
+    )
+    expect(prompts[0]!.prompt).toEqual([textBlock("what's this?")])
   })
 })

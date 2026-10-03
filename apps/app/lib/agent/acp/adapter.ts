@@ -1,4 +1,9 @@
-import type { ModelMessage, SystemModelMessage, TextStreamPart } from "ai"
+import type {
+  ModelMessage,
+  SystemModelMessage,
+  TextStreamPart,
+  UserContent,
+} from "ai"
 import type { Tool } from "ai"
 import { isMediaToolOutput } from "../image-output"
 import { toolKind } from "../tool-description"
@@ -14,6 +19,7 @@ import {
   textBlock,
   toolCallStart,
   toolCallUpdate,
+  type ContentBlock,
   type SessionUpdate,
   type ToolCallContent,
   type ToolKind,
@@ -86,6 +92,24 @@ export function recordText(record: AcpMessageRecord): string {
 }
 
 /**
+ * A user message's ACP blocks as the content the model reads: its text, plus
+ * any image blocks (a turn's attached images, #1525) as image parts.
+ */
+export function userModelContent(blocks: ContentBlock[]): UserContent {
+  const text = blocks.map(blockText).join("")
+  const images = blocks.filter((b) => b.type === "image")
+  if (images.length === 0) return text
+  return [
+    ...(text ? [{ type: "text" as const, text }] : []),
+    ...images.map((image) => ({
+      type: "image" as const,
+      image: image.data,
+      mediaType: image.mimeType,
+    })),
+  ]
+}
+
+/**
  * Rebuild AI-SDK `ModelMessage[]` from ACP-native history (ADR 0006).
  *
  * **Deterministic and stable by construction:** a pure, order-preserving map
@@ -125,7 +149,9 @@ export function acpHistoryToModelMessages(
       case "thought":
         return []
       case "user":
-        return [{ role: "user" as const, content: recordText(record) }]
+        return [
+          { role: "user" as const, content: userModelContent(record.content) },
+        ]
       case "agent":
         return [{ role: "assistant" as const, content: recordText(record) }]
       case "tool_call":

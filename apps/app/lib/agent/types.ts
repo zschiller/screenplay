@@ -1,4 +1,7 @@
-import type { TargetedElement } from "@/lib/agent/message-markers"
+import type {
+  MessageAttachment,
+  TargetedElement,
+} from "@/lib/agent/message-markers"
 // Tool names are derived from the builders, not hand-maintained: each builder's
 // return type is its `{ name: Tool }` map, so the keys *are* the tool names.
 // Add a tool to a builder and it shows up here automatically; there's no second
@@ -31,6 +34,8 @@ export type AgentMessage =
       delegatedFrom?: string
       /** Hover detail for the body's `element:` tokens, keyed by ref. */
       targetedElements?: TargetedElement[]
+      /** The files attached to it (#1525), shown as chips. */
+      attachments?: MessageAttachment[]
       /** The member who sent it, by user id, when the server recorded one. */
       sentBy?: string
     }

@@ -6,8 +6,10 @@ import {
   type SessionUpdate,
 } from "@/lib/agent/acp/schema"
 import {
+  parseAttachmentsFooter,
   parseTargetedElementsFooter,
   parseUserMessage,
+  type MessageAttachment,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 
@@ -34,6 +36,8 @@ export interface UserTurn {
   delegatedFrom?: string
   /** The `Targeted elements:` footer's entries, keyed by their inline ref. */
   targetedElements?: TargetedElement[]
+  /** The files attached to it (#1525), from its `Attached files:` footer. */
+  attachments?: MessageAttachment[]
   /**
    * The member who sent it, by user id. Not in the wire text: the server
    * records it beside the turn (the stored record's `sentBy`, the send's
@@ -48,11 +52,13 @@ export function projectUserTurn(
 ): UserTurn {
   const { body, wakeFrom, delegatedFrom } = parseUserMessage(wire)
   const targetedElements = parseTargetedElementsFooter(wire)
+  const attachments = parseAttachmentsFooter(wire)
   return {
     body,
     ...(wakeFrom ? { wakeFrom } : {}),
     ...(delegatedFrom ? { delegatedFrom } : {}),
     ...(targetedElements.length > 0 ? { targetedElements } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
     ...(sentBy ? { sentBy } : {}),
   }
 }

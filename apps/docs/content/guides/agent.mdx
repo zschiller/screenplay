@@ -123,8 +123,7 @@ Type a message and press <kbd>↵</kbd> to send. <kbd>⇧</kbd> <kbd>↵</kbd> a
 new line. While the agent is working, the send button becomes **Stop**.
 Stopping ends the turn with a **Stopped** line in the chat, which looks the
 same after a reload. Each chat keeps its own draft, and a message that
-couldn't be sent stays in the chat with **Retry** and **Edit**. Pasting an
-image isn't supported yet: describe it, or paste a link to it.
+couldn't be sent stays in the chat with **Retry** and **Edit**.
 
 ### Sending while the agent works
 
@@ -172,6 +171,25 @@ there's no need to paste anything. A mentioned document shows in the message
 as its icon and title.
 
 <Screenshot name="composer-mention" alt="The @ menu listing documents" />
+
+### Attaching files
+
+Drop files onto the composer, or paste them, to attach them to your message:
+a screenshot, a PDF, or a text or code file, up to 25 MB each. Each file shows
+as a chip above what you're typing, with a spinner while it uploads, and
+**×** takes it back out. The message sends once every file has uploaded, and a
+message can be only files.
+
+Attached files are saved in the canvas's files, in an `uploads` folder (a
+second `shot.png` becomes `shot-2.png`), so the agent and later chats on the
+canvas can open them again. The sent message shows a chip for each file, for
+everyone on the canvas; click one to open the file. The agent sees an attached
+image (PNG, JPEG, GIF or WebP up to 5 MB) with your message straight away, and
+opens other files when it needs them.
+
+A file of another type (a video, a zip) or over 25 MB isn't attached, and the
+composer says why. Attaching works in every chat, the Coordinator's included,
+on hosted and the desktop app.
 
 ### Pointing with the canvas
 

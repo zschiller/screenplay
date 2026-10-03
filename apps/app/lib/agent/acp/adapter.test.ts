@@ -8,6 +8,7 @@ import {
   thoughtChunksToRecord,
   toolKindFor,
   toolOutputToContent,
+  userModelContent,
   withConversationCacheBreakpoint,
   ANTHROPIC_CACHE_BREAKPOINT,
 } from "./adapter"
@@ -499,5 +500,39 @@ describe("agentChunksToRecord (streamed deltas → durable ACP record)", () => {
 
   it("yields an empty content list for a turn with no text", () => {
     expect(agentChunksToRecord([])).toEqual({ role: "agent", content: [] })
+  })
+})
+
+describe("userModelContent (#1525)", () => {
+  const image = { type: "image" as const, mimeType: "image/png", data: "UE5H" }
+
+  it("is the plain text for a message with no images", () => {
+    expect(userModelContent([textBlock("a"), textBlock("b")])).toBe("ab")
+  })
+
+  it("puts a message's attached images beside its text", () => {
+    expect(userModelContent([textBlock("look"), image])).toEqual([
+      { type: "text", text: "look" },
+      { type: "image", image: "UE5H", mediaType: "image/png" },
+    ])
+    expect(
+      acpHistoryToModelMessages([
+        { role: "user", content: [textBlock("look"), image] },
+      ])
+    ).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "look" },
+          { type: "image", image: "UE5H", mediaType: "image/png" },
+        ],
+      },
+    ])
+  })
+
+  it("sends no empty text part for a message that is only an image", () => {
+    expect(userModelContent([textBlock(""), image])).toEqual([
+      { type: "image", image: "UE5H", mediaType: "image/png" },
+    ])
   })
 })

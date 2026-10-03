@@ -6,6 +6,14 @@ import type { FileEntryData } from "@/lib/types"
  * Files tree shows it.
  */
 
+/**
+ * Where a Room's Canvas Files keep their bytes in the file store: each file
+ * under `<prefix>/<id>`.
+ */
+export function canvasFileKeyPrefix(roomId: string): string {
+  return `canvas/${roomId}`
+}
+
 /** The longest path kept, in characters. */
 export const FILE_PATH_MAX_LENGTH = 512
 
@@ -129,4 +137,24 @@ export function fileEntryLine(entry: FileEntryData): string {
   return entry.kind === "folder"
     ? `- ${entry.path}/`
     : `- ${entry.path} (${formatFileSize(entry.size)}, ${entry.mediaType})`
+}
+
+/**
+ * `path`, or the first free one beside it when `taken` says it's used:
+ * `a/photo.png`, then `a/photo-2.png`, `a/photo-3.png`.
+ */
+export function freePath(
+  path: string,
+  taken: (path: string) => boolean
+): string {
+  const folder = parentPath(path)
+  const name = baseName(path)
+  const dot = name.lastIndexOf(".")
+  const stem = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ""
+  let candidate = path
+  for (let n = 2; taken(candidate); n++) {
+    candidate = `${folder ? `${folder}/` : ""}${stem}-${n}${ext}`
+  }
+  return candidate
 }

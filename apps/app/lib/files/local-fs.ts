@@ -1,6 +1,6 @@
 import "server-only"
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, resolve, sep } from "node:path"
 import type { FileStore } from "./store"
 
@@ -38,6 +38,14 @@ export function localFsFileStore(
     },
     async delete(keys) {
       await Promise.all(keys.map((key) => rm(pathOf(key), { force: true })))
+    },
+    async size(key) {
+      try {
+        return (await stat(pathOf(key))).size
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") return null
+        throw e
+      }
     },
   }
 }

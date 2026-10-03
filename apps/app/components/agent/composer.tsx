@@ -57,8 +57,11 @@ import {
   serializeElement,
   serializeMention,
   serializeSkill,
+  type MessageAttachment,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
+import { checkAttachment } from "@/lib/files/attachments"
+import type { AttachmentUpload } from "@/lib/chat-attachments"
 import {
   buildOutgoingTurn,
   type OutgoingTurnParts,
@@ -76,6 +79,7 @@ import type { PickedElement } from "@/lib/targeting-store"
 import { readDraft, writeDraft } from "@/lib/composer-drafts"
 import { COMPOSER_ATTRIBUTE } from "@/lib/canvas/key-target"
 import { ElementTokenNodeView } from "./element-token-node"
+import { ComposerAttachmentChip } from "./attachment-chip"
 
 /** Leading glyph on an element token — a crosshair, standing in for the `@`/`/`
  *  of mentions/skills to signal "a targeted preview element". */
@@ -327,6 +331,60 @@ export interface ComposerHandle {
   restoreDraft: (draft: unknown) => void
 }
 
+/**
+ * Where a composer sends the files dropped or pasted into it (#1525): the
+ * chat saves each into the canvas's files and hands back its path.
+ */
+export interface ComposerAttachmentPort {
+  upload(file: File): Promise<AttachmentUpload>
+  /** Delete an uploaded attachment taken back out before sending. */
+  remove(path: string): void
+}
+
+/** An attachment on the draft; `attachment` is set once it has uploaded. */
+interface DraftAttachment {
+  id: string
+  name: string
+  mediaType: string
+  attachment?: MessageAttachment
+}
+
+/**
+ * A draft as kept (the draft store, a held or queued message): the editor's
+ * document, plus the attachments on it.
+ */
+type StoredDraft = JSONContent & { attachments?: MessageAttachment[] }
+
+function storedDraft(
+  doc: JSONContent,
+  attachments: MessageAttachment[]
+): StoredDraft {
+  return attachments.length > 0 ? { ...doc, attachments } : doc
+}
+
+/** A kept draft back into the editor's document and its attachments. */
+function splitDraft(draft: unknown): {
+  doc?: JSONContent
+  attachments: MessageAttachment[]
+} {
+  if (!draft || typeof draft !== "object") return { attachments: [] }
+  const { attachments, ...doc } = draft as StoredDraft
+  return { doc, attachments: attachments ?? [] }
+}
+
+function readyAttachments(list: DraftAttachment[]): MessageAttachment[] {
+  return list.flatMap((a) => (a.attachment ? [a.attachment] : []))
+}
+
+function draftAttachment(attachment: MessageAttachment): DraftAttachment {
+  return {
+    id: nanoid(6),
+    name: attachment.path.slice(attachment.path.lastIndexOf("/") + 1),
+    mediaType: attachment.mediaType,
+    attachment,
+  }
+}
+
 export interface ComposerProps {
   /**
    * `@`-mention source: the Room's Markdown Layers. Injected rather than read
@@ -461,6 +519,11 @@ export interface ComposerProps {
    */
   targetEligible?: boolean
   /**
+   * Takes files dropped or pasted into the composer as attachments (#1525).
+   * Omit it and a file is refused with a message.
+   */
+  attach?: ComposerAttachmentPort
+  /**
    * Focus the editor whenever this changes, and on mount when it's set: Reply
    * in chat (#1243) passes its quote's key, so the composer takes focus even
    * when it mounts after the quote arrived (a Workspace still starting).
@@ -509,6 +572,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       onPickElement,
       targetEligible = true,
       focusKey,
+      attach,
     },
     ref
   ) {
@@ -529,6 +593,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       draftKeyRef.current = draftKey
     })
     const editorContainerRef = useRef<HTMLDivElement>(null)
+
+    // Attachments (#1525). The ref is what the construction-time editor
+    // callbacks and the draft store read; the state draws the chips.
+    const [attached, setAttached] = useState<DraftAttachment[]>([])
+    const attachedRef = useRef<DraftAttachment[]>([])
+    // Bumped when the composer is re-pointed at another draft, so an upload
+    // that finishes afterwards doesn't land on the wrong one.
+    const attachGenerationRef = useRef(0)
+    const [dragging, setDragging] = useState(false)
+    // Reached by the construction-time editor callbacks; set below.
+    const persistDraftRef = useRef<(ed: Editor) => void>(() => {})
+    const addFilesRef = useRef<(files: File[]) => void>(() => {})
 
     // The Mention extension's suggestion callbacks run inside closures captured
     // at editor-construction time, so they can't read these props directly —
@@ -752,30 +828,30 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           submitRef.current()
           return true
         },
-        // Chat turns are text on the wire, so an image can't ride along yet.
-        // Say so instead of silently dropping the paste or drop.
+        // A pasted or dropped file becomes an attachment (#1525).
         handlePaste(_view, event) {
-          if (!hasImageFile(event.clipboardData)) return false
+          const files = droppedFiles(event.clipboardData)
+          if (files.length === 0) return false
           event.preventDefault()
-          toast(IMAGE_NOT_SUPPORTED)
+          addFilesRef.current(files)
           return true
         },
         handleDrop(_view, event) {
-          if (!hasImageFile((event as DragEvent).dataTransfer)) return false
+          const files = droppedFiles((event as DragEvent).dataTransfer)
+          if (files.length === 0) return false
           event.preventDefault()
-          toast(IMAGE_NOT_SUPPORTED)
+          setDragging(false)
+          addFilesRef.current(files)
           return true
         },
       },
       onUpdate: ({ editor }) => {
         isEmptyRef.current = editor.isEmpty
         setHasContent(!editor.isEmpty)
-        if (draftKeyRef.current) {
-          writeDraft(
-            draftKeyRef.current,
-            editor.isEmpty ? null : editor.getJSON()
-          )
-        }
+        // A no-op unless the attachments changed under the editor (a draft
+        // loaded or restored with some).
+        setAttached(attachedRef.current)
+        persistDraftRef.current(editor)
         // Mirror the live draft to any caller tracking it (the New Workspace
         // dialog's collapsed-row preview). Reads markdownLayers/model through
         // refs so this construction-time closure always serializes the latest.
@@ -797,8 +873,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     // same draft straight back, which is harmless).
     useEffect(() => {
       if (!editor || !draftKey) return
-      const saved = readDraft(draftKey) as JSONContent | undefined
-      editor.commands.setContent(saved ?? "", { emitUpdate: true })
+      const saved = splitDraft(readDraft(draftKey))
+      attachGenerationRef.current++
+      const restored = saved.attachments.map(draftAttachment)
+      // The update `setContent` emits draws the restored chips.
+      attachedRef.current = restored
+      editor.commands.setContent(saved.doc ?? "", { emitUpdate: true })
     }, [editor, draftKey])
 
     // Streaming blocks a commit unless the caller queues it.
@@ -811,21 +891,138 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       // No coding agent backs this chat — block send (Enter, too, not just the
       // disabled button) so a typed turn can't fire into a dead chat.
       if (noAgents) return
+      // A file still uploading has no path to send yet.
+      if (attachedRef.current.some((a) => !a.attachment)) return
+      const attachments = readyAttachments(attachedRef.current)
       // An empty draft only submits where the caller opted in — the seed
       // Composer treats it as a deliberate request for a bare scratch Branch.
-      if (editor.isEmpty && !allowEmptySubmit) return
-      const { text: decorated, parts } = serializeDraft(
-        editor,
-        markdownLayersRef.current
-      )
+      // Files alone make a message.
+      if (editor.isEmpty && attachments.length === 0 && !allowEmptySubmit)
+        return
+      const serialized = serializeDraft(editor, markdownLayersRef.current)
+      const parts: OutgoingTurnParts =
+        attachments.length > 0
+          ? { ...serialized.parts, attachments }
+          : serialized.parts
+      const decorated =
+        attachments.length > 0 ? buildOutgoingTurn(parts).wire : serialized.text
       if (!decorated && !allowEmptySubmit) return
-      onSubmit({ text: decorated, parts, model, draft: editor.getJSON() })
+      onSubmit({
+        text: decorated,
+        parts,
+        model,
+        draft: storedDraft(editor.getJSON(), attachments),
+      })
       // Clearing emits an update, which drops the stored draft: the message now
       // lives in the log, the queue, or (if refused) the chat's failed send.
+      attachedRef.current = []
+      setAttached([])
       editor.commands.clearContent(true)
       isEmptyRef.current = true
       setHasContent(false)
-    }, [editor, sendBlocked, onSubmit, model, allowEmptySubmit, noAgents])
+    }, [
+      editor,
+      sendBlocked,
+      onSubmit,
+      model,
+      allowEmptySubmit,
+      noAgents,
+      setAttached,
+    ])
+
+    // Keep the draft in the draft store: the editor's document and the
+    // attachments that have uploaded. Read through a ref by the
+    // construction-time `onUpdate`.
+    const persistDraft = useCallback((ed: Editor) => {
+      const key = draftKeyRef.current
+      if (!key) return
+      const ready = readyAttachments(attachedRef.current)
+      writeDraft(
+        key,
+        ed.isEmpty && ready.length === 0
+          ? null
+          : storedDraft(ed.getJSON(), ready)
+      )
+    }, [])
+    useEffect(() => {
+      persistDraftRef.current = persistDraft
+    }, [persistDraft])
+
+    /** Change the attachments, keeping the ref, chips and draft store in step. */
+    const updateAttached = useCallback(
+      (fn: (list: DraftAttachment[]) => DraftAttachment[]) => {
+        attachedRef.current = fn(attachedRef.current)
+        setAttached(attachedRef.current)
+        if (editor) persistDraft(editor)
+      },
+      [editor, persistDraft, setAttached]
+    )
+
+    const addFiles = useCallback(
+      (files: File[]) => {
+        if (!attach) {
+          toast("Files can be attached in a chat, not here.")
+          return
+        }
+        const generation = attachGenerationRef.current
+        for (const file of files) {
+          const check = checkAttachment(file)
+          if (!check.ok) {
+            toast(check.error)
+            continue
+          }
+          const id = nanoid(6)
+          updateAttached((list) => [
+            ...list,
+            { id, name: check.name, mediaType: check.mediaType },
+          ])
+          void attach.upload(file).then((result) => {
+            if (generation !== attachGenerationRef.current) return
+            if (!attachedRef.current.some((a) => a.id === id)) {
+              // Taken out while it uploaded: it goes too.
+              if (result.ok) attach.remove(result.attachment.path)
+              return
+            }
+            if (!result.ok) {
+              toast(result.error)
+              updateAttached((list) => list.filter((a) => a.id !== id))
+              return
+            }
+            updateAttached((list) =>
+              list.map((a) =>
+                a.id === id
+                  ? {
+                      ...a,
+                      name: result.attachment.path.slice(
+                        result.attachment.path.lastIndexOf("/") + 1
+                      ),
+                      mediaType: result.attachment.mediaType,
+                      attachment: result.attachment,
+                    }
+                  : a
+              )
+            )
+          })
+        }
+        editor?.commands.focus()
+      },
+      [attach, editor, updateAttached]
+    )
+    useEffect(() => {
+      addFilesRef.current = addFiles
+    }, [addFiles])
+
+    const removeAttached = useCallback(
+      (id: string) => {
+        const target = attachedRef.current.find((a) => a.id === id)
+        updateAttached((list) => list.filter((a) => a.id !== id))
+        if (target?.attachment) attach?.remove(target.attachment.path)
+      },
+      [attach, updateAttached]
+    )
+
+    const uploading = attached.some((a) => !a.attachment)
+    const hasAttachments = attached.length > 0
 
     // Stash the latest submit handler in a ref so the editor's `handleKeyDown`
     // (registered once at construction) always calls the current closure.
@@ -942,8 +1139,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         focus: () => editor?.chain().focus("end").run(),
         restoreDraft: (draft: unknown) => {
           if (!editor) return
-          const doc = draft as JSONContent | undefined
+          const { doc, attachments } = splitDraft(draft)
           if (!doc) return
+          if (attachments.length > 0) {
+            updateAttached((list) => [
+              ...list,
+              ...attachments.map(draftAttachment),
+            ])
+          }
           if (editor.isEmpty) {
             // `setContent` emits an update, so the restored draft is saved.
             editor.chain().setContent(doc).focus("end").run()
@@ -956,7 +1159,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           }
         },
       }),
-      [editor]
+      [editor, updateAttached]
     )
 
     const currentModel = models.find((m) => m.id === model)
@@ -967,11 +1170,57 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
     return (
-      <div ref={editorContainerRef} data-slot="composer" className={className}>
+      <div
+        ref={editorContainerRef}
+        data-slot="composer"
+        className={className}
+        // A file dropped anywhere on the composer attaches, not only on the
+        // text: the editor's own drop handles one dropped on it first.
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = attach ? "copy" : "none"
+          if (attach) setDragging(true)
+        }}
+        onDragLeave={(e) => {
+          if (
+            !e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)
+          )
+            setDragging(false)
+        }}
+        onDrop={(e) => {
+          setDragging(false)
+          const files = droppedFiles(e.dataTransfer)
+          if (files.length === 0) return
+          e.preventDefault()
+          addFiles(files)
+        }}
+      >
         {aboveInput}
-        <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
-          {inputHeader && (
-            <InputGroupAddon align="block-start">{inputHeader}</InputGroupAddon>
+        <InputGroup
+          data-dragging={dragging || undefined}
+          className="has-disabled:bg-transparent has-disabled:opacity-100 data-dragging:border-ring dark:has-disabled:bg-input/30"
+        >
+          {(inputHeader || hasAttachments) && (
+            <InputGroupAddon align="block-start" className="flex-col">
+              {inputHeader}
+              {hasAttachments && (
+                <div
+                  aria-label="Attachments"
+                  className="flex w-full flex-wrap gap-1.5"
+                >
+                  {attached.map((a) => (
+                    <ComposerAttachmentChip
+                      key={a.id}
+                      name={a.name}
+                      mediaType={a.mediaType}
+                      uploading={!a.attachment}
+                      onRemove={() => removeAttached(a.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </InputGroupAddon>
           )}
           <EmptyAwarePlaceholder editor={editor} text={placeholder} />
           <EditorContent editor={editor} className="w-full" />
@@ -1096,7 +1345,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               <span className="ml-auto inline-flex">
                 {isStreaming &&
                 onStop &&
-                !(queueWhileStreaming && hasContent) ? (
+                !(queueWhileStreaming && (hasContent || hasAttachments)) ? (
                   <IconButton label="Stop" variant="default" onClick={onStop}>
                     <SquareIcon weight="fill" />
                   </IconButton>
@@ -1107,6 +1356,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                     hint={
                       noAgents ? (
                         "No coding agent detected"
+                      ) : uploading ? (
+                        "Sends once the files are attached"
                       ) : queuesMessage ? (
                         "Sends when the agent finishes"
                       ) : (
@@ -1122,9 +1373,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                     }
                     variant="default"
                     disabled={
-                      (!hasContent && !allowEmptySubmit) ||
+                      (!hasContent && !hasAttachments && !allowEmptySubmit) ||
                       sendBlocked ||
-                      noAgents
+                      noAgents ||
+                      uploading
                     }
                     onClick={handleSubmit}
                   >
@@ -1140,16 +1392,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
   }
 )
 
-const IMAGE_NOT_SUPPORTED =
-  "Images can't be attached yet. Describe it, or paste a link to it."
-
 /**
- * Whether a paste or drop is only an image. One that also carries text (a
- * selection copied from a page) still pastes its text as usual.
+ * The files a paste or drop carries. One that also carries text (a selection
+ * copied from a page, with its images) pastes its text as usual.
  */
-function hasImageFile(data: DataTransfer | null | undefined): boolean {
-  if (!data || data.getData("text/plain")) return false
-  return Array.from(data.files).some((f) => f.type.startsWith("image/"))
+function droppedFiles(data: DataTransfer | null | undefined): File[] {
+  if (!data || data.getData("text/plain")) return []
+  return Array.from(data.files)
 }
 
 /**

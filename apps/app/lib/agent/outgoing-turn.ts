@@ -1,10 +1,12 @@
 import type { ChatQuote } from "@/lib/chat-quote-store"
 import { formatQuoteForChat } from "@/lib/document-comments"
 import {
+  buildAttachmentsFooter,
   buildCanvasViewFooter,
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
   type CanvasView,
+  type MessageAttachment,
   type ReferencedDoc,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
@@ -29,6 +31,11 @@ export interface OutgoingTurnParts {
   referencedDocs?: ReferencedDoc[]
   /** The picked preview elements, for the `Targeted elements:` footer. */
   targetedElements?: TargetedElement[]
+  /**
+   * Files attached to the message (#1525), already saved in Canvas Files,
+   * for the `Attached files:` footer and the message's chips.
+   */
+  attachments?: MessageAttachment[]
   /** A passage quoted by Reply in chat (#1243): it leads the body. */
   quote?: ChatQuote | null
   /**
@@ -49,6 +56,7 @@ export function buildOutgoingTurn({
   message,
   referencedDocs = [],
   targetedElements = [],
+  attachments = [],
   quote,
   canvasView,
 }: OutgoingTurnParts): OutgoingTurn {
@@ -56,12 +64,14 @@ export function buildOutgoingTurn({
   return {
     wire:
       body +
+      buildAttachmentsFooter(attachments) +
       buildReferencedDocsFooter(referencedDocs) +
       buildTargetedElementsFooter(targetedElements) +
       buildCanvasViewFooter(canvasView ?? null),
     turn: {
       body,
       ...(targetedElements.length > 0 ? { targetedElements } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
     },
   }
 }
