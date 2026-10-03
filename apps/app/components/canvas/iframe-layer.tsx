@@ -1155,7 +1155,7 @@ export function IframeLayer({
                     {onGoLocal && (
                       <DropdownMenuItem onSelect={onGoLocal}>
                         <MonitorIcon />
-                        Detach
+                        Detach from shared frame
                       </DropdownMenuItem>
                     )}
                     {onRejoin && (
