@@ -608,39 +608,3 @@ export function CanvasExcerpt() {
     </div>
   )
 }
-
-/**
- * Two of the versions as whole frames, the selected one with its bar: the
- * problem section's "with Screenplay" side.
- */
-export function FrameExcerpt() {
-  return (
-    <div
-      role="img"
-      aria-label="Two versions of the same page running side by side on the canvas, each in its own Workspace, the selected one with its bar underneath."
-      className="bg-plane [container-type:inline-size] relative aspect-[2/1] w-full overflow-hidden border border-border"
-      style={{ "--top": "max(15%, 48px)" } as React.CSSProperties}
-    >
-      {versions.slice(1).map((v, i) => (
-        <Frame
-          key={v.title}
-          label="Home"
-          workspace={v.title}
-          selected={i === 0}
-          style={{ left: i ? "52%" : "4%", top: "var(--top)", width: "44%" }}
-        >
-          <Northwind version={v.version} />
-        </Frame>
-      ))}
-      <FrameBar
-        className="z-[5] max-sm:hidden"
-        // Centred under the left frame, never past the excerpt's edge.
-        style={{
-          left: "max(8px, calc(26% - max(22%, 180px)))",
-          width: "min(max(44%, 360px), calc(100% - 16px))",
-          top: "calc(var(--top) + 27.5cqw + 10px)",
-        }}
-      />
-    </div>
-  )
-}

@@ -11,13 +11,17 @@ Environment Variables**). For local development, put them in
 point. For which Vercel **scope** each variable goes in, see
 [Deploying to Vercel](/self-hosting/deploying-to-vercel#environment-variable-scopes).
 
-Generate secrets with `openssl rand -hex 32`.
+Generate secrets with `openssl rand -hex 32`. Every variable has its own link:
+hover its row and copy the **#**.
+
+**Required** is **Yes** when every deployment needs it, **Optional** when
+it has a working default, and **If …** when only that setup needs it.
 
 ## Quick start
 
 The minimum for a working deployment with the default backends:
 
-```dotenv
+```dotenv filename="apps/app/.env.local"
 # Auth
 BETTER_AUTH_URL=https://screenplay.example.com  # production only
 BETTER_AUTH_PRODUCTION_URL=https://screenplay.example.com
@@ -44,20 +48,21 @@ TERMINAL_AUTH_SECRET=<openssl rand -hex 32>
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `BETTER_AUTH_URL` | Production | This deployment's URL. Leave it **unset** on preview deploys, which fall back to `https://$VERCEL_URL`. Locally it defaults to `http://localhost:$PORT`. |
+| `BETTER_AUTH_URL` | If production | This deployment's URL. Leave it **unset** on preview deploys, which fall back to `https://$VERCEL_URL`. Locally it defaults to `http://localhost:$PORT`. |
 | `BETTER_AUTH_PRODUCTION_URL` | Yes | The stable URL registered with your GitHub OAuth app. It must be the same everywhere, because preview sign-ins are proxied through it. |
 | `BETTER_AUTH_SECRET` | Yes | Signs sessions and OAuth state. It must be **identical** in production and every preview deploy. |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Yes | From your [GitHub OAuth app](/self-hosting/github-oauth). |
+| `GITHUB_CLIENT_ID` | Yes | Client ID of your [GitHub OAuth app](/self-hosting/github-oauth). |
+| `GITHUB_CLIENT_SECRET` | Yes | Client secret of the same OAuth app. |
 
 ## Data
 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Postgres connection string. See [Database](/self-hosting/database). |
-| `LIVEBLOCKS_SECRET_KEY` | Yes (default Yjs host) | Server-side Liveblocks key. It never reaches the browser. See [Yjs host](/self-hosting/configuration/yjs-host). |
+| `LIVEBLOCKS_SECRET_KEY` | If Liveblocks | Server-side Liveblocks key for the default Yjs host. It never reaches the browser. See [Yjs host](/self-hosting/configuration/yjs-host). |
 | `LIVEBLOCKS_WEBHOOK_SECRET` | Optional | Signing secret for a Liveblocks `ydocUpdated` webhook pointed at `/api/liveblocks/webhook`. With it, canvas thumbnails refresh even when nobody has the canvas open (for example while the agent works). Without it, thumbnails refresh from open clients. |
-| `PUBLIC_BLOB_READ_WRITE_TOKEN` | Yes (default blob store) | Token for the **public** Vercel Blob store that holds thumbnails. Connect a Blob store with public access to the project with the env var prefix `PUBLIC_BLOB` and it's injected automatically; run `vercel env pull` to use it locally. See [Blob store](/self-hosting/configuration/blob-store). |
-| `PRIVATE_BLOB_READ_WRITE_TOKEN` | Yes (default blob store) | Token for a second, **private** Vercel Blob store that holds canvas files, the files agents save for a canvas's members. The thumbnails store is public and a store's access can't be changed, so files need their own. Create a Blob store with private access and connect it with the env var prefix `PRIVATE_BLOB`. Without it, agents can't save or open files. See [Blob store](/self-hosting/configuration/blob-store#file-store). |
+| `PUBLIC_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for the **public** Vercel Blob store that holds thumbnails. Connect a Blob store with public access to the project with the env var prefix `PUBLIC_BLOB` and it's injected automatically; run `vercel env pull` to use it locally. See [Blob store](/self-hosting/configuration/blob-store). |
+| `PRIVATE_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for a second, **private** Vercel Blob store that holds canvas files, the files agents save for a canvas's members. The thumbnails store is public and a store's access can't be changed, so files need their own. Create a Blob store with private access and connect it with the env var prefix `PRIVATE_BLOB`. Without it, agents can't save or open files. See [Blob store](/self-hosting/configuration/blob-store#file-store). |
 | `ENCRYPTION_KEY` | Yes | 64 hex characters. Encrypts project environment variables and presets at rest. |
 
 ## Agent
@@ -65,15 +70,16 @@ TERMINAL_AUTH_SECRET=<openssl rand -hex 32>
 At least one model provider must be configured. Each provider enables itself
 when its variables are set. See [Model providers](/self-hosting/configuration/model-providers).
 
-| Variable | Provider |
-| --- | --- |
-| `ANTHROPIC_API_KEY` | Anthropic |
-| `OPENAI_API_KEY` | OpenAI |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | Google Gemini |
-| `AI_GATEWAY_API_KEY` | Vercel AI Gateway. It must be set explicitly, even on Vercel. |
-| `OPENAI_COMPATIBLE_BASE_URL` (+ `OPENAI_COMPATIBLE_API_KEY`) | Any OpenAI-compatible endpoint: OpenRouter, Groq, vLLM, LM Studio… |
-| `AGENT_DEFAULT_MODEL` | The default model as `provider:model`, e.g. `openai:gpt-6-astra`. If its provider isn't configured, new chats use the first enabled model instead. Default: `anthropic:claude-sonnet-5-5`. |
-| `SANDBOX_HARNESSES` | Comma-separated coding CLIs to install in every sandbox, runnable from a [shell](/guides/terminals): `claude-code`, `codex`, `opencode-gateway`, `opencode-compat`. Unset means none. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
+| Variable | Required | Description |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | If Anthropic | Enables Anthropic models. |
+| `OPENAI_API_KEY` | If OpenAI | Enables OpenAI models. |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | If Google Gemini | Enables Gemini models. |
+| `AI_GATEWAY_API_KEY` | If Vercel AI Gateway | Enables models through the AI Gateway. It must be set explicitly, even on Vercel. |
+| `OPENAI_COMPATIBLE_BASE_URL` | If OpenAI-compatible | Base URL of any OpenAI-compatible endpoint: OpenRouter, Groq, vLLM, LM Studio… Setting it enables the provider. |
+| `OPENAI_COMPATIBLE_API_KEY` | Optional | Bearer token for that endpoint. Leave it unset for an endpoint without auth, such as a local LM Studio. |
+| `AGENT_DEFAULT_MODEL` | Optional | The default model as `provider:model`, e.g. `openai:gpt-6-astra`. If its provider isn't configured, new chats use the first enabled model instead. Default: `anthropic:claude-sonnet-5-5`. |
+| `SANDBOX_HARNESSES` | Optional | Comma-separated coding CLIs to install in every sandbox, runnable from a [shell](/guides/terminals): `claude-code`, `codex`, `opencode-gateway`, `opencode-compat`. Unset means none. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
 
 ## Terminal access
 
@@ -107,7 +113,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `VERCEL_OIDC_TOKEN` | Local dev only | Authenticates the default Vercel Sandbox provider. It's injected automatically on Vercel; locally, `vercel env pull` fetches a ~12-hour token. See [Sandbox provider](/self-hosting/configuration/sandbox-provider). |
+| `VERCEL_OIDC_TOKEN` | If Vercel Sandbox | Authenticates the default Vercel Sandbox provider, and it's the only credential Screenplay uses for it: a Vercel access token won't do. It's injected automatically on Vercel; locally, `vercel env pull` fetches a ~12-hour token. See [Sandbox provider](/self-hosting/configuration/sandbox-provider). |
 | `SHARED_FRAMES` | Optional | `off` hides **Go live**, so every hosted frame stays a per-viewer preview and no frame runs a browser in the sandbox. Default: on. See [Shared frames](/self-hosting/configuration/sandbox-provider#shared-frames). |
 | `VERCEL_SANDBOX_IMAGE` | Optional | The Vercel Container Registry image workspace sandboxes boot from. Default: `screenplay-workspace`, the image built from `apps/app/vercel-sandbox-image` in the app's own Vercel project. See [Sandbox image](/self-hosting/configuration/sandbox-provider#sandbox-image). |
 
@@ -116,6 +122,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 | Variable | Required | Description |
 | --- | --- | --- |
 | `NEXT_PUBLIC_BASE_PATH` | Optional | Serve the app under a path prefix such as `/app`. It's inlined at build time. See [Mount path](/self-hosting/configuration/mount-path). |
+| `PORT` | Optional | The port the app listens on. Local URLs and the local WebSocket servers' origin check use it. Default: `3000`. |
 | `CHROMIUM_PATH` | Optional | Chromium binary for thumbnail capture outside Vercel. Defaults to Puppeteer's bundled browser. |
 
 ## Build switches
@@ -125,15 +132,17 @@ These select alternative backends. The desktop app sets them together; see
 [Desktop app](/self-hosting/configuration/desktop-app). A hosted deployment
 leaves them all unset.
 
-| Variable | Values |
-| --- | --- |
-| `NEXT_PUBLIC_SCREENPLAY_LOCAL` | `1` removes the multi-user surface (single local user) |
-| `SANDBOX_BACKEND` | `local`: workspaces are git worktrees on the host |
-| `SCREENPLAY_DB` | `pglite`: embedded Postgres |
-| `NEXT_PUBLIC_YJS_HOST` | `local`: in-process y-websocket server |
-| `BLOB_STORE` | `local-fs`: thumbnails and canvas files on local disk |
-| `AGENT_ENGINE` | `external`: the agent is an installed coding CLI over ACP |
-| `THUMBNAIL_CAPTURER` | `tauri-webview`: capture thumbnails in the desktop webview |
+| Variable | Required | Description |
+| --- | --- | --- |
+| `SCREENPLAY_DESKTOP` | Optional | `1` builds the self-contained server the desktop shell runs (Next's `standalone` output). Read at build time. |
+| `NEXT_PUBLIC_SCREENPLAY_LOCAL` | Optional | `1` removes the multi-user surface (single local user). Inlined at build time. |
+| `SANDBOX_BACKEND` | Optional | `local`: workspaces are git worktrees on the host. |
+| `SCREENPLAY_DB` | Optional | `pglite`: embedded Postgres. |
+| `NEXT_PUBLIC_YJS_HOST` | Optional | `local`: in-process y-websocket server. Inlined at build time. |
+| `BLOB_STORE` | Optional | `local-fs`: thumbnails and canvas files on local disk. |
+| `AGENT_ENGINE` | Optional | `external`: the agent is an installed coding CLI over ACP. |
+| `SCREENPLAY_ACP_HARNESS` | Optional | With `AGENT_ENGINE=external`, the coding CLI a chat uses when it hasn't picked one: `claude-code` or `codex`. Default: `claude-code`. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
+| `THUMBNAIL_CAPTURER` | Optional | `tauri-webview`: capture thumbnails in the desktop webview. |
 
 ## Desktop build
 
@@ -141,12 +150,18 @@ The desktop shell sets these for the app it launches (see
 [Desktop app](/self-hosting/configuration/desktop-app)). You only set them
 yourself when running the local build by hand.
 
-| Variable | Description |
-| --- | --- |
-| `SCREENPLAY_GITHUB_CLIENT_ID` | Client ID of the GitHub OAuth app used for the desktop's device-flow **Connect GitHub**. Baked into release builds. Without it, device-flow connect is unavailable and GitHub access comes only from the host's `gh` login. |
-| `SCREENPLAY_WORKTREE_ROOT` | Where the local sandbox provider keeps its clones and worktrees. Default: `~/.screenplay/worktrees`. |
-| `LOCAL_FILES_DIR` | Where the local-fs file store keeps canvas files' bytes, with `BLOB_STORE=local-fs`. Nothing serves it directly. Default: `.screenplay/files`; the desktop shell points it at `files` under the app's data folder. |
-| `SCREENPLAY_COORDINATOR_ROOT` | Where each canvas's Coordinator chat runs its coding CLI, one folder per canvas. The desktop app sets it under its data directory. Default: `~/.screenplay/coordinator`. |
-| `PGLITE_DATA_DIR` | Directory for the embedded PGlite database. Default: `./.pglite`. |
-| `PGLITE_MIGRATIONS_DIR` | Where PGlite migrations are read from. The packaged app points it at its bundled `drizzle/local`. |
-| `SCREENPLAY_TERMINAL_WS_PORT` | Port for the local terminal WebSocket server. Default: an ephemeral port. The server listens on `127.0.0.1` and accepts only the app's own page with the secret minted at launch. |
+| Variable | Required | Description |
+| --- | --- | --- |
+| `SCREENPLAY_GITHUB_CLIENT_ID` | Optional | Client ID of the GitHub OAuth app used for the desktop's device-flow **Connect GitHub**. Baked into release builds. Without it, device-flow connect is unavailable and GitHub access comes only from the host's `gh` login. |
+| `SCREENPLAY_WORKTREE_ROOT` | Optional | Where the local sandbox provider keeps its clones and worktrees. Default: `~/.screenplay/worktrees`. |
+| `LOCAL_BLOB_DIR` | Optional | Where the local-fs blob store writes thumbnails, with `BLOB_STORE=local-fs`. Default: `.screenplay/blobs`. See [Blob store](/self-hosting/configuration/blob-store). |
+| `LOCAL_BLOB_BASE_URL` | Optional | The URL `LOCAL_BLOB_DIR` is served from, which thumbnail URLs start with. Default: `/blobs`, the app's own route. |
+| `LOCAL_FILES_DIR` | Optional | Where the local-fs file store keeps canvas files' bytes, with `BLOB_STORE=local-fs`. Nothing serves it directly. Default: `.screenplay/files`; the desktop shell points it at `files` under the app's data folder. |
+| `YJS_PERSISTENCE_DIR` | Optional | Where the local y-websocket server saves each canvas, with `NEXT_PUBLIC_YJS_HOST=local`. Default: `.data/yjs` in the working directory. See [Yjs host](/self-hosting/configuration/yjs-host#local-y-websocket). |
+| `NEXT_PUBLIC_YJS_WS_PORT` | Optional | Port of the local y-websocket server. Inlined at build time, so the page and the server agree. Default: `1234`. |
+| `SCREENPLAY_COORDINATOR_ROOT` | Optional | Where each canvas's Coordinator chat runs its coding CLI, one folder per canvas. The desktop app sets it under its data directory. Default: `~/.screenplay/coordinator`. |
+| `PGLITE_DATA_DIR` | Optional | Directory for the embedded PGlite database. Default: `./.pglite`. |
+| `PGLITE_MIGRATIONS_DIR` | Optional | Where PGlite migrations are read from. The packaged app points it at its bundled `drizzle/local`. |
+| `SCREENPLAY_TERMINAL_WS_PORT` | Optional | Port for the local terminal WebSocket server. Default: an ephemeral port. The server listens on `127.0.0.1` and accepts only the app's own page with the secret minted at launch. |
+| `TAURI_CONTROL_URL` | Optional | The desktop shell's localhost control server, which captures thumbnails in a webview and opens the native folder picker. Without it, `tauri-webview` thumbnails fail and adding a local folder falls back to typing its path. |
+| `TAURI_CONTROL_TOKEN` | Optional | The per-launch token that control server asks for before it snapshots the canvas window for the agent on the Mac. |

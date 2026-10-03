@@ -4,11 +4,11 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
 /**
- * Every environment variable the app reads must be documented somewhere under
- * `apps/docs/content` (the reference table is
- * `self-hosting/environment-variables.mdx`), or be listed below as internal.
- * This is what keeps the docs from silently falling behind when a change adds
- * a new knob.
+ * Every environment variable the app reads must have its own row in the
+ * reference tables in `apps/docs/content/self-hosting/environment-variables.mdx`,
+ * or be listed below as internal. A mention elsewhere in the docs isn't enough.
+ * This is what keeps the reference from silently falling behind when a change
+ * adds a new knob.
  */
 
 /** Read by the app but not something anyone configures, so not documented. */
@@ -18,6 +18,8 @@ const INTERNAL: Record<string, string> = {
   NEXT_RUNTIME: "set by Next per runtime",
   VERCEL: "injected by Vercel",
   VERCEL_BRANCH_URL: "injected by Vercel",
+  VERCEL_URL: "injected by Vercel",
+  PATH: "the host's search path, passed through to local workspaces",
   SHELL: "the user's login shell",
   NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD: "screenshot harness fixture switch",
   PORTLESS_STATE_DIR: "mirrors the portless CLI's own override",
@@ -41,7 +43,10 @@ const INTERNAL: Record<string, string> = {
 }
 
 const appRoot = fileURLToPath(new URL("../", import.meta.url))
-const docsRoot = path.join(appRoot, "../docs/content")
+const referencePage = path.join(
+  appRoot,
+  "../docs/content/self-hosting/environment-variables.mdx"
+)
 
 const SOURCE_DIRS = ["app", "lib", "components", "hooks"]
 const SOURCE_EXT = /\.(ts|tsx|mjs)$/
@@ -77,11 +82,17 @@ function envVarsReadByApp(): Set<string> {
   return names
 }
 
+/** The variables with a row of their own: a first cell of just `NAME`. */
+function documentedVars(): Set<string> {
+  const rows = readFileSync(referencePage, "utf8").matchAll(
+    /^\| `([A-Z][A-Z0-9_]*)` \|/gm
+  )
+  return new Set([...rows].map((m) => m[1]!))
+}
+
 describe("environment variable docs", () => {
   const read = envVarsReadByApp()
-  const docs = walk(docsRoot, /\.mdx?$/)
-    .map((file) => readFileSync(file, "utf8"))
-    .join("\n")
+  const documented = documentedVars()
 
   it("finds the env vars the app reads", () => {
     expect(read.size).toBeGreaterThan(20)
@@ -90,7 +101,7 @@ describe("environment variable docs", () => {
   it("documents every env var the app reads", () => {
     const undocumented = [...read]
       .filter((name) => !(name in INTERNAL))
-      .filter((name) => !new RegExp(`\\b${name}\\b`).test(docs))
+      .filter((name) => !documented.has(name))
       .sort()
     // Add each to apps/docs/content/self-hosting/environment-variables.mdx,
     // or to INTERNAL above if it isn't something anyone sets.
