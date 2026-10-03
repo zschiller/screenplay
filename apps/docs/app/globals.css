@@ -590,11 +590,21 @@ html.dark .nextra-callout > div:last-child {
 .sp-table[data-head="Shortcut|Action"] th:first-child {
   width: 30%;
 }
+/* The reference's longest names, with their row's #, fit on one line. */
+.sp-table[data-head="Variable|Required|Description"] th:first-child {
+  width: 39%;
+}
 .sp-table[data-head="Variable|Required|Description"] th:nth-child(2) {
   width: 15%;
 }
 .sp-table:is([data-head^="Variable|"], [data-head="Shortcut|Action"]) td {
   overflow-wrap: anywhere;
+}
+
+/* An environment variable's row: its # shows while the row is hovered, like a
+   heading's, and stays on the row a link landed on. */
+.sp-anchored-row:is(:hover, :target) .subheading-anchor {
+  opacity: 1;
 }
 
 /* A code chip that wraps in prose keeps its padding and corners on both
