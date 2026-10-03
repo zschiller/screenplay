@@ -81,17 +81,46 @@ optional `validator: (v) => v` that runs locally inside the prototype on
 every incoming value — use it to clamp or sanitize before exposing the
 value to your component.
 
+## Labels, descriptions and groups
+
+Each knob is one row in the Knobs panel: its label on the left, its control
+in a 136px column on the right.
+
+- **`label`**: a short noun phrase for what changes ("Corner radius",
+  "Show customer logos"). Never rely on the `id`.
+- **`description`** (optional): one short phrase on what the knob affects,
+  shown in a tooltip on an info icon after the label ("Buttons, cards and
+  inputs"). Add one only when the label alone leaves people guessing; most
+  knobs need none.
+- **`group`** (optional): knobs with the same `group` sit under one heading,
+  in the order the group's first knob was declared. Knobs without a group
+  come first, with no heading. Group once a page has more than about five
+  knobs, by the part of the page they change ("Brand", "Hero", "Pricing
+  table"). Don't put every knob in a group of its own.
+
+```tsx
+const radius = useKnob({
+  id: "radius",
+  type: "slider",
+  label: "Corner radius",
+  description: "Buttons, cards and inputs",
+  group: "Brand",
+  min: 0,
+  max: 28,
+  default: 14,
+})
+```
+
 ## Tabs or select
 
 Both pick one of a few options. Use `tabs` when every option fits at a
 glance and switching between them is the point (light / dark, grid / list,
 S / M / L). Use `select` for anything else.
 
-`tabs` sits on one line beside its label in a panel 288px wide, so it has
-about 180px:
+`tabs` fills the 136px control column:
 
 - **Two or three options.** More than three show as a select anyway.
-- **One short word each**, about 20 characters across all the labels
+- **One short word each**, about 15 characters across all the labels
   together ("Compact", "Comfortable", "Spacious" is too long: use a
   select, or shorten to "S", "M", "L").
 - **Never** rely on it wrapping or truncating: if the labels don't fit,

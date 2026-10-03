@@ -68,7 +68,7 @@ Stable `id`s persist values across reloads. Renaming an `id` resets the value to
 | `tabs`    | Tabs           | `default` (string); 2–3 short `options: { value, label? }[]` |
 | `color`   | Color picker   | `default` (string, e.g. `"#1d4ed8"`)                 |
 
-All knobs accept an optional `label` (defaults to the `id`) and an optional `validator: (v) => v` that runs locally inside the prototype on every incoming value — use it to clamp or sanitize before exposing the value to your component.
+All knobs accept an optional `label` (defaults to the `id`), an optional `description` (a short phrase shown in a tooltip on the label's info icon), an optional `group` (knobs with the same group sit under one heading) and an optional `validator: (v) => v` that runs locally inside the prototype on every incoming value — use it to clamp or sanitize before exposing the value to your component.
 
 ## Non-React API
 

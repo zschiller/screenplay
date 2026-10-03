@@ -63,7 +63,7 @@ export function KnobsPopover({
         align="start"
         sideOffset={8}
         collisionPadding={16}
-        className="w-72 gap-0 overflow-hidden p-0"
+        className="w-80 gap-0 overflow-hidden p-0"
       >
         <KnobsPanel
           knobs={knobs}

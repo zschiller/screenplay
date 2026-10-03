@@ -73,7 +73,15 @@ export type KnobColor = {
   default: string
 }
 
-export type KnobDef =
+/** Optional on every knob type. */
+export type KnobMeta = {
+  /** Shown in a tooltip on the label's info icon: what the knob affects. */
+  description?: string
+  /** Knobs naming the same group sit under one heading in the panel. */
+  group?: string
+}
+
+export type KnobDef = (
   | KnobNumber
   | KnobSlider
   | KnobBoolean
@@ -81,6 +89,8 @@ export type KnobDef =
   | KnobSelect
   | KnobTabs
   | KnobColor
+) &
+  KnobMeta
 
 export type KnobValue = string | number | boolean
 export type KnobValues = { [id: string]: KnobValue }
