@@ -32,8 +32,8 @@ GITHUB_CLIENT_SECRET=...
 # Data
 DATABASE_URL=postgres://...
 LIVEBLOCKS_SECRET_KEY=sk_...
-BLOB_READ_WRITE_TOKEN=...  # injected when you connect Vercel Blob
-FILES_BLOB_READ_WRITE_TOKEN=...  # a second, private Blob store for canvas files
+PUBLIC_BLOB_READ_WRITE_TOKEN=...  # a public Blob store for thumbnails
+PRIVATE_BLOB_READ_WRITE_TOKEN=...  # a second, private Blob store for canvas files
 
 # Agent
 ANTHROPIC_API_KEY=sk-ant-...
@@ -61,8 +61,8 @@ TERMINAL_AUTH_SECRET=<openssl rand -hex 32>
 | `DATABASE_URL` | Yes | Postgres connection string. See [Database](/self-hosting/database). |
 | `LIVEBLOCKS_SECRET_KEY` | If Liveblocks | Server-side Liveblocks key for the default Yjs host. It never reaches the browser. See [Yjs host](/self-hosting/configuration/yjs-host). |
 | `LIVEBLOCKS_WEBHOOK_SECRET` | Optional | Signing secret for a Liveblocks `ydocUpdated` webhook pointed at `/api/liveblocks/webhook`. With it, canvas thumbnails refresh even when nobody has the canvas open (for example while the agent works). Without it, thumbnails refresh from open clients. |
-| `BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Vercel Blob token for thumbnails, the default blob store. It's injected automatically when you connect a Blob store to the project; run `vercel env pull` to use it locally. See [Blob store](/self-hosting/configuration/blob-store). |
-| `FILES_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for a second, **private** Vercel Blob store that holds canvas files, the files agents save for a canvas's members. The thumbnails store is public and a store's access can't be changed, so files need their own. Create a Blob store with private access and connect it with the env var prefix `FILES_BLOB`. Without it, agents can't save or open files. See [Blob store](/self-hosting/configuration/blob-store#file-store). |
+| `PUBLIC_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for the **public** Vercel Blob store that holds thumbnails. Connect a Blob store with public access to the project with the env var prefix `PUBLIC_BLOB` and it's injected automatically; run `vercel env pull` to use it locally. See [Blob store](/self-hosting/configuration/blob-store). |
+| `PRIVATE_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for a second, **private** Vercel Blob store that holds canvas files, the files agents save for a canvas's members. The thumbnails store is public and a store's access can't be changed, so files need their own. Create a Blob store with private access and connect it with the env var prefix `PRIVATE_BLOB`. Without it, agents can't save or open files. See [Blob store](/self-hosting/configuration/blob-store#file-store). |
 | `ENCRYPTION_KEY` | Yes | 64 hex characters. Encrypts project environment variables and presets at rest. |
 
 ## Agent

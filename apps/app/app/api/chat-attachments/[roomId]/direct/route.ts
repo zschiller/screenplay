@@ -5,7 +5,7 @@ import { canvasFiles, fileStore } from "@/lib/files"
 import { adoptAttachment } from "@/lib/files/attach"
 import { ATTACHMENT_MAX_BYTES } from "@/lib/files/attachments"
 import { canvasFileKeyPrefix } from "@/lib/files/paths"
-import { FILES_BLOB_TOKEN_ENV_VAR } from "@/lib/files/vercel"
+import { PRIVATE_BLOB_TOKEN_ENV_VAR } from "@/lib/files/vercel"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -75,7 +75,7 @@ export async function POST(
     const result = await handleUpload({
       body,
       request: req,
-      token: process.env[FILES_BLOB_TOKEN_ENV_VAR],
+      token: process.env[PRIVATE_BLOB_TOKEN_ENV_VAR],
       onBeforeGenerateToken: async (pathname) => {
         if (!isUploadKey(pathname, keyPrefix)) {
           throw new Error("That upload isn't this canvas's.")
