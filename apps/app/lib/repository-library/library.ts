@@ -1,6 +1,12 @@
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { RoomCollections } from "@/lib/yjs/schema"
-import { applyRepositoryEdit, linkCanvasRepos, sameRepository } from "./canvas"
+import {
+  applyRepositoryEdit,
+  linkCanvasRepos,
+  linkedRepo,
+  sameRepository,
+  unlinkRepository,
+} from "./canvas"
 
 /** Where one person's Repositories live, plus whether their one-time
  *  migration has run. Production is the encrypted per-user KV (`./store`). */
@@ -15,6 +21,7 @@ export interface RepositoryStore {
 export interface CanvasRooms {
   /** Ids of every Canvas the person can open. */
   list(): Promise<string[]>
+  read<T>(roomId: string, fn: (collections: RoomCollections) => T): Promise<T>
   mutate<T>(roomId: string, fn: (collections: RoomCollections) => T): Promise<T>
 }
 
@@ -140,10 +147,43 @@ export function createRepositoryLibrary({
       return next
     },
 
-    /** Delete a Repository; returns the new list. */
+    /**
+     * How many Canvases have a Repo linked to the Repository, for the delete
+     * confirm. A Canvas that won't open isn't counted.
+     */
+    async canvasCount(repositoryId: string): Promise<number> {
+      let count = 0
+      for (const roomId of await rooms.list()) {
+        try {
+          const uses = await rooms.read(roomId, (collections) =>
+            Boolean(linkedRepo(collections, repositoryId))
+          )
+          if (uses) count++
+        } catch (err) {
+          console.error(`Couldn't read repositories on canvas ${roomId}`, err)
+        }
+      }
+      return count
+    },
+
+    /**
+     * Delete a Repository; returns the new list. Every Canvas Repo linked to
+     * it stays, unlinked: the Canvas keeps its copy, which stops getting
+     * Settings edits. A Canvas that won't open keeps its link to nothing,
+     * which reads as unlinked too.
+     */
     async delete(repositoryId: string): Promise<RepoConfig[]> {
       const next = (await store.load()).filter((r) => r.id !== repositoryId)
       await store.save(next)
+      for (const roomId of await rooms.list()) {
+        try {
+          await rooms.mutate(roomId, (collections) =>
+            unlinkRepository(collections, repositoryId)
+          )
+        } catch (err) {
+          console.error(`Couldn't unlink repositories on canvas ${roomId}`, err)
+        }
+      }
       return next
     },
 

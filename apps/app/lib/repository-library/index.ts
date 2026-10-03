@@ -15,6 +15,7 @@ export {
   sameRepository,
   switchOff,
   switchOn,
+  unlinkRepository,
   type CanvasRepositoryRow,
   type RunSettings,
   type SwitchOffResult,
