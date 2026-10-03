@@ -67,7 +67,7 @@ import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { switchOn } from "@/lib/repository-library"
+import { switchOnWithEnv } from "@/lib/repository-library"
 import { migrateCanvasEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 import { canRevealEnv } from "@/lib/repo-env/names"
 import { renameRoom } from "@/lib/rooms-actions"
@@ -123,6 +123,7 @@ import { useBranchActions } from "@/components/canvas/use-branch-actions"
 import { useCommentRequests } from "@/components/canvas/use-comment-requests"
 
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
+import { useDrawAsk } from "@/components/canvas/use-draw-ask"
 
 import { useChatTarget } from "@/components/canvas/use-chat-target"
 
@@ -190,19 +191,8 @@ import {
   type CanvasGestureInputs,
 } from "./use-canvas-gesture"
 
-import { useDrawTool, type DrawnRect } from "./use-draw-tool"
+import { useDrawTool } from "./use-draw-tool"
 import { FrameAskCard, frameAskTarget } from "./frame-ask-card"
-import type { ComposerSubmitPayload } from "@/components/agent/composer"
-import {
-  defaultFrameAnswerer,
-  defaultNewWorkspaceRepoId,
-  forMockup,
-  NEW_CHAT,
-  NEW_SKETCH_CHAT,
-  withViewport,
-  type FrameAnswerer,
-} from "@/lib/frame-ask"
-import { pickableWorkspaces } from "./workspace-list"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { toast } from "sonner"
 
@@ -1619,67 +1609,29 @@ export function Canvas({
   // drifting off-axis lives on the Canvas Camera controller now (PRD #588),
   // beside the viewport transform it guards.
 
-  // The drawn frame whose ask card is open (#1356). Per-viewer, never in the
-  // room doc. It only opens when there's a Repo for a new chat to start in.
-  const [askFrameId, setAskFrameId] = useState<string | null>(null)
-  // Who answers by default (#1357), worked out from what was selected before
-  // the frame was drawn (drawing selects the new frame).
-  const [askAnswerer, setAskAnswerer] = useState<FrameAnswerer>(NEW_CHAT)
-  const newChatRepoId = useMemo(
-    () => defaultNewWorkspaceRepoId(repos, agents),
-    [repos, agents]
-  )
-  const answererFromSelection = useCallback(
-    (opts: { sketch?: boolean } = {}) => {
-      const selected = selection.current()
-      return defaultFrameAnswerer({
-        frameIds: selected.iframeLayerIds,
-        ownedLayerIds: selected.markdownLayerIds,
-        frames: iframeLayers,
-        ownedLayers: sizedLayers,
-        chatSessions,
-        pickable: pickableWorkspaces(agents),
-        sketch: opts.sketch,
-      })
-    },
-    [selection, iframeLayers, sizedLayers, chatSessions, agents]
-  )
-  const handleFrameDrawn = useCallback(
-    (frameId: string) => {
-      if (!newChatRepoId) return
-      setAskAnswerer(answererFromSelection())
-      setAskFrameId(frameId)
-    },
-    [newChatRepoId, answererFromSelection]
-  )
-  // The drawn Mockup box whose ask card is open (#1359). Per-viewer and only a
-  // box until sent: Esc or clicking away drops it, leaving nothing behind.
-  const [askMockupBox, setAskMockupBox] = useState<DrawnRect | null>(null)
-  // With no repository there are no Workspaces, so a chat with none answers.
-  const handleMockupDrawn = useCallback(
-    (rect: DrawnRect) => {
-      const answerer = answererFromSelection({ sketch: true })
-      setAskAnswerer(
-        newChatRepoId || answerer.kind === "sketch" ? answerer : NEW_SKETCH_CHAT
-      )
-      setAskFrameId(null)
-      setAskMockupBox(rect)
-    },
-    [newChatRepoId, answererFromSelection]
-  )
-  // An unanswered frame's Start a chat (#1358): select it and reopen its ask.
-  // The frame itself is the selection now, and it has no Workspace, so a new
-  // chat answers unless the chip is switched.
-  const { selectIframeLayer: selectFrame } = selection
-  const startFrameChat = useCallback(
-    (frameId: string) => {
-      selectFrame(frameId, false)
-      setAskAnswerer(NEW_CHAT)
-      setAskMockupBox(null)
-      setAskFrameId(frameId)
-    },
-    [selectFrame]
-  )
+  // The Frame and Mockup tools' ask (#1356, #1359): the Draw-and-ask module
+  // holds the open ask and routes the send; this root only renders its card.
+  const drawAsk = useDrawAsk({
+    ops,
+    repos,
+    agents,
+    iframeLayers,
+    ownedLayers: sizedLayers,
+    chatSessions,
+    selection,
+    setSelectedGroupIds,
+    setSelectedIframeLayerIds,
+    setSelectedDocumentLayerIds,
+    sendPrompt: branchActions.sendPrompt,
+    createBranch,
+    addChatSession,
+    chatTarget,
+    sendMessage: (opts) => chatStore.sendMessage(opts),
+    roomId,
+  })
+  const askFrameId =
+    drawAsk.open?.kind === "frame" ? drawAsk.open.frameId : null
+  const askMockupBox = drawAsk.open?.kind === "mockup" ? drawAsk.open.box : null
 
   // Draw tools (Document / Frame / Mockup) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
@@ -1698,165 +1650,10 @@ export function Canvas({
       setSelectedDocumentLayerIds,
       setSelectedGroupIds,
       setEditingDocumentLayerId,
-      onFrameDrawn: handleFrameDrawn,
-      onMockupDrawn: handleMockupDrawn,
+      onFrameDrawn: drawAsk.startFromFrame,
+      onMockupDrawn: drawAsk.startFromMockupBox,
     })
 
-  // Sending the ask shows the answering Workspace in the drawn frame, with the
-  // frame's size as the viewport. An existing Workspace takes the prompt in its
-  // chat (#1357); a new chat starts a Workspace with the New Workspace
-  // dialog's defaults.
-  const askFrame = askFrameId
-    ? iframeLayers.find((layer) => layer.id === askFrameId && !layer.branchId)
-    : undefined
-  const closeFrameAsk = useCallback(() => {
-    setAskFrameId(null)
-    setAskMockupBox(null)
-    setAskAnswerer(NEW_CHAT)
-  }, [])
-  const sendFrameAsk = useCallback(
-    (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => {
-      const frame = askFrameId
-        ? collections.iframeLayers.get(askFrameId)
-        : undefined
-      closeFrameAsk()
-      if (!frame) return
-      if (answerer.kind === "workspace") {
-        ops.assignBranch(frame.id, answerer.branchId)
-        const sent = branchActions.sendPrompt(
-          answerer.branchId,
-          withViewport(payload.text, frame)
-        )
-        // A Workspace still starting has no agent to ask yet.
-        if (!sent) {
-          const agent = agents.find((a) => a.id === answerer.branchId)
-          toast.error(
-            `${agent ? workspaceLabel(agent) : "That chat"} isn't running yet. Ask again once it is.`
-          )
-        }
-        return
-      }
-      const repo = repos.find((r) => r.id === newChatRepoId)
-      if (!repo) return
-      void createBranch(
-        repo.id,
-        [
-          {
-            baseBranch: repo.defaultBranch,
-            model: payload.model,
-            prompt: withViewport(payload.text, frame),
-          },
-        ],
-        { frameId: frame.id }
-      )
-    },
-    [
-      askFrameId,
-      collections,
-      closeFrameAsk,
-      ops,
-      branchActions,
-      agents,
-      repos,
-      newChatRepoId,
-      createBranch,
-    ]
-  )
-
-  // Sending a drawn Mockup box (#1359) makes an empty Mockup there, owned by
-  // the chat that answers, and asks that chat to fill it with update_mockup.
-  // An empty page shows the sketching state until it does.
-  const sendMockupAsk = useCallback(
-    (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => {
-      const box = askMockupBox
-      closeFrameAsk()
-      if (!box) return
-      const mockup = { id: nanoid(), ...box }
-      const prompt = forMockup(payload.text, mockup.id, box)
-      const showMockup = () => {
-        setSelectedGroupIds(new Set())
-        setSelectedIframeLayerIds(new Set())
-        setSelectedDocumentLayerIds(new Set([mockup.id]))
-      }
-      if (answerer.kind === "workspace") {
-        const chatId = branchActions.sendPrompt(answerer.branchId, prompt)
-        // A Workspace still starting has no agent to ask yet.
-        if (!chatId) {
-          const agent = agents.find((a) => a.id === answerer.branchId)
-          toast.error(
-            `${agent ? workspaceLabel(agent) : "That chat"} isn't running yet. Ask again once it is.`
-          )
-          return
-        }
-        ops.createMockup({
-          id: mockup.id,
-          html: "",
-          title: "",
-          width: box.width,
-          height: box.height,
-          ownerChatId: chatId,
-          anchor: { x: box.x, y: box.y },
-        })
-        showMockup()
-        return
-      }
-      // A chat with no repository owns the Mockup and sketches it: the one
-      // picked, else a new one.
-      if (answerer.kind === "sketch") {
-        const existing = answerer.chatId
-          ? chatSessions.find((c) => c.id === answerer.chatId)
-          : undefined
-        const chatId = existing?.id ?? nanoid()
-        if (!existing) {
-          addChatSession(chatId, sketchChatSession(chatId, Date.now()))
-        }
-        ops.createMockup({
-          id: mockup.id,
-          html: "",
-          title: "",
-          width: box.width,
-          height: box.height,
-          ownerChatId: chatId,
-          anchor: { x: box.x, y: box.y },
-        })
-        showMockup()
-        chatTarget.selectSketchChat(chatId)
-        chatStore.sendMessage({
-          roomId,
-          chatId,
-          target: { kind: "sketch", chatId },
-          message: prompt,
-          // An existing chat keeps its own model.
-          model: existing?.model ?? payload.model,
-        })
-        return
-      }
-      const repo = repos.find((r) => r.id === newChatRepoId)
-      if (!repo) return
-      void createBranch(
-        repo.id,
-        [{ baseBranch: repo.defaultBranch, model: payload.model, prompt }],
-        { mockup }
-      ).then(showMockup)
-    },
-    [
-      askMockupBox,
-      closeFrameAsk,
-      branchActions,
-      agents,
-      ops,
-      repos,
-      newChatRepoId,
-      createBranch,
-      roomId,
-      chatTarget,
-      chatSessions,
-      addChatSession,
-      setSelectedGroupIds,
-      setSelectedIframeLayerIds,
-      setSelectedDocumentLayerIds,
-    ]
-  )
   // The drawn Mockup box's screen rect, from the live camera.
   const locateMockupBox = useCallback(() => {
     const t = transformRef.current?.state
@@ -2050,19 +1847,19 @@ export function Canvas({
   const addRepository = useAddRepositoryFlow()
   const switchOnHere = useCallback(
     (repository: RepoConfig) => {
-      const id = nanoid()
-      const on = switchOn(collections, repository, {
-        id,
-        createdAt: Date.now(),
-        addedBy: userId ?? "anonymous",
-      })
       // The Repository's values go to this canvas's encrypted store, never
-      // its room doc (#1416).
-      if (on === id && repository.envVars.trim()) {
-        saveCanvasRepoEnv(roomId, id, repository.envVars, "replace").catch(() =>
-          toast.error("Couldn't copy the environment variables.")
-        )
-      }
+      // its room doc (#1416), and are stored before the Repo switches on
+      // (#1476).
+      switchOnWithEnv(
+        collections,
+        repository,
+        {
+          id: nanoid(),
+          createdAt: Date.now(),
+          addedBy: userId ?? "anonymous",
+        },
+        (id, text) => saveCanvasRepoEnv(roomId, id, text, "replace")
+      ).catch(() => toast.error("Couldn't copy the environment variables."))
     },
     [collections, userId, roomId]
   )
@@ -2423,7 +2220,7 @@ export function Canvas({
                         agents={agents}
                         onRestartWorkspace={branchActions.startWorkspace}
                         onOpenLogs={openBranchLogs}
-                        onStartChat={newChatRepoId ? startFrameChat : undefined}
+                        onStartChat={drawAsk.startFrameChat}
                         repos={repos}
                         zoom={zoom}
                         spaceHeld={spaceHeld}
@@ -2681,15 +2478,15 @@ export function Canvas({
                   toolMode={toolMode}
                   onClearMode={reference.clearMode}
                 />
-                {askFrame ? (
+                {askFrameId ? (
                   <FrameAskCard
-                    key={askFrame.id}
-                    locate={() => frameAskTarget(askFrame.id)}
+                    key={askFrameId}
+                    locate={() => frameAskTarget(askFrameId)}
                     markdownLayers={markdownLayers}
                     workspaces={agents}
-                    defaultAnswerer={askAnswerer}
-                    onSubmit={sendFrameAsk}
-                    onClose={closeFrameAsk}
+                    defaultAnswerer={drawAsk.answerer}
+                    onSubmit={drawAsk.send}
+                    onClose={drawAsk.close}
                   />
                 ) : askMockupBox ? (
                   <FrameAskCard
@@ -2698,9 +2495,9 @@ export function Canvas({
                     markdownLayers={markdownLayers}
                     workspaces={agents}
                     sketchChats={sketchChats}
-                    defaultAnswerer={askAnswerer}
-                    onSubmit={sendMockupAsk}
-                    onClose={closeFrameAsk}
+                    defaultAnswerer={drawAsk.answerer}
+                    onSubmit={drawAsk.send}
+                    onClose={drawAsk.close}
                   />
                 ) : null}
                 <ShortcutSheet

@@ -118,7 +118,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 
 import { sortForSidebar } from "@/lib/sidebar-order"
-import { defaultNewWorkspaceRepoId } from "@/lib/frame-ask"
+import { defaultNewWorkspaceRepoId } from "@/lib/draw-ask"
 
 import type {
   BranchData,

@@ -258,15 +258,25 @@ function RepoSettingsForm({
     onClose,
   ])
 
-  const resetToSettings = (from: RepoConfig) => {
+  // The values are stored before the doc claims them (#1476), as in Save: a
+  // failed save leaves the Repo as it was and the dialog open.
+  const resetToSettings = async (from: RepoConfig) => {
+    setSaving(true)
+    setError(null)
+    let fields
+    try {
+      fields = await saveCanvasRepoEnv(roomId, repo.id, from.envVars, "replace")
+    } catch {
+      setError("Couldn't restore the environment variables.")
+      setSaving(false)
+      return
+    }
     onUpdate(repo.id, {
       name: from.name,
       ...runSettings(from),
+      ...fields,
       envVars: undefined,
     })
-    saveCanvasRepoEnv(roomId, repo.id, from.envVars, "replace").catch(() =>
-      toast.error("Couldn't restore the environment variables.")
-    )
     onClose()
   }
 
@@ -365,7 +375,8 @@ function RepoSettingsForm({
             variant="outline"
             size="sm"
             className="sm:mr-auto"
-            onClick={() => resetToSettings(repository)}
+            disabled={saving}
+            onClick={() => void resetToSettings(repository)}
           >
             Reset to Settings
           </Button>

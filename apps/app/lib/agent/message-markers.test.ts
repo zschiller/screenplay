@@ -21,7 +21,7 @@ import {
   serializeSkill,
   skillMarkersToPills,
 } from "@/lib/agent/message-markers"
-import { forMockup } from "@/lib/frame-ask"
+import { forMockup } from "@/lib/draw-ask"
 
 describe("prependTurnMarkers", () => {
   it("renders plan before branch", () => {

@@ -2,28 +2,18 @@
 
 import { useEffect, useRef } from "react"
 
-import {
-  fetchDriveToken,
-  type FrameStreamConnection,
+import type {
+  FrameStreamConnection,
+  FrameStreamFrame,
 } from "@/lib/frame-stream/client"
 import {
   FRAME_STREAM_COLOR_SPACE,
-  clickCounter,
   h264CodecOf,
-  modifiersOf,
-  mouseButtonOf,
-  pageKeyOf,
   type FrameColorScheme,
-  type FrameStreamInput,
   type FrameStreamServerMessage,
   type FrameStreamVideo,
 } from "@/lib/frame-stream/protocol"
 
-// A drive grant lasts a minute; ask for the next one well before.
-const DRIVE_REFRESH_MS = 30_000
-// Frame Control's record can reach the server a moment after this viewer
-// wrote it, so a refused grant is asked for again a few times.
-const DRIVE_RETRY_MS = [0, 300, 800, 2000]
 // The service's default device scale: a picture's CSS size until the
 // frame's state says otherwise.
 const SCALE = 2
@@ -32,9 +22,10 @@ const RESIZE_SETTLE_MS = 150
 const WATCH_MARGIN = "200px"
 
 interface FrameStreamViewProps {
+  /** The Workspace's stream, for its codec. */
   stream: FrameStreamConnection
-  roomId: string
-  frameId: string
+  /** The frame's handle on it. */
+  frame: FrameStreamFrame
   /** The frame's CSS size: the shared page's viewport. */
   width: number
   height: number
@@ -66,8 +57,7 @@ interface FrameStreamViewProps {
  */
 export function FrameStreamView({
   stream,
-  roomId,
-  frameId,
+  frame,
   width,
   height,
   route,
@@ -209,8 +199,7 @@ export function FrameStreamView({
       if (unwatch) return
       const { route, width, height, scheme } = latest.current
       firstRoute = true
-      unwatch = stream.watch(
-        frameId,
+      unwatch = frame.watch(
         { route, width, height, scheme },
         {
           onMessage,
@@ -245,7 +234,7 @@ export function FrameStreamView({
       document.removeEventListener("visibilitychange", update)
       stop()
     }
-  }, [stream, frameId])
+  }, [stream, frame])
 
   // Room the picture doesn't cover yet, while the frame grows ahead of the
   // stream, shows the page's own background: its bottom-right pixel.
@@ -263,166 +252,56 @@ export function FrameStreamView({
   // settles first: each new size restarts the frame's encoder.
   useEffect(() => {
     const id = setTimeout(
-      () => stream.update(frameId, { width, height }),
+      () => frame.update({ width, height }),
       RESIZE_SETTLE_MS
     )
     return () => clearTimeout(id)
-  }, [stream, frameId, width, height])
+  }, [frame, width, height])
   useEffect(() => {
-    stream.update(frameId, { route })
-  }, [stream, frameId, route])
+    frame.update({ route })
+  }, [frame, route])
   useEffect(() => {
-    stream.update(frameId, { scheme })
-  }, [stream, frameId, scheme])
+    frame.update({ scheme })
+  }, [frame, scheme])
 
   // ---- driving ----
 
+  // The handle asks for the grant and keeps it fresh while this viewer drives.
   useEffect(() => {
     if (!drives) return
-    let run = 0
-    let refresh: ReturnType<typeof setTimeout> | null = null
-    // Each run supersedes the one before (a reconnect starts a new one).
-    const grant = async () => {
-      const mine = ++run
-      if (refresh) clearTimeout(refresh)
-      const current = () => mine === run
-      // The grant rides the stream, so wait for it to be up.
-      while (!stream.isReady()) {
-        await new Promise((r) => setTimeout(r, 250))
-        if (!current()) return
-      }
-      for (const wait of DRIVE_RETRY_MS) {
-        if (wait) await new Promise((r) => setTimeout(r, wait))
-        if (!current()) return
-        const token = await fetchDriveToken(roomId, frameId).catch(() => null)
-        if (!current()) return
-        // The stream sends it again whenever this view watches the frame
-        // again (a hidden tab, a frame scrolled away).
-        if (token && stream.isReady()) {
-          stream.drive(frameId, token)
-          break
-        }
-      }
-      refresh = setTimeout(() => void grant(), DRIVE_REFRESH_MS)
-    }
-    void grant()
-    // A reconnect may have outlasted the grant: ask again.
-    const unsubscribe = stream.subscribeConnection((ready) => {
-      if (ready) void grant()
-    })
-    // A hidden tab's timers may not have kept the grant fresh: ask again
-    // when it shows.
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void grant()
-    }
-    document.addEventListener("visibilitychange", onVisible)
-    return () => {
-      run++
-      unsubscribe()
-      document.removeEventListener("visibilitychange", onVisible)
-      if (refresh) clearTimeout(refresh)
-      stream.release(frameId)
-    }
-  }, [drives, stream, roomId, frameId])
+    return frame.drive()
+  }, [drives, frame])
 
   const active = interactive && drives
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !active) return
-    const send = (input: FrameStreamInput) =>
-      stream.send({ t: "input", frame: frameId, ...input })
-    // Client pixels to the page's CSS pixels: the canvas is drawn at the
-    // picture's size inside the zoomed world.
-    const at = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      const { width, height } = pictureSize.current
-      return {
-        x: ((e.clientX - rect.left) * width) / rect.width,
-        y: ((e.clientY - rect.top) * height) / rect.height,
-      }
-    }
-    const countClick = clickCounter()
-    let clickCount = 1
+    const input = frame.input(() => ({
+      rect: canvas.getBoundingClientRect(),
+      ...pictureSize.current,
+    }))
     const mouse =
       (type: "mousePressed" | "mouseReleased" | "mouseMoved") =>
       (e: PointerEvent) => {
         if (type === "mousePressed") {
           canvas.focus({ preventScroll: true })
           canvas.setPointerCapture(e.pointerId)
-          clickCount = countClick(e.button, e.clientX, e.clientY, e.timeStamp)
         }
-        send({
-          kind: "mouse",
-          type,
-          ...at(e),
-          button: type === "mouseMoved" ? "none" : mouseButtonOf(e.button),
-          buttons: e.buttons,
-          clickCount: type === "mouseMoved" ? 0 : clickCount,
-          modifiers: modifiersOf(e),
-        })
+        input.pointer(type, e)
       }
     const onDown = mouse("mousePressed")
     const onMove = mouse("mouseMoved")
     const onUp = mouse("mouseReleased")
-    const onWheel = (e: WheelEvent) => {
-      // Cmd/Ctrl+wheel still zooms the canvas.
-      if (e.ctrlKey || e.metaKey) return
-      e.preventDefault()
-      e.stopPropagation()
-      send({
-        kind: "wheel",
-        ...at(e),
-        deltaX: e.deltaX,
-        deltaY: e.deltaY,
-        modifiers: modifiersOf(e),
-      })
-    }
-    const mac = /Mac|iPhone|iPad/.test(navigator.platform)
-    const key = (type: "keyDown" | "keyUp") => (e: KeyboardEvent) => {
-      // Keys belong to the page, not the canvas's shortcuts. Esc goes to
-      // both: the page sees it, and the canvas leaves Interact.
-      if (e.key !== "Escape") e.stopPropagation()
-      // Copy, cut and paste go as their events, with this viewer's own
-      // clipboard: the shortcuts would use the shared browser's.
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        !e.altKey &&
-        ["KeyC", "KeyX", "KeyV"].includes(e.code)
-      )
-        return
-      if (e.key !== "Escape") e.preventDefault()
-      if (e.isComposing) return
-      const text =
-        type === "keyDown" && !e.metaKey && !e.ctrlKey
-          ? e.key === "Enter"
-            ? "\r"
-            : e.key.length === 1
-              ? e.key
-              : undefined
-          : undefined
-      send({
-        kind: "key",
-        type: type === "keyDown" && !text ? "rawKeyDown" : type,
-        ...pageKeyOf(e, mac),
-        text,
-        repeat: e.repeat,
-      })
-    }
-    const onKeyDown = key("keyDown")
-    const onKeyUp = key("keyUp")
-    const onPaste = (e: ClipboardEvent) => {
-      const text = e.clipboardData?.getData("text/plain")
-      if (!text) return
-      e.preventDefault()
-      send({ kind: "text", text })
-    }
+    const onWheel = (e: WheelEvent) => input.wheel(e)
+    const onKeyDown = (e: KeyboardEvent) => input.key("keyDown", e)
+    const onKeyUp = (e: KeyboardEvent) => input.key("keyUp", e)
+    const onPaste = (e: ClipboardEvent) => input.paste(e)
     // What the page copies lands on this viewer's clipboard. The text comes
     // back over the stream, so it's written as a promise that ClipboardItem
     // holds within the keypress; an empty copy leaves the clipboard alone.
     const onCopy = (e: ClipboardEvent) => {
-      e.preventDefault()
-      const text = stream.clipboard(frameId, e.type === "cut")
+      const text = input.copy(e)
       const blob = text.then((t) => {
         if (!t) throw new Error("nothing copied")
         return new Blob([t], { type: "text/plain" })
@@ -463,7 +342,7 @@ export function FrameStreamView({
       canvas.removeEventListener("contextmenu", onContextMenu)
       if (document.activeElement === canvas) canvas.blur()
     }
-  }, [active, stream, frameId])
+  }, [active, frame])
 
   // The picture sits at its own size, top left: a resize crops it or shows
   // the page's background beside it until the stream catches up.

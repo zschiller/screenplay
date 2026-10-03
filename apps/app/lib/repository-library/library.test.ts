@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import {
@@ -17,6 +17,7 @@ import {
   resetToRepository,
   switchOff,
   switchOn,
+  switchOnWithEnv,
   type CanvasRooms,
   type RepositoryLinkPolicy,
   type RepositoryStore,
@@ -182,6 +183,73 @@ describe("switch on", () => {
     })
     expect(again).toBe("repo-1")
     expect(canvas.collections.repos.toArray()).toHaveLength(1)
+  })
+
+  const meta = { id: "repo-1", createdAt: 5, addedBy: "zack" }
+  const storeEnv = (text: string) => ({
+    envVarNames: text.split("\n").map((l) => l.split("=")[0]!),
+    envVarsDigest: digest(text),
+  })
+
+  it("stores the env values before the canvas lists their names", async () => {
+    const canvas = makeHarness()
+    const web = repository("web", {
+      envVars: "A=1\nB=2",
+      envVarsDigest: digest("A=1\nB=2"),
+    })
+    const saveEnv = vi.fn(async (repoId: string, text: string) => {
+      expect(repoOf(canvas, repoId)).toBeUndefined()
+      return storeEnv(text)
+    })
+
+    const id = await switchOnWithEnv(canvas.collections, web, meta, saveEnv)
+
+    expect(saveEnv).toHaveBeenCalledWith("repo-1", "A=1\nB=2")
+    expect(id).toBe("repo-1")
+    expect(repoOf(canvas, "repo-1")).toMatchObject({
+      envVarNames: ["A", "B"],
+      envVarsDigest: digest("A=1\nB=2"),
+      repositoryId: "web",
+    })
+  })
+
+  it("leaves the repository off when the env values can't be stored", async () => {
+    const canvas = makeHarness()
+    const web = repository("web", { envVars: "A=1" })
+    const saveEnv = vi.fn().mockRejectedValue(new Error("KV down"))
+
+    await expect(
+      switchOnWithEnv(canvas.collections, web, meta, saveEnv)
+    ).rejects.toThrow("KV down")
+
+    expect(canvas.collections.repos.toArray()).toHaveLength(0)
+  })
+
+  it("skips the store for a repository without env values", async () => {
+    const canvas = makeHarness()
+    const saveEnv = vi.fn()
+
+    await switchOnWithEnv(canvas.collections, repository("web"), meta, saveEnv)
+
+    expect(saveEnv).not.toHaveBeenCalled()
+    expect(repoOf(canvas, "repo-1")?.envVarNames).toBeUndefined()
+  })
+
+  it("stores nothing when the repository is already on", async () => {
+    const canvas = makeHarness()
+    const web = repository("web", { envVars: "A=1" })
+    switchOn(canvas.collections, web, meta)
+    const saveEnv = vi.fn()
+
+    const id = await switchOnWithEnv(
+      canvas.collections,
+      web,
+      { ...meta, id: "repo-2" },
+      saveEnv
+    )
+
+    expect(id).toBe("repo-1")
+    expect(saveEnv).not.toHaveBeenCalled()
   })
 })
 
