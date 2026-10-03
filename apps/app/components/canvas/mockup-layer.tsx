@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useRef } from "react"
 import { createPortal } from "react-dom"
 import {
   FloatingToolbar,
@@ -21,18 +21,10 @@ import {
   DotsThreeIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
-import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
-import { drivenByOther } from "@/lib/canvas/frame-control"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
-import { useIframeBridgePort } from "@/hooks/use-bridge-port"
-import { usePostMessage } from "@/hooks/use-postmessage"
-import {
-  useScreenplayDom,
-  type ScreenplayDom,
-  type WheelForward,
-} from "@/hooks/use-screenplay-dom"
-import type { DomRect, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
+import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
+import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
@@ -48,12 +40,14 @@ import {
   MockupStatusRadioGroup,
   StatusIcon,
 } from "@/components/canvas/mockup-status-menu"
-import { KnobsPopover } from "@/components/canvas/knobs-popover"
-import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
 import {
-  FrameDriverButton,
-  FrameDriverTag,
-} from "@/components/canvas/frame-driver"
+  LivePageContent,
+  LivePageControls,
+  LivePageOverlay,
+  livePageChrome,
+  useLivePage,
+  type LivePageWrites,
+} from "@/components/canvas/live-page"
 import type { FrameDriverView } from "@/components/canvas/use-frame-control"
 import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
@@ -126,16 +120,14 @@ interface MockupLayerProps {
    */
   pickActive?: boolean
   dimmed?: boolean
-  /** The element under the pointer during a pick (null clears it). */
+  /** The element under the pointer during a pick or comment (null clears it). */
   onHover?: (id: string, rect: DomRect | null) => void
   /** Register the page's DOM bridge (null on unmount), as a frame does. */
   onDomReady?: (id: string, dom: ScreenplayDom | null) => void
-  onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
-  onKnobValuesChange?: (id: string, values: JsonObject) => void
+  /** Where the page's Knobs and shared state are written. */
+  writes?: LivePageWrites
   /** Start an "add a knob" request in the chat that made the mockup. */
   onAskForKnob?: () => void
-  /** State the page shares through `screenplay.shareState` changed. */
-  onSharedStateChanged?: (id: string, state: JsonObject) => void
   /**
    * The mockup takes clicks, scrolls and keys (Interact), as a frame does:
    * the canvas stops panning over it and Esc returns.
@@ -147,7 +139,8 @@ interface MockupLayerProps {
    */
   driver?: FrameDriverView
   onFocus?: (id: string | null) => void
-  /** Comment placement owns the pointer, so a double-click doesn't Interact. */
+  /** Comment placement owns the pointer, so a double-click doesn't Interact,
+   *  and the overlay tracks the element a comment would pin. */
   commentMode?: boolean
   /** A pinch or ⌘-scroll over the interacting page, to zoom the canvas. */
   onWheel?: (id: string, wheel: WheelForward) => void
@@ -155,13 +148,10 @@ interface MockupLayerProps {
 
 const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
 
-// A mockup's page carries no app state; the bridge's handshake still sends one.
-const NO_STATE: JsonObject = {}
-const ignoreState = () => {}
-
 /**
  * The Mockup Layer (#1309) — a static HTML page a chat wrote, plugged into
- * the shared {@link LayerShell} as its third content adapter. The page renders
+ * the shared {@link LayerShell} as its third content adapter, and a Live Page
+ * (`./live-page`) from a `srcdoc` source, as a frame is from a URL. The page renders
  * in an `<iframe srcdoc>` sandboxed to `allow-scripts` only: without
  * `allow-same-origin` it runs in an opaque origin, so it can never reach the
  * app, its cookies or the canvas, and its Content Security Policy
@@ -217,10 +207,8 @@ export function MockupLayer({
   dimmed,
   onHover,
   onDomReady,
-  onKnobsDeclared,
-  onKnobValuesChange,
+  writes,
   onAskForKnob,
-  onSharedStateChanged,
   focused = false,
   driver = NOBODY_DRIVES,
   onFocus,
@@ -229,87 +217,38 @@ export function MockupLayer({
 }: MockupLayerProps) {
   const html = useMockupHtml(layer.id)
   const runtime = useMockupRuntime()
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
-  const port = useIframeBridgePort(iframeRef)
-  usePostMessage({
-    port,
-    iframeLayerId: layer.id,
-    iframeState: NO_STATE,
-    knobValues: layer.knobValues,
-    sharedState: layer.sharedState,
-    onStateChanged: ignoreState,
-    onKnobsDeclared,
-    onSharedStateChanged,
+  const hasPage = !!html.trim()
+  const page = useLivePage({
+    id: layer.id,
+    source: {
+      kind: "srcdoc",
+      // The runtime arrives once per session; until then the page waits
+      // rather than load twice.
+      srcDoc:
+        hasPage && runtime !== null ? mockupSrcDoc(html, runtime) : undefined,
+      title: layer.title || "Mockup",
+    },
+    record: layer,
+    writes,
+    interactive: focused,
+    driver,
+    zoom,
+    width: layer.width,
+    height: layer.height,
+    onWheel,
+    onDomReady,
+    iframeRef,
+    bodyRef,
+    // No browser can photograph a mockup in someone's canvas on hosted, so a
+    // screenshot there is rendered from a read of the page.
+    snapshot: true,
   })
-
-  const dom = useScreenplayDom(port, {
-    onWheel: (wheel) => onWheel?.(layer.id, wheel),
-    // Esc the page didn't claim, forwarded by the bridge because keydowns
-    // never leave the iframe: replay it on the canvas so it leaves Interact.
-    // Space pressed in the page with the pointer out over the canvas, so
-    // space-drag pans the canvas as it does outside Interact.
-    onSpaceDown: () => {
-      if (!focused) return
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: " " }))
-    },
-    onSpaceUp: () => {
-      window.dispatchEvent(new KeyboardEvent("keyup", { key: " " }))
-    },
-    onEscape: () => {
-      if (!focused) return
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
-    },
-  })
-
-  // Leaving Interact hands keyboard focus back to the canvas.
-  useEffect(() => {
-    if (focused) {
-      // Entering from the toolbar leaves focus on the Interact button, where
-      // Space would press it (leaving Interact) instead of panning the canvas.
-      const active = document.activeElement
-      if (
-        active instanceof HTMLElement &&
-        active.closest("#frame-toolbar-portal")
-      )
-        active.blur()
-      return
-    }
-    const iframe = iframeRef.current
-    if (iframe && document.activeElement === iframe) iframe.blur()
-  }, [focused])
-  const onDomReadyRef = useRef(onDomReady)
-  useEffect(() => {
-    onDomReadyRef.current = onDomReady
-  })
-  useEffect(() => {
-    onDomReadyRef.current?.(layer.id, dom)
-    return () => onDomReadyRef.current?.(layer.id, null)
-  }, [layer.id, dom])
-  // No browser can photograph a mockup in someone's canvas on hosted, so a
-  // screenshot there is rendered from a read of the page.
-  useDriveFrame(layer.id, dom, iframeRef, zoom, { snapshot: true })
-
-  // The page lays out at the mockup's own size inside the zoomed canvas, so a
-  // screen point maps back into it by dividing by zoom.
-  const elementRectAt = useCallback(
-    async (clientX: number, clientY: number) => {
-      const iframe = iframeRef.current
-      if (!iframe) return null
-      const rect = iframe.getBoundingClientRect()
-      const x = (clientX - rect.left) / zoom
-      const y = (clientY - rect.top) / zoom
-      if (x < 0 || y < 0 || x > layer.width || y > layer.height) return null
-      try {
-        return (await dom.elementAtPoint(x, y))?.rect ?? null
-      } catch {
-        return null
-      }
-    },
-    [dom, zoom, layer.width, layer.height]
-  )
+  const chrome = livePageChrome({ driver, focused })
 
   const toolbarTarget = useLayerToolbar({
     show: selected && !multiSelected,
@@ -361,12 +300,8 @@ export function MockupLayer({
       onGroupDragEnd={onGroupDragEnd}
       onRequestReorderDrag={onRequestReorderDrag}
       titleDragDisabled={spaceHeld || focused}
-      // An interacting mockup's edges belong to the page. Nor does one
-      // someone else drives resize, so the size never changes under them.
-      resizable={!focused && !drivenByOther(driver)}
-      titleTag={
-        drivenByOther(driver) ? <FrameDriverTag driver={driver} /> : undefined
-      }
+      resizable={chrome.resizable}
+      titleTag={chrome.titleTag}
       onResize={handleResize}
       groupLabel={groupLabel}
       groupWorkspace={groupWorkspace}
@@ -408,7 +343,10 @@ export function MockupLayer({
       )}
     >
       {(api) => (
-        <div className="relative flex-1 overflow-hidden rounded-[inherit]">
+        <div
+          ref={bodyRef}
+          className="relative flex-1 overflow-hidden rounded-[inherit]"
+        >
           {toolbarTarget &&
             createPortal(
               <FloatingToolbar
@@ -420,14 +358,10 @@ export function MockupLayer({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-                <FrameDriverButton
-                  driver={driver}
-                  onClick={() => onFocus?.(focused ? null : layer.id)}
-                />
-                <KnobsPopover
-                  knobs={layer.knobs}
-                  values={layer.knobValues}
-                  onChange={(values) => onKnobValuesChange?.(layer.id, values)}
+                <LivePageControls
+                  page={page}
+                  focused={focused}
+                  onFocus={onFocus}
                   onAskForKnob={onAskForKnob}
                 />
                 {/* Trailing ⋯, as on the frame bar (H2): the menu is the
@@ -474,23 +408,12 @@ export function MockupLayer({
               </FloatingToolbar>,
               toolbarTarget
             )}
-          {!html.trim() ? null : runtime === null ? (
-            // The runtime arrives once per session; until then the page waits
-            // rather than load twice.
+          {hasPage && runtime === null ? (
             <div className="pointer-events-none absolute inset-0 bg-white" />
           ) : (
-            <iframe
-              ref={iframeRef}
-              title={layer.title || "Mockup"}
-              srcDoc={mockupSrcDoc(html, runtime)}
-              // Scripts only: no same-origin, forms, popups or top navigation.
-              sandbox="allow-scripts"
-              className="absolute inset-0 size-full border-0 bg-white"
-              style={{ pointerEvents: focused ? "auto" : "none" }}
-              tabIndex={focused ? 0 : -1}
-            />
+            <LivePageContent page={page} iframeRef={iframeRef} />
           )}
-          {!html.trim() && (
+          {!hasPage && (
             <Empty
               data-mockup-sketching=""
               className="pointer-events-none absolute inset-0 gap-3 rounded-none bg-white dark:bg-neutral-900"
@@ -506,50 +429,18 @@ export function MockupLayer({
               </EmptyHeader>
             </Empty>
           )}
-          {/* A wash over a mockup another chat made while a pick is armed, as
-            on a frame of another Workspace (#619). */}
-          {dimmed && (
-            <div className="pointer-events-none absolute inset-0 z-10 bg-background/60 transition-opacity" />
-          )}
-          {/* While interacting, the page takes the pointer instead. */}
-          {!focused && (
-            <div
-              className="absolute inset-0 touch-none"
-              style={{ cursor: "inherit" }}
-              {...api.bodyDragHandlers}
-              {...(pickActive && !spaceHeld && !dimmed
-                ? {
-                    // Hover-only: outline the element a click would target. The
-                    // click itself goes to the canvas's pick handler.
-                    onPointerMove: async (e: React.PointerEvent) => {
-                      onHover?.(
-                        layer.id,
-                        await elementRectAt(e.clientX, e.clientY)
-                      )
-                    },
-                    onPointerLeave: () => onHover?.(layer.id, null),
-                  }
-                : {})}
-              onPointerDownCapture={api.onBodyPointerDownCapture}
-              onDoubleClick={(e) => {
-                if (
-                  !onFocus ||
-                  !canInteractOnDoubleClick({
-                    hasPreview: !!html.trim(),
-                    commentMode,
-                    // A dimmed mockup is ineligible for an armed pick, but the
-                    // pick still owns the pointer.
-                    pickActive: !!pickActive || !!dimmed,
-                    spaceHeld,
-                  })
-                )
-                  return
-                e.stopPropagation()
-                onSelect(layer.id, false)
-                onFocus(layer.id)
-              }}
-            />
-          )}
+          <LivePageOverlay
+            page={page}
+            api={api}
+            hasPage={hasPage}
+            commentMode={commentMode}
+            pickActive={pickActive}
+            dimmed={dimmed}
+            spaceHeld={spaceHeld}
+            onHover={onHover}
+            onSelect={onSelect}
+            onFocus={onFocus}
+          />
         </div>
       )}
     </LayerShell>
