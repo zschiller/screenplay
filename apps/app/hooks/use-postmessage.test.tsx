@@ -39,85 +39,61 @@ describe("usePostMessage shared-state request", () => {
   })
 })
 
-function mountFrame(
-  options: Partial<Parameters<typeof usePostMessage>[0]> = {}
-) {
-  const frameWindow = { postMessage: vi.fn() }
-  const iframeRef = {
-    current: { contentWindow: frameWindow } as unknown as HTMLIFrameElement,
-  }
-  const port = iframeBridgePort(iframeRef)
-  const onStateChanged = vi.fn()
-  const view = renderHook(
-    (props: Partial<Parameters<typeof usePostMessage>[0]>) =>
-      usePostMessage({
-        port,
-        iframeLayerId: "layer-1",
-        iframeState: {},
-        onStateChanged,
-        ...props,
-      }),
-    { initialProps: options }
-  )
-  const fromPage = (data: unknown) => {
-    const event = new MessageEvent("message", { data })
-    Object.defineProperty(event, "source", { value: frameWindow })
-    window.dispatchEvent(event)
-  }
-  const sentTypes = () =>
-    frameWindow.postMessage.mock.calls.map(
-      ([message]) => (message as { type: string }).type
+describe("usePostMessage scroll syncs through the room", () => {
+  function mount(scroll: { x: number; y: number } | null) {
+    const frameWindow = { postMessage: vi.fn() }
+    const iframeRef = {
+      current: { contentWindow: frameWindow } as unknown as HTMLIFrameElement,
+    }
+    const port = iframeBridgePort(iframeRef)
+    const onScroll = vi.fn()
+    const view = renderHook(
+      (props: { x?: number; y?: number }) =>
+        usePostMessage({
+          port,
+          iframeLayerId: "layer-1",
+          iframeState: {},
+          iframeScrollX: props.x,
+          iframeScrollY: props.y,
+          onStateChanged: () => {},
+          onScroll,
+        }),
+      { initialProps: scroll ?? {} }
     )
-  return { frameWindow, view, fromPage, sentTypes, onStateChanged }
-}
+    const fromPage = (data: unknown) => {
+      const event = new MessageEvent("message", { data })
+      Object.defineProperty(event, "source", { value: frameWindow })
+      window.dispatchEvent(event)
+    }
+    return { frameWindow, onScroll, view, fromPage }
+  }
 
-describe("usePostMessage scroll is per person (#1518)", () => {
-  it("never scrolls a page that just loaded to a position from the room", () => {
-    const { fromPage, sentTypes } = mountFrame()
+  it("restores the room's scroll when a page (re)loads", () => {
+    const { frameWindow, fromPage } = mount({ x: 0, y: 400 })
+    frameWindow.postMessage.mockClear()
     fromPage({ type: "screenplay:ready", version: "v" })
-    expect(sentTypes()).toEqual(["screenplay:init"])
-    expect(sentTypes()).not.toContain("screenplay:scroll-to")
+    expect(frameWindow.postMessage).toHaveBeenCalledWith(
+      { type: "screenplay:scroll-to", scrollX: 0, scrollY: 400 },
+      "*"
+    )
   })
 
-  it("writes nothing to the room when the page scrolls", () => {
-    const onNavigation = vi.fn()
-    const onSharedStateChanged = vi.fn()
-    const { fromPage, frameWindow, onStateChanged } = mountFrame({
-      onNavigation,
-      onSharedStateChanged,
-    })
+  it("writes the page's scroll to the room, without echoing it back", () => {
+    const { frameWindow, onScroll, view, fromPage } = mount(null)
+    fromPage({ type: "screenplay:scroll", scrollX: 0, scrollY: 250 })
+    expect(onScroll).toHaveBeenCalledWith("layer-1", 0, 250)
+
     frameWindow.postMessage.mockClear()
-    fromPage({ type: "screenplay:scroll", scrollX: 0, scrollY: 400 })
-    expect(onStateChanged).not.toHaveBeenCalled()
-    expect(onNavigation).not.toHaveBeenCalled()
-    expect(onSharedStateChanged).not.toHaveBeenCalled()
+    view.rerender({ x: 0, y: 250 })
     expect(frameWindow.postMessage).not.toHaveBeenCalled()
   })
 
-  it("still reports the page's route to the room", () => {
-    const onNavigation = vi.fn()
-    const { fromPage } = mountFrame({ onNavigation })
-    fromPage({ type: "screenplay:navigation", path: "/cart" })
-    expect(onNavigation).toHaveBeenCalledWith("layer-1", "/cart", false)
-  })
-
-  it("still pushes the room's Knobs and shared state to the page", () => {
-    const { view, frameWindow } = mountFrame()
+  it("scrolls the page when someone else scrolls their copy", () => {
+    const { frameWindow, view } = mount(null)
     frameWindow.postMessage.mockClear()
-    view.rerender({
-      knobValues: { dense: true },
-      sharedState: { billing: "annual" },
-    })
+    view.rerender({ x: 0, y: 900 })
     expect(frameWindow.postMessage).toHaveBeenCalledWith(
-      { type: "screenplay:knob-values", values: { dense: true } },
-      "*"
-    )
-    expect(frameWindow.postMessage).toHaveBeenCalledWith(
-      {
-        type: "screenplay:shared-state-apply",
-        state: { billing: "annual" },
-        initial: false,
-      },
+      { type: "screenplay:scroll-to", scrollX: 0, scrollY: 900 },
       "*"
     )
   })

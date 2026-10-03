@@ -108,6 +108,7 @@ const BRIDGE_READS = new Set(["screenplay:dom-query"])
 const BRIDGE_WRITES = new Set([
   "screenplay:init",
   "screenplay:state-update",
+  "screenplay:scroll-to",
   "screenplay:knob-values",
   "screenplay:shared-state-apply",
 ])
@@ -117,6 +118,7 @@ const BRIDGE_WRITES = new Set([
 const PRIMARY_EVENTS = new Set([
   "screenplay:ready",
   "screenplay:state-changed",
+  "screenplay:scroll",
   "screenplay:knobs-declared",
   "screenplay:shared-state",
   "screenplay:shared-state-request",

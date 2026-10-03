@@ -1266,7 +1266,7 @@ one-line `useCallback`s inlined in `canvas.tsx` and drilled into
 `CanvasMemberLayer` as separate props. The **Layer Mutation controller**
 (`useLayerMutations`, PRD #579) groups them into one `LayerMutations` object —
 the Iframe Layer field writers (`rename`, `assignAgent`, `updateState`,
-`updateKnobs`, `updateKnobValues`, `updateSharedState`,
+`updateScroll`, `updateKnobs`, `updateKnobValues`, `updateSharedState`,
 `updateRoute`, `fitToContent`) and the Markdown Layer writers (`resizeDocument`,
 `setTitle`, `setTitleCache`) — passed to
 `CanvasMemberLayer` (and onward to the Iframe Layer / Markdown Layer adapters) as

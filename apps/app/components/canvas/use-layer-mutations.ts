@@ -60,6 +60,8 @@ export interface LayerMutations {
   assignGroupAgent: (groupId: string, agentId: string) => void
   /** Persist the frame's serialized iframe state. */
   updateState: (id: string, state: JsonObject) => void
+  /** Persist the frame's scroll position. */
+  updateScroll: (id: string, scrollX: number, scrollY: number) => void
   /** Persist the knob declarations the frame's page exposed. */
   updateKnobs: (id: string, knobs: JsonValue[]) => void
   /** Persist the current knob values. */
@@ -147,6 +149,13 @@ export function useLayerMutations({
   const updateState = useCallback(
     (id: string, state: JsonObject) => {
       ops.patch("iframeLayers", id, { iframeState: state })
+    },
+    [ops]
+  )
+
+  const updateScroll = useCallback(
+    (id: string, scrollX: number, scrollY: number) => {
+      ops.patch("iframeLayers", id, { scrollX, scrollY })
     },
     [ops]
   )
@@ -372,6 +381,7 @@ export function useLayerMutations({
       assignAgent,
       assignGroupAgent,
       updateState,
+      updateScroll,
       updateKnobs,
       updateKnobValues,
       updateColorScheme,
@@ -394,6 +404,7 @@ export function useLayerMutations({
       assignAgent,
       assignGroupAgent,
       updateState,
+      updateScroll,
       updateKnobs,
       updateKnobValues,
       updateColorScheme,

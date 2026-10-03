@@ -24,6 +24,7 @@ export type CursorMode = "default" | "touch"
 export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
   | { type: "screenplay:state-update"; state: JsonObject }
+  | { type: "screenplay:scroll-to"; scrollX: number; scrollY: number }
   | {
       type: "screenplay:dom-query"
       id: string
@@ -97,6 +98,7 @@ export type IframeToCanvasMessage =
   // iframe boundary, so the bridge forwards this one to leave interaction.
   | { type: "screenplay:escape" }
   | { type: "screenplay:navigation"; path: string; replace?: boolean }
+  | { type: "screenplay:scroll"; scrollX: number; scrollY: number }
   | { type: "screenplay:hmr-status"; status: HmrStatus }
   | { type: "screenplay:knobs-declared"; knobs: JsonValue[] }
   | { type: "screenplay:shared-state"; state: JsonObject }

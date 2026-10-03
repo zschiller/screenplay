@@ -127,6 +127,8 @@ export interface IframeLayerData {
   iframeUrl?: string
   iframeState?: JsonObject
   route?: string
+  scrollX?: number
+  scrollY?: number
   knobs?: JsonValue[]
   knobValues?: JsonObject
   sharedState?: JsonObject
@@ -227,6 +229,7 @@ interface IframeLayerProps {
   onRename?: (id: string, label: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
   onRouteChange?: (id: string, route: string, replace: boolean) => void
+  onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
   onKnobValuesChange?: (id: string, values: JsonObject) => void
   /** Set a shared frame's Theme knob. */
@@ -392,6 +395,7 @@ export function IframeLayer({
   onRename,
   onStateChanged,
   onRouteChange,
+  onScrollChange,
   onKnobsDeclared,
   onKnobValuesChange,
   onColorSchemeChange,
@@ -678,14 +682,24 @@ export function IframeLayer({
     [iframeLayer.id]
   )
 
+  const handleScroll = useCallback(
+    (id: string, scrollX: number, scrollY: number) => {
+      onScrollChange?.(id, scrollX, scrollY)
+    },
+    [onScrollChange]
+  )
+
   usePostMessage({
     port,
     iframeLayerId: iframeLayer.id,
     iframeState: iframeLayer.iframeState ?? {},
+    iframeScrollX: iframeLayer.scrollX,
+    iframeScrollY: iframeLayer.scrollY,
     knobValues: iframeLayer.knobValues,
     sharedState: iframeLayer.sharedState,
     onStateChanged,
     onNavigation: handleNavigation,
+    onScroll: handleScroll,
     onReady: handleReady,
     onHmrStatus: handleHmrStatus,
     onKnobsDeclared,
