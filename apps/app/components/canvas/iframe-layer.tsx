@@ -5,7 +5,6 @@ import { createPortal } from "react-dom"
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  ArrowUUpLeftIcon,
   ArrowsOutSimpleIcon,
   CopyIcon,
   DotsThreeIcon,
@@ -1005,7 +1004,7 @@ export function IframeLayer({
       resizable={!focused && !drivenByOther(driver)}
       titleTag={
         localCopy ? (
-          <FrameLocalCopyTag />
+          <FrameLocalCopyTag onRejoin={onRejoin} />
         ) : drivenByOther(driver) ? (
           <FrameDriverTag driver={driver} />
         ) : undefined
@@ -1156,12 +1155,6 @@ export function IframeLayer({
                       <DropdownMenuItem onSelect={onGoLocal}>
                         <MonitorIcon />
                         Detach from shared frame
-                      </DropdownMenuItem>
-                    )}
-                    {onRejoin && (
-                      <DropdownMenuItem onSelect={onRejoin}>
-                        <ArrowUUpLeftIcon />
-                        Rejoin shared frame
                       </DropdownMenuItem>
                     )}
                     {showWorkspaceMenu && (
