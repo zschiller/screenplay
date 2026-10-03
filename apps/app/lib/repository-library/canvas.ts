@@ -123,15 +123,24 @@ export function linkedRepo(
   return canvasRepos(collections).find((r) => r.repositoryId === repositoryId)
 }
 
+/** The env var fields a save to the Canvas's encrypted store hands back. */
+type StoredEnvFields = Pick<RepoData, "envVarNames" | "envVarsDigest">
+
 /**
  * Switch a Repository on for a Canvas: copy it in as a Repo linked back to it
  * and record who added it. Already on = nothing changes, and the existing
- * Repo's id comes back.
+ * Repo's id comes back. `env`, when given, is what storing the values
+ * returned, and replaces the names and digest taken from the Repository.
  */
 export function switchOn(
   collections: RoomCollections,
   repository: RepoConfig,
-  { id, createdAt, addedBy }: { id: string; createdAt: number; addedBy: string }
+  {
+    id,
+    createdAt,
+    addedBy,
+  }: { id: string; createdAt: number; addedBy: string },
+  env?: StoredEnvFields
 ): string {
   const existing = linkedRepo(collections, repository.id)
   if (existing) return existing.id
@@ -146,12 +155,33 @@ export function switchOn(
     // A folder Repository points the Repo at the existing checkout (ADR 0013).
     localPath: repository.localPath,
     ...runSettings(repository),
+    ...env,
     createdAt,
     repositoryId: repository.id,
     addedBy,
   }
   createCanvasOps(collections).createRepo(id, repo)
   return id
+}
+
+/**
+ * {@link switchOn} with the Repository's env var values stored for the Canvas
+ * first (`saveEnv`, under the new Repo's id), so the doc never lists names
+ * whose values weren't stored (#1476). A failed save rejects and leaves the
+ * Repository switched off; one without values skips the save.
+ */
+export async function switchOnWithEnv(
+  collections: RoomCollections,
+  repository: RepoConfig,
+  opts: { id: string; createdAt: number; addedBy: string },
+  saveEnv: (repoId: string, text: string) => Promise<StoredEnvFields>
+): Promise<string> {
+  const existing = linkedRepo(collections, repository.id)
+  if (existing) return existing.id
+  const env = repository.envVars.trim()
+    ? await saveEnv(opts.id, repository.envVars)
+    : undefined
+  return switchOn(collections, repository, opts, env)
 }
 
 /**

@@ -67,7 +67,7 @@ import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { switchOn } from "@/lib/repository-library"
+import { switchOnWithEnv } from "@/lib/repository-library"
 import { migrateCanvasEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 import { canRevealEnv } from "@/lib/repo-env/names"
 import { renameRoom } from "@/lib/rooms-actions"
@@ -1847,19 +1847,19 @@ export function Canvas({
   const addRepository = useAddRepositoryFlow()
   const switchOnHere = useCallback(
     (repository: RepoConfig) => {
-      const id = nanoid()
-      const on = switchOn(collections, repository, {
-        id,
-        createdAt: Date.now(),
-        addedBy: userId ?? "anonymous",
-      })
       // The Repository's values go to this canvas's encrypted store, never
-      // its room doc (#1416).
-      if (on === id && repository.envVars.trim()) {
-        saveCanvasRepoEnv(roomId, id, repository.envVars, "replace").catch(() =>
-          toast.error("Couldn't copy the environment variables.")
-        )
-      }
+      // its room doc (#1416), and are stored before the Repo switches on
+      // (#1476).
+      switchOnWithEnv(
+        collections,
+        repository,
+        {
+          id: nanoid(),
+          createdAt: Date.now(),
+          addedBy: userId ?? "anonymous",
+        },
+        (id, text) => saveCanvasRepoEnv(roomId, id, text, "replace")
+      ).catch(() => toast.error("Couldn't copy the environment variables."))
     },
     [collections, userId, roomId]
   )
