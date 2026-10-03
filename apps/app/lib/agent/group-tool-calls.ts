@@ -1,3 +1,5 @@
+import { bareToolName } from "@/lib/agent/tool-name"
+import { DRIVE_GESTURES } from "@/lib/agent/tool-row-label"
 import type { AgentMessage } from "@/lib/agent/types"
 
 /** A tool call spawned inside a subagent carries its `Task`'s id (issue #636). */
@@ -17,6 +19,11 @@ export interface GroupedMessage {
   message: AgentMessage
   index: number
   children: { message: ToolCallMessage; index: number }[]
+  /**
+   * Set on a Frame Drive folded into one row ({@link foldFrameDrives}):
+   * `children` are then all its steps, `message` the first of them.
+   */
+  drive?: true
 }
 
 /**
@@ -55,4 +62,62 @@ export function groupToolCalls(messages: AgentMessage[]): GroupedMessage[] {
   })
 
   return grouped
+}
+
+/** A Frame Drive step: any `frame_` tool but opening a new frame. */
+function driveStep(entry: GroupedMessage): ToolCallMessage | null {
+  const m = entry.message
+  if (m.role !== "tool_call" || entry.children.length > 0) return null
+  const name = bareToolName(m.title)
+  return name.startsWith("frame_") && name !== "frame_open" ? m : null
+}
+
+/** The frame a step drives: its `frameId`, or the chat's own frame. */
+function driveFrame(call: ToolCallMessage): string {
+  const raw = call.rawInput
+  const id =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>).frameId
+      : null
+  return typeof id === "string" && id ? id : ""
+}
+
+/**
+ * Fold each Frame Drive into one entry: back-to-back steps on the same frame
+ * that act on the page at least once. The person watches the frame while
+ * the agent drives it, so a row per click repeats what they just saw. A run
+ * of steps with no gesture (only reads of the page) stays as it is, and so
+ * does a lone step.
+ */
+export function foldFrameDrives(entries: GroupedMessage[]): GroupedMessage[] {
+  const out: GroupedMessage[] = []
+  let run: GroupedMessage[] = []
+  const flush = () => {
+    const calls = run.map((e) => driveStep(e)!)
+    if (
+      run.length > 1 &&
+      calls.some((c) => DRIVE_GESTURES.has(bareToolName(c.title)))
+    ) {
+      out.push({
+        message: run[0]!.message,
+        index: run[0]!.index,
+        children: run.map((e, i) => ({ message: calls[i]!, index: e.index })),
+        drive: true,
+      })
+    } else out.push(...run)
+    run = []
+  }
+  for (const entry of entries) {
+    const step = driveStep(entry)
+    const last = run.at(-1)
+    if (step && (!last || driveFrame(driveStep(last)!) === driveFrame(step))) {
+      run.push(entry)
+      continue
+    }
+    flush()
+    if (step) run.push(entry)
+    else out.push(entry)
+  }
+  flush()
+  return out
 }

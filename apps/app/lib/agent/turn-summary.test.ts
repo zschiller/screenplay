@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { groupToolCalls } from "./group-tool-calls"
+import { foldFrameDrives, groupToolCalls } from "./group-tool-calls"
 import { foldFinishedTurns, summarizeSteps } from "./turn-summary"
 import type { AgentMessage } from "@/lib/agent/types"
 
@@ -305,6 +305,22 @@ describe("summarizeSteps", () => {
     ])
     expect(text).toBe("Viewed 1 frame, drove 1 frame")
     expect(failures).toEqual(["Frame step"])
+  })
+
+  it("counts a folded frame drive the same as a flat one", () => {
+    const steps = [
+      call("1", { title: "frame_start_driving", rawInput: { pace: "show" } }),
+      call("2", { title: "mcp__screenplay__frame_elements" }),
+      call("3", {
+        title: "frame_click",
+        rawInput: { target: { text: "Save" } },
+      }),
+      call("4", { title: "frame_type", status: "failed" }),
+      call("5", { title: "frame_screenshot" }),
+    ]
+    const folded = foldFrameDrives(groupToolCalls(steps))
+    expect(folded).toHaveLength(1)
+    expect(summarizeSteps(folded)).toEqual(summarize(steps))
   })
 
   it("reads an ACP adapter's calls by kind", () => {

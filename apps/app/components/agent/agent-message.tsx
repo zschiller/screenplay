@@ -11,11 +11,15 @@ import {
   ArrowsMergeIcon,
   ArrowsOutCardinalIcon,
   BookBookmarkIcon,
+  BookOpenIcon,
   BrainIcon,
   CaretUpDownIcon,
   CursorIcon,
   LightbulbIcon,
   ChatTextIcon,
+  ChatCircleIcon,
+  GlobeIcon,
+  ScribbleIcon,
   CaretRightIcon,
   CheckCircleIcon,
   ClipboardTextIcon,
@@ -40,7 +44,6 @@ import {
   QuestionIcon,
   RobotIcon,
   SelectionIcon,
-  SparkleIcon,
   SquareIcon,
   SquaresFourIcon,
   StopCircleIcon,
@@ -64,6 +67,16 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import type { TurnSummary } from "@/lib/agent/turn-summary"
 import { bareToolName } from "@/lib/agent/tool-name"
+import {
+  callIdentity,
+  DRIVE_GESTURES,
+  driveName,
+  readableFrameNames,
+  relativePath,
+  rowLabel,
+  type RowLabel,
+} from "@/lib/agent/tool-row-label"
+import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import {
   elementMarkersToPills,
   mockupMarkersToRefs,
@@ -93,8 +106,10 @@ import {
 import { parseLayerLink } from "@/lib/agent/layer-link"
 import { useMockupTitle } from "@/lib/yjs/react"
 import { ElementDetail } from "./element-detail"
-import { useElementHighlight } from "./use-element-highlight"
+import { commandOutput, highlight, languageFor, LogText } from "./tool-output"
 import { ChatMarkdown } from "./chat-markdown"
+import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
+import { useElementHighlight } from "./use-element-highlight"
 import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
 import { QuestionCard } from "./question-card"
@@ -117,7 +132,7 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   run_command: TerminalIcon,
   list_files: FolderOpenIcon,
   create_pr: GitPullRequestIcon,
-  read_skill: SparkleIcon,
+  read_skill: BookOpenIcon,
   read_dev_server_logs: ListDashesIcon,
   restart_dev_server: ArrowsClockwiseIcon,
   stop_dev_server: SquareIcon,
@@ -164,6 +179,21 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   open_pull_request: GitPullRequestIcon,
   remove_workspace: TrashIcon,
   ask_question: QuestionIcon,
+}
+
+// Icons for the subjects a row label names (tool-row-label.ts).
+const labelIcons: Record<string, typeof FileTextIcon> = {
+  search: MagnifyingGlassIcon,
+  folder: FolderOpenIcon,
+  globe: GlobeIcon,
+  eye: EyeIcon,
+  robot: RobotIcon,
+  warning: WarningCircleIcon,
+  skill: BookOpenIcon,
+  edit: PencilSimpleIcon,
+  mockup: ScribbleIcon,
+  chat: ChatCircleIcon,
+  send: ChatTextIcon,
 }
 
 const toolLabels: Record<string, string> = {
@@ -223,6 +253,32 @@ const toolLabels: Record<string, string> = {
   ask_question: "Ask a question",
 }
 
+// Results that only restate their row, so it has nothing to open onto.
+const QUIET_RESULT = new Set(["Skill", "create_mockup", "update_mockup"])
+// Results drawn as markdown, as logs (with their ANSI colours) and as prose.
+const MARKDOWN_RESULT = new Set([
+  "read_skill",
+  "read_document",
+  "read_workspace_chat",
+  "read_canvas",
+  "list_changes",
+])
+const LOG_RESULT = new Set([
+  "run_command",
+  "read_dev_server_logs",
+  "start_dev_server",
+  "restart_dev_server",
+])
+const PROSE_RESULT = new Set([
+  "read_canvas",
+  "read_workspace_chat",
+  "read_skill",
+  "read_document",
+  "frame_elements",
+  "read_mockup",
+  "list_changes",
+])
+
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
 // screenplay's own in-process engine. A generic ACP adapter (e.g.
 // claude-agent-acp) instead sends an already human-readable, possibly
@@ -244,14 +300,16 @@ function formatToolName(name: string): string {
 // still get a sensible icon rather than the bare default.
 const kindIcons: Record<string, typeof FileTextIcon> = {
   read: FileTextIcon,
+  search: MagnifyingGlassIcon,
   edit: PencilSimpleIcon,
   execute: TerminalIcon,
   fetch: ArrowSquareOutIcon,
-  think: SparkleIcon,
+  think: LightbulbIcon,
 }
 
 /**
- * Render an ACP tool-call title as plain text with inline `code` spans only.
+ * Render an ACP tool-call title as plain text, with its inline `code` spans
+ * marked as the row's subject (in the UI font like the rest of the row).
  *
  * A generic ACP adapter (claude-agent-acp) hands us an already human-readable
  * title that may wrap a path or command in backticks (`Read `src/a.ts``). We
@@ -259,7 +317,7 @@ const kindIcons: Record<string, typeof FileTextIcon> = {
  * mangles other text the title legitimately carries — `src/__init__.py` renders
  * as bold "init" (losing the underscores), `[a](b)` becomes a link that drops
  * its URL, and nested/unbalanced backticks from a shell command leak through as
- * literal backticks. Instead we honor only balanced single-backtick code spans
+ * literal backticks. Instead we honor only balanced single-backtick spans
  * and emit everything else verbatim, so the title can never lose characters.
  */
 function renderTitleWithCode(title: string): ReactNode[] {
@@ -271,9 +329,9 @@ function renderTitleWithCode(title: string): ReactNode[] {
   while ((match = codeSpan.exec(title)) !== null) {
     if (match.index > last) parts.push(title.slice(last, match.index))
     parts.push(
-      <code key={key++} className="align-baseline font-mono text-xs">
+      <span key={key++} data-row-detail>
         {match[1]}
-      </code>
+      </span>
     )
     last = match.index + match[0].length
   }
@@ -332,59 +390,8 @@ function toolDetail(title: string, raw: unknown): string | null {
   if (title === "run_command") return toolCommand(raw)
   if (title === "read_skill") return (rawInput.name as string) ?? null
   if (title === "set_document_title") return (rawInput.title as string) ?? null
-  if (title.startsWith("frame_")) return driveDetail(title, rawInput)
+  if (title === "frame_open") return (rawInput.route as string) || null
   return toolPath(raw)
-}
-
-/**
- * What a Frame Drive step acted on, so each step of a drive reads as a short
- * line in chat (#1390): Click `Save`, Type `Ada`, Press key `Enter`.
- */
-function driveDetail(
-  title: string,
-  input: Record<string, unknown>
-): string | null {
-  const str = (v: unknown) => (typeof v === "string" && v ? v : null)
-  const target = (t: unknown): string | null => {
-    if (!t || typeof t !== "object") return null
-    const r = t as Record<string, unknown>
-    if (str(r.text)) return str(r.text)
-    if (str(r.selector)) return str(r.selector)
-    return typeof r.x === "number" && typeof r.y === "number"
-      ? `${Math.round(r.x)}, ${Math.round(r.y)}`
-      : null
-  }
-  switch (title) {
-    case "frame_click":
-    case "frame_hover":
-      return target(input.target)
-    case "frame_type":
-      return str(input.text)
-    case "frame_select":
-      return str(input.value)
-    case "frame_key": {
-      const mods = (input.modifiers ?? {}) as Record<string, unknown>
-      const names = [
-        mods.ctrlKey && "Ctrl",
-        mods.altKey && "Alt",
-        mods.shiftKey && "Shift",
-        mods.metaKey && "Cmd",
-      ].filter((m): m is string => !!m)
-      const key = str(input.key)
-      return key ? [...names, key].join("+") : null
-    }
-    case "frame_drag": {
-      const from = target(input.target)
-      const to = target(input.to)
-      return from && to ? `${from} → ${to}` : from
-    }
-    case "frame_scroll":
-      return target(input.target)
-    case "frame_open":
-      return str(input.route)
-    default:
-      return null
-  }
 }
 
 /**
@@ -466,13 +473,19 @@ function cleanToolText(text: string): string {
   // Drop the leading line-number gutter (`<spaces>123→`) prefixed onto each
   // read line. The `→` (U+2192) makes this distinctive enough to not maul
   // ordinary output.
-  return out.replace(/^[ \t]*\d+→/gm, "")
+  out = out.replace(/^[ \t]*\d+→/gm, "")
+  // PROTOTYPE: the in-process engine's `<n>\t` gutter, only when every line has one.
+  const lines = out.split("\n")
+  if (lines.length > 0 && lines.every((l) => /^[ \t]*\d+\t/.test(l))) {
+    out = lines.map((l) => l.replace(/^[ \t]*\d+\t/, "")).join("\n")
+  }
+  return out
 }
 
 const DIFF_ROW_CLASS: Record<"context" | "added" | "removed", string> = {
-  context: "text-muted-foreground",
-  added: "bg-success/10 text-foreground",
-  removed: "bg-destructive/10 text-foreground",
+  context: "",
+  added: "bg-success/10",
+  removed: "bg-destructive/10",
 }
 const DIFF_SIGN: Record<"context" | "added" | "removed", string> = {
   context: " ",
@@ -486,17 +499,28 @@ const DIFF_SIGN_CLASS: Record<"context" | "added" | "removed", string> = {
 }
 
 /** A file edit as a line diff: shared lines as context, changes marked +/-. */
-function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
+function DiffBlock({
+  block,
+  single,
+}: {
+  block: ToolCallContent & { type: "diff" }
+  single?: boolean
+}) {
   const rows = useMemo(
     () => foldContext(diffLines(block.oldText, block.newText)),
     [block.oldText, block.newText]
   )
+  const lang = languageFor(block.path)
   return (
     <div data-testid="tool-content-diff">
-      <div className="border-b border-border px-2 py-1 font-mono text-xs break-all text-muted-foreground">
-        {block.path}
-      </div>
-      <div className={`${TOOL_OUTPUT_CAP} py-1 font-mono text-xs`}>
+      {single ? null : (
+        <div className="border-b border-border px-2 py-1 font-mono text-xs break-all text-muted-foreground">
+          {block.path}
+        </div>
+      )}
+      <div
+        className={`tool-output ${TOOL_OUTPUT_CAP} py-1 font-mono text-xs text-foreground`}
+      >
         {rows.map((row, i) =>
           row.kind === "skip" ? (
             <div key={i} className="px-2 text-muted-foreground/70 select-none">
@@ -522,7 +546,7 @@ function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
                     : ""}
               </span>
               <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">
-                {row.text || " "}
+                {row.text ? highlight(row.text, lang) : " "}
               </span>
             </div>
           )
@@ -532,49 +556,141 @@ function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
   )
 }
 
+/** How an open row draws a text result. */
+type OutputMode = "plain" | "prose" | "code" | "log" | "markdown"
+
 /**
- * Render one ACP {@link ToolCallContent} block *structurally* — a file `diff`
- * as a line diff, a text `content` block as preformatted text — rather than
- * flattening it all to one `<pre>`. `terminal` blocks never get here: see
- * {@link shownContent}.
+ * Render one ACP {@link ToolCallContent} block *structurally*: a file `diff`
+ * as a line diff, an image as itself, and text as `mode` says (markdown,
+ * highlighted code, a coloured log, prose in the UI font, or preformatted
+ * text). `terminal` blocks never get here: see {@link shownContent}.
  */
 function ToolContentBlock({
   block,
-  failed,
+  single,
+  mode = "plain",
+  lang = null,
 }: {
   block: Exclude<ToolCallContent, { type: "terminal" }>
-  failed?: boolean
+  /** The call's only diff, whose path the row already names. */
+  single?: boolean
+  mode?: OutputMode
+  lang?: string | null
 }) {
-  if (block.type === "diff") return <DiffBlock block={block} />
-  // A standard content block — render its text; non-text blocks (image, …) are
-  // deferred polish.
+  if (block.type === "diff") return <DiffBlock block={block} single={single} />
+  if (block.content.type === "image") {
+    const { data, mimeType } = block.content
+    return (
+      <div className="p-2">
+        {/* A data URL the agent was sent; nothing for next/image to optimize. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt="What the agent saw"
+          src={`data:${mimeType};base64,${data}`}
+          className="max-h-48 max-w-full rounded-sm border border-border"
+        />
+      </div>
+    )
+  }
   const text =
     block.content.type === "text" ? cleanToolText(block.content.text) : ""
+  if (mode === "markdown") {
+    // Not pre-wrapped: markdown's own line breaks are not the output's.
+    return (
+      <div
+        data-testid="tool-content-text"
+        className="max-h-64 overflow-y-auto px-2 py-1.5"
+      >
+        <ChatMarkdown
+          tone="default"
+          size="xs"
+          className="[&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:text-xs [&_li]:my-0 [&_ol]:my-1 [&_p]:my-1 [&_ul]:my-1"
+        >
+          {text}
+        </ChatMarkdown>
+      </div>
+    )
+  }
+  if (mode === "prose") {
+    return (
+      <div
+        data-testid="tool-content-text"
+        className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 text-xs text-foreground`}
+      >
+        {text}
+      </div>
+    )
+  }
   return (
     <pre
       data-testid="tool-content-text"
-      className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-xs ${failed ? "text-destructive" : "text-muted-foreground"}`}
+      className={cn(
+        TOOL_OUTPUT_CAP,
+        "px-2 py-1.5 font-mono text-xs text-foreground",
+        mode === "code" && "tool-output"
+      )}
     >
-      {text}
+      {mode === "code" ? (
+        highlight(text, lang)
+      ) : mode === "log" ? (
+        <>
+          <style href="ansi-palette" precedence="default">
+            {ANSI_PALETTE_CSS}
+          </style>
+          <LogText text={text} />
+        </>
+      ) : (
+        text
+      )}
     </pre>
   )
 }
 
 /**
- * A tool call's content without its `terminal` blocks. We never create ACP
- * terminals, so a terminal id resolves to nothing; codex-acp sends one for a
- * running command anyway and swaps in the output text when it finishes, so the
- * row's title and status carry it until then.
+ * A tool call's content as the row shows it. Without its `terminal` blocks:
+ * we never create ACP terminals, so a terminal id resolves to nothing;
+ * codex-acp sends one for a running command anyway and swaps in the output
+ * text when it finishes, so the row's title and status carry it until then.
+ * Without the input claude-agent-acp echoes as a ```json block for a tool it
+ * doesn't know (ours among them) until the result replaces it: the row
+ * already names what the input says. A hosted command's output without the
+ * parts that say nothing, and a frame tool's with its frames named as a
+ * person would.
  */
-function shownContent(content: ToolCallContent[]) {
-  return content.filter(
-    (b): b is Exclude<ToolCallContent, { type: "terminal" }> =>
-      b.type !== "terminal"
+function shownContent(message: AgentMessage & { role: "tool_call" }) {
+  const name = bareToolName(message.title)
+  const input = JSON.stringify(message.rawInput ?? null)
+  return message.content.flatMap(
+    (b): Exclude<ToolCallContent, { type: "terminal" }>[] => {
+      if (b.type === "terminal") return []
+      if (b.type !== "content" || b.content.type !== "text") return [b]
+      if (echoesInput(b.content.text, input)) return []
+      if (name.startsWith("frame_")) {
+        const text = readableFrameNames(b.content.text)
+        return [{ ...b, content: { ...b.content, text } }]
+      }
+      if (name !== "run_command") return [b]
+      const text = commandOutput(b.content.text)
+      return text.trim() ? [{ ...b, content: { ...b.content, text } }] : []
+    }
   )
 }
 
+/** Whether a text block is only the call's own input, as a ```json block. */
+function echoesInput(text: string, input: string): boolean {
+  const fenced = text.trim().match(/^```json\n([\s\S]*)\n```$/)
+  if (!fenced) return false
+  try {
+    return JSON.stringify(JSON.parse(fenced[1]!)) === input
+  } catch {
+    return false
+  }
+}
+
 /** The text of a failed call's output, or null when it reported none. */
-function hasFailureText(content: ToolCallContent[]): boolean {
+function hasFailureText(
+  content: Exclude<ToolCallContent, { type: "terminal" }>[]
+): boolean {
   return content.some(
     (b) =>
       b.type !== "content" ||
@@ -610,11 +726,7 @@ function TruncatedTitle({
             {children}
           </span>
         </TooltipTrigger>
-        <TooltipContent
-          side="top"
-          align="start"
-          className="max-w-sm font-mono break-all"
-        >
+        <TooltipContent side="top" align="start" className="max-w-sm break-all">
           {fullText}
         </TooltipContent>
       </Tooltip>
@@ -622,12 +734,40 @@ function TruncatedTitle({
   )
 }
 
+/** A harness's PascalCase tool name as words: `NotebookRead` → "Notebook read". */
+function spacedToolName(title: string): string | null {
+  if (!/^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(title)) return null
+  return title
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/ ([A-Z])/g, (_, c: string) => ` ${c.toLowerCase()}`)
+}
+
+/** A row label's subject: plain text, or keycaps for keys. */
+function LabelDetail({ named }: { named: RowLabel }) {
+  if (!named.detail) return null
+  if (named.as === "key") {
+    return (
+      <KbdGroup className="align-baseline">
+        {named.detail.split(" ").map((k) => (
+          <Kbd key={k} className="h-4 text-xs">
+            {k}
+          </Kbd>
+        ))}
+      </KbdGroup>
+    )
+  }
+  return <span data-row-detail>{named.detail}</span>
+}
+
+/** The shell wrapper codex-acp's raw command carries (`/bin/zsh -lc '…'`). */
+const SHELL_WRAPPER = /^(?:\/bin\/)?(?:bash|zsh|sh)\s+-/
+
 /**
  * The one tool-call row (issue #728), keyed by id and advancing through its
  * status lifecycle in place: running shows the progress spinner, done shows the
  * tool's icon, and failed shows the reason — its output, or a line saying none
  * was reported — without needing to be opened. A row only expands when it has
- * output to show.
+ * output to show beyond what its label says. The whole row is in the UI font.
  */
 function ToolCallRow({
   message,
@@ -640,26 +780,41 @@ function ToolCallRow({
   const failed = message.status === "failed"
   // Our own tools reached over a harness's MCP connection carry its
   // namespace (`mcp__screenplay__read_canvas`); label them by their own name.
-  const name = bareToolName(message.title)
+  const { name, input } = callIdentity(message)
   const Icon =
     toolIcons[name] ??
     (message.kind ? kindIcons[message.kind] : undefined) ??
     TerminalIcon
-  // Render every engine's tool call the same way: derive the verb + detail from
-  // the tool identity (`kind` / raw name) and `rawInput`, not from whatever prose
-  // title an adapter happens to send — so an in-process `read_file` and a
-  // claude-agent-acp "Read File" both show "Read N lines `path`". Our own tools
-  // report a raw snake_case name (humanized + given a derived detail); a generic
-  // adapter's prose title is normalized via its ACP `kind`. A call we can't
-  // structure (an unknown kind with no recognizable input) keeps the adapter's
-  // prose title verbatim, rendered with inline `code` only.
+  // Most calls read as a verb plus what they acted on, the same on every
+  // engine (tool-row-label.ts). A Workspace a Coordinator tool names reads
+  // by its title.
+  const tasks = useWorkspaceTasks()
+  const named = rowLabel(message, (id) => {
+    const branch = tasks?.branches.find((b) => b.id === id)
+    return branch?.title?.trim() || null
+  })
+  // The rest derive the verb + detail from the tool identity (`kind` / raw
+  // name) and `rawInput`, not from whatever prose title an adapter happens to
+  // send — so an in-process `read_file` and a claude-agent-acp "Read File"
+  // both show "Read N lines path". Our own tools report a raw snake_case name
+  // (humanized + given a derived detail); a generic adapter's prose title is
+  // normalized via its ACP `kind`. A call we can't structure (an unknown kind
+  // with no recognizable input) keeps the adapter's prose title verbatim.
   const isRawToolName = RAW_TOOL_NAME.test(name)
-  const path = toolPath(message.rawInput)
+  const diffPath = message.content.find((b) => b.type === "diff")?.path ?? null
+  const path =
+    toolPath(message.rawInput) ?? (message.kind === "edit" ? diffPath : null)
+  const command = toolCommand(message.rawInput)
   const detail = isRawToolName
-    ? toolDetail(name, message.rawInput)
+    ? toolDetail(name, input)
     : message.kind === "execute"
-      ? toolCommand(message.rawInput)
+      ? // Codex's title is the command without its shell wrapper.
+        command && SHELL_WRAPPER.test(command)
+        ? message.title
+        : command
       : path
+        ? relativePath(path, message.title)
+        : null
   const verb = isRawToolName
     ? formatToolName(name)
     : message.kind
@@ -682,30 +837,78 @@ function ToolCallRow({
   // Structure it when we have a real verb (our own raw tool, or a known kind we
   // could attach a detail to); otherwise fall back to the adapter's prose title.
   const structured = isRawToolName || (verb != null && detail != null)
-  const content = shownContent(message.content)
-  const hasContent = content.length > 0 && !outcome
+  const content = shownContent(message)
+  // A result that only says the label again ("Did click on button "Pay"")
+  // leaves the row nothing to open onto.
+  const restates =
+    QUIET_RESULT.has(name) ||
+    (DRIVE_GESTURES.has(name) &&
+      content.every(
+        (b) =>
+          b.type === "content" &&
+          b.content.type === "text" &&
+          /^(Did |Started|Stopped)/.test(b.content.text)
+      ))
+  const hasContent = content.length > 0 && !outcome && !restates
+  const readPath =
+    message.kind === "read" ||
+    /^read_(file|code_file|workspace_file)$/.test(name)
+      ? (toolPath(input) ??
+        message.title.match(/^Read file '(.+)'$/)?.[1] ??
+        null)
+      : null
+  const lang = languageFor(readPath)
+  const mode: OutputMode =
+    MARKDOWN_RESULT.has(name) || message.kind === "fetch"
+      ? "markdown"
+      : lang
+        ? "code"
+        : message.kind === "execute" || LOG_RESULT.has(name)
+          ? "log"
+          : PROSE_RESULT.has(name)
+            ? "prose"
+            : "plain"
 
+  const spaced = structured ? null : spacedToolName(message.title)
   const title = outcome ? (
     outcome
+  ) : named ? (
+    <>
+      {named.verb}
+      {named.detail ? (
+        <>
+          {" "}
+          <LabelDetail named={named} />
+        </>
+      ) : null}
+    </>
   ) : structured ? (
     <>
       {label}
       {detail ? (
         <>
           {" "}
-          <code className="align-baseline font-mono text-xs">{detail}</code>
+          <span data-row-detail>{detail}</span>
         </>
       ) : null}
     </>
   ) : (
-    renderTitleWithCode(message.title)
+    (spaced ?? renderTitleWithCode(message.title))
   )
   const fullText = outcome
     ? outcome
-    : structured
-      ? [label, detail].filter(Boolean).join(" ")
-      : message.title.replace(/`/g, "")
+    : named
+      ? [named.verb, named.detail].filter(Boolean).join(" ")
+      : structured
+        ? [label, detail].filter(Boolean).join(" ")
+        : (spaced ?? message.title.replace(/`/g, ""))
 
+  // One diff whose file the row already names needs no path header.
+  const diffs = content.filter((b) => b.type === "diff")
+  const single =
+    diffs.length === 1 &&
+    fullText.includes(diffs[0]!.path.split("/").at(-1) ?? diffs[0]!.path)
+  const RowIcon = (named?.icon && labelIcons[named.icon]) || Icon
   const icon = running ? (
     <Spinner
       data-testid="tool-call-spinner"
@@ -718,7 +921,7 @@ function ToolCallRow({
       className="size-3 shrink-0 text-destructive"
     />
   ) : (
-    <Icon aria-hidden className="size-3 shrink-0" />
+    <RowIcon aria-hidden className="size-3 shrink-0" />
   )
   const headerProps = {
     "data-testid": "tool-call",
@@ -736,7 +939,7 @@ function ToolCallRow({
       >
         {hasFailureText(content) ? (
           content.map((block, i) => (
-            <ToolContentBlock key={i} block={block} failed />
+            <ToolContentBlock key={i} block={block} mode={mode} lang={lang} />
           ))
         ) : (
           <p
@@ -762,7 +965,13 @@ function ToolCallRow({
       {hasContent ? (
         <div className="divide-y divide-border">
           {content.map((block, i) => (
-            <ToolContentBlock key={i} block={block} />
+            <ToolContentBlock
+              key={i}
+              block={block}
+              single={single}
+              mode={mode}
+              lang={lang}
+            />
           ))}
         </div>
       ) : undefined}
@@ -852,6 +1061,60 @@ export function TaskGroup({
         </div>
       </ChatDisclosure>
     </div>
+  )
+}
+
+/**
+ * A Frame Drive folded into one row ({@link foldFrameDrives}): "Drove
+ * Checkout", with its step count, opening onto the steps. The person watches
+ * the frame while it's driven, so it stays closed while it runs; its spinner
+ * and count carry the progress, and a failed step marks the row.
+ */
+export function FrameDriveGroup({
+  steps,
+}: {
+  steps: (AgentMessage & { role: "tool_call" })[]
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const running = steps.some(
+    (s) => s.status === "pending" || s.status === "in_progress"
+  )
+  const failed = steps.some((s) => s.status === "failed")
+  const page = driveName(steps) ?? "the frame"
+  return (
+    <ChatDisclosure
+      open={expanded}
+      onOpenChange={setExpanded}
+      icon={
+        running ? (
+          <Spinner aria-label="Running" className="size-3 shrink-0" />
+        ) : failed ? (
+          <WarningCircleIcon
+            aria-label="Failed"
+            className="size-3 shrink-0 text-destructive"
+          />
+        ) : (
+          <CursorIcon aria-hidden className="size-3 shrink-0" />
+        )
+      }
+      title={
+        <TruncatedTitle fullText={`${running ? "Driving" : "Drove"} ${page}`}>
+          {running ? "Driving" : "Drove"} <span data-row-detail>{page}</span>
+        </TruncatedTitle>
+      }
+      meta={
+        <span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">
+          {steps.length} {steps.length === 1 ? "step" : "steps"}
+        </span>
+      }
+      headerProps={{ "data-testid": "frame-drive" }}
+    >
+      <div className="space-y-2 py-2 pr-2 pl-3">
+        {steps.map((step) => (
+          <ToolCallRow key={step.toolCallId} message={step} />
+        ))}
+      </div>
+    </ChatDisclosure>
   )
 }
 

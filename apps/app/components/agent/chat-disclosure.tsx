@@ -64,13 +64,20 @@ export function ChatDisclosure({
       )}
     </>
   )
-  const frame = cn("rounded-md border border-border bg-muted/30", className)
+  // PROTOTYPE: an open section takes the page background and full-strength text.
+  const frame = cn(
+    "rounded-md border border-border bg-muted/30 data-[state=open]:bg-background",
+    className
+  )
   const body = "border-t border-border"
 
   if (!collapsible) {
     return (
-      <div className={frame}>
-        <div {...headerProps} className={HEADER_CLASS}>
+      <div className={cn(frame, children != null && "bg-background")}>
+        <div
+          {...headerProps}
+          className={cn(HEADER_CLASS, children != null && "text-foreground")}
+        >
           {header}
         </div>
         {children != null && <div className={body}>{children}</div>}
@@ -84,7 +91,7 @@ export function ChatDisclosure({
         {...(headerProps as ComponentProps<"button">)}
         className={cn(
           HEADER_CLASS,
-          "group/disclosure outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset data-[state=open]:rounded-b-none"
+          "group/disclosure outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset data-[state=open]:rounded-b-none data-[state=open]:text-foreground data-[state=open]:hover:bg-transparent"
         )}
       >
         {header}

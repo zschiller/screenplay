@@ -344,8 +344,16 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
   const calls: ToolCallMessage[] = []
   const failed: ToolCallMessage[] = []
   let subagents = 0
-  for (const { message, children } of steps) {
+  for (const { message, children, drive } of steps) {
     if (message.role !== "tool_call") continue
+    // A folded Frame Drive's steps count one by one, like flat ones.
+    if (drive) {
+      for (const child of children) {
+        calls.push(child.message)
+        if (child.message.status === "failed") failed.push(child.message)
+      }
+      continue
+    }
     if (children.length > 0) subagents++
     else calls.push(message)
     if (message.status === "failed") failed.push(message)

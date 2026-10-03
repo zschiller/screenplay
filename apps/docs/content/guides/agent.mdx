@@ -249,39 +249,49 @@ chats running on Claude Code, Codex or OpenCode.
 ## Following the work
 
 Agent replies stream in as they're written. Each tool call is a compact row
-you can expand for details:
+that says what the agent did and what it acted on, in the same words whichever
+agent the chat runs on. Paths are relative to the repository.
 
-| Row                                | Meaning                                          |
-| ---------------------------------- | ------------------------------------------------ |
-| **Read** _n_ lines `path`          | Read a file                                      |
-| **Edit** / **Write** `path`        | Changed a file (expand to see the diff)          |
-| **Run command** `command`          | Ran a shell command in the sandbox               |
-| **List files**, **Grep**, **Glob** | Searched the code                                |
-| **Read skill** `name`              | Loaded a skill's instructions                    |
-| **Read dev server logs**           | Read the dev server's recent output              |
-| **Restart dev server**             | Restarted the workspace's dev server             |
-| **Stop dev server**                | Stopped the workspace's dev server               |
-| **Start dev server**               | Started a stopped dev server again               |
-| **View frame**                     | Looked at a frame's preview, or its last capture |
-| **Read frame HTML**                | Read the page in a frame as HTML                 |
-| **Take control**                   | Took control of a frame or mockup                |
-| **Open frame**                     | Opened a frame to drive (desktop app)            |
-| **Read frame elements**            | Read what can be acted on in a frame             |
-| **Screenshot frame**               | Took a screenshot of a frame while driving it    |
-| **Click**, **Type**, **Press key** | Drove a frame (desktop app)                      |
-| **Scroll**, **Drag**, **Hover**    | Drove a frame (desktop app)                      |
-| **Pick option**                    | Picked from a dropdown in a frame                |
-| **Read document**                  | Read a document on the canvas                    |
-| **Create pull request**            | Opened a pull request (shown as a link card)     |
-| **Submit plan**                    | Presented a plan for approval                    |
-| A question with options            | Asked you to pick an option                      |
+| Row                                      | Meaning                                          |
+| ---------------------------------------- | ------------------------------------------------ |
+| **Read** _n_ lines _path_                | Read a file                                      |
+| **Edit** / **Write** _path_              | Changed a file (expand to see the diff)          |
+| **Run command** _command_                | Ran a shell command in the sandbox               |
+| **Search** _pattern_                     | Searched the code                                |
+| **Find files** _pattern_, **List files** | Looked for files                                 |
+| **Search the web**, **Fetch** _site_     | Looked something up online                       |
+| **Read skill** _name_                    | Loaded a skill's instructions                    |
+| **Read dev server logs**                 | Read the dev server's recent output              |
+| **Restart dev server**                   | Restarted the workspace's dev server             |
+| **Stop dev server**                      | Stopped the workspace's dev server               |
+| **Start dev server**                     | Started a stopped dev server again               |
+| **View frame**                           | Looked at a frame's preview, or its last capture |
+| **Read frame HTML**                      | Read the page in a frame as HTML                 |
+| **Open frame** _route_                   | Opened a frame to drive (desktop app)            |
+| **Drove** _page_, _n_ steps              | Drove a frame or mockup (expand for each step)   |
+| **Read document**                        | Read a document on the canvas                    |
+| **Create pull request**                  | Opened a pull request (shown as a link card)     |
+| **Submit plan**                          | Presented a plan for approval                    |
+| A question with options                  | Asked you to pick an option                      |
 
-Failed calls are marked in red and always show the error, or say that none
+Expand a row to see what came back: code with syntax colours, diffs with the
+changed lines tinted, command output and logs in their own colours, skills and
+documents as formatted text, and screenshots as images. A row whose result
+only repeats it doesn't expand.
+
+The steps of a frame drive (**Take control**, **Click** _Pay now_, **Type**
+_"Ada"_, **Press** <kbd>⌘</kbd> <kbd>K</kbd>, **Scroll down**, **Pick**,
+**Drag**, **Hover**, **Read the page**, **Screenshot frame**) fold into one
+**Drove** row, since you watch them happen in the frame. A click names the
+element the page says it clicked.
+
+Failed calls show a red mark and always show the error, or say that none
 was reported. Once a turn finishes, its tool calls fold behind one summary
 line of what the agent read, edited and ran; expand it to see them again. Secrets such as GitHub tokens are redacted from tool output.
-Codex's automatic approval reviews (Guardian Review) are left out of the chat
-unless one denies an action, which then shows as a failed row explaining why
-it didn't run.
+An agent's own housekeeping (loading tools, compacting its context, asking to
+leave plan mode) and Codex's automatic approval reviews (Guardian Review) are
+left out of the chat unless one fails or denies an action, which then shows as
+a failed row explaining why it didn't run.
 
 A few defaults are worth knowing:
 

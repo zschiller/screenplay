@@ -149,6 +149,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.3
         version: 0.45.3(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.0)(@upstash/redis@1.37.0)(kysely@0.29.6)
+      lowlight:
+        specifier: 3.3.0
+        version: 3.3.0
       motion:
         specifier: ^13.4.6
         version: 13.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -257,7 +260,7 @@ importers:
         version: 9.39.4(jiti@2.7.0)
       eslint-config-next:
         specifier: 16.3.8
-        version: 16.3.8(@typescript-eslint/parser@8.71.0(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)
+        version: 16.3.8(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)
       jsdom:
         specifier: ^30.1.1
         version: 30.1.1(@noble/hashes@2.4.0)
@@ -386,12 +389,15 @@ importers:
 
   packages/eslint-config:
     devDependencies:
+      '@typescript-eslint/parser':
+        specifier: 8.71.0
+        version: 8.71.0(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)
       eslint:
         specifier: ^9.39.4
         version: 9.39.4(jiti@2.7.0)
       eslint-config-next:
         specifier: 16.3.8
-        version: 16.3.8(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)
+        version: 16.3.8(@typescript-eslint/parser@8.71.0(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)
 
   packages/screenplay-knobs:
     devDependencies:
