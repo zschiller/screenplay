@@ -77,6 +77,43 @@ describe("GET /api/agent/skills", () => {
     expect(res.status).toBe(403)
   })
 
+  it("lists the Coordinator's App Skills and the canvas's in a Coordinator chat (#1556)", async () => {
+    collections = makeHarness().collections
+    collections.skills.set("f-review", folder("review", "Review a PR."))
+
+    const res = await GET(
+      new Request(
+        "http://localhost/api/agent/skills?room=room-1&chat=room&sandbox=sbx-1"
+      )
+    )
+    const { skills } = await res.json()
+
+    expect(skills.map((s: { name: string }) => s.name)).toEqual([
+      "review",
+      "screenplay-try-variants",
+    ])
+    expect(skills.map((s: { origin: string }) => s.origin)).toEqual([
+      "canvas",
+      "app",
+    ])
+  })
+
+  it("lists the Mockup App Skills and the canvas's in a sketch chat", async () => {
+    collections = makeHarness().collections
+    collections.skills.set("f-review", folder("review", "Review a PR."))
+
+    const res = await GET(
+      new Request("http://localhost/api/agent/skills?room=room-1&chat=sketch")
+    )
+    const { skills } = await res.json()
+
+    expect(skills.map((s: { name: string }) => s.name)).toEqual([
+      "review",
+      "screenplay-add-knob",
+      "screenplay-share-state",
+    ])
+  })
+
   it("lists App Skills only with no canvas or sandbox", async () => {
     const res = await GET(new Request("http://localhost/api/agent/skills"))
     const { skills } = await res.json()

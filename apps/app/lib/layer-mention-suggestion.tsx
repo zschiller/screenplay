@@ -36,6 +36,8 @@ export function buildLayerMentionSuggestion(opts: {
    * doesn't escape the chat panel / document tile bounds.
    */
   getAnchorRect?: () => DOMRect | null
+  /** Optional input box the popover sits above, clear of its border. */
+  getInputBoxRect?: () => DOMRect | null
   /**
    * Notified when the popover opens (true) or closes (false). Lets the host
    * editor suppress its own Enter handler while the suggestion is active —
@@ -73,7 +75,11 @@ export function buildLayerMentionSuggestion(opts: {
         const maxLeft = anchor ? anchor.right - 280 : window.innerWidth - 280
         const left = Math.max(minLeft, Math.min(rect.left, maxLeft))
         containerEl.style.left = `${left}px`
-        containerEl.style.bottom = `${window.innerHeight - rect.top + 4}px`
+        // Above the box the caret is typing in, when there is one, so the
+        // popover never covers its border.
+        const box = opts.getInputBoxRect?.()
+        const top = box ? Math.min(box.top, rect.top) : rect.top
+        containerEl.style.bottom = `${window.innerHeight - top + 4}px`
       }
 
       return {

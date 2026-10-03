@@ -14,8 +14,10 @@ keeps its context lean while making specialized know-how available.
 
 ## Using skills
 
-In a workspace chat, type <kbd>/</kbd> to pick a skill. It's inserted as a
-chip, and the agent is required to load it before doing anything else.
+In any chat, type <kbd>/</kbd> to pick a skill. It's inserted as a chip, and
+the agent is required to load it before doing anything else. The menu lists
+the skills that chat can use, and each row ends with where its skill comes
+from.
 The agent also loads skills on its own when a request matches a description.
 
 <Screenshot name="composer-skills" alt="The / menu listing Screenplay's built-in skills" />
@@ -24,11 +26,11 @@ The agent also loads skills on its own when a request matches a description.
 
 Every chat sees one list of skills, gathered from three places:
 
-| Tag in the menu | Where it lives | Which chats see it |
+| In the menu | Where it lives | Which chats see it |
 | --- | --- | --- |
-| **Repo** | The workspace's repository, under `.claude/skills/` | That workspace's chat |
+| **Repository** | The workspace's repository, under `.claude/skills/` | That workspace's chat |
 | **Canvas** | Saved to the canvas by any chat on it | Every chat on the canvas |
-| **App** | Ships with Screenplay | Every chat, each kind its own |
+| **Built in** | Ships with Screenplay | Every chat, each kind its own |
 
 When two skills share a name, only one is used: the repository's wins, then
 the canvas's, then Screenplay's. The one that loses is left out of the list
@@ -38,7 +40,7 @@ repository skills, since they have no single repository.
 
 ## Built-in skills
 
-Screenplay ships three skills, tagged **App** in the menu:
+Screenplay ships three skills, marked **Built in** in the menu:
 
 | Skill | What it teaches |
 | --- | --- |
@@ -49,7 +51,9 @@ Screenplay ships three skills, tagged **App** in the menu:
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
 [try something several ways](/guides/coordinator#trying-something-several-ways).
-It isn't in a workspace's <kbd>/</kbd> menu, and workspace agents don't see it.
+It's in the Coordinator's <kbd>/</kbd> menu only, and workspace agents don't
+see it. A chat with no repository lists `screenplay-add-knob` and
+`screenplay-share-state`, the two that work on a mockup.
 
 ## Saving a skill to the canvas
 
@@ -57,8 +61,8 @@ Ask any chat on the canvas (a workspace chat, the Coordinator or a chat with
 no repository) to save what you just worked out as a skill: "save this review
 checklist as a skill". The agent writes the `SKILL.md`, and a **Save skill**
 row shows in the chat. Every chat on the canvas can use it from its next
-message, including chats your teammates start, and a workspace chat lists it
-in its <kbd>/</kbd> menu tagged **Canvas**. An agent may also save a
+message, including chats your teammates start, and every chat lists it in its
+<kbd>/</kbd> menu as **Canvas**. An agent may also save a
 procedure it worked out on its own, and the same row shows when it does.
 
 To change a canvas skill, ask a chat to change it; it saves the skill again
@@ -106,7 +110,7 @@ description: >-
 2. …
 ```
 
-Repository skills show up tagged **Repo** once the workspace's sandbox is
+Repository skills show up as **Repository** once the workspace's sandbox is
 running. They're read from that workspace's checkout, so different branches
 can carry different skills. If a repository skill has the same name as a
 canvas or built-in one, the repository's version wins.

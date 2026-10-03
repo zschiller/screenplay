@@ -5,24 +5,24 @@ import {
 } from "@/lib/chat/chat-capabilities"
 
 describe("CHAT_CAPABILITIES", () => {
-  it("turns on the sandbox affordances for an agent chat only", () => {
+  it("turns on the sandbox affordances for an agent chat only, and `/` everywhere", () => {
     const on = (k: "skills" | "planMode" | "elementPicking") =>
       Object.entries(CHAT_CAPABILITIES)
         .filter(([, row]) => row[k])
         .map(([kind]) => kind)
-    expect(on("skills")).toEqual(["agent"])
+    expect(on("skills")).toEqual(["agent", "room", "sketch"])
     expect(on("planMode")).toEqual(["agent"])
     expect(on("elementPicking")).toEqual(["agent"])
   })
 
-  it("offers the `/` skill menu only where there are skills", () => {
-    expect(CHAT_CAPABILITIES.agent.placeholder).toContain("/ skill")
-    expect(CHAT_CAPABILITIES.room.placeholder).not.toContain("/")
+  it("offers the `/` skill menu in every chat's placeholder (#1556)", () => {
+    for (const row of Object.values(CHAT_CAPABILITIES))
+      expect(row.placeholder).toContain("/ skill")
   })
 
   it("names the Coordinator in the Room chat's placeholder", () => {
     expect(CHAT_CAPABILITIES.room.placeholder).toBe(
-      "Ask the Coordinator… (@ document)"
+      "Ask the Coordinator… (@ document, / skill)"
     )
   })
 
@@ -47,9 +47,10 @@ describe("chatCapabilitiesOf", () => {
     expect(caps.pickBranchId).toBe("b1")
   })
 
-  it("resolves neither for the Room chat", () => {
+  it("resolves no Sandbox for the Room chat, only its own Skills", () => {
     const caps = chatCapabilitiesOf({ kind: "room" })
     expect(caps.skillSandboxName).toBeUndefined()
+    expect(caps.skillChat).toBe("room")
     expect(caps.pickBranchId).toBeUndefined()
   })
 })
