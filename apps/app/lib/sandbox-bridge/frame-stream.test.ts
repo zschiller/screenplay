@@ -350,6 +350,9 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       a.videos.slice(before).find((v) => v.key)
     )
     expect(next.frame).toBe("f1")
+    // The service lived through it (cleaning up the dead browser's profile
+    // once crashed it, #1419).
+    expect(service.exitCode).toBeNull()
     expect(requests.slice(requestsBefore)).toContain("/other?tab=2")
     expect(routeOf(a, "f1")?.path).toBe("/other?tab=2")
   }, 40_000)
