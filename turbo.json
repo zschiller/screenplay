@@ -32,7 +32,8 @@
       "dependsOn": ["^typecheck"]
     },
     "test": {
-      "outputs": []
+      "outputs": [],
+      "env": ["SCREENPLAY_REQUIRE_BROWSER_STACK"]
     },
     "dev": {
       "cache": false,

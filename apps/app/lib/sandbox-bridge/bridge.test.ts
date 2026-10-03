@@ -17,7 +17,7 @@ import { pageSnapshotScript } from "./page-snapshot"
 // The bridge is a plain script injected into every frame; run it in jsdom and
 // talk to it the ways the canvas does: postMessage into a local iframe, and
 // for a Shared Frame (#1394) the Frame Stream, whose service relays the same
-// messages to the page in the Sandbox (frame-stream.test.ts runs that relay
+// messages to the page in the Sandbox (frame-stream.browser.test.ts runs that relay
 // in a real browser).
 const BRIDGE = readFileSync(
   join(process.cwd(), "lib", "sandbox-bridge", "bridge.js"),

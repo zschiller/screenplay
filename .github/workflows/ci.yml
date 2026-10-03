@@ -4,6 +4,11 @@ name: CI
 # request. This is the gate that the manual publish workflows and Vercel
 # deploys don't provide — Vercel only runs `next build`, so without this a
 # broken test could merge and ship unnoticed.
+#
+# The jobs run side by side: typecheck, the app's unit tests in three shards,
+# and the browser tests (`*.browser.test.ts`, a real Chrome, Xvfb and ffmpeg)
+# on a runner of their own so they aren't starved by the rest. `test` is the
+# one check that says whether all of them passed.
 
 on:
   push:
@@ -15,52 +20,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          # 22+: the local sandbox provider's copyPatterns uses fs.glob (#441),
-          # which Node 20 doesn't have.
-          node-version: 22
-          cache: pnpm
-
-      # `setup-node` caches the pnpm store but NOT puppeteer's browser download
-      # (~/.cache/puppeteer). Without this, `puppeteer`'s postinstall re-fetches
-      # ~600 MB of Chromium on every run. Keyed on the lockfile so a puppeteer
-      # version bump busts it.
-      - name: Cache Puppeteer browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/puppeteer
-          key: puppeteer-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            puppeteer-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       # Turbo's local cache lets unchanged packages skip typecheck/test entirely.
       # A fresh checkout starts empty, so persist `.turbo` across runs: key per
-      # commit, restore the newest prior cache via the prefix fallback (each run
-      # then saves a fresh superset).
+      # job and commit, restore the newest prior cache via the prefix fallback
+      # (each run then saves a fresh superset).
       - name: Cache Turbo
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-typecheck-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-
+            turbo-${{ runner.os }}-typecheck-
 
       # `incremental: true` makes each `tsc --noEmit` write a
       # `tsconfig.tsbuildinfo` next to its config. Restoring these lets a package
@@ -77,18 +57,84 @@ jobs:
           restore-keys: |
             tsbuildinfo-${{ runner.os }}-
 
-      # The Frame Stream integration test (#1392) runs a real Xvfb, Chrome and
-      # ffmpeg, as a Workspace Sandbox does. The runner ships Chrome; add the
-      # rest when the image doesn't have it.
-      - name: Install the shared-frame browser stack
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Every package's tests but the app's, which the jobs below run.
+      - name: Test packages
+        run: pnpm turbo run test --filter='!app'
+
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      # Per shard: Turbo hashes the shard argument, so each shard's cache
+      # entry is its own.
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-unit-${{ matrix.shard }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-unit-${{ matrix.shard }}-
+
+      - name: Test
+        run: >-
+          pnpm turbo run test --filter=app --
+          --shard=${{ matrix.shard }}/3 --exclude='**/*.browser.test.*'
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-browser-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-browser-
+
+      # The browser tests run a real Xvfb, Chrome and ffmpeg, as a Workspace
+      # Sandbox does (#1392). The runner ships Chrome; add the rest when the
+      # image doesn't have it.
+      - name: Install the browser stack
         run: |
           command -v Xvfb >/dev/null && command -v ffmpeg >/dev/null || {
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends xvfb ffmpeg
           }
 
-      - name: Typecheck
-        run: pnpm typecheck
-
+      # Required: a missing piece of the stack fails the job rather than
+      # skipping the tests.
       - name: Test
-        run: pnpm test
+        run: pnpm turbo run test --filter=app -- browser.test
+        env:
+          SCREENPLAY_REQUIRE_BROWSER_STACK: "1"
+
+  # The one check to require: green only when every job above is.
+  test:
+    if: always()
+    needs: [typecheck, unit, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All CI jobs passed
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success")'

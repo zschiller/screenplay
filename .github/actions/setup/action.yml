@@ -1,0 +1,26 @@
+name: Setup
+description: pnpm, Node and the workspace's dependencies, shared by the CI jobs.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9.15.9
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        # 22+: the local sandbox provider's copyPatterns uses fs.glob (#441),
+        # which Node 20 doesn't have.
+        node-version: 22
+        cache: pnpm
+
+    # No test uses Puppeteer's own Chromium (the browser tests use the
+    # runner's Chrome), so skip its ~600 MB postinstall download.
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+      env:
+        PUPPETEER_SKIP_DOWNLOAD: "true"
