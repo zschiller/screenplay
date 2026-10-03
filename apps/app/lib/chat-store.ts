@@ -74,8 +74,12 @@ export interface PendingSteer {
   message: string
   /** What it shows: the user-turn projection of `message`. */
   turn: UserTurn
-  /** Set on a Steer this client sent: the composer document, for a stop to restore. */
-  local?: { draft?: unknown }
+  /**
+   * Set on a Steer this client sent: the composer document, for a stop to
+   * restore, and the text as posted (with its Canvas view footer), which the
+   * server's pending broadcast carries.
+   */
+  local?: { draft?: unknown; wire: string }
 }
 
 /** A stopped run's untaken Steer, back for the composer. */
@@ -114,6 +118,11 @@ function wireTarget(target: ChatTarget): {
 /** What a message this client sends shows, before the server echoes it. */
 export function sentTurn(opts: SendMessageOptions): UserTurn {
   return opts.turn ?? { body: opts.message }
+}
+
+/** A send's text as posted: the message plus its Canvas view footer (#1414). */
+function wireMessage(opts: SendMessageOptions): string {
+  return opts.message + buildCanvasViewFooter(opts.canvasView ?? null)
 }
 
 /** A message waiting for the current run to finish (#802). */
@@ -378,9 +387,10 @@ class ChatStore {
     if (!steer.id || this.steerSettled(chatId, steer.id)) return
     const { pendingSteers } = this.getOrCreate(chatId)
     if (pendingSteers.some((p) => p.id === steer.id)) return
-    // This client's own send, whose answer hasn't come back yet.
+    // This client's own send, whose answer hasn't come back yet. The
+    // broadcast carries the posted text, footer and all.
     const mine = pendingSteers.find(
-      (p) => p.local && !p.id && p.message === steer.message
+      (p) => p.local && !p.id && p.local.wire === steer.message
     )
     this.update(chatId, {
       pendingSteers: mine
@@ -555,7 +565,7 @@ class ChatStore {
           id: answer.steerId,
           message: opts.message,
           turn: sentTurn(opts),
-          local: { draft: opts.draft },
+          local: { draft: opts.draft, wire: wireMessage(opts) },
         })
       } else if (answer.kind === "not-steerable") {
         this.update(chatId, dropOptimistic())
@@ -605,7 +615,7 @@ class ChatStore {
           key,
           message: opts.message,
           turn: sentTurn(opts),
-          local: { draft: opts.draft },
+          local: { draft: opts.draft, wire: wireMessage(opts) },
         },
       ],
     })
@@ -664,7 +674,7 @@ class ChatStore {
         roomId: opts.roomId,
         chatId: opts.chatId,
         ...wireTarget(opts.target),
-        message: opts.message + buildCanvasViewFooter(opts.canvasView ?? null),
+        message: wireMessage(opts),
         isFirstChat: opts.isFirstChat,
         planMode: opts.planMode,
         model: opts.model,
