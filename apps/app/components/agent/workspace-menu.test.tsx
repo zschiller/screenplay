@@ -160,7 +160,6 @@ describe("Workspace chat header", () => {
       "Open in browser",
       "Show all routes",
       "Create pull request",
-      "New chat from here…",
       "Rename",
       "Restart",
       "Mark as done",

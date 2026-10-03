@@ -7,7 +7,6 @@ import {
   ArrowUUpLeftIcon,
   ArrowsClockwiseIcon,
   CheckCircleIcon,
-  GitForkIcon,
   GitPullRequestIcon,
   PathIcon,
   PencilSimpleIcon,
@@ -42,7 +41,6 @@ export type BranchMenuItemKey =
   | "play"
   | "open-in-browser"
   | "routes"
-  | "new-branch-from-here"
   | "restart"
   | "create-pr"
   | "mark-done"
@@ -79,7 +77,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   {
     id: "git",
     label: "Git",
-    itemKeys: ["create-pr", "new-branch-from-here"],
+    itemKeys: ["create-pr"],
   },
   {
     id: "manage",
@@ -149,11 +147,6 @@ export interface BranchOverflowMenuContentProps {
   hasChanges?: boolean
   /** Opens the inline title editor — already bound to this Workspace. */
   onRename: () => void
-  /**
-   * Opens the create dialog seeded with this branch as the base and an empty
-   * prompt (#353) — no longer an immediate fork with a random name.
-   */
-  onNewBranchFromHere: (branchId: string) => void
   /** Bounce the dev server in place — no VM cycle. Stays enabled while working. */
   onRestartDevServer: (branchId: string) => void
   /**
@@ -237,7 +230,6 @@ export function BranchOverflowMenuItems({
   onRetry,
   hasChanges = false,
   onRename,
-  onNewBranchFromHere,
   onRestartDevServer,
   onRestart,
   onRecreate,
@@ -299,15 +291,6 @@ export function BranchOverflowMenuItems({
       >
         <PathIcon />
         Show all routes
-      </DropdownMenuItem>
-    ),
-    "new-branch-from-here": (
-      <DropdownMenuItem
-        disabled={!branch.ref}
-        onClick={() => onNewBranchFromHere(branch.id)}
-      >
-        <GitForkIcon />
-        New chat from here…
       </DropdownMenuItem>
     ),
     restart: (

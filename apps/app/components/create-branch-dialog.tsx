@@ -80,14 +80,6 @@ interface CreateBranchDialogProps {
    */
   repoId: string
   /**
-   * The base each row starts on. Defaults to the Repo's default branch; the
-   * "New chat from here…" menu item (#353) seeds it with the originating
-   * branch's ref so the dialog opens pre-based on that branch (a base ≠ the
-   * default resolves to the planner's `duplicate-branch` flow), still with an
-   * empty prompt.
-   */
-  baseBranch?: string
-  /**
    * The Room's Markdown Layers — the `@`-mention source for a non-empty seed
    * prompt. Empty before any Layer exists; mentions serialize through the
    * Composer's Message-Markers codec into the submitted text.
@@ -133,14 +125,12 @@ export function CreateBranchDialog({
   onOpenChange,
   repos,
   repoId,
-  baseBranch,
   markdownLayers,
   onSubmit,
 }: CreateBranchDialogProps) {
   const seedRepo = repos.find((r) => r.id === repoId) ?? repos[0]
-  // The base each row seeds on: the explicit `baseBranch` (the "New branch from
-  // here…" source, #353) when given, else the Repo default.
-  const seedBase = baseBranch ?? seedRepo?.defaultBranch ?? ""
+  // Each row starts on the Repo default; its base chip picks another.
+  const seedBase = seedRepo?.defaultBranch ?? ""
   // New Workspaces start from the user's default model (Settings), else the
   // server's; see `lib/model-catalog`. With no coding agent at all there's
   // nothing to run a Workspace's chat, so Create waits for one.

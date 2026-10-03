@@ -196,7 +196,7 @@ type ChatsMenuValue = Omit<
   lastUsedRepoId: string | null
   /** Which Workspaces have a dialog open over them (no row hover then). */
   pendingBranchIds: Set<string>
-  openNewWorkspace: (repoId: string | null, baseBranch?: string) => void
+  openNewWorkspace: (repoId: string | null) => void
   askDelete: (branchId: string) => void
   askRecreate: (branchId: string) => void
   /**
@@ -250,11 +250,6 @@ export function ChatsMenuProvider({
   const [newWorkspaceRepoId, setNewWorkspaceRepoId] = useState<string | null>(
     null
   )
-  // The base the create dialog seeds on when opened from "New workspace from
-  // here…" (#353). Null for the plain + , which seeds on the Repo default.
-  const [newWorkspaceBaseBranch, setNewWorkspaceBaseBranch] = useState<
-    string | null
-  >(null)
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
     string | null
   >(null)
@@ -358,9 +353,8 @@ export function ChatsMenuProvider({
   )
 
   // A dialog opened from the menu takes over from it.
-  const openNewWorkspace = (repoId: string | null, baseBranch?: string) => {
+  const openNewWorkspace = (repoId: string | null) => {
     setOpen(false)
-    setNewWorkspaceBaseBranch(baseBranch ?? null)
     setNewWorkspaceRepoId(repoId)
   }
   const askDelete = (id: string) => {
@@ -494,14 +488,10 @@ export function ChatsMenuProvider({
         <CreateBranchDialog
           open={true}
           onOpenChange={(next) => {
-            if (!next) {
-              setNewWorkspaceRepoId(null)
-              setNewWorkspaceBaseBranch(null)
-            }
+            if (!next) setNewWorkspaceRepoId(null)
           }}
           repos={sortedRepos}
           repoId={newWorkspaceRepoId}
-          baseBranch={newWorkspaceBaseBranch ?? undefined}
           markdownLayers={markdownLayers}
           onSubmit={(specs) => {
             // A row with no repository starts a chat with none.
@@ -968,9 +958,6 @@ function WorkspaceMenuRow({
             onRename={() => {
               pendingEditRef.current = true
             }}
-            onNewBranchFromHere={() =>
-              menu.openNewWorkspace(branch.repoId, branch.ref ?? undefined)
-            }
             onRestartDevServer={menu.onRestartDevServer}
             onRestart={menu.onRefreshBranch}
             onRecreate={menu.askRecreate}

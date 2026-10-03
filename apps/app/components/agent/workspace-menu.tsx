@@ -59,9 +59,6 @@ export function WorkspaceMenuItems({
       onRetry={menu.onRetryBranch}
       hasChanges={!!stats && (stats.additions > 0 || stats.deletions > 0)}
       onRename={onRename}
-      onNewBranchFromHere={() =>
-        menu.openNewWorkspace(branch.repoId, branch.ref ?? undefined)
-      }
       onRestartDevServer={menu.onRestartDevServer}
       onRestart={menu.onRefreshBranch}
       onRecreate={menu.askRecreate}
