@@ -1,11 +1,11 @@
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
-  AddRepoExcerpt,
-  CompareExcerpt,
-  CreateWorkspacesExcerpt,
-  PullRequestExcerpt,
-} from "../excerpts/steps"
+  DocExcerpt,
+  DrawFrameExcerpt,
+  PrHeaderExcerpt,
+  SketchExcerpt,
+} from "../excerpts/make"
 import { measure, monoLabel, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
@@ -16,28 +16,28 @@ const scenes: {
   Excerpt: () => React.JSX.Element
 }[] = [
   {
-    slug: "Step 1",
-    title: "Add a repository",
-    body: "Screenplay works out how to run it and starts the dev server on a new branch. Your first Workspace appears on the canvas.",
-    Excerpt: AddRepoExcerpt,
+    slug: "Documents",
+    title: "Plan it",
+    body: "A plan or a spec, written as a document next to the work. It stays current as things change.",
+    Excerpt: DocExcerpt,
   },
   {
-    slug: "Step 2",
-    title: "Ask for versions",
-    body: "Ask the Coordinator for a few versions of one change. It starts a Workspace for each right away, a git branch with its own chat and running sandbox.",
-    Excerpt: CreateWorkspacesExcerpt,
+    slug: "Mockups",
+    title: "Sketch it",
+    body: "Mockups made with your own components, styles and copy. Compare a few takes before anything gets built.",
+    Excerpt: SketchExcerpt,
   },
   {
-    slug: "Step 3",
-    title: "Compare them live",
-    body: "Frames appear side by side as they build. Click through them and check phone sizes.",
-    Excerpt: CompareExcerpt,
+    slug: "Your app",
+    title: "Build it",
+    body: "The change runs live on a branch of its own, right beside the other versions.",
+    Excerpt: DrawFrameExcerpt,
   },
   {
-    slug: "Step 4",
-    title: "Open a pull request",
-    body: "Keep iterating in the chat of the version you want, then open its pull request from the Chats menu.",
-    Excerpt: PullRequestExcerpt,
+    slug: "Ship",
+    title: "Ship it",
+    body: "Open a pull request for the version you keep.",
+    Excerpt: PrHeaderExcerpt,
   },
 ]
 
@@ -46,8 +46,8 @@ export function Scenes() {
     <section id="how" className={cn(measure, sectionTop)}>
       <SectionHeading
         slug="How it works"
-        title="From one prompt to several running versions."
-        body="Describe a change once, let your agents build it several ways, and review every version on the same canvas."
+        title="Plan it, sketch it, build it."
+        body="Type a prompt anywhere on the canvas and an agent makes it right there. It reads your code first, so whatever it makes fits your app."
       />
       <ol className="mt-12 grid gap-x-9 border-t border-foreground sm:grid-cols-2 lg:grid-cols-4 lg:grid-rows-[repeat(4,auto)]">
         {scenes.map(({ slug, title, body, Excerpt }, i) => (

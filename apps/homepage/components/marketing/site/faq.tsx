@@ -10,7 +10,7 @@ const faqs = [
   },
   {
     q: "What is Screenplay, exactly?",
-    a: "A canvas for coding agents. Every Workspace is a git branch with its own sandbox and dev server, rendered as a live frame. Your agents write code in those Workspaces, and you compare the results side by side instead of one checkout at a time.",
+    a: "A canvas for coding agents. Every chat works on a git branch of its own, with its own sandbox and dev server, and shows its app as a live frame. You compare the results side by side instead of one checkout at a time.",
   },
   {
     q: "Which agents does it work with?",
@@ -22,7 +22,7 @@ const faqs = [
   },
   {
     q: "How does the multiplayer part work?",
-    a: "Deploy the web app and each Workspace runs in a cloud sandbox, with one shared browser for each of its frames. Share a canvas and everyone sees the same frames, cursors, comments and agent streams in real time. The reference deployment uses Vercel, Postgres, Liveblocks, Vercel Blob, Vercel Sandbox, a GitHub OAuth app and at least one model provider key.",
+    a: "Deploy the web app and each chat runs in a cloud sandbox. Share a canvas and everyone sees the same frames, cursors, comments and agent streams in real time, and Go live puts everyone on one browser in a frame. The reference deployment uses Vercel, Postgres, Liveblocks, Vercel Blob, Vercel Sandbox, a GitHub OAuth app and at least one model provider key.",
   },
   {
     q: "Do I need to change my app?",
