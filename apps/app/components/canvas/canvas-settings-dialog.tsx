@@ -40,7 +40,6 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
-import { Switch } from "@workspace/ui/components/switch"
 import {
   Tooltip,
   TooltipContent,
@@ -64,6 +63,7 @@ import { NeedsYouDot } from "@/components/workspace-mention"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName } from "@/lib/repo-identity"
 import {
+  canvasRepositoryGroups,
   canvasRepositoryRows,
   repositoryLinkPolicy,
   type RepositoryLinkPolicy,
@@ -91,9 +91,9 @@ const SECTIONS: {
 /**
  * Canvas settings (#883): the canvas-wide setup, opened from the canvas name's
  * … menu. Built on shadcn's settings-dialog block (a sidebar of sections in a
- * dialog). Its first section, Repositories, lists your repositories with a
- * switch for whether this canvas runs each, and edits them through the same
- * flows as the sidebar. What it edits lives in the Room's Y.Doc, so every
+ * dialog). Its first section, Repositories, lists the canvas's repositories
+ * and your others to add, and edits them through the same flows as the
+ * sidebar. What it edits lives in the Room's Y.Doc, so every
  * collaborator shares it. Memory (#902) lists the canvas memory every chat
  * reads.
  */
@@ -228,16 +228,15 @@ export function CanvasSettingsDialog({
 }
 
 /**
- * The Repositories section (#1422): every one of your Repositories with a
- * switch for whether this canvas uses it, plus the canvas's other Repos
- * (unlinked, or a member's) switched on. Each row's subtitle is its run
- * scripts. Turning one off goes through today's remove path, confirming first
- * when Workspaces use it. Edit changes this canvas only, unless its Save to
- * all box is ticked (#1425); a Repo that differs from its Repository gets an
- * orange dot (#1424). Hosted diverges (#1427): the list splits into On this
- * canvas (every member's Repos) and Your other repositories, a shared canvas
- * shows who added each Repo, and a Repo is the canvas's own copy once
- * switched on, with no dot, Reset or Save to all.
+ * The Repositories section (#1422): On this canvas (every Canvas Repo, linked
+ * to one of your Repositories or not) with Edit and Remove, then Your other
+ * repositories with Add. Each row's subtitle is its run scripts. Remove goes
+ * through today's remove path, confirming first when the policy says so.
+ * Desktop: Edit changes this canvas only, unless its Save to all box is ticked
+ * (#1425), and a Repo that differs from its Repository gets an orange dot
+ * (#1424). Hosted diverges (#1427): a shared canvas shows who added each Repo,
+ * and a Repo is the canvas's own copy once added, with no dot, Reset or Save
+ * to all.
  */
 function RepositoriesSection({
   roomId,
@@ -265,7 +264,7 @@ function RepositoriesSection({
 }) {
   const addRepository = useAddRepositoryFlow()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [turningOffId, setTurningOffId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
   // Your Repositories; until they load, the canvas's own Repos list alone.
   const [repositories, setRepositories] = useState<RepoConfig[]>([])
   const [loading, setLoading] = useState(true)
@@ -302,11 +301,13 @@ function RepositoriesSection({
     id ? members.find((m) => m.userId === id) : undefined
 
   const editing = repos.find((r) => r.id === editingId) ?? null
-  const groups = policy.groups(rows)
+  const removing = repos.find((r) => r.id === removingId) ?? null
+  const groups = canvasRepositoryGroups(rows)
 
-  const switchOff = (repo: RepoData) => {
-    if (policy.removeConfirms(repo, branches)) setTurningOffId(repo.id)
-    else void onRemoveRepo(repo.id, { deleteBranchesOnRemote: false })
+  const remove = (repo: RepoData) => {
+    if (policy.removeConfirms(repo, branches, repositories)) {
+      setRemovingId(repo.id)
+    } else void onRemoveRepo(repo.id, { deleteBranchesOnRemote: false })
   }
 
   const newButton = <NewRepositoryButton flow={addRepository} />
@@ -314,8 +315,8 @@ function RepositoriesSection({
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        {policy.control === "switch"
-          ? "Your repositories. Turn one on to run it on this canvas; new workspaces start from its settings."
+        {policy.propagatesEdits
+          ? "The repositories on this canvas. Add one of yours to run it here; it follows your Settings until you edit it here."
           : "The repositories on this canvas, shared with everyone here. Add one of yours to copy its settings here."}
       </p>
       {loadFailed && (
@@ -343,15 +344,13 @@ function RepositoriesSection({
         <>
           {groups.map((group) => (
             <section
-              key={group.label ?? "all"}
-              aria-label={group.label ?? undefined}
+              key={group.label}
+              aria-label={group.label}
               className="flex flex-col gap-2"
             >
-              {group.label && (
-                <h3 className="text-xs font-medium text-muted-foreground">
-                  {group.label}
-                </h3>
-              )}
+              <h3 className="text-xs font-medium text-muted-foreground">
+                {group.label}
+              </h3>
               <SettingsRowList>
                 {group.rows.map((row) => {
                   const source = row.on ? row.repo : row.repository
@@ -389,31 +388,20 @@ function RepositoriesSection({
                               <PencilSimpleIcon />
                             </IconButton>
                           )}
-                          {policy.control === "add-remove" ? (
-                            row.on ? (
-                              <IconButton
-                                label={`Remove ${name}`}
-                                onClick={() => switchOff(row.repo)}
-                              >
-                                <TrashIcon />
-                              </IconButton>
-                            ) : (
-                              <IconButton
-                                label={`Add ${name}`}
-                                onClick={() => onSwitchOn(row.repository)}
-                              >
-                                <PlusIcon />
-                              </IconButton>
-                            )
+                          {row.on ? (
+                            <IconButton
+                              label={`Remove ${name}`}
+                              onClick={() => remove(row.repo)}
+                            >
+                              <TrashIcon />
+                            </IconButton>
                           ) : (
-                            <Switch
-                              aria-label={`Use ${name} on this canvas`}
-                              checked={row.on}
-                              onCheckedChange={(on) => {
-                                if (on && !row.on) onSwitchOn(row.repository)
-                                else if (!on && row.on) switchOff(row.repo)
-                              }}
-                            />
+                            <IconButton
+                              label={`Add ${name}`}
+                              onClick={() => onSwitchOn(row.repository)}
+                            >
+                              <PlusIcon />
+                            </IconButton>
                           )}
                         </>
                       }
@@ -450,10 +438,13 @@ function RepositoriesSection({
         }}
       />
       <RemoveRepositoryDialog
-        repo={repos.find((r) => r.id === turningOffId) ?? null}
+        repo={removing}
         branches={branches}
+        changesLost={
+          removing ? policy.isCustomized(removing, repositories) : false
+        }
         onOpenChange={(open) => {
-          if (!open) setTurningOffId(null)
+          if (!open) setRemovingId(null)
         }}
         onRemoveRepo={onRemoveRepo}
       />
