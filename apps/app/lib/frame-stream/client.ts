@@ -15,6 +15,7 @@ import { withBasePath } from "@/lib/base-path"
 import type { BridgePort } from "@/lib/bridge-port"
 import {
   decodeVideoMessage,
+  type FrameColorScheme,
   type FrameSnapshot,
   type FrameStreamClientMessage,
   type FrameStreamServerMessage,
@@ -33,6 +34,7 @@ export type FrameWatch = {
   route: string
   width: number
   height: number
+  scheme?: FrameColorScheme
 }
 
 export type FrameStreamHandlers = {
@@ -164,6 +166,9 @@ export class FrameStreamConnection {
     }
     if (patch.route !== undefined && patch.route !== before.route) {
       this.send({ t: "navigate", frame, route: patch.route })
+    }
+    if (patch.scheme !== undefined && patch.scheme !== before.scheme) {
+      this.send({ t: "scheme", frame, scheme: patch.scheme })
     }
   }
 

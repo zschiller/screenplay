@@ -91,4 +91,23 @@ describe("mockup knobs runtime", () => {
     pushValues({ pad: 40 })
     expect(rootVar("pad")).toBe("40")
   })
+
+  it("keeps a tabs knob to its options, like a select", () => {
+    const onChange = vi.fn()
+    screenplay().registerKnob(
+      {
+        id: "density",
+        type: "tabs",
+        default: "m",
+        options: [{ value: "s" }, { value: "m" }, { value: "l" }],
+      },
+      onChange
+    )
+    onChange.mockClear()
+    pushValues({ density: "l" })
+    expect(onChange).toHaveBeenLastCalledWith("l")
+    expect(rootVar("density")).toBe("l")
+    pushValues({ density: "xl" })
+    expect(onChange).toHaveBeenLastCalledWith("m")
+  })
 })

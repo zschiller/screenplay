@@ -11,6 +11,7 @@ import {
   h264CodecOf,
   modifiersOf,
   mouseButtonOf,
+  type FrameColorScheme,
   type FrameStreamInput,
   type FrameStreamServerMessage,
   type FrameStreamVideo,
@@ -37,6 +38,8 @@ interface FrameStreamViewProps {
   height: number
   /** The room's route, where the shared browser starts. */
   route: string
+  /** The room's colour scheme for the page: the frame's Theme knob. */
+  scheme: FrameColorScheme
   /** This viewer is in Interact on the frame: forward its input. */
   interactive: boolean
   /** Frame Control says this viewer drives the frame. */
@@ -66,6 +69,7 @@ export function FrameStreamView({
   width,
   height,
   route,
+  scheme,
   interactive,
   drives,
   onRoute,
@@ -76,9 +80,9 @@ export function FrameStreamView({
   // The CSS size the picture on show was captured at. While a resize waits
   // for the stream, the picture keeps this size, never stretched.
   const pictureSize = useRef({ width, height })
-  const latest = useRef({ width, height, route, onRoute, onLive })
+  const latest = useRef({ width, height, route, scheme, onRoute, onLive })
   useEffect(() => {
-    latest.current = { width, height, route, onRoute, onLive }
+    latest.current = { width, height, route, scheme, onRoute, onLive }
   })
 
   // ---- watching and decoding ----
@@ -201,11 +205,11 @@ export function FrameStreamView({
 
     const watch = () => {
       if (unwatch) return
-      const { route, width, height } = latest.current
+      const { route, width, height, scheme } = latest.current
       firstRoute = true
       unwatch = stream.watch(
         frameId,
-        { route, width, height },
+        { route, width, height, scheme },
         {
           onMessage,
           onVideo,
@@ -265,6 +269,9 @@ export function FrameStreamView({
   useEffect(() => {
     stream.update(frameId, { route })
   }, [stream, frameId, route])
+  useEffect(() => {
+    stream.update(frameId, { scheme })
+  }, [stream, frameId, scheme])
 
   // ---- driving ----
 

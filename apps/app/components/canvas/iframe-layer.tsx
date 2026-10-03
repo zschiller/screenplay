@@ -131,6 +131,7 @@ export interface IframeLayerData {
   knobs?: JsonValue[]
   knobValues?: JsonObject
   sharedState?: JsonObject
+  colorScheme?: "light" | "dark"
 }
 
 const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
@@ -224,6 +225,8 @@ interface IframeLayerProps {
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
   onKnobValuesChange?: (id: string, values: JsonObject) => void
+  /** Set a shared frame's Theme knob. */
+  onColorSchemeChange?: (id: string, scheme: "light" | "dark") => void
   onSharedStateChanged?: (id: string, state: JsonObject) => void
   /** Open the prototype player route for this iframeLayer's branch in a new tab. */
   onPlay?: (id: string) => void
@@ -387,6 +390,7 @@ export function IframeLayer({
   onScrollChange,
   onKnobsDeclared,
   onKnobValuesChange,
+  onColorSchemeChange,
   onSharedStateChanged,
   onRemove,
   onPlay,
@@ -1129,6 +1133,15 @@ export function IframeLayer({
                     onKnobValuesChange?.(iframeLayer.id, values)
                   }
                   onAskForKnob={onAskForKnob}
+                  theme={
+                    shared && onColorSchemeChange
+                      ? {
+                          value: iframeLayer.colorScheme ?? "light",
+                          onChange: (scheme) =>
+                            onColorSchemeChange(iframeLayer.id, scheme),
+                        }
+                      : undefined
+                  }
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1211,6 +1224,7 @@ export function IframeLayer({
                 width={iframeLayer.width}
                 height={iframeLayer.height}
                 route={shownRoute}
+                scheme={iframeLayer.colorScheme ?? "light"}
                 interactive={interactive}
                 drives={driver.kind === "you"}
                 onRoute={handleSharedRoute}

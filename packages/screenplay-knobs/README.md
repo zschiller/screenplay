@@ -65,6 +65,7 @@ Stable `id`s persist values across reloads. Renaming an `id` resets the value to
 | `boolean` | Switch         | `default` (boolean)                                  |
 | `string`  | Text input     | `default` (string); `placeholder?`                   |
 | `select`  | Select         | `default` (string); `options: { value, label? }[]`   |
+| `tabs`    | Tabs           | `default` (string); 2–3 short `options: { value, label? }[]` |
 | `color`   | Color picker   | `default` (string, e.g. `"#1d4ed8"`)                 |
 
 All knobs accept an optional `label` (defaults to the `id`) and an optional `validator: (v) => v` that runs locally inside the prototype on every incoming value — use it to clamp or sanitize before exposing the value to your component.

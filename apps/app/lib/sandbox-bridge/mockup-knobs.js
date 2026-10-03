@@ -28,6 +28,7 @@
       case "color":
         return typeof raw === "string" ? raw : def.default
       case "select":
+      case "tabs":
         return typeof raw === "string" &&
           Array.isArray(def.options) &&
           def.options.some((o) => o && o.value === raw)

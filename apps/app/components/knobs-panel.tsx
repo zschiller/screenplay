@@ -6,6 +6,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Slider } from "@workspace/ui/components/slider"
 import { Switch } from "@workspace/ui/components/switch"
+import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ import {
 import {
   coerceKnobValue,
   isKnobDef,
+  TABS_KNOB_MAX_OPTIONS,
   type KnobDef,
   type KnobValue,
   type KnobValues,
@@ -37,12 +39,28 @@ export function hasKnobOverrides(
   )
 }
 
+export type KnobsTheme = "light" | "dark"
+
+const THEME_KNOB: KnobDef = {
+  type: "tabs",
+  id: "theme",
+  label: "Theme",
+  default: "light",
+  options: [
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" },
+  ],
+}
+
 interface KnobsPanelProps {
   knobs: JsonValue[] | undefined
   values: JsonObject | undefined
   onChange: (next: KnobValues) => void
   /** Shown under the header when the prototype declares no knobs. */
   empty: ReactNode
+  /** A shared frame's Theme knob, above the page's own: the colour scheme
+   *  its one browser renders in, for everyone. */
+  theme?: { value: KnobsTheme; onChange: (next: KnobsTheme) => void }
 }
 
 /**
@@ -55,9 +73,11 @@ export function KnobsPanel({
   values,
   onChange,
   empty,
+  theme,
 }: KnobsPanelProps) {
   const defs = useMemo(() => knobDefs(knobs), [knobs])
-  const hasOverrides = hasKnobOverrides(defs, values)
+  const hasOverrides =
+    hasKnobOverrides(defs, values) || (!!theme && theme.value !== "light")
 
   function setValue(id: string, next: KnobValue) {
     const merged: KnobValues = { [id]: next }
@@ -74,13 +94,14 @@ export function KnobsPanel({
     const next: KnobValues = {}
     for (const def of defs) next[def.id] = def.default
     onChange(next)
+    theme?.onChange("light")
   }
 
   return (
     <div className="flex max-h-90 min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-foreground/5 px-3">
         <span className="text-xs font-medium text-foreground">Knobs</span>
-        {defs.length > 0 ? (
+        {defs.length > 0 || theme ? (
           <Button
             size="xxs"
             variant="ghost"
@@ -92,6 +113,13 @@ export function KnobsPanel({
         ) : null}
       </div>
       <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3">
+        {theme ? (
+          <KnobControl
+            def={THEME_KNOB}
+            value={theme.value}
+            onChange={(v) => theme.onChange(v === "dark" ? "dark" : "light")}
+          />
+        ) : null}
         {defs.length === 0
           ? empty
           : defs.map((def) => (
@@ -181,6 +209,33 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
             onChange={(e) => onChange(e.target.value)}
             className="h-7 text-xs md:text-xs"
           />
+        </div>
+      )
+    }
+    case "tabs": {
+      const stringValue = typeof value === "string" ? value : def.default
+      // Beside its label in a 288px panel, more than a few won't fit: those
+      // show as a select rather than wrap or truncate.
+      if (def.options.length > TABS_KNOB_MAX_OPTIONS)
+        return (
+          <KnobControl
+            def={{ ...def, type: "select" }}
+            value={value}
+            onChange={onChange}
+          />
+        )
+      return (
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-xs">{label}</Label>
+          <Tabs value={stringValue} onValueChange={onChange}>
+            <TabsList>
+              {def.options.map((opt) => (
+                <TabsTrigger key={opt.value} value={opt.value}>
+                  {opt.label ?? opt.value}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
       )
     }

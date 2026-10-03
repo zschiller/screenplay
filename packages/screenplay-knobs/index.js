@@ -96,6 +96,7 @@ function coerce(def, raw) {
     case "color":
       return typeof raw === "string" ? raw : def.default
     case "select":
+    case "tabs":
       return typeof raw === "string" && def.options.some((o) => o.value === raw)
         ? raw
         : def.default

@@ -1,6 +1,6 @@
 ---
 name: screenplay-add-knob
-description: Add interactive controls (sliders, switches, selects, color pickers, text inputs) that show up in a popover next to the artboard's "interact" button. Use whenever the user asks to expose a value as something they can tweak live ("make the padding adjustable", "let me toggle dark mode", "add a slider for X", "expose this as a knob").
+description: Add interactive controls (sliders, switches, selects, tabs, color pickers, text inputs) that show up in a popover next to the artboard's "interact" button. Use whenever the user asks to expose a value as something they can tweak live ("make the padding adjustable", "let me toggle dark mode", "add a slider for X", "expose this as a knob").
 ---
 
 # Skill: Adding knobs
@@ -66,19 +66,49 @@ safe.
 
 ## Knob types
 
-| `type`     | UI control     | Required fields                                     |
-| ---------- | -------------- | --------------------------------------------------- |
-| `slider`   | Slider         | `min`, `max`, `default` (number); `step?`           |
-| `number`   | Numeric input  | `default` (number); `min?`, `max?`, `step?`         |
-| `boolean`  | Switch         | `default` (boolean)                                 |
-| `string`   | Text input     | `default` (string); `placeholder?`                  |
-| `select`   | Select         | `default` (string); `options: { value, label? }[]`  |
-| `color`    | Color picker   | `default` (string, e.g. `"#1d4ed8"`)                |
+| `type`    | UI control    | Required fields                                    |
+| --------- | ------------- | -------------------------------------------------- |
+| `slider`  | Slider        | `min`, `max`, `default` (number); `step?`          |
+| `number`  | Numeric input | `default` (number); `min?`, `max?`, `step?`        |
+| `boolean` | Switch        | `default` (boolean)                                |
+| `string`  | Text input    | `default` (string); `placeholder?`                 |
+| `select`  | Select        | `default` (string); `options: { value, label? }[]` |
+| `tabs`    | Tabs          | `default` (string); `options: { value, label? }[]` |
+| `color`   | Color picker  | `default` (string, e.g. `"#1d4ed8"`)               |
 
 All knobs accept an optional `label` (defaults to the `id`) and an
 optional `validator: (v) => v` that runs locally inside the prototype on
 every incoming value — use it to clamp or sanitize before exposing the
 value to your component.
+
+## Tabs or select
+
+Both pick one of a few options. Use `tabs` when every option fits at a
+glance and switching between them is the point (light / dark, grid / list,
+S / M / L). Use `select` for anything else.
+
+`tabs` sits on one line beside its label in a panel 288px wide, so it has
+about 180px:
+
+- **Two or three options.** More than three show as a select anyway.
+- **One short word each**, about 20 characters across all the labels
+  together ("Compact", "Comfortable", "Spacious" is too long: use a
+  select, or shorten to "S", "M", "L").
+- **Never** rely on it wrapping or truncating: if the labels don't fit,
+  it's a select.
+
+```tsx
+const layout = useKnob({
+  id: "layout",
+  type: "tabs",
+  label: "Layout",
+  default: "grid",
+  options: [
+    { value: "grid", label: "Grid" },
+    { value: "list", label: "List" },
+  ],
+})
+```
 
 ## Rules
 

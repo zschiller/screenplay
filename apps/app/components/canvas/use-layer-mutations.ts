@@ -66,6 +66,8 @@ export interface LayerMutations {
   updateKnobs: (id: string, knobs: JsonValue[]) => void
   /** Persist the current knob values. */
   updateKnobValues: (id: string, knobValues: JsonObject) => void
+  /** Persist a shared frame's Theme knob. */
+  updateColorScheme: (id: string, colorScheme: "light" | "dark") => void
   /** Persist the frame's shared state. */
   updateSharedState: (id: string, sharedState: JsonObject) => void
   /**
@@ -166,6 +168,13 @@ export function useLayerMutations({
   const updateKnobValues = useCallback(
     (id: string, knobValues: JsonObject) => {
       ops.patch("iframeLayers", id, { knobValues })
+    },
+    [ops]
+  )
+
+  const updateColorScheme = useCallback(
+    (id: string, colorScheme: "light" | "dark") => {
+      ops.patch("iframeLayers", id, { colorScheme })
     },
     [ops]
   )
@@ -366,6 +375,7 @@ export function useLayerMutations({
       updateScroll,
       updateKnobs,
       updateKnobValues,
+      updateColorScheme,
       updateSharedState,
       updateRoute,
       fitToContent,
@@ -387,6 +397,7 @@ export function useLayerMutations({
       updateScroll,
       updateKnobs,
       updateKnobValues,
+      updateColorScheme,
       updateSharedState,
       updateRoute,
       fitToContent,
