@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -12,15 +11,12 @@ import {
 } from "react"
 
 import {
-  ArrowsDownUpIcon,
   CaretRightIcon,
   ChatCircleIcon,
   ChatsIcon,
   PencilSimpleIcon,
   TrashIcon,
   DotsThreeIcon,
-  GitBranchIcon,
-  PlusIcon,
 } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
@@ -35,22 +31,10 @@ import {
 } from "@workspace/ui/components/command"
 
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
-
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 
@@ -70,21 +54,10 @@ import {
 
 import { cn } from "@workspace/ui/lib/utils"
 
-import { BranchPicker } from "@/components/branch-picker"
-
-import {
-  CreateBranchDialog,
-  NO_REPOSITORY_ID,
-} from "@/components/create-branch-dialog"
-
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 
-import { InputDialog } from "@/components/home/input-dialog"
-
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
-
-import { useWorkspaceListView } from "@/components/panels/use-workspace-list-view"
 
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 
@@ -101,9 +74,6 @@ import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 
-import type { ComposerSpec } from "@/lib/branch-create-planner"
-
-import { checkBranchRename } from "@/lib/branch-rename"
 import {
   anyWorkspaceNeedsYou,
   type WorkspaceState,
@@ -111,20 +81,16 @@ import {
 
 import type { BranchPrInfo } from "@/lib/github-actions"
 
-import { listRepoBranches } from "@/lib/github-actions"
-
 import { isLocalBuild } from "@/lib/local-mode"
 
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 
 import { sortForSidebar } from "@/lib/sidebar-order"
-import { defaultNewWorkspaceRepoId } from "@/lib/draw-ask"
 
 import type {
   BranchData,
   ChatSessionData,
   IframeLayerData,
-  MarkdownLayerData,
   RepoData,
 } from "@/lib/types"
 
@@ -137,9 +103,7 @@ import { workspaceLabel } from "@/lib/workspace-label"
 
 import {
   WORKSPACE_SECTION_LABELS,
-  WORKSPACE_SORT_LABELS,
   groupWorkspaces,
-  type WorkspaceSort,
 } from "@/lib/workspace-list-view"
 
 import { useChatSessions } from "@/lib/yjs/react"
@@ -166,7 +130,6 @@ export interface ChatsMenuProviderProps {
   roomId: string
   repos: RepoData[]
   branches: BranchData[]
-  markdownLayers: MarkdownLayerData[]
   iframeLayers: Array<Pick<IframeLayerData, "id" | "branchId">>
   diffStats: Map<string, DiffStats>
   /** GitHub-polled PR state per branch, shared with the chat header. */
@@ -175,18 +138,10 @@ export interface ChatsMenuProviderProps {
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
   /** Open a chat with no repository (a Sketch Chat). */
   onSelectSketchChat: (chatId: string) => void
-  /**
-   * Start a chat with no repository and open it, sending `prompt` as its
-   * first message when there is one.
-   */
-  onCreateSketchChat: (spec?: { prompt?: string; model?: string }) => void
   /** Rename a chat with no repository. */
   onRenameSketchChat: (chatId: string, label: string) => void
   /** Delete a chat with no repository; what it made stays on the canvas. */
   onDeleteSketchChat: (chatId: string) => void
-  onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
-  onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
-  onRebaseOnDefault: (branchId: string) => void
   onRestartDevServer: (id: string) => void
   onCreatePr: (branchId: string) => void
   onRefreshBranch: (id: string) => void
@@ -201,13 +156,12 @@ export interface ChatsMenuProviderProps {
   onPlayBranch: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
-  onRenameBranch: (branchId: string, newBranch: string) => void
   children: React.ReactNode
 }
 
 type ChatsMenuValue = Omit<
   ChatsMenuProviderProps,
-  "children" | "iframeLayers" | "onCreateWorkspace"
+  "children" | "iframeLayers"
 > & {
   open: boolean
   setOpen: (open: boolean) => void
@@ -222,14 +176,15 @@ type ChatsMenuValue = Omit<
   needsYou: boolean
   /** A Workspace's state: its icon, section and whether its agent works. */
   stateOf: (branch: BranchData) => WorkspaceState
-  lastUsedRepoId: string | null
   /** Which Workspaces have a dialog open over them (no row hover then). */
   pendingBranchIds: Set<string>
-  openNewWorkspace: (repoId: string | null, baseBranch?: string) => void
-  openBranchPicker: (repoId: string) => void
   askDelete: (branchId: string) => void
   askRecreate: (branchId: string) => void
-  askRenameBranch: (branchId: string) => void
+  /**
+   * Whether a Repository's Workspaces can open a pull request: it has a GitHub
+   * remote and the GitHub API is reachable.
+   */
+  canCreatePr: (repo: RepoData) => boolean
   askDeleteSketchChat: (chatId: string) => void
   /**
    * Rename asked for where the title can't be edited (a frame's Workspace
@@ -261,78 +216,35 @@ const isolate = {
 export function ChatsMenuProvider({
   children,
   iframeLayers,
-  onCreateWorkspace,
   ...props
 }: ChatsMenuProviderProps) {
   const {
     repos,
     branches,
-    markdownLayers,
     onSelectWorkspace,
-    onCreateBranchFromGitBranch,
     onRecreateBranch,
     onRemoveBranch,
-    onRenameBranch,
   } = props
   const [open, setOpen] = useState(false)
-  const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
-    null
-  )
-  const [newWorkspaceRepoId, setNewWorkspaceRepoId] = useState<string | null>(
-    null
-  )
-  // The base the create dialog seeds on when opened from "New workspace from
-  // here…" (#353). Null for the plain + , which seeds on the Repo default.
-  const [newWorkspaceBaseBranch, setNewWorkspaceBaseBranch] = useState<
-    string | null
-  >(null)
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
     string | null
   >(null)
   const [pendingRecreateBranchId, setPendingRecreateBranchId] = useState<
     string | null
   >(null)
-  const [pendingRenameBranchId, setPendingRenameBranchId] = useState<
-    string | null
-  >(null)
-
-  // Per-repo remote branch names, fetched once per repo, so Rename branch
-  // can refuse a name that's taken instead of failing in `git branch -m`.
-  const [remoteBranchesByRepo, setRemoteBranchesByRepo] = useState<
-    Map<string, Set<string>>
-  >(new Map())
-  useEffect(() => {
-    let cancelled = false
-    for (const repo of repos) {
-      if (remoteBranchesByRepo.has(repo.id)) continue
-      listRepoBranches(repo.repoOwner, repo.repoName).then((data) => {
-        if (cancelled) return
-        setRemoteBranchesByRepo((prev) => {
-          if (prev.has(repo.id)) return prev
-          const next = new Map(prev)
-          next.set(repo.id, new Set(data.map((b) => b.name)))
-          return next
-        })
-      })
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [repos, remoteBranchesByRepo])
 
   // Whether the GitHub API is reachable at all, for the delete dialog's
-  // remote-branch offer (issue #741). False until probed.
+  // remote-branch offer (issue #741) and Create pull request. False until
+  // probed.
   const githubTokenAvailable = useGitHubTokenAvailable()
+  const canCreatePr = (repo: RepoData) =>
+    githubTokenAvailable && hasGitHubRemote(repo)
   // What the delete confirm says is lost (issue #776): the Chat Sessions and
   // frames the Workspace cascades to, and its checkout's unpushed work.
   const chatSessions = useChatSessions()
-  const deleteTargets = useMemo(
-    () =>
-      pendingDeleteBranchId
-        ? branches.filter((b) => b.id === pendingDeleteBranchId)
-        : [],
-    [branches, pendingDeleteBranchId]
-  )
+  const deleteTargets = pendingDeleteBranchId
+    ? branches.filter((b) => b.id === pendingDeleteBranchId)
+    : []
   const deleteTargetRepo = repos.find((r) => r.id === deleteTargets[0]?.repoId)
   const unsavedWork = useUnsavedWork(
     deleteTargets,
@@ -379,11 +291,6 @@ export function ChatsMenuProvider({
     () => anyWorkspaceNeedsYou(flatBranches, stateOf),
     [flatBranches, stateOf]
   )
-  // New workspace starts in the Repo used last: the newest Workspace's.
-  const lastUsedRepoId = useMemo(
-    () => defaultNewWorkspaceRepoId(repos, branches),
-    [repos, branches]
-  )
 
   // Open a Workspace when it finishes setting up. The callback is read through
   // a ref so this runs on `branches` changes only.
@@ -409,58 +316,37 @@ export function ChatsMenuProvider({
   const pendingBranchIds = useMemo(
     () =>
       new Set(
-        [
-          pendingDeleteBranchId,
-          pendingRecreateBranchId,
-          pendingRenameBranchId,
-        ].filter((id): id is string => !!id)
+        [pendingDeleteBranchId, pendingRecreateBranchId].filter(
+          (id): id is string => !!id
+        )
       ),
-    [pendingDeleteBranchId, pendingRecreateBranchId, pendingRenameBranchId]
+    [pendingDeleteBranchId, pendingRecreateBranchId]
   )
 
   // A dialog opened from the menu takes over from it.
-  const openNewWorkspace = useCallback(
-    (repoId: string | null, baseBranch?: string) => {
-      setOpen(false)
-      setNewWorkspaceBaseBranch(baseBranch ?? null)
-      setNewWorkspaceRepoId(repoId)
-    },
-    []
-  )
-  const openBranchPicker = useCallback((repoId: string) => {
-    setOpen(false)
-    setBranchPickerRepoId(repoId)
-  }, [])
-  const askDelete = useCallback((id: string) => {
+  const askDelete = (id: string) => {
     setOpen(false)
     setPendingDeleteBranchId(id)
-  }, [])
-  const askRecreate = useCallback((id: string) => {
+  }
+  const askRecreate = (id: string) => {
     setOpen(false)
     setPendingRecreateBranchId(id)
-  }, [])
-  const askRenameBranch = useCallback((id: string) => {
-    setOpen(false)
-    setPendingRenameBranchId(id)
-  }, [])
+  }
   const [pendingDeleteSketchId, setPendingDeleteSketchId] = useState<
     string | null
   >(null)
-  const askDeleteSketchChat = useCallback((id: string) => {
+  const askDeleteSketchChat = (id: string) => {
     setOpen(false)
     setPendingDeleteSketchId(id)
-  }, [])
+  }
 
   const [renameRequest, setRenameRequest] = useState<string | null>(null)
-  const requestRename = useCallback(
-    (id: string) => {
-      setOpen(false)
-      onSelectWorkspace(id)
-      setRenameRequest(id)
-    },
-    [onSelectWorkspace]
-  )
-  const clearRenameRequest = useCallback(() => setRenameRequest(null), [])
+  const requestRename = (id: string) => {
+    setOpen(false)
+    onSelectWorkspace(id)
+    setRenameRequest(id)
+  }
+  const clearRenameRequest = () => setRenameRequest(null)
 
   const sketchChats = useMemo(
     () =>
@@ -481,13 +367,10 @@ export function ChatsMenuProvider({
     sketchChats,
     needsYou,
     stateOf,
-    lastUsedRepoId,
     pendingBranchIds,
-    openNewWorkspace,
-    openBranchPicker,
     askDelete,
     askRecreate,
-    askRenameBranch,
+    canCreatePr,
     askDeleteSketchChat,
     renameRequest,
     requestRename,
@@ -503,15 +386,9 @@ export function ChatsMenuProvider({
   const deleteRepo = deleteBranch
     ? repos.find((r) => r.id === deleteBranch.repoId)
     : undefined
-  const renameBranch = pendingRenameBranchId
-    ? branches.find((b) => b.id === pendingRenameBranchId)
-    : null
   const recreateBranch = pendingRecreateBranchId
     ? branches.find((b) => b.id === pendingRecreateBranchId)
     : null
-  const pickerRepo = branchPickerRepoId
-    ? reposById.get(branchPickerRepoId)
-    : undefined
 
   return (
     <ChatsMenuContext.Provider value={value}>
@@ -555,38 +432,6 @@ export function ChatsMenuProvider({
           setPendingDeleteBranchId(null)
         }}
       />
-      <InputDialog
-        open={!!renameBranch}
-        onOpenChange={(next) => {
-          if (!next) setPendingRenameBranchId(null)
-        }}
-        title="Rename branch"
-        description="Renames the git branch. The chat keeps its title."
-        initialValue={renameBranch?.ref ?? ""}
-        submitLabel="Rename"
-        submittingLabel="Renaming…"
-        errorMessage="That branch name is empty or already taken."
-        onSubmit={async (next) => {
-          if (!renameBranch) return
-          const check = checkBranchRename({
-            next,
-            current: renameBranch.ref,
-            remoteBranches: remoteBranchesByRepo.get(renameBranch.repoId),
-            otherLocalRefs: isLocalBuild
-              ? branches
-                  .filter(
-                    (b) =>
-                      b.repoId === renameBranch.repoId &&
-                      b.id !== renameBranch.id
-                  )
-                  .map((b) => b.ref)
-              : [],
-          })
-          if (check.kind === "invalid") throw new Error("Invalid branch name")
-          if (check.kind === "rename")
-            onRenameBranch(renameBranch.id, check.branch)
-        }}
-      />
       <RecreateBranchDialog
         open={!!recreateBranch}
         onOpenChange={(next) => {
@@ -604,66 +449,6 @@ export function ChatsMenuProvider({
           setPendingRecreateBranchId(null)
         }}
       />
-      {newWorkspaceRepoId && reposById.has(newWorkspaceRepoId) ? (
-        <CreateBranchDialog
-          open={true}
-          onOpenChange={(next) => {
-            if (!next) {
-              setNewWorkspaceRepoId(null)
-              setNewWorkspaceBaseBranch(null)
-            }
-          }}
-          repos={sortedRepos}
-          repoId={newWorkspaceRepoId}
-          baseBranch={newWorkspaceBaseBranch ?? undefined}
-          markdownLayers={markdownLayers}
-          onSubmit={(specs) => {
-            // A row with no repository starts a chat with none.
-            for (const spec of specs) {
-              if (spec.repoId !== NO_REPOSITORY_ID) continue
-              props.onCreateSketchChat({
-                prompt: spec.prompt,
-                model: spec.model,
-              })
-            }
-            const withRepo = specs.filter((s) => s.repoId !== NO_REPOSITORY_ID)
-            // One create per Repo, each keeping its rows' order.
-            for (const repoId of new Set(withRepo.map((s) => s.repoId))) {
-              onCreateWorkspace(
-                repoId,
-                withRepo
-                  .filter((s) => s.repoId === repoId)
-                  .map(({ repoId: _, ...spec }) => spec)
-              )
-            }
-          }}
-        />
-      ) : null}
-      {/* "Open existing git branch" reattaches to a remote branch: a single
-          Enter action, no new branch and no prompt. Forking lives in the
-          Workspace menu's "New chat from here…" (#353). */}
-      <Dialog
-        open={!!pickerRepo}
-        onOpenChange={(next) => {
-          if (!next) setBranchPickerRepoId(null)
-        }}
-      >
-        <DialogContent className="max-w-sm gap-0 p-0">
-          <DialogHeader className="px-5 pt-5 pb-2">
-            <DialogTitle>Open existing git branch</DialogTitle>
-          </DialogHeader>
-          {pickerRepo ? (
-            <BranchPicker
-              owner={pickerRepo.repoOwner}
-              repo={pickerRepo.repoName}
-              onSelect={(branch) => {
-                setBranchPickerRepoId(null)
-                onCreateBranchFromGitBranch(pickerRepo.id, branch)
-              }}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </ChatsMenuContext.Provider>
   )
 }
@@ -723,8 +508,6 @@ export function ChatsMenuButton() {
 
 function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const {
-    userId,
-    roomId,
     sortedRepos,
     reposById,
     activeBranches,
@@ -735,12 +518,9 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const [search, setSearch] = useState("")
   const searching = search.trim() !== ""
   const [doneOpen, setDoneOpen] = useState(false)
-  // This member's sort and grouping (#885), a local view preference.
-  const [listView, updateListView] = useWorkspaceListView(userId, roomId)
   const sections = useMemo(
-    () =>
-      groupWorkspaces(activeBranches, listView.sort, (b) => stateOf(b).section),
-    [activeBranches, listView.sort, stateOf]
+    () => groupWorkspaces(activeBranches, (b) => stateOf(b).section),
+    [activeBranches, stateOf]
   )
 
   const sketchRows = (list: ChatSessionData[]) =>
@@ -768,20 +548,11 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
       loop
       className="rounded-none!"
     >
-      {/* + and … sit beside the search field, so they never depend on which
-          section comes first and stay put while searching (H7). */}
-      <div className="flex items-end gap-0.5 pr-1.5 *:data-[slot=command-input-wrapper]:flex-1">
-        <CommandInput
-          placeholder="Search chats…"
-          value={search}
-          onValueChange={setSearch}
-        />
-        <ChatsMenuActions
-          menu={menu}
-          sort={listView.sort}
-          onSort={(sort) => updateListView({ sort })}
-        />
-      </div>
+      <CommandInput
+        placeholder="Search chats…"
+        value={search}
+        onValueChange={setSearch}
+      />
       <CommandList className="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
         <CommandEmpty>
           {searching ? "No matches." : "No chats yet."}
@@ -842,109 +613,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
         )}
       </CommandList>
     </Command>
-  )
-}
-
-/**
- * The list's actions beside the search field: + starts a chat, and with it its
- * Workspace, in one step (#884, #1315); the … holds this member's view options
- * (#885) and the rarer Open existing git branch. On a canvas with no
- * repository + starts a chat with none, and there is nothing for … to hold.
- */
-function ChatsMenuActions({
-  menu,
-  sort,
-  onSort,
-}: {
-  menu: ChatsMenuValue
-  sort: WorkspaceSort
-  onSort: (sort: WorkspaceSort) => void
-}) {
-  const { sortedRepos } = menu
-  if (sortedRepos.length === 0)
-    return (
-      <IconButton
-        label="New chat"
-        className="mb-0.5 text-muted-foreground"
-        onClick={() => {
-          menu.onCreateSketchChat()
-          menu.setOpen(false)
-        }}
-      >
-        <PlusIcon />
-      </IconButton>
-    )
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton
-            label="More chat actions"
-            className="mb-0.5 text-muted-foreground"
-          >
-            <DotsThreeIcon />
-          </IconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="bottom" align="end" {...isolate}>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <ArrowsDownUpIcon />
-              Sort by
-              <span className="flex-1 text-right text-muted-foreground">
-                {WORKSPACE_SORT_LABELS[sort]}
-              </span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup
-                value={sort}
-                onValueChange={(v) => onSort(v as WorkspaceSort)}
-              >
-                {(Object.keys(WORKSPACE_SORT_LABELS) as WorkspaceSort[]).map(
-                  (s) => (
-                    <DropdownMenuRadioItem key={s} value={s}>
-                      {WORKSPACE_SORT_LABELS[s]}
-                    </DropdownMenuRadioItem>
-                  )
-                )}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          {sortedRepos.length === 1 ? (
-            <DropdownMenuItem
-              onClick={() => menu.openBranchPicker(sortedRepos[0]!.id)}
-            >
-              <GitBranchIcon />
-              Open existing git branch
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <GitBranchIcon />
-                Open existing git branch
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {sortedRepos.map((repo) => (
-                  <DropdownMenuItem
-                    key={repo.id}
-                    onClick={() => menu.openBranchPicker(repo.id)}
-                  >
-                    {repoShortName(repo)}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <IconButton
-        label="New chat"
-        className="mb-0.5 text-muted-foreground"
-        onClick={() => menu.openNewWorkspace(menu.lastUsedRepoId)}
-      >
-        <PlusIcon />
-      </IconButton>
-    </>
   )
 }
 
@@ -1196,10 +864,6 @@ function WorkspaceMenuRow({
             onRename={() => {
               pendingEditRef.current = true
             }}
-            onRenameBranch={menu.askRenameBranch}
-            onNewBranchFromHere={() =>
-              menu.openNewWorkspace(branch.repoId, branch.ref ?? undefined)
-            }
             onRestartDevServer={menu.onRestartDevServer}
             onRestart={menu.onRefreshBranch}
             onRecreate={menu.askRecreate}
@@ -1209,7 +873,7 @@ function WorkspaceMenuRow({
             }}
             onCreatePr={menu.onCreatePr}
             pr={pr}
-            onRebase={menu.onRebaseOnDefault}
+            canCreatePr={menu.canCreatePr(repo)}
             onMarkDone={menu.onMarkBranchDone}
             onReopen={menu.onReopenBranch}
             onDelete={menu.askDelete}

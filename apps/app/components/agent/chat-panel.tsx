@@ -42,6 +42,7 @@ import { DEV_SERVER_TERMINAL_ID } from "@/lib/chat/terminal-pane"
 import { useAppSession } from "@/lib/auth-client"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
+import { useCanCreatePr } from "@/hooks/use-can-create-pr"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
 import { prStateButtonColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
@@ -364,6 +365,9 @@ function WorkspaceChatPanel({
   )
   const anyChatStreaming = useAnyChatStreaming(allChatIds)
   const [creatingPr, setCreatingPr] = useState(false)
+  const canCreatePr = useCanCreatePr(agent.repoId)
+  const hasChanges =
+    !!diffStats && (diffStats.additions > 0 || diffStats.deletions > 0)
 
   // Calls the direct PR-creation server action (#355) — same path as the Branch
   // menu's "Create pull request" item, no model turn. The created PR (or a
@@ -435,14 +439,12 @@ function WorkspaceChatPanel({
         <WorkspaceHeaderTitle branch={agent} />
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
           {/* An open PR already carries the diff, so its counts go. */}
-          {diffStats &&
-            displayPr?.state !== "open" &&
-            (diffStats.additions > 0 || diffStats.deletions > 0) && (
-              <span className="flex items-center gap-1 font-mono text-xs">
-                <span className="text-success">+{diffStats.additions}</span>
-                <span className="text-destructive">-{diffStats.deletions}</span>
-              </span>
-            )}
+          {diffStats && hasChanges && displayPr?.state !== "open" && (
+            <span className="flex items-center gap-1 font-mono text-xs">
+              <span className="text-success">+{diffStats.additions}</span>
+              <span className="text-destructive">-{diffStats.deletions}</span>
+            </span>
+          )}
           {displayPr ? (
             <Button size="xs" variant="outline" asChild>
               <a
@@ -456,7 +458,7 @@ function WorkspaceChatPanel({
                 <ArrowUpRightIcon className="opacity-60 group-hover:opacity-100" />
               </a>
             </Button>
-          ) : (
+          ) : canCreatePr ? (
             <Button
               size="xs"
               variant="outline"
@@ -465,20 +467,23 @@ function WorkspaceChatPanel({
                 !agent.sandboxName ||
                 isAgentBusy ||
                 anyChatStreaming ||
-                creatingPr
+                creatingPr ||
+                !hasChanges
               }
               title={
                 isAgentBusy
                   ? "The workspace is still starting…"
                   : anyChatStreaming
                     ? "The agent is still working."
-                    : undefined
+                    : !hasChanges
+                      ? "No changes to propose yet."
+                      : undefined
               }
             >
               <GitPullRequestIcon />
               Create pull request
             </Button>
-          )}
+          ) : null}
         </div>
       </ChatPanelHeader>
 

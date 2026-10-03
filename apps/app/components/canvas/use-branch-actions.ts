@@ -48,9 +48,6 @@ import type { ChatTarget } from "@/components/canvas/use-chat-target"
  *
  * Each verb routes through {@link routeBranchAction} and applies the result:
  *
- *  - `engine` (Rebase on the default branch) → **Module B's `dispatchPrompt`**:
- *    resolve the target chat (reuse-or-bump), then dispatch the rebase prompt so
- *    conflicts are walked through conversationally.
  *  - `action` (Create PR) → the deterministic `createPullRequestAction`, the
  *    success / error toast, and the immediate PR source-of-truth write so the
  *    sidebar icon, branch menu, and chat button reflect the open PR now.
@@ -80,8 +77,6 @@ export interface BranchActionsDeps {
 }
 
 export interface BranchActions {
-  /** Rebase the branch onto the repo's default branch, conversationally. */
-  rebaseOnDefault: (agentId: string) => void
   /** Open a GitHub PR for the branch — the deterministic server action. */
   createPullRequest: (agentId: string) => void
   /** Bounce the dev server in place (the only recovery usable mid-turn). */
@@ -157,8 +152,8 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
     [roomId, agents, repos, updateAgentInStorage]
   )
 
-  // engine route → Module B's dispatch: send the prompt in the Workspace's one
-  // chat (#1315) with the rename callbacks wired.
+  // Module B's dispatch, for a comment request or a drawn frame's ask: send the
+  // prompt in the Workspace's one chat (#1315) with the rename callbacks wired.
   const applyEngine = useCallback(
     (
       prompt: string,
@@ -245,24 +240,20 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
   const run = useCallback(
     (kind: BranchActionKind, agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
-      const repo = agent ? repos.find((w) => w.id === agent.repoId) : undefined
-      const route = routeBranchAction(kind, { agent, repo })
+      const route = routeBranchAction(kind, { agent })
       if (route.kind === "none" || !agent) return
       switch (route.kind) {
-        case "engine":
-          return void applyEngine(route.prompt, agent)
         case "action":
           return applyCreatePr(agent)
         case "recovery":
           return applyRecovery(route.recovery, agent.id)
       }
     },
-    [agents, repos, applyEngine, applyCreatePr, applyRecovery]
+    [agents, applyCreatePr, applyRecovery]
   )
 
   return useMemo<BranchActions>(
     () => ({
-      rebaseOnDefault: (agentId) => run("rebase", agentId),
       createPullRequest: (agentId) => run("create-pr", agentId),
       restartDevServer: (agentId) => run("restart-dev-server", agentId),
       restartSandbox: (agentId) => run("restart-sandbox", agentId),

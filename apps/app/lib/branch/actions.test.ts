@@ -2,20 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import { routeBranchAction, type BranchActionInput } from "@/lib/branch/actions"
 
-const agent = { sandboxName: "sb-1", ref: "feature-x" }
-const repo = { defaultBranch: "main" }
-const input: BranchActionInput = { agent, repo }
+const agent = { sandboxName: "sb-1" }
+const input: BranchActionInput = { agent }
 
 describe("routeBranchAction", () => {
-  it("routes rebase to the engine with the rebase prompt", () => {
-    const route = routeBranchAction("rebase", input)
-    expect(route.kind).toBe("engine")
-    expect(route.kind === "engine" && route.prompt).toContain("origin/main")
-    expect(route.kind === "engine" && route.prompt).toContain(
-      "walk me through them"
-    )
-  })
-
   it("routes create-pr to the deterministic action", () => {
     expect(routeBranchAction("create-pr", input)).toEqual({
       kind: "action",
@@ -40,11 +30,9 @@ describe("routeBranchAction", () => {
 
   it("yields no route for any action when the Sandbox is gone", () => {
     const gone: BranchActionInput = {
-      agent: { sandboxName: "", ref: "feature-x" },
-      repo,
+      agent: { sandboxName: "" },
     }
     for (const kind of [
-      "rebase",
       "create-pr",
       "restart-dev-server",
       "restart-sandbox",
@@ -55,22 +43,7 @@ describe("routeBranchAction", () => {
   })
 
   it("yields no route for a missing agent", () => {
-    expect(routeBranchAction("create-pr", { agent: undefined, repo })).toEqual({
-      kind: "none",
-    })
-  })
-
-  it("does not rebase without a branch ref", () => {
-    expect(
-      routeBranchAction("rebase", {
-        agent: { sandboxName: "sb-1", ref: "" },
-        repo,
-      })
-    ).toEqual({ kind: "none" })
-  })
-
-  it("does not rebase without the repo", () => {
-    expect(routeBranchAction("rebase", { agent, repo: undefined })).toEqual({
+    expect(routeBranchAction("create-pr", { agent: undefined })).toEqual({
       kind: "none",
     })
   })

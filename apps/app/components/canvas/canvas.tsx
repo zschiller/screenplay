@@ -1497,30 +1497,6 @@ export function Canvas({
     ]
   )
 
-  // A new chat with no repository (a Sketch Chat), opened in the panel; a
-  // prompt from the New chat dialog is its first message.
-  const createSketchChat = useCallback(
-    (spec?: { prompt?: string; model?: string }) => {
-      const chatId = nanoid()
-      addChatSession(chatId, {
-        ...sketchChatSession(chatId, Date.now()),
-        ...(spec?.model ? { model: spec.model } : {}),
-      })
-      chatTarget.selectSketchChat(chatId)
-      const prompt = spec?.prompt?.trim()
-      if (prompt) {
-        chatStore.sendMessage({
-          roomId,
-          chatId,
-          target: { kind: "sketch", chatId },
-          message: prompt,
-          model: spec?.model,
-        })
-      }
-    },
-    [addChatSession, chatTarget, roomId]
-  )
-
   // Deleting a chat with no repository: the panel goes home if it showed it,
   // and what it made stays on the canvas, owned by no one.
   const deleteSketchChat = useCallback(
@@ -1561,15 +1537,13 @@ export function Canvas({
   })
 
   // Branch Intake controller (PRD #562): the Repo -> Branch -> Sandbox
-  // create/teardown orchestration, Branch rename, and the seed-tab / seed-frame
+  // create/teardown orchestration and the seed-tab / seed-frame
   // handoff, lifted into `useBranchIntake`. The component calls the verbs; the
   // controller owns the ordering invariants and the Sandbox Provider calls.
   const {
     createBranch,
-    createBranchFromGitBranch,
     removeRepo: removeRepoIntake,
     removeBranch: removeBranchIntake,
-    renameBranch,
     retryBranch,
     updateRepoInStorage,
     updateAgentInStorage,
@@ -2047,20 +2021,15 @@ export function Canvas({
           roomId={roomId}
           repos={repos}
           branches={agents}
-          markdownLayers={markdownLayers}
           iframeLayers={iframeLayers}
           diffStats={diffStats}
           branchPrs={branchPrs}
           onSelectWorkspace={chatTarget.selectAgent}
           onSelectSketchChat={chatTarget.selectSketchChat}
-          onCreateSketchChat={createSketchChat}
           onRenameSketchChat={(chatId, label) =>
             updateChatSession(chatId, { label })
           }
           onDeleteSketchChat={deleteSketchChat}
-          onCreateBranchFromGitBranch={createBranchFromGitBranch}
-          onCreateWorkspace={createBranch}
-          onRebaseOnDefault={branchActions.rebaseOnDefault}
           onRestartDevServer={branchActions.restartDevServer}
           onCreatePr={branchActions.createPullRequest}
           onRefreshBranch={branchActions.restartSandbox}
@@ -2072,7 +2041,6 @@ export function Canvas({
           onPlayBranch={handlePlayAgent}
           onShowRoutes={handleShowRoutesForAgent}
           onUpdateBranch={updateAgentInStorage}
-          onRenameBranch={renameBranch}
         >
           <ResizablePanelGroup
             orientation="horizontal"

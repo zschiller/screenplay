@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   cleanup,
@@ -12,7 +11,6 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { BranchData, RepoData } from "@/lib/types"
 import {
   BRANCH_MENU_SECTIONS,
@@ -20,14 +18,6 @@ import {
   workspaceMenuLead,
 } from "./branch-overflow-menu"
 import type { BranchPrInfo } from "@/lib/github-actions"
-
-// The create dialog's base picker reaches GitHub through `github-actions`,
-// which transitively imports the server-only auth/db stack (needs DATABASE_URL).
-// The picker only mounts when its popover is opened — never in these tests — so
-// stub the module to keep the import graph client-only.
-vi.mock("@/lib/github-actions", () => ({
-  listRepoBranches: vi.fn().mockResolvedValue([]),
-}))
 
 // `isLocalBuild` is a compile-time constant, but the build-specific item
 // ("Restart sandbox" hidden on local) is read at render through this live
@@ -96,8 +86,10 @@ function renderMenu(
     onRecreate,
     onMarkDone,
     onReopen,
+    canCreatePr,
   }: {
     isBusy?: boolean
+    canCreatePr?: boolean
     hasChanges?: boolean
     pr?: BranchPrInfo | null
     onRetry?: () => void
@@ -118,15 +110,13 @@ function renderMenu(
         onRetry={onRetry ?? vi.fn()}
         hasChanges={hasChanges}
         pr={pr}
+        canCreatePr={canCreatePr}
         onRename={vi.fn()}
-        onRenameBranch={vi.fn()}
-        onNewBranchFromHere={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
         onRestart={onRestart ?? vi.fn()}
         onRecreate={onRecreate ?? vi.fn()}
         onShowRoutes={vi.fn()}
         onCreatePr={vi.fn()}
-        onRebase={vi.fn()}
         onMarkDone={onMarkDone ?? vi.fn()}
         onReopen={onReopen ?? vi.fn()}
         onDelete={vi.fn()}
@@ -134,10 +124,6 @@ function renderMenu(
       />
     </DropdownMenu>
   )
-}
-
-function rebaseItem() {
-  return screen.getByText("Rebase on main").closest('[role="menuitem"]')
 }
 
 afterEach(() => {
@@ -149,16 +135,7 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
   it("declares View, Git, Manage, then Delete", () => {
     expect(BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])).toEqual([
       ["view", ["play", "open-in-browser", "routes"]],
-      [
-        "git",
-        [
-          "create-pr",
-          "rebase",
-          "open-github",
-          "rename-branch",
-          "new-branch-from-here",
-        ],
-      ],
+      ["git", ["create-pr"]],
       ["manage", ["rename", "restart", "mark-done"]],
       ["danger", ["delete"]],
     ])
@@ -222,6 +199,13 @@ describe("workspaceMenuLead", () => {
     expect(lead({ hasChanges: true })).toBe("create-pr")
   })
 
+  it("doesn't lead with Create pull request when GitHub can't take it", () => {
+    expect(lead({ hasChanges: true, canCreatePr: false })).toBe("play")
+    expect(lead({ pr: { state: "open" }, canCreatePr: false })).toBe(
+      "create-pr"
+    )
+  })
+
   it("leads with the player when there's nothing to propose", () => {
     expect(lead()).toBe("play")
     expect(lead({ pr: { state: "closed" } })).toBe("play")
@@ -252,10 +236,6 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Open in browser",
       "Show all routes",
       "Create pull request",
-      "Rebase on main",
-      "Open branch on GitHub",
-      "Rename branch…",
-      "New chat from here…",
       "Rename",
       "Restart",
       "Mark as done",
@@ -287,8 +267,6 @@ describe("BranchOverflowMenuContent rendering", () => {
     expect(menuLabels()).toEqual([
       "Reopen",
       "Open pull request #7",
-      "Open branch on GitHub",
-      "New chat from here…",
       "Rename",
       "Delete",
     ])
@@ -336,29 +314,6 @@ describe("BranchOverflowMenuContent rendering", () => {
 // Radix marks a disabled menu item with `aria-disabled="true"` (and a bare
 // `data-disabled` attribute); an enabled item carries neither. No jest-dom is
 // wired up, so assert the attribute directly.
-function isRebaseDisabled() {
-  return rebaseItem()?.getAttribute("aria-disabled") === "true"
-}
-
-describe("Rebase on main — disable while working", () => {
-  it("is enabled when the branch is not busy", () => {
-    renderMenu({}, { isBusy: false })
-    expect(isRebaseDisabled()).toBe(false)
-  })
-
-  it("is disabled when the branch is busy", () => {
-    renderMenu({}, { isBusy: true })
-    expect(isRebaseDisabled()).toBe(true)
-  })
-
-  it("stays disabled while busy even with a sandbox + ref present", () => {
-    // Guards against the disable collapsing to only the data-availability
-    // checks (`sandboxName`/`ref`) and dropping the busy gate.
-    renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: true })
-    expect(isRebaseDisabled()).toBe(true)
-  })
-})
-
 function createPrDisabled() {
   return (
     screen
@@ -368,20 +323,45 @@ function createPrDisabled() {
   )
 }
 
-describe("Create pull request — disable while working", () => {
-  it("is enabled when the branch is not busy", () => {
-    renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: false })
+describe("Create pull request", () => {
+  it("is enabled with changes while the branch is not busy", () => {
+    renderMenu(
+      { sandboxName: "sb-1", ref: "feature/foo" },
+      { isBusy: false, hasChanges: true }
+    )
     expect(createPrDisabled()).toBe(false)
   })
 
   it("is disabled when the branch is busy", () => {
-    renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: true })
+    renderMenu(
+      { sandboxName: "sb-1", ref: "feature/foo" },
+      { isBusy: true, hasChanges: true }
+    )
     expect(createPrDisabled()).toBe(true)
   })
 
   it("is disabled for a branch with no ref to open a PR from", () => {
-    renderMenu({ ref: undefined }, { isBusy: false })
+    renderMenu({ ref: undefined }, { isBusy: false, hasChanges: true })
     expect(createPrDisabled()).toBe(true)
+  })
+
+  it("is disabled with nothing to propose", () => {
+    renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: false })
+    expect(createPrDisabled()).toBe(true)
+  })
+
+  it("is hidden when the repo can't open a PR, but an open PR still links", () => {
+    renderMenu({}, { hasChanges: true, canCreatePr: false })
+    expect(screen.queryByText("Create pull request")).toBeNull()
+    cleanup()
+    renderMenu(
+      {},
+      {
+        canCreatePr: false,
+        pr: { number: 9, state: "open", url: "https://x" },
+      }
+    )
+    expect(screen.getByText("Open pull request #9")).toBeTruthy()
   })
 })
 
@@ -396,94 +376,6 @@ if (!Range.prototype.getClientRects) {
     }) as unknown as DOMRectList
   Range.prototype.getBoundingClientRect = () => ({}) as DOMRect
 }
-
-/**
- * Mirrors the RoomSidebar wiring (#353): the branch menu's "New branch from
- * here…" item seeds `baseBranch` with the source branch's ref and opens the
- * real {@link CreateBranchDialog}. Rendering both together lets the test assert
- * the end-to-end behaviour — the item opens the dialog, pre-based on the branch,
- * with an empty prompt — rather than just that a callback fired.
- */
-function MenuToDialogHarness() {
-  const [base, setBase] = useState<string | null>(null)
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <DropdownMenu open>
-        <DropdownMenuTrigger>open</DropdownMenuTrigger>
-        <BranchOverflowMenuContent
-          branch={branch}
-          repo={repo}
-          onPlay={vi.fn()}
-          onRetry={vi.fn()}
-          onRename={vi.fn()}
-          onRenameBranch={vi.fn()}
-          onNewBranchFromHere={() => {
-            setBase(branch.ref ?? null)
-            setOpen(true)
-          }}
-          onRestartDevServer={vi.fn()}
-          onRestart={vi.fn()}
-          onRecreate={vi.fn()}
-          onShowRoutes={vi.fn()}
-          onCreatePr={vi.fn()}
-          onRebase={vi.fn()}
-          onMarkDone={vi.fn()}
-          onReopen={vi.fn()}
-          onDelete={vi.fn()}
-        />
-      </DropdownMenu>
-      {open ? (
-        <CreateBranchDialog
-          open
-          onOpenChange={setOpen}
-          repos={[repo]}
-          repoId={repo.id}
-          baseBranch={base ?? undefined}
-          markdownLayers={[]}
-          onSubmit={vi.fn()}
-        />
-      ) : null}
-    </>
-  )
-}
-
-describe('"New chat from here…" opens the create dialog', () => {
-  it("opens it pre-based on this branch with an empty prompt", async () => {
-    render(<MenuToDialogHarness />)
-
-    // No dialog until the item is chosen.
-    expect(
-      screen.queryByText(
-        "Start one or more chats, each with an optional prompt."
-      )
-    ).toBeNull()
-
-    fireEvent.click(screen.getByText("New chat from here…"))
-
-    // The create dialog is now open…
-    const dialog = await screen.findByRole("dialog")
-    expect(
-      within(dialog).queryByText(
-        "Start one or more chats, each with an optional prompt."
-      )
-    ).not.toBeNull()
-    // …pre-based on this branch (the base chip shows its ref, not the default)…
-    expect(within(dialog).queryByText(branch.ref)).not.toBeNull()
-    expect(within(dialog).queryByText(repo.defaultBranch)).toBeNull()
-    // …and with an empty prompt (the source branch's chat is not carried over).
-    const editor = dialog.querySelector('[contenteditable="true"]')
-    expect(editor?.textContent ?? "").toBe("")
-  })
-
-  it("is disabled for a branch with no ref to fork from", () => {
-    renderMenu({ ref: undefined })
-    const item = screen
-      .getByText("New chat from here…")
-      .closest("[role=menuitem]")
-    expect(item?.getAttribute("aria-disabled")).toBe("true")
-  })
-})
 
 describe("Restart submenu", () => {
   it("renders Restart as a submenu trigger, not a flat action", () => {

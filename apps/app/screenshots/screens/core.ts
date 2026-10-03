@@ -22,7 +22,6 @@ import {
   selectCheckoutFrame,
   fixtureGitHub,
   openCanvasSettings,
-  newWorkspaceButton,
   openAddProject,
   injectYjsUpdate,
 } from "./helpers"
@@ -250,17 +249,6 @@ export const CORE_SCREENS: Screen[] = [
       await goLive(page)
       await frameToolbarButton(page, "Live").hover({ timeout: 15_000 })
       await showTooltip(page)
-    },
-    settleMs: 400,
-  },
-  {
-    name: "dialog-new-workspace",
-    description:
-      "The prompt-first New chat dialog, from the Chats menu's New chat (+).",
-    path: `/${ids.rooms.checkout}`,
-    cookies: canvasPanels({ chatPct: 30 }),
-    prepare: async (page) => {
-      await newWorkspaceButton(page).then((b) => b.click())
     },
     settleMs: 400,
   },

@@ -18,8 +18,6 @@ import { withBasePath } from "@/lib/base-path"
 import { chatStore } from "@/lib/chat-store"
 import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import { deleteBranch } from "@/lib/github-actions"
-import { renameAgentBranch } from "@/lib/sandbox/git"
-import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import {
   planBranchCreations,
@@ -39,8 +37,7 @@ import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
 /**
  * Branch Intake controller (PRD #562) — the Repo → Branch → Sandbox lifecycle
  * lifted out of `components/canvas/canvas.tsx`. The component calls the verbs
- * this hook returns (`createBranch`, `createBranchFromGitBranch`,
- * `removeRepo`, `removeBranch`, `renameBranch`); the orchestration — the
+ * this hook returns (`createBranch`, `removeRepo`, `removeBranch`); the orchestration — the
  * multi-collection Y.Doc writes through the Canvas Operation seam (ADR 0001),
  * the Sandbox Provider calls (ADR 0003), and above all the *ordering* — lives
  * here in one place rather than smeared across the canvas surface.
@@ -116,7 +113,6 @@ export interface BranchIntake {
     specs: ComposerSpec[],
     opts?: CreateBranchOptions
   ) => Promise<void>
-  createBranchFromGitBranch: (repoId: string, branch: string) => void
   removeRepo: (
     id: string,
     options: { deleteBranchesOnRemote: boolean }
@@ -125,7 +121,6 @@ export interface BranchIntake {
     id: string,
     options: { deleteOnRemote: boolean }
   ) => Promise<void>
-  renameBranch: (agentId: string, rawBranch: string) => Promise<void>
   /**
    * Re-run a failed Workspace's create (#791): the same flow, branch and
    * Sandbox name as the first attempt. A queued seed prompt is still waiting
@@ -255,54 +250,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       if (error) updateAgentInStorage(branchId, { status: "error", error })
     },
     [roomId, updateAgentInStorage]
-  )
-
-  // Eagerly seed a single new Branch's canvas frame at creation time, rather
-  // than waiting on the deferred `running`-gated seeder: a single-member Group
-  // at the viewport center, selected and zoomed once its frame mounts. The op
-  // clears `pendingIframeLayerSeed`, so the reactive seeder skips this Branch.
-  // Bulk creates seed their own shared Group inline (see createBranch).
-  const seedEagerFrameForBranch = useCallback(
-    (branchId: string) => {
-      const frame = planBranchSeed({
-        branchId,
-        hasSeededChat: false,
-      }).frame
-      const { cx, cy } = getViewportCenter()
-      const frameGroup = ops.createFramesForAgents([frame], { x: cx, y: cy })
-      if (!frameGroup) return
-      setSelectedGroupIds(new Set([frameGroup.groupId]))
-      setSelectedIframeLayerIds(new Set())
-      const firstLayerId = frameGroup.layerIds[0]
-      if (firstLayerId)
-        requestAnimationFrame(() => handleSelectIframeLayer(firstLayerId))
-    },
-    [
-      ops,
-      getViewportCenter,
-      handleSelectIframeLayer,
-      setSelectedGroupIds,
-      setSelectedIframeLayerIds,
-    ]
-  )
-
-  /**
-   * Seed a freshly-created single Branch's default tab to the user's pref via
-   * the Tab Pool seed entry (selection deferred until the sandbox is ready), so
-   * the tab shows up immediately rather than only after provisioning finishes.
-   * Since the client always pre-seeds, the server is told to skip its auto chat;
-   * the returned `seedChat` flag is forwarded to the create API.
-   */
-  const seedDefaultTabForNewBranch = useCallback(
-    (branchId: string): boolean => {
-      const { tab } = planBranchSeed({
-        branchId,
-        hasSeededChat: false,
-      })
-      if (tab) createDefaultTabForBranch(tab.branchId, { select: false })
-      return false
-    },
-    [createDefaultTabForBranch]
   )
 
   // Prompts queued by the prompt-first create handler (createBranch) that should
@@ -542,50 +489,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     ]
   )
 
-  const createBranchFromGitBranch = useCallback(
-    (repoId: string, branch: string) => {
-      const repo = repos.find((w) => w.id === repoId)
-      if (!repo) return
-
-      const sandboxName = `sp-${nanoid(10)}`
-
-      const { branchId: id } = ops.createBranch({
-        branch: {
-          repoId,
-          sandboxName,
-          gitUrl: repo.cloneUrl,
-          ref: branch,
-          previewDomain: "",
-          port: repo.devServerPort ?? DEFAULT_DEV_SERVER_PORT,
-          status: "creating",
-          statusMessage: "Cloning repository…",
-          createdAt: Date.now(),
-          autoNamedBranch: false,
-          createFlow: "from-branch",
-        },
-      })
-      chatTarget.addPending([id])
-      const seedChat = seedDefaultTabForNewBranch(id)
-      seedEagerFrameForBranch(id)
-
-      void requestCreate(id, {
-        flow: "from-branch",
-        sandboxName,
-        branch,
-        repoId,
-        seedChat,
-      })
-    },
-    [
-      repos,
-      ops,
-      requestCreate,
-      seedDefaultTabForNewBranch,
-      seedEagerFrameForBranch,
-      chatTarget,
-    ]
-  )
-
   // Dispatch prompts queued by the prompt-first create handler (createBranch)
   // once their agent's sandbox reaches `running`. Deleting the entry before
   // sending means the prompt fires exactly once — never before `running`, and
@@ -639,7 +542,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // Seed iframeLayers for agents whose sandbox has finished provisioning. The
   // flag is set at create time and cleared here after the first seed, so
   // deleting the last frame for a branch later does not re-spawn one. This is
-  // the deferred sibling of `seedEagerFrameForBranch` (which seeds at create
+  // the deferred sibling of createBranch's eager frame (which seeds at create
   // time): a Branch whose eager seed didn't land — e.g. a create that resumed
   // after a reload — still gets its frame once it reaches `running`.
   useEffect(() => {
@@ -677,45 +580,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     setSelectedIframeLayerIds,
     setSelectedGroupIds,
   ])
-
-  const renameBranch = useCallback(
-    async (agentId: string, rawBranch: string) => {
-      const newBranch = sanitizeBranchName(rawBranch)
-      const agent = agents.find((a) => a.id === agentId)
-      if (
-        !newBranch ||
-        !agent?.sandboxName ||
-        !agent.ref ||
-        agent.ref === newBranch
-      )
-        return
-
-      const repo = repos.find((w) => w.id === agent.repoId)
-      if (!repo) return
-
-      // Apply the rename locally before the sandbox roundtrip — the sandbox
-      // resume + `git branch -m` + GitHub call can take several seconds and
-      // the badge sitting on the old name in the meantime feels broken.
-      // Roll back if the sandbox rejects (e.g. branch already exists).
-      const previousBranch = agent.ref
-      const previousAutoNamed = agent.autoNamedBranch
-      updateAgentInStorage(agentId, { ref: newBranch, autoNamedBranch: false })
-
-      const result = await renameAgentBranch(
-        repo,
-        agent.sandboxName,
-        previousBranch,
-        newBranch
-      )
-      if (!result.success) {
-        updateAgentInStorage(agentId, {
-          ref: previousBranch,
-          autoNamedBranch: previousAutoNamed,
-        })
-      }
-    },
-    [agents, repos, updateAgentInStorage]
-  )
 
   const retryBranch = useCallback(
     (agentId: string) => {
@@ -835,10 +699,8 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
 
   return {
     createBranch,
-    createBranchFromGitBranch,
     removeRepo,
     removeBranch,
-    renameBranch,
     retryBranch,
     updateRepoInStorage,
     updateAgentInStorage,

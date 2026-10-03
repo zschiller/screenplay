@@ -13,35 +13,17 @@ title, and its pull request when there's room.
 
 ## Creating workspaces
 
-Open the **Chats** menu and click **+** (**New chat**) beside its search field. Each
-new chat gets its own workspace.
-The **New chat** dialog can start several at once:
+Every new chat gets its own workspace. There are two ways to start one:
 
-<Screenshot
-  name="new-workspace-multi"
-  alt="The New chat dialog with two rows, each with a prompt"
-/>
+- **Draw a frame** with the **Frame** tool (<kbd>F</kbd>) and type what it
+  should show. A new chat starts on the repository you used last, from its
+  default branch (see [Frames](/guides/frames)).
+- **Ask the Coordinator.** It picks the repository and the branch to start
+  from, and can start several chats at once.
 
-- Each row starts from a **base branch** (the chip above the prompt), which
-  defaults to the repository's default branch.
-- Each row also has a **repository** chip beside the base branch. It starts
-  on the repository you used last; picking another resets the base to that
-  repository's default branch. **No repository** makes that row a
-  [chat with no repository](/guides/agent#chats-with-no-repository) instead
-  of a workspace: it writes mockups and documents only, so it has no base
-  branch.
-- Type a **prompt** to give the new workspace its first task. It's sent to
-  the agent as soon as the sandbox is ready, and the agent titles the
-  workspace from it in sentence case (for example "Add pricing FAQ") and
-  names its branch from the same words (`add-pricing-faq`). Leave the prompt empty to create a bare
-  workspace with a generated name; its first chat message titles it.
-- Each row has its own model picker and **Plan** toggle, the same as the
-  [chat composer](/guides/agent#the-composer).
-- **Add another** (<kbd>⌘</kbd> <kbd>↵</kbd>) adds a row. <kbd>↵</kbd> creates
-  them all.
-- On desktop with no coding agent installed, each row says **No coding agent found** in
-  place of its model picker and **Create chat** stays off until you
-  install one from **Settings → Agent**.
+The agent titles the workspace from your first message in sentence case (for
+example "Add pricing FAQ") and names its branch from the same words
+(`add-pricing-faq`).
 
 A new workspace's frame appears on the canvas straight away, and the canvas
 zooms to it. The workspace goes through **creating** and **starting** while
@@ -50,9 +32,9 @@ To watch it happen, open **Dev server** under the workspace's composer (see
 [Terminals](/guides/agent#terminals)). When the server is up, the frame shows
 the app.
 
-To work on a branch that already exists, click the **…** next to **+** and
-choose **Open existing git branch** (on a canvas with several repositories,
-pick the repository first).
+Every chat starts on a branch of its own, so two agents never push to the
+same branch. To build on a branch that already exists, ask the Coordinator to
+start a chat from it: the new chat starts from that branch on a new one.
 
 A canvas with no repository yet says that workspaces need one, with an
 **Add repository** button that goes straight to
@@ -65,22 +47,21 @@ panel's header, the canvas list and each frame's workspace badge and address
 bar. Titles are in sentence case, like "Add pricing FAQ". Where a title comes
 from depends on how the workspace started:
 
-- **From the Chats menu or a new repository**, the first message in the
+- **From a frame or a new repository**, the first message in the
   workspace's chat titles it and renames its branch to match (for
   example `add-pricing-faq`). If that branch name is already taken on the
   remote, a numeric suffix is added.
 - **From a Coordinator plan**, the workspace takes the title from the plan,
   and its branch is named from that title when it's created. Its first
   message renames neither.
-- **From Open existing git branch**, its first message changes neither the
-  branch nor the title. It reads **New chat** until you rename it.
 
 Earlier chats on a canvas from before workspaces had one chat keep their own
 names and never change the workspace's title or branch.
 
 Renaming a workspace (**… → Rename**, then type over its title) changes only
 the title, so it never touches the branch, its pull request or anyone's
-checkout. To rename the branch itself, use **… → Rename branch…**.
+checkout. The branch keeps the name it was given. To rebase it or rename it,
+ask the agent in its chat.
 
 ## The Chats menu
 
@@ -143,12 +124,7 @@ The agent panel's header, a frame's workspace list and the
 then the title, then the pull request badge (the header keeps its own pull
 request button instead).
 
-### Sorting and grouping
-
-<Screenshot
-  name="ws-list-view"
-  alt="The Chats menu's … with the Sort by submenu open"
-/>
+### Order
 
 The list is grouped by state: **Working** (the agent is working or setup is
 running), **Needs you** (setup failed, a plan waits for your approval, a
@@ -156,14 +132,10 @@ question waits for your answer, or its pull request can't merge) and **Idle**
 (ready or stopped, including a pull request waiting on review). Each section
 gets its own heading, and empty sections are hidden.
 
-**Sort by**, in the **…** beside the search field, orders the rows inside
-each section: **Recent activity** (the default: the workspace whose agent was
-last asked something first; one that never ran a turn counts from when it
-was created) or **Name**.
-
+Inside each section, the workspace whose agent was last asked something
+comes first; one that never ran a turn counts from when it was created.
 [Done](#marking-a-workspace-done) workspaces stay in their own section at the
-bottom whatever you pick. The choice is yours alone: it's remembered for each
-canvas in this browser, and collaborators keep their own.
+bottom.
 
 Hover a row to see where the workspace is used: the canvas list lights up the
 [groups](/guides/canvas#a-groups-workspace) on it and the frames that show
@@ -197,20 +169,16 @@ viewing, git and managing actions:
 
 <Screenshot name="ws-menu" alt="The chat menu" />
 
-| Item                                               | What it does                                                                                                                           |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open prototype player**                          | Opens [play mode](/guides/play-mode) for this workspace.                                                                               |
-| **Open in browser**                                | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`.                   |
-| **Show all routes**                                | Adds a group with one frame per route the workspace has visited.                                                                       |
-| **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one.                                                         |
-| **Rebase on _main_**                               | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
-| **Open branch on GitHub**                          | Opens the branch on GitHub.                                                                                                            |
-| **Rename branch…**                                 | Renames the git branch, on GitHub and in the workspace. Names already used on the remote are refused. The workspace keeps its title.   |
-| **New chat from here…**                            | Opens **New chat** with this workspace's branch as the base.                                                                           |
-| **Rename**                                         | Renames the workspace's title. The git branch stays as it is.                                                                          |
-| **Restart**                                        | See [Restarting](#restarting).                                                                                                         |
-| **Mark as done** / **Reopen**                      | See [Marking a workspace done](#marking-a-workspace-done).                                                                             |
-| **Delete**                                         | Deletes the chat with its workspace and frames, and optionally its branch on GitHub.                                                   |
+| Item                                               | What it does                                                                                                         |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Open prototype player**                          | Opens [play mode](/guides/play-mode) for this workspace.                                                             |
+| **Open in browser**                                | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
+| **Show all routes**                                | Adds a group with one frame per route the workspace has visited.                                                     |
+| **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one.                                       |
+| **Rename**                                         | Renames the workspace's title. The git branch stays as it is.                                                        |
+| **Restart**                                        | See [Restarting](#restarting).                                                                                       |
+| **Mark as done** / **Reopen**                      | See [Marking a workspace done](#marking-a-workspace-done).                                                           |
+| **Delete**                                         | Deletes the chat with its workspace and frames, and optionally its branch on GitHub.                                 |
 
 ## Restarting
 
@@ -275,8 +243,10 @@ There are three ways to open a PR:
   a link card in the chat.
 
 PRs target the repository's default branch. The PR's state (open, merged, or
-closed) is shown at the end of the workspace row and on the header button. Creating PRs
-needs a GitHub connection.
+closed) is shown at the end of the workspace row and on the header button.
+**Create pull request** shows only when the repository is on GitHub and
+you're connected to GitHub, and it's available once the workspace has changes
+to propose.
 
 ## Deleting
 

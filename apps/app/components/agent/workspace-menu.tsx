@@ -59,17 +59,13 @@ export function WorkspaceMenuItems({
       onRetry={menu.onRetryBranch}
       hasChanges={!!stats && (stats.additions > 0 || stats.deletions > 0)}
       onRename={onRename}
-      onRenameBranch={menu.askRenameBranch}
-      onNewBranchFromHere={() =>
-        menu.openNewWorkspace(branch.repoId, branch.ref ?? undefined)
-      }
       onRestartDevServer={menu.onRestartDevServer}
       onRestart={menu.onRefreshBranch}
       onRecreate={menu.askRecreate}
       onShowRoutes={menu.onShowRoutes}
       onCreatePr={menu.onCreatePr}
       pr={menu.branchPrs.get(branch.id)}
-      onRebase={menu.onRebaseOnDefault}
+      canCreatePr={menu.canCreatePr(repo)}
       onMarkDone={menu.onMarkBranchDone}
       onReopen={menu.onReopenBranch}
       onDelete={menu.askDelete}

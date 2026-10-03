@@ -836,26 +836,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
-    name: "ws-list-view",
-    description:
-      "The Workspaces list's … menu with the Sort by submenu open (#885).",
-    path: ROOM,
-    cookies: WITH_CHAT,
-    crop: [660, 0, 620, 480],
-    focus: MENU,
-    prepare: async (page) => {
-      await camera(page, VIEW.hero)
-      await openChatsMenu(page)
-      await page
-        .getByRole("button", { name: "More chat actions" })
-        .click({ timeout: 15_000 })
-      await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
-      await page
-        .getByRole("menuitemradio", { name: "Recent activity" })
-        .waitFor({ timeout: 5_000 })
-    },
-  }),
-  screen({
     name: "ws-restart",
     description: "The Workspace menu's Restart submenu.",
     path: ROOM,
@@ -893,37 +873,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await unfreeze(page)
       await openRowMenu(page, "Customer stories")
       await clickMenuItem(page, "Delete", 1200)
-    },
-  }),
-  screen({
-    name: "new-workspace-multi",
-    description: "New Workspace, with two branches to create.",
-    path: ROOM,
-    cookies: WITH_CHAT,
-    focus: DIALOG,
-    prepare: async (page) => {
-      await camera(page, VIEW.hero)
-      await openChatsMenu(page)
-      await page.locator("button[aria-label='New chat']").first().click()
-      await sleep(page, 1500)
-      await page.locator("[role=dialog] [contenteditable=true]").first().click()
-      await page.keyboard.type(
-        "Add a monthly/annual toggle to the pricing page with 20% off annual plans",
-        { delay: 2 }
-      )
-      await page
-        .locator("[role=dialog] button")
-        .filter({ hasText: "Add another" })
-        .first()
-        .click()
-      // The new row pushes the button down, leaving the pointer over its model
-      // picker; park it on the overlay so no hover wash shows.
-      await page.mouse.move(0, 0)
-      await sleep(page, 800)
-      await page.keyboard.type("Redesign the customer quotes as a carousel", {
-        delay: 2,
-      })
-      await sleep(page, 400)
     },
   }),
 
