@@ -18,25 +18,28 @@ Columns:
 - **Chrome**: the contract suite and `mac-backend.browser.test.ts`, with
   Chrome's CDP input standing in for the shell. Checks everything but the
   shell's AppKit calls. Runs in CI.
-- **Mac**: a local desktop build on the Mac, over Remote Control.
+- **Mac**: a desktop build of this branch on Zack's Mac (2026-10-03), the
+  window in front, with the 10 gestures below played once each through the
+  agent's own `frame_*` driver. Every event the page saw was trusted. "not
+  run" rows weren't part of that run.
 
 | Gap / case | Closed by | Chrome | Mac |
 | --- | --- | --- | --- |
-| Focus in the cross-origin frame | canvas focuses the iframe, bridge focuses the field | ✅ | not run yet |
-| Key events type (`key-typing`) | `keyDown:` | ✅ | not run yet |
-| Tab (`tab`) | `keyDown:` Tab | ✅ | not run yet |
-| Rich text (`rich-text`) | bridge puts the caret, then `keyDown:` | ✅ | not run yet |
-| CSS `:hover` | `mouseMoved:` | ✅ | not run yet |
-| Page's Copy button (`clipboard`) | real click (user activation); pasteboard set aside and restored | ✅ | not run yet |
-| ⌘C / ⌘X / ⌘V / ⌘A | `copy:` `cut:` `paste:` `selectAll:`; a paste gets the agent's own copy | ✅ | not run yet |
-| File picker (`file-picker`) with Workspace files | swizzled `runOpenPanelWithParameters:` answers with the files, no panel | ✅ | not run yet |
-| File picker, the person's own click | wry's Finder panel, unchanged | n/a | not run yet |
-| Native select (`native-select`) | stays a gap: `frame_select` | gap | not run yet |
-| Date, time, colour (`native-picker`) | stays a gap: `frame_type` | gap | not run yet |
-| Window in the background / not key | events go to the view, no activation | n/a | not run yet |
-| Window occluded | same | n/a | not run yet |
-| Window hidden (closed with the red button) | point can't be hit: bridge plays it | n/a | not run yet |
-| Frame zoomed | point scaled by the frame's transform | ✅ (50%) | not run yet |
-| Frame scrolled off the canvas or covered | point can't be hit: bridge plays it | ✅ | not run yet |
-| Person's pointer doesn't move, Screenplay doesn't activate | no `CGEventPost`, no `sendEvent:` | n/a | not run yet |
-| Person's clipboard unchanged after an agent copy or paste | held and restored by the shell | ✅ | not run yet |
+| Focus in the cross-origin frame | canvas focuses the iframe, bridge focuses the field | ✅ | ✅ |
+| Key events type (`key-typing`) | `keyDown:` | ✅ | ✅ field reads "a" |
+| Tab (`tab`) | `keyDown:` Tab | ✅ | ✅ |
+| Rich text (`rich-text`) | bridge puts the caret, then `keyDown:` | ✅ | ✅ box reads "hi" |
+| CSS `:hover` | `mouseMoved:` | ✅ | ❌ no `pointerenter`: the canvas took the pointer back before WebKit delivered the move. Now waits like a click; not re-run |
+| Page's Copy button (`clipboard`) | real click (user activation); pasteboard set aside and restored | ✅ | ✅ copied "link" |
+| ⌘C / ⌘X / ⌘V / ⌘A | `copy:` `cut:` `paste:` `selectAll:`; a paste gets the agent's own copy | ✅ | ✅ ⌘V pasted "link", ⌘A selected; ⌘C ⌘X not run |
+| File picker (`file-picker`) with Workspace files | swizzled `runOpenPanelWithParameters:` answers with the files, no panel | ✅ | ✅ input holds the file, `change` fired, no panel |
+| File picker, the person's own click | wry's Finder panel, unchanged | n/a | not run |
+| Native select (`native-select`) | stays a gap: `frame_select` | gap | not run |
+| Date, time, colour (`native-picker`) | stays a gap: `frame_type` | gap | not run |
+| Window in the background / not key | events go to the view, no activation | n/a | not run (window in front) |
+| Window occluded | same | n/a | ❌ a canvas that first loads in a fully covered window never connects, so the agent hears it isn't showing; covered after loading not run |
+| Window hidden (closed with the red button) | point can't be hit: bridge plays it | n/a | not run |
+| Frame zoomed | point scaled by the frame's transform | ✅ (50%) | not run |
+| Frame scrolled off the canvas or covered | point can't be hit: bridge plays it | ✅ | not run |
+| Person's pointer doesn't move, Screenplay doesn't activate | no `CGEventPost`, no `sendEvent:` | n/a | ✅ pointer never moved; activation not checked (window in front) |
+| Person's clipboard unchanged after an agent copy or paste | held and restored by the shell | ✅ | ✅ same before and after |

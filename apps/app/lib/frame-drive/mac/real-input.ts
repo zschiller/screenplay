@@ -76,8 +76,13 @@ export interface RealInputDeps {
   wait?: (ms: number) => Promise<void>
 }
 
-/** A page's own Copy button writes the clipboard a moment after the click. */
-export const CLIPBOARD_SETTLE_MS = 150
+/**
+ * How long the frame keeps the pointer after the events go: WebKit hands
+ * them to the page a moment later (a Copy button writes the clipboard then,
+ * and a move-only hover is hit-tested then), and once the canvas takes the
+ * pointer back they would land on the overlay instead.
+ */
+export const INPUT_SETTLE_MS = 150
 /** At show pace, the longest a character takes, and a whole text. */
 const SHOW_TYPE_MS = 90
 const SHOW_TYPE_MAX_MS = 2500
@@ -319,6 +324,7 @@ async function hover(
   const p = taken?.window
   if (!p) return BRIDGE
   await native.send([{ kind: "move", x: p.x, y: p.y }])
+  await settle(deps)
   return done(op, at.target, deps)
 }
 
@@ -356,7 +362,7 @@ async function glide(
 /** Wait for what the gesture did to land and paint. */
 async function settle(deps: RealInputDeps): Promise<void> {
   await deps.page({ kind: "state" })
-  await (deps.wait ?? sleep)(CLIPBOARD_SETTLE_MS)
+  await (deps.wait ?? sleep)(INPUT_SETTLE_MS)
 }
 
 async function done(

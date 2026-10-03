@@ -35,10 +35,13 @@ function harness(
   const asks: PageAsk[] = []
   const calls: string[] = []
   const sent: NativeEvent[] = []
+  // Page asks, events sent and waits, in order.
+  const order: string[] = []
   const native: NativeInput = {
     async send(events) {
       if (opts.fail === "send") throw new Error("shell gone")
       calls.push("send")
+      order.push("send")
       sent.push(...events)
     },
     async holdClipboard(text) {
@@ -60,13 +63,16 @@ function harness(
   const deps: RealInputDeps = {
     native,
     clipboard: { text: null },
-    wait: async () => {},
+    wait: async () => {
+      order.push("wait")
+    },
     files: async (paths) =>
       paths.every((p) => !p.startsWith(".."))
         ? paths.map((p) => `/ws/${p}`)
         : null,
     page: (async (ask: PageAsk) => {
       asks.push(ask)
+      order.push(ask.kind)
       if (opts.taken === ask.kind) return "taken"
       switch (ask.kind) {
         case "locate":
@@ -84,7 +90,7 @@ function harness(
     }) as RealInputDeps["page"],
   }
   const run = (op: DriveGesture) => runRealInput(op, deps)
-  return { run, asks, calls, sent, deps }
+  return { run, asks, calls, sent, order, deps }
 }
 
 describe("real input on the Mac", () => {
@@ -263,6 +269,13 @@ describe("real input on the Mac", () => {
       await h.run({ op: "hover", target: { text: "Info" } })
     ).toMatchObject({ status: "done" })
     expect(h.sent).toEqual([{ kind: "move", x: 140, y: 230 }])
+    // WebKit hit-tests the move a moment later: the frame keeps the pointer
+    // until then, or the move lands on the canvas's overlay.
+    const sentAt = h.order.indexOf("send")
+    expect(h.order.indexOf("wait", sentAt)).toBeGreaterThan(sentAt)
+    expect(h.order.indexOf("release")).toBeGreaterThan(
+      h.order.indexOf("wait", sentAt)
+    )
   })
 
   it("stops when someone took the frame", async () => {
