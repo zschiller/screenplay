@@ -555,7 +555,6 @@ function CanvasMemberLayerImpl({
                 onControlActivity={frameControl.active}
                 sharedStream={mockupStream}
                 live={mockupLive.live}
-                liveFaces={sharedFrames.facesOf(mockup.id)}
                 liveDriver={frameControl.liveDriverOf(mockup.id)}
                 liveUnavailable={!liveWorkspace}
                 liveStarting={goLive.pendingIds.has(mockup.id)}
@@ -636,7 +635,6 @@ function CanvasMemberLayerImpl({
               }}
               sharedStream={stream}
               live={live.live}
-              liveFaces={sharedFrames.facesOf(iframeLayer.id)}
               liveDriver={frameControl.liveDriverOf(iframeLayer.id)}
               onToggleLive={
                 liveStream

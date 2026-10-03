@@ -3,7 +3,6 @@
 import {
   Avatar,
   AvatarFallback,
-  AvatarGroup,
   AvatarImage,
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
@@ -18,7 +17,6 @@ import {
 import { GripSpinner } from "@/components/grip-spinner"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
-import type { LiveFace } from "./use-shared-frames"
 
 /** The agent's name where Frame Control names who drives. */
 const AGENT_NAME = "Agent"
@@ -223,65 +221,22 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
   return null
 }
 
-/** The most faces the Live tag shows; past that, a count. */
-const MAX_LIVE_FACES = 4
-
 /**
  * "Live" on the frame's title line, where the driver tag goes, while the
- * frame is live (#1516), then the faces of everyone on it (#1519): 16px
- * avatars in their cursor colours, overlapping, the agent as its mark. Muted,
- * in the title's type: it says the frame is shared right now, and nothing
- * here is anyone's alert. The driver tag replaces it while someone has
- * control.
+ * frame is live (#1516): the Go live toggle's broadcast icon and the word, in
+ * the driver tag's shape but outlined, so it stays quieter than a driver's
+ * colour. It names no one: live is everyone on the canvas, and the canvas
+ * header already shows who that is. The driver tag replaces it while someone
+ * has control.
  */
-export function FrameLiveTag({ faces = [] }: { faces?: readonly LiveFace[] }) {
-  const shown = faces.slice(0, MAX_LIVE_FACES)
-  const more = faces.length - shown.length
-  const names = faces.map((f) => (f.kind === "agent" ? AGENT_NAME : f.name))
+export function FrameLiveTag() {
   return (
     <span
       data-frame-live-tag=""
-      className="flex h-[18px] shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground"
+      className="flex h-[18px] shrink-0 items-center gap-1 rounded border px-1.5 text-xs font-medium whitespace-nowrap text-foreground"
     >
+      <BroadcastIcon className="size-3" />
       Live
-      {shown.length > 0 && (
-        <>
-          <span className="sr-only">with {names.join(", ")}</span>
-          <AvatarGroup
-            aria-hidden
-            className="-space-x-1 *:data-[slot=avatar]:ring-1"
-          >
-            {shown.map((face) =>
-              face.kind === "agent" ? (
-                <Avatar
-                  key="agent"
-                  data-live-face="agent"
-                  className="size-4 bg-background after:hidden"
-                >
-                  <GripSpinner className="size-4" />
-                </Avatar>
-              ) : (
-                <Avatar
-                  key={face.id}
-                  data-live-face={face.id}
-                  className="size-4 after:hidden"
-                >
-                  {face.avatar ? (
-                    <AvatarImage src={face.avatar} alt="" />
-                  ) : null}
-                  <AvatarFallback
-                    style={{ backgroundColor: face.color }}
-                    className={`text-xs font-medium ${presenceInkClass(face.color)}`}
-                  >
-                    {initial(face.name)}
-                  </AvatarFallback>
-                </Avatar>
-              )
-            )}
-          </AvatarGroup>
-          {more > 0 && <span>+{more}</span>}
-        </>
-      )}
     </span>
   )
 }

@@ -112,17 +112,9 @@ describe("MockupLayer going live (#1523)", () => {
     ).toBe("true")
   })
 
-  it("shows who's on the live page on its Live tag", () => {
-    renderMockup({
-      onToggleLive: () => {},
-      sharedStream: stream,
-      live: true,
-      liveFaces: [
-        { kind: "person", id: "ana", name: "Ana", color: "#7FD4FF" },
-        { kind: "agent" },
-      ],
-    })
-    expect(screen.getByText(/with Ana, Agent/)).toBeTruthy()
+  it("shows the Live tag on the live page", () => {
+    renderMockup({ onToggleLive: () => {}, sharedStream: stream, live: true })
+    expect(screen.getByText("Live")).toBeTruthy()
   })
 
   it("sends the live page the new HTML when it changes", () => {

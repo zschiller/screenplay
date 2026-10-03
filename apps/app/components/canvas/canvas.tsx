@@ -604,7 +604,6 @@ export function Canvas({
     mockupLayers,
     mockupOwners: documentWorkspaces,
     viewerId: userId ?? null,
-    self,
     others,
     frameControl: collections.frameControl,
   })

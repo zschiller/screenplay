@@ -42,7 +42,6 @@ import type {
   FrameDriverView,
   FrameRequesterView,
 } from "@/components/canvas/use-frame-control"
-import type { LiveFace } from "@/components/canvas/use-shared-frames"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
@@ -149,8 +148,6 @@ interface MockupLayerProps {
   sharedStream?: FrameStreamConnection
   /** Someone turned the mockup live, for everyone. */
   live?: boolean
-  /** The faces on the live page, for the Live tag (#1519). */
-  liveFaces?: readonly LiveFace[]
   /** Who drives the live page, for the title-line tag and the resize
    *  handles. */
   liveDriver?: FrameDriverView
@@ -254,7 +251,6 @@ export function MockupLayer({
   onControlActivity,
   sharedStream,
   live = false,
-  liveFaces,
   liveDriver = NOBODY_DRIVES,
   onToggleLive,
   liveUnavailable = false,
@@ -319,7 +315,6 @@ export function MockupLayer({
     focused,
     live,
     liveDriver,
-    liveFaces,
     onLiveCopy: shared,
   })
 

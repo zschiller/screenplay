@@ -8,7 +8,6 @@ import {
 } from "react"
 
 import {
-  AGENT_PARTY,
   frameControlKey,
   type FrameControlRecord,
 } from "@/lib/canvas/frame-control"
@@ -30,13 +29,6 @@ import type { BranchData, IframeLayerData, MockupLayerData } from "@/lib/types"
 const EMPTY: ReadonlySet<string> = new Set()
 const NO_MOCKUPS: readonly Pick<MockupLayerData, "id">[] = []
 const NO_OWNERS: ReadonlyMap<string, string> = new Map()
-const NO_FACES: readonly LiveFace[] = []
-
-/** One face on a live frame's Live tag (#1519): a person in their cursor
- *  colour, or the agent. */
-export type LiveFace =
-  | { kind: "agent" }
-  | { kind: "person"; id: string; name: string; color: string; avatar?: string }
 
 export interface SharedFrames {
   roomId: string
@@ -54,9 +46,6 @@ export interface SharedFrames {
    * With no Workspace running they show it disabled.
    */
   mockupsGoLive: boolean
-  /** The faces on a live frame or Mockup, in the rule's order: this viewer,
-   *  the other people here, then the agent. Empty while it isn't live. */
-  facesOf(layerId: string): readonly LiveFace[]
   /** The Iframe and Mockup Layers this viewer sees live: one shared browser
    *  in the Sandbox, streamed. Every other one is this viewer's own copy. */
   sharedIds: ReadonlySet<string>
@@ -87,7 +76,6 @@ export function useSharedFrames({
   mockupLayers = NO_MOCKUPS,
   mockupOwners = NO_OWNERS,
   viewerId,
-  self = null,
   others,
   frameControl,
 }: {
@@ -103,8 +91,6 @@ export function useSharedFrames({
   mockupOwners?: ReadonlyMap<string, string>
   /** This viewer's user id; null until the session loads. */
   viewerId: string | null
-  /** This viewer's own awareness state: their face on a live frame. */
-  self?: CanvasPresence | null
   /** Other people's awareness states: who else is on a live frame. */
   others: ReadonlyArray<{ presence: CanvasPresence }>
   /** The Room's Frame Control records: the agent's control keeps a frame
@@ -254,39 +240,6 @@ export function useSharedFrames({
     [onKey, ending]
   )
 
-  // Each party on a live frame as a face: a person's name, cursor colour
-  // and avatar from their presence (the first, when they have two tabs open).
-  const faces = useMemo(() => {
-    const people = new Map<string, LiveFace>()
-    for (const presence of [
-      ...(self ? [self] : []),
-      ...others.map((o) => o.presence),
-    ]) {
-      const { id, name, avatar } = presence.identity
-      if (people.has(id)) continue
-      people.set(id, {
-        kind: "person",
-        id,
-        name: name || "Someone",
-        color: presence.color,
-        avatar,
-      })
-    }
-    const map = new Map<string, readonly LiveFace[]>()
-    for (const [id, frame] of frames) {
-      if (!frame.live) continue
-      map.set(
-        id,
-        frame.on.flatMap((party): LiveFace[] => {
-          if (party === AGENT_PARTY) return [{ kind: "agent" }]
-          const face = people.get(party)
-          return face ? [face] : []
-        })
-      )
-    }
-    return map
-  }, [frames, self, others])
-
   return useMemo(
     () => ({
       roomId,
@@ -294,9 +247,8 @@ export function useSharedFrames({
       liveOf: (layerId: string) => frames.get(layerId) ?? NOT_LIVE,
       mockupWorkspaceOf: (layerId: string) => mockupWorkspaces.get(layerId),
       mockupsGoLive,
-      facesOf: (layerId: string) => faces.get(layerId) ?? NO_FACES,
       sharedIds: shown,
     }),
-    [roomId, streamOf, frames, mockupWorkspaces, mockupsGoLive, faces, shown]
+    [roomId, streamOf, frames, mockupWorkspaces, mockupsGoLive, shown]
   )
 }
