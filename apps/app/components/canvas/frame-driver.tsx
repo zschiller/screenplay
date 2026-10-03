@@ -299,12 +299,16 @@ export function FrameGoLiveToggle({
   live,
   pending = false,
   onToggle,
+  unavailable = false,
 }: {
   /** The frame is live. */
   live: boolean
   /** This viewer turned it live and waits for its first picture. */
   pending?: boolean
   onToggle: () => void
+  /** Nothing can run the page live right now: a Mockup with no Workspace
+   *  running (#1523). Disabled, and the tooltip says why. */
+  unavailable?: boolean
 }) {
   return (
     <FloatingToolbarButton
@@ -314,9 +318,12 @@ export function FrameGoLiveToggle({
           ? undefined
           : live
             ? "Click to end live for everyone"
-            : "Everyone on the canvas sees it live"
+            : unavailable
+              ? "A workspace has to be running"
+              : "Everyone on the canvas sees it live"
       }
       pressed={live}
+      disabled={!live && !pending && unavailable}
       aria-busy={pending || undefined}
       onClick={pending ? undefined : onToggle}
     >

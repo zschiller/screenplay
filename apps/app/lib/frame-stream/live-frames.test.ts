@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { AGENT_PARTY } from "@/lib/canvas/frame-control"
-import { NOT_LIVE, liveFrames } from "./live-frames"
+import { NOT_LIVE, liveFrames, mockupLiveWorkspace } from "./live-frames"
 
 const FRAME = "frame-1"
 
@@ -64,5 +64,43 @@ describe("liveFrames", () => {
       drivers: () => null,
     })
     expect(frames.get(FRAME)).toBeUndefined()
+  })
+})
+
+describe("mockupLiveWorkspace", () => {
+  const where = (
+    over: Partial<Parameters<typeof mockupLiveWorkspace>[0]> = {}
+  ) =>
+    mockupLiveWorkspace({
+      live: false,
+      liveBranchId: undefined,
+      ownerBranchId: undefined,
+      streaming: ["ws-b", "ws-a"],
+      ...over,
+    })
+
+  it("goes live in the owning chat's Workspace when it's running", () => {
+    expect(where({ ownerBranchId: "ws-b" })).toBe("ws-b")
+  })
+
+  it("borrows the first running Workspace otherwise", () => {
+    expect(where()).toBe("ws-a")
+    expect(where({ ownerBranchId: "ws-gone" })).toBe("ws-a")
+  })
+
+  it("stays in the Workspace it went live in", () => {
+    expect(
+      where({ live: true, liveBranchId: "ws-b", ownerBranchId: "ws-a" })
+    ).toBe("ws-b")
+  })
+
+  it("offers another Workspace when the one it was live in stopped", () => {
+    expect(
+      where({ live: true, liveBranchId: "ws-gone", ownerBranchId: "ws-b" })
+    ).toBe("ws-b")
+  })
+
+  it("has nowhere to go live with no Workspace running", () => {
+    expect(where({ streaming: [], ownerBranchId: "ws-a" })).toBeUndefined()
   })
 })

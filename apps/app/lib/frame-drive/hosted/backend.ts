@@ -127,6 +127,7 @@ function where(frameId: string, frame: HostedFrame): AgentFrame {
     route: frame.route,
     width: frame.width,
     height: frame.height,
+    ...(frame.doc === undefined ? {} : { doc: frame.doc }),
   }
 }
 

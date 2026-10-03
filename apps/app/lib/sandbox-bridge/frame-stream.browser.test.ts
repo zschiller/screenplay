@@ -14,7 +14,8 @@ import {
 } from "@/lib/frame-stream/protocol"
 import { driveToken, viewToken } from "@/lib/frame-stream/token"
 import type { IframeToCanvasMessage } from "@/lib/postmessage-protocol"
-import { BRIDGE_JS } from "./index"
+import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
+import { BRIDGE_JS, MOCKUP_RUNTIME_JS } from "./index"
 
 // The Frame Stream service end to end (#1392, #1393), in the style of the
 // #1366 prototype's bench: a real Xvfb, Chromium and ffmpeg behind the
@@ -160,6 +161,7 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
   let devServer: http.Server
   let service: ChildProcess
   let port = 0
+  let origin = ""
   const requests: string[] = []
   const cookies: string[] = []
   const viewers: Viewer[] = []
@@ -303,7 +305,7 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       )
     })
     await new Promise<void>((r) => devServer.listen(0, "127.0.0.1", r))
-    const origin = `http://127.0.0.1:${(devServer.address() as AddressInfo).port}`
+    origin = `http://127.0.0.1:${(devServer.address() as AddressInfo).port}`
 
     // A free port for the service.
     const probe = http.createServer()
@@ -948,5 +950,48 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       requests.slice(recounted).find((r) => r.startsWith("/count?"))
     )
     expect(requests.slice(recounted)).toContain("/count?n=1")
+  }, 60_000)
+  it("shows a Mockup's page from its HTML, under its policy, and follows changes to it", async () => {
+    await ready()
+    const m = await connect("mo")
+    // The page tries the network, which its policy refuses.
+    const doc = (title: string) =>
+      mockupSrcDoc(
+        `<!doctype html><html><head></head><body>
+          <h1>${title}</h1>
+          <script>fetch(${JSON.stringify(origin + "/leak")}).catch(() => {})</script>
+        </body></html>`,
+        MOCKUP_RUNTIME_JS
+      )
+    const title = async (id: string) => {
+      const h1 = await read(m, "m1", id, {
+        op: "querySelector",
+        selector: "h1",
+      })
+      return read(m, "m1", `${id}-html`, { op: "getOuterHTML", handle: h1 })
+    }
+    // A read waits for the page's bridge: one sent while the page loads goes
+    // unanswered.
+    const loaded = (n: number) =>
+      m.waitFor(
+        () =>
+          bridgeOf(m, "m1").filter((msg) => msg.type === "screenplay:ready")
+            .length >= n || undefined
+      )
+    m.send({
+      t: "watch",
+      frame: "m1",
+      route: "/",
+      width: 400,
+      height: 300,
+      doc: doc("One"),
+    })
+    await loaded(1)
+    await expect(title("a")).resolves.toBe("<h1>One</h1>")
+
+    m.send({ t: "doc", frame: "m1", doc: doc("Two") })
+    await loaded(2)
+    await expect(title("b")).resolves.toBe("<h1>Two</h1>")
+    expect(requests).not.toContain("/leak")
   }, 60_000)
 })

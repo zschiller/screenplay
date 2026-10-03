@@ -425,6 +425,22 @@ export type MockupLayerData = {
   /** State the page shares through `screenplay.shareState`, kept and synced
    *  to every viewer like a frame's `sharedState`. */
   sharedState?: JsonObject
+  /** Where the page is scrolled, synced to every copy and restored on load,
+   *  as a frame's is. */
+  scrollX?: number
+  scrollY?: number
+  /**
+   * Someone turned the mockup live (#1523): its page runs in one browser in
+   * a Workspace's Sandbox, streamed to everyone on the canvas, as a live
+   * frame's does. Hosted only. Absent is not live.
+   */
+  live?: boolean
+  /** The Workspace whose Sandbox runs the live page, picked when it went
+   *  live (`mockupLiveWorkspace`). */
+  liveBranchId?: string
+  /** What the live page's `prefers-color-scheme` matches: its Theme knob,
+   *  as on a frame. Light when unset. */
+  colorScheme?: "light" | "dark"
 }
 
 /** A Mockup's status (#1310), in menu order. */

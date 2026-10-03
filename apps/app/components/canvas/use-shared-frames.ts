@@ -19,14 +19,17 @@ import {
 import {
   NOT_LIVE,
   liveFrames,
+  mockupLiveWorkspace,
   type LiveFrame,
 } from "@/lib/frame-stream/live-frames"
 import { seedLocalFrame } from "@/lib/frame-stream/seed"
 import type { CanvasPresence } from "@/lib/yjs/react"
 import type { YjsCollection } from "@/lib/yjs/schema"
-import type { BranchData, IframeLayerData } from "@/lib/types"
+import type { BranchData, IframeLayerData, MockupLayerData } from "@/lib/types"
 
 const EMPTY: ReadonlySet<string> = new Set()
+const NO_MOCKUPS: readonly Pick<MockupLayerData, "id">[] = []
+const NO_OWNERS: ReadonlyMap<string, string> = new Map()
 const NO_FACES: readonly LiveFace[] = []
 
 /** One face on a live frame's Live tag (#1519): a person in their cursor
@@ -39,13 +42,23 @@ export interface SharedFrames {
   roomId: string
   /** The Workspace's Frame Stream, when its frames can go live. */
   streamOf(branchId: string | undefined): FrameStreamConnection | undefined
-  /** Whether the frame is live, who is on it, and whether this viewer is. */
+  /** Whether the frame or Mockup is live, who is on it, and whether this
+   *  viewer is. */
   liveOf(layerId: string): LiveFrame
-  /** The faces on a live frame, in the rule's order: this viewer, the other
-   *  people here, then the agent. Empty while the frame isn't live. */
+  /** The Workspace a Mockup is live in, or would go live in; undefined when
+   *  no Workspace can run it (`mockupLiveWorkspace`). */
+  mockupWorkspaceOf(layerId: string): string | undefined
+  /**
+   * Whether Mockups show Go live: not on the desktop app, nor where every
+   * running Workspace says its frames can't go live (`SHARED_FRAMES=off`).
+   * With no Workspace running they show it disabled.
+   */
+  mockupsGoLive: boolean
+  /** The faces on a live frame or Mockup, in the rule's order: this viewer,
+   *  the other people here, then the agent. Empty while it isn't live. */
   facesOf(layerId: string): readonly LiveFace[]
-  /** The Iframe Layers this viewer sees live: one shared browser in the
-   *  Sandbox, streamed. Every other frame is this viewer's own copy. */
+  /** The Iframe and Mockup Layers this viewer sees live: one shared browser
+   *  in the Sandbox, streamed. Every other one is this viewer's own copy. */
   sharedIds: ReadonlySet<string>
 }
 
@@ -59,15 +72,20 @@ export interface SharedFrames {
  * whether its frames can go live; the desktop app (`enabled` false) and
  * `SHARED_FRAMES=off` never can.
  *
+ * Mockups go live the same way (#1523), in a Workspace they borrow
+ * (`mockupLiveWorkspace`), since their static page has none of its own.
+ *
  * When a frame stops being live, each viewer keeps seeing the stream until
  * their own copy holds the live page's cookies and local storage, so it opens
- * where the live frame was.
+ * where the live frame was. A Mockup's page keeps nothing to carry over.
  */
 export function useSharedFrames({
   roomId,
   enabled,
   agents,
   iframeLayers,
+  mockupLayers = NO_MOCKUPS,
+  mockupOwners = NO_OWNERS,
   viewerId,
   self = null,
   others,
@@ -77,6 +95,12 @@ export function useSharedFrames({
   enabled: boolean
   agents: readonly Pick<BranchData, "id" | "previewDomain">[]
   iframeLayers: readonly Pick<IframeLayerData, "id" | "branchId" | "live">[]
+  mockupLayers?: readonly Pick<
+    MockupLayerData,
+    "id" | "live" | "liveBranchId"
+  >[]
+  /** Each chat-made Mockup's Workspace: its owning chat's. */
+  mockupOwners?: ReadonlyMap<string, string>
   /** This viewer's user id; null until the session loads. */
   viewerId: string | null
   /** This viewer's own awareness state: their face on a live frame. */
@@ -128,18 +152,55 @@ export function useSharedFrames({
     () => frameControl.toMap()
   )
 
+  const mockupWorkspaces = useMemo(() => {
+    const streaming = liveBranchKey
+      ? liveBranchKey.split(",").filter((id) => streamOf(id))
+      : []
+    return new Map(
+      mockupLayers.map((m) => [
+        m.id,
+        mockupLiveWorkspace({
+          live: m.live === true,
+          liveBranchId: m.liveBranchId,
+          ownerBranchId: mockupOwners.get(m.id),
+          streaming,
+        }),
+      ])
+    )
+  }, [mockupLayers, mockupOwners, liveBranchKey, streamOf])
+
+  const mockupsGoLive = useMemo(() => {
+    void version
+    if (!enabled) return false
+    const answers = [...streams.values()].map((s) => s.availability)
+    return !answers.length || !answers.every((a) => a === "unshared")
+  }, [enabled, streams, version])
+
   const frames = useMemo(() => {
     const eligible = iframeLayers.filter((l) => streamOf(l.branchId))
     const turned = new Set(eligible.filter((l) => l.live).map((l) => l.id))
+    // A Mockup is live only in the Workspace it went live in.
+    const mockups = mockupLayers.filter((m) => mockupWorkspaces.get(m.id))
+    for (const m of mockups)
+      if (m.live && m.liveBranchId === mockupWorkspaces.get(m.id))
+        turned.add(m.id)
     return liveFrames({
-      frameIds: eligible.map((l) => l.id),
+      frameIds: [...eligible, ...mockups].map((l) => l.id),
       turnedLive: (id) => turned.has(id),
       viewerId,
       others: others.map(({ presence }) => presence.identity.id),
       drivers: (id) =>
         controlRecords.get(frameControlKey(id, "", true))?.driver,
     })
-  }, [iframeLayers, streamOf, viewerId, others, controlRecords])
+  }, [
+    iframeLayers,
+    mockupLayers,
+    mockupWorkspaces,
+    streamOf,
+    viewerId,
+    others,
+    controlRecords,
+  ])
 
   // The frames this viewer shows live: the live ones, plus frames that just
   // stopped being live, until this viewer's own copy is seeded from them.
@@ -231,9 +292,11 @@ export function useSharedFrames({
       roomId,
       streamOf,
       liveOf: (layerId: string) => frames.get(layerId) ?? NOT_LIVE,
+      mockupWorkspaceOf: (layerId: string) => mockupWorkspaces.get(layerId),
+      mockupsGoLive,
       facesOf: (layerId: string) => faces.get(layerId) ?? NO_FACES,
       sharedIds: shown,
     }),
-    [roomId, streamOf, frames, faces, shown]
+    [roomId, streamOf, frames, mockupWorkspaces, mockupsGoLive, faces, shown]
   )
 }

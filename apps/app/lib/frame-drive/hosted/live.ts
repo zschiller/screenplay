@@ -13,6 +13,8 @@ import { viewAgentDriver, viewCanvasOf } from "@/lib/frame-drive/view/live"
 import { frameStreamKey } from "@/lib/frame-stream/token"
 import type { RoomDoc } from "@/lib/room-access"
 import { ensureFrameStream } from "@/lib/sandbox/frame-stream"
+import { MOCKUP_RUNTIME_JS } from "@/lib/sandbox-bridge"
+import { mockupHtml, mockupSrcDoc } from "@/lib/yjs/mockup-html"
 
 // One driver per Room for the process: every chat's agent is the same party
 // on a shared frame, and the driver remembers which frames it holds between
@@ -51,7 +53,7 @@ export function hostedAgentDriver(room: RoomDoc): AgentFrameDriver {
 
 /**
  * A hosted chat's driver: a frame goes to its shared browser, a Mockup to the
- * asker's own view (#1391). Showing either brings it into the asker's view
+ * asker's own view (#1391), or to its shared browser while it's live (#1523). Showing either brings it into the asker's view
  * (#1390), which only their canvas can do.
  */
 export function hostedChatDriver(room: RoomDoc, userId: string): FrameDriver {
@@ -59,6 +61,8 @@ export function hostedChatDriver(room: RoomDoc, userId: string): FrameDriver {
     shared: hostedAgentDriver(room),
     mockups: viewAgentDriver(room, userId),
     isMockup: (id) => room.readDoc((c) => c.mockupLayers.get(id) !== undefined),
+    isLiveMockup: (id) =>
+      room.readDoc((c) => c.mockupLayers.get(id)?.live === true),
     canvas: viewCanvasOf(room, userId),
   })
 }
@@ -75,6 +79,8 @@ async function sharedFrame(
   room: RoomDoc,
   frameId: string
 ): Promise<HostedFrame | string> {
+  const mockup = await liveMockup(room, frameId)
+  if (mockup) return mockup
   const found = await room.readDoc((c) => {
     const layer = c.iframeLayers.get(frameId)
     const branch = layer?.branchId ? c.branches.get(layer.branchId) : undefined
@@ -94,6 +100,38 @@ async function sharedFrame(
     route: layer.route || "/",
     width: Math.round(layer.width),
     height: Math.round(layer.height),
+    stream,
+  }
+}
+
+/**
+ * A live Mockup's page (#1523), in the Workspace it went live in: the agent
+ * drives the same browser everyone sees. Null for anything else.
+ */
+async function liveMockup(
+  room: RoomDoc,
+  mockupId: string
+): Promise<HostedFrame | string | null> {
+  const found = await room.readDoc((c) => {
+    const layer = c.mockupLayers.get(mockupId)
+    if (!layer?.live) return null
+    const branch = layer.liveBranchId
+      ? c.branches.get(layer.liveBranchId)
+      : undefined
+    return { layer, branch, html: mockupHtml(c.doc, mockupId).toString() }
+  })
+  if (!found) return null
+  const { layer, branch, html } = found
+  if (!branch?.previewDomain) {
+    return "The workspace this live Mockup runs in has stopped, so there's no shared browser to use."
+  }
+  const stream = await workspaceStream(branch.sandboxName, branch.port)
+  if (typeof stream === "string") return stream
+  return {
+    route: "/",
+    width: Math.round(layer.width),
+    height: Math.round(layer.height),
+    doc: mockupSrcDoc(html, MOCKUP_RUNTIME_JS),
     stream,
   }
 }
