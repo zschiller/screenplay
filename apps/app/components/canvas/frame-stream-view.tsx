@@ -8,9 +8,11 @@ import {
 } from "@/lib/frame-stream/client"
 import {
   FRAME_STREAM_COLOR_SPACE,
+  clickCounter,
   h264CodecOf,
   modifiersOf,
   mouseButtonOf,
+  pageKeyOf,
   type FrameColorScheme,
   type FrameStreamInput,
   type FrameStreamServerMessage,
@@ -294,20 +296,32 @@ export function FrameStreamView({
         if (!current()) return
         const token = await fetchDriveToken(roomId, frameId).catch(() => null)
         if (!current()) return
-        if (token && stream.send({ t: "drive", frame: frameId, token })) break
+        // The stream sends it again whenever this view watches the frame
+        // again (a hidden tab, a frame scrolled away).
+        if (token && stream.isReady()) {
+          stream.drive(frameId, token)
+          break
+        }
       }
       refresh = setTimeout(() => void grant(), DRIVE_REFRESH_MS)
     }
     void grant()
-    // A reconnect starts without the grant: ask again.
+    // A reconnect may have outlasted the grant: ask again.
     const unsubscribe = stream.subscribeConnection((ready) => {
       if (ready) void grant()
     })
+    // A hidden tab's timers may not have kept the grant fresh: ask again
+    // when it shows.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void grant()
+    }
+    document.addEventListener("visibilitychange", onVisible)
     return () => {
       run++
       unsubscribe()
+      document.removeEventListener("visibilitychange", onVisible)
       if (refresh) clearTimeout(refresh)
-      stream.send({ t: "release", frame: frameId })
+      stream.release(frameId)
     }
   }, [drives, stream, roomId, frameId])
 
@@ -328,12 +342,15 @@ export function FrameStreamView({
         y: ((e.clientY - rect.top) * height) / rect.height,
       }
     }
+    const countClick = clickCounter()
+    let clickCount = 1
     const mouse =
       (type: "mousePressed" | "mouseReleased" | "mouseMoved") =>
       (e: PointerEvent) => {
         if (type === "mousePressed") {
           canvas.focus({ preventScroll: true })
           canvas.setPointerCapture(e.pointerId)
+          clickCount = countClick(e.button, e.clientX, e.clientY, e.timeStamp)
         }
         send({
           kind: "mouse",
@@ -341,7 +358,7 @@ export function FrameStreamView({
           ...at(e),
           button: type === "mouseMoved" ? "none" : mouseButtonOf(e.button),
           buttons: e.buttons,
-          clickCount: type === "mouseMoved" ? 0 : Math.max(1, e.detail),
+          clickCount: type === "mouseMoved" ? 0 : clickCount,
           modifiers: modifiersOf(e),
         })
       }
@@ -361,13 +378,20 @@ export function FrameStreamView({
         modifiers: modifiersOf(e),
       })
     }
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform)
     const key = (type: "keyDown" | "keyUp") => (e: KeyboardEvent) => {
       // Keys belong to the page, not the canvas's shortcuts. Esc goes to
       // both: the page sees it, and the canvas leaves Interact.
-      if (e.key !== "Escape") {
-        e.stopPropagation()
-        e.preventDefault()
-      }
+      if (e.key !== "Escape") e.stopPropagation()
+      // Copy, cut and paste go as their events, with this viewer's own
+      // clipboard: the shortcuts would use the shared browser's.
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        ["KeyC", "KeyX", "KeyV"].includes(e.code)
+      )
+        return
+      if (e.key !== "Escape") e.preventDefault()
       if (e.isComposing) return
       const text =
         type === "keyDown" && !e.metaKey && !e.ctrlKey
@@ -380,12 +404,9 @@ export function FrameStreamView({
       send({
         kind: "key",
         type: type === "keyDown" && !text ? "rawKeyDown" : type,
-        key: e.key,
-        code: e.code,
+        ...pageKeyOf(e, mac),
         text,
-        keyCode: e.keyCode,
         repeat: e.repeat,
-        modifiers: modifiersOf(e),
       })
     }
     const onKeyDown = key("keyDown")
@@ -396,6 +417,26 @@ export function FrameStreamView({
       e.preventDefault()
       send({ kind: "text", text })
     }
+    // What the page copies lands on this viewer's clipboard. The text comes
+    // back over the stream, so it's written as a promise that ClipboardItem
+    // holds within the keypress; an empty copy leaves the clipboard alone.
+    const onCopy = (e: ClipboardEvent) => {
+      e.preventDefault()
+      const text = stream.clipboard(frameId, e.type === "cut")
+      const blob = text.then((t) => {
+        if (!t) throw new Error("nothing copied")
+        return new Blob([t], { type: "text/plain" })
+      })
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        navigator.clipboard
+          .write([new ClipboardItem({ "text/plain": blob })])
+          .catch(() => {})
+      } else {
+        void text
+          .then((t) => (t ? navigator.clipboard?.writeText(t) : undefined))
+          .catch(() => {})
+      }
+    }
     const onContextMenu = (e: Event) => e.preventDefault()
 
     canvas.addEventListener("pointerdown", onDown)
@@ -405,6 +446,8 @@ export function FrameStreamView({
     canvas.addEventListener("keydown", onKeyDown)
     canvas.addEventListener("keyup", onKeyUp)
     canvas.addEventListener("paste", onPaste)
+    canvas.addEventListener("copy", onCopy)
+    canvas.addEventListener("cut", onCopy)
     canvas.addEventListener("contextmenu", onContextMenu)
     canvas.focus({ preventScroll: true })
     return () => {
@@ -415,6 +458,8 @@ export function FrameStreamView({
       canvas.removeEventListener("keydown", onKeyDown)
       canvas.removeEventListener("keyup", onKeyUp)
       canvas.removeEventListener("paste", onPaste)
+      canvas.removeEventListener("copy", onCopy)
+      canvas.removeEventListener("cut", onCopy)
       canvas.removeEventListener("contextmenu", onContextMenu)
       if (document.activeElement === canvas) canvas.blur()
     }

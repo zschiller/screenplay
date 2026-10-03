@@ -38,10 +38,10 @@
 //
 // Wire protocol (see lib/frame-stream/protocol.ts for the client side):
 //   client → server, JSON text: auth, watch, unwatch, size, navigate,
-//     reload, drive, release, input, bridge, snapshot; the agent: agent,
-//     agent-shot
+//     reload, drive, release, input, clipboard, bridge, snapshot; the agent:
+//     agent, agent-shot
 //   server → client, JSON text: ready, frame, route, error, bridge,
-//     snapshot; the agent: agent-result, agent-shot
+//     clipboard, snapshot; the agent: agent-result, agent-shot
 //   server → client, binary video: [1][flags][u16 id length][id][access unit]
 //     flags bit 0: keyframe
 
@@ -61,6 +61,13 @@ const ORIGIN = (
   process.env.SCREENPLAY_FRAME_ORIGIN || "http://127.0.0.1:4000"
 ).replace(/\/+$/, "")
 const CHROME = process.env.SCREENPLAY_CHROME || "google-chrome"
+// A viewer's mouse goes to the display as real X input when xte (from
+// xautomation) is installed: it reaches what CDP's input can't, such as a
+// native <select>'s popup and date and colour pickers. CDP is the fallback.
+const XTE =
+  process.env.SCREENPLAY_XTE ??
+  ["/usr/bin/xte", "/usr/local/bin/xte"].find((p) => existsSync(p)) ??
+  ""
 const FPS = Number(process.env.SCREENPLAY_STREAM_FPS) || 30
 // Frames are encoded at twice their CSS size so they stay sharp up to 200%
 // zoom, within a pixel budget per frame (larger frames encode at less).
@@ -669,6 +676,10 @@ class Frame {
     try {
       this.chrome?.kill("SIGKILL")
     } catch {}
+    try {
+      this.xte?.kill("SIGKILL")
+    } catch {}
+    this.xte = null
     // TERM, so Xvfb removes its lock and the display can be used again.
     try {
       this.xvfb?.kill("SIGTERM")
@@ -813,6 +824,49 @@ class Frame {
       returnByValue: true,
     })
     return { cookies, storage: result?.value ?? null }
+  }
+
+  /**
+   * Copy or cut what's selected in the page, as the page's own ⌘C or ⌘X
+   * would: its copy and cut handlers run, a cut deletes the selection, and
+   * what a handler put on the clipboard wins over the selection's text.
+   * Null when nothing is selected.
+   */
+  async clipboard(cut) {
+    if (this.status !== "live" || !this.appFrame) return null
+    const { executionContextId } = await this.page("Page.createIsolatedWorld", {
+      frameId: this.appFrame,
+      worldName: "screenplay-clipboard",
+    })
+    const kind = cut ? "cut" : "copy"
+    const { result } = await this.page("Runtime.evaluate", {
+      contextId: executionContextId,
+      // A copy needs a user gesture; the driver's keypress is one.
+      userGesture: true,
+      returnByValue: true,
+      expression: `(() => {
+        const a = document.activeElement
+        const field =
+          a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") &&
+          typeof a.selectionStart === "number"
+        const selected = field
+          ? a.value.slice(a.selectionStart, a.selectionEnd)
+          : String(getSelection())
+        let handled = null
+        const take = (e) => {
+          const text = e.clipboardData && e.clipboardData.getData("text/plain")
+          if (e.defaultPrevented && text) handled = text
+        }
+        addEventListener(${JSON.stringify(kind)}, take)
+        try {
+          document.execCommand(${JSON.stringify(kind)})
+        } finally {
+          removeEventListener(${JSON.stringify(kind)}, take)
+        }
+        return handled ?? (selected || null)
+      })()`,
+    })
+    return typeof result?.value === "string" ? result.value : null
   }
 
   /** Put a reopened frame's cookies and storage back before its page loads. */
@@ -1336,6 +1390,7 @@ class Frame {
         ? msg.type
         : null
       if (!type) return
+      if (this.xInput(type, msg)) return
       await this.page("Input.dispatchMouseEvent", {
         type,
         x: num(msg.x),
@@ -1377,6 +1432,58 @@ class Frame {
       if (typeof msg.text !== "string") return
       await this.page("Input.insertText", { text: msg.text.slice(0, 10_000) })
     }
+  }
+
+  /**
+   * A viewer's mouse event as real X input, through one xte per browser that
+   * reads its commands from stdin. The page's CSS pixels are its display's
+   * pixels at the capture scale, from the top left (the browser is a kiosk
+   * window there). The browser counts double clicks from the events' timing,
+   * as for a real mouse. False when xte
+   * isn't installed or the browser isn't up, for CDP to send it instead.
+   */
+  xInput(type, msg) {
+    if (!XTE || this.display === undefined) return false
+    if (!this.xte) {
+      const xte = spawn(XTE, [], {
+        stdio: ["pipe", "ignore", "ignore"],
+        env: { ...process.env, DISPLAY: `:${this.display}` },
+      })
+      xte.on("exit", () => {
+        if (this.xte === xte) this.xte = null
+      })
+      xte.stdin.on("error", () => {})
+      this.xte = xte
+    }
+    const num = (n) => (Number.isFinite(n) ? n : 0)
+    const scale = this.capture?.scale ?? SCALE
+    const x = Math.round(Math.min(Math.max(num(msg.x), 0), this.width) * scale)
+    const y = Math.round(Math.min(Math.max(num(msg.y), 0), this.height) * scale)
+    const lines = [`mousemove ${x} ${y}`]
+    const button = { left: 1, middle: 2, right: 3 }[msg.button]
+    if (type !== "mouseMoved" && button) {
+      // Held modifiers: shift-click, ⌘-click.
+      const mods = num(msg.modifiers)
+      const keys = [
+        [1, "Alt_L"],
+        [2, "Control_L"],
+        [4, "Super_L"],
+        [8, "Shift_L"],
+      ]
+        .filter(([bit]) => mods & bit)
+        .map(([, key]) => key)
+      const verb = type === "mousePressed" ? "mousedown" : "mouseup"
+      lines.push(
+        ...keys.map((k) => `keydown ${k}`),
+        // Presses that arrive together (the network batched them) still
+        // need time between them for the browser to count a double click.
+        "usleep 2000",
+        `${verb} ${button}`,
+        ...keys.map((k) => `keyup ${k}`)
+      )
+    }
+    this.xte.stdin.write(lines.join("\n") + "\n")
+    return true
   }
 
   // ---- the agent (#1396) ----
@@ -2110,6 +2217,15 @@ async function handleMessage(conn, msg) {
       // Watchers' input never reaches the page.
       if (frame.drives(conn)) await frame.input(msg)
       return
+    case "clipboard": {
+      // Only the driver copies: a cut changes the page.
+      const reqId = typeof msg.id === "string" ? msg.id.slice(0, 64) : ""
+      const text = frame.drives(conn)
+        ? await frame.clipboard(msg.cut === true).catch(() => null)
+        : null
+      conn.sendJson({ t: "clipboard", frame: id, id: reqId, text })
+      return
+    }
   }
 }
 

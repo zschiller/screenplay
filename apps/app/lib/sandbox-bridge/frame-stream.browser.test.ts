@@ -45,11 +45,12 @@ const HAS_STACK =
   process.platform === "linux" &&
   !!CHROME &&
   !!which("Xvfb") &&
-  !!which("ffmpeg")
+  !!which("ffmpeg") &&
+  !!which("xte")
 // CI's browser job installs the stack; there a missing piece is a failure,
 // not a skip, so the test can't drop out of CI unnoticed.
 if (process.env.SCREENPLAY_REQUIRE_BROWSER_STACK && !HAS_STACK) {
-  throw new Error("Chrome, Xvfb and ffmpeg are required but not all found")
+  throw new Error("Chrome, Xvfb, ffmpeg and xte are required but not all found")
 }
 
 const KEY = "test-stream-key"
@@ -104,6 +105,31 @@ const APP = `<!doctype html><html><body style="margin:0;background:#cde">
     fetch("/count?n=" + count)
   }
 </script></body></html>`
+
+// A field with its text selected, which reports what's left in it. With
+// ?handled the page's copy handler puts its own text on the clipboard.
+const COPY = `<!doctype html><body>
+<input id="i" value="hello world"><script>
+  const i = document.getElementById("i")
+  i.focus()
+  i.select()
+  i.addEventListener("input", () => fetch("/left?v=" + encodeURIComponent(i.value)))
+  if (location.search === "?handled")
+    document.addEventListener("copy", (e) => {
+      e.clipboardData.setData("text/plain", "from the page")
+      e.preventDefault()
+    })
+</script></body>`
+
+// A native select, whose popup only real X input reaches. It reports what's
+// picked.
+const SELECT = `<!doctype html><body style="margin:0">
+<select id="s" style="position:absolute;left:20px;top:20px;font-size:20px">
+<option>one</option><option>two</option><option>three</option></select>
+<script>
+  const s = document.getElementById("s")
+  s.onchange = () => fetch("/picked?v=" + s.value)
+</script></body>`
 
 // The paused frame's grace period and the browser cap, short and small.
 const IDLE_MS = 500
@@ -265,7 +291,15 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       }
       res.writeHead(200, { "content-type": "text/html" })
       res.end(
-        url === "/bridge" ? BRIDGE_PAGE : url === "/app" ? APP : PAGE(url)
+        url === "/bridge"
+          ? BRIDGE_PAGE
+          : url === "/app"
+            ? APP
+            : url.startsWith("/copy")
+              ? COPY
+              : url === "/select"
+                ? SELECT
+                : PAGE(url)
       )
     })
     await new Promise<void>((r) => devServer.listen(0, "127.0.0.1", r))
@@ -440,6 +474,75 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
         (m) => m.t === "route" && m.path === "/other"
       )
     ).toBe(false)
+  }, 30_000)
+
+  it("picks from a native select's popup with the driver's mouse", async () => {
+    const [a] = viewers.slice(-2) as [Viewer, Viewer]
+    a.send({ t: "navigate", frame: "f1", route: "/select" })
+    await a.waitFor(() => routeOf(a, "f1")?.path === "/select" || undefined)
+    const click = (x: number, y: number) => {
+      for (const type of ["mousePressed", "mouseReleased"] as const)
+        a.send({
+          t: "input",
+          frame: "f1",
+          kind: "mouse",
+          type,
+          x,
+          y,
+          button: "left",
+          buttons: type === "mousePressed" ? 1 : 0,
+          clickCount: 1,
+          modifiers: 0,
+        })
+    }
+    // Open the popup, then click its third option, below the field: each
+    // option is about 30px tall. The page may still be loading at first.
+    for (let i = 0; i < 20 && !requests.includes("/picked?v=three"); i++) {
+      click(40, 32)
+      await new Promise((r) => setTimeout(r, 500))
+      click(40, 122)
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    expect(requests).toContain("/picked?v=three")
+  }, 30_000)
+
+  it("copies and cuts the page's selection for the driver only", async () => {
+    const [a, b] = viewers.slice(-2) as [Viewer, Viewer]
+    type Clip = Extract<FrameStreamServerMessage, { t: "clipboard" }>
+    let seq = 0
+    const clip = async (v: Viewer, cut = false) => {
+      const id = `c${++seq}`
+      v.send({ t: "clipboard", frame: "f1", id, cut })
+      return (
+        await v.waitFor(() =>
+          v.messages.find((m): m is Clip => m.t === "clipboard" && m.id === id)
+        )
+      ).text
+    }
+    // The page's script may run just after the route is reported.
+    const clipOnce = async (route: string, want: string) => {
+      a.send({ t: "navigate", frame: "f1", route })
+      await a.waitFor(() => routeOf(a, "f1")?.path === route || undefined)
+      let copied: string | null = null
+      for (let i = 0; i < 40 && copied !== want; i++) {
+        copied = await clip(a)
+        if (copied !== want) await new Promise((r) => setTimeout(r, 100))
+      }
+      return copied
+    }
+    // The page's copy handler wins over the selection.
+    expect(await clipOnce("/copy?handled", "from the page")).toBe(
+      "from the page"
+    )
+    expect(await clipOnce("/copy", "hello world")).toBe("hello world")
+    // A watcher gets nothing, and can't cut.
+    expect(await clip(b, true)).toBeNull()
+    expect(requests).not.toContain("/left?v=")
+    // The driver's cut takes the text out of the field.
+    expect(await clip(a, true)).toBe("hello world")
+    await waitUntil(() => requests.includes("/left?v="))
+    // Nothing selected now: nothing to copy.
+    expect(await clip(a)).toBeNull()
   }, 30_000)
 
   it("follows the room's route, and only when it changed", async () => {

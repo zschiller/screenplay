@@ -6,8 +6,10 @@ import {
   type FrameStreamHandlers,
 } from "@/lib/frame-stream/client"
 import {
+  clickCounter,
   decodeVideoMessage,
   h264CodecOf,
+  pageKeyOf,
   type FrameStreamClientMessage,
 } from "@/lib/frame-stream/protocol"
 
@@ -272,6 +274,75 @@ describe("FrameStreamConnection", () => {
   })
 })
 
+describe("driving", () => {
+  it("sends the drive grant again whenever it watches the frame again", async () => {
+    const { conn, sockets, timers } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    const watch = { route: "/", width: 10, height: 10 }
+    let stop = conn.watch("f1", watch, handlers())
+    await flush()
+    const first = sockets[0]!
+    first.open()
+    first.serverSays({ t: "ready", codec: "h264" })
+    conn.drive("f1", "g")
+    expect(first.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g" })
+
+    // The tab hid: the service forgets a driver who stops watching, so
+    // watching again carries the grant.
+    stop()
+    stop = conn.watch("f1", watch, handlers())
+    expect(first.sent.slice(-3)).toEqual([
+      { t: "unwatch", frame: "f1" },
+      { t: "watch", frame: "f1", ...watch },
+      { t: "drive", frame: "f1", token: "g" },
+    ])
+
+    // So does a reconnect.
+    first.close()
+    timers.shift()!()
+    await flush()
+    const next = sockets[1]!
+    next.open()
+    next.serverSays({ t: "ready", codec: "h264" })
+    expect(next.sent).toEqual([
+      { t: "auth", token: "t" },
+      { t: "watch", frame: "f1", ...watch },
+      { t: "drive", frame: "f1", token: "g" },
+    ])
+
+    // Released, it goes back to watching only.
+    conn.release("f1")
+    expect(next.sent.at(-1)).toEqual({ t: "release", frame: "f1" })
+    stop()
+    conn.watch("f1", watch, handlers())
+    expect(next.sent.at(-1)).toEqual({ t: "watch", frame: "f1", ...watch })
+  })
+
+  it("holds a grant for a frame it isn't watching until it watches it", async () => {
+    const { conn, sockets } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    const watch = { route: "/", width: 10, height: 10 }
+    const stop = conn.watch("f2", watch, handlers())
+    await flush()
+    sockets[0]!.open()
+    sockets[0]!.serverSays({ t: "ready", codec: "h264" })
+    stop()
+    conn.drive("f1", "g")
+    expect(sockets[0]!.sent.some((m) => m.t === "drive")).toBe(false)
+    conn.watch("f1", watch, handlers())
+    expect(sockets[0]!.sent.slice(-2)).toEqual([
+      { t: "watch", frame: "f1", ...watch },
+      { t: "drive", frame: "f1", token: "g" },
+    ])
+  })
+})
+
 describe("going local (#1397)", () => {
   async function connected() {
     const setupResult = setup({ shared: true, url: "wss://s", token: "t" })
@@ -339,6 +410,90 @@ describe("going local (#1397)", () => {
     const slow = slowConn.snapshot("f1")
     slowTimers.at(-1)!()
     expect(await slow).toBeNull()
+  })
+})
+
+describe("copying out", () => {
+  it("answers with what the page copied, and null when the stream drops", async () => {
+    const { conn, sockets } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    conn.watch("f1", { route: "/", width: 10, height: 10 }, handlers())
+    await flush()
+    const socket = sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+
+    const copied = conn.clipboard("f1", true)
+    const asked = socket.sent.at(-1)
+    expect(asked).toMatchObject({ t: "clipboard", frame: "f1", cut: true })
+    if (asked?.t !== "clipboard") throw new Error("not asked")
+    socket.serverSays({ t: "clipboard", frame: "f1", id: asked.id, text: "hi" })
+    expect(await copied).toBe("hi")
+
+    const dropped = conn.clipboard("f1", false)
+    socket.close()
+    expect(await dropped).toBeNull()
+  })
+})
+
+describe("frame stream input", () => {
+  it("counts quick presses in one place as double and triple clicks", () => {
+    const count = clickCounter()
+    expect(count(0, 10, 10, 0)).toBe(1)
+    expect(count(0, 11, 10, 200)).toBe(2)
+    expect(count(0, 11, 11, 400)).toBe(3)
+    // Too slow, too far, or another button starts again.
+    expect(count(0, 11, 11, 1000)).toBe(1)
+    expect(count(0, 30, 11, 1100)).toBe(1)
+    expect(count(2, 30, 11, 1200)).toBe(1)
+  })
+
+  const press = (
+    key: string,
+    mods: Partial<
+      Record<"altKey" | "ctrlKey" | "metaKey" | "shiftKey", boolean>
+    > = {}
+  ) => ({
+    key,
+    code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+    keyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    ...mods,
+  })
+
+  it("sends a Mac viewer's shortcuts as the shared browser's Linux ones", () => {
+    // ⌘A selects all as Ctrl+A.
+    expect(pageKeyOf(press("a", { metaKey: true }), true)).toMatchObject({
+      key: "a",
+      modifiers: 2,
+    })
+    // ⌘⇧← selects to the line's start.
+    expect(
+      pageKeyOf(press("ArrowLeft", { metaKey: true, shiftKey: true }), true)
+    ).toEqual({ key: "Home", code: "Home", keyCode: 36, modifiers: 8 })
+    expect(pageKeyOf(press("ArrowDown", { metaKey: true }), true)).toEqual({
+      key: "End",
+      code: "End",
+      keyCode: 35,
+      modifiers: 2,
+    })
+    // ⌥⌫ deletes a word, as Ctrl+Backspace.
+    expect(pageKeyOf(press("Backspace", { altKey: true }), true)).toMatchObject(
+      { key: "Backspace", modifiers: 2 }
+    )
+    // Elsewhere, keys go as they are.
+    expect(pageKeyOf(press("a", { metaKey: true }), false)).toMatchObject({
+      modifiers: 4,
+    })
+    expect(pageKeyOf(press("b", { ctrlKey: true }), true)).toMatchObject({
+      modifiers: 2,
+    })
   })
 })
 

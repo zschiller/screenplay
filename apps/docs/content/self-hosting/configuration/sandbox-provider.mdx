@@ -62,7 +62,7 @@ port, so their frames stay per-viewer until the sandbox restarts. Set
 
 Sandboxes boot from a custom image: Vercel's Ubuntu image
 (`vercel/sandbox/universal`, with Node, pnpm, git and the coding CLIs) plus
-Google Chrome, Xvfb and ffmpeg for shared frames. Its Dockerfile is in
+Google Chrome, Xvfb, ffmpeg and xautomation for shared frames. Its Dockerfile is in
 `apps/app/vercel-sandbox-image/`. The app creates sandboxes from the
 `screenplay-workspace` repository in your app project's
 [Vercel Container Registry](https://vercel.com/docs/container-registry), or

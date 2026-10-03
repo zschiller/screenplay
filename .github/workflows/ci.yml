@@ -111,14 +111,14 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-browser-
 
-      # The browser tests run a real Xvfb, Chrome and ffmpeg, as a Workspace
-      # Sandbox does (#1392). The runner ships Chrome; add the rest when the
-      # image doesn't have it.
+      # The browser tests run a real Xvfb, Chrome, ffmpeg and xte, as a
+      # Workspace Sandbox does (#1392). The runner ships Chrome; add the rest
+      # when the image doesn't have it.
       - name: Install the browser stack
         run: |
-          command -v Xvfb >/dev/null && command -v ffmpeg >/dev/null || {
+          command -v Xvfb >/dev/null && command -v ffmpeg >/dev/null && command -v xte >/dev/null || {
             sudo apt-get update
-            sudo apt-get install -y --no-install-recommends xvfb ffmpeg
+            sudo apt-get install -y --no-install-recommends xvfb ffmpeg xautomation
           }
 
       # Required: a missing piece of the stack fails the job rather than
