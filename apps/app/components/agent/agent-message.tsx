@@ -66,16 +66,15 @@ import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import type { TurnSummary } from "@/lib/agent/turn-summary"
-import { bareToolName } from "@/lib/agent/tool-name"
 import {
-  callIdentity,
-  DRIVE_GESTURES,
+  describeToolCall,
   driveName,
+  echoesInput,
   readableFrameNames,
-  relativePath,
-  rowLabel,
   type RowLabel,
-} from "@/lib/agent/tool-row-label"
+  type ToolDescription,
+  type ToolIcon,
+} from "@/lib/agent/tool-description"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import {
   elementMarkersToPills,
@@ -125,184 +124,50 @@ import {
   workspaceTasksOf,
 } from "@/lib/agent/workspace-task"
 
-const toolIcons: Record<string, typeof FileTextIcon> = {
-  read_file: FileTextIcon,
-  write_file: FileTextIcon,
-  edit_file: PencilSimpleIcon,
-  run_command: TerminalIcon,
-  list_files: FolderOpenIcon,
-  create_pr: GitPullRequestIcon,
-  read_skill: BookOpenIcon,
-  read_dev_server_logs: ListDashesIcon,
-  restart_dev_server: ArrowsClockwiseIcon,
-  stop_dev_server: SquareIcon,
-  start_dev_server: PlayIcon,
-  read_document: FileTextIcon,
-  read_canvas: SquaresFourIcon,
-  read_workspace_chat: ChatTextIcon,
-  read_workspace_diff: GitDiffIcon,
-  read_workspace_file: FileTextIcon,
-  read_code_file: FileTextIcon,
-  search_code: MagnifyingGlassIcon,
-  find_code_files: FolderOpenIcon,
-  view_frame: EyeIcon,
-  read_frame_html: CodeIcon,
-  frame_start_driving: CursorIcon,
-  frame_open: AppWindowIcon,
-  frame_elements: ListBulletsIcon,
-  frame_screenshot: EyeIcon,
-  frame_click: CursorIcon,
-  frame_type: PencilSimpleIcon,
-  frame_key: CursorIcon,
-  frame_scroll: ArrowsDownUpIcon,
-  frame_select: CaretUpDownIcon,
-  frame_drag: CursorIcon,
-  frame_hover: CursorIcon,
-  frame_stop_driving: SquareIcon,
-  write_memory: BrainIcon,
-  replace_document_body: NotePencilIcon,
-  append_to_document_body: NotePencilIcon,
-  set_document_title: PencilSimpleLineIcon,
-  create_frames: AppWindowIcon,
-  create_document: FilePlusIcon,
-  move_group: ArrowsOutCardinalIcon,
-  arrange_groups: LayoutIcon,
-  move_to_group: SelectionIcon,
-  merge_groups: ArrowsMergeIcon,
+// The glyph for each icon a tool's description names (tool-description.ts).
+const TOOL_ICONS: Record<ToolIcon, typeof FileTextIcon> = {
+  file: FileTextIcon,
+  "file-plus": FilePlusIcon,
+  edit: PencilSimpleIcon,
   rename: PencilSimpleLineIcon,
-  remove: TrashIcon,
-  list_changes: ClockCounterClockwiseIcon,
-  undo_changes: ArrowUUpLeftIcon,
-  show_on_canvas: CrosshairIcon,
-  create_workspaces: BookBookmarkIcon,
-  stop_workspace: StopCircleIcon,
-  open_pull_request: GitPullRequestIcon,
-  remove_workspace: TrashIcon,
-  ask_question: QuestionIcon,
-}
-
-// Icons for the subjects a row label names (tool-row-label.ts).
-const labelIcons: Record<string, typeof FileTextIcon> = {
-  search: MagnifyingGlassIcon,
+  note: NotePencilIcon,
+  terminal: TerminalIcon,
   folder: FolderOpenIcon,
-  globe: GlobeIcon,
+  search: MagnifyingGlassIcon,
+  "pull-request": GitPullRequestIcon,
+  skill: BookOpenIcon,
+  logs: ListDashesIcon,
+  restart: ArrowsClockwiseIcon,
+  stop: SquareIcon,
+  play: PlayIcon,
+  canvas: SquaresFourIcon,
+  chat: ChatCircleIcon,
+  "chat-text": ChatTextIcon,
+  diff: GitDiffIcon,
   eye: EyeIcon,
+  code: CodeIcon,
+  cursor: CursorIcon,
+  window: AppWindowIcon,
+  list: ListBulletsIcon,
+  scroll: ArrowsDownUpIcon,
+  select: CaretUpDownIcon,
+  memory: BrainIcon,
+  move: ArrowsOutCardinalIcon,
+  layout: LayoutIcon,
+  selection: SelectionIcon,
+  merge: ArrowsMergeIcon,
+  trash: TrashIcon,
+  history: ClockCounterClockwiseIcon,
+  undo: ArrowUUpLeftIcon,
+  crosshair: CrosshairIcon,
+  workspaces: BookBookmarkIcon,
+  "stop-circle": StopCircleIcon,
+  question: QuestionIcon,
+  mockup: ScribbleIcon,
+  send: ChatTextIcon,
+  globe: GlobeIcon,
   robot: RobotIcon,
   warning: WarningCircleIcon,
-  skill: BookOpenIcon,
-  edit: PencilSimpleIcon,
-  mockup: ScribbleIcon,
-  chat: ChatCircleIcon,
-  send: ChatTextIcon,
-}
-
-const toolLabels: Record<string, string> = {
-  read_file: "Read",
-  write_file: "Write",
-  edit_file: "Edit",
-  run_command: "Run command",
-  list_files: "List files",
-  create_pr: "Create pull request",
-  read_skill: "Read skill",
-  read_dev_server_logs: "Read dev server logs",
-  restart_dev_server: "Restart dev server",
-  stop_dev_server: "Stop dev server",
-  start_dev_server: "Start dev server",
-  submit_plan: "Submit plan",
-  read_document: "Read document",
-  read_canvas: "Read canvas",
-  read_workspace_chat: "Read chat",
-  read_workspace_diff: "Read workspace diff",
-  read_workspace_file: "Read workspace file",
-  read_code_file: "Read code",
-  search_code: "Search code",
-  find_code_files: "Find files",
-  view_frame: "View frame",
-  read_frame_html: "Read frame HTML",
-  frame_start_driving: "Take control",
-  frame_open: "Open frame",
-  frame_elements: "Read frame elements",
-  frame_screenshot: "Screenshot frame",
-  frame_click: "Click",
-  frame_type: "Type",
-  frame_key: "Press key",
-  frame_scroll: "Scroll",
-  frame_select: "Pick option",
-  frame_drag: "Drag",
-  frame_hover: "Hover",
-  frame_stop_driving: "Give back control",
-  write_memory: "Save to memory",
-  replace_document_body: "Rewrite document",
-  append_to_document_body: "Append to document",
-  set_document_title: "Set title",
-  create_frames: "Create frames",
-  create_document: "Create document",
-  move_group: "Move group",
-  arrange_groups: "Arrange groups",
-  move_to_group: "Move to group",
-  merge_groups: "Merge groups",
-  rename: "Rename",
-  remove: "Remove",
-  list_changes: "List changes",
-  undo_changes: "Undo changes",
-  show_on_canvas: "Show on canvas",
-  create_workspaces: "Start chats",
-  stop_workspace: "Stop chat",
-  open_pull_request: "Create pull request",
-  remove_workspace: "Delete chat",
-  ask_question: "Ask a question",
-}
-
-// Results that only restate their row, so it has nothing to open onto.
-const QUIET_RESULT = new Set(["Skill", "create_mockup", "update_mockup"])
-// Results drawn as markdown, as logs (with their ANSI colours) and as prose.
-const MARKDOWN_RESULT = new Set([
-  "read_skill",
-  "read_document",
-  "read_workspace_chat",
-  "read_canvas",
-  "list_changes",
-])
-const LOG_RESULT = new Set([
-  "run_command",
-  "read_dev_server_logs",
-  "start_dev_server",
-  "restart_dev_server",
-])
-const PROSE_RESULT = new Set([
-  "read_canvas",
-  "read_workspace_chat",
-  "read_skill",
-  "read_document",
-  "frame_elements",
-  "read_mockup",
-  "list_changes",
-])
-
-// A raw snake_case tool identifier (e.g. `read_file`), as reported by
-// screenplay's own in-process engine. A generic ACP adapter (e.g.
-// claude-agent-acp) instead sends an already human-readable, possibly
-// markdown-formatted title like "Read `file.ts`" — which we must leave
-// untouched rather than re-casing word by word.
-const RAW_TOOL_NAME = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
-
-function formatToolName(name: string): string {
-  const mapped = toolLabels[name]
-  if (mapped) return mapped
-  // Sentence case, not Title Case: humanize the snake_case identifier and
-  // capitalize only the first letter (`read_file` → "Read file").
-  const spaced = name.replace(/_/g, " ")
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
-}
-
-// Fallback icons by ACP tool `kind` (read/edit/execute/…), used when the tool
-// isn't one of screenplay's own named tools — so a generic ACP agent's calls
-// still get a sensible icon rather than the bare default.
-const kindIcons: Record<string, typeof FileTextIcon> = {
-  read: FileTextIcon,
-  search: MagnifyingGlassIcon,
-  edit: PencilSimpleIcon,
-  execute: TerminalIcon,
   fetch: ArrowSquareOutIcon,
   think: LightbulbIcon,
 }
@@ -337,114 +202,6 @@ function renderTitleWithCode(title: string): ReactNode[] {
   }
   if (last < title.length) parts.push(title.slice(last))
   return parts
-}
-
-/**
- * The Coordinator's tools whose results name what happened: its canvas
- * changes, and a Workspace's PR or removal, whose result is what it did or
- * why it didn't (#1231).
- */
-const OUTCOME_LINE_TOOLS = new Set([
-  "open_pull_request",
-  "remove_workspace",
-  "create_frames",
-  "create_document",
-  "move_group",
-  "arrange_groups",
-  "move_to_group",
-  "merge_groups",
-  "rename",
-  "remove",
-  "undo_changes",
-  // Not a change, but its result names what it showed the same way.
-  "show_on_canvas",
-])
-
-/**
- * What a finished canvas change, PR or removal did, from its result's first
- * line (the lines after it are ids for the model), without the closing
- * period. Null while it runs, for any other tool, and for a result that
- * reports an error.
- */
-function outcomeLine(
-  message: AgentMessage & { role: "tool_call" }
-): string | null {
-  if (!OUTCOME_LINE_TOOLS.has(bareToolName(message.title))) return null
-  if (message.status !== "completed") return null
-  const text = message.content
-    .map((b) =>
-      b.type === "content" && b.content.type === "text" ? b.content.text : ""
-    )
-    .join("")
-  const line = text.split("\n")[0]!.trim()
-  if (!line || line.startsWith("Error:")) return null
-  return line.replace(/\.$/, "")
-}
-
-/** A short, human-readable detail for a tool call, derived from its raw input. */
-function toolDetail(title: string, raw: unknown): string | null {
-  // `rawInput` is arbitrary JSON (ACP). Only object inputs carry a detail; an
-  // array/scalar input has none to show.
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
-  const rawInput = raw as Record<string, unknown>
-  if (title === "run_command") return toolCommand(raw)
-  if (title === "read_skill") return (rawInput.name as string) ?? null
-  if (title === "set_document_title") return (rawInput.title as string) ?? null
-  if (title === "frame_open") return (rawInput.route as string) || null
-  return toolPath(raw)
-}
-
-/**
- * The file path a tool call targets, normalized across engines: our in-process
- * tools name it `path`; a generic ACP adapter (claude-agent-acp) may instead use
- * `file_path`/`abs_path`. Returns null when no path-like key is present.
- */
-function toolPath(raw: unknown): string | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
-  const r = raw as Record<string, unknown>
-  for (const key of ["path", "file_path", "filePath", "abs_path", "absPath"]) {
-    const v = r[key]
-    if (typeof v === "string" && v) return v
-  }
-  return null
-}
-
-/** A `run_command`-style call's full command line (`command` + `args`), or null. */
-function toolCommand(raw: unknown): string | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
-  const r = raw as Record<string, unknown>
-  const cmd = [r.command, ...((r.args as string[] | undefined) ?? [])]
-    .filter(Boolean)
-    .join(" ")
-  return cmd || null
-}
-
-/**
- * How many file lines a read returned, counted from the gutter-numbered result
- * text — the in-process engine numbers lines `<n>\t…`, claude-agent-acp `<n>→…`.
- * Returns null when there are no numbered lines (still running, an empty file,
- * or a non-file read), so the caller falls back to a plain "Read".
- */
-function readLineCount(content: ToolCallContent[]): number | null {
-  const text = content
-    .map((b) =>
-      b.type === "content" && b.content.type === "text" ? b.content.text : ""
-    )
-    .join("\n")
-  const matches = text.match(/^[ \t]*\d+(?:\t|→)/gm)
-  return matches ? matches.length : null
-}
-
-/**
- * The verb a structured tool call leads with, keyed by ACP `kind` so a generic
- * adapter's prose title ("Read File") renders with the same word our own tools
- * do. Only the kinds we can also reconstruct a detail for are listed; an unlisted
- * kind (fetch/think/other) keeps the adapter's prose title verbatim instead.
- */
-const KIND_VERB: Record<string, string> = {
-  read: "Read",
-  edit: "Edit",
-  execute: "Run command",
 }
 
 // One shared height cap for every tool-output block, so read, bash, and edit
@@ -657,34 +414,24 @@ function ToolContentBlock({
  * parts that say nothing, and a frame tool's with its frames named as a
  * person would.
  */
-function shownContent(message: AgentMessage & { role: "tool_call" }) {
-  const name = bareToolName(message.title)
-  const input = JSON.stringify(message.rawInput ?? null)
+function shownContent(
+  message: AgentMessage & { role: "tool_call" },
+  rewrite: ToolDescription["rewrite"]
+) {
   return message.content.flatMap(
     (b): Exclude<ToolCallContent, { type: "terminal" }>[] => {
       if (b.type === "terminal") return []
       if (b.type !== "content" || b.content.type !== "text") return [b]
-      if (echoesInput(b.content.text, input)) return []
-      if (name.startsWith("frame_")) {
+      if (echoesInput(b.content.text, message.rawInput)) return []
+      if (rewrite === "frame-names") {
         const text = readableFrameNames(b.content.text)
         return [{ ...b, content: { ...b.content, text } }]
       }
-      if (name !== "run_command") return [b]
+      if (rewrite !== "command-output") return [b]
       const text = commandOutput(b.content.text)
       return text.trim() ? [{ ...b, content: { ...b.content, text } }] : []
     }
   )
-}
-
-/** Whether a text block is only the call's own input, as a ```json block. */
-function echoesInput(text: string, input: string): boolean {
-  const fenced = text.trim().match(/^```json\n([\s\S]*)\n```$/)
-  if (!fenced) return false
-  try {
-    return JSON.stringify(JSON.parse(fenced[1]!)) === input
-  } catch {
-    return false
-  }
 }
 
 /** The text of a failed call's output, or null when it reported none. */
@@ -734,14 +481,6 @@ function TruncatedTitle({
   )
 }
 
-/** A harness's PascalCase tool name as words: `NotebookRead` → "Notebook read". */
-function spacedToolName(title: string): string | null {
-  if (!/^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(title)) return null
-  return title
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/ ([A-Z])/g, (_, c: string) => ` ${c.toLowerCase()}`)
-}
-
 /** A row label's subject: plain text, or keycaps for keys. */
 function LabelDetail({ named }: { named: RowLabel }) {
   if (!named.detail) return null
@@ -759,9 +498,6 @@ function LabelDetail({ named }: { named: RowLabel }) {
   return <span data-row-detail>{named.detail}</span>
 }
 
-/** The shell wrapper codex-acp's raw command carries (`/bin/zsh -lc '…'`). */
-const SHELL_WRAPPER = /^(?:\/bin\/)?(?:bash|zsh|sh)\s+-/
-
 /**
  * The one tool-call row (issue #728), keyed by id and advancing through its
  * status lifecycle in place: running shows the progress spinner, done shows the
@@ -778,101 +514,30 @@ function ToolCallRow({
   const running =
     message.status === "pending" || message.status === "in_progress"
   const failed = message.status === "failed"
-  // Our own tools reached over a harness's MCP connection carry its
-  // namespace (`mcp__screenplay__read_canvas`); label them by their own name.
-  const { name, input } = callIdentity(message)
-  const Icon =
-    toolIcons[name] ??
-    (message.kind ? kindIcons[message.kind] : undefined) ??
-    TerminalIcon
-  // Most calls read as a verb plus what they acted on, the same on every
-  // engine (tool-row-label.ts). A Workspace a Coordinator tool names reads
-  // by its title.
+  // Every engine's call reads as a verb plus what it acted on, the same for
+  // the same action (tool-description.ts). A Workspace a Coordinator tool
+  // names reads by its title.
   const tasks = useWorkspaceTasks()
-  const named = rowLabel(message, (id) => {
-    const branch = tasks?.branches.find((b) => b.id === id)
-    return branch?.title?.trim() || null
+  const described = describeToolCall(message, {
+    workspaceTitle: (id) => {
+      const branch = tasks?.branches.find((b) => b.id === id)
+      return branch?.title?.trim() || null
+    },
   })
-  // The rest derive the verb + detail from the tool identity (`kind` / raw
-  // name) and `rawInput`, not from whatever prose title an adapter happens to
-  // send — so an in-process `read_file` and a claude-agent-acp "Read File"
-  // both show "Read N lines path". Our own tools report a raw snake_case name
-  // (humanized + given a derived detail); a generic adapter's prose title is
-  // normalized via its ACP `kind`. A call we can't structure (an unknown kind
-  // with no recognizable input) keeps the adapter's prose title verbatim.
-  const isRawToolName = RAW_TOOL_NAME.test(name)
-  const diffPath = message.content.find((b) => b.type === "diff")?.path ?? null
-  const path =
-    toolPath(message.rawInput) ?? (message.kind === "edit" ? diffPath : null)
-  const command = toolCommand(message.rawInput)
-  const detail = isRawToolName
-    ? toolDetail(name, input)
-    : message.kind === "execute"
-      ? // Codex's title is the command without its shell wrapper.
-        command && SHELL_WRAPPER.test(command)
-        ? message.title
-        : command
-      : path
-        ? relativePath(path, message.title)
-        : null
-  const verb = isRawToolName
-    ? formatToolName(name)
-    : message.kind
-      ? (KIND_VERB[message.kind] ?? null)
-      : null
-  // A read leads with the line count it returned ("Read 42 lines"); other tools
-  // just show their verb. Gated on a path so a `read_skill`/`list_files` (also
-  // `kind: "read"`) never sprouts a spurious line count.
-  const lineCount =
-    message.kind === "read" && path ? readLineCount(message.content) : null
-  const label =
-    lineCount != null
-      ? `${verb} ${lineCount} ${lineCount === 1 ? "line" : "lines"}`
-      : verb
-  // A Coordinator canvas change (#894) names what it changed in its result's
-  // first line ("Removed frame "Settings""), so a finished one shows that line
-  // in place of its verb, with nothing to expand. So does a PR or removal,
-  // including one its gate refused (#1231).
-  const outcome = outcomeLine(message)
-  // Structure it when we have a real verb (our own raw tool, or a known kind we
-  // could attach a detail to); otherwise fall back to the adapter's prose title.
-  const structured = isRawToolName || (verb != null && detail != null)
-  const content = shownContent(message)
-  // A result that only says the label again ("Did click on button "Pay"")
-  // leaves the row nothing to open onto.
-  const restates =
-    QUIET_RESULT.has(name) ||
-    (DRIVE_GESTURES.has(name) &&
-      content.every(
-        (b) =>
-          b.type === "content" &&
-          b.content.type === "text" &&
-          /^(Did |Started|Stopped)/.test(b.content.text)
-      ))
-  const hasContent = content.length > 0 && !outcome && !restates
-  const readPath =
-    message.kind === "read" ||
-    /^read_(file|code_file|workspace_file)$/.test(name)
-      ? (toolPath(input) ??
-        message.title.match(/^Read file '(.+)'$/)?.[1] ??
-        null)
-      : null
-  const lang = languageFor(readPath)
+  const { label: named } = described
+  const content = shownContent(message, described.rewrite)
+  const hasContent = content.length > 0 && !described.quiet
+  const lang = languageFor(described.readPath)
   const mode: OutputMode =
-    MARKDOWN_RESULT.has(name) || message.kind === "fetch"
+    described.output === "markdown"
       ? "markdown"
       : lang
         ? "code"
-        : message.kind === "execute" || LOG_RESULT.has(name)
-          ? "log"
-          : PROSE_RESULT.has(name)
-            ? "prose"
-            : "plain"
+        : described.output
 
-  const spaced = structured ? null : spacedToolName(message.title)
-  const title = outcome ? (
-    outcome
-  ) : named ? (
+  const title = named.title ? (
+    renderTitleWithCode(named.verb)
+  ) : (
     <>
       {named.verb}
       {named.detail ? (
@@ -882,33 +547,17 @@ function ToolCallRow({
         </>
       ) : null}
     </>
-  ) : structured ? (
-    <>
-      {label}
-      {detail ? (
-        <>
-          {" "}
-          <span data-row-detail>{detail}</span>
-        </>
-      ) : null}
-    </>
-  ) : (
-    (spaced ?? renderTitleWithCode(message.title))
   )
-  const fullText = outcome
-    ? outcome
-    : named
-      ? [named.verb, named.detail].filter(Boolean).join(" ")
-      : structured
-        ? [label, detail].filter(Boolean).join(" ")
-        : (spaced ?? message.title.replace(/`/g, ""))
+  const fullText = named.title
+    ? named.verb.replace(/`/g, "")
+    : [named.verb, named.detail].filter(Boolean).join(" ")
 
   // One diff whose file the row already names needs no path header.
   const diffs = content.filter((b) => b.type === "diff")
   const single =
     diffs.length === 1 &&
     fullText.includes(diffs[0]!.path.split("/").at(-1) ?? diffs[0]!.path)
-  const RowIcon = (named?.icon && labelIcons[named.icon]) || Icon
+  const RowIcon = TOOL_ICONS[described.icon]
   const icon = running ? (
     <Spinner
       data-testid="tool-call-spinner"

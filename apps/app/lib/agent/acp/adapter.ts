@@ -1,6 +1,7 @@
 import type { ModelMessage, SystemModelMessage, TextStreamPart } from "ai"
 import type { Tool } from "ai"
 import { isImageToolOutput } from "../image-output"
+import { toolKind } from "../tool-description"
 import {
   repairOrphanedAcpToolCalls,
   type AcpMessageRecord,
@@ -190,56 +191,11 @@ function toolCallToModelMessages(record: AcpToolCallRecord): ModelMessage[] {
 
 /**
  * The ACP {@link ToolKind} (icon/category hint) for one of screenplay's tools.
- * A generic ACP agent supplies its own `kind`; this is the in-process engine's
- * mapping for the tools it runs, defaulting to `"other"` for anything new.
+ * A generic ACP agent supplies its own `kind`; this is the in-process engine's,
+ * read from the tool's description, defaulting to `"other"` for anything new.
  */
 export function toolKindFor(toolName: string): ToolKind {
-  switch (toolName) {
-    case "read_file":
-    case "read_document":
-    case "read_canvas":
-    case "read_workspace_chat":
-    case "read_workspace_diff":
-    case "read_workspace_file":
-    case "read_code_file":
-    case "view_frame":
-    case "read_frame_html":
-    case "frame_elements":
-    case "frame_screenshot":
-    case "read_skill":
-      return "read"
-    // Searches and listings name a directory, not a file they read.
-    case "grep":
-    case "glob":
-    case "search_code":
-    case "find_code_files":
-    case "list_files":
-      return "search"
-    case "write_file":
-    case "edit_file":
-    case "replace_document_body":
-    case "append_to_document_body":
-    case "set_document_title":
-    case "create_frames":
-    case "create_document":
-    case "rename":
-    case "undo_changes":
-      return "edit"
-    case "move_group":
-    case "arrange_groups":
-    case "move_to_group":
-    case "merge_groups":
-      return "move"
-    case "remove":
-      return "delete"
-    case "list_changes":
-    case "show_on_canvas":
-      return "read"
-    case "run_command":
-      return "execute"
-    default:
-      return "other"
-  }
+  return toolKind(toolName)
 }
 
 /**
