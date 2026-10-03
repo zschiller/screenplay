@@ -60,6 +60,8 @@ import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { FrameDriverButton, FrameDriverTag } from "./frame-driver"
+import { FrameStreamView } from "./frame-stream-view"
+import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView } from "./use-frame-control"
 import { drivenByOther } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
@@ -135,6 +137,12 @@ interface IframeLayerProps {
   /** Who drives the frame (#1387). Someone else driving it shows their mark on
    *  Interact, the title-line tag, and no resize handles. */
   driver?: FrameDriverView
+  /**
+   * Set on a hosted canvas whose Workspace streams its frames (#1392): the
+   * frame is one shared browser in the Sandbox, shown from its Frame Stream
+   * instead of a per-viewer iframe.
+   */
+  sharedStream?: { connection: FrameStreamConnection; roomId: string }
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
   selected: boolean
@@ -332,6 +340,7 @@ export function IframeLayer({
   labelHidden,
   focused,
   driver = NOBODY_DRIVES,
+  sharedStream,
   createFlow,
   selected,
   onFocus,
@@ -404,6 +413,14 @@ export function IframeLayer({
   // Declared here (rather than inside usePostMessage) so callbacks defined
   // above the usePostMessage call below — e.g. reloadIframe — can reference it.
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // A shared frame (#1392) has no iframe: reloads and routes go to the shared
+  // browser over its stream.
+  const shared = !!sharedStream
+  const sharedStreamRef = useRef(sharedStream)
+  useEffect(() => {
+    sharedStreamRef.current = sharedStream
+  })
 
   // The URL the iframe is *supposed* to show. reloadIframe reloads onto this,
   // not the DOM's current `iframe.src`: a prior recovery reload may have parked
@@ -479,7 +496,29 @@ export function IframeLayer({
     [onRouteChange]
   )
 
+  // Where the shared page went. The driver's view records it, as an iframe
+  // records its own navigation; with nobody driving (a redirect, a reload)
+  // any view does, since they all write the same route. Joining reports where
+  // the page already is, which is never a new step.
+  const driverRef = useRef(driver)
+  useEffect(() => {
+    driverRef.current = driver
+  })
+  const handleSharedRoute = useCallback(
+    (path: string, first: boolean) => {
+      const kind = driverRef.current.kind
+      if (kind !== "you" && kind !== "none") return
+      handleNavigation(iframeLayer.id, path, first)
+    },
+    [handleNavigation, iframeLayer.id]
+  )
+
   const reloadIframe = useCallback(() => {
+    const stream = sharedStreamRef.current
+    if (stream) {
+      stream.connection.send({ t: "reload", frame: iframeLayer.id })
+      return
+    }
     const iframe = iframeRef.current
     if (!iframe) return
     // A reload re-fetches the page, so the current content is no longer "ready"
@@ -496,7 +535,7 @@ export function IframeLayer({
       const i = iframeRef.current
       if (i) i.src = src
     })
-  }, [])
+  }, [iframeLayer.id])
 
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
@@ -535,7 +574,9 @@ export function IframeLayer({
     anchorRef: frameRef,
     toolbarRef,
   })
-  const showFit = !!onFitToContent && !!iframeLayer.branchId
+  // Fit to content reads the page through the bridge, which a shared frame
+  // doesn't reach yet (#1394).
+  const showFit = !!onFitToContent && !!iframeLayer.branchId && !shared
   const showPlay = !!onPlay
   // Open the frame's live preview in a real browser tab, deep-linked to the
   // route it's currently showing — the same page the iframe loads, minus the
@@ -729,6 +770,8 @@ export function IframeLayer({
   // avoidable cascade.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    // A shared frame follows the room's route through its stream.
+    if (shared) return
     if (!iframeLayer.iframeUrl) {
       setIframeSrc(undefined)
       setContentReady(false)
@@ -780,7 +823,7 @@ export function IframeLayer({
         if (token === followSeqRef.current) reload()
       }
     )
-  }, [iframeLayer.iframeUrl, iframeLayer.route, dom, reloadIframe])
+  }, [iframeLayer.iframeUrl, iframeLayer.route, dom, reloadIframe, shared])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Probe the dev server as an explicit state machine: spinner while
@@ -826,6 +869,8 @@ export function IframeLayer({
   // first) ends the loop the instant a real page paints, so a healthy frame
   // reloads at most once. The cap only bounds a genuinely stuck server.
   useEffect(() => {
+    // A shared browser that opened on the placeholder retries on its own.
+    if (shared) return
     if (probeState !== "ready" || contentReady) return
     if (recoveryTick >= MAX_PLACEHOLDER_RELOADS) return
     const id = setTimeout(() => {
@@ -833,7 +878,7 @@ export function IframeLayer({
       setRecoveryTick((n) => n + 1)
     }, PLACEHOLDER_RELOAD_GRACE_MS)
     return () => clearTimeout(id)
-  }, [probeState, contentReady, recoveryTick, reloadIframe])
+  }, [probeState, contentReady, recoveryTick, reloadIframe, shared])
 
   // The one status screen covering the preview, or null once the live page is
   // up. A branch can be assigned before its dev server is up, so there may be
@@ -1095,7 +1140,21 @@ export function IframeLayer({
             had already fetched it once, serializing two full loads. Now the
             iframe loads in parallel with the probe and the overlay below just
             hides it until the dev server is confirmed reachable. */}
-            {iframeSrc && (
+            {sharedStream && iframeLayer.iframeUrl && (
+              <FrameStreamView
+                stream={sharedStream.connection}
+                roomId={sharedStream.roomId}
+                frameId={iframeLayer.id}
+                width={iframeLayer.width}
+                height={iframeLayer.height}
+                route={shownRoute}
+                interactive={interactive}
+                drives={driver.kind === "you"}
+                onRoute={handleSharedRoute}
+                onLive={setContentReady}
+              />
+            )}
+            {!sharedStream && iframeSrc && (
               <iframe
                 ref={iframeRef}
                 src={iframeSrc}

@@ -48,6 +48,9 @@ export interface FrameControlDeps {
   others: ReadonlyArray<{ presence: CanvasPresence }>
   /** The Iframe Layers Frame Control governs. */
   frameIds: readonly string[]
+  /** Frames that are one shared browser (#1392): one record for everyone,
+   *  rather than one per viewer. */
+  sharedIds?: ReadonlySet<string>
   /** The frame this viewer interacts with (Interact pressed), from Canvas
    *  Interaction. Entering Interact asks to drive; leaving it lets go. */
   focusedId: string | null
@@ -77,9 +80,18 @@ export interface FrameControl {
  * - Awareness says who is online; a timer re-runs the grace rules when
  *   someone who drives or waits has left.
  */
+const NO_SHARED: ReadonlySet<string> = new Set()
+
 export function useFrameControl(deps: FrameControlDeps): FrameControl {
-  const { collection, viewerId, others, frameIds, focusedId, setFocusedId } =
-    deps
+  const {
+    collection,
+    viewerId,
+    others,
+    frameIds,
+    sharedIds = NO_SHARED,
+    focusedId,
+    setFocusedId,
+  } = deps
 
   // Re-render on any change to the collection; records are read per frame.
   const revision = useSyncExternalStore(
@@ -128,8 +140,11 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
   )
 
   const keyOf = useCallback(
-    (layerId: string) => (viewerId ? frameControlKey(layerId, viewerId) : null),
-    [viewerId]
+    (layerId: string) =>
+      viewerId
+        ? frameControlKey(layerId, viewerId, sharedIds.has(layerId))
+        : null,
+    [viewerId, sharedIds]
   )
 
   const dispatch = useCallback(
@@ -137,8 +152,15 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       const key = keyOf(layerId)
       if (!key) return
       const current = collection.get(key)
-      const next = reduceFrameControl(current ?? EMPTY_FRAME_CONTROL, action)
-      if (next === current || (!current && next === EMPTY_FRAME_CONTROL)) return
+      const next = reduceFrameControl(
+        current ?? { ...EMPTY_FRAME_CONTROL, live: sharedIds.has(layerId) },
+        action
+      )
+      if (
+        next === current ||
+        (!current && next.driver === null && next.requests.length === 0)
+      )
+        return
       // A record nobody drives or waits on says nothing; don't keep it.
       if (next.driver === null && next.requests.length === 0) {
         if (current) collection.delete(key)
@@ -146,7 +168,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       }
       collection.set(key, next)
     },
-    [collection, keyOf]
+    [collection, keyOf, sharedIds]
   )
 
   const driverOf = useCallback(
@@ -194,8 +216,8 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     }
     for (const layerId of frameIds) {
       if (layerId === focusedId) continue
-      const key = frameControlKey(layerId, viewerId)
-      if (collection.get(key)?.driver === viewerId) {
+      const key = keyOf(layerId)
+      if (key && collection.get(key)?.driver === viewerId) {
         dispatch(layerId, {
           type: "release",
           by: viewerId,
@@ -205,7 +227,8 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     }
     // Someone else took the frame this viewer interacts with.
     if (focusedId && frameIds.includes(focusedId)) {
-      const record = collection.get(frameControlKey(focusedId, viewerId))
+      const key = keyOf(focusedId)
+      const record = key ? collection.get(key) : undefined
       if (drivenByOther(frameDriverFor(record, viewerId))) setFocusedId(null)
     }
   }, [
@@ -217,6 +240,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     presenceNow,
     dispatch,
     setFocusedId,
+    keyOf,
   ])
 
   // Re-run the grace rules when someone who drives or waits runs out of it.
@@ -227,8 +251,8 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     const presence = presenceNow()
     let due: number | null = null
     for (const layerId of frameIds) {
-      const key = frameControlKey(layerId, viewerId)
-      const record = collection.get(key)
+      const key = keyOf(layerId)
+      const record = key ? collection.get(key) : undefined
       if (!record) continue
       const at = nextSettleAt(record, presence)
       if (at === null) continue
@@ -250,6 +274,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     presenceNow,
     dispatch,
     tick,
+    keyOf,
   ])
 
   return useMemo(() => ({ driverOf, interact }), [driverOf, interact])

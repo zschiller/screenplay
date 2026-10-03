@@ -185,8 +185,9 @@ describe("provisionSandbox on the hosted backend", () => {
       username: "x-access-token",
       password: GH_TOKEN,
     })
-    // Dev port, its proxy port, and the BYO-terminal daemon port are forwarded.
-    expect(fake.createCalls[0]!.ports).toEqual([3000, 4000, 7681])
+    // Dev port, its proxy port, the BYO-terminal daemon port and the Frame
+    // Stream port are forwarded.
+    expect(fake.createCalls[0]!.ports).toEqual([3000, 4000, 7681, 7682])
   })
 
   it("duplicates by creating the new branch from the source branch via the API", async () => {

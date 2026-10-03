@@ -226,13 +226,18 @@ export function nextSettleAt(
 }
 
 /**
- * Which record governs what `viewerId` sees of a frame. Until shared frames
- * (#1392), every viewer runs their own copy, so each viewer's copy has its own
- * record whose parties are that viewer and the agent: the agent drives a frame
- * in the asker's view, and nobody else's.
+ * Which record governs what `viewerId` sees of a frame. A viewer's own copy
+ * (the desktop app, a Workspace without shared frames) has its own record
+ * whose parties are that viewer and the agent: the agent drives a frame in the
+ * asker's view, and nobody else's. A shared frame (#1392) is one browser
+ * everyone watches, so it has one record, keyed by the layer alone.
  */
-export function frameControlKey(layerId: string, viewerId: string): string {
-  return `${layerId}:${viewerId}`
+export function frameControlKey(
+  layerId: string,
+  viewerId: string,
+  shared = false
+): string {
+  return shared ? layerId : `${layerId}:${viewerId}`
 }
 
 /**
