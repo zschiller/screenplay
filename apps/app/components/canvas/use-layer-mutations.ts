@@ -3,7 +3,6 @@ import type { ReactZoomPanPinchContentRef } from "react-zoom-pan-pinch"
 
 import type { CanvasOps } from "@/lib/canvas/ops"
 import type { RoomCollections } from "@/lib/yjs/schema"
-import type { MockupStatus } from "@/lib/types"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { MOCKUP_MIN_HEIGHT, MOCKUP_MIN_WIDTH } from "@/lib/constants"
@@ -104,7 +103,6 @@ export interface LayerMutations {
   ) => void
   /** Rename a mockup (its title lives on the record alone). */
   renameMockup: (id: string, title: string) => void
-  setMockupStatus: (id: string, status: MockupStatus) => void
   /**
    * Turn a mockup live for everyone on the canvas, in the Workspace whose
    * Sandbox runs it, or back (#1523).
@@ -307,13 +305,6 @@ export function useLayerMutations({
     [ops]
   )
 
-  const setMockupStatus = useCallback(
-    (id: string, status: MockupStatus) => {
-      ops.patch("mockupLayers", id, { status })
-    },
-    [ops]
-  )
-
   const updateMockupLive = useCallback(
     (id: string, live: boolean, branchId?: string) => {
       ops.patch(
@@ -382,7 +373,6 @@ export function useLayerMutations({
       setTitleCache,
       resizeMockup,
       renameMockup,
-      setMockupStatus,
       updateMockupLive,
       updateMockupScroll,
       updateMockupColorScheme,
@@ -404,7 +394,6 @@ export function useLayerMutations({
       setTitleCache,
       resizeMockup,
       renameMockup,
-      setMockupStatus,
       updateMockupLive,
       updateMockupScroll,
       updateMockupColorScheme,

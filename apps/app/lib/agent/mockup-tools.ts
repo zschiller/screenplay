@@ -10,8 +10,6 @@ import {
   DEFAULT_IFRAME_LAYER_WIDTH,
 } from "@/lib/constants"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
-import { MOCKUP_STATUSES } from "@/lib/types"
-import { MOCKUP_STATUS_LABELS } from "@/lib/mockup-status"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import { editRight } from "@/lib/canvas/document-owner"
 
@@ -95,21 +93,15 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     update_mockup: tool({
       description:
-        "Change a Mockup this chat made, or one whose chat was deleted (changing it makes it this chat's): replace its whole page, its title, its status, or any of them. The canvas re-renders it in place. A Mockup another chat on the canvas made is theirs to change.",
+        "Change a Mockup this chat made, or one whose chat was deleted (changing it makes it this chat's): replace its whole page, its title, or both. The canvas re-renders it in place. A Mockup another chat on the canvas made is theirs to change.",
       inputSchema: z.object({
         mockup_id: z.string().describe("The id create_mockup returned"),
         html: htmlSchema.optional(),
         title: z.string().min(1).max(120).optional(),
-        status: z
-          .enum(MOCKUP_STATUSES)
-          .optional()
-          .describe(
-            "Where this take stands, shown on its label: set-aside, current (every new Mockup starts here) or built. People on the canvas can change it too; use it however helps them follow the takes."
-          ),
       }),
-      execute: async ({ mockup_id, html, title, status }) => {
-        if (html === undefined && title === undefined && status === undefined) {
-          return "Nothing to change: pass html, title or status."
+      execute: async ({ mockup_id, html, title }) => {
+        if (html === undefined && title === undefined) {
+          return "Nothing to change: pass html or title."
         }
         const outcome = await ctx.room.mutateDoc(({ doc }) => {
           const collections = createRoomCollections(doc)
@@ -128,7 +120,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
                 ownerChatId: ctx.chatId,
               })
             }
-            ops.updateMockup(mockup_id, { html, title, status })
+            ops.updateMockup(mockup_id, { html, title })
           })
           return "updated" as const
         })
@@ -136,15 +128,13 @@ export function buildMockupTools(ctx: MockupToolContext) {
         if (outcome === "not-owner") {
           return `Mockup ${mockup_id} was made by another chat, and only that chat can change it. Create your own with create_mockup.`
         }
-        return status
-          ? `Updated Mockup ${mockup_id}; its status is ${MOCKUP_STATUS_LABELS[status]}.`
-          : `Updated Mockup ${mockup_id}.`
+        return `Updated Mockup ${mockup_id}.`
       },
     }),
 
     read_mockup: tool({
       description:
-        "Read Mockups back. Without an id, lists this chat's Mockups with their ids, titles and statuses. With an id, returns that Mockup's title, status and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
+        "Read Mockups back. Without an id, lists this chat's Mockups with their ids and titles. With an id, returns that Mockup's title and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
       inputSchema: z.object({
         mockup_id: z
           .string()
@@ -157,15 +147,12 @@ export function buildMockupTools(ctx: MockupToolContext) {
             mockupLayers
               .toArray()
               .filter((m) => m.ownerChatId === ctx.chatId)
-              .map((m) => ({ id: m.id, title: m.title, status: m.status }))
+              .map((m) => ({ id: m.id, title: m.title }))
           )
           if (own.length === 0) return "This chat hasn't made any Mockups."
           return [
             "Your Mockups:",
-            ...own.map(
-              (m) =>
-                `- ${m.id}: ${m.title} (${MOCKUP_STATUS_LABELS[m.status ?? "current"]})`
-            ),
+            ...own.map((m) => `- ${m.id}: ${m.title}`),
           ].join("\n")
         }
         const found = await ctx.room.readDoc(
@@ -174,7 +161,6 @@ export function buildMockupTools(ctx: MockupToolContext) {
             if (!mockup) return null
             return {
               title: mockup.title,
-              status: mockup.status,
               right: editRight(
                 mockup.ownerChatId,
                 ctx.chatId,
@@ -186,8 +172,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
         )
         if (!found) return `There's no Mockup ${mockup_id}.`
         return [
-          `# ${found.title}`,
-          `Status: ${MOCKUP_STATUS_LABELS[found.status ?? "current"]}${READ_NOTE[found.right]}`,
+          `# ${found.title}${READ_NOTE[found.right]}`,
           "",
           found.html || "(empty page)",
         ].join("\n")
@@ -202,7 +187,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
   })
 }
 
-/** What read_mockup says after a Mockup's status about who can change it. */
+/** What read_mockup says after a Mockup's title about who can change it. */
 const READ_NOTE = {
   own: "",
   claim: " (its chat was deleted; you can change it)",

@@ -69,7 +69,6 @@ function renderMockup(props: Partial<Parameters<typeof MockupLayer>[0]> = {}) {
       onMoveSelected={noop}
       onResize={noop}
       onRename={noop}
-      onSetStatus={noop}
       {...p}
     />
   )
