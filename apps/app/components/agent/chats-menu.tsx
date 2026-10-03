@@ -11,41 +11,16 @@ import {
   type SyntheticEvent,
 } from "react"
 
-import { createPortal } from "react-dom"
-
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  pointerWithin,
-  useSensor,
-  useSensors,
-  type ClientRect,
-  type CollisionDetection,
-  type DragEndEvent,
-  type DragMoveEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core"
-
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-
 import {
   ArrowsDownUpIcon,
-  CaretDownIcon,
   CaretRightIcon,
   ChatCircleIcon,
+  ChatsIcon,
   PencilSimpleIcon,
   TrashIcon,
-  ChatsIcon,
-  CheckIcon,
   DotsThreeIcon,
   GitBranchIcon,
   PlusIcon,
-  RowsIcon,
 } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
@@ -68,7 +43,6 @@ import {
 
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -135,8 +109,6 @@ import {
   type WorkspaceState,
 } from "@/lib/branch/workspace-state"
 
-import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
-
 import type { BranchPrInfo } from "@/lib/github-actions"
 
 import { listRepoBranches } from "@/lib/github-actions"
@@ -144,8 +116,6 @@ import { listRepoBranches } from "@/lib/github-actions"
 import { isLocalBuild } from "@/lib/local-mode"
 
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
-
-import { resolveRepoListDrop, type RepoListDropHint } from "@/lib/sidebar-drop"
 
 import { sortForSidebar } from "@/lib/sidebar-order"
 import { defaultNewWorkspaceRepoId } from "@/lib/frame-ask"
@@ -168,9 +138,7 @@ import { workspaceLabel } from "@/lib/workspace-label"
 import {
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SORT_LABELS,
-  canDragWorkspaces,
   groupWorkspaces,
-  sortWorkspaces,
   type WorkspaceSort,
 } from "@/lib/workspace-list-view"
 
@@ -180,11 +148,11 @@ import { isSketchChat } from "@/lib/chat/sketch-chat"
 /**
  * The chat panel's Chats menu (#1152, #1317): one button pinned to the far
  * right of the panel header that opens the list of every chat on the canvas.
- * The Coordinator leads it, then each Workspace's one chat (#1315) by its
- * title and Workspace state icon, never its branch, with what the sidebar used
- * to hold (sort, grouping, Done, row menus, drag). Documents have no chats of
- * their own (#1314). It is the one way to move between chats; the header's
- * breadcrumb only says where you are.
+ * It lists each Workspace's one chat (#1315) by its title and Workspace state
+ * icon, never its branch, with what the sidebar used to hold (sort, grouping,
+ * Done, row menus, drag). Documents have no chats of their own (#1314). It
+ * opens from the Coordinator's header only, so it doesn't list the
+ * Coordinator: a Workspace chat's Coordinator crumb goes back up.
  *
  * {@link ChatsMenuProvider} sits around the panel and owns everything
  * that outlives the menu (the dialogs its rows and actions open, the create
@@ -192,13 +160,6 @@ import { isSketchChat } from "@/lib/chat/sketch-chat"
  * renders the button in whichever header is showing. Without a provider (the
  * prototype player's chat) the button renders nothing.
  */
-
-/** Which chat the panel shows, for the menu's check marks. */
-export type ChatsMenuCurrent =
-  | { kind: "room" }
-  | { kind: "agent"; id: string }
-  | { kind: "sketch"; id: string }
-  | { kind: "none" }
 
 export interface ChatsMenuProviderProps {
   userId: string
@@ -210,8 +171,6 @@ export interface ChatsMenuProviderProps {
   diffStats: Map<string, DiffStats>
   /** GitHub-polled PR state per branch, shared with the chat header. */
   branchPrs: Map<string, BranchPrInfo>
-  current: ChatsMenuCurrent
-  onShowRoomChat: () => void
   /** Open a Workspace's chat; `expandPanel` defaults to true. */
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
   /** Open a chat with no repository (a Sketch Chat). */
@@ -243,8 +202,6 @@ export interface ChatsMenuProviderProps {
   onShowRoutes: (branchId: string) => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
   onRenameBranch: (branchId: string, newBranch: string) => void
-  /** Persist the room-shared order of one repo's Workspaces. */
-  onReorderBranches: (repoId: string, orderedIds: string[]) => void
   children: React.ReactNode
 }
 
@@ -704,9 +661,9 @@ export function ChatsMenuButton() {
           aria-description={menu.needsYou ? "A chat needs you" : undefined}
           className="text-muted-foreground"
         >
+          <ChatsIcon data-icon="inline-start" />
           Chats
           {menu.needsYou ? <NeedsYouDot className="size-1.5" /> : null}
-          <CaretDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -731,7 +688,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const {
     userId,
     roomId,
-    current,
     sortedRepos,
     reposById,
     activeBranches,
@@ -745,24 +701,11 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const [doneOpen, setDoneOpen] = useState(false)
   // This member's sort and grouping (#885), a local view preference.
   const [listView, updateListView] = useWorkspaceListView(userId, roomId)
-  const listedBranches = useMemo(
-    () => sortWorkspaces(activeBranches, listView.sort),
-    [activeBranches, listView.sort]
-  )
   const sections = useMemo(
     () =>
-      listView.groupByState
-        ? groupWorkspaces(
-            activeBranches,
-            listView.sort,
-            (b) => stateOf(b).section
-          )
-        : null,
-    [activeBranches, listView, stateOf]
+      groupWorkspaces(activeBranches, listView.sort, (b) => stateOf(b).section),
+    [activeBranches, listView.sort, stateOf]
   )
-  // Drag writes manual order, so it only runs where rows show it, and not
-  // over a filtered list.
-  const canDrag = canDragWorkspaces(listView) && !searching
 
   const pick = (select: () => void) => {
     select()
@@ -784,7 +727,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
           menu={menu}
           branch={branch}
           repo={repo}
-          sortable={canDrag && !branch.doneAt}
         />
       )
     })
@@ -802,23 +744,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
       />
       <CommandList className="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
         <CommandEmpty>No matches.</CommandEmpty>
-        <CommandGroup>
-          <CommandItem
-            value={ROOM_CHAT_LABEL}
-            onSelect={() => pick(menu.onShowRoomChat)}
-          >
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              <ChatsIcon className="size-3.5 opacity-70" />
-            </span>
-            <span className="truncate">{ROOM_CHAT_LABEL}</span>
-            <CheckIcon
-              className={cn(
-                "ml-auto size-3.5",
-                current.kind !== "room" && "opacity-0"
-              )}
-            />
-          </CommandItem>
-        </CommandGroup>
 
         {sortedRepos.length === 0 ? (
           // A canvas with no repository has chats with none, which write
@@ -849,38 +774,22 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
             <WorkspacesLabel
               menu={menu}
               label={
-                sections?.[0]
+                sections[0]
                   ? WORKSPACE_SECTION_LABELS[sections[0].section]
                   : "Chats"
               }
               sort={listView.sort}
-              groupByState={listView.groupByState}
               onSort={(sort) => updateListView({ sort })}
-              onGroupByState={(groupByState) =>
-                updateListView({ groupByState })
-              }
             />
-            {sections ? (
-              sections.map(({ section, branches }, i) => (
-                <CommandGroup
-                  key={section}
-                  heading={
-                    i > 0 ? WORKSPACE_SECTION_LABELS[section] : undefined
-                  }
-                  className="pt-0"
-                >
-                  {rows(branches)}
-                </CommandGroup>
-              ))
-            ) : canDrag ? (
-              <SortableWorkspaces menu={menu} branches={listedBranches}>
-                {rows(listedBranches)}
-              </SortableWorkspaces>
-            ) : (
-              <CommandGroup className="pt-0">
-                {rows(listedBranches)}
+            {sections.map(({ section, branches }, i) => (
+              <CommandGroup
+                key={section}
+                heading={i > 0 ? WORKSPACE_SECTION_LABELS[section] : undefined}
+                className="pt-0"
+              >
+                {rows(branches)}
               </CommandGroup>
-            )}
+            ))}
             {sketchChats.length > 0 && (
               <CommandGroup heading="No repository">
                 {sketchRows(sketchChats)}
@@ -924,16 +833,12 @@ function WorkspacesLabel({
   menu,
   label,
   sort,
-  groupByState,
   onSort,
-  onGroupByState,
 }: {
   menu: ChatsMenuValue
   label: string
   sort: WorkspaceSort
-  groupByState: boolean
   onSort: (sort: WorkspaceSort) => void
-  onGroupByState: (groupByState: boolean) => void
 }) {
   const { sortedRepos } = menu
   return (
@@ -974,13 +879,6 @@ function WorkspacesLabel({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuCheckboxItem
-            checked={groupByState}
-            onCheckedChange={(checked) => onGroupByState(checked === true)}
-          >
-            <RowsIcon />
-            Group by state
-          </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           {sortedRepos.length === 1 ? (
             <DropdownMenuItem
@@ -1022,7 +920,7 @@ function WorkspacesLabel({
 
 /**
  * One chat with no repository in the menu: its title (renamed inline from its
- * … menu), the … menu with Rename and Delete, and a check on the open one.
+ * … menu) and the … menu with Rename and Delete.
  */
 function SketchChatMenuRow({
   menu,
@@ -1035,8 +933,6 @@ function SketchChatMenuRow({
   const pendingEditRef = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
-  const isCurrent =
-    menu.current.kind === "sketch" && menu.current.id === chat.id
   return (
     <CommandItem
       value={`${chat.label} ${chat.id}`}
@@ -1079,7 +975,7 @@ function SketchChatMenuRow({
       <span
         {...isolate}
         className={cn(
-          "absolute inset-y-0 right-7.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
+          "absolute inset-y-0 right-0.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
           menuOpen && "opacity-100",
           renaming && "invisible"
         )}
@@ -1125,7 +1021,6 @@ function SketchChatMenuRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </span>
-      <CheckIcon className={cn("size-3.5", !isCurrent && "opacity-0")} />
     </CommandItem>
   )
 }
@@ -1133,7 +1028,7 @@ function SketchChatMenuRow({
 /**
  * One Workspace's chat in the menu: its Workspace state icon, title (a chat
  * and its Workspace share one, #1315; renamed inline from its … menu), PR
- * badge or line count, the … menu, and a check on the open one.
+ * badge or line count, and the … menu.
  * Hovering it outlines its frames on the canvas (#793) and opens its hover
  * card (#882), as the sidebar row did.
  */
@@ -1141,12 +1036,10 @@ function WorkspaceMenuRow({
   menu,
   branch,
   repo,
-  sortable,
 }: {
   menu: ChatsMenuValue
   branch: BranchData
   repo: RepoData
-  sortable: boolean
 }) {
   const editableRef = useRef<EditableTextHandle | null>(null)
   const pendingEditRef = useRef(false)
@@ -1165,8 +1058,6 @@ function WorkspaceMenuRow({
   const pr = menu.branchPrs.get(branch.id)
   const stats = menu.diffStats.get(branch.id)
   const hasStats = !!stats && (stats.additions > 0 || stats.deletions > 0)
-  const isCurrent =
-    menu.current.kind === "agent" && menu.current.id === branch.id
   const label = workspaceLabel(branch)
   const showRepoNames = menu.sortedRepos.length > 1
 
@@ -1245,14 +1136,13 @@ function WorkspaceMenuRow({
       )}
       {/* The … sits over the row's end, like a chat tab's close button, so
           it holds no slot at rest and the row stays as tall as the
-          Coordinator row (#1165). It shows on hover, when the
-          row is arrowed to, and while it holds focus; a fade in the row's
-          colour runs under the meta it covers. right-7.5 clears the check
-          column (px-2 + gap-2 + the 14px check). */}
+          other rows (#1165). It shows on hover, when the row is arrowed to,
+          and while it holds focus; a fade in the row's colour runs under the
+          meta it covers. */}
       <span
         {...isolate}
         className={cn(
-          "absolute inset-y-0 right-7.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-highlighted/ws-row:[--row-bg:var(--muted)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
+          "absolute inset-y-0 right-0.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-highlighted/ws-row:[--row-bg:var(--muted)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
           menuOpen && "opacity-100",
           renaming && "invisible"
         )}
@@ -1305,7 +1195,6 @@ function WorkspaceMenuRow({
           />
         </DropdownMenu>
       </span>
-      <CheckIcon className={cn("size-3.5", !isCurrent && "opacity-0")} />
     </CommandItem>
   )
 
@@ -1322,213 +1211,5 @@ function WorkspaceMenuRow({
       {item}
     </WorkspaceHoverCard>
   )
-  if (!sortable) return withCard
-  return (
-    <SortableWorkspace id={`branch:${branch.id}`} repoId={repo.id}>
-      {withCard}
-    </SortableWorkspace>
-  )
-}
-
-// --- Drag to reorder: ungrouped Manual sort only, within a Repo's run ---
-
-type LineHint = RepoListDropHint | null
-
-const DropHintContext = createContext<LineHint>(null)
-
-type DragData = { kind?: string; repoId?: string }
-
-/** Is droppable `target` a legal landing spot for the dragged Workspace? */
-function sameRepo(active?: DragData, target?: DragData): boolean {
-  return (
-    active?.kind === "branch" &&
-    target?.kind === "branch" &&
-    target.repoId === active.repoId
-  )
-}
-
-/**
- * Pointer-driven collision: the row under the pointer, else the nearest one,
- * among the dragged Workspace's own Repo only. Over another Repo's rows there
- * is no target at all rather than a misleading line.
- */
-const workspacesCollision: CollisionDetection = (args) => {
-  const active = args.active.data.current as DragData | undefined
-  const dataOf = (id: string | number) =>
-    args.droppableContainers.find((c) => c.id === id)?.data.current as
-      DragData | undefined
-  const within = pointerWithin(args).filter((c) =>
-    sameRepo(active, dataOf(c.id))
-  )
-  if (within.length > 0) return within
-  const y = args.pointerCoordinates?.y
-  if (y == null) return []
-  let best: { id: string | number } | null = null
-  let bestDist = Number.POSITIVE_INFINITY
-  let top = Number.POSITIVE_INFINITY
-  let bottom = Number.NEGATIVE_INFINITY
-  for (const container of args.droppableContainers) {
-    if (!sameRepo(active, container.data.current as DragData | undefined))
-      continue
-    const rect = args.droppableRects.get(container.id)
-    if (!rect) continue
-    top = Math.min(top, rect.top)
-    bottom = Math.max(bottom, rect.bottom)
-    const dist =
-      y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
-    if (dist < bestDist) {
-      bestDist = dist
-      best = { id: container.id }
-    }
-  }
-  if (!best || y < top || y > bottom) return []
-  return [best]
-}
-
-function SortableWorkspaces({
-  menu,
-  branches,
-  children,
-}: {
-  menu: ChatsMenuValue
-  branches: BranchData[]
-  children: React.ReactNode
-}) {
-  const sensors = useSensors(
-    // Clicks (no movement) still pick the row; a drag past 6px moves it.
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  )
-  const [dragging, setDragging] = useState<BranchData | null>(null)
-  const [hint, setHint] = useState<LineHint>(null)
-  // dnd-kit's move events don't carry the pointer; track it while dragging.
-  const pointerYRef = useRef(0)
-  const onPointerMove = useCallback((e: PointerEvent) => {
-    pointerYRef.current = e.clientY
-  }, [])
-  const dropRepos = useMemo(
-    () =>
-      menu.sortedRepos.map((r) => ({
-        id: r.id,
-        branchIds: menu.activeBranches
-          .filter((b) => b.repoId === r.id)
-          .map((b) => b.id),
-      })),
-    [menu.sortedRepos, menu.activeBranches]
-  )
-  const resolve = (
-    activeId: string,
-    over: { id: string | number; rect: ClientRect }
-  ) =>
-    resolveRepoListDrop({
-      repos: dropRepos,
-      activeId,
-      overId: String(over.id),
-      side:
-        pointerYRef.current < over.rect.top + over.rect.height / 2
-          ? "before"
-          : "after",
-    })
-  const end = () => {
-    window.removeEventListener("pointermove", onPointerMove)
-    setDragging(null)
-    setHint(null)
-  }
-  return (
-    <DndContext
-      // Stable id keeps dnd-kit's a11y ids deterministic across hydration.
-      id="workspaces-menu"
-      sensors={sensors}
-      collisionDetection={workspacesCollision}
-      onDragStart={(event: DragStartEvent) => {
-        const id = String(event.active.id)
-        setDragging(branches.find((b) => `branch:${b.id}` === id) ?? null)
-        const ae = event.activatorEvent as { clientY?: number }
-        if (typeof ae.clientY === "number") pointerYRef.current = ae.clientY
-        window.addEventListener("pointermove", onPointerMove)
-      }}
-      onDragMove={(event: DragMoveEvent) => {
-        const next = event.over
-          ? resolve(String(event.active.id), event.over).hint
-          : null
-        setHint((prev) =>
-          prev?.rowId === next?.rowId && prev?.edge === next?.edge ? prev : next
-        )
-      }}
-      onDragEnd={(event: DragEndEvent) => {
-        const intent = event.over
-          ? resolve(String(event.active.id), event.over).intent
-          : null
-        end()
-        if (intent?.kind === "reorder-branches")
-          menu.onReorderBranches(intent.repoId, intent.orderedIds)
-      }}
-      onDragCancel={end}
-    >
-      <DropHintContext.Provider value={hint}>
-        <CommandGroup className="pt-0">
-          <SortableContext
-            items={branches.map((b) => `branch:${b.id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            {children}
-          </SortableContext>
-        </CommandGroup>
-      </DropHintContext.Provider>
-      {/* The popover is positioned with a transform, which would offset a
-          fixed overlay inside it; draw the preview from the body instead. */}
-      {typeof document !== "undefined" &&
-        createPortal(
-          <DragOverlay dropAnimation={null}>
-            {dragging ? (
-              <div className="flex items-center gap-2 rounded-sm bg-popover px-2 py-1.5 text-sm text-popover-foreground shadow-lg ring-1 ring-border">
-                <span className="flex size-4 shrink-0 items-center justify-center">
-                  <GitBranchIcon className="size-3.5 opacity-70" />
-                </span>
-                <span className="truncate">{workspaceLabel(dragging)}</span>
-              </div>
-            ) : null}
-          </DragOverlay>,
-          document.body
-        )}
-    </DndContext>
-  )
-}
-
-/**
- * A draggable Workspace row. The source goes transparent while the overlay
- * follows the pointer, and a line marks where it lands. Only the pointer
- * drags: cmdk owns the arrow keys.
- */
-function SortableWorkspace({
-  id,
-  repoId,
-  children,
-}: {
-  id: string
-  repoId: string
-  children: React.ReactNode
-}) {
-  const { listeners, setNodeRef, isDragging } = useSortable({
-    id,
-    data: { kind: "branch", repoId },
-  })
-  const hint = useContext(DropHintContext)
-  const edge = hint && hint.rowId === id ? hint.edge : null
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ opacity: isDragging ? 0 : undefined }}
-      className="relative"
-      {...listeners}
-    >
-      {children}
-      {edge ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-canvas-selection"
-          style={edge === "before" ? { top: -1 } : { bottom: -1 }}
-        />
-      ) : null}
-    </div>
-  )
+  return withCard
 }
