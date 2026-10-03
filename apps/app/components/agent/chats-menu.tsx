@@ -655,7 +655,7 @@ export function ChatsMenuButton() {
     <Popover open={menu.open} onOpenChange={menu.setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="xs"
           aria-label="Chats"
           aria-description={menu.needsYou ? "A chat needs you" : undefined}
