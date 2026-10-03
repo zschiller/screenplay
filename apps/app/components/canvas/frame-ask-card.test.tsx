@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { NEW_CHAT, NEW_SKETCH_CHAT } from "@/lib/frame-ask"
+import { NEW_CHAT, NEW_SKETCH_CHAT } from "@/lib/draw-ask"
 import type { ChatSessionData } from "@/lib/types"
 import { FrameAskCard } from "./frame-ask-card"
 

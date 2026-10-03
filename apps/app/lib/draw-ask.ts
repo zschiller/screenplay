@@ -54,6 +54,23 @@ export type DrawnMockup = {
 }
 
 /**
+ * The empty Mockup a sent Mockup box becomes (#1359), owned by the chat that
+ * answers: the one record `createMockup` takes, whichever chat that is. An
+ * empty page shows the sketching state until the chat fills it.
+ */
+export function emptyMockup(mockup: DrawnMockup, ownerChatId: string) {
+  return {
+    id: mockup.id,
+    html: "",
+    title: "",
+    width: mockup.width,
+    height: mockup.height,
+    ownerChatId,
+    anchor: { x: mockup.x, y: mockup.y },
+  }
+}
+
+/**
  * The prompt a drawn Mockup box's ask sends (#1359): what was typed, then which
  * Mockup to fill and its size as the viewport. The Mockup already exists, empty
  * and owned by the answering chat, so the chat writes it with `update_mockup`.

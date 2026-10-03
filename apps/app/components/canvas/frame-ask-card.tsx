@@ -15,7 +15,7 @@ import {
   Composer,
   type ComposerSubmitPayload,
 } from "@/components/agent/composer"
-import { NEW_CHAT, NEW_SKETCH_CHAT, type FrameAnswerer } from "@/lib/frame-ask"
+import { NEW_CHAT, NEW_SKETCH_CHAT, type FrameAnswerer } from "@/lib/draw-ask"
 import type {
   BranchData,
   ChatSessionData,
