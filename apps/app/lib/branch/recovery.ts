@@ -74,6 +74,8 @@ export interface RecoveryToasts {
 
 /** The injected seams every recovery verb runs over. */
 export interface BranchRecoveryDeps {
+  /** The Canvas, so Recreate can read the Repo's env var values (#1416). */
+  roomId: string
   /** Look up the Branch being recovered. Missing → the verb is a silent no-op
    *  (the Branch vanished out from under the menu before the click landed). */
   findAgent: (id: string) => RecoveryAgent | undefined
@@ -304,7 +306,8 @@ export function recreate(
       startingMessage: "Recreating sandbox…",
       successMessage: "Sandbox recreated",
       failureTitle: "Couldn't recreate sandbox",
-      run: (agent, repo) => recreateSandbox(agent.sandboxName, repo, agent.ref),
+      run: (agent, repo) =>
+        recreateSandbox(agent.sandboxName, repo, agent.ref, deps.roomId),
     },
     deps
   )

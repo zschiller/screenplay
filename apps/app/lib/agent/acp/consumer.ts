@@ -1,3 +1,8 @@
+import {
+  createStreamRedactor,
+  redactDeep,
+  type StreamRedactor,
+} from "../redact"
 import type { RunStatus } from "../run-state"
 import { isNoReply, NO_REPLY_MAX_LENGTH } from "../coordinator-wake"
 import { agentChunksToRecord, thoughtChunksToRecord } from "./adapter"
@@ -7,6 +12,8 @@ import {
   type AcpToolCallRecord,
 } from "./record"
 import {
+  agentMessageChunk,
+  agentThoughtChunk,
   blockText,
   isUpdate,
   planFromPermissionRequest,
@@ -122,6 +129,8 @@ export class AcpUpdateConsumer {
   private pending: {
     role: "agent" | "thought"
     texts: string[]
+    /** Redacts this block's stream, holding back a possibly split value. */
+    redactor: StreamRedactor
     /**
      * On a wake turn, the reply chunks not broadcast yet: held while the
      * reply could still be a no-reply line (#1224). `null` once released.
@@ -147,11 +156,29 @@ export class AcpUpdateConsumer {
    * `wake`: the turn answers a Coordinator wake (#897), so a reply that is
    * only a stock no-reply line ("No response requested.") is neither
    * broadcast nor stored (#1224). Other turns show every reply.
+   *
+   * `secrets`: the Workspace's env var values (`secretPatterns`, #1416),
+   * scrubbed from everything this consumer broadcasts or stores. A harness
+   * running in the sandbox still sees them; the chat, the room doc and the
+   * history don't.
    */
   constructor(
     private readonly ports: AcpConsumerPorts,
-    private readonly options: { wake?: boolean } = {}
+    private readonly options: {
+      wake?: boolean
+      secrets?: readonly string[]
+    } = {}
   ) {}
+
+  private get secrets(): readonly string[] {
+    return this.options.secrets ?? []
+  }
+
+  /** `value` with the secrets scrubbed from every string in it; as it came
+   *  when there are none. */
+  private redacted<T>(value: T): T {
+    return this.secrets.length > 0 ? redactDeep(value, this.secrets) : value
+  }
 
   /**
    * The run is no longer live. Whatever the Engine emits from here on is
@@ -205,18 +232,25 @@ export class AcpUpdateConsumer {
     // reasoning as they stream; the durable record is written at the next
     // boundary (see flushPending).
     if (isUpdate(update, "agent_message_chunk")) {
-      await this.pushText("agent", blockText(update.content))
+      const text = await this.pushText("agent", blockText(update.content))
+      const shown = this.shownChunk(update, text)
+      if (!shown) return
       if (this.pending?.held) {
-        this.pending.held.push(update)
+        this.pending.held.push(shown)
         await this.releaseHeldPastNoReply()
         return
       }
+      update = shown
     } else if (isUpdate(update, "agent_thought_chunk")) {
-      await this.pushText("thought", blockText(update.content))
+      const text = await this.pushText("thought", blockText(update.content))
+      const shown = this.shownChunk(update, text)
+      if (!shown) return
+      update = shown
     } else if (
       isUpdate(update, "tool_call") ||
       isUpdate(update, "tool_call_update")
     ) {
+      update = this.redacted(update)
       // A tool call ends the current narration/reasoning block. Flush that block
       // FIRST so its record lands ahead of the call on reload (preserving the
       // order the live stream showed), then update the one durable tool-call
@@ -242,13 +276,37 @@ export class AcpUpdateConsumer {
   private async pushText(
     role: "agent" | "thought",
     text: string
-  ): Promise<void> {
+  ): Promise<string> {
     if (this.pending && this.pending.role !== role) await this.flushPending()
     if (!this.pending) {
       const held = role === "agent" && this.options.wake ? [] : null
-      this.pending = { role, texts: [], held }
+      const redactor = createStreamRedactor(this.secrets)
+      this.pending = { role, texts: [], held, redactor }
     }
-    this.pending.texts.push(text)
+    const shown = this.pending.redactor.push(text)
+    this.pending.texts.push(shown)
+    return shown
+  }
+
+  /**
+   * The chunk as it goes out once redacted: its text replaced by what the
+   * block's redactor released, or `null` when it released nothing yet (the
+   * text is held back until the next chunk or the block's end). Without
+   * secrets the chunk goes out as it came.
+   */
+  private shownChunk(
+    update: SessionUpdate,
+    shown: string
+  ): SessionUpdate | null {
+    if (this.secrets.length === 0) return update
+    const chunk =
+      isUpdate(update, "agent_message_chunk") ||
+      isUpdate(update, "agent_thought_chunk")
+    if (chunk && update.content.type !== "text") return update
+    if (!shown) return null
+    return isUpdate(update, "agent_thought_chunk")
+      ? agentThoughtChunk(shown)
+      : agentMessageChunk(shown)
   }
 
   /**
@@ -286,6 +344,17 @@ export class AcpUpdateConsumer {
     if (!pending) return
     this.pending = null
     if (!(await this.stillLive())) return
+    // What the redactor still held back goes out as the block's last chunk.
+    const rest = pending.redactor.flush()
+    if (rest) {
+      pending.texts.push(rest)
+      const chunk =
+        pending.role === "agent"
+          ? agentMessageChunk(rest)
+          : agentThoughtChunk(rest)
+      if (pending.held) pending.held.push(chunk)
+      else await this.ports.broadcastUpdate(chunk)
+    }
     if (pending.held) {
       // A wake turn's short reply: a no-reply line says nothing, so it
       // never shows; anything else goes out now, before its record.
@@ -318,6 +387,7 @@ export class AcpUpdateConsumer {
     if (!(await this.stillLive())) return
     this.closed = true
 
+    request = this.redacted(request)
     await this.ports.broadcastPermissionRequest(request)
 
     const { toolCallId, input } = planFromPermissionRequest(request)
@@ -364,7 +434,7 @@ export class AcpUpdateConsumer {
       await this.ports.broadcastEnd()
       return
     }
-    await this.ports.broadcastError(message)
+    await this.ports.broadcastError(this.redacted(message))
     // A genuine failure records `failed`. The transition no-ops on a run that
     // already reached a terminal state, so a late error can't relabel it.
     await this.ports.transition("failed")

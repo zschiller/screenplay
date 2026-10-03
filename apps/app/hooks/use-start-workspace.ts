@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { startWorkspace } from "@/lib/branch/recovery"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { BranchData } from "@/lib/types"
+import { useRoomId } from "@/lib/yjs/context"
 import { useRoomCollections } from "@/lib/yjs/react"
 
 /**
@@ -14,11 +15,13 @@ import { useRoomCollections } from "@/lib/yjs/react"
  */
 export function useStartWorkspace(): (branchId: string) => void {
   const collections = useRoomCollections()
+  const roomId = useRoomId()
   return useCallback(
     (branchId: string) => {
       startWorkspace(
         branchId,
         {
+          roomId,
           findAgent: (id) => collections.branches.toMap().get(id),
           findRepo: (repoId) => collections.repos.toMap().get(repoId),
           patchAgent: (id, patch) =>
@@ -32,6 +35,6 @@ export function useStartWorkspace(): (branchId: string) => void {
         { local: isLocalBuild }
       )
     },
-    [collections]
+    [collections, roomId]
   )
 }

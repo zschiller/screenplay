@@ -66,17 +66,17 @@ instead.
 
 ## Repository settings
 
-| Setting                   | What it does                                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Label**                 | A short name, like `web` or `api`, shown instead of the repository's name.                                                     |
-| **Setup script**          | Runs once when a workspace is created, e.g. `npm install`.                                                                     |
-| **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                           |
-| **Dev server port**       | _Hosted._ The port your dev server listens on.                                                                                 |
-| **Environment variables** | _Hosted._ `KEY=value` lines injected into every workspace. Stored encrypted.                                                   |
-| **Files to copy**         | _Desktop._ Glob patterns (default `.env*`) copied from your checkout into each new worktree, so local secrets come along.      |
-| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                               |
-| **System prompt**         | Extra instructions appended to the agent's prompt, e.g. "This repository's app is the Next.js app in `apps/web`". _(Advanced)_ |
-| **Name**                  | Tells apart several of your repositories from the same GitHub repository, e.g. `web` and `api`. _(Advanced)_                   |
+| Setting                   | What it does                                                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Label**                 | A short name, like `web` or `api`, shown instead of the repository's name.                                                            |
+| **Setup script**          | Runs once when a workspace is created, e.g. `npm install`.                                                                            |
+| **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                  |
+| **Dev server port**       | _Hosted._ The port your dev server listens on.                                                                                        |
+| **Environment variables** | _Hosted._ `KEY=value` lines injected into every workspace. Stored encrypted; see [who sees the values](#environment-variable-values). |
+| **Files to copy**         | _Desktop._ Glob patterns (default `.env*`) copied from your checkout into each new worktree, so local secrets come along.             |
+| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                      |
+| **System prompt**         | Extra instructions appended to the agent's prompt, e.g. "This repository's app is the Next.js app in `apps/web`". _(Advanced)_        |
+| **Name**                  | Tells apart several of your repositories from the same GitHub repository, e.g. `web` and `api`. _(Advanced)_                          |
 
 The run script has to serve on the port Screenplay assigns. Most frameworks
 handle this automatically; see [Dev server & ports](/building/dev-server) if
@@ -87,12 +87,30 @@ settings. Changes apply to workspaces you create afterwards.
 
 <Screenshot name="project-settings" alt="The Repository settings dialog" />
 
+### Environment variable values
+
+On a canvas, environment variable values are stored encrypted on the server,
+never in the canvas itself. Everyone on the canvas sees which variables are
+set, by name, and any of them can start workspaces that use the values.
+
+Only the person who added the repository to the canvas can see the values:
+they click **Reveal values** in its settings to unlock and edit them. Anyone
+else can type their own `KEY=value` lines, which replace those variables on
+this canvas and leave the rest as they were.
+
+Chats hide these values from what they show and store, including tool output,
+replies and pull requests, wherever they find them (values shorter than 8
+characters aren't hidden). This is a courtesy, not a security boundary: the
+values are set inside every workspace, so code running there, or an agent
+that encodes a value some other way, can still read them.
+
 ### Customizing a repository for one canvas
 
 **Edit** in Canvas settings changes the repository on this canvas only. Once
 its label or any setting differs from [your repository](#your-repositories)
 in Settings, a small orange dot follows its name, with the tooltip
-**Customized for this canvas**. Environment variable values don't count.
+**Customized for this canvas**. That includes environment variable values
+someone set on this canvas.
 
 To undo it, click **Edit** and then **Reset to Settings**: the repository
 takes your Settings again and the dot goes away.
@@ -122,7 +140,7 @@ canvas needs it, click **New repository** in Settings: it opens the same
 picker and **Configure repository** form, and only saves the repository.
 Editing a repository in Settings updates every canvas that uses it, except the
 ones where it's [customized](#customizing-a-repository-for-one-canvas). A
-canvas keeps its own environment variable values if you changed them there.
+canvas keeps its own environment variable values if someone changed them there.
 
 <Screenshot
   name="settings-presets"

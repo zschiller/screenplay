@@ -57,6 +57,26 @@ function memoryStore(initial: RepoConfig[] = []) {
   return store
 }
 
+/** A fake keyed digest: equal text, equal digest, and no value in it. */
+const digest = (text: string) =>
+  text.trim()
+    ? `d:${[...text.trim()].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)}`
+    : undefined
+
+/** Canvas env var values the library stored, as [canvas, repo, text]. */
+function memoryEnv() {
+  const sets: Array<[string, string, string]> = []
+  return {
+    sets,
+    env: {
+      set: async (roomId: string, repoId: string, text: string) => {
+        sets.push([roomId, repoId, text])
+      },
+      digest,
+    },
+  }
+}
+
 function setup({
   repositories = [],
   canvases = {},
@@ -70,9 +90,11 @@ function setup({
 } = {}) {
   let n = 0
   const store = memoryStore(repositories)
+  const { env, sets } = memoryEnv()
   const library = createRepositoryLibrary({
     userId,
     store,
+    env,
     mode,
     mint: () => ({ id: `new-${++n}`, now: 100 + n }),
     rooms: {
@@ -81,7 +103,7 @@ function setup({
       mutate: async (roomId, fn) => fn(canvases[roomId]!.collections),
     },
   })
-  return { library, store }
+  return { library, store, envSets: sets }
 }
 
 function canvasWith(...repos: ReturnType<typeof baseRepo>[]) {
@@ -356,6 +378,7 @@ describe("migration", () => {
     const library = createRepositoryLibrary({
       userId: "zack",
       store,
+      env: memoryEnv().env,
       mode: "desktop",
       mint: () => ({ id: "new", now: 1 }),
       rooms: {
@@ -391,7 +414,13 @@ describe("customizing a repository on a canvas", () => {
     canvas: ReturnType<typeof makeHarness>,
     from: RepoConfig,
     id: string
-  ) => switchOn(canvas.collections, from, { id, createdAt: 5, addedBy: "zack" })
+  ) =>
+    // Switched on as the library lists it: stamped with its values' digest.
+    switchOn(
+      canvas.collections,
+      { ...from, envVarsDigest: digest(from.envVars) },
+      { id, createdAt: 5, addedBy: "zack" }
+    )
 
   it("an edit on the canvas changes only that canvas, and marks it customized", () => {
     const web = repository("web")
@@ -407,14 +436,40 @@ describe("customizing a repository on a canvas", () => {
     expect(isCustomized(repoOf(b, "repo-b")!, web)).toBe(false)
   })
 
-  it("counts a renamed label, but not env var values", () => {
+  it("counts a renamed label", () => {
     const web = repository("web")
     const canvas = makeHarness()
     on(canvas, web, "repo-1")
-    canvas.ops.patch("repos", "repo-1", { envVars: "API_KEY=mine" })
-    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
     canvas.ops.patch("repos", "repo-1", { name: "frontend" })
     expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(true)
+  })
+
+  it("counts env var values someone typed on the canvas, by digest (#1416)", () => {
+    const web = repository("web", {
+      envVars: "API_KEY=theirs",
+      envVarsDigest: digest("API_KEY=theirs"),
+    })
+    const canvas = makeHarness()
+    on(canvas, web, "repo-1")
+    expect(repoOf(canvas, "repo-1")).toMatchObject({
+      envVarNames: ["API_KEY"],
+      envVarsDigest: digest("API_KEY=theirs"),
+    })
+    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
+
+    canvas.ops.patch("repos", "repo-1", {
+      envVarsDigest: digest("API_KEY=mine"),
+    })
+    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(true)
+  })
+
+  it("never copies env var values into the canvas", () => {
+    const web = repository("web", { envVars: "API_KEY=secret-value" })
+    const canvas = makeHarness()
+    on(canvas, web, "repo-1")
+    expect(JSON.stringify(repoOf(canvas, "repo-1"))).not.toContain(
+      "secret-value"
+    )
   })
 
   it("treats unset fields as their defaults", () => {
@@ -430,14 +485,18 @@ describe("customizing a repository on a canvas", () => {
   })
 
   it("Reset to Settings restores the repository's settings", () => {
-    const web = repository("web", { envVars: "A=1" })
+    const web = repository("web", {
+      envVars: "A=1",
+      envVarsDigest: digest("A=1"),
+    })
     const canvas = makeHarness()
     on(canvas, web, "repo-1")
     canvas.ops.patch("repos", "repo-1", {
       name: "mine",
       devServerPort: 4000,
       systemPrompt: "Be brief",
-      envVars: "A=2",
+      envVarNames: ["A", "B"],
+      envVarsDigest: digest("A=2\nB=3"),
     })
 
     resetToRepository(canvas.collections, "repo-1", web)
@@ -445,7 +504,8 @@ describe("customizing a repository on a canvas", () => {
     expect(repoOf(canvas, "repo-1")).toMatchObject({
       name: "",
       devServerPort: 3000,
-      envVars: "A=1",
+      envVarNames: ["A"],
+      envVarsDigest: digest("A=1"),
     })
     expect(repoOf(canvas, "repo-1")?.systemPrompt).toBeUndefined()
     expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
@@ -454,7 +514,10 @@ describe("customizing a repository on a canvas", () => {
 
 describe("editing a repository in Settings", () => {
   it("reaches every linked canvas that hasn't customized it", async () => {
-    const web = repository("web", { envVars: "A=1" })
+    const web = repository("web", {
+      envVars: "A=1",
+      envVarsDigest: digest("A=1"),
+    })
     const plain = makeHarness()
     const custom = makeHarness()
     const unlinked = canvasWith(
@@ -467,7 +530,7 @@ describe("editing a repository in Settings", () => {
       addedBy: "zack",
     })
     custom.ops.patch("repos", "c", { devServerPort: 4000 })
-    const { library, store } = setup({
+    const { library, store, envSets } = setup({
       repositories: [web],
       canvases: { plain, custom, unlinked },
     })
@@ -477,29 +540,35 @@ describe("editing a repository in Settings", () => {
 
     expect(repoOf(plain, "p")).toMatchObject({
       devScript: "pnpm start",
-      envVars: "A=9",
+      envVarNames: ["A"],
+      envVarsDigest: digest("A=9"),
     })
+    // The values go to the canvas's encrypted store, only where it followed.
+    expect(envSets).toEqual([["plain", "p", "A=9"]])
     expect(isCustomized(repoOf(plain, "p")!, (await library.list())[0]!)).toBe(
       false
     )
     expect(repoOf(custom, "c")).toMatchObject({
       devScript: "pnpm dev",
       devServerPort: 4000,
-      envVars: "A=1",
+      envVarsDigest: digest("A=1"),
     })
     expect(repoOf(unlinked, "r-x")?.devScript).toBe("")
   })
 
-  it("keeps a canvas's own env var values", async () => {
-    const web = repository("web", { envVars: "A=1" })
+  it("keeps a canvas's own env var values, as a customization", async () => {
+    const web = repository("web", {
+      envVars: "A=1",
+      envVarsDigest: digest("A=1"),
+    })
     const canvas = makeHarness()
     switchOn(canvas.collections, web, {
       id: "r",
       createdAt: 5,
       addedBy: "zack",
     })
-    canvas.ops.patch("repos", "r", { envVars: "A=mine" })
-    const { library, store } = setup({
+    canvas.ops.patch("repos", "r", { envVarsDigest: digest("A=mine") })
+    const { library, store, envSets } = setup({
       repositories: [web],
       canvases: { canvas },
     })
@@ -508,9 +577,19 @@ describe("editing a repository in Settings", () => {
     await library.save({ ...web, setupScript: "pnpm i", envVars: "A=9" })
 
     expect(repoOf(canvas, "r")).toMatchObject({
-      setupScript: "pnpm i",
-      envVars: "A=mine",
+      setupScript: "pnpm install",
+      envVarsDigest: digest("A=mine"),
     })
+    expect(envSets).toEqual([])
+  })
+
+  it("lists repositories stamped with their values' digest, and stores them without", async () => {
+    const { library, store } = setup()
+    await library.save(
+      repository("web", { envVars: "A=1", envVarsDigest: "stale" })
+    )
+    expect((await library.list())[0]?.envVarsDigest).toBe(digest("A=1"))
+    expect((await store.load())[0]).not.toHaveProperty("envVarsDigest")
   })
 
   it("creating a repository touches no canvas", async () => {
@@ -530,7 +609,13 @@ describe("saving to all from a canvas", () => {
     canvas: ReturnType<typeof makeHarness>,
     from: RepoConfig,
     id: string
-  ) => switchOn(canvas.collections, from, { id, createdAt: 5, addedBy: "zack" })
+  ) =>
+    // Switched on as the library lists it: stamped with its values' digest.
+    switchOn(
+      canvas.collections,
+      { ...from, envVarsDigest: digest(from.envVars) },
+      { id, createdAt: 5, addedBy: "zack" }
+    )
 
   it("updates the repository and every linked canvas, clearing customizations", async () => {
     const web = repository("web", { envVars: "A=1" })
@@ -558,7 +643,12 @@ describe("saving to all from a canvas", () => {
     })
 
     expect(list).toEqual([
-      { ...web, devScript: "pnpm dev --turbo", updatedAt: 9 },
+      {
+        ...web,
+        devScript: "pnpm dev --turbo",
+        updatedAt: 9,
+        envVarsDigest: digest("A=1"),
+      },
     ])
     for (const [canvas, id] of [
       [editing, "e"],
@@ -581,8 +671,8 @@ describe("saving to all from a canvas", () => {
     const other = makeHarness()
     on(mine, web, "m")
     on(other, web, "o")
-    mine.ops.patch("repos", "m", { envVars: "A=mine" })
-    const { library, store } = setup({
+    mine.ops.patch("repos", "m", { envVarsDigest: digest("A=mine") })
+    const { library, store, envSets } = setup({
       repositories: [web],
       canvases: { mine, other },
     })
@@ -590,8 +680,9 @@ describe("saving to all from a canvas", () => {
 
     await library.saveToAll({ ...web, envVars: "A=9" })
 
-    expect(repoOf(mine, "m")?.envVars).toBe("A=mine")
-    expect(repoOf(other, "o")?.envVars).toBe("A=9")
+    expect(repoOf(mine, "m")?.envVarsDigest).toBe(digest("A=mine"))
+    expect(repoOf(other, "o")?.envVarsDigest).toBe(digest("A=9"))
+    expect(envSets).toEqual([["other", "o", "A=9"]])
   })
 
   it("leaves another person's linked repos alone", async () => {

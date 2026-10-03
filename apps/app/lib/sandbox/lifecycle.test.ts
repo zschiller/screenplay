@@ -101,6 +101,16 @@ const getEnvVars = vi.hoisted(() =>
 const deleteEnvVars = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock("@/lib/env-store", () => ({ getEnvVars, deleteEnvVars }))
 
+// Recreate reads the Repo's env var values from the Canvas's encrypted store,
+// for a member of the Room (#1416).
+const openRoom = vi.hoisted(() => vi.fn(async () => ({})))
+vi.mock("@/lib/room-access", () => ({ openRoom }))
+const canvasEnv = vi.hoisted(() => ({
+  get: vi.fn(async () => null as string | null),
+  set: vi.fn(async () => {}),
+}))
+vi.mock("@/lib/repo-env/store", () => ({ kvCanvasRepoEnvStore: canvasEnv }))
+
 // restartSandbox's fresh-provision path delegates git setup and the harness
 // install to the other action modules. Those are exercised by their own tests —
 // here they're external boundaries, faked so the restart's branching + result
@@ -557,7 +567,7 @@ describe("restartSandbox", () => {
 // module's own interface in provisioning.test.ts / provisioning-hosted.test.ts.
 describe("recreateSandbox", () => {
   it("delegates to the provisioning module in recreate mode", async () => {
-    const result = await recreateSandbox("sandbox-a", repo, "feature")
+    const result = await recreateSandbox("sandbox-a", repo, "feature", "room-1")
 
     expect(provisionSandbox).toHaveBeenCalledWith({
       mode: "recreate",
@@ -565,6 +575,7 @@ describe("recreateSandbox", () => {
       branch: "feature",
       sandboxName: "sandbox-a",
       ghToken: undefined,
+      envVars: "",
     })
     expect(result).toEqual({
       success: true,
@@ -578,17 +589,12 @@ describe("recreateSandbox", () => {
     expect(fake.createCalls).toHaveLength(0)
   })
 
-  it("passes a caller's token through and otherwise falls back to the session's", async () => {
-    await recreateSandbox("sandbox-a", repo, "feature", GH_TOKEN)
-    expect(provisionSandbox).toHaveBeenCalledWith(
-      expect.objectContaining({ ghToken: GH_TOKEN })
-    )
-
+  it("uses the session's token", async () => {
     // The UI callers (Recreate, Branch recovery) carry no token, so the session's
     // is resolved for them — only the hosted backend ever uses it, to
     // authenticate the clone.
     getGitHubToken.mockResolvedValue("ghs_session")
-    await recreateSandbox("sandbox-a", repo, "feature")
+    await recreateSandbox("sandbox-a", repo, "feature", "room-1")
     expect(provisionSandbox).toHaveBeenLastCalledWith(
       expect.objectContaining({ ghToken: "ghs_session" })
     )
@@ -599,7 +605,7 @@ describe("recreateSandbox", () => {
     // into a failed recreate (a public repo clones fine without one).
     getGitHubToken.mockRejectedValue(new Error("no request context"))
 
-    const result = await recreateSandbox("sandbox-a", repo, "feature")
+    const result = await recreateSandbox("sandbox-a", repo, "feature", "room-1")
 
     expect(result.success).toBe(true)
     expect(provisionSandbox).toHaveBeenLastCalledWith(
@@ -607,10 +613,41 @@ describe("recreateSandbox", () => {
     )
   })
 
+  it("reads the Canvas's stored env vars for a member of the Room", async () => {
+    canvasEnv.get.mockResolvedValueOnce("API_KEY=from-canvas")
+
+    await recreateSandbox("sandbox-a", repo, "feature", "room-1")
+
+    expect(openRoom).toHaveBeenCalledWith("room-1")
+    expect(canvasEnv.get).toHaveBeenCalledWith("room-1", repo.id)
+    expect(provisionSandbox).toHaveBeenLastCalledWith(
+      expect.objectContaining({ envVars: "API_KEY=from-canvas" })
+    )
+  })
+
+  it("falls back to the old Sandbox's env vars when the Canvas has none stored", async () => {
+    getEnvVars.mockResolvedValueOnce({ API_KEY: "from-sandbox" })
+
+    await recreateSandbox("sandbox-a", repo, "feature", "room-1")
+
+    expect(provisionSandbox).toHaveBeenLastCalledWith(
+      expect.objectContaining({ envVars: "API_KEY=from-sandbox" })
+    )
+  })
+
+  it("refuses a non-member before provisioning anything", async () => {
+    openRoom.mockRejectedValueOnce(new Error("not a member"))
+
+    await expect(
+      recreateSandbox("sandbox-a", repo, "feature", "room-1")
+    ).rejects.toThrow("not a member")
+    expect(provisionSandbox).not.toHaveBeenCalled()
+  })
+
   it("surfaces the module's failure unchanged", async () => {
     provisionSandbox.mockResolvedValue({ success: false, error: "nope" })
 
-    const result = await recreateSandbox("sandbox-a", repo, "feature")
+    const result = await recreateSandbox("sandbox-a", repo, "feature", "room-1")
 
     expect(result).toEqual({ success: false, error: "nope" })
   })

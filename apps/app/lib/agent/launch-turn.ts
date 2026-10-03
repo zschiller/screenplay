@@ -10,6 +10,8 @@ import { isRunActive, transition } from "./run-state"
 import { steerInbox } from "./steer-inbox"
 import { wireToContentBlocks } from "./acp/markers"
 import { broadcastControl, broadcastSignal } from "./broadcast"
+import { redactSensitiveInfo } from "./redact"
+import { withRedactedOutput } from "./toolset"
 
 /**
  * Drive one live engine turn to completion (ADR 0006). The live routes call this
@@ -35,6 +37,9 @@ export async function launchEngineTurn(params: {
   wake?: boolean
   /** Where the Engine says whether this run takes Steers (#1250). */
   reportSteering(steers: boolean): Promise<void>
+  /** The Workspace's env var values to scrub from tool output and the chat
+   *  (`secretPatterns`, #1416). */
+  secrets?: readonly string[]
 }): Promise<void> {
   const {
     engine,
@@ -43,15 +48,20 @@ export async function launchEngineTurn(params: {
     runId,
     systemPrompt,
     model,
-    tools,
     planMode,
     wake,
     reportSteering,
+    secrets = [],
   } = params
   const consumer = new AcpUpdateConsumer(
     liveAcpConsumerPorts(roomId, chatId, runId),
-    { wake }
+    { wake, secrets }
   )
+  // The built-in agent's tool output is scrubbed before the model sees it.
+  const tools =
+    secrets.length > 0
+      ? withRedactedOutput(params.tools, secrets)
+      : params.tools
   try {
     const history = await loadAcpHistoryForModel(chatId)
     await driveEngineTurn(
@@ -74,7 +84,10 @@ export async function launchEngineTurn(params: {
     console.error("engine turn failed:", e)
     const message = e instanceof Error ? e.message : String(e)
     try {
-      await broadcastControl(roomId, chatId, { kind: "error", message })
+      await broadcastControl(roomId, chatId, {
+        kind: "error",
+        message: redactSensitiveInfo(message, secrets),
+      })
     } finally {
       await transition(runId, "failed").catch(() => {})
       await broadcastSignal(roomId, chatId, "chat-stream-end")

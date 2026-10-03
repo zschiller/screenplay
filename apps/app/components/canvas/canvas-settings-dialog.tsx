@@ -88,6 +88,8 @@ const SECTIONS: {
  * reads.
  */
 export function CanvasSettingsDialog({
+  roomId,
+  canRevealEnv,
   open,
   onOpenChange,
   repos,
@@ -100,6 +102,9 @@ export function CanvasSettingsDialog({
   onEditMemory,
   onRemoveMemory,
 }: {
+  roomId: string
+  /** Whether this person may reveal a Repo's env var values (#1416). */
+  canRevealEnv: (repo: RepoData) => boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   repos: RepoData[]
@@ -186,6 +191,8 @@ export function CanvasSettingsDialog({
                 />
               ) : (
                 <RepositoriesSection
+                  roomId={roomId}
+                  canRevealEnv={canRevealEnv}
                   repos={repos}
                   branches={branches}
                   onUpdateRepo={onUpdateRepo}
@@ -211,12 +218,16 @@ export function CanvasSettingsDialog({
  * orange dot (#1424).
  */
 function RepositoriesSection({
+  roomId,
+  canRevealEnv,
   repos,
   branches,
   onUpdateRepo,
   onRemoveRepo,
   onSwitchOn,
 }: {
+  roomId: string
+  canRevealEnv: (repo: RepoData) => boolean
   repos: RepoData[]
   branches: BranchData[]
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
@@ -349,6 +360,11 @@ function RepositoriesSection({
         }}
       />
       <RepoSettingsDialog
+        roomId={roomId}
+        canRevealEnv={(() => {
+          const editing = repos.find((r) => r.id === editingId)
+          return editing ? canRevealEnv(editing) : false
+        })()}
         repo={repos.find((r) => r.id === editingId) ?? null}
         repository={repositories.find(
           (r) => r.id === repos.find((p) => p.id === editingId)?.repositoryId

@@ -141,7 +141,6 @@ function repo(over: Partial<RepoData> = {}): RepoData {
     setupScript: "npm install",
     devScript: "npm run dev",
     devServerPort: 3000,
-    envVars: "",
     ...over,
   } as RepoData
 }
@@ -255,7 +254,8 @@ describe("provisionSandbox on the hosted backend", () => {
   it("persists the Repo's env vars against the new sandbox", async () => {
     await provisionSandbox({
       mode: "from-branch",
-      repo: repo({ envVars: "FOO=bar" }),
+      repo: repo(),
+      envVars: "FOO=bar",
       branch: "main",
       sandboxName: "sandbox-a",
       ghToken: GH_TOKEN,
@@ -338,7 +338,8 @@ describe("provisionSandbox in recreate mode", () => {
   it("persists the Repo's env vars against the recreated Sandbox", async () => {
     await provisionSandbox({
       mode: "recreate",
-      repo: repo({ envVars: "FOO=bar" }),
+      repo: repo(),
+      envVars: "FOO=bar",
       branch: "feature",
       sandboxName: "sandbox-a",
       ghToken: GH_TOKEN,
@@ -356,7 +357,8 @@ describe("provisionSandbox in recreate mode", () => {
     // config, dev launch and all. Compared sorted: the setup / harness / ripgrep
     // installs run concurrently, so their interleaving isn't part of the contract.
     const args = {
-      repo: repo({ envVars: "FOO=bar", setupScript: "pnpm install" }),
+      repo: repo({ setupScript: "pnpm install" }),
+      envVars: "FOO=bar",
       branch: "feature",
       sandboxName: "sandbox-a",
       ghToken: GH_TOKEN,

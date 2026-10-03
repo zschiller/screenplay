@@ -31,4 +31,10 @@ export type RepoConfig = {
   systemPrompt?: string
   createdAt: number
   updatedAt: number
+  /**
+   * A keyed digest of `envVars` (#1416), stamped by the repository library on
+   * the way out so a Canvas can tell whether its Repo's values match without
+   * the room doc holding them. Never stored.
+   */
+  envVarsDigest?: string
 }

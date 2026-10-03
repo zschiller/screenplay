@@ -25,10 +25,18 @@ export interface CanvasRooms {
   mutate<T>(roomId: string, fn: (collections: RoomCollections) => T): Promise<T>
 }
 
+/** Canvas Repos' env var values, encrypted per Canvas + Repo (#1416). */
+export interface CanvasEnv {
+  set(roomId: string, repoId: string, text: string): Promise<void>
+  /** The keyed digest a Repository's values are stamped with. */
+  digest(text: string): string | undefined
+}
+
 export interface RepositoryLibraryDeps {
   userId: string
   store: RepositoryStore
   rooms: CanvasRooms
+  env: CanvasEnv
   /** Desktop has one person, so every Canvas Repo can have a home in
    *  Settings; hosted can't tell whose a pre-library Repo was. */
   mode: "desktop" | "hosted"
@@ -52,9 +60,21 @@ export function createRepositoryLibrary({
   userId,
   store,
   rooms,
+  env,
   mode,
   mint,
 }: RepositoryLibraryDeps) {
+  /** Repositories as callers get them: stamped with their values' digest,
+   *  so a Canvas can compare without seeing values (#1416). */
+  const stamped = (list: RepoConfig[]): RepoConfig[] =>
+    list.map((r) => ({ ...r, envVarsDigest: env.digest(r.envVars) }))
+
+  /** As stored: the digest is derived, never kept. */
+  const unstamped = (repository: RepoConfig): RepoConfig => {
+    const { envVarsDigest: _, ...rest } = repository
+    return rest
+  }
+
   /**
    * The one-time migration, run on the person's first list. Presets already
    * are Repositories; this links every Canvas Repo with a matching identity
@@ -93,19 +113,22 @@ export function createRepositoryLibrary({
 
   /**
    * Settings edits reach the Canvases: every Canvas the person can open gets
-   * the edit on its uncustomized Repos linked to the Repository. A Canvas
-   * that won't open keeps its old copy rather than failing the save.
+   * the edit on its uncustomized Repos linked to the Repository, and their
+   * stored env var values become the Repository's. A Canvas that won't open
+   * keeps its old copy rather than failing the save.
    */
   async function propagate(
     before: RepoConfig,
     after: RepoConfig,
     options: { overrideCustomized?: boolean } = {}
   ) {
+    const [b, a] = stamped([before, after])
     for (const roomId of await rooms.list()) {
       try {
-        await rooms.mutate(roomId, (collections) =>
-          applyRepositoryEdit(collections, before, after, options)
+        const updated = await rooms.mutate(roomId, (collections) =>
+          applyRepositoryEdit(collections, b!, a!, options)
         )
+        for (const repoId of updated) await env.set(roomId, repoId, a!.envVars)
       } catch (err) {
         console.error(`Couldn't update repositories on canvas ${roomId}`, err)
       }
@@ -125,7 +148,7 @@ export function createRepositoryLibrary({
     /** The person's Repositories, migrating their Canvases first if needed. */
     async list(): Promise<RepoConfig[]> {
       await ensureMigrated()
-      return store.load()
+      return stamped(await store.load())
     },
 
     /**
@@ -135,7 +158,8 @@ export function createRepositoryLibrary({
      * so re-saving one you already have never duplicates it. An update then
      * reaches every Canvas Repo linked to it that isn't customized.
      */
-    async save(repository: RepoConfig): Promise<RepoConfig[]> {
+    async save(input: RepoConfig): Promise<RepoConfig[]> {
+      const repository = unstamped(input)
       const list = await store.load()
       const target =
         list.find((r) => r.id === repository.id) ??
@@ -148,7 +172,7 @@ export function createRepositoryLibrary({
         : [...list, repository]
       await store.save(next)
       if (target) await propagate(target, saved)
-      return next
+      return stamped(next)
     },
 
     /**
@@ -165,7 +189,7 @@ export function createRepositoryLibrary({
       const next = list.map((r) => (r.id === target.id ? saved : r))
       await store.save(next)
       await propagate(target, saved, { overrideCustomized: true })
-      return next
+      return stamped(next)
     },
 
     /**
@@ -205,7 +229,7 @@ export function createRepositoryLibrary({
           console.error(`Couldn't unlink repositories on canvas ${roomId}`, err)
         }
       }
-      return next
+      return stamped(next)
     },
 
     migrate: ensureMigrated,

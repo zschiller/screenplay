@@ -5,6 +5,9 @@ import { buildBrokeredEnv, selectHarnesses } from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
+import { serializeEnvVars } from "@/lib/repo-env/names"
+import { kvCanvasRepoEnvStore } from "@/lib/repo-env/store"
+import { openRoom } from "@/lib/room-access"
 import {
   isSandboxRunning,
   sandboxProvider,
@@ -584,18 +587,23 @@ export async function restartSandbox(
  * pointing at the user's checkout, ran setup outside the login shell, and
  * skipped env vars and ripgrep.
  *
- * `ghToken` falls back to the session's GitHub token, since the UI callers
- * (Recreate, recovery) don't carry one; only the hosted backend ever uses it, to
- * authenticate the clone.
+ * The GitHub token is the session's, since the UI callers (Recreate, recovery)
+ * don't carry one; only the hosted backend ever uses it, to authenticate the
+ * clone. The env var values come from the Canvas's encrypted store (#1416),
+ * read for a member of `roomId`, falling back to the ones the old Sandbox ran
+ * with when the Canvas has none stored yet (its legacy copy not moved).
  */
 export async function recreateSandbox(
   sandboxName: string,
   repo: RepoData,
   branch: string,
-  ghToken?: string
+  roomId: string
 ): Promise<
   SandboxActionResult<{ sandboxName: string; previewDomain: string }>
 > {
+  await openRoom(roomId)
+  const stored = await kvCanvasRepoEnvStore.get(roomId, repo.id)
+  const previous = stored === null ? await getEnvVars(sandboxName) : null
   return provisionSandbox({
     mode: "recreate",
     repo,
@@ -604,7 +612,8 @@ export async function recreateSandbox(
     // Never let a missing request context turn into a failed recreate: on the
     // local backend the token is unused anyway, and on the hosted one a public
     // repo clones fine without it.
-    ghToken: ghToken ?? (await getGitHubToken().catch(() => null)) ?? undefined,
+    ghToken: (await getGitHubToken().catch(() => null)) ?? undefined,
+    envVars: stored ?? (previous ? serializeEnvVars(previous) : ""),
   })
 }
 

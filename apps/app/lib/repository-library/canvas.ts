@@ -3,6 +3,7 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName, repoSource } from "@/lib/repo-identity"
+import { envVarNames } from "@/lib/repo-env/names"
 import type { RepoData } from "@/lib/types"
 import type { RoomCollections } from "@/lib/yjs/schema"
 
@@ -15,14 +16,16 @@ import type { RoomCollections } from "@/lib/yjs/schema"
  */
 
 /** The run settings a Repository hands to the Canvas Repos switched on from
- *  it. Env var values are copied but left out of "customized" until #1416
- *  decides where they live. Exported for the edit form's Reset to Settings. */
+ *  it. Env vars ride as names and a digest: their values go to the Canvas's
+ *  encrypted store, never the room doc (#1416). Exported for the edit form's
+ *  Reset to Settings. */
 export type RunSettings = Pick<
   RepoData,
   | "setupScript"
   | "devScript"
   | "devServerPort"
-  | "envVars"
+  | "envVarNames"
+  | "envVarsDigest"
   | "copyPatterns"
   | "defaultIframeLayerSizeId"
   | "systemPrompt"
@@ -41,35 +44,46 @@ export function sameRepository(
   return a.repoFullName === b.repoFullName && a.name === b.name
 }
 
-/** Copies just the run settings, from a Repository or a Canvas Repo. */
-export function runSettings(source: RunSettings): RunSettings {
+/**
+ * A Repository's run settings as a Canvas Repo carries them: its env vars as
+ * names plus the digest the library stamps on it (`envVarsDigest`).
+ */
+export function runSettings(repository: RepoConfig): RunSettings {
+  const names = envVarNames(repository.envVars)
   return {
-    setupScript: source.setupScript,
-    devScript: source.devScript,
-    devServerPort: source.devServerPort,
-    envVars: source.envVars,
-    copyPatterns: source.copyPatterns,
-    defaultIframeLayerSizeId: source.defaultIframeLayerSizeId,
-    systemPrompt: source.systemPrompt,
+    setupScript: repository.setupScript,
+    devScript: repository.devScript,
+    devServerPort: repository.devServerPort,
+    envVarNames: names.length > 0 ? names : undefined,
+    envVarsDigest: repository.envVarsDigest,
+    copyPatterns: repository.copyPatterns,
+    defaultIframeLayerSizeId: repository.defaultIframeLayerSizeId,
+    systemPrompt: repository.systemPrompt,
   }
 }
 
 /** What a Canvas Repo takes from its Repository: its name and run settings. */
 function settingsFrom(
   repository: RepoConfig
-): Pick<RepoData, "name"> & RunSettings {
-  return { name: repository.name, ...runSettings(repository) }
+): Pick<RepoData, "name" | "envVars"> & RunSettings {
+  // A legacy plain-text copy goes with the rest (#1416).
+  return {
+    name: repository.name,
+    ...runSettings(repository),
+    envVars: undefined,
+  }
 }
 
 /** The settings "customized" compares, with unset fields at their defaults
  *  so a Repo saved through a form that fills them doesn't read as changed.
- *  Env var values stay out (#1416). */
+ *  Env var values compare by digest (#1416). */
 function comparable(source: Pick<RepoData, "name"> & RunSettings) {
   return [
     source.name ?? "",
     source.setupScript ?? "",
     source.devScript ?? "",
     source.devServerPort ?? 3000,
+    source.envVarsDigest ?? "",
     source.copyPatterns ?? "",
     source.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
     source.systemPrompt ?? "",
@@ -78,15 +92,16 @@ function comparable(source: Pick<RepoData, "name"> & RunSettings) {
 
 /**
  * Whether a Canvas Repo has been customized for its Canvas: its name or any
- * run setting differs from its Repository's. Derived, never stored, so
- * Resetting (or editing back by hand) clears it. Env var values don't count.
+ * run setting differs from its Repository's, env var values included (a
+ * member typing their own is their customization, #1416). Derived, never
+ * stored, so Resetting (or editing back by hand) clears it.
  */
 export function isCustomized(
   repo: Pick<RepoData, "name"> & RunSettings,
   repository: RepoConfig
 ): boolean {
   const a = comparable(repo)
-  const b = comparable(repository)
+  const b = comparable({ name: repository.name, ...runSettings(repository) })
   return a.some((v, i) => v !== b[i])
 }
 
@@ -140,7 +155,8 @@ export function switchOn(
 
 /**
  * Reset to Settings: give a Canvas Repo its Repository's name and run
- * settings again, env var values included, so it's no longer customized.
+ * settings again, so it's no longer customized. The caller stores the
+ * Repository's env var values for the Canvas (#1416).
  */
 export function resetToRepository(
   collections: RoomCollections,
@@ -157,7 +173,8 @@ export function resetToRepository(
  * takes the new ones. Customized Repos keep theirs, unless `overrideCustomized`
  * (Save to all, #1425) gives them the new ones too. Env var values follow only
  * where the Canvas still had the old values, so a Canvas's own env vars
- * survive. Returns the ids of the Repos it updated.
+ * survive. Returns the ids of the Repos whose values follow; the caller stores
+ * `after`'s values for each (#1416).
  */
 export function applyRepositoryEdit(
   collections: RoomCollections,
@@ -171,12 +188,14 @@ export function applyRepositoryEdit(
     for (const repo of canvasRepos(collections)) {
       if (repo.repositoryId !== after.id) continue
       if (!overrideCustomized && isCustomized(repo, before)) continue
-      const { envVars, ...settings } = settingsFrom(after)
+      const { envVarNames, envVarsDigest, ...settings } = settingsFrom(after)
       // A Canvas's own values are left unwritten, not rewritten, so a save
       // racing the editing Canvas's own write can't put the old ones back.
-      const next =
-        repo.envVars === before.envVars ? { ...settings, envVars } : settings
-      ops.patch("repos", repo.id, next)
+      if (repo.envVarsDigest !== before.envVarsDigest) {
+        ops.patch("repos", repo.id, settings)
+        continue
+      }
+      ops.patch("repos", repo.id, { ...settings, envVarNames, envVarsDigest })
       updated.push(repo.id)
     }
   })
@@ -275,7 +294,15 @@ export function linkCanvasRepos(
           localPath: repo.localPath,
           // A Canvas Repo never recorded visibility; only the lock icon reads it.
           private: false,
-          ...runSettings(repo),
+          setupScript: repo.setupScript,
+          devScript: repo.devScript,
+          devServerPort: repo.devServerPort,
+          // Only a legacy plain-text copy is at hand here; desktop, the one
+          // build that creates Repositories this way, has no env vars field.
+          envVars: repo.envVars ?? "",
+          copyPatterns: repo.copyPatterns,
+          defaultIframeLayerSizeId: repo.defaultIframeLayerSizeId,
+          systemPrompt: repo.systemPrompt,
           createdAt: now,
           updatedAt: now,
         }

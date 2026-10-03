@@ -1,4 +1,9 @@
-import { randomBytes, createCipheriv, createDecipheriv } from "crypto"
+import {
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+} from "crypto"
 
 const ALGORITHM = "aes-256-gcm"
 
@@ -36,4 +41,10 @@ export function decrypt(data: string): string {
   const decipher = createDecipheriv(ALGORITHM, key(), iv)
   decipher.setAuthTag(tag)
   return decipher.update(ciphertext) + decipher.final("utf8")
+}
+
+/** A keyed SHA-256 digest (hex) of `text`: equal inputs compare equal, but
+ *  nobody without the key can test a guess against it. */
+export function keyedDigest(text: string): string {
+  return createHmac("sha256", key()).update(text, "utf8").digest("hex")
 }

@@ -22,6 +22,7 @@ export {
 } from "./canvas"
 export {
   createRepositoryLibrary,
+  type CanvasEnv,
   type CanvasRooms,
   type RepositoryLibrary,
   type RepositoryLibraryDeps,

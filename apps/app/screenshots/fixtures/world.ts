@@ -109,6 +109,12 @@ export interface FixtureRoom {
     markdownBodies?: Record<string, string>
     /** HTML page per Mockup Layer id, written into its `mockup-layer-{id}` text. */
     mockupHtml?: Record<string, string>
+    /**
+     * Env var values per Repo id (#1416): the seeder encrypts them into the
+     * KV store and stamps their names and digest on the Repo, as the app
+     * does. Never in the doc itself.
+     */
+    repoEnv?: Record<string, string>
   }
   /**
    * Frames to fake a Thumbnail Manifest for, so the home grid composes a real
@@ -562,7 +568,6 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
     setupScript: "pnpm install",
     devScript: "pnpm dev --port $PORT",
     devServerPort: 3000,
-    envVars: "NEXT_PUBLIC_API_URL=https://api.acme.test",
     defaultIframeLayerSizeId: DEFAULT_IFRAME_LAYER_SIZE_ID,
     systemPrompt: "Match the existing Tailwind tokens; never add new colors.",
     createdAt: daysAgo(now, 12),
@@ -873,6 +878,8 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
     folderId: ids.folders.marketing,
     doc: {
       repos: [repo],
+      // The storefront Repository's values, so its Canvas Repo matches it.
+      repoEnv: { [repoId]: "NEXT_PUBLIC_API_URL=https://api.acme.test" },
       branches,
       iframeLayers,
       iframeLayerGroups,
@@ -950,7 +957,6 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     setupScript: "pnpm install",
     devScript: "pnpm dev --port $PORT",
     devServerPort: 3000,
-    envVars: "",
     createdAt: daysAgo(now, 8),
     sidebarOrder: 0,
     repositoryId: "cfg-storefront",
@@ -967,9 +973,10 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     setupScript: "pnpm install",
     devScript: "pnpm --filter api dev --port $PORT",
     devServerPort: 3000,
-    envVars: "",
     createdAt: daysAgo(now, 7),
     sidebarOrder: 1,
+    // Another member's, so its env var values are hidden from you (#1416).
+    addedBy: COLLABORATOR_ID,
   }
   const branch: BranchData = {
     id: "branch-pricing-tiers",
@@ -1021,6 +1028,9 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
       // Two repositories, so Canvas settings (#883) and the Workspaces list
       // (#884) have a two-repository canvas to show.
       repos: [repo, apiRepo],
+      repoEnv: {
+        [apiRepo.id]: "DATABASE_URL=postgres://api@db.acme.test/api\nSTRIPE_SECRET_KEY=sk_test_51Hx9fixture",
+      },
       branches: [branch, apiBranch],
       iframeLayers: [
         {
@@ -1153,7 +1163,6 @@ function onboardingRoom(now: number, previewOrigin: string): FixtureRoom {
     setupScript: "npm ci",
     devScript: "npm run dev -- --port $PORT",
     devServerPort: 5173,
-    envVars: "",
     createdAt: daysAgo(now, 6),
     sidebarOrder: 0,
   }
@@ -1256,7 +1265,6 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
     setupScript: "pnpm install",
     devScript: "pnpm dev --port $PORT",
     devServerPort: 3000,
-    envVars: "",
     createdAt: daysAgo(now, 4),
     sidebarOrder: 0,
   }

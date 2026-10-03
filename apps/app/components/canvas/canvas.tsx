@@ -67,6 +67,8 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { switchOn } from "@/lib/repository-library"
+import { migrateCanvasEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
+import { canRevealEnv } from "@/lib/repo-env/names"
 import { renameRoom } from "@/lib/rooms-actions"
 
 import { SelectionOverlay } from "./selection-overlay"
@@ -478,6 +480,15 @@ export function Canvas({
   // A frame shows a Workspace, which needs a repository: with none, the Frame
   // tool stays off and its button says why.
   const repos = useRepos()
+  // A canvas from before #1416 still holds plain-text env var values in its
+  // room doc: whoever opens it first moves them to the encrypted store.
+  const hasLegacyEnv = repos.some((r) => r.envVars !== undefined)
+  useEffect(() => {
+    if (!hasLegacyEnv) return
+    migrateCanvasEnv(roomId).catch((err) =>
+      console.error("Couldn't move this canvas's env vars", err)
+    )
+  }, [hasLegacyEnv, roomId])
   const toolMode = useToolMode({ frameAvailable: repos.length > 0 })
   const commentMode = toolMode.commentMode
   const documentMode = toolMode.documentMode
@@ -2037,13 +2048,21 @@ export function Canvas({
   const addRepository = useAddRepositoryFlow()
   const switchOnHere = useCallback(
     (repository: RepoConfig) => {
-      switchOn(collections, repository, {
-        id: nanoid(),
+      const id = nanoid()
+      const on = switchOn(collections, repository, {
+        id,
         createdAt: Date.now(),
         addedBy: userId ?? "anonymous",
       })
+      // The Repository's values go to this canvas's encrypted store, never
+      // its room doc (#1416).
+      if (on === id && repository.envVars.trim()) {
+        saveCanvasRepoEnv(roomId, id, repository.envVars, "replace").catch(() =>
+          toast.error("Couldn't copy the environment variables.")
+        )
+      }
     },
-    [collections, userId]
+    [collections, userId, roomId]
   )
   // A new canvas opens on the chat panel (#1182): while no Workspace has had a
   // turn, the Coordinator, or where to add a repository, is the first thing
@@ -2639,6 +2658,14 @@ export function Canvas({
                   onAdded={switchOnHere}
                 />
                 <CanvasSettingsDialog
+                  roomId={roomId}
+                  canRevealEnv={(repo) =>
+                    canRevealEnv(repo, {
+                      userId: userId ?? "",
+                      isOwner,
+                      localBuild: isLocalBuild,
+                    })
+                  }
                   open={canvasSettingsOpen}
                   onOpenChange={setCanvasSettingsOpen}
                   repos={repos}

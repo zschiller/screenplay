@@ -107,7 +107,6 @@ export function baseRepo(
     setupScript: "",
     devScript: "",
     devServerPort: 3000,
-    envVars: "",
     createdAt: 0,
     ...overrides,
   }

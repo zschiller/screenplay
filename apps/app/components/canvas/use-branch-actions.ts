@@ -144,6 +144,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
   // change so each verb sees the current Branch / Repo state.
   const recoveryDeps = useMemo<BranchRecoveryDeps>(
     () => ({
+      roomId,
       findAgent: (id) => agents.find((a) => a.id === id),
       findRepo: (repoId) => repos.find((w) => w.id === repoId),
       patchAgent: updateAgentInStorage,
@@ -153,7 +154,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
           toast.error(message, description ? { description } : undefined),
       },
     }),
-    [agents, repos, updateAgentInStorage]
+    [roomId, agents, repos, updateAgentInStorage]
   )
 
   // engine route → Module B's dispatch: send the prompt in the Workspace's one

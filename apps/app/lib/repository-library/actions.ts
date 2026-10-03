@@ -8,6 +8,7 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 import { listRoomsForUser } from "@/lib/rooms"
 import { openRoom } from "@/lib/room-access"
 import { createRoomCollections } from "@/lib/yjs/schema"
+import { envVarsDigest, kvCanvasRepoEnvStore } from "@/lib/repo-env/store"
 import { createRepositoryLibrary } from "./library"
 import { kvRepositoryStore } from "./store"
 
@@ -28,6 +29,11 @@ async function library() {
         (await openRoom(roomId)).mutateDoc((c) =>
           fn(createRoomCollections(c.doc))
         ),
+    },
+    env: {
+      set: (roomId, repoId, text) =>
+        kvCanvasRepoEnvStore.set(roomId, repoId, text),
+      digest: envVarsDigest,
     },
     mode: isLocalBuild ? "desktop" : "hosted",
     mint: () => ({ id: nanoid(), now: Date.now() }),

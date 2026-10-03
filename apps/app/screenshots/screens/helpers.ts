@@ -302,7 +302,6 @@ export const gettingStartedRepo = {
   setupScript: "pnpm install",
   devScript: "pnpm dev --port $PORT",
   devServerPort: 3000,
-  envVars: "",
   createdAt: 0,
   sidebarOrder: 0,
 }

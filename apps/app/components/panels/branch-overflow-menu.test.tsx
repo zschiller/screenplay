@@ -68,7 +68,6 @@ const repo: RepoData = {
   setupScript: "",
   devScript: "",
   devServerPort: 3000,
-  envVars: "",
   createdAt: 0,
 }
 
@@ -454,13 +453,21 @@ describe('"New chat from here…" opens the create dialog', () => {
     render(<MenuToDialogHarness />)
 
     // No dialog until the item is chosen.
-    expect(screen.queryByText("Start one or more chats, each with an optional prompt.")).toBeNull()
+    expect(
+      screen.queryByText(
+        "Start one or more chats, each with an optional prompt."
+      )
+    ).toBeNull()
 
     fireEvent.click(screen.getByText("New chat from here…"))
 
     // The create dialog is now open…
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).queryByText("Start one or more chats, each with an optional prompt.")).not.toBeNull()
+    expect(
+      within(dialog).queryByText(
+        "Start one or more chats, each with an optional prompt."
+      )
+    ).not.toBeNull()
     // …pre-based on this branch (the base chip shows its ref, not the default)…
     expect(within(dialog).queryByText(branch.ref)).not.toBeNull()
     expect(within(dialog).queryByText(repo.defaultBranch)).toBeNull()
