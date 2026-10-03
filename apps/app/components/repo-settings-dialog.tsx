@@ -4,14 +4,7 @@ import { useCallback, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
+import { Dialog, DialogContent } from "@workspace/ui/components/dialog"
 import {
   Field,
   FieldDescription,
@@ -19,6 +12,13 @@ import {
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  REPO_DIALOG_CONTENT,
+  RepoDialogBody,
+  RepoDialogFooter,
+  RepoDialogHeader,
+} from "@/components/repo-dialog-layout"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
@@ -68,7 +68,16 @@ export function RepoSettingsDialog({
   return (
     <Dialog open={open && !!repo} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-lg"
+        className={REPO_DIALOG_CONTENT}
+        // Start in the name field without selecting it, as Settings' does.
+        onOpenAutoFocus={(event) => {
+          const name = (
+            event.currentTarget as HTMLElement
+          ).querySelector<HTMLInputElement>("#repo-settings-name")
+          if (!name) return
+          event.preventDefault()
+          name.focus()
+        }}
         // Opened from inside the sidebar's dnd-kit sortable row: stop key and
         // pointer events from bubbling (React tree, through the portal) to the
         // row's sensors. The KeyboardSensor otherwise swallows Space in these
@@ -302,14 +311,13 @@ function RepoSettingsForm({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>Repository settings</DialogTitle>
-        <DialogDescription>
-          Defaults for new workspaces of {repo.repoFullName} on this canvas.
-        </DialogDescription>
-      </DialogHeader>
+      <RepoDialogHeader
+        title="Edit repository"
+        description="Defaults for new workspaces on this canvas."
+        source={repo.repoFullName}
+      />
 
-      <div className="-mx-5 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-5">
+      <RepoDialogBody>
         <Field>
           <FieldLabel htmlFor="repo-settings-name">Name</FieldLabel>
           <Input
@@ -351,29 +359,39 @@ function RepoSettingsForm({
           systemPrompt={systemPrompt}
           onSystemPromptChange={setSystemPrompt}
         />
-      </div>
+      </RepoDialogBody>
 
-      {canSaveToAll && (
-        <Label htmlFor="repo-settings-save-to-all" className="font-normal">
-          <Checkbox
-            id="repo-settings-save-to-all"
-            checked={saveToAll}
-            onCheckedChange={(checked) => setSaveToAll(checked === true)}
-          />
-          Also update Settings and my other canvases
-        </Label>
-      )}
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-
-      <DialogFooter>
+      <RepoDialogFooter
+        notice={
+          (canSaveToAll || error) && (
+            <>
+              {canSaveToAll && (
+                <Label
+                  htmlFor="repo-settings-save-to-all"
+                  className="font-normal"
+                >
+                  <Checkbox
+                    id="repo-settings-save-to-all"
+                    checked={saveToAll}
+                    onCheckedChange={(checked) =>
+                      setSaveToAll(checked === true)
+                    }
+                  />
+                  Also update Settings and my other canvases
+                </Label>
+              )}
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+            </>
+          )
+        }
+      >
         {repository && isCustomized(repo, repository) && (
           <Button
             variant="outline"
-            size="sm"
             className="sm:mr-auto"
             disabled={saving}
             onClick={() => void resetToSettings(repository)}
@@ -381,13 +399,14 @@ function RepoSettingsForm({
             Reset to Settings
           </Button>
         )}
-        <Button variant="ghost" size="sm" onClick={onClose}>
+        <Button variant="ghost" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button size="sm" onClick={() => void handleSave()} disabled={!canSave}>
-          {saving ? "Saving…" : "Save"}
+        <Button onClick={() => void handleSave()} disabled={!canSave}>
+          {saving && <Spinner className="size-4" />}
+          Save
         </Button>
-      </DialogFooter>
+      </RepoDialogFooter>
     </>
   )
 }

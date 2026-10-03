@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { hasGitHubRemote, repoShortName, repoSource } from "./repo-identity"
+import {
+  hasGitHubRemote,
+  repoListTitle,
+  repoShortName,
+  repoSource,
+} from "./repo-identity"
 
 describe("hasGitHubRemote", () => {
   it("accepts a Repo whose identity came from a GitHub remote", () => {
@@ -61,5 +66,30 @@ describe("repoSource", () => {
     expect(repoSource({ ...storefront, localPath: "/code/storefront" })).toBe(
       "/code/storefront"
     )
+  })
+})
+
+describe("repoListTitle", () => {
+  it("is owner/name, with a label only when it tells setups apart", () => {
+    expect(repoListTitle(storefront)).toEqual({
+      heading: "acme/storefront",
+      label: null,
+    })
+    expect(repoListTitle({ ...storefront, name: "storefront" }).label).toBe(
+      null
+    )
+    expect(repoListTitle({ ...storefront, name: "default" }).label).toBe(null)
+    expect(repoListTitle({ ...storefront, name: " web " }).label).toBe("web")
+  })
+
+  it("names a remote-less folder after the folder", () => {
+    expect(
+      repoListTitle({
+        repoOwner: "",
+        repoName: "",
+        repoFullName: "",
+        localPath: "/Users/me/code/notes-app/",
+      }).heading
+    ).toBe("notes-app")
   })
 })

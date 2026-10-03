@@ -2,6 +2,7 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import {
   applyRepositoryEdit,
+  canvasRepos,
   linkCanvasRepos,
   linkedRepo,
   sameRepository,
@@ -217,6 +218,30 @@ export function createRepositoryLibrary({
         }
       }
       return count
+    },
+
+    /**
+     * {@link canvasCount} for every Repository at once, in one pass over the
+     * Canvases, for Settings' "On N canvases" (H5). Keyed by Repository id;
+     * one no Canvas uses is absent. Empty where Canvases don't follow their
+     * Repository (hosted).
+     */
+    async canvasCounts(): Promise<Record<string, number>> {
+      const counts: Record<string, number> = {}
+      if (!policy.deleteUnlinksCanvases) return counts
+      for (const roomId of await rooms.list()) {
+        try {
+          const ids = await rooms.read(roomId, (collections) =>
+            canvasRepos(collections).flatMap((r) =>
+              r.repositoryId ? [r.repositoryId] : []
+            )
+          )
+          for (const id of new Set(ids)) counts[id] = (counts[id] ?? 0) + 1
+        } catch (err) {
+          console.error(`Couldn't read repositories on canvas ${roomId}`, err)
+        }
+      }
+      return counts
     },
 
     /**

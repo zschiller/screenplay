@@ -70,6 +70,15 @@ export async function repositoryCanvasCount(
   return (await library()).canvasCount(repositoryId)
 }
 
+/** How many of your Canvases use each of your Repositories, by id, for
+ *  Settings' "On N canvases". Empty on hosted, where canvases keep their own
+ *  copy. */
+export async function repositoryCanvasCounts(): Promise<
+  Record<string, number>
+> {
+  return (await library()).canvasCounts()
+}
+
 /** Delete one of your Repositories; returns the new list. Canvases using it
  *  keep their copy, unlinked. */
 export async function deleteRepository(

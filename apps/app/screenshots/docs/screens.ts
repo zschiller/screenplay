@@ -801,7 +801,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "project-settings",
     viewport: TALL_VIEWPORT,
-    description: "Repository settings.",
+    description: "Edit repository.",
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,

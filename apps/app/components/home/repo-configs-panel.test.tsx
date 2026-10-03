@@ -42,12 +42,14 @@ vi.mock("@/lib/repository-library/actions", () => ({
   saveRepository: vi.fn(async (r: RepoConfig) => [r]),
   deleteRepository: vi.fn(async () => []),
   repositoryCanvasCount: vi.fn(async () => 2),
+  repositoryCanvasCounts: vi.fn(async () => ({ "cfg-web": 2 })),
 }))
 
 import {
   deleteRepository,
   listRepositories,
   repositoryCanvasCount,
+  repositoryCanvasCounts,
   saveRepository,
 } from "@/lib/repository-library/actions"
 import {
@@ -75,6 +77,7 @@ if (!Element.prototype.hasPointerCapture) {
 afterEach(() => {
   cleanup()
   vi.mocked(repositoryCanvasCount).mockClear()
+  vi.mocked(repositoryCanvasCounts).mockClear()
   vi.mocked(deleteRepository).mockClear()
 })
 
@@ -139,6 +142,31 @@ describe("Settings › Repositories (#1423)", () => {
     })
     // The list shows it once saved.
     expect(await screen.findByText("acme/api")).not.toBeNull()
+  })
+})
+
+describe("each row's canvases", () => {
+  function renderWeb(policy: RepositoryLinkPolicy) {
+    vi.mocked(listRepositories).mockResolvedValueOnce([WEB])
+    render(
+      <RepoConfigsPanel
+        header={(action) => <div>{action}</div>}
+        policy={policy}
+      />
+    )
+  }
+
+  it("on desktop, says how many canvases use it", async () => {
+    renderWeb(desktopLinkPolicy)
+    expect(await screen.findByText("On 2 canvases")).not.toBeNull()
+    expect(screen.getByText("acme/web")).not.toBeNull()
+  })
+
+  it("on hosted, says nothing: canvases keep their own copy", async () => {
+    renderWeb(hostedLinkPolicy)
+    expect(await screen.findByText("acme/web")).not.toBeNull()
+    expect(repositoryCanvasCounts).not.toHaveBeenCalled()
+    expect(screen.queryByText(/^On \d/)).toBeNull()
   })
 })
 

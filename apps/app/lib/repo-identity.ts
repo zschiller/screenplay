@@ -57,3 +57,23 @@ export function repoShortName(repo: RepoNaming): string {
 export function repoSource(repo: RepoNaming): string {
   return repo.localPath || repo.repoFullName
 }
+
+/**
+ * How a repository list row names a Repo or Repository (H5), the same in
+ * Settings and Canvas settings: `owner/name` (a remote-less folder's own name
+ * instead), then its label when that tells two setups apart. A label that only
+ * repeats the repository's name, or "default", is left out.
+ */
+export function repoListTitle(repo: RepoNaming): {
+  heading: string
+  label: string | null
+} {
+  const heading =
+    repo.localPath && !repo.repoOwner
+      ? repo.localPath.split(/[\\/]/).filter(Boolean).pop() || repo.localPath
+      : repo.repoFullName
+  const name = repo.name?.trim() ?? ""
+  const label =
+    !name || name === repo.repoName || name === "default" ? null : name
+  return { heading, label }
+}

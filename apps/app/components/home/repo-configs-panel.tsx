@@ -8,13 +8,7 @@ import {
   TrashIcon,
 } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
+import { Dialog, DialogContent } from "@workspace/ui/components/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +32,11 @@ import {
 import { LoadErrorRow } from "@/components/home/load-error"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
 import {
+  REPO_DIALOG_CONTENT,
+  RepoDialogHeader,
+} from "@/components/repo-dialog-layout"
+import { RepoTitle } from "@/components/repo-title"
+import {
   SettingsRow,
   SettingsRowList,
   SettingsRowSkeleton,
@@ -46,6 +45,7 @@ import {
   deleteRepository,
   listRepositories,
   repositoryCanvasCount,
+  repositoryCanvasCounts,
 } from "@/lib/repository-library/actions"
 import {
   repositoryLinkPolicy,
@@ -84,6 +84,9 @@ export function RepoConfigsPanel({
   policy?: RepositoryLinkPolicy
 }) {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
+  // How many canvases follow each Repository (desktop), so a row says whether
+  // Edit reaches canvases (H5). Loaded with the list, so rows never jump.
+  const [canvasCounts, setCanvasCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [mode, setMode] = useState<Mode>({ kind: "list" })
@@ -101,9 +104,11 @@ export function RepoConfigsPanel({
 
   useEffect(() => {
     let cancelled = false
-    listRepositories()
-      .then((list) => {
-        if (!cancelled) setConfigs(list)
+    Promise.all([listRepositories(), loadCanvasCounts(policy)])
+      .then(([list, counts]) => {
+        if (cancelled) return
+        setConfigs(list)
+        setCanvasCounts(counts)
       })
       .catch((err) => {
         console.error("Failed to load repositories", err)
@@ -115,13 +120,18 @@ export function RepoConfigsPanel({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [policy])
 
   // Retry after a failed load; a second failure rejects and leaves the error up.
   const reload = useCallback(async () => {
-    setConfigs(await listRepositories())
+    const [list, counts] = await Promise.all([
+      listRepositories(),
+      loadCanvasCounts(policy),
+    ])
+    setConfigs(list)
+    setCanvasCounts(counts)
     setLoadFailed(false)
-  }, [])
+  }, [policy])
 
   // The count comes first, so the confirm opens with its final wording. A
   // canvas whose copy never took your edits (hosted, #1427) isn't counted.
@@ -211,16 +221,13 @@ export function RepoConfigsPanel({
                 .map((config) => (
                   <SettingsRow
                     key={config.id}
-                    title={
-                      <>
-                        {group.heading}
-                        {presetLabel(config) && (
-                          <span className="font-normal text-muted-foreground">
-                            {" "}
-                            {presetLabel(config)}
-                          </span>
-                        )}
-                      </>
+                    title={<RepoTitle repo={config} />}
+                    marker={
+                      canvasCounts[config.id] ? (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {canvasCountLabel(canvasCounts[config.id]!)}
+                        </span>
+                      ) : undefined
                     }
                     state={group.private ? "Private" : undefined}
                     detail={<PresetDetail config={config} group={group} />}
@@ -296,17 +303,13 @@ export function RepoConfigsPanel({
               event.preventDefault()
               name.focus()
             }}
-            className="gap-0 overflow-hidden p-0 sm:max-w-lg"
+            className={REPO_DIALOG_CONTENT}
           >
-            <DialogHeader className="px-5 pt-5 pb-3">
-              <DialogTitle>
-                {mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
-              </DialogTitle>
-              <DialogDescription>
-                A repository&apos;s scripts, applied when you add it to a
-                canvas.
-              </DialogDescription>
-            </DialogHeader>
+            <RepoDialogHeader
+              title={mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
+              description="A repository’s scripts, applied when you add it to a canvas."
+              source={mode.kind !== "list" ? mode.config.repoFullName : ""}
+            />
             {mode.kind !== "list" && (
               <RepoConfigForm
                 // A fresh form per open, so switching presets never carries
@@ -370,6 +373,22 @@ export function RepoConfigsPanel({
   )
 }
 
+/** Each Repository's canvas count where canvases follow it; elsewhere (and
+ *  when the count can't be read) none, so rows simply say nothing. */
+async function loadCanvasCounts(
+  policy: RepositoryLinkPolicy
+): Promise<Record<string, number>> {
+  if (!policy.deleteUnlinksCanvases) return {}
+  return repositoryCanvasCounts().catch((err) => {
+    console.error("Failed to count canvases using repositories", err)
+    return {}
+  })
+}
+
+function canvasCountLabel(count: number): string {
+  return count === 1 ? "On 1 canvas" : `On ${count} canvases`
+}
+
 type ConfigGroup = {
   key: string
   heading: string
@@ -378,17 +397,6 @@ type ConfigGroup = {
   kind: "remote" | "path"
   private: boolean
   items: RepoConfig[]
-}
-
-/**
- * The preset's own name beside its project heading, only when it tells the
- * row apart: a default preset, or one named after its repo, would just repeat
- * the heading (#784).
- */
-function presetLabel(config: RepoConfig): string | null {
-  const name = config.name.trim()
-  if (!name || name === config.repoName || name === "default") return null
-  return name
 }
 
 /**

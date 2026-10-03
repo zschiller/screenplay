@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { nanoid } from "nanoid"
 import { Button } from "@workspace/ui/components/button"
-import { DialogFooter } from "@workspace/ui/components/dialog"
 import {
   Field,
   FieldDescription,
@@ -11,13 +10,15 @@ import {
   FieldLabel,
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  RepoDialogBody,
+  RepoDialogFooter,
+} from "@/components/repo-dialog-layout"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { saveRepository } from "@/lib/repository-library/actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
-import { cn } from "@workspace/ui/lib/utils"
 
 interface RepoConfigFormProps {
   /** The Repository being edited; saving updates it in place. */
@@ -37,8 +38,9 @@ interface RepoConfigFormProps {
 
 /**
  * The body of the Repository editor dialog (the caller owns the `Dialog` and
- * its header): edit an existing Repository's fields, or a duplicate's, in the
- * dialog's one scroll area, with Cancel/Save pinned in the footer.
+ * its {@link RepoDialogHeader}): edit an existing Repository's fields, or a
+ * duplicate's, in the dialog's one scroll area, with Cancel/Save pinned in the
+ * footer.
  */
 export function RepoConfigForm({
   initial,
@@ -135,76 +137,63 @@ export function RepoConfigForm({
 
   return (
     <>
-      <div className="min-w-0 truncate px-5 pb-3 text-sm">
-        <span className="text-muted-foreground">Source </span>
-        <span className="font-mono">{repo.repoFullName}</span>
-      </div>
-
-      {/* The dialog's only scroll. The max-height must land on the Radix
-          viewport itself — shadcn hardcodes h-full on it, so a max-h on the
-          outer ScrollArea never creates a scroll boundary (shadcn #296). */}
-      <ScrollArea
-        orientation="vertical"
-        className="border-t [&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
-      >
-        <div className="flex flex-col gap-5 p-5">
-          <Field>
-            <FieldLabel htmlFor="config-name">Name</FieldLabel>
-            <Input
-              id="config-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <FieldDescription>
-              Optional. A short name like “web” or “api”, to tell apart two
-              setups of one repository.
-            </FieldDescription>
-            {nameCollision && (
-              <FieldError>
-                {trimmedName
-                  ? `A repository named “${trimmedName}” is already set up from this source.`
-                  : "This source is already set up without a name. Give this one a name."}
-              </FieldError>
-            )}
-          </Field>
-
-          <RepoSettingsFields
-            idPrefix="config"
-            setupScript={setupScript}
-            onSetupScriptChange={setSetupScript}
-            devScript={devScript}
-            onDevScriptChange={setDevScript}
-            devServerPort={devServerPort}
-            onDevServerPortChange={setDevServerPort}
-            envVars={envVars}
-            onEnvVarsChange={setEnvVars}
-            copyPatterns={copyPatterns}
-            onCopyPatternsChange={setCopyPatterns}
-            defaultIframeLayerSizeId={defaultIframeLayerSizeId}
-            onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
-            systemPrompt={systemPrompt}
-            onSystemPromptChange={setSystemPrompt}
+      <RepoDialogBody>
+        <Field>
+          <FieldLabel htmlFor="config-name">Name</FieldLabel>
+          <Input
+            id="config-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
           />
-        </div>
-      </ScrollArea>
+          <FieldDescription>
+            Optional. A short name like “web” or “api”, to tell apart two setups
+            of one repository.
+          </FieldDescription>
+          {nameCollision && (
+            <FieldError>
+              {trimmedName
+                ? `A repository named “${trimmedName}” is already set up from this source.`
+                : "This source is already set up without a name. Give this one a name."}
+            </FieldError>
+          )}
+        </Field>
 
-      {error && (
-        <p role="alert" className="border-t px-5 pt-3 text-sm text-destructive">
-          {error}
-        </p>
-      )}
+        <RepoSettingsFields
+          idPrefix="config"
+          setupScript={setupScript}
+          onSetupScriptChange={setSetupScript}
+          devScript={devScript}
+          onDevScriptChange={setDevScript}
+          devServerPort={devServerPort}
+          onDevServerPortChange={setDevServerPort}
+          envVars={envVars}
+          onEnvVarsChange={setEnvVars}
+          copyPatterns={copyPatterns}
+          onCopyPatternsChange={setCopyPatterns}
+          defaultIframeLayerSizeId={defaultIframeLayerSizeId}
+          onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
+          systemPrompt={systemPrompt}
+          onSystemPromptChange={setSystemPrompt}
+        />
+      </RepoDialogBody>
 
-      {/* The border closes the scroll area above, so fields scrolled under
-          the footer end at a line rather than running into the buttons. */}
-      <DialogFooter className={cn("px-5 py-4", !error && "border-t")}>
+      <RepoDialogFooter
+        notice={
+          error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )
+        }
+      >
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
         <Button onClick={handleSave} disabled={!canSave || saving}>
           {saving && <Spinner className="size-4" />}
-          {initial ? "Save changes" : "Create repository"}
+          {initial ? "Save" : "Create repository"}
         </Button>
-      </DialogFooter>
+      </RepoDialogFooter>
     </>
   )
 }

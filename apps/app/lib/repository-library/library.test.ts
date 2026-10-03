@@ -918,6 +918,22 @@ describe("deleting a repository", () => {
     expect(await library.canvasCount("api")).toBe(0)
   })
 
+  it("counts every repository's canvases in one pass", async () => {
+    const web = repository("web")
+    const api = repository("api", { name: "api" })
+    const a = makeHarness()
+    const b = makeHarness()
+    switchOn(a.collections, web, { id: "a", createdAt: 5, addedBy: "zack" })
+    switchOn(b.collections, web, { id: "b", createdAt: 5, addedBy: "zack" })
+    switchOn(b.collections, api, { id: "c", createdAt: 5, addedBy: "zack" })
+    const { library, store } = setup({
+      repositories: [web, api, repository("docs", { name: "docs" })],
+      canvases: { a, b },
+    })
+    await store.markMigrated()
+    expect(await library.canvasCounts()).toEqual({ web: 2, api: 1 })
+  })
+
   it("keeps each linked canvas repo, unlinked and editable", async () => {
     const web = repository("web")
     const plain = makeHarness()
