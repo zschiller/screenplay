@@ -7,6 +7,7 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 import { listRoomsForUser } from "@/lib/rooms"
 import { openRoom } from "@/lib/room-access"
 import { createRoomCollections } from "@/lib/yjs/schema"
+import { writeCanvasRepoEnv } from "@/lib/repo-env/canvas-repo-env"
 import { envVarsDigest, kvCanvasRepoEnvStore } from "@/lib/repo-env/store"
 import { createRepositoryLibrary } from "./library"
 import { repositoryLinkPolicy } from "./link-policy"
@@ -31,8 +32,14 @@ async function library() {
         ),
     },
     env: {
-      set: (roomId, repoId, text) =>
-        kvCanvasRepoEnvStore.set(roomId, repoId, text),
+      write: async (roomId, repoId, text) => {
+        await writeCanvasRepoEnv(
+          await openRoom(roomId),
+          kvCanvasRepoEnvStore,
+          repoId,
+          text
+        )
+      },
       digest: envVarsDigest,
     },
     policy: repositoryLinkPolicy,

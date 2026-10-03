@@ -68,7 +68,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { switchOnWithEnv } from "@/lib/repository-library"
-import { migrateCanvasEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
+import { copyInCanvasRepoEnv, migrateCanvasEnv } from "@/lib/repo-env/actions"
 import { canRevealEnv } from "@/lib/repo-env/names"
 import { renameRoom } from "@/lib/rooms-actions"
 
@@ -1921,7 +1921,7 @@ export function Canvas({
           createdAt: Date.now(),
           addedBy: userId ?? "anonymous",
         },
-        (id, text) => saveCanvasRepoEnv(roomId, id, text, "replace")
+        (id, text) => copyInCanvasRepoEnv(roomId, id, text)
       ).catch(() => toast.error("Couldn't copy the environment variables."))
     },
     [collections, userId, roomId]

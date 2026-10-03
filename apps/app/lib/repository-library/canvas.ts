@@ -62,16 +62,24 @@ export function runSettings(repository: RepoConfig): RunSettings {
   }
 }
 
-/** What a Canvas Repo takes from its Repository: its name and run settings. */
-function settingsFrom(
+/**
+ * What a Canvas Repo takes from its Repository when it follows it: its name
+ * and run settings. Env var names and digest are left out: only the Canvas
+ * Repo env module (`lib/repo-env/canvas-repo-env`) writes them, after storing
+ * the values they describe (#1492). Exported for the edit form's Reset to
+ * Settings.
+ */
+export function repositorySettings(
   repository: RepoConfig
-): Pick<RepoData, "name" | "envVars"> & RunSettings {
+): Pick<RepoData, "name" | "envVars"> &
+  Omit<RunSettings, "envVarNames" | "envVarsDigest"> {
+  const {
+    envVarNames: _names,
+    envVarsDigest: _digest,
+    ...settings
+  } = runSettings(repository)
   // A legacy plain-text copy goes with the rest (#1416).
-  return {
-    name: repository.name,
-    ...runSettings(repository),
-    envVars: undefined,
-  }
+  return { name: repository.name, ...settings, envVars: undefined }
 }
 
 /** The settings "customized" compares, with unset fields at their defaults
@@ -186,8 +194,8 @@ export async function switchOnWithEnv(
 
 /**
  * Reset to Settings: give a Canvas Repo its Repository's name and run
- * settings again, so it's no longer customized. The caller stores the
- * Repository's env var values for the Canvas (#1416).
+ * settings again. Its env vars reset through the Canvas Repo env module
+ * (`reset`), which stores the Repository's values first (#1492).
  */
 export function resetToRepository(
   collections: RoomCollections,
@@ -195,7 +203,11 @@ export function resetToRepository(
   repository: RepoConfig
 ): void {
   if (!collections.repos.get(repoId)) return
-  createCanvasOps(collections).patch("repos", repoId, settingsFrom(repository))
+  createCanvasOps(collections).patch(
+    "repos",
+    repoId,
+    repositorySettings(repository)
+  )
 }
 
 /**
@@ -204,8 +216,9 @@ export function resetToRepository(
  * takes the new ones. Customized Repos keep theirs, unless `overrideCustomized`
  * (Save to all, #1425) gives them the new ones too. Env var values follow only
  * where the Canvas still had the old values, so a Canvas's own env vars
- * survive. Returns the ids of the Repos whose values follow; the caller stores
- * `after`'s values for each (#1416).
+ * survive. Returns the ids of the Repos whose values follow; the caller writes
+ * `after`'s values for each through the Canvas Repo env module, which stores
+ * them before the doc lists their names (#1492).
  */
 export function applyRepositoryEdit(
   collections: RoomCollections,
@@ -219,15 +232,10 @@ export function applyRepositoryEdit(
     for (const repo of canvasRepos(collections)) {
       if (repo.repositoryId !== after.id) continue
       if (!overrideCustomized && isCustomized(repo, before)) continue
-      const { envVarNames, envVarsDigest, ...settings } = settingsFrom(after)
+      ops.patch("repos", repo.id, repositorySettings(after))
       // A Canvas's own values are left unwritten, not rewritten, so a save
       // racing the editing Canvas's own write can't put the old ones back.
-      if (repo.envVarsDigest !== before.envVarsDigest) {
-        ops.patch("repos", repo.id, settings)
-        continue
-      }
-      ops.patch("repos", repo.id, { ...settings, envVarNames, envVarsDigest })
-      updated.push(repo.id)
+      if (repo.envVarsDigest === before.envVarsDigest) updated.push(repo.id)
     }
   })
   return updated

@@ -75,10 +75,8 @@ vi.mock("@/lib/repository-library/actions", () => ({
 }))
 // A Repo's env var values live on the server (#1416).
 vi.mock("@/lib/repo-env/actions", () => ({
-  saveCanvasRepoEnv: vi.fn().mockResolvedValue({
-    envVarNames: ["API_URL", "STRIPE_KEY"],
-    envVarsDigest: "d2",
-  }),
+  saveCanvasRepoEnv: vi.fn().mockResolvedValue(undefined),
+  resetCanvasRepoEnv: vi.fn().mockResolvedValue(undefined),
   revealCanvasRepoEnv: vi
     .fn()
     .mockResolvedValue("API_URL=https://api.test\nSTRIPE_KEY=sk_live_1"),
@@ -600,20 +598,12 @@ describe("CanvasSettingsDialog", () => {
         expect(saveCanvasRepoEnv).toHaveBeenCalledWith(
           "room-1",
           "r2",
-          "STRIPE_KEY=sk_test_mine",
-          "merge"
+          "STRIPE_KEY=sk_test_mine"
         )
       )
-      // The doc gets names and digest back, never the typed value.
-      await waitFor(() =>
-        expect(onUpdateRepo).toHaveBeenCalledWith(
-          "r2",
-          expect.objectContaining({
-            envVarNames: ["API_URL", "STRIPE_KEY"],
-            envVarsDigest: "d2",
-          })
-        )
-      )
+      // The server stores the value and names it in the doc; the form's own
+      // write never carries it.
+      await waitFor(() => expect(onUpdateRepo).toHaveBeenCalled())
       expect(JSON.stringify(onUpdateRepo.mock.calls)).not.toContain(
         "sk_test_mine"
       )
@@ -657,8 +647,7 @@ describe("CanvasSettingsDialog", () => {
         expect(saveCanvasRepoEnv).toHaveBeenLastCalledWith(
           "room-1",
           "r2",
-          "API_URL=https://api.test",
-          "replace"
+          "API_URL=https://api.test"
         )
       )
     })

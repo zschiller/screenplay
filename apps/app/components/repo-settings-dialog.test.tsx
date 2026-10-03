@@ -8,12 +8,13 @@ import {
   waitFor,
 } from "@testing-library/react"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { saveCanvasRepoEnv } from "@/lib/repo-env/actions"
+import { resetCanvasRepoEnv } from "@/lib/repo-env/actions"
 import { baseRepo } from "@/test/canvas/harness"
 import { RepoSettingsDialog } from "./repo-settings-dialog"
 
 vi.mock("@/lib/repo-env/actions", () => ({
   saveCanvasRepoEnv: vi.fn(),
+  resetCanvasRepoEnv: vi.fn(),
   revealCanvasRepoEnv: vi.fn(),
 }))
 
@@ -34,7 +35,7 @@ if (!Element.prototype.hasPointerCapture) {
 
 afterEach(() => {
   cleanup()
-  vi.mocked(saveCanvasRepoEnv).mockReset()
+  vi.mocked(resetCanvasRepoEnv).mockReset()
 })
 
 const repository: RepoConfig = {
@@ -84,34 +85,25 @@ function renderDialog() {
 }
 
 describe("Reset to Settings", () => {
-  it("stores the Repository's values, then writes what the store returned", async () => {
-    vi.mocked(saveCanvasRepoEnv).mockResolvedValue({
-      envVarNames: ["A"],
-      envVarsDigest: "d-a1",
-    })
+  it("resets the env vars on the server first, then the other settings", async () => {
+    vi.mocked(resetCanvasRepoEnv).mockResolvedValue()
     const { onUpdate, onOpenChange } = renderDialog()
 
     fireEvent.click(screen.getByRole("button", { name: "Reset to Settings" }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(saveCanvasRepoEnv).toHaveBeenCalledWith(
-      "room-1",
-      "repo-1",
-      "A=1",
-      "replace"
-    )
+    expect(resetCanvasRepoEnv).toHaveBeenCalledWith("room-1", "repo-1", "A=1")
     expect(onUpdate).toHaveBeenCalledWith(
       "repo-1",
-      expect.objectContaining({
-        devServerPort: 3000,
-        envVarNames: ["A"],
-        envVarsDigest: "d-a1",
-      })
+      expect.objectContaining({ devServerPort: 3000 })
     )
+    // The env module names the values in the doc itself (#1492).
+    expect(onUpdate.mock.calls[0]![1]).not.toHaveProperty("envVarNames")
+    expect(onUpdate.mock.calls[0]![1]).not.toHaveProperty("envVarsDigest")
   })
 
   it("leaves the Repo unchanged and the dialog open when the values can't be stored", async () => {
-    vi.mocked(saveCanvasRepoEnv).mockRejectedValue(new Error("KV down"))
+    vi.mocked(resetCanvasRepoEnv).mockRejectedValue(new Error("KV down"))
     const { onUpdate, onOpenChange } = renderDialog()
 
     fireEvent.click(screen.getByRole("button", { name: "Reset to Settings" }))

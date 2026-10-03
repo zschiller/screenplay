@@ -29,7 +29,9 @@ export interface CanvasRooms {
 
 /** Canvas Repos' env var values, encrypted per Canvas + Repo (#1416). */
 export interface CanvasEnv {
-  set(roomId: string, repoId: string, text: string): Promise<void>
+  /** Store a Canvas Repo's values, then record their names and digest on
+   *  it: the Canvas Repo env module's `writeCanvasRepoEnv` (#1492). */
+  write(roomId: string, repoId: string, text: string): Promise<void>
   /** The keyed digest a Repository's values are stamped with. */
   digest(text: string): string | undefined
 }
@@ -116,7 +118,8 @@ export function createRepositoryLibrary({
   /**
    * Settings edits reach the Canvases: every Canvas the person can open gets
    * the edit on its uncustomized Repos linked to the Repository, and their
-   * stored env var values become the Repository's. A Canvas that won't open
+   * stored env var values become the Repository's (stored, then named in the
+   * doc). A Canvas that won't open
    * keeps its old copy rather than failing the save. Only where the policy
    * propagates edits: on hosted a Canvas's copy belongs to the Canvas (#1427).
    */
@@ -131,7 +134,8 @@ export function createRepositoryLibrary({
         const updated = await rooms.mutate(roomId, (collections) =>
           applyRepositoryEdit(collections, b!, a!, options)
         )
-        for (const repoId of updated) await env.set(roomId, repoId, a!.envVars)
+        for (const repoId of updated)
+          await env.write(roomId, repoId, a!.envVars)
       } catch (err) {
         console.error(`Couldn't update repositories on canvas ${roomId}`, err)
       }

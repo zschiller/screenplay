@@ -2,84 +2,60 @@
 
 import { isLocalBuild } from "@/lib/local-mode"
 import { openRoom } from "@/lib/room-access"
-import type { RepoData } from "@/lib/types"
+import { canvasRepoEnv, type EnvDocFields } from "./canvas-repo-env"
 import { migrateCanvasRepoEnv } from "./migrate"
-import { canRevealEnv, mergeEnvVars } from "./names"
-import { envDocFields, kvCanvasRepoEnvStore, loadCanvasRepoEnv } from "./store"
-
-/** What the Canvas writes into its Repo record after a save. */
-export type EnvDocFields = Pick<RepoData, "envVarNames" | "envVarsDigest">
+import { kvCanvasRepoEnvStore } from "./store"
 
 /**
- * Save a Canvas Repo's env var values (#1416). Any member who can edit the
- * Canvas can `merge`: lay the typed lines over the stored values (a member
- * who can't see them setting their own). `replace` stores `text` as the whole
- * set, so only whoever {@link canRevealEnv} allows may use it (the adder after
- * revealing, the add flow, Reset on desktop); for anyone else it would wipe
- * values they can't see (#1475). A Repo the server doesn't see in the room doc
- * yet (just added, still syncing) can be replaced only while nothing is
- * stored. Returns the names and digest for the caller to write into the room
- * doc; the values never go there.
+ * The Canvas Repo env module (`./canvas-repo-env`, #1492) for the signed-in
+ * member: each action opens the Canvas for them and runs one operation, which
+ * stores the values and then records their names and digest in the room doc.
+ * Values never go back to the client except through `revealCanvasRepoEnv`.
  */
+async function openEnv(roomId: string) {
+  const room = await openRoom(roomId)
+  return canvasRepoEnv(room, kvCanvasRepoEnvStore, {
+    userId: room.userId,
+    role: room.role,
+    localBuild: isLocalBuild,
+  })
+}
+
+/** Save the Repo settings form's env vars: the whole set for whoever may
+ *  reveal them, typed lines over the stored values for anyone else. */
 export async function saveCanvasRepoEnv(
   roomId: string,
   repoId: string,
-  text: string,
-  mode: "replace" | "merge"
-): Promise<EnvDocFields> {
-  const room = await openRoom(roomId)
-  if (room.role === "viewer") throw new Error("Viewers can't change settings")
-  const repo = await room.readDoc(({ repos }) => repos.get(repoId))
-  const stored = await loadCanvasRepoEnv(
-    kvCanvasRepoEnvStore,
-    roomId,
-    repo ?? { id: repoId }
-  )
-  let next = text
-  if (mode === "merge") {
-    next = mergeEnvVars(stored, text)
-  } else {
-    const allowed = repo
-      ? canRevealEnv(repo, {
-          userId: room.userId,
-          isOwner: room.role === "owner",
-          localBuild: isLocalBuild,
-        })
-      : stored === ""
-    if (!allowed) {
-      throw new Error(
-        "Only the person who added this repository can replace its values"
-      )
-    }
-  }
-  await kvCanvasRepoEnvStore.set(roomId, repoId, next)
-  const { envVarNames, envVarsDigest } = envDocFields(next)
-  return { envVarNames, envVarsDigest }
+  text: string
+): Promise<void> {
+  await (await openEnv(roomId)).save(repoId, text)
 }
 
-/**
- * A Canvas Repo's stored values, for its edit form. Only whoever
- * {@link canRevealEnv} allows: other members get an error and keep seeing
- * names only.
- */
+/** Reset to Settings: the Repository's values replace this Canvas's. */
+export async function resetCanvasRepoEnv(
+  roomId: string,
+  repoId: string,
+  text: string
+): Promise<void> {
+  await (await openEnv(roomId)).reset(repoId, text)
+}
+
+/** Switching a Repository on: its values stored under the new Repo's id,
+ *  and the names and digest its record starts with. */
+export async function copyInCanvasRepoEnv(
+  roomId: string,
+  repoId: string,
+  text: string
+): Promise<EnvDocFields> {
+  return (await openEnv(roomId)).copyIn(repoId, text)
+}
+
+/** A Canvas Repo's stored values, for the adder's edit form. */
 export async function revealCanvasRepoEnv(
   roomId: string,
   repoId: string
 ): Promise<string> {
-  const room = await openRoom(roomId)
-  const repo = await room.readDoc(({ repos }) => repos.get(repoId))
-  if (!repo) throw new Error("Repository not found")
-  const allowed = canRevealEnv(repo, {
-    userId: room.userId,
-    isOwner: room.role === "owner",
-    localBuild: isLocalBuild,
-  })
-  if (!allowed) {
-    throw new Error(
-      "Only the person who added this repository can see its values"
-    )
-  }
-  return loadCanvasRepoEnv(kvCanvasRepoEnvStore, roomId, repo)
+  return (await openEnv(roomId)).reveal(repoId)
 }
 
 /** Move this Canvas's legacy plain-text env vars out of its room doc
