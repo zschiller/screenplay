@@ -13,6 +13,7 @@ describe("bareToolName", () => {
     expect(bareToolName("mcp__my_server__list_changes")).toBe("list_changes")
     expect(bareToolName("Tool: screenplay/read_canvas")).toBe("read_canvas")
     expect(bareToolName("mcp.screenplay.read_canvas")).toBe("read_canvas")
+    expect(bareToolName("screenplay_read_canvas")).toBe("read_canvas")
   })
 
   it("leaves every other title as is", () => {
@@ -75,6 +76,15 @@ describe("harnessToolNaming", () => {
     expect(naming.name("read_skill")).toBe("mcp__screenplay__read_skill")
     expect(bareToolName(naming.name("read_skill"))).toBe("read_skill")
     expect(naming.note).toBeUndefined()
+  })
+
+  it("names OpenCode's MCP tools exactly, as bareToolName reads them back (#1589)", () => {
+    for (const key of ["opencode-gateway", "opencode-compat"]) {
+      const naming = harnessToolNaming(key, "screenplay")
+      expect(naming.name("read_skill")).toBe("screenplay_read_skill")
+      expect(bareToolName(naming.name("read_skill"))).toBe("read_skill")
+      expect(naming.note).toBeUndefined()
+    }
   })
 
   it("keeps bare names on other harnesses and says where the tools come from", () => {

@@ -19,8 +19,11 @@ Directory** to `apps/app`. The framework preset is Next.js.
 
 ### Connect storage
 
-On the project's **Storage** tab, connect a **Blob** store. This injects
-`BLOB_READ_WRITE_TOKEN`. Vercel Sandbox authenticates with Vercel's OIDC
+On the project's **Storage** tab, connect two **Blob** stores: a public one
+with the env var prefix `PUBLIC_BLOB`, which injects
+`PUBLIC_BLOB_READ_WRITE_TOKEN`, and a private one with the prefix
+`PRIVATE_BLOB`, which injects `PRIVATE_BLOB_READ_WRITE_TOKEN` (see
+[File store](/self-hosting/configuration/blob-store#file-store)). Vercel Sandbox authenticates with Vercel's OIDC
 token, which is also injected automatically.
 
 ### Push the sandbox image

@@ -70,6 +70,7 @@ export class SpawnAcpSessionFactory implements AcpSessionFactory {
     const launch = resolveAcpLaunch(this.config.harnessKey, {
       cwd: options.cwd,
       env: this.config.env ?? process.env,
+      additionalDirectories: options.additionalDirectories,
     })
     if (!launch) {
       throw new Error(
@@ -93,6 +94,7 @@ export class SpawnAcpSessionFactory implements AcpSessionFactory {
         adapter: {
           modelOption: launch.modelOption,
           promptQueueing: launch.promptQueueing,
+          planAsReply: launch.planAsReply,
         },
       })
       session.onClose(() => {

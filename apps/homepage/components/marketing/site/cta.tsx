@@ -1,6 +1,6 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-import { releasesUrl } from "@/lib/app-url"
+import { downloadUrl } from "@/lib/app-url"
 import { AppleLogo } from "../header"
 import { buttonClass, measure } from "./editorial"
 
@@ -16,12 +16,7 @@ export function CTA() {
         side.
       </p>
       <div className="mt-8 flex flex-wrap gap-3 max-sm:flex-col">
-        <a
-          href={releasesUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={buttonClass("solid", "lg")}
-        >
+        <a href={downloadUrl} className={buttonClass("solid", "lg")}>
           <AppleLogo className="size-4 -translate-y-px" />
           Download for Mac
         </a>

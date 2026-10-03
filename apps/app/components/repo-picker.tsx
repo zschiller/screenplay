@@ -18,13 +18,13 @@ import {
   CommandItem,
   CommandList,
 } from "@workspace/ui/components/command"
-import { cn } from "@workspace/ui/lib/utils"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 import {
   getGitHubLocalStatus,
   resolveRepoFromUrl,
   type GitHubLocalStatus,
 } from "@/lib/github-local/actions"
+import { ListScrollHairline } from "@/components/picker-dialog"
 import { looksLikeCloneUrl } from "@/lib/github-local/parse-remote"
 import type { NewRepoSource } from "@/lib/github-local/types"
 
@@ -149,15 +149,7 @@ export function RepoPicker({ onSelect, localSources }: RepoPickerProps) {
           }
         />
         <div className="relative min-h-0 flex-1">
-          {/* A hairline, revealed only while the list is tucked under the
-              search box. */}
-          <div
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-border transition-opacity duration-150",
-              listScrolled ? "opacity-100" : "opacity-0"
-            )}
-          />
+          <ListScrollHairline shown={listScrolled} />
           <CommandList
             onScroll={(e) => setListScrolled(e.currentTarget.scrollTop > 0)}
           >

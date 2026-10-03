@@ -424,6 +424,208 @@ describe("ExternalEngine — Codex plan turn (#1337)", () => {
 })
 
 /**
+ * OpenCode plans through its `mode` option's read-only `plan` agent and ends
+ * the turn with the plan as its answer, never asking to carry it out (#1589).
+ * So every permission request on its plan turn is an ordinary one, and the
+ * last reply of a plan turn that ends normally becomes the "Review plan" gate.
+ */
+describe("ExternalEngine — OpenCode plan turn (#1589)", () => {
+  const PLAN = "## Plan\n\n1. Edit the button\n2. Run the tests"
+
+  function turn(planMode: boolean): EngineTurn {
+    return {
+      chatId: "chat",
+      runId: "run-9",
+      roomId: "room",
+      systemPrompt: "",
+      model: "model",
+      history: [{ role: "user", content: [{ type: "text", text: "go" }] }],
+      planMode,
+    }
+  }
+
+  /** A session on an agent whose plan is its last reply. */
+  function opencodeFactory(
+    planMode: boolean,
+    body: (ports: AcpSessionPorts, signal: AbortSignal) => Promise<unknown>
+  ) {
+    return {
+      open: async (ports: AcpSessionPorts) =>
+        ({
+          id: "sess",
+          plansByCollaborationMode: planMode,
+          plansByReply: planMode,
+          prompt: (_blocks: unknown, signal: AbortSignal) =>
+            body(ports, signal),
+          close: () => {},
+        }) as unknown as AcpSession,
+    }
+  }
+
+  function reply(messageId: string, text: string) {
+    return {
+      sessionUpdate: "agent_message_chunk" as const,
+      messageId,
+      content: { type: "text" as const, text },
+    }
+  }
+
+  /** OpenCode asking to read outside the working directory. */
+  function externalDirectory(): RequestPermissionRequest {
+    return {
+      sessionId: "sess",
+      toolCall: {
+        toolCallId: "call-1",
+        title: "/ctx/canvas/notes.md",
+        kind: "other",
+        status: "pending",
+        rawInput: { filepath: "/ctx/canvas/notes.md", plan: "not a plan" },
+      },
+      options: [
+        { optionId: "once", name: "Allow once", kind: "allow_once" },
+        { optionId: "always", name: "Always allow", kind: "allow_always" },
+        { optionId: "reject", name: "Reject", kind: "reject_once" },
+      ],
+    }
+  }
+
+  function sentTexts(updates: EngineUpdate[]): string[] {
+    return updates.flatMap((u) =>
+      u.kind === "session_update" &&
+      u.update.sessionUpdate === "agent_message_chunk"
+        ? [blockText(u.update.content)]
+        : []
+    )
+  }
+
+  it("auto-allows every permission request on a plan turn", async () => {
+    const updates: EngineUpdate[] = []
+    let decision: { approved: boolean } | undefined
+    const engine = new ExternalEngine({
+      sessionFactory: opencodeFactory(true, async (ports) => {
+        decision = await ports.requestPlanApproval(externalDirectory())
+        return "end_turn"
+      }),
+    })
+
+    await engine.run(
+      turn(true),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(decision).toEqual({ approved: true })
+    expect(updates.some((u) => u.kind === "permission_request")).toBe(false)
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
+  it("raises the last reply as the plan gate, showing it once", async () => {
+    const updates: EngineUpdate[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: opencodeFactory(true, async (ports) => {
+        await ports.onUpdate(reply("msg-1", "Let me look around."))
+        await ports.onUpdate({
+          sessionUpdate: "tool_call",
+          toolCallId: "read-1",
+          title: "read",
+          status: "completed",
+        })
+        await ports.onUpdate(reply("msg-2", "## Plan\n\n1. Edit "))
+        await ports.onUpdate(reply("msg-2", "the button\n2. Run the tests\n"))
+        await ports.onUpdate({
+          sessionUpdate: "usage_update",
+          used: 1200,
+          size: 200000,
+        })
+        return "end_turn"
+      }),
+    })
+
+    await engine.run(
+      turn(true),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(sentTexts(updates)).toEqual(["Let me look around."])
+    const gate = updates.find((u) => u.kind === "permission_request")
+    expect(gate).toBeDefined()
+    if (gate?.kind !== "permission_request") return
+    expect(gate.request.toolCall).toMatchObject({
+      toolCallId: "run-9:plan",
+      title: "Review plan",
+      rawInput: { plan: PLAN },
+    })
+    expect(updates.at(-1)).toBe(gate)
+    expect(updates.some((u) => u.kind === "done")).toBe(false)
+  })
+
+  it("ends as usual when the plan turn's last step is a tool call", async () => {
+    const updates: EngineUpdate[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: opencodeFactory(true, async (ports) => {
+        await ports.onUpdate(reply("msg-1", "Reading."))
+        await ports.onUpdate({
+          sessionUpdate: "tool_call",
+          toolCallId: "read-1",
+          title: "read",
+          status: "completed",
+        })
+        return "end_turn"
+      }),
+    })
+
+    await engine.run(
+      turn(true),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(sentTexts(updates)).toEqual(["Reading."])
+    expect(updates.some((u) => u.kind === "permission_request")).toBe(false)
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+
+  it("sends the held reply when a plan turn is stopped", async () => {
+    const updates: EngineUpdate[] = []
+    const stop = new AbortController()
+    const engine = new ExternalEngine({
+      sessionFactory: opencodeFactory(true, async (ports) => {
+        await ports.onUpdate(reply("msg-1", "Half a pl"))
+        stop.abort()
+        return "cancelled"
+      }),
+      stopGraceMs: 0,
+    })
+
+    await engine.run(turn(true), (u) => void updates.push(u), stop.signal)
+
+    expect(sentTexts(updates)).toEqual(["Half a pl"])
+    expect(updates.some((u) => u.kind === "permission_request")).toBe(false)
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "cancelled" })
+  })
+
+  it("streams a build turn's reply as it comes, with no gate", async () => {
+    const updates: EngineUpdate[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: opencodeFactory(false, async (ports) => {
+        await ports.onUpdate(reply("msg-1", "Done."))
+        return "end_turn"
+      }),
+    })
+
+    await engine.run(
+      turn(false),
+      (u) => void updates.push(u),
+      new AbortController().signal
+    )
+
+    expect(sentTexts(updates)).toEqual(["Done."])
+    expect(updates.at(-1)).toEqual({ kind: "done", stopReason: "end_turn" })
+  })
+})
+
+/**
  * Native session resume — the durable fix for desktop chats whose model couldn't
  * see earlier messages. Each turn spawns a fresh adapter, so without resume the
  * agent boots a context-less `session/new` and only ever receives the latest

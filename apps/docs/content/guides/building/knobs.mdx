@@ -135,6 +135,9 @@ const unsubscribe = registerKnob(
 )
 ```
 
+`getKnobValue("background")` reads a knob's current value at any time, or
+`undefined` for a knob nothing has declared yet.
+
 ## Knobs on a mockup
 
 A [mockup](/guides/mockups) is a static page with no bundler, so it doesn't
@@ -171,8 +174,8 @@ selected mockup shows them.
 Knobs only activate in **development** builds, and only when your app is
 running inside a Screenplay frame. Everywhere else, including production
 builds, standalone dev, and iframes on other sites, `useKnob` just returns
-its `default`. Bundlers strip the messaging code from production builds. You
-can commit knob code without guarding it.
+its `default`, and the code does nothing in production. You can commit knob
+code without guarding it.
 
 This works with any bundler that inlines `process.env.NODE_ENV`, including
 Vite, Next.js, webpack, and esbuild, with no extra setup. (Before knobs 0.1.4

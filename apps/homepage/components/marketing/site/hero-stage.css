@@ -1,32 +1,45 @@
-/* The hero's backdrop (hero-stage.tsx): copies of the homepage panning past
-   above the text, dissolving into the dither veil. Plain CSS because the
-   copies are built on the client. */
+/* The hero's backdrop (hero-stage.tsx): copies of the homepage on a canvas
+   floor that recedes to a horizon under the nav, dissolving into the dither
+   veil. Plain CSS because the copies are built on the client. */
 
+/* The floor's height follows the window, so the buttons stay above the fold
+   on a laptop. */
 .hc-stage {
-  display: flex;
-  flex-direction: column;
+  --hc-floor: clamp(300px, calc(100svh - 400px), 520px);
 }
+/* The floor sits behind the text rather than pushing it down, so the
+   headline doesn't move when the copies are built. The far side fades into
+   the dark under the nav. */
 .hc-backdrop {
-  position: relative;
+  position: absolute;
+  inset: 0 0 auto;
   z-index: 0;
+  height: var(--hc-floor);
+  overflow: hidden;
   pointer-events: none;
+  perspective: 800px;
+  perspective-origin: 50% 90%;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 70px,
+    #000 calc(var(--hc-floor) * 0.6)
+  );
 }
-/* The headline's first line sinks into the bottom row, where the veil turns
-   solid. The clamp is the headline's size in hero.tsx. */
+/* The headline's first line sinks into the nearest row, where the veil turns
+   solid. */
 .hc-content {
-  margin-top: calc(clamp(56px, 10.5vw, 148px) * -1.35);
+  margin-top: calc(var(--hc-floor) - 110px);
 }
+/* Wider than the window, so the floor still reaches the edges once it's
+   tilted back. */
 .hc-rows {
-  width: 100%;
+  position: absolute;
+  inset: auto -40% 0;
   display: flex;
   flex-direction: column;
-  gap: 44px;
-  /* Air under the nav above the first row's Workspace names, which sit
-     above their frames, and room for the last row's outline, which sits
-     just outside. */
-  padding-top: 52px;
-  padding-bottom: 1px;
-  overflow: hidden;
+  gap: 40px;
+  transform: rotateX(50deg);
+  transform-origin: 50% 100%;
 }
 .hc-track {
   display: flex;
@@ -34,9 +47,8 @@
   width: max-content;
   animation: hc-pan 80s linear infinite paused;
 }
-.hc-track + .hc-track {
+.hc-track:nth-child(even) {
   animation-direction: reverse;
-  animation-duration: 95s;
 }
 .hc-stage[data-playing] .hc-track {
   animation-play-state: running;
@@ -62,11 +74,8 @@
   flex: none;
   width: clamp(240px, 24vw, 340px);
 }
-/* Below 1024px both rows stay, a little smaller and closer. */
+/* Below 1024px the copies are a little smaller. */
 @media (max-width: 1023px) {
-  .hc-rows {
-    gap: 36px;
-  }
   .hc-copy {
     width: 260px;
   }
@@ -130,11 +139,6 @@
 .hc-box .hc-page {
   position: absolute;
   inset: 0;
-  clip-path: inset(0 0 0 0);
-  transition: clip-path 0.7s cubic-bezier(0.6, 0, 0.2, 1);
-}
-.hc-box.wipe .hc-page {
-  clip-path: inset(0 0 100% 0);
 }
 
 /* The mini homepage. 1em = 1/60 of the frame's width. It has its own tokens

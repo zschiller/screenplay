@@ -64,6 +64,19 @@ export function distinctByHostBinary(harnesses: Harness[]): Harness[] {
 }
 
 /**
+ * The catalog as the desktop app lists it: one entry per distinct
+ * `hostBinary` ({@link distinctByHostBinary}), each under its desktop name
+ * ({@link Harness.hostLabel}). The chat model picker, the new-terminal menu
+ * and the setup rows all read it, so OpenCode is one "OpenCode" everywhere on
+ * desktop rather than two hosted slots (#1589).
+ */
+export function hostHarnesses(harnesses: Harness[]): Harness[] {
+  return distinctByHostBinary(harnesses).map((harness) =>
+    harness.hostLabel ? { ...harness, label: harness.hostLabel } : harness
+  )
+}
+
+/**
  * Probe the live {@link HostFacts} a descriptor's `buildInstallCommand` maps to a
  * shell command (ADR 0015): `npm` / `brew` presence through the **same** prober
  * host-binary detection uses, plus the Node runtime's CPU arch. The one

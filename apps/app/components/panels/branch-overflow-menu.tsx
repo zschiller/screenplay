@@ -22,6 +22,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { Spinner } from "@workspace/ui/components/spinner"
+import { useIsCreatingPr } from "@/lib/creating-pr-store"
 import { openExternal } from "@/lib/open-external"
 import { openPreviewInBrowser } from "@/lib/open-preview"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -243,6 +245,8 @@ export function BranchOverflowMenuItems({
   canCreatePr = true,
   isBusy = false,
 }: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
+  // A create already running, from here or the chat header, shows here too.
+  const creatingPr = useIsCreatingPr(branch.id)
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     retry: (
       <DropdownMenuItem onClick={() => onRetry(branch.id)}>
@@ -362,11 +366,17 @@ export function BranchOverflowMenuItems({
         </DropdownMenuItem>
       ) : (
         <DropdownMenuItem
-          disabled={!branch.sandboxName || !branch.ref || isBusy || !hasChanges}
+          disabled={
+            !branch.sandboxName ||
+            !branch.ref ||
+            isBusy ||
+            !hasChanges ||
+            creatingPr
+          }
           onClick={() => onCreatePr(branch.id)}
         >
-          <GitPullRequestIcon />
-          Create pull request
+          {creatingPr ? <Spinner /> : <GitPullRequestIcon />}
+          {creatingPr ? "Creating pull request…" : "Create pull request"}
         </DropdownMenuItem>
       ),
     // Not while the agent works (its turn needs the sandbox) or while setup

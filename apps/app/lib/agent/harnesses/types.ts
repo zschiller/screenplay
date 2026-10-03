@@ -55,8 +55,8 @@ export function commitAndPushRuleMarkdown(): string {
  * the facts about it the session needs. It lives on the descriptor (not a
  * separate adapter map) so a CLI's terminal launch and its chat backing read the
  * *one* catalog entry, and a change for one Harness is a change to its one file.
- * `null` for a terminal-only harness with no ACP adapter (e.g. the opencode
- * slots today), which the chat-capability filter drops.
+ * `null` for a terminal-only harness with no ACP adapter, which the
+ * chat-capability filter drops.
  */
 export interface AcpAdapter {
   /** Executable to spawn (e.g. `npx`). */
@@ -77,6 +77,24 @@ export interface AcpAdapter {
    * With it, a Steer joins the running turn as another prompt.
    */
   promptQueueing: boolean
+  /**
+   * Whether a plan turn's last reply is the plan (#1589). The adapter plans
+   * in a read-only mode and ends the turn with the plan as its answer, with
+   * no request to carry it out, so that reply becomes the approval gate.
+   * Absent ⇒ the adapter asks to carry out its plan with a permission
+   * request, as Claude Code's and Codex's do.
+   */
+  planAsReply?: boolean
+  /**
+   * The env that lets the adapter read `directories` (the chat's context
+   * folder, #1524) without asking, for an adapter that takes them through
+   * its own config rather than ACP `additionalDirectories` (#1589). Given
+   * the child's env, so it can keep what that already sets. Absent ⇒ none.
+   */
+  directoriesEnv?(
+    directories: string[],
+    env: Record<string, string>
+  ): Record<string, string>
 }
 
 /**
@@ -127,6 +145,30 @@ export interface HarnessPrintModel {
    * `null`, never a fabricated name.
    */
   parseOutput(stdout: string): string | null
+}
+
+/**
+ * One model a Harness can run, as its CLI lists it for people to choose from in
+ * Settings (#1589): `id` is the opaque model id the ACP session's model option
+ * takes, `label` its name, and `group` the provider it comes from, which the
+ * chooser groups by.
+ */
+export interface HarnessModelChoice {
+  id: string
+  label: string
+  group: string
+}
+
+/**
+ * A CLI call that lists every model the Harness can run with the user's own
+ * sign-ins (`opencode models --verbose`), for a Harness whose models are too
+ * many to curate. The Settings row offers Choose models when it's set.
+ */
+export interface HarnessModelList {
+  /** The argv, `hostBinary` first. */
+  argv: string[]
+  /** Parse its stdout; anything unreadable is left out, never guessed. */
+  parse(stdout: string): HarnessModelChoice[]
 }
 
 /**
@@ -243,9 +285,17 @@ export interface Harness {
    * as {@link launchCommand}, but kept distinct: `launchCommand` is *what a
    * terminal tab runs*, `hostBinary` is *what detection looks for*. The two
    * opencode slots share one `hostBinary` (`opencode`), so detection probes it
-   * once and lists whichever slots are configured.
+   * once and the desktop lists it once, under {@link hostLabel}.
    */
   hostBinary: string
+
+  /**
+   * The name the **desktop** app shows for this CLI, when it differs from
+   * {@link label}: there the CLI rides its own login, so a hosted slot's
+   * broker in the label means nothing (the opencode slots are both
+   * "OpenCode" on desktop). Absent ⇒ {@link label}.
+   */
+  hostLabel?: string
 
   /**
    * The agent's own Skills on the desktop host (#1560): its name as the `/`
@@ -340,6 +390,13 @@ export interface Harness {
    * slug. See {@link HarnessPrintModel}.
    */
   printModel?: HarnessPrintModel
+
+  /**
+   * Lists the models people can choose to show in the model menu, for a
+   * Harness with no curated {@link models} because it reaches too many
+   * (OpenCode, #1589). Omitted when the curated list is the whole story.
+   */
+  modelList?: HarnessModelList
 }
 
 /** A harness named in `SANDBOX_HARNESSES` that won't be installed, with why. */

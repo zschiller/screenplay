@@ -17,7 +17,9 @@ tabs connect. Sandboxes sit behind the `SandboxProvider` interface in
 
 Any other value fails at startup.
 
-## Vercel Sandbox (hosted)
+## Vercel Sandbox
+
+<Only hosted />
 
 Vercel Sandbox authenticates with Vercel's OIDC token, which is injected
 automatically on Vercel. For local development, link the project and pull a
@@ -101,7 +103,9 @@ sandbox** uses the same snapshot. Once a snapshot has fully expired, the only
 way back is **Recreate from scratch**, which discards uncommitted work. That's
 why the agent commits and pushes after every change.
 
-## Local worktrees (desktop)
+## Local worktrees
+
+<Only desktop />
 
 Each project resolves to one local clone: either your folder, or a managed
 clone of the URL you added. Each workspace is a git worktree of that clone,

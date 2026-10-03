@@ -18,9 +18,11 @@
  *    rides the existing Claude Code login (no model key).
  *  - `codex`       → `npx -y @agentclientprotocol/codex-acp@<pinned>` — rides
  *    `codex login` / `CODEX_API_KEY` (#1271).
- *  - A terminal-only harness (no `acpAdapter`, e.g. the opencode slots) and
- *    `gemini` (its native ACP support retired with no adapter successor, spike
- *    #405) both fall through like any unknown key.
+ *  - the opencode slots → `opencode acp`, the CLI's own adapter, riding
+ *    `opencode auth login` (#1589).
+ *  - A terminal-only harness (no `acpAdapter`) and `gemini` (its native ACP
+ *    support retired with no adapter successor, spike #405) both fall
+ *    through like any unknown key.
  *
  * **Spawn-env quirk (load-bearing, spike #408).** The Claude adapter refuses to
  * launch inside an existing Claude Code session — it aborts with *"Claude Code
@@ -75,7 +77,9 @@ export function acpChildEnv(
  *
  * `cwd` is the Branch's worktree root; `env` defaults to the host
  * `process.env`. The returned `env` is the host env with the Claude-Code
- * session vars stripped (see {@link acpChildEnv}).
+ * session vars stripped (see {@link acpChildEnv}), plus whatever the adapter
+ * needs to read `additionalDirectories` without asking when it takes them
+ * through its own config ({@link AcpAdapter.directoriesEnv}, opencode).
  *
  * The chat's chosen model is not part of the argv: every adapter takes it
  * in-session via `session/set_config_option` on the descriptor's
@@ -86,13 +90,20 @@ export function resolveAcpLaunch(
   opts: {
     cwd: string
     env?: Record<string, string | undefined>
+    /** Folders outside `cwd` the agent reads (the chat's context folder). */
+    additionalDirectories?: string[]
   }
 ): AcpLaunch | null {
   const adapter = harnessAcpAdapter(harnessKey)
   if (!adapter) return null
+  const env = acpChildEnv(opts.env ?? process.env)
+  const directories = opts.additionalDirectories ?? []
   return {
     ...adapter,
     cwd: opts.cwd,
-    env: acpChildEnv(opts.env ?? process.env),
+    env: {
+      ...env,
+      ...adapter.directoriesEnv?.(directories, env),
+    },
   }
 }

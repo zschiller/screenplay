@@ -58,6 +58,11 @@ const github = vi.hoisted(() => ({ canCreatePr: true }))
 vi.mock("@/hooks/use-can-create-pr", () => ({
   useCanCreatePr: () => github.canCreatePr,
 }))
+// The PR create server action, held open per test to see it running.
+const createPrAction = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/create-pr-action", () => ({
+  createPullRequestAction: createPrAction,
+}))
 vi.mock("@/hooks/use-workspace-states", () => ({
   useWorkspaceStates: () => () => "idle",
 }))
@@ -228,9 +233,8 @@ describe("ChatPanel with a Workspace target", () => {
     expect(screen.getByText("+214")).toBeTruthy()
   })
 
-  it("offers Create pull request only with changes, and only with GitHub", () => {
-    const createPr = () =>
-      screen.queryByRole("button", { name: /Create pull request/ })
+  it("offers Create PR only with changes, and only with GitHub", () => {
+    const createPr = () => screen.queryByRole("button", { name: /Create PR/ })
     const { unmount } = renderWorkspacePanel()
     expect(createPr()?.hasAttribute("disabled")).toBe(true)
     unmount()
@@ -246,6 +250,22 @@ describe("ChatPanel with a Workspace target", () => {
     } finally {
       github.canCreatePr = true
     }
+  })
+
+  it("shows Create PR running, and won't start a second", async () => {
+    let settle!: (r: unknown) => void
+    createPrAction.mockReturnValue(new Promise((r) => (settle = r)))
+    renderWorkspacePanel({ diffStats: { additions: 3, deletions: 1 } })
+    fireEvent.click(screen.getByRole("button", { name: /Create PR/ }))
+    const running = screen.getByRole("button", {
+      name: /Create PR/,
+    })
+    expect(running.hasAttribute("disabled")).toBe(true)
+    expect(within(running).getByRole("status")).toBeTruthy()
+    fireEvent.click(running)
+    expect(createPrAction).toHaveBeenCalledTimes(1)
+    await act(async () => settle({ success: false, error: "nope" }))
+    expect(screen.getByRole("button", { name: /Create PR/ })).toBeTruthy()
   })
 
   it("shows the chat with no tab strip, and a footnote naming its terminals", () => {
