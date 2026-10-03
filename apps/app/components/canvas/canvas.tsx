@@ -2389,14 +2389,12 @@ export function Canvas({
                     !showsLayerDetail(zoom) ||
                     // An interacting frame is for using the preview, not
                     // resizing it: its edges belong to the page.
-                    focusedIframeLayerId !== null
+                    focusedIframeLayerId !== null ||
+                    // Nor is one someone else drives (#1387).
+                    [...selectedInteractiveIds].some((id) =>
+                      drivenByOther(frameControl.driverOf(id))
+                    )
                   }
-                  // One someone else has control of keeps its handles, faded:
-                  // it stays clearly selected, but its size isn't yours to
-                  // change (#1387).
-                  fadeResizeHandles={[...selectedInteractiveIds].some((id) =>
-                    drivenByOther(frameControl.driverOf(id))
-                  )}
                   gapHandles={gapHandles}
                   reorderHandles={reorderHandles}
                   hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
