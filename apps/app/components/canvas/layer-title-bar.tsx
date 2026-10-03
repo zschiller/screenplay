@@ -210,6 +210,8 @@ interface LayerTitleTextProps {
   onRename?: (next: string) => void
   /** Placeholder shown when the title is empty. */
   placeholder?: string
+  /** Strike the name through (a Mockup set aside). Not while renaming. */
+  struck?: boolean
 }
 
 /**
@@ -228,6 +230,7 @@ export function LayerTitleText({
   onSelectLayer,
   onRename,
   placeholder,
+  struck,
 }: LayerTitleTextProps) {
   // Local selection (the canvas selection token) wins; a remote selector's color applies only
   // when we haven't selected the layer ourselves.
@@ -256,7 +259,10 @@ export function LayerTitleText({
         // Clip the read-only label inside the row's max-width; during edit
         // let the caret/text grow naturally so the user can see what they're
         // typing past the truncate boundary.
-        viewClassName="truncate cursor-grab active:cursor-grabbing"
+        viewClassName={cn(
+          "cursor-grab truncate active:cursor-grabbing",
+          struck && "line-through"
+        )}
         editClassName={cn(
           editableTextFieldClass,
           "-mx-0.5 -my-0.5 min-w-0 flex-1 px-0.5 py-0.5"
@@ -269,6 +275,7 @@ export function LayerTitleText({
     <span
       className={cn(
         "min-w-0 cursor-grab truncate text-xs font-medium active:cursor-grabbing",
+        struck && "line-through",
         colorClass
       )}
       style={colorStyle}

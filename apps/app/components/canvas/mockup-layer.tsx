@@ -349,6 +349,7 @@ export function MockupLayer({
           style={{ maxWidth: layer.width * zoom }}
           title={layer.title}
           placeholder="Untitled"
+          struck={mockupStatusOf(layer) === "set-aside"}
           selected={selected || groupSelected}
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
