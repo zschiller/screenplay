@@ -17,6 +17,7 @@ import {
   type AwarenessChange,
   type AwarenessLike,
 } from "@/lib/yjs/context"
+import { savedSkillsIn, type SavedSkill } from "@/lib/skills/saved"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import {
   getRoomCollections,
@@ -129,6 +130,12 @@ export function useMemories(): Array<MemoryData> {
 /** Canvas Files entries (#1514), for Canvas settings › Files. */
 export function useCanvasFiles(): Array<FileEntryData> {
   return useCollectionArray(useRoomCollections().files)
+}
+
+/** The canvas's saved Skills (#1555), by name, live from the Room's doc. */
+export function useCanvasSkills(): SavedSkill[] {
+  const entries = useCollectionArray(useRoomCollections().skills)
+  return useMemo(() => savedSkillsIn(entries), [entries])
 }
 
 export function useBranches(): Array<BranchData> {

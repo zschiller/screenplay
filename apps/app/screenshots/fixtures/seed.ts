@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { eq } from "drizzle-orm"
 import * as Y from "yjs"
@@ -22,7 +22,10 @@ import {
   documentFragment,
   writeMarkdownToFragment,
 } from "@/lib/yjs/fragment-text"
-import { getRoomCollections } from "@/lib/yjs/schema"
+import { createSavedSkills } from "@/lib/skills/saved"
+import type { FileStore } from "@/lib/files/store"
+import type { FileEntryData } from "@/lib/types"
+import { COLLECTION_KEYS, getRoomCollections } from "@/lib/yjs/schema"
 
 import type { CaptureProfile } from "../profile"
 import { FIXTURE_SESSION_TOKEN } from "../lib/hosted"
@@ -133,9 +136,9 @@ export async function seedFixtureWorld(
 
     const captures = await seedRoomDocs(world, {
       yjsDir,
+      filesDir,
       blobDir,
       blobBaseUrl,
-      filesDir,
       db: handle.db,
       renderCaptures: options.renderCaptures ?? renderFrameCaptures,
     })
@@ -535,9 +538,9 @@ async function seedRoomDocs(
   world: FixtureWorld,
   ctx: {
     yjsDir: string
+    filesDir: string
     blobDir: string
     blobBaseUrl: string
-    filesDir: string
     db: DB
     renderCaptures: typeof renderFrameCaptures
   }
@@ -548,6 +551,7 @@ async function seedRoomDocs(
   for (const room of world.rooms) {
     const doc = new Y.Doc()
     applyRoomDoc(doc, room)
+    await seedRoomSkills(doc, room, ctx.filesDir)
 
     // Match `FileYjsPersistence.fileFor`: one file per room holding the full
     // encoded state, keyed by the url-encoded room id.
@@ -635,6 +639,70 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
   }
   for (const [layerId, html] of Object.entries(fixture.mockupHtml ?? {})) {
     writeMockupHtml(mockupHtml(doc, layerId), html)
+  }
+}
+
+/**
+ * Save a Room's fixture Skills through the skills module, into its doc's
+ * `skills` collection and the local file store (`lib/files/local-fs.ts`'s
+ * layout under `LOCAL_FILES_DIR`), as a chat's `save_skill` does.
+ */
+async function seedRoomSkills(
+  doc: Y.Doc,
+  room: FixtureRoom,
+  filesDir: string
+): Promise<void> {
+  const skills = room.doc?.skills ?? []
+  if (skills.length === 0) return
+  const c = getRoomCollections(doc)
+  const all = () =>
+    Object.values(
+      doc.getMap(COLLECTION_KEYS.skills).toJSON()
+    ) as FileEntryData[]
+  const store: FileStore = {
+    async put(key, body) {
+      const path = join(filesDir, key)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, body)
+    },
+    async get(key) {
+      return new Uint8Array(await readFile(join(filesDir, key)))
+    },
+    async delete(keys) {
+      await Promise.all(keys.map((key) => rm(join(filesDir, key))))
+    },
+    async size(key) {
+      return (await stat(join(filesDir, key)).catch(() => null))?.size ?? null
+    },
+  }
+  const saved = createSavedSkills({
+    index: {
+      entries: async () => all(),
+      mutate: async (fn) => {
+        let result!: ReturnType<typeof fn>
+        c.transact(() => {
+          result = fn({
+            all,
+            set: (entry) => c.skills.set(entry.id, entry),
+            delete: (id) => c.skills.delete(id),
+          })
+        })
+        return result
+      },
+    },
+    store,
+    keyPrefix: `canvas/${room.id}/skills`,
+  })
+  for (const skill of skills) {
+    const result = await saved.save({
+      name: skill.name,
+      content: skill.content,
+      files: skill.files,
+      author: { addedBy: "agent", addedById: "fixture-chat" },
+      now: skill.savedAt,
+    })
+    if (!result.ok)
+      throw new Error(`Seeding skill ${skill.name}: ${result.error}`)
   }
 }
 
