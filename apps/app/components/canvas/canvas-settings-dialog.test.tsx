@@ -11,8 +11,7 @@ import {
 import type { BranchData, MemoryData, RepoData } from "@/lib/types"
 import { revealCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 
-// The add flow's server actions: one GitHub repository to pick, no presets,
-// and detection that finds nothing (the form opens on plain defaults).
+// The add flow's server actions: one GitHub repository to pick, and detection that finds nothing (the form opens on plain defaults).
 vi.mock("@/lib/github-actions", () => ({
   listUserRepos: vi.fn().mockResolvedValue([
     {
@@ -71,7 +70,7 @@ const { REPOSITORIES } = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/repository-library/actions", () => ({
   listRepositories: vi.fn().mockResolvedValue(REPOSITORIES),
-  saveRepository: vi.fn().mockResolvedValue([]),
+  saveRepository: vi.fn(),
 }))
 // A Repo's env var values live on the server (#1416).
 vi.mock("@/lib/repo-env/actions", () => ({
@@ -108,7 +107,11 @@ vi.mock("@/hooks/use-github-token", () => ({
   useGitHubTokenAvailable: () => false,
 }))
 
-import { listRepositories } from "@/lib/repository-library/actions"
+import type { RepoConfig } from "@/lib/repo-configs.types"
+import {
+  listRepositories,
+  saveRepository,
+} from "@/lib/repository-library/actions"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 
 // Radix's Dialog, menus and cmdk use pointer-capture / scroll APIs jsdom
@@ -192,7 +195,6 @@ function renderDialog(
   { canReveal = true }: { canReveal?: boolean } = {}
 ) {
   const handlers = {
-    onCreateRepo: vi.fn(),
     onUpdateRepo: vi.fn(),
     onRemoveRepo: vi.fn().mockResolvedValue(undefined),
     onAddMemory: vi.fn(),
@@ -297,33 +299,44 @@ describe("CanvasSettingsDialog", () => {
 
     expect(screen.getByText("No repositories yet")).not.toBeNull()
     expect(
-      screen.getByRole("button", { name: "Add repository" })
+      screen.getByRole("button", { name: "New repository" })
     ).not.toBeNull()
   })
 
-  it("adds a repository through the picker and its settings", async () => {
-    // None of your Repositories, so the picker lists only GitHub's.
-    vi.mocked(listRepositories).mockResolvedValue([])
-    const { onCreateRepo } = renderDialog()
+  it("New repository saves it to your repositories and turns it on here", async () => {
+    // The server's upsert: saving the repository you already have keeps its id.
+    vi.mocked(saveRepository).mockImplementation(async (r: RepoConfig) =>
+      REPOSITORIES.map((x) => (x.id === r.id ? r : x))
+    )
+    const { onSwitchOn } = renderDialog()
 
-    fireEvent.click(screen.getByRole("button", { name: "Add repository" }))
+    fireEvent.click(screen.getByRole("button", { name: "New repository" }))
     const picker = await screen.findByRole("dialog", {
       name: "Open GitHub repository",
     })
+    // The picker lists GitHub's repositories only: yours are on the canvas
+    // list already, so it has no section of them.
+    expect(within(picker).queryByText("Your repositories")).toBeNull()
     fireEvent.click(await within(picker).findByText("acme/api"))
 
     const configure = await screen.findByRole("dialog", {
       name: "Configure repository",
     })
+    expect(within(configure).queryByText(/Save as a preset/)).toBeNull()
     // Detection finds nothing, so the form keeps its defaults.
     fireEvent.click(
       within(configure).getByRole("button", { name: "Add repository" })
     )
 
-    expect(onCreateRepo).toHaveBeenCalledTimes(1)
-    const [pick, settings] = onCreateRepo.mock.calls[0]!
-    expect(pick).toMatchObject({ kind: "repo", repo: { fullName: "acme/api" } })
-    expect(settings).toMatchObject({ devServerPort: 3000 })
+    await waitFor(() => expect(onSwitchOn).toHaveBeenCalledTimes(1))
+    expect(saveRepository).toHaveBeenCalledTimes(1)
+    // acme/api is already one of yours, so the add updates it in place and
+    // turns that one on, rather than saving a second.
+    expect(onSwitchOn.mock.calls[0]![0]).toMatchObject({
+      id: "cfg-api",
+      repoFullName: "acme/api",
+      devServerPort: 3000,
+    })
   })
 
   it("edits a repository's settings", async () => {
@@ -402,9 +415,7 @@ describe("CanvasSettingsDialog", () => {
       expect(field.getAttribute("placeholder")).toBe(
         "API_URL=••••••\nSTRIPE_KEY=••••••"
       )
-      expect(
-        within(form).queryByRole("button", { name: "Reveal values" })
-      ).toBeNull()
+      expect(revealCanvasRepoEnv).not.toHaveBeenCalled()
       expect(form.textContent).toContain(
         "Only the person who added this repository can see the values"
       )
@@ -435,11 +446,8 @@ describe("CanvasSettingsDialog", () => {
       )
     })
 
-    it("lets the adder reveal the values and replace the set", async () => {
+    it("opens the adder's values for editing and saves the set", async () => {
       const { form } = await openDocs(true)
-      fireEvent.click(
-        within(form).getByRole("button", { name: "Reveal values" })
-      )
       const field = within(form).getByLabelText("Environment variables")
       await waitFor(() =>
         expect(field).toHaveProperty(

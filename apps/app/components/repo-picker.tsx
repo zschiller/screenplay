@@ -27,17 +27,14 @@ import {
 } from "@/lib/github-local/actions"
 import { looksLikeCloneUrl } from "@/lib/github-local/parse-remote"
 import type { NewRepoSource } from "@/lib/github-local/types"
-import type { RepoConfig } from "@/lib/repo-configs.types"
 
 export type RepoPickerSelection =
   | { kind: "repo"; repo: GitHubRepo }
-  | { kind: "config"; config: RepoConfig }
   /** A Repo from one of the local build's entry points (PRD #428): a pasted
    *  clone URL or a local folder. */
   | { kind: "source"; source: NewRepoSource }
 
 interface RepoPickerProps {
-  configs?: RepoConfig[]
   onSelect: (pick: RepoPickerSelection) => void
   /**
    * Show the local build's no-auth add-by-URL entry point (folded into the
@@ -53,11 +50,7 @@ interface RepoPickerProps {
 
 let cachedRepos: GitHubRepo[] | null = null
 
-export function RepoPicker({
-  configs,
-  onSelect,
-  localSources,
-}: RepoPickerProps) {
+export function RepoPicker({ onSelect, localSources }: RepoPickerProps) {
   const [repos, setRepos] = useState<GitHubRepo[]>(() => cachedRepos ?? [])
   const [loading, setLoading] = useState(cachedRepos === null)
   // The list failed to load (GitHub or the server errored), as opposed to
@@ -127,23 +120,6 @@ export function RepoPicker({
     setLoading(true)
     setAttempt((n) => n + 1)
   }
-
-  const configsByRepo = new Map<string, RepoConfig[]>()
-  for (const c of configs ?? []) {
-    const list = configsByRepo.get(c.repoFullName) ?? []
-    list.push(c)
-    configsByRepo.set(c.repoFullName, list)
-  }
-  const reposByFullName = new Map(repos.map((r) => [r.fullName, r]))
-  const sortedConfigs = (configs ?? [])
-    .slice()
-    .sort((a, b) =>
-      a.repoFullName === b.repoFullName
-        ? a.name.localeCompare(b.name)
-        : a.repoFullName.localeCompare(b.repoFullName)
-    )
-  const otherRepos = repos.filter((r) => !configsByRepo.has(r.fullName))
-  const showGroups = (configs?.length ?? 0) > 0
 
   // No token on the local build: the list being empty has a reason and a fix —
   // surface them instead of a bare "No repositories found." (story 11). It is
@@ -217,38 +193,9 @@ export function RepoPicker({
               <CommandEmpty>No GitHub repositories found.</CommandEmpty>
             )}
 
-            {!loading && !loadFailed && showGroups && (
-              <CommandGroup heading="Your repositories">
-                {sortedConfigs.map((config) => {
-                  const repo = reposByFullName.get(config.repoFullName)
-                  const isPrivate = repo?.private ?? config.private
-                  return (
-                    <CommandItem
-                      key={config.id}
-                      value={`${config.repoFullName} ${config.name}`}
-                      onSelect={() => onSelect({ kind: "config", config })}
-                    >
-                      {isPrivate ? <FolderLockIcon /> : <FolderIcon />}
-                      <span className="truncate">
-                        {config.repoFullName}
-                        {/* The preset's name only when it says something the
-                            repo name doesn't (#781). */}
-                        {config.name && config.name !== config.repoName ? (
-                          <span className="text-muted-foreground">
-                            {" "}
-                            · {config.name}
-                          </span>
-                        ) : null}
-                      </span>
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
-            )}
-
             {/* No token: point at Settings, the one canonical connection home
                 (ADR 0014). A plain block rather than CommandEmpty so it stays
-                under the presets too, whatever the search. Not gated on
+                under the URL row too, whatever the search. Not gated on
                 `deviceFlowConfigured`: the `gh` path in Settings needs no
                 client id. */}
             {showConnectHint && !cloneUrl && (
@@ -293,11 +240,9 @@ export function RepoPicker({
                 </div>
               )
             ) : (
-              (showGroups ? otherRepos : repos).length > 0 && (
-                <CommandGroup
-                  heading={showGroups ? "GitHub repositories" : undefined}
-                >
-                  {(showGroups ? otherRepos : repos).map((repo) => (
+              repos.length > 0 && (
+                <CommandGroup>
+                  {repos.map((repo) => (
                     <CommandItem
                       key={repo.id}
                       value={repo.fullName}

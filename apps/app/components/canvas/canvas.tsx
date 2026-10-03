@@ -65,6 +65,7 @@ import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 
+import type { RepoConfig } from "@/lib/repo-configs.types"
 import { switchOn } from "@/lib/repository-library"
 import { migrateCanvasEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 import { canRevealEnv } from "@/lib/repo-env/names"
@@ -1472,7 +1473,6 @@ export function Canvas({
   // handoff, lifted into `useBranchIntake`. The component calls the verbs; the
   // controller owns the ordering invariants and the Sandbox Provider calls.
   const {
-    createRepo,
     createBranch,
     createBranchFromGitBranch,
     removeRepo: removeRepoIntake,
@@ -1487,7 +1487,6 @@ export function Canvas({
     agents,
     iframeLayers,
     roomId,
-    userId,
     createDefaultTabForBranch: tabPool.seed,
     getViewportCenter,
     setSelectedGroupIds,
@@ -2014,8 +2013,27 @@ export function Canvas({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Every Add repository outside Canvas settings (the empty canvas, the chat
   // panel, the getting-started checklist, the Chats menu) goes straight to
-  // the picker and closes when the repository is added (#1182).
+  // the picker and closes when the repository is added (#1182). Adding saves
+  // it to your Repositories and switches it on here (#1423).
   const addRepository = useAddRepositoryFlow()
+  const switchOnHere = useCallback(
+    (repository: RepoConfig) => {
+      const id = nanoid()
+      const on = switchOn(collections, repository, {
+        id,
+        createdAt: Date.now(),
+        addedBy: userId ?? "anonymous",
+      })
+      // The Repository's values go to this canvas's encrypted store, never
+      // its room doc (#1416).
+      if (on === id && repository.envVars.trim()) {
+        saveCanvasRepoEnv(roomId, id, repository.envVars, "replace").catch(() =>
+          toast.error("Couldn't copy the environment variables.")
+        )
+      }
+    },
+    [collections, userId, roomId]
+  )
   // A new canvas opens on the chat panel (#1182): while no Workspace has had a
   // turn, the Coordinator, or where to add a repository, is the first thing
   // you meet. The panel's size is shared by every canvas, so this runs once
@@ -2597,7 +2615,7 @@ export function Canvas({
                 />
                 <AddRepositoryDialog
                   flow={addRepository}
-                  onCreateRepo={createRepo}
+                  onAdded={switchOnHere}
                 />
                 <CanvasSettingsDialog
                   roomId={roomId}
@@ -2612,29 +2630,9 @@ export function Canvas({
                   onOpenChange={setCanvasSettingsOpen}
                   repos={repos}
                   branches={agents}
-                  onCreateRepo={createRepo}
                   onUpdateRepo={updateRepoInStorage}
                   onRemoveRepo={removeRepoIntake}
-                  onSwitchOn={(repository) => {
-                    const id = nanoid()
-                    const on = switchOn(collections, repository, {
-                      id,
-                      createdAt: Date.now(),
-                      addedBy: userId ?? "anonymous",
-                    })
-                    // The Repository's values go to this canvas's encrypted
-                    // store, never its room doc (#1416).
-                    if (on === id && repository.envVars.trim()) {
-                      saveCanvasRepoEnv(
-                        roomId,
-                        id,
-                        repository.envVars,
-                        "replace"
-                      ).catch(() =>
-                        toast.error("Couldn't copy the environment variables.")
-                      )
-                    }
-                  }}
+                  onSwitchOn={switchOnHere}
                   memories={memories}
                   onAddMemory={(text) =>
                     addMemory(collections, { text, source: "member" })

@@ -990,7 +990,7 @@ export async function newWorkspaceButton(page: Page): Promise<Locator> {
 }
 
 /**
- * Open Add repository from Canvas settings (the one place it lives since
+ * Open New repository from Canvas settings (the one place it lives since
  * #884) and pick one of its two entries: `github` (the repo list) or `folder`
  * (the native folder dialog, which a capture browser can't reach, so it falls
  * back to the path form). The first click can land before hydration, so retry
@@ -1006,7 +1006,7 @@ export async function openAddProject(
   const menu = page.getByRole("menu")
   for (let i = 0; i < 5 && !(await menu.count()); i++) {
     await settings
-      .getByRole("button", { name: "Add repository" })
+      .getByRole("button", { name: "New repository" })
       .first()
       .click({ timeout: 15_000 })
     await page.waitForTimeout(500)

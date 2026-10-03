@@ -576,8 +576,16 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
 
   it("pauses after the last viewer leaves, and resumes with the last picture first and the page's state intact", async () => {
     await ready()
+    // Make room first: with f1 and the bridge test's f2 still watched, p1
+    // pausing would pass the cap and close at once, racing the watch below.
+    // Paused, f2 is the one the cap closes when p1 starts.
+    for (const v of viewers) v.send({ t: "unwatch", frame: "f2" })
+    await waitUntil(() => serviceLog.includes("frame f2: paused") || undefined)
     const c = await connect("cy")
     c.send({ t: "watch", frame: "p1", route: "/app", width: 400, height: 300 })
+    await c.waitFor(
+      () => serviceLog.includes("frame f2: closed its browser") || undefined
+    )
     await liveAfter(c, "p1", 0)
     await c.waitFor(() => c.videos.find((v) => v.frame === "p1"))
     await c.waitFor(() => requests.find((r) => r.startsWith("/report?")))
@@ -621,6 +629,7 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     click(c, "p1")
     await c.waitFor(() => requests.includes("/count?n=2") || undefined)
     expect(requests.filter((r) => r === "/app").length).toBe(loads)
+    expect(serviceLog).not.toContain("frame p1: closed")
   }, 40_000)
 
   it("never re-sends an unchanged picture", async () => {

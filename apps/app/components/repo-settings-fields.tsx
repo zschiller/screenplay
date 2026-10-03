@@ -1,15 +1,12 @@
 "use client"
 
-import { Button } from "@workspace/ui/components/button"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@workspace/ui/components/field"
-import { EyeIcon } from "@workspace/ui/components/icons"
 import { Input } from "@workspace/ui/components/input"
-import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -56,9 +53,9 @@ interface RepoSettingsFieldsProps {
   onEnvVarsChange: (value: string) => void
   /**
    * A Canvas Repo's env vars (#1416): the values stay on the server, so the
-   * field starts empty, shows the names that are set, and offers Reveal to
-   * whoever may see them. Absent on the forms that edit your own
-   * Repositories, which show the values as they are.
+   * the person who added the Repo gets them loaded into the field to edit,
+   * and everyone else sees only the names. Absent on the forms that edit your
+   * own Repositories, which show the values as they are.
    */
   envVarsAccess?: EnvVarsAccess
   copyPatterns: string
@@ -80,12 +77,10 @@ interface RepoSettingsFieldsProps {
 export interface EnvVarsAccess {
   /** The names already set on this Canvas. */
   names: string[]
-  /** The stored values are loaded into the field for editing. */
-  revealed: boolean
-  /** This person added the Repo, so Reveal is theirs. */
-  canReveal: boolean
-  revealing: boolean
-  onReveal: () => void
+  /** This person added the Repo, so the field holds the stored values. */
+  owned: boolean
+  /** The stored values are still on their way into the field. */
+  loading: boolean
 }
 
 /** What the env field says under it, by who's looking. Kept to what's true:
@@ -93,11 +88,8 @@ export interface EnvVarsAccess {
 function envVarsDescription(access: EnvVarsAccess | undefined): string {
   const base = "One KEY=value per line, injected into each workspace"
   if (!access) return base
-  if (access.revealed) return `${base}. Only you can see the values.`
+  if (access.owned) return `${base}. Only you can see the values.`
   if (access.names.length === 0) return base
-  if (access.canReveal) {
-    return "Values are hidden. Reveal them to edit, or add KEY=value here to set a variable."
-  }
   return "Only the person who added this repository can see the values. Add KEY=value here to set your own on this canvas."
 }
 
@@ -136,7 +128,9 @@ export function RepoSettingsFields({
   onPresetNameChange,
 }: RepoSettingsFieldsProps) {
   const hiddenNames =
-    envVarsAccess && !envVarsAccess.revealed ? envVarsAccess.names : []
+    envVarsAccess && (!envVarsAccess.owned || envVarsAccess.loading)
+      ? envVarsAccess.names
+      : []
   const showEssential = section === "essential" || section === "all"
   const showAdvanced = section === "advanced" || section === "all"
   return (
@@ -223,30 +217,14 @@ export function RepoSettingsFields({
               </Field>
             ) : (
               <Field>
-                <div className="flex items-center justify-between gap-2">
-                  <FieldLabel htmlFor={`${idPrefix}-envvars`}>
-                    Environment variables
-                  </FieldLabel>
-                  {envVarsAccess?.canReveal && hiddenNames.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={envVarsAccess.onReveal}
-                      disabled={envVarsAccess.revealing}
-                    >
-                      {envVarsAccess.revealing ? (
-                        <Spinner data-icon="inline-start" />
-                      ) : (
-                        <EyeIcon data-icon="inline-start" />
-                      )}
-                      Reveal values
-                    </Button>
-                  )}
-                </div>
+                <FieldLabel htmlFor={`${idPrefix}-envvars`}>
+                  Environment variables
+                </FieldLabel>
                 <Textarea
                   id={`${idPrefix}-envvars`}
                   value={envVars}
                   onChange={(e) => onEnvVarsChange(e.target.value)}
+                  disabled={envVarsAccess?.loading}
                   // The names already set, values masked, until someone types.
                   placeholder={
                     hiddenNames.length > 0
@@ -296,14 +274,12 @@ export function RepoSettingsFields({
             </FieldDescription>
           </Field>
 
-          {/* Add-modal only (#681): keys the preset upsert and seeds the
-          Project's display name. Empty → the repo's "default" preset. Absent
-          on the two `all`-rendering modals, which own their own name field. */}
+          {/* Add-modal only (#681): keys the Repository upsert. Empty → the
+          repo's "default" Repository. Absent on the two `all`-rendering
+          modals, which own their own name field. */}
           {onPresetNameChange && (
             <Field>
-              <FieldLabel htmlFor={`${idPrefix}-preset-name`}>
-                Preset name
-              </FieldLabel>
+              <FieldLabel htmlFor={`${idPrefix}-preset-name`}>Name</FieldLabel>
               <Input
                 id={`${idPrefix}-preset-name`}
                 value={presetName ?? ""}
@@ -311,8 +287,8 @@ export function RepoSettingsFields({
                 placeholder="default"
               />
               <FieldDescription>
-                Optional, e.g. “web” or “api” — tells apart presets for the same
-                git repository
+                Optional, e.g. “web” or “api” — tells apart two repositories
+                from the same git repository
               </FieldDescription>
             </Field>
           )}

@@ -21,7 +21,6 @@ import { deleteBranch } from "@/lib/github-actions"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
-import { saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 import {
   planBranchCreations,
   type ComposerSpec,
@@ -32,21 +31,15 @@ import {
   planRepoTeardown,
 } from "@/lib/branch/intake"
 import { hasGitHubRemote } from "@/lib/repo-identity"
-import {
-  resolveRepoData,
-  resolveRepoEnvVars,
-  type ResolvedRepoSettings,
-} from "@/lib/add-repo/resolver"
 import type { CanvasOps } from "@/lib/canvas/ops"
 import type { DrawnMockup } from "@/lib/frame-ask"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
-import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { BranchData, IframeLayerData, RepoData } from "@/lib/types"
 
 /**
  * Branch Intake controller (PRD #562) — the Repo → Branch → Sandbox lifecycle
  * lifted out of `components/canvas/canvas.tsx`. The component calls the verbs
- * this hook returns (`createRepo`, `createBranch`, `createBranchFromGitBranch`,
+ * this hook returns (`createBranch`, `createBranchFromGitBranch`,
  * `removeRepo`, `removeBranch`, `renameBranch`); the orchestration — the
  * multi-collection Y.Doc writes through the Canvas Operation seam (ADR 0001),
  * the Sandbox Provider calls (ADR 0003), and above all the *ordering* — lives
@@ -69,8 +62,6 @@ export interface BranchIntakeDeps {
    *  skip a Branch that already has a frame. */
   iframeLayers: IframeLayerData[]
   roomId: string
-  /** The person adding Repos, recorded as their adder (#1416). */
-  userId?: string
   /**
    * The Tab Pool's seed entry: seed a Branch's chat without re-implementing
    * tab creation. This is the handoff to the Tab Pool controller (separate
@@ -100,10 +91,6 @@ export interface BranchIntake {
    * resolved as the optional second arg; when absent — a saved-preset pick or
    * any programmatic caller — provisioning uses today's exact defaults.
    */
-  createRepo: (
-    pick: RepoPickerSelection,
-    settings?: ResolvedRepoSettings
-  ) => void
   /**
    * Create one Branch per spec. With `frameId` (a single spec: a drawn
    * frame's ask, #1356) the Branch shows in that frame instead of seeding
@@ -179,7 +166,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     agents,
     iframeLayers,
     roomId,
-    userId,
     createDefaultTabForBranch,
     getViewportCenter,
     setSelectedGroupIds,
@@ -195,13 +181,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // controller; the create/teardown verbs below apply them directly now, and
   // the two consumed outside intake (`updateRepoInStorage`,
   // `updateAgentInStorage`) are exposed off the returned interface.
-
-  const addRepoToStorage = useCallback(
-    (id: string, data: RepoData) => {
-      ops.createRepo(id, data)
-    },
-    [ops]
-  )
 
   const updateRepoInStorage = useCallback(
     (id: string, data: Partial<RepoData>) => {
@@ -311,33 +290,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       return false
     },
     [createDefaultTabForBranch]
-  )
-
-  const createRepo = useCallback(
-    (pick: RepoPickerSelection, settings?: ResolvedRepoSettings) => {
-      const id = nanoid()
-      const envVars = resolveRepoEnvVars(pick, settings)
-      // The pure resolver owns the pick-kind branching and the settings
-      // fallback; when `settings` is absent the produced RepoData is exactly
-      // today's (empty scripts, port 3000). Provisioning below runs only here,
-      // on confirm — the modal path never provisions on select.
-      const data: RepoData = {
-        ...resolveRepoData(pick, settings, { id, createdAt: Date.now() }),
-        // Whoever adds it is the one who can reveal its env vars (#1416).
-        ...(userId ? { addedBy: userId } : {}),
-      }
-      // Adding a repository only adds it: the first ask that needs it starts
-      // a Workspace, so no sandbox or frame starts that nobody asked for.
-      addRepoToStorage(id, data)
-      // The values go to the canvas's encrypted store, never the room doc;
-      // the digest comes back for "customized".
-      if (envVars.trim()) {
-        saveCanvasRepoEnv(roomId, id, envVars, "replace")
-          .then((fields) => updateRepoInStorage(id, fields))
-          .catch(() => toast.error("Couldn't save the environment variables."))
-      }
-    },
-    [addRepoToStorage, updateRepoInStorage, roomId, userId]
   )
 
   // Prompts queued by the prompt-first create handler (createBranch) that should
@@ -886,7 +838,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   )
 
   return {
-    createRepo,
     createBranch,
     createBranchFromGitBranch,
     removeRepo,

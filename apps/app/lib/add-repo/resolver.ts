@@ -1,7 +1,5 @@
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { envVarNames } from "@/lib/repo-env/names"
-import type { RepoData } from "@/lib/types"
 
 /**
  * The run settings the confirm-and-configure add modal resolves before anything
@@ -23,20 +21,12 @@ export interface ResolvedRepoSettings {
   /** Advanced-section system prompt; `undefined`/empty means none. */
   systemPrompt?: string
   /**
-   * The optional preset name from the advanced section (#681). Empty/undefined
-   * targets the repo's "default" preset. A given name both keys the idempotent
-   * preset upsert (`repoFullName` + name) and seeds the live Project's display
-   * name — the same way a saved-preset pick already seeds it — so one repo can
-   * be added more than once as distinct, tellable-apart Projects.
+   * The optional name from the advanced section (#681). Empty/undefined
+   * targets the repo's "default" Repository. A given name keys the idempotent
+   * upsert (`repoFullName` + name), so one GitHub repository can be two
+   * Repositories ("web" and "api").
    */
   presetName?: string
-}
-
-/** The impure bits the caller mints per create — kept out so the resolver stays
- *  a pure function of its inputs and can be exercised against fixtures. */
-export interface RepoCreateMeta {
-  id: string
-  createdAt: number
 }
 
 /**
@@ -89,125 +79,9 @@ export function mergeDetectedSettings(
   }
 }
 
-/**
- * The React-free add-repo resolver — this slice implements its **confirm**
- * decision only: given the picker pick identity plus (optionally) the run
- * settings the modal resolved, produce the {@link RepoData} to create.
- *
- * The seed/merge and preset-upsert halves arrive in later slices (#673).
- *
- * `settings` is the modal path: when present, the unconfigured arms use those
- * resolved values instead of the hardcoded empty-scripts / port-3000 defaults.
- * When absent — a saved-preset pick, or any programmatic caller — the output is
- * exactly today's: the branching below reproduces the former inline logic in
- * `useBranchIntake.createRepo` verbatim. Env vars ride as names only; their
- * values come from {@link resolveRepoEnvVars}.
- */
-export function resolveRepoData(
-  pick: RepoPickerSelection,
-  settings: ResolvedRepoSettings | undefined,
-  { id, createdAt }: RepoCreateMeta
-): RepoData {
-  if (pick.kind === "config") {
-    // A saved preset already carries its settings; it never routes through the
-    // modal, so `settings` is ignored on this arm (behavior unchanged).
-    return {
-      id,
-      name: pick.config.name,
-      repoFullName: pick.config.repoFullName,
-      repoOwner: pick.config.repoOwner,
-      repoName: pick.config.repoName,
-      defaultBranch: pick.config.defaultBranch,
-      cloneUrl: pick.config.cloneUrl,
-      // A folder-sourced preset points the Repo at the existing checkout (ADR
-      // 0013) — the `localPath` rides along and routes acquisition down the
-      // local-path arm.
-      localPath: pick.config.localPath,
-      setupScript: pick.config.setupScript,
-      devScript: pick.config.devScript,
-      devServerPort: pick.config.devServerPort,
-      envVarNames: namesOf(pick.config.envVars),
-      copyPatterns: pick.config.copyPatterns,
-      defaultIframeLayerSizeId: pick.config.defaultIframeLayerSizeId,
-      systemPrompt: pick.config.systemPrompt,
-      createdAt,
-    }
-  }
-
-  if (pick.kind === "source") {
-    // A Repo from the local build's URL / local-folder entry points (PRD #428).
-    // `localPath` is the acquisition source the provision path routes on; the
-    // GitHub identity fields may be empty (non-GitHub repo), which just leaves
-    // API features dark.
-    return {
-      id,
-      // The advanced-section preset name (if any) seeds the live Project's
-      // display name, consistent with how a saved-preset pick seeds it from
-      // `config.name`. Empty leaves it blank, as before (#681).
-      name: settings?.presetName?.trim() || "",
-      repoFullName: pick.source.repoFullName,
-      repoOwner: pick.source.repoOwner,
-      repoName: pick.source.repoName,
-      defaultBranch: pick.source.defaultBranch,
-      cloneUrl: pick.source.cloneUrl,
-      localPath: pick.source.localPath,
-      setupScript: settings?.setupScript ?? "",
-      devScript: settings?.devScript ?? "",
-      devServerPort: settings?.devServerPort ?? 3000,
-      envVarNames: namesOf(settings?.envVars),
-      // A local-folder Repo's worktrees get the checkout's env files carried
-      // over by default — the common gitignored config a dev server can't run
-      // without. The modal may override with its own resolved patterns.
-      copyPatterns:
-        settings?.copyPatterns ?? (pick.source.localPath ? ".env*" : undefined),
-      defaultIframeLayerSizeId: settings?.defaultIframeLayerSizeId,
-      systemPrompt: settings?.systemPrompt,
-      createdAt,
-    }
-  }
-
-  // An unconfigured GitHub-repo pick.
-  return {
-    id,
-    name: settings?.presetName?.trim() || "",
-    repoFullName: pick.repo.fullName,
-    repoOwner: pick.repo.owner,
-    repoName: pick.repo.name,
-    defaultBranch: pick.repo.defaultBranch,
-    cloneUrl: pick.repo.cloneUrl,
-    setupScript: settings?.setupScript ?? "",
-    devScript: settings?.devScript ?? "",
-    devServerPort: settings?.devServerPort ?? 3000,
-    envVarNames: namesOf(settings?.envVars),
-    defaultIframeLayerSizeId: settings?.defaultIframeLayerSizeId,
-    systemPrompt: settings?.systemPrompt,
-    createdAt,
-  }
-}
-
-/** The names a Repo record keeps; `undefined` for none. */
-function namesOf(text: string | undefined): string[] | undefined {
-  const names = envVarNames(text ?? "")
-  return names.length > 0 ? names : undefined
-}
-
-/**
- * The env var values a pick brings, as `KEY=value` text: a saved preset's, or
- * the ones typed in the add modal. They go to the Canvas's encrypted store
- * (#1416), never into the {@link resolveRepoData} record.
- */
-export function resolveRepoEnvVars(
-  pick: RepoPickerSelection,
-  settings: ResolvedRepoSettings | undefined
-): string {
-  if (pick.kind === "config") return pick.config.envVars
-  return settings?.envVars ?? ""
-}
-
-/** The repo-identity fields a preset carries, lifted off whichever pick kind
- *  the modal is confirming. `null` for a saved-preset pick — that never routes
- *  through the modal, so it never re-saves a preset. */
-function presetIdentity(
+/** The repo-identity fields a Repository carries, lifted off whichever pick
+ *  kind the modal is confirming. */
+function repositoryIdentity(
   pick: RepoPickerSelection
 ): Pick<
   RepoConfig,
@@ -218,12 +92,11 @@ function presetIdentity(
   | "cloneUrl"
   | "localPath"
   | "private"
-> | null {
-  if (pick.kind === "config") return null
+> {
   if (pick.kind === "source") {
     // A local-build source can't know visibility, so `private` defaults false —
-    // matching the homescreen preset form's `applySource`. The `localPath`
-    // rides along so the saved preset re-opens the existing checkout.
+    // matching the Settings form's `applySource`. The `localPath` rides along
+    // so the Repository re-opens the existing checkout.
     return {
       repoFullName: pick.source.repoFullName,
       repoOwner: pick.source.repoOwner,
@@ -244,46 +117,41 @@ function presetIdentity(
   }
 }
 
-/** The impure bits minted for a *new* preset — kept out of the resolver so it
- *  stays a pure function of its inputs. Ignored when an existing preset matches
- *  (its own `id`/`createdAt` are preserved). */
-export interface PresetUpsertMeta {
+/** The impure bits minted for a *new* Repository. Ignored when an existing
+ *  one matches (its own `id`/`createdAt` are preserved). */
+export interface RepositoryMeta {
   id: string
   createdAt: number
   updatedAt: number
 }
 
 /**
- * The confirm decision's second half (PRD #673, save-as-preset slice #680):
- * given the pick identity, the settings the modal resolved, and the user's
- * existing presets, produce the preset to upsert when the "save these settings"
- * checkbox is on — or `null` when it's off (or the pick can't own a preset).
+ * New repository's confirm decision (#1423, from the save-as-preset slice
+ * #680): given the pick identity, the settings the modal resolved, and the
+ * person's existing Repositories, produce the Repository to save. Adding is
+ * saving: there is no separate "save as preset" choice any more.
  *
- * The preset name (empty → the repo's **default** preset) keys the upsert with
- * `repoFullName` (#681). Matching an existing preset by that pair **updates** it
- * in place — its `id`, `createdAt`, and any advanced fields the modal didn't set
- * are preserved, only the resolved run settings and `updatedAt` change — so
- * re-adding a repo you already saved never duplicates or errors. No match mints
- * a fresh preset from {@link PresetUpsertMeta}.
+ * The name (empty → the repo's **default** Repository) keys the upsert with
+ * `repoFullName` (#681). Matching an existing Repository by that pair
+ * **updates** it in place — its `id`, `createdAt`, and any advanced fields the
+ * modal didn't set are preserved, only the resolved run settings and
+ * `updatedAt` change — so adding a repository you already have never
+ * duplicates it. No match mints a fresh one from {@link RepositoryMeta}.
  *
- * Pure: no React, network, or disk. The best-effort persistence and any toast
- * live in the caller; a thrown save must never undo the Project add.
+ * Pure: no React, network, or disk. Saving it, and switching it on for a
+ * Canvas, live in the caller.
  */
-export function resolvePresetUpsert(
+export function resolveNewRepository(
   pick: RepoPickerSelection,
   settings: ResolvedRepoSettings,
-  existingPresets: RepoConfig[],
-  meta: PresetUpsertMeta,
-  save: boolean
-): RepoConfig | null {
-  if (!save) return null
-
-  const identity = presetIdentity(pick)
-  if (!identity) return null
+  existing: readonly RepoConfig[],
+  meta: RepositoryMeta
+): RepoConfig {
+  const identity = repositoryIdentity(pick)
 
   // The name keys the upsert alongside `repoFullName` (#681): empty targets the
-  // repo's "default" preset, a given name its own — so "web" and "api" across a
-  // monorepo never collide.
+  // repo's "default" Repository, a given name its own — so "web" and "api"
+  // across a monorepo never collide.
   const name = settings.presetName?.trim() ?? ""
   const resolvedSettings = {
     setupScript: settings.setupScript,
@@ -300,16 +168,16 @@ export function resolvePresetUpsert(
     ...(settings.systemPrompt ? { systemPrompt: settings.systemPrompt } : {}),
   }
 
-  const existing = existingPresets.find(
+  const match = existing.find(
     (c) => c.repoFullName === identity.repoFullName && c.name === name
   )
 
-  if (existing) {
-    // Match-by-key-and-update: keep the preset's identity, id, and createdAt
-    // plus any advanced fields it already carries; overwrite only the resolved
-    // run settings and stamp the update time.
+  if (match) {
+    // Match-by-key-and-update: keep the Repository's identity, id, and
+    // createdAt plus any advanced fields it already carries; overwrite only the
+    // resolved run settings and stamp the update time.
     return {
-      ...existing,
+      ...match,
       ...resolvedSettings,
       updatedAt: meta.updatedAt,
     }
