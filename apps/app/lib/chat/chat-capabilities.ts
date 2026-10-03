@@ -7,8 +7,9 @@ import type { ChatTarget } from "@/lib/chat/chat-target"
  * one new row. React-free, tested as plain data.
  */
 export interface ChatCapabilities {
-  /** The `/` skill menu. Needs a sandbox to enumerate the Branch's Skills and
-   *  run `read_skill`; without one, `/` stays a literal slash. */
+  /** The `/` skill menu: the Skills this chat's `read_skill` reads (#1556).
+   *  A Workspace chat's include its Branch's; the others list the canvas's
+   *  and their own App Skills. Off, `/` stays a literal slash. */
   skills: boolean
   /** The Plan toggle. Only the sandbox toolset has the `submit_plan` gate, so a
    *  plan-mode turn anywhere else would change nothing (#743). */
@@ -41,10 +42,10 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
   },
   // The Coordinator sees the whole canvas.
   room: {
-    skills: false,
+    skills: true,
     planMode: false,
     elementPicking: false,
-    placeholder: "Ask the Coordinator… (@ document)",
+    placeholder: "Ask the Coordinator… (@ document, / skill)",
     emptyTitle: "Ask about this canvas",
     emptyBody:
       "The Coordinator sees every chat, frame and document on this canvas.",
@@ -56,10 +57,10 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
   },
   // A chat with no repository writes pages, not code.
   sketch: {
-    skills: false,
+    skills: true,
     planMode: false,
     elementPicking: false,
-    placeholder: "Ask for a mockup or a document… (@ document)",
+    placeholder: "Ask for a mockup or a document… (@ document, / skill)",
     emptyTitle: "Sketch without code",
     emptyBody:
       "This chat has no repository. It writes mockups and documents on the canvas.",
@@ -73,12 +74,14 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
 
 /**
  * The capabilities of `target`, with the sandbox-backed ones resolved to the
- * values the Composer takes: the Sandbox whose Skills the `/` menu lists and
- * the Branch id Element Targeting picks for. Each is set only when the row
- * turns it on and the target has a sandbox.
+ * values the Composer takes: the Sandbox whose Skills the `/` menu lists (or,
+ * for a chat with no Branch, which chat's App Skills it lists) and the Branch
+ * id Element Targeting picks for. Each is set only when the row turns it on
+ * and the target has a sandbox.
  */
 export function chatCapabilitiesOf(target: ChatTarget): ChatCapabilities & {
   skillSandboxName?: string
+  skillChat?: "room" | "sketch"
   pickBranchId?: string
 } {
   const row = CHAT_CAPABILITIES[target.kind]
@@ -86,6 +89,7 @@ export function chatCapabilitiesOf(target: ChatTarget): ChatCapabilities & {
   return {
     ...row,
     skillSandboxName: row.skills ? sandbox?.sandboxName : undefined,
+    skillChat: row.skills && target.kind !== "agent" ? target.kind : undefined,
     pickBranchId: row.elementPicking ? sandbox?.branchId : undefined,
   }
 }

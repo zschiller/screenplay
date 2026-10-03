@@ -335,9 +335,10 @@ export interface ComposerProps {
   markdownLayers: MarkdownLayerData[]
   /**
    * Where the `/`-Skill picker's index comes from: a Sandbox's Branch (App ∪
-   * Repo), or `{}` before a Sandbox exists (App Skills only). Omit it for
-   * Document/Markdown-Layer chats, which have no `read_skill` tool, so `/`
-   * stays a literal slash there.
+   * Repo), a chat with no Branch (`chat`: the Coordinator's or a sketch
+   * chat's own Skills), or `{}` before a Sandbox exists (App Skills only),
+   * each with the canvas's when `roomId` is set. Omit it where there is no
+   * `read_skill` tool, so `/` stays a literal slash there.
    */
   skillSource?: SkillSource
   /**
@@ -529,6 +530,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       draftKeyRef.current = draftKey
     })
     const editorContainerRef = useRef<HTMLDivElement>(null)
+    // The `@` and `/` popovers sit above the input box, clear of its border,
+    // wherever the caret is inside it.
+    const inputBoxRect = () =>
+      editorContainerRef.current
+        ?.querySelector('[data-slot="input-group"]')
+        ?.getBoundingClientRect() ?? null
 
     // The Mention extension's suggestion callbacks run inside closures captured
     // at editor-construction time, so they can't read these props directly —
@@ -659,6 +666,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               getMarkdownLayers: () => markdownLayersRef.current,
               getAnchorRect: () =>
                 editorContainerRef.current?.getBoundingClientRect() ?? null,
+              getInputBoxRect: inputBoxRect,
               onOpenChange: (open) => {
                 mentionOpenRef.current = open
               },
@@ -674,6 +682,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                     getAnchorRect: () =>
                       editorContainerRef.current?.getBoundingClientRect() ??
                       null,
+                    getInputBoxRect: inputBoxRect,
                     onOpenChange: (open) => {
                       skillMentionOpenRef.current = open
                     },

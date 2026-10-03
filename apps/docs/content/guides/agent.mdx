@@ -12,7 +12,7 @@ workspace's agent instead, and everything the agent does happens inside that
 workspace's sandbox.
 
 The Coordinator uses the same composer, with less in it. It is one chat with
-no terminals, and has no **Plan** toggle, <kbd>/</kbd> skills menu or crosshair.
+no terminals, and has no **Plan** toggle or crosshair.
 
 Every workspace has exactly one chat, from the moment it starts, and that chat
 is the only one that changes the workspace's code. More work in parallel means
@@ -184,12 +184,12 @@ shows in the chat.
 
 ### Loading a skill
 
-In workspace chats, type <kbd>/</kbd> to insert a [skill](/building/skills):
-a packaged set of instructions the agent loads before starting. Skills tagged
-**App** ship with Screenplay. Skills tagged **Repo** come from the
-repository's `.claude/skills/` folder, and skills tagged **Canvas** were
-[saved to the canvas](/building/skills#saving-a-skill-to-the-canvas) by a chat
-on it.
+Type <kbd>/</kbd> to insert a [skill](/building/skills): a packaged set of
+instructions the agent loads before starting. Each row ends with where the
+skill comes from: **Built in** skills ship with Screenplay, **Repository**
+skills come from the repository's `.claude/skills/` folder, and **Canvas**
+skills were [saved to the canvas](/building/skills#saving-a-skill-to-the-canvas)
+by a chat on it.
 
 <Screenshot
   name="composer-skills"

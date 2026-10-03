@@ -163,6 +163,14 @@ export function renderSkillsNote(
 }
 
 /**
+ * The Coordinator's and a sketch chat's line for a Skill the user picked from
+ * the `/` menu (#1556), which reaches the turn as a `[skill: <name>]` marker.
+ */
+function renderSkillInvocation(t: ToolNaming["name"]): string {
+  return `- A \`${SKILL_MARKER_TOKEN}\` marker in the user's message means they picked that skill: call \`${t("read_skill")}\` with \`<name>\` before anything else and follow it for this turn.`
+}
+
+/**
  * The Workspace agent's instructions before its skill index. `t` names the
  * Screenplay tools a harness reaches over our MCP server (#1223, #1314). A
  * harness edits files and runs commands with its own tools, so its
@@ -379,6 +387,7 @@ export function buildSketchSystemPrompt(opts: {
           "",
           "Skills:",
           `- When a request matches one of these, call \`${t("read_skill")}\` with its name and follow it.`,
+          renderSkillInvocation(t),
           ...opts.skills.map((s) => `- **${s.name}**: ${s.description}`),
           renderSkillSaving(t),
         ]
@@ -458,6 +467,7 @@ export function buildRoomSystemPrompt(opts: {
       ? [
           "Skills:",
           `- When a request matches one of these, call \`${t("read_skill")}\` with its name and follow it before doing anything else.`,
+          renderSkillInvocation(t),
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
           renderSkillSaving(t),
           "",

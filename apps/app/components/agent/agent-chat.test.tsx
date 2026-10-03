@@ -84,7 +84,11 @@ describe("AgentChat — affordances per Chat Target", () => {
     renderChat({ kind: "agent", branchId: "b1", sandboxName: "sbx-1" })
 
     // Its Branch for Repo Skills, its canvas for the ones chats saved (#1555).
-    expect(skillSource()).toEqual({ sandboxName: "sbx-1", roomId: "room-1" })
+    expect(skillSource()).toEqual({
+      sandboxName: "sbx-1",
+      roomId: "room-1",
+      chat: undefined,
+    })
     expect(screen.getByRole("button", { name: "Plan" })).toBeTruthy()
     expect(
       screen.getByRole("button", { name: /target an element/i })
@@ -99,12 +103,17 @@ describe("AgentChat — affordances per Chat Target", () => {
   it("gives the Coordinator's chat none of the sandbox affordances", () => {
     renderChat({ kind: "room" })
 
-    expect(skillSource()).toBeUndefined()
+    // Its `/` menu lists the canvas's and the Coordinator's Skills (#1556).
+    expect(skillSource()).toEqual({
+      sandboxName: undefined,
+      roomId: "room-1",
+      chat: "room",
+    })
     expect(screen.queryByRole("button", { name: "Plan" })).toBeNull()
     expect(
       screen.queryByRole("button", { name: /target an element/i })
     ).toBeNull()
-    expect(placeholder()).toBe("Ask the Coordinator… (@ document)")
+    expect(placeholder()).toBe("Ask the Coordinator… (@ document, / skill)")
     expect(screen.getByText("Ask about this canvas")).toBeTruthy()
     expect(
       screen.getByRole("button", { name: "What's on this canvas?" })

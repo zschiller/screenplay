@@ -24,6 +24,8 @@ export function buildSkillMentionSuggestion(opts: {
   getLoading?: () => boolean
   /** Optional anchor element for clamping the popover horizontally. */
   getAnchorRect?: () => DOMRect | null
+  /** Optional input box the popover sits above, clear of its border. */
+  getInputBoxRect?: () => DOMRect | null
   /** Notified when the popover opens (true) or closes (false). */
   onOpenChange?: (open: boolean) => void
 }): NonNullable<MentionOptions["suggestion"]> {
@@ -61,7 +63,11 @@ export function buildSkillMentionSuggestion(opts: {
         const maxLeft = anchor ? anchor.right - 320 : window.innerWidth - 320
         const left = Math.max(minLeft, Math.min(rect.left, maxLeft))
         containerEl.style.left = `${left}px`
-        containerEl.style.bottom = `${window.innerHeight - rect.top + 4}px`
+        // Above the box the caret is typing in, when there is one, so the
+        // popover never covers its border.
+        const box = opts.getInputBoxRect?.()
+        const top = box ? Math.min(box.top, rect.top) : rect.top
+        containerEl.style.bottom = `${window.innerHeight - top + 4}px`
       }
 
       return {
