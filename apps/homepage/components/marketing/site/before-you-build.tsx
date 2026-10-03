@@ -19,7 +19,7 @@ const items = [
   },
 ]
 
-/** What a chat can do before it writes code, laid out as Self-hosting is. */
+/** What a chat can do before it writes code, laid out as For teams is. */
 export function BeforeYouBuild() {
   return (
     <section id="before-you-build" className={cn(measure, sectionTop)}>

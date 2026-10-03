@@ -32,7 +32,7 @@ const [, live, take] = versions
 
 /**
  * Laid out at a fixed size and scaled to the column like an image, as the
- * Self-hosting figure is, so the labels and bar keep the app's proportions.
+ * For teams figure is, so the labels and bar keep the app's proportions.
  */
 export function MockupExcerpt() {
   return (

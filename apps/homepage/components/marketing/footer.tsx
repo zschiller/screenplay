@@ -8,6 +8,7 @@ const columns = [
     title: "Product",
     links: [
       { href: "#how", label: "How it works" },
+      { href: "#self-hosting", label: "For teams" },
       { href: "#features", label: "Features" },
       { href: releasesUrl, label: "Download", external: true },
     ],
