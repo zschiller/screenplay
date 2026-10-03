@@ -91,6 +91,8 @@ async function openStream(): Promise<FrameStreamConnection> {
       url: "ws://stream",
       token: "t",
     }),
+    fetchDriveToken: async () => null,
+    onVisible: () => () => {},
     openSocket: () => {
       setTimeout(() => socket.onopen?.({}), 0)
       return socket

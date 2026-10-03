@@ -36,20 +36,41 @@ class FakeSocket {
   }
 }
 
-function setup(endpoint: FrameStreamEndpoint) {
+type Timer = (() => void) & { ms: number; cleared?: boolean }
+
+function setup(
+  endpoint: FrameStreamEndpoint,
+  driveTokens: (string | null)[] = []
+) {
   const sockets: FakeSocket[] = []
-  const timers: (() => void)[] = []
+  const timers: Timer[] = []
+  const visible = new Set<() => void>()
+  const fetchDriveToken = vi.fn(async (_frame: string) =>
+    driveTokens.length ? driveTokens.shift()! : null
+  )
   const conn = new FrameStreamConnection({
     fetchEndpoint: async () => endpoint,
+    fetchDriveToken,
+    onVisible: (listener) => {
+      visible.add(listener)
+      return () => visible.delete(listener)
+    },
     openSocket: (url) => {
       const s = new FakeSocket(url)
       sockets.push(s)
       return s
     },
-    setTimeout: (fn) => timers.push(fn),
-    clearTimeout: () => {},
+    setTimeout: (fn, ms) => {
+      const timer: Timer = Object.assign(() => fn(), { ms })
+      timers.push(timer)
+      return timer
+    },
+    clearTimeout: (id) => {
+      if (id) (id as Timer).cleared = true
+    },
   })
-  return { conn, sockets, timers }
+  const showTab = () => visible.forEach((l) => l())
+  return { conn, sockets, timers, fetchDriveToken, showTab }
 }
 
 function handlers() {
@@ -82,6 +103,8 @@ describe("FrameStreamConnection", () => {
       fetchEndpoint: async () => {
         throw new Error("502")
       },
+      fetchDriveToken: async () => null,
+      onVisible: () => () => {},
       openSocket: () => {
         throw new Error("never opened")
       },
@@ -233,7 +256,7 @@ describe("FrameStreamConnection", () => {
     // The Sandbox hibernated: the stream drops.
     sockets[0]!.close()
     expect(h.onConnection).toHaveBeenLastCalledWith(false)
-    expect(conn.send({ t: "reload", frame: "f1" })).toBe(false)
+    expect(conn.frame("f1").reload()).toBe(false)
 
     timers.shift()!()
     await flush()
@@ -275,71 +298,313 @@ describe("FrameStreamConnection", () => {
 })
 
 describe("driving", () => {
-  it("sends the drive grant again whenever it watches the frame again", async () => {
-    const { conn, sockets, timers } = setup({
-      shared: true,
-      url: "wss://s",
-      token: "t",
-    })
-    const watch = { route: "/", width: 10, height: 10 }
-    let stop = conn.watch("f1", watch, handlers())
+  const watch = { route: "/", width: 10, height: 10 }
+
+  async function watching(tokens: (string | null)[]) {
+    const setupResult = setup(
+      { shared: true, url: "wss://s", token: "t" },
+      tokens
+    )
+    const frame = setupResult.conn.frame("f1")
+    const stop = frame.watch(watch, handlers())
     await flush()
-    const first = sockets[0]!
-    first.open()
-    first.serverSays({ t: "ready", codec: "h264" })
-    conn.drive("f1", "g")
-    expect(first.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g" })
+    const socket = setupResult.sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+    // Runs the first live timer that waits `ms`.
+    const fire = async (ms: number) => {
+      const i = setupResult.timers.findIndex((t) => t.ms === ms && !t.cleared)
+      if (i < 0) throw new Error(`no ${ms} ms timer`)
+      setupResult.timers.splice(i, 1)[0]!()
+      await flush()
+    }
+    return { ...setupResult, frame, stop, socket, fire }
+  }
 
-    // The tab hid: the service forgets a driver who stops watching, so
-    // watching again carries the grant.
-    stop()
-    stop = conn.watch("f1", watch, handlers())
-    expect(first.sent.slice(-3)).toEqual([
-      { t: "unwatch", frame: "f1" },
-      { t: "watch", frame: "f1", ...watch },
-      { t: "drive", frame: "f1", token: "g" },
-    ])
-
-    // So does a reconnect.
-    first.close()
-    timers.shift()!()
+  it("asks the app for a grant and sends it, and releases when it stops", async () => {
+    const { frame, socket, fetchDriveToken } = await watching(["g"])
+    const stopDriving = frame.drive()
     await flush()
-    const next = sockets[1]!
-    next.open()
-    next.serverSays({ t: "ready", codec: "h264" })
-    expect(next.sent).toEqual([
-      { t: "auth", token: "t" },
-      { t: "watch", frame: "f1", ...watch },
-      { t: "drive", frame: "f1", token: "g" },
-    ])
+    expect(fetchDriveToken).toHaveBeenCalledWith("f1")
+    expect(socket.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g" })
 
-    // Released, it goes back to watching only.
-    conn.release("f1")
-    expect(next.sent.at(-1)).toEqual({ t: "release", frame: "f1" })
-    stop()
-    conn.watch("f1", watch, handlers())
-    expect(next.sent.at(-1)).toEqual({ t: "watch", frame: "f1", ...watch })
+    stopDriving()
+    expect(socket.sent.at(-1)).toEqual({ t: "release", frame: "f1" })
   })
 
-  it("holds a grant for a frame it isn't watching until it watches it", async () => {
-    const { conn, sockets } = setup({
-      shared: true,
-      url: "wss://s",
-      token: "t",
-    })
-    const watch = { route: "/", width: 10, height: 10 }
-    const stop = conn.watch("f2", watch, handlers())
+  it("asks again when the app refuses at first", async () => {
+    const { frame, socket, fire } = await watching([null, "g"])
+    frame.drive()
     await flush()
+    expect(socket.sent.some((m) => m.t === "drive")).toBe(false)
+    await fire(300)
+    expect(socket.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g" })
+  })
+
+  it("refreshes the grant before it expires, and stops once released", async () => {
+    const { frame, socket, timers, fire, fetchDriveToken } = await watching([
+      "g",
+      "g2",
+    ])
+    const stopDriving = frame.drive()
+    await flush()
+    await fire(30_000)
+    expect(socket.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g2" })
+
+    stopDriving()
+    expect(timers.filter((t) => t.ms === 30_000 && !t.cleared)).toEqual([])
+    expect(fetchDriveToken).toHaveBeenCalledTimes(2)
+  })
+
+  it("waits for the stream before asking", async () => {
+    const { conn, sockets, fetchDriveToken } = setup(
+      { shared: true, url: "wss://s", token: "t" },
+      ["g"]
+    )
+    const frame = conn.frame("f1")
+    frame.watch(watch, handlers())
+    frame.drive()
+    await flush()
+    expect(fetchDriveToken).not.toHaveBeenCalled()
+
     sockets[0]!.open()
     sockets[0]!.serverSays({ t: "ready", codec: "h264" })
-    stop()
-    conn.drive("f1", "g")
-    expect(sockets[0]!.sent.some((m) => m.t === "drive")).toBe(false)
-    conn.watch("f1", watch, handlers())
+    await flush()
     expect(sockets[0]!.sent.slice(-2)).toEqual([
       { t: "watch", frame: "f1", ...watch },
       { t: "drive", frame: "f1", token: "g" },
     ])
+  })
+
+  it("sends the grant again whenever it watches the frame again, and asks for a new one after a reconnect or when the tab shows", async () => {
+    const watched = await watching(["g", "g2", "g3"])
+    const { frame, socket, sockets, fire, showTab } = watched
+    let stop = watched.stop
+    const stopDriving = frame.drive()
+    await flush()
+    expect(socket.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g" })
+    stop()
+
+    // The tab hid: the service forgets a driver who stops watching, so
+    // watching again carries the grant.
+    stop = frame.watch(watch, handlers())
+    expect(socket.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g" })
+
+    // A reconnect re-sends it, then asks for a fresh one.
+    socket.close()
+    await fire(500)
+    const next = sockets[1]!
+    next.open()
+    next.serverSays({ t: "ready", codec: "h264" })
+    await flush()
+    expect(next.sent).toEqual([
+      { t: "auth", token: "t" },
+      { t: "watch", frame: "f1", ...watch },
+      { t: "drive", frame: "f1", token: "g" },
+      { t: "drive", frame: "f1", token: "g2" },
+    ])
+
+    showTab()
+    await flush()
+    expect(next.sent.at(-1)).toEqual({ t: "drive", frame: "f1", token: "g3" })
+
+    // Released, it goes back to watching only.
+    stopDriving()
+    expect(next.sent.at(-1)).toEqual({ t: "release", frame: "f1" })
+    stop()
+    frame.watch(watch, handlers())
+    expect(next.sent.at(-1)).toEqual({ t: "watch", frame: "f1", ...watch })
+  })
+
+  it("holds a grant for a frame it isn't watching until it watches it", async () => {
+    const { conn, socket, stop } = await watching(["g"])
+    stop()
+    const other = conn.frame("f2")
+    other.drive()
+    await flush()
+    expect(socket.sent.some((m) => m.t === "drive")).toBe(false)
+    other.watch(watch, handlers())
+    expect(socket.sent.slice(-2)).toEqual([
+      { t: "watch", frame: "f2", ...watch },
+      { t: "drive", frame: "f2", token: "g" },
+    ])
+  })
+
+  it("reloads the shared page", async () => {
+    const { frame, socket } = await watching([])
+    expect(frame.reload()).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ t: "reload", frame: "f1" })
+  })
+})
+
+describe("driver input", () => {
+  async function driving(mac = false) {
+    const setupResult = setup({ shared: true, url: "wss://s", token: "t" })
+    const frame = setupResult.conn.frame("f1")
+    frame.watch({ route: "/", width: 400, height: 300 }, handlers())
+    await flush()
+    const socket = setupResult.sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+    // The picture of a 400×300 page, drawn at half size at (100, 50).
+    const input = frame.input(
+      () => ({
+        rect: { left: 100, top: 50, width: 200, height: 150 },
+        width: 400,
+        height: 300,
+      }),
+      { mac }
+    )
+    const sent = () => {
+      const last = socket.sent.at(-1)
+      return last?.t === "input" ? last : undefined
+    }
+    return { input, socket, sent }
+  }
+
+  const mods = {
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+  }
+  const cancelable = () => ({
+    preventDefault: vi.fn(),
+    stopPropagation: vi.fn(),
+  })
+  const key = (
+    k: string,
+    more: Partial<typeof mods & { code: string }> = {}
+  ) => ({
+    ...mods,
+    ...cancelable(),
+    key: k,
+    code: k.length === 1 ? `Key${k.toUpperCase()}` : k,
+    keyCode: 0,
+    repeat: false,
+    isComposing: false,
+    ...more,
+  })
+
+  it("scales pointer positions to the page and counts clicks", async () => {
+    const { input, sent } = await driving()
+    const at = { ...mods, button: 0, buttons: 1, clientX: 150, clientY: 100 }
+    input.pointer("mousePressed", { ...at, timeStamp: 0 })
+    expect(sent()).toMatchObject({
+      kind: "mouse",
+      type: "mousePressed",
+      x: 100,
+      y: 100,
+      button: "left",
+      clickCount: 1,
+    })
+    input.pointer("mouseReleased", { ...at, buttons: 0, timeStamp: 50 })
+    input.pointer("mousePressed", { ...at, timeStamp: 100 })
+    expect(sent()).toMatchObject({ clickCount: 2 })
+    input.pointer("mouseMoved", { ...at, timeStamp: 150 })
+    expect(sent()).toMatchObject({ button: "none", clickCount: 0 })
+  })
+
+  it("scrolls the page, but leaves Cmd/Ctrl+wheel to zoom the canvas", async () => {
+    const { input, socket, sent } = await driving()
+    const wheel = {
+      ...mods,
+      ...cancelable(),
+      clientX: 300,
+      clientY: 200,
+      deltaX: 0,
+      deltaY: 40,
+    }
+    input.wheel(wheel)
+    expect(sent()).toMatchObject({ kind: "wheel", x: 400, y: 300, deltaY: 40 })
+    expect(wheel.preventDefault).toHaveBeenCalled()
+
+    const zoom = { ...wheel, ...cancelable(), ctrlKey: true }
+    const before = socket.sent.length
+    input.wheel(zoom)
+    expect(socket.sent).toHaveLength(before)
+    expect(zoom.preventDefault).not.toHaveBeenCalled()
+  })
+
+  it("sends characters as text, Enter as a return and other keys raw", async () => {
+    const { input, sent } = await driving()
+    const a = key("a")
+    input.key("keyDown", a)
+    expect(sent()).toMatchObject({ kind: "key", type: "keyDown", text: "a" })
+    expect(a.preventDefault).toHaveBeenCalled()
+    expect(a.stopPropagation).toHaveBeenCalled()
+
+    input.key("keyDown", key("Enter"))
+    expect(sent()).toMatchObject({ type: "keyDown", text: "\r" })
+    input.key("keyDown", key("ArrowLeft"))
+    expect(sent()).toMatchObject({ type: "rawKeyDown" })
+    expect(sent()).not.toHaveProperty("text")
+    input.key("keyUp", key("a"))
+    expect(sent()).toMatchObject({ type: "keyUp" })
+    expect(sent()).not.toHaveProperty("text")
+    // A shortcut sends no text.
+    input.key("keyDown", key("z", { ctrlKey: true }))
+    expect(sent()).toMatchObject({ type: "rawKeyDown", modifiers: 2 })
+  })
+
+  it("maps a Mac viewer's shortcuts", async () => {
+    const { input, sent } = await driving(true)
+    input.key("keyDown", key("ArrowLeft", { metaKey: true }))
+    expect(sent()).toMatchObject({ key: "Home", modifiers: 0 })
+  })
+
+  it("lets Escape reach the canvas too", async () => {
+    const { input, sent } = await driving()
+    const esc = key("Escape")
+    input.key("keyDown", esc)
+    expect(sent()).toMatchObject({ key: "Escape", type: "rawKeyDown" })
+    expect(esc.preventDefault).not.toHaveBeenCalled()
+    expect(esc.stopPropagation).not.toHaveBeenCalled()
+  })
+
+  it("leaves copy, cut and paste shortcuts to their clipboard events", async () => {
+    const { input, socket } = await driving()
+    const before = socket.sent.length
+    for (const code of ["KeyC", "KeyX", "KeyV"]) {
+      const e = key(code.at(-1)!.toLowerCase(), { metaKey: true, code })
+      input.key("keyDown", e)
+      expect(e.preventDefault).not.toHaveBeenCalled()
+      expect(e.stopPropagation).toHaveBeenCalled()
+    }
+    expect(socket.sent).toHaveLength(before)
+  })
+
+  it("skips keys mid-composition", async () => {
+    const { input, socket } = await driving()
+    const before = socket.sent.length
+    input.key("keyDown", { ...key("a"), isComposing: true })
+    expect(socket.sent).toHaveLength(before)
+  })
+
+  it("pastes this viewer's clipboard as text and copies out", async () => {
+    const { input, socket, sent } = await driving()
+    const paste = {
+      type: "paste",
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => "hello" },
+    }
+    input.paste(paste)
+    expect(sent()).toEqual({
+      t: "input",
+      frame: "f1",
+      kind: "text",
+      text: "hello",
+    })
+    expect(paste.preventDefault).toHaveBeenCalled()
+
+    const cut = { type: "cut", preventDefault: vi.fn(), clipboardData: null }
+    const copied = input.copy(cut)
+    expect(cut.preventDefault).toHaveBeenCalled()
+    const asked = socket.sent.at(-1)
+    expect(asked).toMatchObject({ t: "clipboard", frame: "f1", cut: true })
+    if (asked?.t !== "clipboard") throw new Error("not asked")
+    socket.serverSays({ t: "clipboard", frame: "f1", id: asked.id, text: "x" })
+    expect(await copied).toBe("x")
   })
 })
 

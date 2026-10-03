@@ -9,18 +9,27 @@
  * - Reconnects with backoff, watching again what it watched. A Sandbox that
  *   hibernated comes back with a fresh service, and each frame reloads at the
  *   route its viewers send.
- * - Keeps the drive grant of each frame this viewer drives, and sends it again
- *   whenever it watches the frame again: the service forgets a driver who
- *   stops watching (a hidden tab, a frame scrolled away, a reconnect).
+ * - Hands out a handle per frame (`frame(id)`) that owns everything the
+ *   canvas does to it: watching, driving, input, reload. Nothing outside
+ *   this module sends raw wire messages.
+ * - Keeps the drive grant of each frame this viewer drives fresh, and sends
+ *   it again whenever it watches the frame again: the service forgets a
+ *   driver who stops watching (a hidden tab, a frame scrolled away, a
+ *   reconnect).
  */
 
 import { withBasePath } from "@/lib/base-path"
 import type { BridgePort } from "@/lib/bridge-port"
 import {
+  clickCounter,
   decodeVideoMessage,
+  modifiersOf,
+  mouseButtonOf,
+  pageKeyOf,
   type FrameColorScheme,
   type FrameSnapshot,
   type FrameStreamClientMessage,
+  type FrameStreamInput,
   type FrameStreamServerMessage,
   type FrameStreamVideo,
 } from "@/lib/frame-stream/protocol"
@@ -61,9 +70,88 @@ type SocketLike = {
 
 export type FrameStreamDeps = {
   fetchEndpoint(): Promise<FrameStreamEndpoint>
+  /** A drive grant the app signs for this viewer and frame, or null when
+   *  Frame Control doesn't say they drive it (yet). */
+  fetchDriveToken(frame: string): Promise<string | null>
+  /** Hear when the tab shows again. */
+  onVisible(listener: () => void): () => void
   openSocket(url: string): SocketLike
   setTimeout(fn: () => void, ms: number): unknown
   clearTimeout(id: unknown): void
+}
+
+/** One frame of the Workspace's stream, as this viewer uses it. */
+export type FrameStreamFrame = {
+  /** Stream the frame to `handlers` until the returned function is called. */
+  watch(watch: FrameWatch, handlers: FrameStreamHandlers): () => void
+  /** The frame's size, the room's route or its colour scheme changed. */
+  update(patch: Partial<FrameWatch>): void
+  /**
+   * Drive the frame until the returned function is called: asks the app for
+   * a grant, keeps it fresh, and asks again after a reconnect or when the
+   * tab shows.
+   */
+  drive(): () => void
+  /** Reload the shared page. False while the stream is down. */
+  reload(): boolean
+  /** Turn a driver's DOM events into the page's input, while they interact. */
+  input(surface: () => FrameSurface, options?: { mac?: boolean }): FrameInput
+}
+
+/** Where the picture is on screen, and the page's CSS size it shows. */
+export type FrameSurface = {
+  rect: { left: number; top: number; width: number; height: number }
+  width: number
+  height: number
+}
+
+type Modifiers = {
+  altKey: boolean
+  ctrlKey: boolean
+  metaKey: boolean
+  shiftKey: boolean
+}
+type Cancelable = { preventDefault(): void; stopPropagation(): void }
+type PointerLike = Modifiers & {
+  button: number
+  buttons: number
+  clientX: number
+  clientY: number
+  timeStamp: number
+}
+type WheelLike = Modifiers &
+  Cancelable & {
+    clientX: number
+    clientY: number
+    deltaX: number
+    deltaY: number
+  }
+type KeyLike = Modifiers &
+  Cancelable & {
+    key: string
+    code: string
+    keyCode: number
+    repeat: boolean
+    isComposing: boolean
+  }
+type ClipboardLike = {
+  type: string
+  preventDefault(): void
+  clipboardData: { getData(type: string): string } | null
+}
+
+/** A driver's DOM events, sent to the page as its input. */
+export type FrameInput = {
+  pointer(
+    type: "mousePressed" | "mouseReleased" | "mouseMoved",
+    e: PointerLike
+  ): void
+  wheel(e: WheelLike): void
+  key(type: "keyDown" | "keyUp", e: KeyLike): void
+  paste(e: ClipboardLike): void
+  /** Copy or cut what the page has selected: the text for this viewer's own
+   *  clipboard, or null when there's none. */
+  copy(e: ClipboardLike): Promise<string | null>
 }
 
 const MAX_BACKOFF_MS = 10_000
@@ -73,6 +161,11 @@ const MAX_CHECK_FAILURES = 4
 // How long going local waits for the shared page's cookies and storage
 // before it opens the local copy without them.
 const SNAPSHOT_TIMEOUT_MS = 5000
+// A drive grant lasts a minute; ask for the next one well before.
+const DRIVE_REFRESH_MS = 30_000
+// Frame Control's record can reach the server a moment after this viewer
+// wrote it, so a refused grant is asked for again a few times.
+const DRIVE_RETRY_MS = [0, 300, 800, 2000]
 
 export class FrameStreamConnection {
   availability: FrameStreamAvailability = "checking"
@@ -100,8 +193,25 @@ export class FrameStreamConnection {
   private snapshotSeq = 0
   private snapshots = new Map<string, (s: FrameSnapshot | null) => void>()
   private clipboards = new Map<string, (text: string | null) => void>()
+  private frames = new Map<string, FrameStreamFrame>()
 
   constructor(private deps: FrameStreamDeps) {}
+
+  /** The handle for one frame of this Workspace. */
+  frame(frame: string): FrameStreamFrame {
+    let handle = this.frames.get(frame)
+    if (!handle) {
+      handle = {
+        watch: (watch, handlers) => this.watch(frame, watch, handlers),
+        update: (patch) => this.update(frame, patch),
+        drive: () => this.startDriving(frame),
+        reload: () => this.send({ t: "reload", frame }),
+        input: (surface, options) => this.input(frame, surface, options),
+      }
+      this.frames.set(frame, handle)
+    }
+    return handle
+  }
 
   // ---- availability ----
 
@@ -161,15 +271,140 @@ export class FrameStreamConnection {
    * input only while they watch the frame, so the grant goes out now if this
    * viewer watches it, and again each time it watches it later.
    */
-  drive(frame: string, token: string): void {
+  private grant(frame: string, token: string): void {
     this.grants.set(frame, token)
     if (this.watches.has(frame)) this.send({ t: "drive", frame, token })
   }
 
-  /** Stop driving a frame. */
-  release(frame: string): void {
-    this.grants.delete(frame)
-    this.send({ t: "release", frame })
+  /** Keep a grant for a frame until the returned function is called. */
+  private startDriving(frame: string): () => void {
+    let run = 0
+    let refresh: unknown = null
+    const sleep = (ms: number) =>
+      new Promise<void>((r) => this.deps.setTimeout(r, ms))
+    // Each run supersedes the one before (a reconnect starts a new one).
+    const ask = async () => {
+      const mine = ++run
+      this.deps.clearTimeout(refresh)
+      // The grant rides the stream: once it's up, asking starts again.
+      if (!this.ready) return
+      const current = () => mine === run
+      for (const wait of DRIVE_RETRY_MS) {
+        if (wait) await sleep(wait)
+        if (!current()) return
+        const token = await this.deps.fetchDriveToken(frame).catch(() => null)
+        if (!current()) return
+        if (token && this.ready) {
+          this.grant(frame, token)
+          break
+        }
+      }
+      refresh = this.deps.setTimeout(() => void ask(), DRIVE_REFRESH_MS)
+    }
+    void ask()
+    // A reconnect may have outlasted the grant: ask again.
+    const unsubscribe = this.subscribeConnection((ready) => {
+      if (ready) void ask()
+    })
+    // A hidden tab's timers may not have kept the grant fresh: ask again
+    // when it shows.
+    const offVisible = this.deps.onVisible(() => void ask())
+    return () => {
+      run++
+      unsubscribe()
+      offVisible()
+      this.deps.clearTimeout(refresh)
+      this.grants.delete(frame)
+      this.send({ t: "release", frame })
+    }
+  }
+
+  private input(
+    frame: string,
+    surface: () => FrameSurface,
+    { mac = isMac() }: { mac?: boolean } = {}
+  ): FrameInput {
+    const send = (input: FrameStreamInput) =>
+      this.send({ t: "input", frame, ...input })
+    // Client pixels to the page's CSS pixels: the picture is drawn at the
+    // page's size inside the zoomed world.
+    const at = (e: { clientX: number; clientY: number }) => {
+      const { rect, width, height } = surface()
+      return {
+        x: ((e.clientX - rect.left) * width) / rect.width,
+        y: ((e.clientY - rect.top) * height) / rect.height,
+      }
+    }
+    const countClick = clickCounter()
+    let clickCount = 1
+    return {
+      pointer: (type, e) => {
+        if (type === "mousePressed")
+          clickCount = countClick(e.button, e.clientX, e.clientY, e.timeStamp)
+        send({
+          kind: "mouse",
+          type,
+          ...at(e),
+          button: type === "mouseMoved" ? "none" : mouseButtonOf(e.button),
+          buttons: e.buttons,
+          clickCount: type === "mouseMoved" ? 0 : clickCount,
+          modifiers: modifiersOf(e),
+        })
+      },
+      wheel: (e) => {
+        // Cmd/Ctrl+wheel still zooms the canvas.
+        if (e.ctrlKey || e.metaKey) return
+        e.preventDefault()
+        e.stopPropagation()
+        send({
+          kind: "wheel",
+          ...at(e),
+          deltaX: e.deltaX,
+          deltaY: e.deltaY,
+          modifiers: modifiersOf(e),
+        })
+      },
+      key: (type, e) => {
+        // Keys belong to the page, not the canvas's shortcuts. Esc goes to
+        // both: the page sees it, and the canvas leaves Interact.
+        if (e.key !== "Escape") e.stopPropagation()
+        // Copy, cut and paste go as their events, with this viewer's own
+        // clipboard: the shortcuts would use the shared browser's.
+        if (
+          (e.metaKey || e.ctrlKey) &&
+          !e.altKey &&
+          ["KeyC", "KeyX", "KeyV"].includes(e.code)
+        )
+          return
+        if (e.key !== "Escape") e.preventDefault()
+        if (e.isComposing) return
+        const text =
+          type === "keyDown" && !e.metaKey && !e.ctrlKey
+            ? e.key === "Enter"
+              ? "\r"
+              : e.key.length === 1
+                ? e.key
+                : undefined
+            : undefined
+        send({
+          kind: "key",
+          type: type === "keyDown" && !text ? "rawKeyDown" : type,
+          ...pageKeyOf(e, mac),
+          text,
+          repeat: e.repeat,
+        })
+      },
+      paste: (e) => {
+        const text = e.clipboardData?.getData("text/plain")
+        if (!text) return
+        e.preventDefault()
+        send({ kind: "text", text })
+      },
+      copy: (e) => {
+        e.preventDefault()
+        return this.clipboard(frame, e.type === "cut")
+      },
+    }
   }
 
   /** Watch a frame, with this viewer's drive grant for it if it drives it. */
@@ -227,7 +462,7 @@ export class FrameStreamConnection {
   }
 
   /** Send a message; dropped while disconnected. True when it went out. */
-  send(msg: FrameStreamClientMessage): boolean {
+  private send(msg: FrameStreamClientMessage): boolean {
     if (!this.ready || !this.socket) return false
     this.socket.send(JSON.stringify(msg))
     return true
@@ -429,6 +664,14 @@ export function frameStreamFor(
         if (!res.ok) throw new Error(`frame stream: ${res.status}`)
         return (await res.json()) as FrameStreamEndpoint
       },
+      fetchDriveToken: (frame) => fetchDriveToken(roomId, frame),
+      onVisible: (listener) => {
+        const onChange = () => {
+          if (document.visibilityState === "visible") listener()
+        }
+        document.addEventListener("visibilitychange", onChange)
+        return () => document.removeEventListener("visibilitychange", onChange)
+      },
       openSocket: (url) => new WebSocket(url) as unknown as SocketLike,
       setTimeout: (fn, ms) => setTimeout(fn, ms),
       clearTimeout: (id) => clearTimeout(id as ReturnType<typeof setTimeout>),
@@ -438,8 +681,15 @@ export function frameStreamFor(
   return conn
 }
 
+function isMac(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.platform)
+  )
+}
+
 /** Ask the app for a drive grant for a frame this viewer drives. */
-export async function fetchDriveToken(
+async function fetchDriveToken(
   roomId: string,
   frame: string
 ): Promise<string | null> {

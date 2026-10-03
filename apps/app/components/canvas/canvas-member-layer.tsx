@@ -565,11 +565,7 @@ function CanvasMemberLayerImpl({
                   : agentInfo?.previewDomain,
                 ...(localCopy ? { route: localCopy.route } : {}),
               }}
-              sharedStream={
-                stream
-                  ? { connection: stream, roomId: sharedFrames.roomId }
-                  : undefined
-              }
+              sharedStream={stream}
               localCopy={!!localCopy}
               onGoLocal={
                 stream
