@@ -4,6 +4,7 @@ import { buildAgentSystemPrompt, type LayerDirectory } from "./config"
 import {
   accountFilesFor,
   accountSkillsFor,
+  contextFolderFor,
   accountMemoryStore,
   loadAccountFiles,
   loadAccountMemory,
@@ -72,6 +73,8 @@ export interface WorkspaceContext {
   accountMemory: MemoryData[] | null
   /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
   accountFiles: FileEntryData[] | null
+  /** Where the turn's harness reads those files on disk (#1524). */
+  contextFolder: string | null
 }
 
 export const workspaceChatTarget: ChatTargetSpec<
@@ -137,6 +140,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       files,
       accountMemory,
       accountFiles,
+      contextFolder: contextFolderFor(target.harnessKey, chatId),
     }
   },
   skillIndex: (ctx) => ctx.skills,
@@ -150,6 +154,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       files: ctx.files,
       accountMemory: ctx.accountMemory,
       accountFiles: ctx.accountFiles,
+      contextFolder: ctx.contextFolder,
       toolNaming: naming,
     })
   },

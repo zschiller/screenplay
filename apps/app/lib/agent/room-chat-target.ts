@@ -4,6 +4,7 @@ import { buildRoomSystemPrompt } from "./config"
 import {
   accountFilesFor,
   accountSkillsFor,
+  contextFolderFor,
   accountMemoryStore,
   loadAccountFiles,
   loadAccountMemory,
@@ -88,6 +89,8 @@ export interface RoomContext {
   accountMemory: MemoryData[] | null
   /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
   accountFiles: FileEntryData[] | null
+  /** Where the turn's harness reads those files on disk (#1524). */
+  contextFolder: string | null
 }
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
@@ -168,6 +171,10 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       files,
       accountMemory,
       accountFiles,
+      contextFolder: contextFolderFor(
+        target.harnessKey,
+        target.coordinatorChatId
+      ),
     }
   },
   skillIndex: (ctx) => ctx.skills,
@@ -178,6 +185,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       files: ctx.files,
       accountMemory: ctx.accountMemory,
       accountFiles: ctx.accountFiles,
+      contextFolder: ctx.contextFolder,
       skills: ctx.skills,
       toolNaming: naming,
     })

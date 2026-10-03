@@ -3,7 +3,7 @@ import "server-only"
 import { after } from "next/server"
 import { toolsetOn } from "./toolset"
 import type { RoomDoc } from "@/lib/room-access"
-import { prepareChatTarget } from "./chat-target-kinds"
+import { accountFilesFor, prepareChatTarget } from "./chat-target-kinds"
 import { workspaceChatTarget } from "./workspace-chat-target"
 import { roomChatTarget, type RoomTarget } from "./room-chat-target"
 import { sketchChatTarget } from "./sketch-chat-target"
@@ -88,6 +88,7 @@ import { workspaceLabel } from "@/lib/workspace-label"
 import { sandboxSecrets } from "@/lib/env-store"
 import { canvasFiles } from "@/lib/files"
 import { withAttachedImages } from "@/lib/files/attach"
+import { savedFileSections } from "@/lib/files/context-folder"
 
 /**
  * Turn Launch over the live database, Room broadcast and `after()`, for a turn
@@ -95,7 +96,16 @@ import { withAttachedImages } from "@/lib/files/attach"
  * doorbell through it; their `roomId` is the same Room.
  */
 export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
-  resolveEngine: resolveLiveEngine,
+  // A harness reads the canvas's and the sender's saved files on disk (#1524).
+  resolveEngine: (input) =>
+    resolveLiveEngine({
+      ...input,
+      contextSections: () =>
+        savedFileSections(
+          canvasFiles(room),
+          accountFilesFor({ userId: room.userId, senderless: input.senderless })
+        ),
+    }),
   findPendingPlan: findPendingPlanForChat,
   resolvePlan,
   // The user turn is stored ACP-native: the decorated wire text (plan/branch

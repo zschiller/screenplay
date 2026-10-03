@@ -43,6 +43,17 @@ a file or folder in Finder. These are copies the app keeps up to date as
 agents save, move and delete files; edits you make to them don't reach
 chats.
 
+## Coding agents on the desktop app
+
+When a chat on the desktop app runs Claude Code or Codex, the app also writes
+the canvas's files and your account files to a folder of its own before every
+message, so the agent opens them with its own tools, without asking you for
+permission. The folder is in the app's data folder, never in the repository,
+so files can't be committed by accident. It holds a copy brought up to date
+each time: a file deleted or moved since the last message is gone from it,
+and the agent still saves and changes files through the app, since edits it
+makes in that folder are lost.
+
 ## Deleting
 
 **…** › **Delete** deletes a file, or a folder with everything in it, for

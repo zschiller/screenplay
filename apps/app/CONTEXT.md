@@ -776,6 +776,18 @@ reaches the model inline on that turn, in every Engine; other types are opened
 on demand with `read_saved_file`.
 _Avoid_: upload (the folder), image (any supported type can be attached).
 
+**Context Folder** (`@/lib/files/context-folder`, #1524, spec #1511):
+A chat's app-owned folder outside any checkout (beside the desktop's file
+store, one per chat) that a Harness reads with its own tools. Before each
+harness session opens, the Turn Launch rewrites it from its **sections**:
+`canvas` (Canvas Files) and `account` (the sender's Account Files, absent on
+a turn nobody sent); a section that's gone, and anything else in it, is
+removed. It reaches the Harness as ACP `additionalDirectories`, so reading it
+raises no permission prompt, and the prompt names it. Read-only from the
+agent's side: writes go through `save_file`, and edits made in it are lost.
+Skills on disk (#1559) add sections to the same folder.
+_Avoid_: mirror (the Finder copy behind Open and Reveal in Finder), uploads.
+
 **Terminal Tab**:
 A plain shell surfaced as a tab in the **Terminal Pane**, attached to one
 Branch's sandbox and rendered with xterm.js in our own React, connecting to the

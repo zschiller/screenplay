@@ -88,6 +88,7 @@ import { buildViewTools } from "@/lib/agent/room-view-tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
 import { buildMockupTools } from "@/lib/agent/mockup-tools"
 import type { RoomDoc } from "@/lib/room-access"
+import { agentContextFolder } from "@/lib/files/context-folder"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -162,6 +163,7 @@ describe("room chat target", () => {
         files: [],
         accountMemory: [],
         accountFiles: [],
+        contextFolder: null,
       },
       BARE_TOOL_NAMING
     )
@@ -180,6 +182,7 @@ describe("room chat target", () => {
         files: [],
         accountMemory: [],
         accountFiles: [],
+        contextFolder: null,
       },
       BARE_TOOL_NAMING
     )
@@ -331,6 +334,7 @@ describe("the Coordinator only delegates", () => {
         files: [],
         accountMemory: [],
         accountFiles: [],
+        contextFolder: null,
       },
       BARE_TOOL_NAMING
     )
@@ -431,18 +435,25 @@ describe("canvas files in every kind's system prompt", () => {
     }
   }
 
-  async function prompts(room: RoomDoc): Promise<Record<string, string>> {
+  async function prompts(
+    room: RoomDoc,
+    harnessKey?: string
+  ): Promise<Record<string, string>> {
     const workspace = await workspaceChatTarget.loadContext(room, {
       sandboxName: "sb-1",
       chatId: "chat-1",
       userId: "user-1",
+      harnessKey,
     })
     const sketch = await sketchChatTarget.loadContext(room, {
       chatId: "chat-2",
       userId: "user-1",
+      harnessKey,
     })
     const coordinator = await roomChatTarget.loadContext(room, {
       userId: "user-1",
+      coordinatorChatId: "room-chat-1",
+      harnessKey,
     })
     return {
       Workspace: workspaceChatTarget.buildSystemPrompt(
@@ -482,6 +493,31 @@ describe("canvas files in every kind's system prompt", () => {
   it("says there are none yet on a canvas with no files", async () => {
     const { Coordinator } = await prompts(roomWithFiles(0))
     expect(Coordinator).toContain("(none yet)")
+  })
+
+  // #1524: a harness reads the files from the chat's context folder.
+  it("names the chat's context folder on a harness, read-only", async () => {
+    const chats = {
+      Workspace: "chat-1",
+      Sketch: "chat-2",
+      Coordinator: "room-chat-1",
+    }
+    for (const [kind, prompt] of Object.entries(
+      await prompts(roomWithFiles(1), "some-harness")
+    )) {
+      const folder = agentContextFolder(chats[kind as keyof typeof chats])
+      expect(prompt, kind).toContain(`\`${folder}/canvas/\``)
+      expect(prompt, kind).toContain(`\`${folder}/account/\``)
+      expect(prompt, kind).toContain("changes made in the folder are lost")
+    }
+  })
+
+  it("names no folder on the in-process engine", async () => {
+    for (const [kind, prompt] of Object.entries(
+      await prompts(roomWithFiles(1))
+    )) {
+      expect(prompt, kind).not.toContain("On disk:")
+    }
   })
 })
 
@@ -1410,6 +1446,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
         files: [],
         accountMemory: [],
         accountFiles: [],
+        contextFolder: null,
       },
       BARE_TOOL_NAMING
     )
@@ -1459,6 +1496,7 @@ describe("every kind's prompt names only tools its turn has", () => {
             files: [],
             accountMemory: [],
             accountFiles: [],
+            contextFolder: null,
           },
           naming
         ),
@@ -1475,6 +1513,7 @@ describe("every kind's prompt names only tools its turn has", () => {
             files: [],
             accountMemory: [],
             accountFiles: [],
+            contextFolder: null,
           },
           naming
         ),
@@ -1493,6 +1532,7 @@ describe("every kind's prompt names only tools its turn has", () => {
             files: [],
             accountMemory: [],
             accountFiles: [],
+            contextFolder: null,
           },
           naming
         ),

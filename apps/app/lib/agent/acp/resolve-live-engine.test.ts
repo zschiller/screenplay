@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 // The in-process engine binds to the model providers at import time; stub the
 // resolution that would otherwise demand real API keys.
@@ -59,7 +62,10 @@ vi.mock("@/lib/agent/coordinator-mcp", async (importOriginal) => ({
 }))
 
 import { resolveCoordinatorToken } from "@/lib/agent/coordinator-mcp"
-import { ExternalEngine } from "./acp-engine"
+import { savedFileSections } from "@/lib/files/context-folder"
+import { createFiles, memoryFileIndex, type Files } from "@/lib/files/files"
+import { memoryFileStore } from "@/lib/files/store"
+import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
 import {
   ACP_HARNESS_ENV_VAR,
@@ -394,6 +400,155 @@ describe("resolveLiveEngine", () => {
       expect(config.mcpServers).toBeUndefined()
       expect(config.sessionMeta).toBeUndefined()
     })
+  })
+})
+
+/**
+ * Files on disk for coding agents (#1524), at the turn-launch seam: the
+ * engine the launcher resolves for a Workspace chat on a fake sandbox writes
+ * the canvas's and the sender's saved files into the chat's context folder
+ * before each session opens, and hands the agent that folder, never anything
+ * inside the checkout.
+ */
+describe("resolveLiveEngine — context folder", () => {
+  const originalEngine = process.env[ENGINE_ENV_VAR]
+  const originalFilesDir = process.env.LOCAL_FILES_DIR
+  let root: string
+  let worktree: string
+  let canvas: Files
+  let account: Files
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "context-seam-"))
+    worktree = join(root, "worktrees", "branch-7")
+    await mkdir(worktree, { recursive: true })
+    process.env[ENGINE_ENV_VAR] = "external"
+    process.env.LOCAL_FILES_DIR = join(root, "app-data", "files")
+    get.mockImplementation(async ({ name }) => ({
+      name,
+      worktreePath: worktree,
+    }))
+    const scope = (keyPrefix: string) =>
+      createFiles({
+        index: memoryFileIndex(),
+        store: memoryFileStore(),
+        keyPrefix,
+      })
+    canvas = scope("canvas/room-1")
+    account = scope("account/u1")
+  })
+  afterEach(async () => {
+    if (originalEngine === undefined) delete process.env[ENGINE_ENV_VAR]
+    else process.env[ENGINE_ENV_VAR] = originalEngine
+    if (originalFilesDir === undefined) delete process.env.LOCAL_FILES_DIR
+    else process.env.LOCAL_FILES_DIR = originalFilesDir
+    get.mockReset()
+    get.mockImplementation(async ({ name }) => ({
+      name,
+      worktreePath: `/work/${name}`,
+    }))
+    await rm(root, { recursive: true, force: true })
+  })
+
+  const author = { addedBy: "agent", addedById: "chat-1" } as const
+  const save = (files: Files, path: string, text: string) =>
+    files.save({
+      path,
+      bytes: new TextEncoder().encode(text),
+      fallbackMediaType: "text/plain",
+      author,
+    })
+
+  /** The engine's context folder settings, as a turn would get them. */
+  async function contextOf(opts: {
+    account: Files | null
+    chatId?: string
+  }): Promise<
+    Pick<ExternalEngineConfig, "additionalDirectories" | "prepareContext">
+  > {
+    const engine = await resolveLiveEngine({
+      sandboxName: "branch-7",
+      chatId: "chatId" in opts ? opts.chatId : "chat-1",
+      roomId: "room-1",
+      contextSections: () => savedFileSections(canvas, opts.account),
+    })
+    return (engine as unknown as { config: ExternalEngineConfig }).config
+  }
+
+  async function tree(dir: string): Promise<string[]> {
+    const items = await readdir(dir, { recursive: true, withFileTypes: true })
+    return items
+      .map((i) => join(i.parentPath, i.name).slice(dir.length + 1))
+      .sort()
+  }
+
+  it("writes canvas and account files outside the checkout and hands the agent the folder", async () => {
+    await save(canvas, "research/notes.md", "# Notes")
+    await save(account, "voice.md", "plain copy")
+
+    const config = await contextOf({ account })
+    const folder = join(root, "app-data", "agent-context", "chat-1")
+    expect(config.additionalDirectories).toEqual([folder])
+    await config.prepareContext!()
+
+    expect(await tree(folder)).toEqual([
+      "account",
+      "account/voice.md",
+      "canvas",
+      "canvas/research",
+      "canvas/research/notes.md",
+    ])
+    expect(await readFile(join(folder, "account/voice.md"), "utf8")).toBe(
+      "plain copy"
+    )
+    expect(await readdir(worktree)).toEqual([])
+  })
+
+  it("drops deleted and moved files on the next turn", async () => {
+    await save(canvas, "a.md", "one")
+    await save(canvas, "b.md", "two")
+    await (
+      await contextOf({ account })
+    ).prepareContext!()
+
+    await canvas.remove("a.md")
+    await canvas.move("b.md", "kept/b.md")
+    await (
+      await contextOf({ account })
+    ).prepareContext!()
+
+    const folder = join(root, "app-data", "agent-context", "chat-1")
+    expect(await tree(folder)).toEqual([
+      "account",
+      "canvas",
+      "canvas/kept",
+      "canvas/kept/b.md",
+    ])
+  })
+
+  it("leaves out account files on a turn nobody sent", async () => {
+    await save(account, "voice.md", "plain copy")
+    await (
+      await contextOf({ account: null })
+    ).prepareContext!()
+
+    const folder = join(root, "app-data", "agent-context", "chat-1")
+    expect(await tree(folder)).toEqual(["canvas"])
+  })
+
+  it("hands over no folder that would sit inside the checkout", async () => {
+    process.env.LOCAL_FILES_DIR = join(worktree, ".screenplay", "files")
+
+    const config = await contextOf({ account })
+
+    expect(config.additionalDirectories).toBeUndefined()
+    expect(config.prepareContext).toBeUndefined()
+  })
+
+  it("hands over no folder without a chat to key it on", async () => {
+    const config = await contextOf({ account, chatId: undefined })
+
+    expect(config.additionalDirectories).toBeUndefined()
   })
 })
 
