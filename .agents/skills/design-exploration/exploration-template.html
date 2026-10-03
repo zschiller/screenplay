@@ -1,21 +1,21 @@
 <title>{{TITLE}}</title>
 <!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
 <style>
-/* Layout: phone first, one column. Question, then tabs (open round / Today / Earlier rounds). Each question is a deck of cards (Today, A, B…) swiped one at a time on a phone and side by side on wide screens. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+/* Layout: phone first, one column at every width. Round tabs (newest first, then Today) under the question; each question shows one option at a time behind option tabs that stick to the top while you read. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
 :root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;--no:#a3372b;
---sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace;--stick:0px}
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
-.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:24px calc(112px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:24px}
-@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:32px}}
+.wrap{max-width:880px;margin:0 auto;padding-inline:16px;padding-block:24px calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:24px}}
 .lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
 .lbl.acc{color:var(--accent)}
 h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
 h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
-h3{font:500 16px/1.35 var(--sans);margin:0}
+h3{font:500 17px/1.35 var(--sans);margin:0;text-wrap:balance}
 p{margin:0;max-width:72ch}
 a{color:var(--accent)}
 code{font:13px var(--mono)}
@@ -26,56 +26,54 @@ button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-heig
 button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
 button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-section{display:flex;flex-direction:column;gap:14px;min-width:0}
-.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
-ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:80ch;font-size:14px}
-/* Tabs: the open round, Today, earlier rounds */
-.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);display:flex;gap:4px;border-bottom:1px solid var(--line);margin-inline:-16px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
-@media (min-width:720px){.tabs{margin-inline:-24px;padding-inline:24px}}
-.tabs button{border-color:transparent;background:transparent;white-space:nowrap}
-.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg)}
-/* Folded blocks: In every option, each earlier round */
-details.fold{border:1px solid var(--line);border-radius:10px}
-details.fold>summary{list-style:none;cursor:pointer;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;max-width:72ch;font-size:14px;line-height:1.5}
+ul.facts li::marker{color:var(--muted)}
+/* Tabs: one underline style for rounds and for options */
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:10px 0 9px;min-height:40px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+.tabs .mark{font-size:12px;line-height:1}
+.tabs .mark.rec{width:6px;height:6px;border-radius:50%;background:currentColor}
+.tabs .mark.rec{color:var(--accent)}
+.tabs .mark.ok{color:var(--ok)}
+.tabs .mark.no{color:var(--no)}
+.otabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);box-shadow:-16px 0 0 var(--bg),16px 0 0 var(--bg)}
+/* Round tabs fade at the edge when there are more than fit */
+.rtabs.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+/* The owner's feedback shows three lines until opened */
+.said{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.said blockquote.clamp{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.said button{padding:0;min-height:0;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px;margin-left:14px}
+.otabs button{font-family:var(--mono);font-size:14px;min-width:28px;justify-content:center}
+/* Folded block: In every option */
+details.fold{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+details.fold>summary{list-style:none;cursor:pointer;padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
 details.fold>summary::-webkit-details-marker{display:none}
-details.fold>summary::after{content:"Show";grid-row:1/span 2;grid-column:2;font:500 13px var(--sans);color:var(--muted)}
+details.fold>summary::after{content:"Show";font:500 13px var(--sans);color:var(--muted)}
 details.fold[open]>summary::after{content:"Hide"}
-details.fold>summary .sum{font-size:14px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-details.fold[open]>summary .sum{display:none}
-details.fold>.body{padding:14px 14px 16px;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line)}
-.ledger{display:flex;flex-direction:column;gap:8px}
+details.fold>.body{padding:0 0 14px}
 /* A question and its options */
-.question{display:flex;flex-direction:column;gap:12px;min-width:0}
-.question+.question{margin-top:20px}
+.question{display:flex;flex-direction:column;gap:14px;min-width:0}
+.question+.question{margin-top:16px;padding-top:20px;border-top:1px solid var(--fg)}
 .qhead{display:flex;flex-direction:column;gap:4px}
-.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:20px}
-.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
-.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
-.letter{font:600 14px var(--mono);color:var(--accent)}
-.opt.today .letter{color:var(--muted)}
-.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
-.badge.rec{color:var(--accent);border-color:currentColor}
-.badge.picked{color:var(--ok);border-color:currentColor}
-.badge.rejected{color:var(--no);border-color:currentColor}
+.opt{display:flex;flex-direction:column;gap:12px;min-width:0}
+.opt header{display:flex;flex-direction:column;gap:6px}
+.opt .tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.letter{font:600 13px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid currentColor;border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent)}
+.badge.picked{color:var(--ok)}
+.badge.rejected{color:var(--no)}
 .opt.rejected .shots{opacity:.55}
 .cost{font-size:14px;color:var(--muted)}
 .cost b{font-weight:500;color:var(--fg)}
-.choose{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
-.choose button{min-width:112px}
+.choose{display:flex;gap:8px;flex-wrap:wrap}
 .choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
-.choose button[aria-pressed="true"]::before{content:"✓ "}
-/* Deck: chips pinned under the tabs; the track swipes one card at a time on a phone and becomes a grid on wide screens */
-.chips{position:sticky;top:var(--stick);z-index:4;background:var(--bg);display:flex;gap:6px;padding-block:8px;margin-top:-8px;overflow-x:auto;scrollbar-width:none}
-.chips button{min-width:44px;padding-inline:12px;font-family:var(--mono)}
-.chips button[aria-current="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
-.chips button::after{content:" ✓";color:var(--ok);visibility:hidden}
-.chips button.chosen::after{visibility:visible}
-.track{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;align-items:start}
-.track::-webkit-scrollbar,.chips::-webkit-scrollbar,.tabs::-webkit-scrollbar{display:none}
-.track>.opt{scroll-snap-align:start;scroll-snap-stop:always}
-@media (min-width:900px){.chips{display:none}.track{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));overflow:visible;gap:20px}}
 /* Captures: the viewer's theme only, tap to enlarge */
-.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+.shots{display:flex;flex-direction:column;gap:12px}
 figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
 .shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
 .shot img{display:block;width:100%;height:auto}
@@ -91,14 +89,16 @@ dialog.lb img{max-width:none;background:var(--surface)}
 /* Bottom bar: picks so far, a note, Copy */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
 @media (min-width:720px){.bar{padding-inline:24px}}
-.bar .in{max-width:1032px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .in{max-width:832px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
 .bar .row{display:flex;align-items:center;gap:8px}
 .bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .bar .picks b{color:var(--fg);font-weight:500}
 .bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
-#copy{min-width:132px}
 .bar #out{font:12.5px/1.5 var(--mono)}
-@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+/* Copy keeps its width while it says Copied: both labels share one grid cell */
+#copy{display:inline-grid}
+#copy>span{grid-area:1/1}
+#copy>span[aria-hidden]{visibility:hidden}
 </style>
 
 <script>
@@ -109,12 +109,12 @@ const PAGE={
  quote:"The owner's own words that started this exploration.",
  q:"The question in one line?"
 };
-// Today: the Today tab, and the first card of every open question. facts are short lines with the measured numbers.
-// html: optional drawn wireframe instead of (or as well as) shots. compare:false drops the Today card from the deck.
+// Today: the Today tab. facts are short lines with the measured numbers; shots follow them, then html (an optional drawn wireframe).
 const TODAY={facts:["What main does now, with the measured numbers that matter."],shots:[IMG("today/home-light.png","Today · Home","today/home-dark.png")]};
-// Newest round first. Each round has questions; a question with one option is a sign-off (Looks good / Needs changes).
+// Newest round first; each round is a tab, the first one open. A round's questions each show one option at a time behind A/B/C tabs.
+// A question with one option is a sign-off (Looks good / Needs changes).
 // option: id, name, why, cost, rec, state ("" | "picked" | "rejected"), shots and/or html. why, cost, facts, every and feedback may hold inline HTML.
-// every: what all of the round's options share, folded above the questions. feedback: the owner's reaction that started the round.
+// every: what all of the round's options share, folded above the questions. feedback: the owner's reaction that started the round, three lines until opened.
 const ROUNDS=[
 {n:2,feedback:"What the owner said about round 1.",every:["Something every option in this round shares."],questions:[
  {key:"look",title:"The first question",intro:"What the options in this question have in common.",options:[
@@ -136,7 +136,7 @@ const ROUNDS=[
 (()=>{
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const $=id=>document.getElementById(id);
-const latest=ROUNDS[0],past=ROUNDS.slice(1);
+const latest=ROUNDS[0];
 const SIGN=[["ok","Looks good"],["changes","Needs changes"]];
 const signoff=q=>q.options.length===1;
 const KEY="exploration-"+PAGE.slug;
@@ -145,34 +145,35 @@ const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
 
 const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true" loading="lazy">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
-const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
-const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}" data-label="${esc(l)}">${esc(l)}</button>`).join("")+`</div>`;
-const card=(q,o,live)=>`<article class="opt ${o.state||""}" data-id="${esc(o.id)}"><header><span class="letter">${esc(o.id)}</span><h3>${esc(o.name)}</h3>${badges(o)}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
-const hasToday=TODAY.compare!==false&&((TODAY.shots&&TODAY.shots.length)||TODAY.html);
-const todayCard=`<article class="opt today" data-id="Today"><header><span class="letter">Today</span><h3>What main does now</h3></header>${TODAY.html||""}${shots(TODAY.shots)}</article>`;
-function question(r,q,i,live){
- const n=r.questions.length;
- const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
- if(!live)return `<div class="question">${head}<div class="opts">${q.options.map(o=>card(q,o,false)).join("")}</div></div>`;
- const ids=(hasToday?["Today"]:[]).concat(q.options.map(o=>o.id));
- return `<div class="question" data-q="${esc(q.key)}">${head}<div class="chips" aria-label="Options">`+ids.map(id=>`<button type="button" data-go="${esc(id)}">${esc(id)}</button>`).join("")+`</div><div class="track">${hasToday?todayCard:""}${q.options.map(o=>card(q,o,true)).join("")}</div></div>`;
-}
-const fold=(title,sum,body,open)=>`<details class="fold"${open?" open":""}><summary><span class="lbl">${title}</span><span class="sum">${esc(sum)}</span></summary><div class="body">${body}</div></details>`;
 const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
-const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?`Signed off ${o.name}`:`${o.id}: ${o.name}`));return p.length?p.join(" · "):"No pick"};
+const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
+const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}">${esc(l)}</button>`).join("")+`</div>`;
+const card=(q,o,live,qid)=>`<article class="opt ${o.state||""}" id="${qid}-${esc(o.id)}" role="tabpanel"><header>${signoff(q)?"":`<span class="letter">Option ${esc(o.id)}</span>`}<h3>${esc(o.name)}</h3>${o.rec||o.state?`<div class="tags">${badges(o)}</div>`:""}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
+// Option tabs: letter only; a dot marks the recommendation, a tick the pick
+const mark=o=>o.state==="picked"?'<span class="mark ok" aria-label="picked">✓</span>':o.state==="rejected"?'<span class="mark no" aria-label="rejected">✕</span>':o.rec?'<span class="mark rec" aria-label="recommended"></span>':"";
+function question(r,q,i,live){
+ const n=r.questions.length,qid=`r${r.n}-${q.key}`;
+ const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
+ if(signoff(q))return `<div class="question">${head}${card(q,q.options[0],live,qid)}</div>`;
+ const first=(q.options.find(o=>o.state==="picked")||q.options[0]).id;
+ return `<div class="question" data-q="${esc(q.key)}" data-live="${live}">${head}<div class="tabs otabs" role="tablist" aria-label="Options">`+q.options.map(o=>`<button type="button" role="tab" data-opt="${esc(o.id)}" aria-controls="${qid}-${esc(o.id)}" aria-selected="${o.id===first}">${esc(o.id)}${mark(o)}</button>`).join("")+`</div>`+q.options.map(o=>card(q,o,live,qid).replace('role="tabpanel"',`role="tabpanel"${o.id===first?"":" hidden"}`)).join("")+`</div>`;
+}
+const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?"signed off":`picked ${o.id}`));return p.length?p.join(", "):"no pick"};
+function round(r,live){
+ const Q=r.questions;
+ const status=live?"open":outcome(r);
+ return `<section data-panel="r${r.n}"${live?"":" hidden"}><p class="lbl${live?" acc":""}">Round ${r.n} · ${esc(status)}</p>${r.feedback?`<div class="said"><blockquote class="clamp">${r.feedback}</blockquote><button type="button" hidden>Show all</button></div>`:""}${r.every?`<details class="fold"><summary><span class="lbl">In every option</span></summary><div class="body">${list(r.every)}</div></details>`:""}${Q.map((q,i)=>question(r,q,i,live)).join("")}</section>`;
+}
 const Q=latest.questions;
-const openTitle=Q.length>1?`${Q.length} questions`:signoff(Q[0])?"Sign off":`${Q[0].options.length} options`;
 
 document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
 <header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
-<nav class="tabs" aria-label="Sections"><button type="button" data-tab="now" aria-selected="true">Round ${latest.n}</button><button type="button" data-tab="today" aria-selected="false">Today</button>${past.length?`<button type="button" data-tab="past" aria-selected="false">Earlier rounds · ${past.length}</button>`:""}</nav>
-<section data-panel="now"><div class="shead"><p class="lbl acc">Round ${latest.n} · open</p><h2>${openTitle}</h2></div>${latest.feedback?`<blockquote>${latest.feedback}</blockquote>`:""}${latest.every?fold("In every option",latest.every[0].replace(/<[^>]+>/g,""),list(latest.every),ROUNDS.length===1):""}${Q.map((q,i)=>question(latest,q,i,true)).join("")}</section>
-<section data-panel="today" hidden><div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div>${TODAY.facts?list(TODAY.facts):""}${TODAY.html||""}${shots(TODAY.shots)}</section>
-${past.length?`<section data-panel="past" hidden><div class="shead"><p class="lbl">Earlier rounds</p><h2>Newest first</h2></div><div class="ledger">${past.map(r=>fold(`Round ${r.n}`,outcome(r),(r.feedback?`<blockquote>${r.feedback}</blockquote>`:"")+(r.every?list(r.every):"")+r.questions.map((q,i)=>question(r,q,i,false)).join(""))).join("")}</div></section>`:""}
+<nav class="tabs rtabs" role="tablist" aria-label="Rounds"><button type="button" role="tab" data-tab="today" aria-selected="false">Today</button>${ROUNDS.map((r,i)=>`<button type="button" role="tab" data-tab="r${r.n}" aria-selected="${i===0}">Round ${r.n}</button>`).join("")}</nav>
+${ROUNDS.map((r,i)=>round(r,i===0)).join("")}
+<section data-panel="today" hidden><p class="lbl">Today · what main does now</p>${TODAY.facts?list(TODAY.facts):""}${shots(TODAY.shots)}${TODAY.html||""}</section>
 </div>
-<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy">Copy reaction</button></div></div></div>
+<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy"><span id="copyLabel">Copy reaction</span><span aria-hidden="true">Copy reaction</span></button></div></div></div>
 <dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
-document.documentElement.style.setProperty("--stick",`calc(env(safe-area-inset-top,0px) + ${document.querySelector(".tabs").offsetHeight}px)`);
 
 const answer=q=>{const v=state.picks[q.key];return !v?"":signoff(q)?SIGN.find(s=>s[0]===v)[1]:`${v}: ${q.options.find(o=>o.id===v).name}`};
 function build(){
@@ -182,41 +183,49 @@ function build(){
 function sync(){
  const done=Q.filter(q=>state.picks[q.key]);
  $("picks").innerHTML=done.length?done.map(q=>`<b>${esc(Q.length>1?answer(q).split(":")[0]:answer(q))}</b>`).join(" · ")+(Q.length>1?` · ${done.length} of ${Q.length} answered`:""):Q.length>1?`0 of ${Q.length} answered`:signoff(Q[0])?"Sign off or say what to change":"No pick yet";
- document.querySelectorAll(".choose button").forEach(b=>{const on=state.picks[b.dataset.q]===b.dataset.v;b.setAttribute("aria-pressed",on);if(b.dataset.label.startsWith("Pick "))b.textContent=on?"Picked":b.dataset.label});
- document.querySelectorAll(".question[data-q]").forEach(el=>el.querySelectorAll(".chips button").forEach(c=>{const q=Q.find(x=>x.key===el.dataset.q),v=state.picks[el.dataset.q];c.classList.toggle("chosen",!!v&&(v===c.dataset.go||signoff(q)&&c.dataset.go!=="Today"))}));
+ document.querySelectorAll(".choose button").forEach(b=>b.setAttribute("aria-pressed",state.picks[b.dataset.q]===b.dataset.v));
+ // The open round's option tabs tick the owner's pick
+ document.querySelectorAll('.question[data-live="true"]').forEach(el=>el.querySelectorAll(".otabs button").forEach(t=>{
+  const o=Q.find(x=>x.key===el.dataset.q).options.find(x=>x.id===t.dataset.opt);
+  t.innerHTML=esc(o.id)+(state.picks[el.dataset.q]===o.id?'<span class="mark ok" aria-label="your pick">✓</span>':mark(o))}));
  save();
 }
+// Feedback longer than three lines gets Show all; the round tabs fade when some are off screen
+const fit=()=>{document.querySelectorAll(".said").forEach(d=>{const q=d.firstElementChild;if(q.classList.contains("clamp"))d.lastElementChild.hidden=q.scrollHeight<=q.clientHeight+1});const t=document.querySelector(".rtabs");t.classList.toggle("more",t.scrollWidth-t.scrollLeft>t.clientWidth+1)};
+document.querySelector(".rtabs").addEventListener("scroll",fit,{passive:true});addEventListener("resize",fit);
 const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
 document.addEventListener("click",e=>{
  const b=e.target.closest(".choose button");
  if(b){const k=b.dataset.q;state.picks[k]=state.picks[k]===b.dataset.v?undefined:b.dataset.v;if(state.picks[k]==="changes")openNote();sync();return}
- const go=e.target.closest(".chips button");
- if(go){const t=go.closest(".question").querySelector(".track"),c=t.querySelector(`.opt[data-id="${CSS.escape(go.dataset.go)}"]`);t.scrollTo({left:c.offsetLeft-t.offsetLeft,behavior:"smooth"});return}
- const tab=e.target.closest(".tabs button");
- if(tab){document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);scrollTo({top:0});return}
+ const ot=e.target.closest(".otabs button");
+ if(ot){const qel=ot.closest(".question"),bar=ot.parentElement;
+  bar.querySelectorAll("button").forEach(x=>x.setAttribute("aria-selected",x===ot));
+  qel.querySelectorAll(":scope>.opt").forEach(p=>p.hidden=p.id!==ot.getAttribute("aria-controls"));
+  // When the tabs are stuck to the top, start the new option from its beginning
+  const stuck=bar.getBoundingClientRect().top<=parseFloat(getComputedStyle(bar).top)+1;
+  if(stuck)scrollTo({top:scrollY+qel.querySelector(":scope>.opt:not([hidden])").getBoundingClientRect().top-bar.offsetHeight-12});
+  return}
+ const more=e.target.closest(".said button");
+ if(more){const q=more.previousElementSibling,open=q.classList.toggle("clamp");more.textContent=open?"Show all":"Show less";return}
+ const tab=e.target.closest(".rtabs button");
+ if(tab){document.querySelectorAll(".rtabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);fit();return}
  const s=e.target.closest(".shot");
  if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
  if(e.target.closest("#lb"))$("lb").close();
-});
-// The chip follows the swipe, and on a phone the track takes the height of the card in view
-document.querySelectorAll(".track").forEach(t=>{
- const chips=[...t.previousElementSibling.querySelectorAll("button")],cards=[...t.children];
- const mark=()=>{const i=Math.min(cards.length-1,Math.round(t.scrollLeft/(t.clientWidth+16)));chips.forEach((c,j)=>c.setAttribute("aria-current",j===i));t.style.height=getComputedStyle(t.previousElementSibling).display==="none"?"":cards[i].offsetHeight+"px"};
- t.addEventListener("scroll",()=>requestAnimationFrame(mark),{passive:true});addEventListener("resize",mark);t.querySelectorAll("img").forEach(im=>im.addEventListener("load",mark));mark();
 });
 $("noteBtn").addEventListener("click",()=>{const n=$("note");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
 $("note").value=state.note;if(state.note)$("note").hidden=false;
 $("note").addEventListener("input",e=>{state.note=e.target.value;save()});
 $("copy").addEventListener("click",()=>{
- const text=build(),b=$("copy"),done=t=>{b.textContent=t;setTimeout(()=>b.textContent="Copy reaction",1800)};
- const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select();done("Select and copy")};
- try{navigator.clipboard.writeText(text).then(()=>done("Copied"),fallback)}catch(e){fallback()}
+ const text=build(),l=$("copyLabel"),done=()=>{l.textContent="Copied";setTimeout(()=>l.textContent="Copy reaction",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select()};
+ try{navigator.clipboard.writeText(text).then(done,fallback)}catch(e){fallback()}
 });
 // Light / Dark switch, so the other theme's captures are one tap away
 const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
 const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
 const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
 $("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
-sync();
+sync();fit();
 })();
 </script>
