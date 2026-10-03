@@ -23,8 +23,8 @@ the canvas: chats can use it and new workspaces start from its settings. On a
 shared canvas these settings are shared with everyone on it, so a
 collaborator's new workspaces start the same way as yours.
 
-_Hosted._ **On this canvas** holds every repository anyone on the canvas has
-added, and one a teammate added says who after its name. When a teammate has
+<Only hosted /> **On this canvas** holds every repository anyone on the canvas
+has added, and one a teammate added says who after its name. When a teammate has
 already added a repository you also have, under the same name, yours isn't
 offered: the canvas uses theirs.
 
@@ -45,7 +45,7 @@ change.
 
 <Screenshot name="add-project-menu" alt="The New repository menu" />
 
-- **Open folder** _(desktop)_ picks a folder on your machine, usually your
+- **Open folder** <Only desktop /> picks a folder on your machine, usually your
   existing clone. Screenplay creates a separate worktree for each workspace
   and never touches your own checkout.
 - **Open GitHub repository** opens a searchable picker of your GitHub
@@ -75,9 +75,9 @@ instead.
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Setup script**          | Runs once when a workspace is set up, e.g. `npm install`.                                                                                                                               |
 | **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                                                                    |
-| **Dev server port**       | _Hosted._ The port your dev server listens on.                                                                                                                                          |
-| **Environment variables** | _Hosted._ `KEY=value` lines every workspace gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                            |
-| **Files to copy**         | _Desktop._ Files from your folder to copy into each workspace (default `.env*`), so local secrets come along. One pattern per line.                                                     |
+| **Dev server port**       | <Only hosted /> The port your dev server listens on.                                                                                                                                    |
+| **Environment variables** | <Only hosted /> `KEY=value` lines every workspace gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                      |
+| **Files to copy**         | <Only desktop /> Files from your folder to copy into each workspace (default `.env*`), so local secrets come along. One pattern per line.                                               |
 | **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                                                                        |
 | **Agent instructions**    | Extra instructions for the agent in this repository, e.g. "Work in the Next.js app under `apps/web`". _(Advanced)_                                                                      |
 | **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository's name in chats, and beside its `owner/name` in repository lists. Tells apart two setups of one repository. |

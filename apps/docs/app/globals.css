@@ -390,6 +390,18 @@ html.dark .sp-screenshot .sp-screenshot-dark {
   opacity: 0.7;
 }
 
+/* Build badges (<Only desktop /> / <Only hosted />): at the start of a cell,
+   list item or paragraph, or on their own line under a heading. */
+.sp-only {
+  margin-inline-end: 0.375rem;
+  vertical-align: 0.0625rem;
+}
+:is(h2, h3, h4) + .sp-only {
+  display: flex;
+  width: fit-content;
+  margin-top: 0.75rem;
+}
+
 /* Tables as the stock shadcn Table: full width, 14px, left-aligned medium
    headers, row dividers only (no grid, no stripes), 8px top-aligned cells. */
 .sp-table {
