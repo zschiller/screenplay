@@ -6,8 +6,10 @@ import {
   type FrameStreamHandlers,
 } from "@/lib/frame-stream/client"
 import {
+  clickCounter,
   decodeVideoMessage,
   h264CodecOf,
+  pageKeyOf,
   type FrameStreamClientMessage,
 } from "@/lib/frame-stream/protocol"
 
@@ -408,6 +410,64 @@ describe("going local (#1397)", () => {
     const slow = slowConn.snapshot("f1")
     slowTimers.at(-1)!()
     expect(await slow).toBeNull()
+  })
+})
+
+describe("frame stream input", () => {
+  it("counts quick presses in one place as double and triple clicks", () => {
+    const count = clickCounter()
+    expect(count(0, 10, 10, 0)).toBe(1)
+    expect(count(0, 11, 10, 200)).toBe(2)
+    expect(count(0, 11, 11, 400)).toBe(3)
+    // Too slow, too far, or another button starts again.
+    expect(count(0, 11, 11, 1000)).toBe(1)
+    expect(count(0, 30, 11, 1100)).toBe(1)
+    expect(count(2, 30, 11, 1200)).toBe(1)
+  })
+
+  const press = (
+    key: string,
+    mods: Partial<
+      Record<"altKey" | "ctrlKey" | "metaKey" | "shiftKey", boolean>
+    > = {}
+  ) => ({
+    key,
+    code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+    keyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    ...mods,
+  })
+
+  it("sends a Mac viewer's shortcuts as the shared browser's Linux ones", () => {
+    // ⌘A selects all as Ctrl+A.
+    expect(pageKeyOf(press("a", { metaKey: true }), true)).toMatchObject({
+      key: "a",
+      modifiers: 2,
+    })
+    // ⌘⇧← selects to the line's start.
+    expect(
+      pageKeyOf(press("ArrowLeft", { metaKey: true, shiftKey: true }), true)
+    ).toEqual({ key: "Home", code: "Home", keyCode: 36, modifiers: 8 })
+    expect(pageKeyOf(press("ArrowDown", { metaKey: true }), true)).toEqual({
+      key: "End",
+      code: "End",
+      keyCode: 35,
+      modifiers: 2,
+    })
+    // ⌥⌫ deletes a word, as Ctrl+Backspace.
+    expect(pageKeyOf(press("Backspace", { altKey: true }), true)).toMatchObject(
+      { key: "Backspace", modifiers: 2 }
+    )
+    // Elsewhere, keys go as they are.
+    expect(pageKeyOf(press("a", { metaKey: true }), false)).toMatchObject({
+      modifiers: 4,
+    })
+    expect(pageKeyOf(press("b", { ctrlKey: true }), true)).toMatchObject({
+      modifiers: 2,
+    })
   })
 })
 

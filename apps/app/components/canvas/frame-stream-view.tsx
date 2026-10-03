@@ -8,9 +8,11 @@ import {
 } from "@/lib/frame-stream/client"
 import {
   FRAME_STREAM_COLOR_SPACE,
+  clickCounter,
   h264CodecOf,
   modifiersOf,
   mouseButtonOf,
+  pageKeyOf,
   type FrameColorScheme,
   type FrameStreamInput,
   type FrameStreamServerMessage,
@@ -340,12 +342,15 @@ export function FrameStreamView({
         y: ((e.clientY - rect.top) * height) / rect.height,
       }
     }
+    const countClick = clickCounter()
+    let clickCount = 1
     const mouse =
       (type: "mousePressed" | "mouseReleased" | "mouseMoved") =>
       (e: PointerEvent) => {
         if (type === "mousePressed") {
           canvas.focus({ preventScroll: true })
           canvas.setPointerCapture(e.pointerId)
+          clickCount = countClick(e.button, e.clientX, e.clientY, e.timeStamp)
         }
         send({
           kind: "mouse",
@@ -353,7 +358,7 @@ export function FrameStreamView({
           ...at(e),
           button: type === "mouseMoved" ? "none" : mouseButtonOf(e.button),
           buttons: e.buttons,
-          clickCount: type === "mouseMoved" ? 0 : Math.max(1, e.detail),
+          clickCount: type === "mouseMoved" ? 0 : clickCount,
           modifiers: modifiersOf(e),
         })
       }
@@ -373,13 +378,15 @@ export function FrameStreamView({
         modifiers: modifiersOf(e),
       })
     }
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform)
     const key = (type: "keyDown" | "keyUp") => (e: KeyboardEvent) => {
       // Keys belong to the page, not the canvas's shortcuts. Esc goes to
       // both: the page sees it, and the canvas leaves Interact.
-      if (e.key !== "Escape") {
-        e.stopPropagation()
-        e.preventDefault()
-      }
+      if (e.key !== "Escape") e.stopPropagation()
+      // Paste goes as the paste event, with this viewer's clipboard: the
+      // shortcut itself would paste the shared browser's.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === "KeyV") return
+      if (e.key !== "Escape") e.preventDefault()
       if (e.isComposing) return
       const text =
         type === "keyDown" && !e.metaKey && !e.ctrlKey
@@ -392,12 +399,9 @@ export function FrameStreamView({
       send({
         kind: "key",
         type: type === "keyDown" && !text ? "rawKeyDown" : type,
-        key: e.key,
-        code: e.code,
+        ...pageKeyOf(e, mac),
         text,
-        keyCode: e.keyCode,
         repeat: e.repeat,
-        modifiers: modifiersOf(e),
       })
     }
     const onKeyDown = key("keyDown")

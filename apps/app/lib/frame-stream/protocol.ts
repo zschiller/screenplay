@@ -185,6 +185,81 @@ export function modifiersOf(e: {
   )
 }
 
+/**
+ * Counts presses into double and triple clicks, as the OS does for a page of
+ * its own: a pointer event's `detail` is always 0, and the shared page fires
+ * `dblclick` only when the second press says it's the second.
+ */
+export function clickCounter(intervalMs = 500, slopPx = 4) {
+  let last: {
+    button: number
+    x: number
+    y: number
+    at: number
+    count: number
+  } | null = null
+  return (button: number, x: number, y: number, at: number): number => {
+    const count =
+      last &&
+      last.button === button &&
+      at - last.at <= intervalMs &&
+      Math.abs(x - last.x) <= slopPx &&
+      Math.abs(y - last.y) <= slopPx
+        ? last.count + 1
+        : 1
+    last = { button, x, y, at, count }
+    return count
+  }
+}
+
+type KeyLike = {
+  key: string
+  code: string
+  keyCode: number
+  altKey: boolean
+  ctrlKey: boolean
+  metaKey: boolean
+  shiftKey: boolean
+}
+
+/**
+ * A key as the shared page's browser expects it. That browser is Chrome on
+ * Linux, so a Mac viewer's shortcuts go as their Linux equivalents: ⌘ as
+ * Ctrl (⌘A, ⌘Z), ⌘← and ⌘→ as Home and End, ⌘↑ and ⌘↓ as Ctrl+Home and
+ * Ctrl+End, and ⌥ word moves and deletes as Ctrl ones.
+ */
+export function pageKeyOf(
+  e: KeyLike,
+  mac: boolean
+): { key: string; code: string; keyCode: number; modifiers: number } {
+  const same = {
+    key: e.key,
+    code: e.code,
+    keyCode: e.keyCode,
+    modifiers: modifiersOf(e),
+  }
+  if (!mac) return same
+  const shift = e.shiftKey ? 8 : 0
+  if (e.metaKey && !e.altKey && !e.ctrlKey) {
+    const home = { key: "Home", code: "Home", keyCode: 36 }
+    const end = { key: "End", code: "End", keyCode: 35 }
+    if (e.key === "ArrowLeft") return { ...home, modifiers: shift }
+    if (e.key === "ArrowRight") return { ...end, modifiers: shift }
+    if (e.key === "ArrowUp") return { ...home, modifiers: 2 | shift }
+    if (e.key === "ArrowDown") return { ...end, modifiers: 2 | shift }
+  }
+  if (
+    e.altKey &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    ["ArrowLeft", "ArrowRight", "Backspace", "Delete"].includes(e.key)
+  )
+    return { ...same, modifiers: 2 | shift }
+  // ⌘ for Ctrl; a Ctrl the viewer held stays Ctrl.
+  const m = same.modifiers
+  return { ...same, modifiers: m & 4 ? (m & ~4) | 2 : m }
+}
+
 /** CDP's button name for a DOM `MouseEvent.button`. */
 export function mouseButtonOf(
   button: number
