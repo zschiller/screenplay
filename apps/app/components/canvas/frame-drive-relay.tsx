@@ -39,11 +39,20 @@ export function FrameDriveRelay({
   roomId,
   viewerId,
   frameControl,
+  reveal,
 }: {
   roomId: string
   viewerId: string | null
   frameControl: YjsCollection<FrameControlRecord>
+  /** Bring a frame into this canvas's view, for the agent showing it
+   *  (#1390). */
+  reveal: (frameId: string) => Promise<boolean>
 }) {
+  // Read when asked, so a new callback doesn't reconnect the channel.
+  const revealRef = useRef(reveal)
+  useEffect(() => {
+    revealRef.current = reveal
+  })
   useEffect(() => {
     if (!viewerId) return
     let stopped = false
@@ -70,6 +79,7 @@ export function FrameDriveRelay({
               frameControl.get(frameControlKey(frameId, viewerId))?.driver ===
               AGENT_PARTY,
             subscribeControl: (listener) => frameControl.observe(listener),
+            reveal: (frameId) => revealRef.current(frameId),
           })
         },
         () => reconnect(true)

@@ -8,6 +8,7 @@ import {
 import {
   isGesture,
   type DriveOp,
+  type DrivePace,
   type DriveResult,
   type DriveScreenshotResult,
   type FrameDriveBackend,
@@ -70,6 +71,52 @@ export function agentAsksToDrive(
 }
 
 /**
+ * The person asked the agent in chat to show them something or get a frame
+ * into a state (#1390). The ask is the grant, so there's no second prompt:
+ *
+ * - Nobody drives, or the asker does: the agent drives (`chat-ask`).
+ * - Someone else drives (a shared frame): its ask queues behind them.
+ * - The asker took the frame from the agent and still has it: it waits and
+ *   queues. A chat ask never undoes a take-over; the agent gets the frame
+ *   back when they leave Interact.
+ *
+ * `takenBy` is who took the frame from the agent and hasn't let go, as the
+ * driver remembers it; `heldBefore` catches a take-over since its last op.
+ */
+export function agentAsksInChat(
+  record: FrameControlRecord,
+  opts: {
+    asker: string
+    at: number
+    heldBefore: boolean
+    takenBy: string | null
+  }
+): AgentDriveDecision {
+  if (record.driver === AGENT_PARTY) return { kind: "drive", record }
+  const takenBy =
+    opts.heldBefore && record.driver !== null ? record.driver : opts.takenBy
+  if (takenBy !== null && record.driver === takenBy) {
+    return {
+      kind: "wait",
+      record: reduceFrameControl(record, {
+        type: "request",
+        by: AGENT_PARTY,
+        at: opts.at,
+      }),
+      driver: record.driver,
+      takenOver: true,
+    }
+  }
+  const next = reduceFrameControl(record, {
+    type: "chat-ask",
+    asker: opts.asker,
+    at: opts.at,
+  })
+  if (next.driver === AGENT_PARTY) return { kind: "drive", record: next }
+  return { kind: "wait", record: next, driver: next.driver, takenOver: false }
+}
+
+/**
  * The agent lets go of a frame: stops driving it and withdraws any request,
  * so a person who leaves Interact later doesn't hand it to an agent that has
  * moved on.
@@ -115,6 +162,13 @@ export type AgentDriveOutcome =
       takenOver: boolean
     }
 
+/** What starting to drive from a chat ask came to. */
+export type AgentStartOutcome =
+  | { status: "driving" }
+  | { status: "wait"; driver: string | null; takenOver: boolean }
+  | { status: "unavailable"; reason: string }
+  | { status: "failed"; reason: string }
+
 export interface AgentFrameDriverDeps {
   backend: FrameDriveBackend
   store: FrameControlStore
@@ -136,6 +190,10 @@ export interface AgentFrameDriverDeps {
 export class AgentFrameDriver {
   private readonly held = new Set<string>()
   private readonly idle = new Map<string, unknown>()
+  /** The pace a chat ask set for each frame, until the agent lets go. */
+  private readonly pace = new Map<string, DrivePace>()
+  /** Who took each frame from the agent and may still have it. */
+  private readonly takenBy = new Map<string, string>()
   private readonly now: () => number
   private readonly setTimer: (fn: () => void, ms: number) => unknown
   private readonly clearTimer: (timer: unknown) => void
@@ -175,6 +233,7 @@ export class AgentFrameDriver {
     this.touch(key)
     if (made.kind === "wait") {
       this.held.delete(key)
+      if (made.takenOver && made.driver) this.takenBy.set(key, made.driver)
       return {
         status: "wait",
         driver: made.driver,
@@ -183,25 +242,91 @@ export class AgentFrameDriver {
     }
 
     this.held.add(key)
-    const result = await this.deps.backend.run(frameId, op)
+    const pace = this.pace.get(key)
+    const result = await this.deps.backend.run(
+      frameId,
+      pace && !op.pace ? { ...op, pace } : op
+    )
     if (result.status === "taken") {
-      // Taken over between the gate and the gesture: the canvas refused it.
+      // Taken over between the gate and the gesture (or mid-glide): the
+      // canvas refused it. Remember who took it, so a chat ask doesn't take
+      // it back while they still drive.
       this.held.delete(key)
-      return { status: "wait", driver: null, takenOver: true }
+      const now = await this.deps.store.update(key, (record) => record)
+      const driver =
+        now.driver !== null && now.driver !== AGENT_PARTY ? now.driver : null
+      if (driver) this.takenBy.set(key, driver)
+      return { status: "wait", driver, takenOver: true }
     }
     return result
+  }
+
+  /**
+   * Start driving a frame because `asker` asked for it in chat (#1390): the
+   * ask grants control ({@link agentAsksInChat}), and `pace` sets how every
+   * gesture plays until the agent lets go. For `show`, the frame is brought
+   * into the asker's view; `jump` moves nobody's view.
+   */
+  async start(
+    frameId: string,
+    opts: { asker: string; pace: DrivePace }
+  ): Promise<AgentStartOutcome> {
+    const unavailable = await this.deps.backend.unavailable(frameId)
+    if (unavailable) return { status: "unavailable", reason: unavailable }
+    const key = this.deps.keyOf(frameId)
+    let decision: AgentDriveDecision | null = null
+    await this.deps.store.update(key, (record) => {
+      decision = agentAsksInChat(record, {
+        asker: opts.asker,
+        at: this.now(),
+        heldBefore: this.held.has(key),
+        takenBy: this.takenBy.get(key) ?? null,
+      })
+      return decision.record
+    })
+    const made = decision as AgentDriveDecision | null
+    if (!made)
+      return { status: "failed", reason: "Frame Control didn't answer" }
+    this.touch(key)
+    this.pace.set(key, opts.pace)
+    if (made.kind === "wait") {
+      this.held.delete(key)
+      if (made.takenOver && made.driver) this.takenBy.set(key, made.driver)
+      return {
+        status: "wait",
+        driver: made.driver,
+        takenOver: made.takenOver,
+      }
+    }
+    this.held.add(key)
+    this.takenBy.delete(key)
+    if (opts.pace === "show") {
+      // Best effort: the demo still runs if the canvas can't move.
+      await this.deps.backend.reveal(frameId).catch(() => null)
+    }
+    return { status: "driving" }
   }
 
   screenshot(frameId: string): Promise<DriveScreenshotResult> {
     return this.deps.backend.screenshot(frameId)
   }
 
-  /** Stop driving the frame and leave the queue for it. */
   /** Why no frame on the canvas can be driven right now, or null. */
   canvasUnavailable(): Promise<string | null> {
     return this.deps.backend.unavailable()
   }
 
+  /** Whether the canvas has `frameId` loaded: null when it has. */
+  frameUnavailable(frameId: string): Promise<string | null> {
+    return this.deps.backend.unavailable(frameId)
+  }
+
+  /** Bring a frame into the asker's view. Null when it did, else why not. */
+  reveal(frameId: string): Promise<string | null> {
+    return this.deps.backend.reveal(frameId)
+  }
+
+  /** Stop driving the frame and leave the queue for it. */
   async letGo(frameId: string): Promise<void> {
     const key = this.deps.keyOf(frameId)
     this.release(key)
@@ -218,6 +343,7 @@ export class AgentFrameDriver {
       this.setTimer(() => {
         this.idle.delete(key)
         this.held.delete(key)
+        this.pace.delete(key)
         void this.deps.store
           .update(key, (record) => agentLetsGo(record, this.deps.presence()))
           .catch(() => {})
@@ -230,6 +356,8 @@ export class AgentFrameDriver {
     if (pending !== undefined) this.clearTimer(pending)
     this.idle.delete(key)
     this.held.delete(key)
+    this.pace.delete(key)
+    this.takenBy.delete(key)
   }
 }
 

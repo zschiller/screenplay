@@ -30,6 +30,8 @@ import {
 
 /** How long a gesture may take in the frame before the relay gives up. */
 const OP_TIMEOUT_MS = 15_000
+/** How long the canvas may take to lay a new frame out and move to it. */
+const REVEAL_TIMEOUT_MS = 5000
 
 type Pending = {
   resolve: (message: CanvasToServer) => void
@@ -243,6 +245,26 @@ export function macFrameDriveBackend(
         status: "shot",
         shot: { ...image, note: screenshotNote(where, shown) },
       }
+    },
+
+    async reveal(frameId) {
+      // On the Mac every canvas open on the Room is the asker's own, so
+      // moving them moves nobody else's view. The newest one that shows the
+      // frame does it, as for an op.
+      const canvas = canvasFor(roomId, frameId)
+      if (!canvas) {
+        return canvasesByRoom().get(roomId)?.length ? NO_FRAME : NO_CANVAS
+      }
+      const id = randomUUID()
+      const answer = await ask(
+        canvas,
+        { type: "reveal", id, frameId },
+        REVEAL_TIMEOUT_MS,
+        { type: "revealed", id, ok: false }
+      )
+      return answer.type === "revealed" && answer.ok
+        ? null
+        : "The canvas couldn't bring the frame into view."
     },
   }
 }

@@ -25,10 +25,18 @@ const EVAL_LIKE = /eval|script|exec|run_js|javascript|inject|function/i
 function room({ empty = false } = {}) {
   const doc = new Y.Doc()
   const c = createRoomCollections(doc)
-  if (empty)
-    return {
-      readDoc: async <T>(fn: (c: RoomCollections) => T | Promise<T>) => fn(c),
-    }
+  const access = {
+    c,
+    readDoc: async <T>(fn: (c: RoomCollections) => T | Promise<T>) => fn(c),
+    mutateDoc: async <T>(fn: (c: RoomCollections) => T | Promise<T>) => {
+      let out!: T | Promise<T>
+      doc.transact(() => {
+        out = fn(c)
+      })
+      return out
+    },
+  }
+  if (empty) return access
   c.branches.set("b1", {
     id: "b1",
     sandboxName: "sb-1",
@@ -41,19 +49,38 @@ function room({ empty = false } = {}) {
     width: 800,
     height: 600,
   } as never)
-  return {
-    readDoc: async <T>(fn: (c: RoomCollections) => T | Promise<T>) => fn(c),
-  }
+  c.iframeLayerGroups.set("g1", {
+    id: "g1",
+    name: "Group 1",
+    x: 0,
+    y: 0,
+    members: [{ kind: "iframe-layer", id: "f1" }],
+  } as never)
+  return access
 }
 
 function tools(
   answer: (op: DriveOp) => DriveResult,
   unavailable?: string,
-  { empty = false } = {}
+  {
+    empty = false,
+    frameUnavailable,
+  }: {
+    empty?: boolean
+    /** Whether the canvas has a frame loaded, when that differs. */
+    frameUnavailable?: (frameId: string) => string | null
+  } = {}
 ) {
   const ops: DriveOp[] = []
+  const reveals: string[] = []
   const backend: FrameDriveBackend = {
-    unavailable: async () => unavailable ?? null,
+    unavailable: async (frameId) =>
+      unavailable ??
+      (frameId && frameUnavailable ? frameUnavailable(frameId) : null),
+    reveal: async (frameId) => {
+      reveals.push(frameId)
+      return null
+    },
     run: async (_id, op) => {
       ops.push(op)
       return answer(op)
@@ -67,18 +94,25 @@ function tools(
       },
     }),
   }
+  const store = memoryFrameControlStore()
   const driver = new AgentFrameDriver({
     backend,
-    store: memoryFrameControlStore(),
+    store,
     keyOf: (id) => id,
     presence: () => ({ online: new Set(), goneAt: new Map() }),
   })
+  const r = room({ empty })
   return {
     ops,
-    tools: buildFrameDriveTools(driver, room({ empty }), {
-      kind: "chat",
-      sandboxName: "sb-1",
-    }),
+    reveals,
+    store,
+    c: r.c,
+    tools: buildFrameDriveTools(
+      driver,
+      r,
+      { kind: "chat", sandboxName: "sb-1" },
+      { asker: "user-zack", sleep: async () => {} }
+    ),
   }
 }
 
@@ -172,6 +206,80 @@ describe("Frame Drive tools", () => {
   })
 })
 
+describe("Showing the person (#1390)", () => {
+  const DONE: DriveResult = {
+    status: "done",
+    value: { op: "click", path: "/" },
+  }
+
+  it("show: takes the frame on the ask, brings it into view, and paces each step", async () => {
+    const { tools: t, ops, reveals, store } = tools(() => DONE)
+    // The person is interacting with the frame when they ask.
+    store.records.set("f1", { live: false, driver: "user-zack", requests: [] })
+    const out = await call(t.frame_start_driving, { pace: "show" })
+    expect(out).toMatch(/watchable pace.*into the person's view/)
+    expect(reveals).toEqual(["f1"])
+    await call(t.frame_click, { target: { text: "Save" } })
+    expect(ops).toEqual([
+      { op: "click", target: { text: "Save" }, pace: "show" },
+    ])
+  })
+
+  it("jump: no animation, and nobody's view moves", async () => {
+    const { tools: t, ops, reveals } = tools(() => DONE)
+    expect(await call(t.frame_start_driving, { pace: "jump" })).toMatch(
+      /end state; nobody's view moved/
+    )
+    await call(t.frame_click, { target: { text: "Save" } })
+    expect(reveals).toEqual([])
+    expect(ops[0]).toMatchObject({ pace: "jump" })
+  })
+
+  it("opens a new frame beside the Workspace's frames and waits for the canvas to load it", async () => {
+    let checks = 0
+    const { tools: t, c } = tools(() => DONE, undefined, {
+      // The canvas mounts it on the third look.
+      frameUnavailable: (id) =>
+        id !== "f1" && ++checks < 3 ? "not yet" : null,
+    })
+    const out = String(await call(t.frame_open, { route: "settings" }))
+    const id = out.match(/frameId "([^"]+)"/)?.[1]
+    expect(out).toMatch(/^Opened frame \[.+\] \(\/settings\) beside/)
+    expect(checks).toBe(3)
+    expect(c.iframeLayers.get(id!)).toMatchObject({
+      branchId: "b1",
+      route: "/settings",
+      label: "Settings",
+      width: 800,
+      height: 600,
+    })
+    expect(
+      c.iframeLayerGroups.get("g1")?.members.map((m: { id: string }) => m.id)
+    ).toEqual(["f1", id])
+  })
+
+  it("opens a Workspace's first frame in a Group of its own", async () => {
+    const { tools: t, c } = tools(() => DONE)
+    c.iframeLayers.delete("f1")
+    c.iframeLayerGroups.delete("g1")
+    const out = String(await call(t.frame_open, {}))
+    const id = out.match(/frameId "([^"]+)"/)?.[1]
+    expect(c.iframeLayers.get(id!)).toMatchObject({ branchId: "b1" })
+    expect(c.iframeLayers.get(id!)?.route).toBeUndefined()
+  })
+
+  it("doesn't open a frame when the canvas isn't open", async () => {
+    const { tools: t, c } = tools(
+      () => DONE,
+      "Screenplay isn't showing this canvas."
+    )
+    expect(String(await call(t.frame_open, {}))).toMatch(
+      /isn't showing this canvas.*Tell the person in chat/
+    )
+    expect(c.iframeLayers.toArray()).toHaveLength(1)
+  })
+})
+
 describe("phrase", () => {
   it("names a gap and hands the step to the person", () => {
     const line = phrase("frame [f1]", {
@@ -180,7 +288,9 @@ describe("phrase", () => {
       target: { selector: "#f", tag: "input", label: "Upload" },
     })
     expect(line).toContain(DRIVE_GAPS["file-picker"])
-    expect(line).toMatch(/ask the person to do it/)
+    expect(line).toMatch(
+      /ask the person in chat to do it.*wait for their reply/
+    )
   })
 
   it("tells the agent to stop and ask after a take-over", () => {

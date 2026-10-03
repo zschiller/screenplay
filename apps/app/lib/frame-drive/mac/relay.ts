@@ -45,6 +45,12 @@ export interface RelayDeps {
   agentDrives(frameId: string): boolean
   /** Called whenever Frame Control changes. */
   subscribeControl(listener: () => void): () => void
+  /**
+   * Bring a frame into this canvas's view (#1390); false when the canvas has
+   * no such frame. A frame the agent just opened may not be laid out yet, so
+   * this may wait for it.
+   */
+  reveal?(frameId: string): Promise<boolean>
 }
 
 /** A socket the relay talks over: the browser's WebSocket, or a test's. */
@@ -61,9 +67,15 @@ export interface RelaySocket {
 /** Answer one message from the sidecar. */
 export async function answerRelayMessage(
   message: ServerToCanvas,
-  deps: Pick<RelayDeps, "frames" | "agentDrives">,
+  deps: Pick<RelayDeps, "frames" | "agentDrives" | "reveal">,
   running: Map<string, number>
 ): Promise<CanvasToServer> {
+  if (message.type === "reveal") {
+    const ok = deps.reveal
+      ? await deps.reveal(message.frameId).catch(() => false)
+      : false
+    return { type: "revealed", id: message.id, ok }
+  }
   const frame = deps.frames.get(message.frameId)
   if (message.type === "snapshot") {
     const snapshot = await frame?.snapshot?.().catch(() => null)

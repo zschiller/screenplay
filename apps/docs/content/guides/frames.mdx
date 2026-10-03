@@ -208,8 +208,24 @@ reads the page's buttons, links and fields to find what to act on, and looks
 at the frame after each step to check it worked. Ask it to show you what it
 built, or to get a frame into a state for you.
 
+How it drives depends on how you ask:
+
+- **"Show me"** plays like a demo. The agent brings the frame into view for you,
+  and a cursor labelled Agent glides to each button or field and pauses before
+  it clicks, so you can follow along. Text goes in a character at a time.
+- **"Get it into that state"** jumps straight to the end. There's no cursor,
+  and your view of the canvas doesn't move.
+
+Each step shows up in the chat as a short line, like **Click** `Save` or
+**Type** `ada@example.com`, so you can see where it went if something goes
+wrong. When no frame shows what it needs, or you're using the one there,
+the agent opens a new frame beside its Workspace's other frames instead of taking
+yours over.
+
 - **It drives your own frame.** The steps happen in the frame on your canvas,
   and nothing is sent anywhere else.
+- **Asking is the go-ahead.** Asking the agent in the chat lets it drive, even
+  while you're interacting with the frame, so there's no second prompt.
 - **Screenplay has to be open.** The agent drives only while the canvas is
   open in the desktop app. The window can be in the background while it works.
   With the canvas closed, the agent tells you so in the chat instead.
@@ -232,8 +248,8 @@ On the Mac it can't:
   value;
 - trigger hover styles made with CSS.
 
-When a step needs one of these, the agent says which and asks you to do it in the
-frame, then carries on.
+When a step needs one of these, the agent says which and asks you to do it in
+the frame. Tell it in the chat when you're done, and it carries on from there.
 
 The agent drives [mockups](/guides/mockups#the-agent-driving-a-mockup) the same
 way,

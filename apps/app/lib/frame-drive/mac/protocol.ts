@@ -40,6 +40,8 @@ export type ServerToCanvas =
   /** The page as it is now, where no native snapshot of the canvas exists
    *  (a mockup on hosted). */
   | { type: "snapshot"; id: string; frameId: string }
+  /** Bring the frame into view on this canvas (#1390). */
+  | { type: "reveal"; id: string; frameId: string }
 
 export type CanvasToServer =
   /** The frames this canvas has mounted, sent on connect and on change. */
@@ -48,6 +50,7 @@ export type CanvasToServer =
   | { type: "where"; id: string; where: FrameWhere }
   /** Null when the frame isn't loaded or its page didn't answer. */
   | { type: "snapshot"; id: string; snapshot: FrameSnapshot | null }
+  | { type: "revealed"; id: string; ok: boolean }
 
 /** An answer to one of the server's messages. */
 export type CanvasAnswer = Exclude<CanvasToServer, { type: "frames" }>
