@@ -1,0 +1,71 @@
+---
+title: Troubleshooting
+description: Common problems, by what you see, and how to fix each one.
+---
+
+# Troubleshooting
+
+Each entry starts with what you see in the app.
+
+## Agents
+
+**"No coding agent found" in the composer** _(desktop)_. No supported coding
+CLI is installed or signed in, so the chat can't send; the Send button's
+tooltip says **No coding agent detected**. Open **Settings → Agent** (the
+composer's **Settings** link goes there) and use **Install and sign in** on
+Claude Code, Codex or opencode. The CLI shows up in the model picker straight
+away, with no restart. See [Settings → Agent](/guides/settings#agent-desktop).
+
+**"No models are set up on this server yet"** _(hosted)_. The server has no
+model provider configured. Whoever runs it adds one; see
+[Model providers](/self-hosting/configuration/model-providers).
+
+## Previews
+
+**A frame never shows the app.** It stays on **Starting dev server**, or ends
+on **Dev server not responding** or **Workspace failed to start**. On a
+failure, click **Open logs** on the frame: the workspace's **Dev server**
+terminal shows the dev server's and portless's output. The usual cause is a
+run script that doesn't serve on the port Screenplay assigned, covered next.
+Fix what the logs show, then click **Retry**. You can also ask the
+workspace's agent to debug the preview, since it reads the same output.
+
+**"The dev server didn't start on the port Screenplay gave it"**
+_(desktop)_. This is `DevServerPortIgnoredError`: the dev server is running
+but never listened on its assigned port, usually because the run script ignores
+`$PORT`.
+
+1. Edit the repository in **Canvas settings** and add the port to its **Run
+   script**, for example `vite --port $PORT --strictPort`.
+2. Use **… → Restart → Restart dev server** on the workspace.
+
+See [When the preview never loads](/guides/building/dev-server#when-the-preview-never-loads).
+
+**A Turborepo dev server ignores the port.** Turborepo 2's strict env mode
+strips variables a task doesn't declare, so `$PORT` is empty inside the task,
+and a package script that hardcodes `--port 3001` wins over the variable
+anyway. Pass the port as a flag after `--`, which works for Next.js and Vite
+because the last `--port` wins:
+
+```bash
+turbo run dev --filter=web -- --port $PORT
+```
+
+Alternatively, add `"passThroughEnv": ["PORT"]` to the `dev` task in
+`turbo.json`. See [Monorepos](/guides/building/dev-server#monorepos).
+
+## Workspaces
+
+**"The branch … is already open in another workspace on this computer"**
+_(desktop)_. Desktop workspaces are git worktrees of one shared clone, and git
+checks out each branch only once. Close the workspace that has the branch
+open, or open a different branch. See
+[One branch, one workspace](/guides/workspaces#one-branch-one-workspace-desktop).
+
+**"The branch … is checked out in your local clone"** _(desktop)_. The same
+limit, against your own checkout: the agent would be editing your clone
+directly. Switch your clone to another branch, then open the workspace again.
+
+**"Not a git repository"** _(desktop)_. The folder you added isn't a git
+repository. Add a local clone or a GitHub repository instead; see
+[Adding a repository](/guides/repositories#adding-a-repository).
