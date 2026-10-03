@@ -578,6 +578,15 @@ export function Canvas({
     agents,
     iframeLayers,
   })
+  // Handed a frame (Let drive, a reload): Interact needs it selected.
+  const selectIframeLayer = selection.selectIframeLayer
+  const takeFrameSeat = useCallback(
+    (id: string) => {
+      selectIframeLayer(id, false)
+      setFocusedIframeLayerId(id)
+    },
+    [selectIframeLayer, setFocusedIframeLayerId]
+  )
   const frameControl = useFrameControl({
     collection: collections.frameControl,
     viewerId: userId ?? null,
@@ -586,6 +595,7 @@ export function Canvas({
     sharedIds: sharedFrames.sharedIds,
     focusedId: focusedIframeLayerId,
     setFocusedId: setFocusedIframeLayerId,
+    takeSeat: takeFrameSeat,
   })
   const drivenFrames = useMemo(
     () =>
