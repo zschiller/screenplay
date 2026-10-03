@@ -42,6 +42,7 @@ import {
   type ToolTarget,
 } from "@/lib/agent/toolset"
 import type { ToolContext } from "@/lib/agent/tools"
+import { secretPatterns } from "@/lib/agent/redact"
 
 // The turn's Room: the tools reach the room doc only through it.
 const room = {
@@ -170,5 +171,31 @@ describe("withRedactedOutput", () => {
     } as never
     const wrapped = withRedactedOutput(passthrough)
     expect(wrapped.submit_plan.execute).toBeUndefined()
+  })
+
+  it("scrubs the Workspace's env var values before the model sees them (#1416)", async () => {
+    const secret = "sk_live_0123456789abcdef"
+    const tools = {
+      run_command: {
+        description: "x",
+        execute: async () => `STRIPE_KEY=${secret}\nPORT=3000`,
+      },
+      read_json: {
+        description: "x",
+        execute: async () => ({ env: { STRIPE_KEY: secret }, exitCode: 0 }),
+      },
+    } as never
+    const wrapped = withRedactedOutput(tools, secretPatterns([secret]))
+    const run = (name: string) =>
+      (wrapped[name]!.execute as (i: unknown, o: unknown) => Promise<unknown>)(
+        {},
+        {}
+      )
+
+    expect(await run("run_command")).toBe("STRIPE_KEY=[REDACTED]\nPORT=3000")
+    expect(await run("read_json")).toEqual({
+      env: { STRIPE_KEY: "[REDACTED]" },
+      exitCode: 0,
+    })
   })
 })

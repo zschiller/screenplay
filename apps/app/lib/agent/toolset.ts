@@ -2,7 +2,7 @@ import "server-only"
 
 import type { Tool, ToolSet } from "ai"
 
-import { redactSensitiveInfo } from "@/lib/agent/redact"
+import { redactDeep, redactSensitiveInfo } from "@/lib/agent/redact"
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
 import { buildMockupTools } from "@/lib/agent/mockup-tools"
@@ -68,25 +68,35 @@ export function toolsetFor(target: ToolTarget): ToolSet {
  * one place output redaction lives — closing the leak structurally instead of
  * relying on each tool to remember.
  *
+ * `secrets` are the Workspace's env var values (from `secretPatterns`, #1416):
+ * stripped from string output and from every string inside structured output,
+ * so the model never sees them and can't repeat them in a reply, commit or PR.
+ *
  * Tools with no `execute` (human-in-the-loop, e.g. `submit_plan`) pass through
  * untouched.
  */
-export function withRedactedOutput(tools: ToolSet): ToolSet {
+export function withRedactedOutput(
+  tools: ToolSet,
+  secrets: readonly string[] = []
+): ToolSet {
   const wrapped: ToolSet = {}
   for (const [name, t] of Object.entries(tools)) {
-    wrapped[name] = redactToolOutput(t)
+    wrapped[name] = redactToolOutput(t, secrets)
   }
   return wrapped
 }
 
-function redactToolOutput(tool: Tool): Tool {
+function redactToolOutput(tool: Tool, secrets: readonly string[]): Tool {
   const execute = tool.execute
   if (typeof execute !== "function") return tool
   return {
     ...tool,
     execute: (async (input: unknown, options: unknown) => {
       const output = await execute(input as never, options as never)
-      return typeof output === "string" ? redactSensitiveInfo(output) : output
+      if (typeof output === "string") {
+        return redactSensitiveInfo(output, secrets)
+      }
+      return secrets.length > 0 ? redactDeep(output, secrets) : output
     }) as Tool["execute"],
   }
 }

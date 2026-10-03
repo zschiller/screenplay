@@ -139,28 +139,31 @@ export function useSandboxReconnect({
               statusMessage: "Recreating expired sandbox…",
               error: "",
             })
-            recreateSandbox(action.sandboxName, action.repo, action.ref).then(
-              (restartResult) => {
-                if (restartResult.success) {
-                  updateAgentInStorage(agent.id, {
-                    sandboxName: restartResult.value.sandboxName,
-                    previewDomain:
-                      restartResult.value.previewDomain || agent.previewDomain,
-                    status: "running",
-                    statusMessage: "",
-                    error: "",
-                  })
-                } else {
-                  updateAgentInStorage(agent.id, {
-                    status: "stopped",
-                    statusMessage: "",
-                    error:
-                      restartResult.error ||
-                      "Sandbox could not be restarted — click refresh to retry",
-                  })
-                }
+            recreateSandbox(
+              action.sandboxName,
+              action.repo,
+              action.ref,
+              roomId
+            ).then((restartResult) => {
+              if (restartResult.success) {
+                updateAgentInStorage(agent.id, {
+                  sandboxName: restartResult.value.sandboxName,
+                  previewDomain:
+                    restartResult.value.previewDomain || agent.previewDomain,
+                  status: "running",
+                  statusMessage: "",
+                  error: "",
+                })
+              } else {
+                updateAgentInStorage(agent.id, {
+                  status: "stopped",
+                  statusMessage: "",
+                  error:
+                    restartResult.error ||
+                    "Sandbox could not be restarted — click refresh to retry",
+                })
               }
-            )
+            })
           })
           break
       }

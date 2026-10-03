@@ -1,5 +1,6 @@
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import { envVarNames } from "@/lib/repo-env/names"
 import type { RepoData } from "@/lib/types"
 
 /**
@@ -99,7 +100,8 @@ export function mergeDetectedSettings(
  * resolved values instead of the hardcoded empty-scripts / port-3000 defaults.
  * When absent — a saved-preset pick, or any programmatic caller — the output is
  * exactly today's: the branching below reproduces the former inline logic in
- * `useBranchIntake.createRepo` verbatim.
+ * `useBranchIntake.createRepo` verbatim. Env vars ride as names only; their
+ * values come from {@link resolveRepoEnvVars}.
  */
 export function resolveRepoData(
   pick: RepoPickerSelection,
@@ -124,7 +126,7 @@ export function resolveRepoData(
       setupScript: pick.config.setupScript,
       devScript: pick.config.devScript,
       devServerPort: pick.config.devServerPort,
-      envVars: pick.config.envVars,
+      envVarNames: namesOf(pick.config.envVars),
       copyPatterns: pick.config.copyPatterns,
       defaultIframeLayerSizeId: pick.config.defaultIframeLayerSizeId,
       systemPrompt: pick.config.systemPrompt,
@@ -152,7 +154,7 @@ export function resolveRepoData(
       setupScript: settings?.setupScript ?? "",
       devScript: settings?.devScript ?? "",
       devServerPort: settings?.devServerPort ?? 3000,
-      envVars: settings?.envVars ?? "",
+      envVarNames: namesOf(settings?.envVars),
       // A local-folder Repo's worktrees get the checkout's env files carried
       // over by default — the common gitignored config a dev server can't run
       // without. The modal may override with its own resolved patterns.
@@ -176,11 +178,30 @@ export function resolveRepoData(
     setupScript: settings?.setupScript ?? "",
     devScript: settings?.devScript ?? "",
     devServerPort: settings?.devServerPort ?? 3000,
-    envVars: settings?.envVars ?? "",
+    envVarNames: namesOf(settings?.envVars),
     defaultIframeLayerSizeId: settings?.defaultIframeLayerSizeId,
     systemPrompt: settings?.systemPrompt,
     createdAt,
   }
+}
+
+/** The names a Repo record keeps; `undefined` for none. */
+function namesOf(text: string | undefined): string[] | undefined {
+  const names = envVarNames(text ?? "")
+  return names.length > 0 ? names : undefined
+}
+
+/**
+ * The env var values a pick brings, as `KEY=value` text: a saved preset's, or
+ * the ones typed in the add modal. They go to the Canvas's encrypted store
+ * (#1416), never into the {@link resolveRepoData} record.
+ */
+export function resolveRepoEnvVars(
+  pick: RepoPickerSelection,
+  settings: ResolvedRepoSettings | undefined
+): string {
+  if (pick.kind === "config") return pick.config.envVars
+  return settings?.envVars ?? ""
 }
 
 /** The repo-identity fields a preset carries, lifted off whichever pick kind

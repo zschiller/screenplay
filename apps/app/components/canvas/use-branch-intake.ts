@@ -21,6 +21,7 @@ import { deleteBranch } from "@/lib/github-actions"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
+import { saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 import {
   planBranchCreations,
   type ComposerSpec,
@@ -33,6 +34,7 @@ import {
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import {
   resolveRepoData,
+  resolveRepoEnvVars,
   type ResolvedRepoSettings,
 } from "@/lib/add-repo/resolver"
 import type { CanvasOps } from "@/lib/canvas/ops"
@@ -67,6 +69,8 @@ export interface BranchIntakeDeps {
    *  skip a Branch that already has a frame. */
   iframeLayers: IframeLayerData[]
   roomId: string
+  /** The person adding Repos, recorded as their adder (#1416). */
+  userId?: string
   /**
    * The Tab Pool's seed entry: seed a Branch's chat without re-implementing
    * tab creation. This is the handoff to the Tab Pool controller (separate
@@ -175,6 +179,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     agents,
     iframeLayers,
     roomId,
+    userId,
     createDefaultTabForBranch,
     getViewportCenter,
     setSelectedGroupIds,
@@ -311,19 +316,28 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   const createRepo = useCallback(
     (pick: RepoPickerSelection, settings?: ResolvedRepoSettings) => {
       const id = nanoid()
+      const envVars = resolveRepoEnvVars(pick, settings)
       // The pure resolver owns the pick-kind branching and the settings
       // fallback; when `settings` is absent the produced RepoData is exactly
       // today's (empty scripts, port 3000). Provisioning below runs only here,
       // on confirm — the modal path never provisions on select.
-      const data: RepoData = resolveRepoData(pick, settings, {
-        id,
-        createdAt: Date.now(),
-      })
+      const data: RepoData = {
+        ...resolveRepoData(pick, settings, { id, createdAt: Date.now() }),
+        // Whoever adds it is the one who can reveal its env vars (#1416).
+        ...(userId ? { addedBy: userId } : {}),
+      }
       // Adding a repository only adds it: the first ask that needs it starts
       // a Workspace, so no sandbox or frame starts that nobody asked for.
       addRepoToStorage(id, data)
+      // The values go to the canvas's encrypted store, never the room doc;
+      // the digest comes back for "customized".
+      if (envVars.trim()) {
+        saveCanvasRepoEnv(roomId, id, envVars, "replace")
+          .then((fields) => updateRepoInStorage(id, fields))
+          .catch(() => toast.error("Couldn't save the environment variables."))
+      }
     },
-    [addRepoToStorage]
+    [addRepoToStorage, updateRepoInStorage, roomId, userId]
   )
 
   // Prompts queued by the prompt-first create handler (createBranch) that should

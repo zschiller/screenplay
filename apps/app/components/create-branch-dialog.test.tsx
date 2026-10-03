@@ -51,7 +51,6 @@ function makeRepo(id: string, name: string, defaultBranch: string): RepoData {
     setupScript: "",
     devScript: "",
     devServerPort: 3000,
-    envVars: "",
     createdAt: 0,
   }
 }
@@ -106,9 +105,7 @@ describe("New chat dialog' repository chip (#884)", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: "api" }))
 
     expect(within(dialog).queryByText("trunk")).not.toBeNull()
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: /Create chat/ })
-    )
+    fireEvent.click(within(dialog).getByRole("button", { name: /Create chat/ }))
     expect(onSubmit).toHaveBeenCalledWith([
       expect.objectContaining({ repoId: api.id, baseBranch: "trunk" }),
     ])

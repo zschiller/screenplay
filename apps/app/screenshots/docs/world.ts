@@ -155,7 +155,6 @@ const REPO_BASE = {
   setupScript: "npm install",
   devScript: "npm run dev -- --port $PORT",
   devServerPort: 5173,
-  envVars: "",
   copyPatterns: ".env*",
   defaultIframeLayerSizeId: DEFAULT_IFRAME_LAYER_SIZE_ID,
 }
@@ -803,6 +802,7 @@ function repoConfigs(now: number): RepoConfig[] {
     {
       id: "cfg-northwind-web",
       ...REPO_BASE,
+      envVars: "",
       name: "web",
       private: true,
       createdAt: now - 9 * DAY,

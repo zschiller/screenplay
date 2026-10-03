@@ -3,6 +3,7 @@ import "server-only"
 import { nanoid } from "nanoid"
 
 import { kv } from "@/lib/kv"
+import { kvCanvasRepoEnvStore, loadCanvasRepoEnv } from "@/lib/repo-env/store"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
 import {
   provisionSandbox,
@@ -81,6 +82,13 @@ export async function startBranchProvisioning(
         sourceBranch: req.sourceBranch,
         retry: req.retry,
         ghToken: opts.ghToken,
+        // Read here on the server, so any member can start a Workspace with
+        // values only the Repo's adder can see (#1416).
+        envVars: await loadCanvasRepoEnv(
+          kvCanvasRepoEnvStore,
+          room.roomId,
+          repo
+        ),
         onStatus: (statusMessage) =>
           updateBranch(room, req.branchId, { statusMessage }),
       })

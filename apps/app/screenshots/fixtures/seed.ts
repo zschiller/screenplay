@@ -9,6 +9,8 @@ import { createPgliteDb } from "@/lib/db/pglite"
 import * as schema from "@/lib/db/schema"
 import type { DB } from "@/lib/db/types"
 import { encrypt } from "@/lib/crypto"
+import { canvasRepoEnvKey, envVarsDigest } from "@/lib/repo-env/encoding"
+import { envVarNames } from "@/lib/repo-env/names"
 import { snapshotLabel } from "@/lib/comment-anchor"
 import { LOCAL_USER } from "@/lib/local-user"
 import {
@@ -454,6 +456,20 @@ async function seedDatabase(db: DB, world: FixtureWorld): Promise<void> {
       target: schema.kvStore.key,
       set: { value: encrypt(JSON.stringify(world.repoConfigs)) },
     })
+  // Canvas Repos' env var values (#1416), under the key `lib/repo-env` reads.
+  for (const room of world.rooms) {
+    for (const [repoId, text] of Object.entries(room.doc?.repoEnv ?? {})) {
+      const value = encrypt(text)
+      await db
+        .insert(schema.kvStore)
+        .values({
+          key: canvasRepoEnvKey(room.id, repoId),
+          value,
+          expiresAt: null,
+        })
+        .onConflictDoUpdate({ target: schema.kvStore.key, set: { value } })
+    }
+  }
   // A fixture world is shown as authored: mark the repository library's
   // one-time Canvas migration done (the store's `repository-library-migrated:`
   // key) so a first load never links or adds Repositories behind its back.
@@ -533,7 +549,21 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
   const c = getRoomCollections(doc)
 
   c.transact(() => {
-    for (const repo of fixture.repos ?? []) c.repos.set(repo.id, repo)
+    for (const repo of fixture.repos ?? []) {
+      // Names and digest only, as the app writes them (#1416); the values
+      // are in the KV store (`seedDatabase`).
+      const env = fixture.repoEnv?.[repo.id]
+      c.repos.set(
+        repo.id,
+        env
+          ? {
+              ...repo,
+              envVarNames: envVarNames(env),
+              envVarsDigest: envVarsDigest(env),
+            }
+          : repo
+      )
+    }
     for (const branch of fixture.branches ?? [])
       c.branches.set(branch.id, branch)
     for (const layer of fixture.iframeLayers ?? [])

@@ -24,16 +24,16 @@ The schema is split in two: `apps/app/lib/db/schema-core.ts` holds the tables
 every build uses, and `schema-multiuser.ts` holds the tables only the hosted
 build needs. `schema.ts` combines both.
 
-| Tables | Holds |
-| --- | --- |
-| `user` | Accounts |
-| `session`, `account`, `verification` | Better Auth sessions and the GitHub OAuth token *(hosted)* |
-| `room`, `room_member` | Canvases and who can open them *(members: hosted)*. Membership also gates Yjs and terminal tokens. |
-| `folder`, `room_folder`, `pin` | Each user's folders, filing, and sidebar pins |
-| `thread`, `comment`, `thread_read` | Comment threads and per-user read state *(hosted)* |
+| Tables                                                                | Holds                                                                                                                                      |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user`                                                                | Accounts                                                                                                                                   |
+| `session`, `account`, `verification`                                  | Better Auth sessions and the GitHub OAuth token _(hosted)_                                                                                 |
+| `room`, `room_member`                                                 | Canvases and who can open them _(members: hosted)_. Membership also gates Yjs and terminal tokens.                                         |
+| `folder`, `room_folder`, `pin`                                        | Each user's folders, filing, and sidebar pins                                                                                              |
+| `thread`, `comment`, `thread_read`                                    | Comment threads and per-user read state _(hosted)_                                                                                         |
 | `agent_chat`, `agent_message`, `agent_run`, `agent_pending_tool_call` | Agent conversations: chats, their message history, each run's state, and tool calls waiting on the user (such as a plan awaiting approval) |
-| `terminal_tab` | Each user's terminal tabs: label, order, and, for tabs opened before shells became plain, which CLI they launch. Never scrollback. |
-| `kv_store` | Key/value cache with TTLs and locks: model catalogs, encrypted presets and project env vars |
+| `terminal_tab`                                                        | Each user's terminal tabs: label, order, and, for tabs opened before shells became plain, which CLI they launch. Never scrollback.         |
+| `kv_store`                                                            | Key/value cache with TTLs and locks: model catalogs, encrypted repositories and canvas env vars                                            |
 
 Live canvas state (layout, frames, documents, chat tabs) lives in the Yjs
 host, not in Postgres.
@@ -55,8 +55,8 @@ Don't commit the result.
 <Callout type="warning">
   Preview deploys run migrations against whatever `DATABASE_URL` their scope
   has. Point previews at a separate database, or a PR's migration reaches
-  production before it merges. See
-  [Deploying to Vercel](/self-hosting/deploying-to-vercel#environment-variable-scopes).
+  production before it merges. See [Deploying to
+  Vercel](/self-hosting/deploying-to-vercel#environment-variable-scopes).
 </Callout>
 
 ## Using a different Postgres driver

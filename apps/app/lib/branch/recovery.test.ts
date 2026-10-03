@@ -66,6 +66,7 @@ function makeDeps(
     description?: string
   }> = []
   return {
+    roomId: "room-1",
     findAgent: () => AGENT,
     findRepo: () => REPO,
     patchAgent: (id, patch) => patches.push({ id, patch }),
@@ -164,7 +165,8 @@ describe("recreate (Recreate)", () => {
     expect(lifecycle.recreateSandbox).toHaveBeenCalledWith(
       "sandbox-1",
       REPO,
-      "feature/x"
+      "feature/x",
+      "room-1"
     )
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
     expect(deps.patches[0].patch.statusMessage).toBe("Recreating sandbox…")

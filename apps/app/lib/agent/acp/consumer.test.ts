@@ -11,6 +11,7 @@ import {
   type ConsumerPlanCall,
 } from "./consumer"
 import type { EngineUpdate } from "./engine-seam"
+import { secretPatterns } from "../redact"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import {
   agentMessageChunk,
@@ -39,7 +40,7 @@ import {
  */
 function harness(
   seedStatus: RunStatus = "running",
-  options: { wake?: boolean } = {}
+  options: { wake?: boolean; secrets?: readonly string[] } = {}
 ) {
   const broadcasts: SessionUpdate[] = []
   const permissionRequests: RequestPermissionRequest[] = []
@@ -716,5 +717,94 @@ describe("AcpUpdateConsumer — the stop gate (#1263)", () => {
     expect(toolCalls).toEqual([])
     expect(transitions).toEqual([])
     expect(ends).toBe(1)
+  })
+})
+
+describe("AcpUpdateConsumer — env var redaction (#1416)", () => {
+  const SECRET = "sk_live_0123456789abcdef"
+  const secrets = secretPatterns([SECRET])
+  const shown = (h: ReturnType<typeof harness>) =>
+    JSON.stringify([h.broadcasts, h.records, [...h.toolCalls.values()]])
+
+  it("scrubs a value from a harness's printenv output, broadcast and stored", async () => {
+    const h = harness("running", { secrets })
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "c1", title: "printenv" }),
+      },
+      {
+        kind: "session_update",
+        update: toolCallUpdate({
+          toolCallId: "c1",
+          status: "completed",
+          rawOutput: { stdout: `STRIPE_KEY=${SECRET}\nPORT=3000` },
+          content: [
+            {
+              type: "content",
+              content: { type: "text", text: `STRIPE_KEY=${SECRET}` },
+            },
+          ],
+        }),
+      },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(shown(h)).not.toContain(SECRET)
+    expect(shown(h)).toContain("STRIPE_KEY=[REDACTED]")
+    expect(shown(h)).toContain("PORT=3000")
+  })
+
+  it("catches a value split across two streamed chunks", async () => {
+    const h = harness("running", { secrets })
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: agentMessageChunk("Key is sk_live_0123"),
+      },
+      {
+        kind: "session_update",
+        update: agentMessageChunk("456789abcdef, done."),
+      },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(shown(h)).not.toContain(SECRET)
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      {
+        role: "agent",
+        content: [{ type: "text", text: "Key is [REDACTED], done." }],
+      },
+    ])
+    // What streamed adds up to what was stored.
+    const streamed = h.broadcasts
+      .map((u) =>
+        "content" in u && u.content && "text" in u.content ? u.content.text : ""
+      )
+      .join("")
+    expect(streamed).toBe("Key is [REDACTED], done.")
+  })
+
+  it("scrubs the value's base64 form", async () => {
+    const h = harness("running", { secrets })
+    const encoded = Buffer.from(SECRET).toString("base64")
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentMessageChunk(`b64: ${encoded}`) },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+    expect(shown(h)).not.toContain(encoded.replace(/=+$/, ""))
+  })
+
+  it("streams as before with no secrets", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentMessageChunk("Hel") },
+      { kind: "session_update", update: agentMessageChunk("lo") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+    expect(h.broadcasts).toEqual([
+      agentMessageChunk("Hel"),
+      agentMessageChunk("lo"),
+    ])
   })
 })

@@ -68,6 +68,12 @@ export interface ProvisionRequest {
    * never used.
    */
   ghToken?: string
+  /**
+   * The Repo's env var values as `KEY=value` text. They live encrypted per
+   * Canvas + Repo, not on the Repo record (#1416), so the caller reads them
+   * (`loadCanvasRepoEnv`) and hands them in. Absent = none.
+   */
+  envVars?: string
   /** Progress reporting — one human-readable message per step as it starts. */
   onStatus?: (message: string) => Promise<void> | void
 }
@@ -186,7 +192,7 @@ export async function provisionSandbox(
 
   // Step 2: create the Sandbox from its source.
   await report("Cloning repository…")
-  const env = parseEnvVars(repo.envVars)
+  const env = parseEnvVars(req.envVars ?? "")
   const created = await createSandbox(
     sandboxName,
     repo,

@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -19,6 +20,8 @@ import { Input } from "@workspace/ui/components/input"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import { revealCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
+import { repoEnvVarNames } from "@/lib/repo-env/names"
 import { isCustomized, runSettings } from "@/lib/repository-library"
 import type { RepoData } from "@/lib/types"
 
@@ -27,15 +30,22 @@ import type { RepoData } from "@/lib/types"
  * the canvas so every collaborator's new Workspaces start from them. Opened by
  * Edit in Canvas settings and by Settings on the sidebar's repository row.
  * Saving changes this canvas only; given the `repository` it links to and
- * differs from, the footer offers Reset to Settings (#1424).
+ * differs from, the footer offers Reset to Settings (#1424). Env var values
+ * never pass through the room doc: they're saved and revealed through server
+ * actions, and only `canRevealEnv` (the Repo's adder) sees them (#1416).
  */
 export function RepoSettingsDialog({
+  roomId,
+  canRevealEnv,
   repo,
   repository,
   open,
   onOpenChange,
   onUpdate,
 }: {
+  roomId: string
+  /** Whether this person may reveal the Repo's stored env var values. */
+  canRevealEnv: boolean
   repo: RepoData | null
   /** The Repository (Settings) this Repo is linked to, when it's yours. */
   repository?: RepoConfig
@@ -60,6 +70,8 @@ export function RepoSettingsDialog({
             // A fresh form per repository, so switching rows never shows the
             // last one's unsaved edits.
             key={repo.id}
+            roomId={roomId}
+            canRevealEnv={canRevealEnv}
             repo={repo}
             repository={repository}
             onUpdate={onUpdate}
@@ -72,11 +84,15 @@ export function RepoSettingsDialog({
 }
 
 function RepoSettingsForm({
+  roomId,
+  canRevealEnv,
   repo,
   repository,
   onUpdate,
   onClose,
 }: {
+  roomId: string
+  canRevealEnv: boolean
   repo: RepoData
   repository?: RepoConfig
   onUpdate: (id: string, data: Partial<RepoData>) => void
@@ -88,7 +104,12 @@ function RepoSettingsForm({
   const [devServerPort, setDevServerPort] = useState(
     String(repo.devServerPort ?? 3000)
   )
-  const [envVars, setEnvVars] = useState(repo.envVars)
+  // Empty until revealed: the values live on the server (#1416). Typed lines
+  // replace those variables; after Reveal the text replaces the whole set.
+  const [envVars, setEnvVars] = useState("")
+  const [revealedEnv, setRevealedEnv] = useState<string | null>(null)
+  const [revealing, setRevealing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
     repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
@@ -101,40 +122,68 @@ function RepoSettingsForm({
 
   const trimmedSystemPrompt = systemPrompt.trim()
 
-  const handleSave = useCallback(() => {
+  const envChanged = envVars !== (revealedEnv ?? "")
+
+  const reveal = () => {
+    setRevealing(true)
+    revealCanvasRepoEnv(roomId, repo.id)
+      .then((text) => {
+        setRevealedEnv(text)
+        setEnvVars(text)
+      })
+      .catch(() => toast.error("Couldn't load the values."))
+      .finally(() => setRevealing(false))
+  }
+
+  const handleSave = async () => {
     if (!portIsValid) return
-    onUpdate(repo.id, {
+    const patch: Partial<RepoData> = {
       name: name.trim(),
       setupScript,
       devScript,
       devServerPort: parsedPort,
-      envVars,
       copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
       defaultIframeLayerSizeId,
       systemPrompt: trimmedSystemPrompt || undefined,
-    })
+    }
+    if (envChanged) {
+      setSaving(true)
+      try {
+        const fields = await saveCanvasRepoEnv(
+          roomId,
+          repo.id,
+          envVars,
+          revealedEnv === null ? "merge" : "replace"
+        )
+        Object.assign(patch, fields, { envVars: undefined })
+      } catch {
+        toast.error("Couldn't save the environment variables.")
+        setSaving(false)
+        return
+      }
+    }
+    onUpdate(repo.id, patch)
     onClose()
-  }, [
-    repo.id,
-    name,
-    setupScript,
-    devScript,
-    parsedPort,
-    portIsValid,
-    envVars,
-    copyPatterns,
-    defaultIframeLayerSizeId,
-    trimmedSystemPrompt,
-    onUpdate,
-    onClose,
-  ])
+  }
+
+  const resetToSettings = (from: RepoConfig) => {
+    onUpdate(repo.id, {
+      name: from.name,
+      ...runSettings(from),
+      envVars: undefined,
+    })
+    saveCanvasRepoEnv(roomId, repo.id, from.envVars, "replace").catch(() =>
+      toast.error("Couldn't restore the environment variables.")
+    )
+    onClose()
+  }
 
   const hasChanges =
     name.trim() !== (repo.name ?? "") ||
     setupScript !== repo.setupScript ||
     devScript !== repo.devScript ||
     parsedPort !== (repo.devServerPort ?? 3000) ||
-    envVars !== repo.envVars ||
+    envChanged ||
     copyPatterns !== (repo.copyPatterns ?? "") ||
     defaultIframeLayerSizeId !==
       (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
@@ -173,6 +222,13 @@ function RepoSettingsForm({
           onDevServerPortChange={setDevServerPort}
           envVars={envVars}
           onEnvVarsChange={setEnvVars}
+          envVarsAccess={{
+            names: repoEnvVarNames(repo),
+            revealed: revealedEnv !== null,
+            canReveal: canRevealEnv,
+            revealing,
+            onReveal: reveal,
+          }}
           copyPatterns={copyPatterns}
           onCopyPatternsChange={setCopyPatterns}
           defaultIframeLayerSizeId={defaultIframeLayerSizeId}
@@ -188,13 +244,7 @@ function RepoSettingsForm({
             variant="outline"
             size="sm"
             className="sm:mr-auto"
-            onClick={() => {
-              onUpdate(repo.id, {
-                name: repository.name,
-                ...runSettings(repository),
-              })
-              onClose()
-            }}
+            onClick={() => resetToSettings(repository)}
           >
             Reset to Settings
           </Button>
@@ -204,8 +254,8 @@ function RepoSettingsForm({
         </Button>
         <Button
           size="sm"
-          onClick={handleSave}
-          disabled={!hasChanges || !portIsValid}
+          onClick={() => void handleSave()}
+          disabled={!hasChanges || !portIsValid || saving}
         >
           Save
         </Button>

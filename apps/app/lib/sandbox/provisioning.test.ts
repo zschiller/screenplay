@@ -123,7 +123,6 @@ function localRepo(localPath: string, over: Partial<RepoData> = {}): RepoData {
     setupScript: "true",
     devScript: "true",
     devServerPort: 3000,
-    envVars: "",
     ...over,
   } as RepoData
 }
@@ -365,11 +364,11 @@ describe("provisionSandbox on the local backend", () => {
     const sandboxName = uniqueName("recreate-setup")
     const repo = localRepo(checkout, {
       setupScript: "touch setup-ran && true",
-      envVars: "FOO=bar",
     })
     await provisionSandbox({
       mode: "new",
       repo,
+      envVars: "FOO=bar",
       branch: "agent/recreate",
       sandboxName,
     })
@@ -379,6 +378,7 @@ describe("provisionSandbox on the local backend", () => {
     const result = await provisionSandbox({
       mode: "recreate",
       repo,
+      envVars: "FOO=bar",
       branch: "agent/recreate",
       sandboxName,
     })

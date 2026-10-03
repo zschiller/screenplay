@@ -25,7 +25,24 @@ export type RepoData = {
   setupScript: string
   devScript: string
   devServerPort: number
-  envVars: string
+  /**
+   * The names of the Repo's env vars (#1416), so settings can show which are
+   * set. The values never live in the room doc: they're encrypted on the
+   * server per Canvas + Repo (`lib/repo-env`), and provisioning reads them
+   * there. Absent = none.
+   */
+  envVarNames?: string[]
+  /**
+   * A keyed digest of the values (`envVarsDigest` in `lib/repo-env/store`),
+   * so "customized" can compare them with the Repository's without anyone
+   * seeing them. Absent = none.
+   */
+  envVarsDigest?: string
+  /**
+   * @deprecated Plain-text values from before #1416. Only the one-time
+   * migration (`lib/repo-env/migrate`) reads it, and it deletes it.
+   */
+  envVars?: string
   /**
    * Glob patterns (one per line, e.g. `.env*`) of files copied from the
    * Repo's original checkout into each Branch's worktree at provision time —

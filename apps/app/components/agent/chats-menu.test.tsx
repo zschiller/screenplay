@@ -62,7 +62,6 @@ const REPO = {
   setupScript: "pnpm install",
   devScript: "pnpm dev",
   devServerPort: 3000,
-  envVars: "",
   createdAt: 1,
 } as RepoData
 

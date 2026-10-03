@@ -42,6 +42,11 @@ export interface PreparedTurn {
    * Coordinator hears how. Set on every sandbox turn, whoever sent it.
    */
   wakesCoordinator?: boolean
+  /**
+   * The Workspace's env var values, as `secretPatterns` (#1416): scrubbed
+   * from tool output and from what the chat shows and stores.
+   */
+  secrets?: readonly string[]
 }
 
 /**
@@ -112,6 +117,8 @@ export interface EngineTurnLaunch {
    * clients; later reports change nothing.
    */
   reportSteering(steers: boolean): Promise<void>
+  /** See {@link PreparedTurn.secrets}. */
+  secrets?: readonly string[]
 }
 
 /**
@@ -323,6 +330,7 @@ export async function launchTurn(
       planMode: prepared.planMode,
       wake: Boolean(projectUserTurn(prepared.userText).wakeFrom),
       reportSteering: reportSteeringOnce(deps, { roomId, chatId, runId }),
+      secrets: prepared.secrets,
     })
     if (commentRequest) {
       await deps.settleCommentRequest({

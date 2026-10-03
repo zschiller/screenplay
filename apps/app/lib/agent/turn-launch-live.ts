@@ -89,6 +89,7 @@ import { loadChatTranscript } from "./history-load"
 import { renderLastTurn } from "./room-read-tools"
 import { roomChatId } from "@/lib/chat/room-chat"
 import { workspaceLabel } from "@/lib/workspace-label"
+import { sandboxSecrets } from "@/lib/env-store"
 
 /**
  * Turn Launch over the live database, Room broadcast and `after()`, for a turn
@@ -480,28 +481,30 @@ export function sandboxTurn(input: {
       // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
       // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
       // the per-Agent prompt.
-      const [branchState, layerDirectory, skills, memory] = await Promise.all([
-        room
-          .readDoc(({ branches, repos }) => {
-            // `toArray` is a cached snapshot; read the Branch itself fresh.
-            const id = branches
-              .toArray()
-              .find((a) => a.sandboxName === sandboxName)?.id
-            const branch = id ? branches.get(id) : undefined
-            if (!branch) return undefined
-            return {
-              ref: branch.ref,
-              autoNamed: branch.autoNamedBranch !== false,
-              systemPrompt: repos.get(branch.repoId)?.systemPrompt,
-            }
-          })
-          .catch(() => undefined),
-        loadLayerDirectory(room),
-        getMergedSkillIndexForSandbox(sandboxName),
-        loadCanvasMemory(room),
-        // Recent activity (#885): this Workspace just saw a turn start.
-        stampWorkspaceActivity(room, sandboxName, Date.now()).catch(() => {}),
-      ])
+      const [branchState, layerDirectory, skills, memory, , secrets] =
+        await Promise.all([
+          room
+            .readDoc(({ branches, repos }) => {
+              // `toArray` is a cached snapshot; read the Branch itself fresh.
+              const id = branches
+                .toArray()
+                .find((a) => a.sandboxName === sandboxName)?.id
+              const branch = id ? branches.get(id) : undefined
+              if (!branch) return undefined
+              return {
+                ref: branch.ref,
+                autoNamed: branch.autoNamedBranch !== false,
+                systemPrompt: repos.get(branch.repoId)?.systemPrompt,
+              }
+            })
+            .catch(() => undefined),
+          loadLayerDirectory(room),
+          getMergedSkillIndexForSandbox(sandboxName),
+          loadCanvasMemory(room),
+          // Recent activity (#885): this Workspace just saw a turn start.
+          stampWorkspaceActivity(room, sandboxName, Date.now()).catch(() => {}),
+          sandboxSecrets(sandboxName),
+        ])
       const systemPrompt = buildAgentSystemPrompt({
         repoSystemPrompt: branchState?.systemPrompt ?? undefined,
         layerDirectory,
@@ -579,6 +582,7 @@ export function sandboxTurn(input: {
             : [],
         },
         wakesCoordinator: true,
+        secrets,
       }
     },
     // Leftover Steers go out as the chat's next message: same plan mode and
@@ -705,6 +709,7 @@ export function planResumeTurn(input: {
           chatId,
         }),
         userText: message,
+        secrets: await sandboxSecrets(chat.sandboxName),
         commentRequest: {
           sandboxName: chat.sandboxName,
           userId,

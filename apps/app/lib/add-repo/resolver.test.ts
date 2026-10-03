@@ -8,6 +8,7 @@ import {
   mergeDetectedSettings,
   resolvePresetUpsert,
   resolveRepoData,
+  resolveRepoEnvVars,
   type DetectableFields,
   type DetectedSettings,
   type PresetUpsertMeta,
@@ -52,9 +53,13 @@ describe("resolveRepoData — confirm decision", () => {
         setupScript: "pnpm install",
         devScript: "pnpm dev",
         devServerPort: 5173,
-        envVars: "DATABASE_URL=postgres://local",
+        // Names only: the values go to the canvas's encrypted store (#1416).
+        envVarNames: ["DATABASE_URL"],
         createdAt: META.createdAt,
       })
+      expect(resolveRepoEnvVars(pick, SETTINGS)).toBe(
+        "DATABASE_URL=postgres://local"
+      )
     })
 
     it("falls back to today's plain defaults when no settings are given", () => {
@@ -63,8 +68,8 @@ describe("resolveRepoData — confirm decision", () => {
         setupScript: "",
         devScript: "",
         devServerPort: 3000,
-        envVars: "",
       })
+      expect(data.envVarNames).toBeUndefined()
       expect(data.copyPatterns).toBeUndefined()
     })
 
@@ -188,12 +193,14 @@ describe("resolveRepoData — confirm decision", () => {
         setupScript: "npm ci",
         devScript: "npm start",
         devServerPort: 8080,
-        envVars: "FOO=bar",
+        envVarNames: ["FOO"],
         copyPatterns: ".env.local",
         defaultIframeLayerSizeId: "desktop",
         systemPrompt: "Root is apps/web.",
         localPath: undefined,
       })
+      expect(data).not.toHaveProperty("envVars")
+      expect(resolveRepoEnvVars(pick, SETTINGS)).toBe("FOO=bar")
     })
   })
 })

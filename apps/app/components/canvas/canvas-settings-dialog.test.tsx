@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react"
 import type { BranchData, MemoryData, RepoData } from "@/lib/types"
+import { revealCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 
 // The add flow's server actions: one GitHub repository to pick, no presets,
 // and detection that finds nothing (the form opens on plain defaults).
@@ -71,6 +72,16 @@ const { REPOSITORIES } = vi.hoisted(() => ({
 vi.mock("@/lib/repository-library/actions", () => ({
   listRepositories: vi.fn().mockResolvedValue(REPOSITORIES),
   saveRepository: vi.fn().mockResolvedValue([]),
+}))
+// A Repo's env var values live on the server (#1416).
+vi.mock("@/lib/repo-env/actions", () => ({
+  saveCanvasRepoEnv: vi.fn().mockResolvedValue({
+    envVarNames: ["API_URL", "STRIPE_KEY"],
+    envVarsDigest: "d2",
+  }),
+  revealCanvasRepoEnv: vi
+    .fn()
+    .mockResolvedValue("API_URL=https://api.test\nSTRIPE_KEY=sk_live_1"),
 }))
 vi.mock("@/lib/add-repo/actions", () => ({
   detectRepoSettings: vi.fn().mockResolvedValue({ ok: false }),
@@ -139,7 +150,6 @@ function repo(over: Partial<RepoData>): RepoData {
     setupScript: "pnpm install",
     devScript: "pnpm dev",
     devServerPort: 3000,
-    envVars: "",
     createdAt: 1,
     ...over,
   }
@@ -178,7 +188,8 @@ const MEMORIES: MemoryData[] = [
 
 function renderDialog(
   repos: RepoData[] = [STOREFRONT, DOCS],
-  memories: MemoryData[] = MEMORIES
+  memories: MemoryData[] = MEMORIES,
+  { canReveal = true }: { canReveal?: boolean } = {}
 ) {
   const handlers = {
     onCreateRepo: vi.fn(),
@@ -191,6 +202,8 @@ function renderDialog(
   }
   render(
     <CanvasSettingsDialog
+      roomId="room-1"
+      canRevealEnv={() => canReveal}
       open
       onOpenChange={vi.fn()}
       repos={repos}
@@ -361,6 +374,92 @@ describe("CanvasSettingsDialog", () => {
         setupScript: "pnpm install",
       })
     )
+  })
+
+  describe("env vars (#1416)", () => {
+    const WITH_ENV = {
+      ...DOCS,
+      envVarNames: ["API_URL", "STRIPE_KEY"],
+      envVarsDigest: "d1",
+    }
+
+    async function openDocs(canReveal: boolean) {
+      const handlers = renderDialog([STOREFRONT, WITH_ENV], MEMORIES, {
+        canReveal,
+      })
+      fireEvent.click(screen.getByRole("button", { name: "Edit docs" }))
+      const form = await screen.findByRole("dialog", {
+        name: "Repository settings",
+      })
+      return { ...handlers, form }
+    }
+
+    it("shows another member the names, never the values, and saves theirs over them", async () => {
+      const { form, onUpdateRepo } = await openDocs(false)
+      const field = within(form).getByLabelText("Environment variables")
+
+      expect(field).toHaveProperty("value", "")
+      expect(field.getAttribute("placeholder")).toBe(
+        "API_URL=••••••\nSTRIPE_KEY=••••••"
+      )
+      expect(
+        within(form).queryByRole("button", { name: "Reveal values" })
+      ).toBeNull()
+      expect(form.textContent).toContain(
+        "Only the person who added this repository can see the values"
+      )
+
+      fireEvent.change(field, { target: { value: "STRIPE_KEY=sk_test_mine" } })
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+
+      await waitFor(() =>
+        expect(saveCanvasRepoEnv).toHaveBeenCalledWith(
+          "room-1",
+          "r2",
+          "STRIPE_KEY=sk_test_mine",
+          "merge"
+        )
+      )
+      // The doc gets names and digest back, never the typed value.
+      await waitFor(() =>
+        expect(onUpdateRepo).toHaveBeenCalledWith(
+          "r2",
+          expect.objectContaining({
+            envVarNames: ["API_URL", "STRIPE_KEY"],
+            envVarsDigest: "d2",
+          })
+        )
+      )
+      expect(JSON.stringify(onUpdateRepo.mock.calls)).not.toContain(
+        "sk_test_mine"
+      )
+    })
+
+    it("lets the adder reveal the values and replace the set", async () => {
+      const { form } = await openDocs(true)
+      fireEvent.click(
+        within(form).getByRole("button", { name: "Reveal values" })
+      )
+      const field = within(form).getByLabelText("Environment variables")
+      await waitFor(() =>
+        expect(field).toHaveProperty(
+          "value",
+          "API_URL=https://api.test\nSTRIPE_KEY=sk_live_1"
+        )
+      )
+      expect(revealCanvasRepoEnv).toHaveBeenCalledWith("room-1", "r2")
+
+      fireEvent.change(field, { target: { value: "API_URL=https://api.test" } })
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+      await waitFor(() =>
+        expect(saveCanvasRepoEnv).toHaveBeenLastCalledWith(
+          "room-1",
+          "r2",
+          "API_URL=https://api.test",
+          "replace"
+        )
+      )
+    })
   })
 
   it("offers no reset when the repository matches its Settings", async () => {

@@ -1,12 +1,15 @@
 "use client"
 
+import { Button } from "@workspace/ui/components/button"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@workspace/ui/components/field"
+import { EyeIcon } from "@workspace/ui/components/icons"
 import { Input } from "@workspace/ui/components/input"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -51,6 +54,13 @@ interface RepoSettingsFieldsProps {
   onDevServerPortChange: (value: string) => void
   envVars: string
   onEnvVarsChange: (value: string) => void
+  /**
+   * A Canvas Repo's env vars (#1416): the values stay on the server, so the
+   * field starts empty, shows the names that are set, and offers Reveal to
+   * whoever may see them. Absent on the forms that edit your own
+   * Repositories, which show the values as they are.
+   */
+  envVarsAccess?: EnvVarsAccess
   copyPatterns: string
   onCopyPatternsChange: (value: string) => void
   defaultIframeLayerSizeId: string
@@ -65,6 +75,30 @@ interface RepoSettingsFieldsProps {
    */
   presetName?: string
   onPresetNameChange?: (value: string) => void
+}
+
+export interface EnvVarsAccess {
+  /** The names already set on this Canvas. */
+  names: string[]
+  /** The stored values are loaded into the field for editing. */
+  revealed: boolean
+  /** This person added the Repo, so Reveal is theirs. */
+  canReveal: boolean
+  revealing: boolean
+  onReveal: () => void
+}
+
+/** What the env field says under it, by who's looking. Kept to what's true:
+ *  values are hidden in settings, not out of reach of the Workspace. */
+function envVarsDescription(access: EnvVarsAccess | undefined): string {
+  const base = "One KEY=value per line, injected into each workspace"
+  if (!access) return base
+  if (access.revealed) return `${base}. Only you can see the values.`
+  if (access.names.length === 0) return base
+  if (access.canReveal) {
+    return "Values are hidden. Lines you type replace those variables; reveal to edit them all."
+  }
+  return "Only the person who added this repository can see the values. Lines you type replace those variables on this canvas."
 }
 
 /**
@@ -91,6 +125,7 @@ export function RepoSettingsFields({
   onDevServerPortChange,
   envVars,
   onEnvVarsChange,
+  envVarsAccess,
   copyPatterns,
   onCopyPatternsChange,
   defaultIframeLayerSizeId,
@@ -100,6 +135,8 @@ export function RepoSettingsFields({
   presetName,
   onPresetNameChange,
 }: RepoSettingsFieldsProps) {
+  const hiddenNames =
+    envVarsAccess && !envVarsAccess.revealed ? envVarsAccess.names : []
   const showEssential = section === "essential" || section === "all"
   const showAdvanced = section === "advanced" || section === "all"
   return (
@@ -186,19 +223,41 @@ export function RepoSettingsFields({
               </Field>
             ) : (
               <Field>
-                <FieldLabel htmlFor={`${idPrefix}-envvars`}>
-                  Environment variables
-                </FieldLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor={`${idPrefix}-envvars`}>
+                    Environment variables
+                  </FieldLabel>
+                  {envVarsAccess?.canReveal && hiddenNames.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={envVarsAccess.onReveal}
+                      disabled={envVarsAccess.revealing}
+                    >
+                      {envVarsAccess.revealing ? (
+                        <Spinner data-icon="inline-start" />
+                      ) : (
+                        <EyeIcon data-icon="inline-start" />
+                      )}
+                      Reveal values
+                    </Button>
+                  )}
+                </div>
                 <Textarea
                   id={`${idPrefix}-envvars`}
                   value={envVars}
                   onChange={(e) => onEnvVarsChange(e.target.value)}
-                  placeholder={"KEY=value\nANOTHER_KEY=value"}
+                  // The names already set, values masked, until someone types.
+                  placeholder={
+                    hiddenNames.length > 0
+                      ? hiddenNames.map((n) => `${n}=••••••`).join("\n")
+                      : "KEY=value\nANOTHER_KEY=value"
+                  }
                   rows={4}
                   className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
                 />
                 <FieldDescription>
-                  One KEY=value per line, injected into each workspace
+                  {envVarsDescription(envVarsAccess)}
                 </FieldDescription>
               </Field>
             ))}

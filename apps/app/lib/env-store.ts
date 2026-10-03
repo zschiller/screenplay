@@ -1,3 +1,4 @@
+import { secretPatterns } from "./agent/redact"
 import { kv } from "./kv"
 import { encrypt, decrypt } from "./crypto"
 
@@ -21,4 +22,15 @@ export async function getEnvVars(
 
 export async function deleteEnvVars(sandboxName: string): Promise<void> {
   await kv.del(`${PREFIX}${sandboxName}`)
+}
+
+/**
+ * The strings a chat on this sandbox scrubs from what it shows (#1416): its
+ * env var values and their encoded forms, loaded once per turn. None when the
+ * sandbox has no env vars or the store can't be read.
+ */
+export async function sandboxSecrets(sandboxName: string): Promise<string[]> {
+  if (!sandboxName) return []
+  const env = await getEnvVars(sandboxName).catch(() => null)
+  return env ? secretPatterns(Object.values(env)) : []
 }
