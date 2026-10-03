@@ -120,6 +120,7 @@ function renderHeader(b: BranchData, { provider = true } = {}) {
         onRemoveBranch={noop}
         onPlayBranch={noop}
         onShowRoutes={noop}
+        onAddFrame={noop}
         onUpdateBranch={onUpdateBranch}
       >
         <AskRename />
@@ -155,6 +156,7 @@ describe("Workspace chat header", () => {
     expect(items).toEqual([
       "Open prototype player",
       "Open in browser",
+      "Add frame",
       "Show all routes",
       "Create pull request",
       "Rename",

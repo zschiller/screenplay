@@ -107,6 +107,7 @@ function renderMenu(
       onRemoveBranch={noop}
       onPlayBranch={noop}
       onShowRoutes={noop}
+      onAddFrame={noop}
       onUpdateBranch={noop}
     >
       <ChatsMenuButton />

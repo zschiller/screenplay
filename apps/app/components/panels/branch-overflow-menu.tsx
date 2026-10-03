@@ -7,6 +7,7 @@ import {
   ArrowUUpLeftIcon,
   ArrowsClockwiseIcon,
   CheckCircleIcon,
+  FrameCornersIcon,
   GitPullRequestIcon,
   PathIcon,
   PencilSimpleIcon,
@@ -42,6 +43,7 @@ export type BranchMenuItemKey =
   | "rename"
   | "play"
   | "open-in-browser"
+  | "add-frame"
   | "routes"
   | "restart"
   | "create-pr"
@@ -74,7 +76,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   {
     id: "view",
     label: "View",
-    itemKeys: ["play", "open-in-browser", "routes"],
+    itemKeys: ["play", "open-in-browser", "add-frame", "routes"],
   },
   {
     id: "git",
@@ -97,6 +99,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
 const HIDDEN_WHILE_DONE: ReadonlySet<BranchMenuItemKey> = new Set([
   "play",
   "open-in-browser",
+  "add-frame",
   "routes",
   "restart",
   "mark-done",
@@ -163,6 +166,11 @@ export interface BranchOverflowMenuContentProps {
    */
   onRecreate: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
+  /**
+   * Adds a frame for this Workspace beside its frames and zooms to it. Left
+   * out where there's no canvas to add it to.
+   */
+  onAddFrame?: (branchId: string) => void
   /**
    * Opens a GitHub PR for this branch via the direct server action (#355) —
    * deterministic title/body, no model turn. Disabled while the branch is busy.
@@ -236,6 +244,7 @@ export function BranchOverflowMenuItems({
   onRestart,
   onRecreate,
   onShowRoutes,
+  onAddFrame,
   onCreatePr,
   onMarkDone,
   onReopen,
@@ -285,6 +294,15 @@ export function BranchOverflowMenuItems({
             }))
         }
       />
+    ),
+    "add-frame": (
+      <DropdownMenuItem
+        disabled={branch.status !== "running"}
+        onClick={() => onAddFrame?.(branch.id)}
+      >
+        <FrameCornersIcon />
+        Add frame
+      </DropdownMenuItem>
     ),
     routes: (
       <DropdownMenuItem
@@ -418,6 +436,7 @@ export function BranchOverflowMenuItems({
   })
   const shown = (key: BranchMenuItemKey) => {
     if (key === lead) return false
+    if (key === "add-frame" && !onAddFrame) return false
     if (key === "create-pr" && pr?.state !== "open" && !canCreatePr)
       return false
     if (!branch.doneAt) return true

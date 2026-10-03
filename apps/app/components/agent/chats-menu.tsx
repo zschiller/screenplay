@@ -155,6 +155,8 @@ export interface ChatsMenuProviderProps {
   ) => void | Promise<void>
   onPlayBranch: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
+  /** Add a frame for a Workspace beside its frames, and zoom to it. */
+  onAddFrame: (branchId: string) => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
   children: React.ReactNode
 }
@@ -871,6 +873,10 @@ function WorkspaceMenuRow({
               menu.setOpen(false)
               menu.onShowRoutes(id)
             }}
+            onAddFrame={(id) => {
+              menu.setOpen(false)
+              menu.onAddFrame(id)
+            }}
             onCreatePr={menu.onCreatePr}
             pr={pr}
             canCreatePr={menu.canCreatePr(repo)}
@@ -901,6 +907,7 @@ function WorkspaceMenuRow({
       side="left"
       align="start"
       suppressed={renaming || menu.pendingBranchIds.has(branch.id)}
+      openChat={false}
     >
       {item}
     </WorkspaceHoverCard>
