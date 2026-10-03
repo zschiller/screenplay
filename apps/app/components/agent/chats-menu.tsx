@@ -11,7 +11,6 @@ import {
 } from "react"
 
 import {
-  ArrowsDownUpIcon,
   CaretRightIcon,
   ChatCircleIcon,
   ChatsIcon,
@@ -44,8 +43,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -80,8 +77,6 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
-
-import { useWorkspaceListView } from "@/components/panels/use-workspace-list-view"
 
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 
@@ -131,9 +126,7 @@ import { workspaceLabel } from "@/lib/workspace-label"
 
 import {
   WORKSPACE_SECTION_LABELS,
-  WORKSPACE_SORT_LABELS,
   groupWorkspaces,
-  type WorkspaceSort,
 } from "@/lib/workspace-list-view"
 
 import { useChatSessions } from "@/lib/yjs/react"
@@ -226,6 +219,12 @@ type ChatsMenuValue = Omit<
    * remote and the GitHub API is reachable.
    */
   canCreatePr: (repo: RepoData) => boolean
+  /**
+   * Whether GitHub can list a Repository's branches for Open existing git
+   * branch: the same GitHub remote + reachable API test as
+   * {@link canCreatePr}.
+   */
+  canListBranches: (repo: RepoData) => boolean
   askDeleteSketchChat: (chatId: string) => void
   /**
    * Rename asked for where the title can't be edited (a frame's Workspace
@@ -443,6 +442,7 @@ export function ChatsMenuProvider({
     askDelete,
     askRecreate,
     canCreatePr,
+    canListBranches: canCreatePr,
     askDeleteSketchChat,
     renameRequest,
     requestRename,
@@ -643,8 +643,6 @@ export function ChatsMenuButton() {
 
 function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const {
-    userId,
-    roomId,
     sortedRepos,
     reposById,
     activeBranches,
@@ -655,12 +653,9 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const [search, setSearch] = useState("")
   const searching = search.trim() !== ""
   const [doneOpen, setDoneOpen] = useState(false)
-  // This member's sort and grouping (#885), a local view preference.
-  const [listView, updateListView] = useWorkspaceListView(userId, roomId)
   const sections = useMemo(
-    () =>
-      groupWorkspaces(activeBranches, listView.sort, (b) => stateOf(b).section),
-    [activeBranches, listView.sort, stateOf]
+    () => groupWorkspaces(activeBranches, (b) => stateOf(b).section),
+    [activeBranches, stateOf]
   )
 
   const sketchRows = (list: ChatSessionData[]) =>
@@ -696,11 +691,7 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
           value={search}
           onValueChange={setSearch}
         />
-        <ChatsMenuActions
-          menu={menu}
-          sort={listView.sort}
-          onSort={(sort) => updateListView({ sort })}
-        />
+        <ChatsMenuActions menu={menu} />
       </div>
       <CommandList className="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
         <CommandEmpty>
@@ -767,20 +758,15 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
 
 /**
  * The list's actions beside the search field: + starts a chat, and with it its
- * Workspace, in one step (#884, #1315); the … holds this member's view options
- * (#885) and the rarer Open existing git branch. On a canvas with no
- * repository + starts a chat with none, and there is nothing for … to hold.
+ * Workspace, in one step (#884, #1315); the … holds the rarer Open existing git
+ * branch, for the Repositories whose branches GitHub can list. With none of
+ * those (a local-only repo, or no GitHub connection) there is nothing for …
+ * to hold and only + shows. On a canvas with no repository + starts a chat
+ * with none.
  */
-function ChatsMenuActions({
-  menu,
-  sort,
-  onSort,
-}: {
-  menu: ChatsMenuValue
-  sort: WorkspaceSort
-  onSort: (sort: WorkspaceSort) => void
-}) {
+function ChatsMenuActions({ menu }: { menu: ChatsMenuValue }) {
   const { sortedRepos } = menu
+  const branchRepos = sortedRepos.filter(menu.canListBranches)
   if (sortedRepos.length === 0)
     return (
       <IconButton
@@ -796,67 +782,45 @@ function ChatsMenuActions({
     )
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton
-            label="More chat actions"
-            className="mb-0.5 text-muted-foreground"
-          >
-            <DotsThreeIcon />
-          </IconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="bottom" align="end" {...isolate}>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <ArrowsDownUpIcon />
-              Sort by
-              <span className="flex-1 text-right text-muted-foreground">
-                {WORKSPACE_SORT_LABELS[sort]}
-              </span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup
-                value={sort}
-                onValueChange={(v) => onSort(v as WorkspaceSort)}
-              >
-                {(Object.keys(WORKSPACE_SORT_LABELS) as WorkspaceSort[]).map(
-                  (s) => (
-                    <DropdownMenuRadioItem key={s} value={s}>
-                      {WORKSPACE_SORT_LABELS[s]}
-                    </DropdownMenuRadioItem>
-                  )
-                )}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          {sortedRepos.length === 1 ? (
-            <DropdownMenuItem
-              onClick={() => menu.openBranchPicker(sortedRepos[0]!.id)}
+      {branchRepos.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              label="More chat actions"
+              className="mb-0.5 text-muted-foreground"
             >
-              <GitBranchIcon />
-              Open existing git branch
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
+              <DotsThreeIcon />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="bottom" align="end" {...isolate}>
+            {branchRepos.length === 1 ? (
+              <DropdownMenuItem
+                onClick={() => menu.openBranchPicker(branchRepos[0]!.id)}
+              >
                 <GitBranchIcon />
                 Open existing git branch
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {sortedRepos.map((repo) => (
-                  <DropdownMenuItem
-                    key={repo.id}
-                    onClick={() => menu.openBranchPicker(repo.id)}
-                  >
-                    {repoShortName(repo)}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <GitBranchIcon />
+                  Open existing git branch
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {branchRepos.map((repo) => (
+                    <DropdownMenuItem
+                      key={repo.id}
+                      onClick={() => menu.openBranchPicker(repo.id)}
+                    >
+                      {repoShortName(repo)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       <IconButton
         label="New chat"
         className="mb-0.5 text-muted-foreground"

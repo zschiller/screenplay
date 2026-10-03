@@ -28,8 +28,10 @@ vi.mock("@/hooks/use-workspace-states", async () => {
 vi.mock("@/hooks/use-unsaved-work", () => ({
   useUnsavedWork: () => new Map(),
 }))
+// Whether GitHub is reachable; scripted per test.
+const github = vi.hoisted(() => ({ connected: true }))
 vi.mock("@/hooks/use-github-token", () => ({
-  useGitHubTokenAvailable: () => false,
+  useGitHubTokenAvailable: () => github.connected,
 }))
 
 import { ChatsMenuButton, ChatsMenuProvider } from "./chats-menu"
@@ -196,6 +198,22 @@ describe("Chats menu", () => {
     expect(
       within(menu).getByRole("button", { name: "More chat actions" })
     ).toBeTruthy()
+  })
+
+  it("keeps only + when GitHub can't list any repository's branches", () => {
+    github.connected = false
+    try {
+      renderMenu([branch({})])
+      const menu = openMenu()
+      expect(
+        within(menu).queryByRole("button", { name: "More chat actions" })
+      ).toBeNull()
+      expect(
+        within(menu).getByRole("button", { name: "New chat" })
+      ).toBeTruthy()
+    } finally {
+      github.connected = true
+    }
   })
 
   it("gives the first section its own heading", () => {

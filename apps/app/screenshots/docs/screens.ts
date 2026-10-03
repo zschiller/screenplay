@@ -836,26 +836,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
-    name: "ws-list-view",
-    description:
-      "The Workspaces list's … menu with the Sort by submenu open (#885).",
-    path: ROOM,
-    cookies: WITH_CHAT,
-    crop: [660, 0, 620, 480],
-    focus: MENU,
-    prepare: async (page) => {
-      await camera(page, VIEW.hero)
-      await openChatsMenu(page)
-      await page
-        .getByRole("button", { name: "More chat actions" })
-        .click({ timeout: 15_000 })
-      await page.getByRole("menuitem", { name: /^Sort by/ }).hover()
-      await page
-        .getByRole("menuitemradio", { name: "Recent activity" })
-        .waitFor({ timeout: 5_000 })
-    },
-  }),
-  screen({
     name: "ws-restart",
     description: "The Workspace menu's Restart submenu.",
     path: ROOM,
