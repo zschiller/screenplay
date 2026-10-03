@@ -1497,30 +1497,6 @@ export function Canvas({
     ]
   )
 
-  // A new chat with no repository (a Sketch Chat), opened in the panel; a
-  // prompt from the New chat dialog is its first message.
-  const createSketchChat = useCallback(
-    (spec?: { prompt?: string; model?: string }) => {
-      const chatId = nanoid()
-      addChatSession(chatId, {
-        ...sketchChatSession(chatId, Date.now()),
-        ...(spec?.model ? { model: spec.model } : {}),
-      })
-      chatTarget.selectSketchChat(chatId)
-      const prompt = spec?.prompt?.trim()
-      if (prompt) {
-        chatStore.sendMessage({
-          roomId,
-          chatId,
-          target: { kind: "sketch", chatId },
-          message: prompt,
-          model: spec?.model,
-        })
-      }
-    },
-    [addChatSession, chatTarget, roomId]
-  )
-
   // Deleting a chat with no repository: the panel goes home if it showed it,
   // and what it made stays on the canvas, owned by no one.
   const deleteSketchChat = useCallback(
@@ -2045,18 +2021,15 @@ export function Canvas({
           roomId={roomId}
           repos={repos}
           branches={agents}
-          markdownLayers={markdownLayers}
           iframeLayers={iframeLayers}
           diffStats={diffStats}
           branchPrs={branchPrs}
           onSelectWorkspace={chatTarget.selectAgent}
           onSelectSketchChat={chatTarget.selectSketchChat}
-          onCreateSketchChat={createSketchChat}
           onRenameSketchChat={(chatId, label) =>
             updateChatSession(chatId, { label })
           }
           onDeleteSketchChat={deleteSketchChat}
-          onCreateWorkspace={createBranch}
           onRestartDevServer={branchActions.restartDevServer}
           onCreatePr={branchActions.createPullRequest}
           onRefreshBranch={branchActions.restartSandbox}

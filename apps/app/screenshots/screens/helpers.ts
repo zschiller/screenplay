@@ -981,14 +981,6 @@ export async function openCanvasOptions(page: Page): Promise<void> {
   await settings.waitFor()
 }
 
-/** The Chats menu's New chat (+) button (#1152), menu opened. */
-export async function newWorkspaceButton(page: Page): Promise<Locator> {
-  const menu = await openChatsMenu(page)
-  const button = menu.getByRole("button", { name: "New chat" })
-  await button.waitFor({ timeout: 15_000 })
-  return button
-}
-
 /**
  * Open New repository from Canvas settings (the one place it lives since
  * #884) and pick one of its two entries: `github` (the repo list) or `folder`

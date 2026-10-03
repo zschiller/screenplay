@@ -84,23 +84,19 @@ function renderMenu(
 ) {
   const noop = () => {}
   const onSelectWorkspace = vi.fn()
-  const onCreateSketchChat = vi.fn()
   render(
     <ChatsMenuProvider
       userId="u1"
       roomId="room1"
       repos={repos}
       branches={branches}
-      markdownLayers={[]}
       iframeLayers={[]}
       diffStats={new Map()}
       branchPrs={new Map()}
       onSelectWorkspace={onSelectWorkspace}
       onSelectSketchChat={noop}
-      onCreateSketchChat={onCreateSketchChat}
       onRenameSketchChat={noop}
       onDeleteSketchChat={noop}
-      onCreateWorkspace={noop}
       onRestartDevServer={noop}
       onCreatePr={noop}
       onRefreshBranch={noop}
@@ -116,7 +112,7 @@ function renderMenu(
       <ChatsMenuButton />
     </ChatsMenuProvider>
   )
-  return { onSelectWorkspace, onCreateSketchChat }
+  return { onSelectWorkspace }
 }
 
 function openMenu() {
@@ -184,17 +180,14 @@ describe("Chats menu", () => {
     })
   })
 
-  it("keeps only New chat beside the search field while searching", () => {
+  it("has only the search field above the list: chats start from the canvas", () => {
     renderMenu([branch({})])
     const menu = openMenu()
     fireEvent.change(within(menu).getByPlaceholderText("Search chats…"), {
       target: { value: "billing" },
     })
     expect(within(menu).getByText("No matches.")).toBeTruthy()
-    expect(within(menu).getByRole("button", { name: "New chat" })).toBeTruthy()
-    expect(
-      within(menu).queryByRole("button", { name: "More chat actions" })
-    ).toBeNull()
+    expect(within(menu).queryByRole("button", { name: "New chat" })).toBeNull()
   })
 
   it("gives the first section its own heading", () => {
@@ -203,11 +196,8 @@ describe("Chats menu", () => {
     expect(heading?.textContent).toBe("Idle")
   })
 
-  it("starts a chat with no repository from + on a canvas with none", () => {
-    const { onCreateSketchChat } = renderMenu([], { repos: [] })
-    const menu = openMenu()
-    expect(within(menu).getByText("No chats yet.")).toBeTruthy()
-    fireEvent.click(within(menu).getByRole("button", { name: "New chat" }))
-    expect(onCreateSketchChat).toHaveBeenCalledOnce()
+  it("says there are no chats yet on a canvas with none", () => {
+    renderMenu([], { repos: [] })
+    expect(within(openMenu()).getByText("No chats yet.")).toBeTruthy()
   })
 })

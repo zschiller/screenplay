@@ -103,16 +103,13 @@ function renderHeader(b: BranchData, { provider = true } = {}) {
         roomId="room1"
         repos={[REPO]}
         branches={[b]}
-        markdownLayers={[]}
         iframeLayers={[]}
         diffStats={new Map()}
         branchPrs={new Map()}
         onSelectWorkspace={onSelectWorkspace}
         onSelectSketchChat={noop}
-        onCreateSketchChat={noop}
         onRenameSketchChat={noop}
         onDeleteSketchChat={noop}
-        onCreateWorkspace={noop}
         onRestartDevServer={noop}
         onCreatePr={noop}
         onRefreshBranch={noop}

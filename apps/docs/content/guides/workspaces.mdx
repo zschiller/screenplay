@@ -13,35 +13,17 @@ title, and its pull request when there's room.
 
 ## Creating workspaces
 
-Open the **Chats** menu and click **+** (**New chat**) beside its search field. Each
-new chat gets its own workspace.
-The **New chat** dialog can start several at once:
+Every new chat gets its own workspace. There are two ways to start one:
 
-<Screenshot
-  name="new-workspace-multi"
-  alt="The New chat dialog with two rows, each with a prompt"
-/>
+- **Draw a frame** with the **Frame** tool (<kbd>F</kbd>) and type what it
+  should show. A new chat starts on the repository you used last, from its
+  default branch (see [Frames](/guides/frames)).
+- **Ask the Coordinator.** It picks the repository and the branch to start
+  from, and can start several chats at once.
 
-- Each row starts from a **base branch** (the chip above the prompt), which
-  defaults to the repository's default branch.
-- Each row also has a **repository** chip beside the base branch. It starts
-  on the repository you used last; picking another resets the base to that
-  repository's default branch. **No repository** makes that row a
-  [chat with no repository](/guides/agent#chats-with-no-repository) instead
-  of a workspace: it writes mockups and documents only, so it has no base
-  branch.
-- Type a **prompt** to give the new workspace its first task. It's sent to
-  the agent as soon as the sandbox is ready, and the agent titles the
-  workspace from it in sentence case (for example "Add pricing FAQ") and
-  names its branch from the same words (`add-pricing-faq`). Leave the prompt empty to create a bare
-  workspace with a generated name; its first chat message titles it.
-- Each row has its own model picker and **Plan** toggle, the same as the
-  [chat composer](/guides/agent#the-composer).
-- **Add another** (<kbd>⌘</kbd> <kbd>↵</kbd>) adds a row. <kbd>↵</kbd> creates
-  them all.
-- On desktop with no coding agent installed, each row says **No coding agent found** in
-  place of its model picker and **Create chat** stays off until you
-  install one from **Settings → Agent**.
+The agent titles the workspace from your first message in sentence case (for
+example "Add pricing FAQ") and names its branch from the same words
+(`add-pricing-faq`).
 
 A new workspace's frame appears on the canvas straight away, and the canvas
 zooms to it. The workspace goes through **creating** and **starting** while
@@ -51,8 +33,8 @@ To watch it happen, open **Dev server** under the workspace's composer (see
 the app.
 
 Every chat starts on a branch of its own, so two agents never push to the
-same branch. To build on a branch that already exists, pick it as the row's
-**base branch**: the new chat starts from it on a new branch.
+same branch. To build on a branch that already exists, ask the Coordinator to
+start a chat from it: the new chat starts from that branch on a new one.
 
 A canvas with no repository yet says that workspaces need one, with an
 **Add repository** button that goes straight to
@@ -65,7 +47,7 @@ panel's header, the canvas list and each frame's workspace badge and address
 bar. Titles are in sentence case, like "Add pricing FAQ". Where a title comes
 from depends on how the workspace started:
 
-- **From the Chats menu or a new repository**, the first message in the
+- **From a frame or a new repository**, the first message in the
   workspace's chat titles it and renames its branch to match (for
   example `add-pricing-faq`). If that branch name is already taken on the
   remote, a numeric suffix is added.

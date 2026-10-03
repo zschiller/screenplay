@@ -875,37 +875,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await clickMenuItem(page, "Delete", 1200)
     },
   }),
-  screen({
-    name: "new-workspace-multi",
-    description: "New Workspace, with two branches to create.",
-    path: ROOM,
-    cookies: WITH_CHAT,
-    focus: DIALOG,
-    prepare: async (page) => {
-      await camera(page, VIEW.hero)
-      await openChatsMenu(page)
-      await page.locator("button[aria-label='New chat']").first().click()
-      await sleep(page, 1500)
-      await page.locator("[role=dialog] [contenteditable=true]").first().click()
-      await page.keyboard.type(
-        "Add a monthly/annual toggle to the pricing page with 20% off annual plans",
-        { delay: 2 }
-      )
-      await page
-        .locator("[role=dialog] button")
-        .filter({ hasText: "Add another" })
-        .first()
-        .click()
-      // The new row pushes the button down, leaving the pointer over its model
-      // picker; park it on the overlay so no hover wash shows.
-      await page.mouse.move(0, 0)
-      await sleep(page, 800)
-      await page.keyboard.type("Redesign the customer quotes as a carousel", {
-        delay: 2,
-      })
-      await sleep(page, 400)
-    },
-  }),
 
   // --- Frames ---------------------------------------------------------------
   screen({

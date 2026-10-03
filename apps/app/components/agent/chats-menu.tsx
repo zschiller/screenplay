@@ -17,7 +17,6 @@ import {
   PencilSimpleIcon,
   TrashIcon,
   DotsThreeIcon,
-  PlusIcon,
 } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
@@ -55,11 +54,6 @@ import {
 
 import { cn } from "@workspace/ui/lib/utils"
 
-import {
-  CreateBranchDialog,
-  NO_REPOSITORY_ID,
-} from "@/components/create-branch-dialog"
-
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 
@@ -80,8 +74,6 @@ import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 
-import type { ComposerSpec } from "@/lib/branch-create-planner"
-
 import {
   anyWorkspaceNeedsYou,
   type WorkspaceState,
@@ -94,13 +86,11 @@ import { isLocalBuild } from "@/lib/local-mode"
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 
 import { sortForSidebar } from "@/lib/sidebar-order"
-import { defaultNewWorkspaceRepoId } from "@/lib/draw-ask"
 
 import type {
   BranchData,
   ChatSessionData,
   IframeLayerData,
-  MarkdownLayerData,
   RepoData,
 } from "@/lib/types"
 
@@ -140,7 +130,6 @@ export interface ChatsMenuProviderProps {
   roomId: string
   repos: RepoData[]
   branches: BranchData[]
-  markdownLayers: MarkdownLayerData[]
   iframeLayers: Array<Pick<IframeLayerData, "id" | "branchId">>
   diffStats: Map<string, DiffStats>
   /** GitHub-polled PR state per branch, shared with the chat header. */
@@ -149,16 +138,10 @@ export interface ChatsMenuProviderProps {
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
   /** Open a chat with no repository (a Sketch Chat). */
   onSelectSketchChat: (chatId: string) => void
-  /**
-   * Start a chat with no repository and open it, sending `prompt` as its
-   * first message when there is one.
-   */
-  onCreateSketchChat: (spec?: { prompt?: string; model?: string }) => void
   /** Rename a chat with no repository. */
   onRenameSketchChat: (chatId: string, label: string) => void
   /** Delete a chat with no repository; what it made stays on the canvas. */
   onDeleteSketchChat: (chatId: string) => void
-  onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRestartDevServer: (id: string) => void
   onCreatePr: (branchId: string) => void
   onRefreshBranch: (id: string) => void
@@ -178,7 +161,7 @@ export interface ChatsMenuProviderProps {
 
 type ChatsMenuValue = Omit<
   ChatsMenuProviderProps,
-  "children" | "iframeLayers" | "onCreateWorkspace"
+  "children" | "iframeLayers"
 > & {
   open: boolean
   setOpen: (open: boolean) => void
@@ -193,10 +176,8 @@ type ChatsMenuValue = Omit<
   needsYou: boolean
   /** A Workspace's state: its icon, section and whether its agent works. */
   stateOf: (branch: BranchData) => WorkspaceState
-  lastUsedRepoId: string | null
   /** Which Workspaces have a dialog open over them (no row hover then). */
   pendingBranchIds: Set<string>
-  openNewWorkspace: (repoId: string | null) => void
   askDelete: (branchId: string) => void
   askRecreate: (branchId: string) => void
   /**
@@ -235,21 +216,16 @@ const isolate = {
 export function ChatsMenuProvider({
   children,
   iframeLayers,
-  onCreateWorkspace,
   ...props
 }: ChatsMenuProviderProps) {
   const {
     repos,
     branches,
-    markdownLayers,
     onSelectWorkspace,
     onRecreateBranch,
     onRemoveBranch,
   } = props
   const [open, setOpen] = useState(false)
-  const [newWorkspaceRepoId, setNewWorkspaceRepoId] = useState<string | null>(
-    null
-  )
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
     string | null
   >(null)
@@ -315,11 +291,6 @@ export function ChatsMenuProvider({
     () => anyWorkspaceNeedsYou(flatBranches, stateOf),
     [flatBranches, stateOf]
   )
-  // New workspace starts in the Repo used last: the newest Workspace's.
-  const lastUsedRepoId = useMemo(
-    () => defaultNewWorkspaceRepoId(repos, branches),
-    [repos, branches]
-  )
 
   // Open a Workspace when it finishes setting up. The callback is read through
   // a ref so this runs on `branches` changes only.
@@ -353,10 +324,6 @@ export function ChatsMenuProvider({
   )
 
   // A dialog opened from the menu takes over from it.
-  const openNewWorkspace = (repoId: string | null) => {
-    setOpen(false)
-    setNewWorkspaceRepoId(repoId)
-  }
   const askDelete = (id: string) => {
     setOpen(false)
     setPendingDeleteBranchId(id)
@@ -400,9 +367,7 @@ export function ChatsMenuProvider({
     sketchChats,
     needsYou,
     stateOf,
-    lastUsedRepoId,
     pendingBranchIds,
-    openNewWorkspace,
     askDelete,
     askRecreate,
     canCreatePr,
@@ -484,37 +449,6 @@ export function ChatsMenuProvider({
           setPendingRecreateBranchId(null)
         }}
       />
-      {newWorkspaceRepoId && reposById.has(newWorkspaceRepoId) ? (
-        <CreateBranchDialog
-          open={true}
-          onOpenChange={(next) => {
-            if (!next) setNewWorkspaceRepoId(null)
-          }}
-          repos={sortedRepos}
-          repoId={newWorkspaceRepoId}
-          markdownLayers={markdownLayers}
-          onSubmit={(specs) => {
-            // A row with no repository starts a chat with none.
-            for (const spec of specs) {
-              if (spec.repoId !== NO_REPOSITORY_ID) continue
-              props.onCreateSketchChat({
-                prompt: spec.prompt,
-                model: spec.model,
-              })
-            }
-            const withRepo = specs.filter((s) => s.repoId !== NO_REPOSITORY_ID)
-            // One create per Repo, each keeping its rows' order.
-            for (const repoId of new Set(withRepo.map((s) => s.repoId))) {
-              onCreateWorkspace(
-                repoId,
-                withRepo
-                  .filter((s) => s.repoId === repoId)
-                  .map(({ repoId: _, ...spec }) => spec)
-              )
-            }
-          }}
-        />
-      ) : null}
     </ChatsMenuContext.Provider>
   )
 }
@@ -614,16 +548,11 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
       loop
       className="rounded-none!"
     >
-      {/* + and … sit beside the search field, so they never depend on which
-          section comes first and stay put while searching (H7). */}
-      <div className="flex items-end gap-0.5 pr-1.5 *:data-[slot=command-input-wrapper]:flex-1">
-        <CommandInput
-          placeholder="Search chats…"
-          value={search}
-          onValueChange={setSearch}
-        />
-        <ChatsMenuActions menu={menu} />
-      </div>
+      <CommandInput
+        placeholder="Search chats…"
+        value={search}
+        onValueChange={setSearch}
+      />
       <CommandList className="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
         <CommandEmpty>
           {searching ? "No matches." : "No chats yet."}
@@ -684,29 +613,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
         )}
       </CommandList>
     </Command>
-  )
-}
-
-/**
- * The New chat button beside the search field: it starts a chat, and with it
- * its Workspace, in one step (#884, #1315). On a canvas with no repository it
- * starts a chat with none. Chats always start on a new branch; nothing here
- * opens an existing one, so two agents never push to the same branch.
- */
-function ChatsMenuActions({ menu }: { menu: ChatsMenuValue }) {
-  return (
-    <IconButton
-      label="New chat"
-      className="mb-0.5 text-muted-foreground"
-      onClick={() => {
-        if (menu.sortedRepos.length === 0) {
-          menu.onCreateSketchChat()
-          menu.setOpen(false)
-        } else menu.openNewWorkspace(menu.lastUsedRepoId)
-      }}
-    >
-      <PlusIcon />
-    </IconButton>
   )
 }
 
