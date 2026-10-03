@@ -25,7 +25,7 @@ import {
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
 import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
 import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
-import { chatFrameDriveTools } from "@/lib/frame-drive/mac/live"
+import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import { FRAME_DRIVE_TOOL_ANNOTATIONS } from "@/lib/frame-drive/tools"
 import {
   buildMockupTools,
@@ -134,9 +134,15 @@ export async function POST(req: Request) {
       {
         name: COORDINATOR_MCP_SERVER_NAME,
         version: "1",
-        tools: toolsetFor({ kind: "sketch", room, chatId: binding.chatId }),
+        tools: toolsetFor({
+          kind: "sketch",
+          room,
+          chatId: binding.chatId,
+          userId: room.userId,
+        }),
         annotations: {
           ...DOCUMENT_TOOL_ANNOTATIONS,
+          ...FRAME_DRIVE_TOOL_ANNOTATIONS,
           ...MOCKUP_TOOL_ANNOTATIONS,
           ...QUESTION_TOOL_ANNOTATIONS,
           ...SKETCH_TOOL_ANNOTATIONS,

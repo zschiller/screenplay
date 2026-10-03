@@ -505,7 +505,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
       },
     }
     const names = Object.keys(
-      sketchChatTarget.buildTools(room, { chatId: "s-1" })
+      sketchChatTarget.buildTools(room, { chatId: "s-1", userId: "u-1" })
     )
     expect(names).toEqual(
       expect.arrayContaining([
@@ -514,6 +514,9 @@ describe("sketchChatTarget (a chat with no repository)", () => {
         "read_document",
         "read_skill",
         "ask_question",
+        // It drives a Mockup in the asker's view (#1391).
+        "frame_click",
+        "frame_screenshot",
       ])
     )
     expect(names).not.toContain("bash")

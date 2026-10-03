@@ -447,7 +447,7 @@
           // The page as it is right now, for an agent's `read_frame_html`
           // (#1268): its markup and the CSS that styles it, which the server
           // assembles into one self-contained document.
-          reply(d.id, true, pageSnapshot(d.selector))
+          reply(d.id, true, pageSnapshot(d.selector, d.live === true))
         } else if (d.op === "getRectsForSelectors") {
           // Batched op: one round-trip resolves rects for many selectors at
           // once. Used by the canvas to track selector-anchored comment pins.
@@ -1126,7 +1126,10 @@
   // that can't style anything in the markup are left out to keep it small; a
   // cross-origin stylesheet can't be read, so it stays a link. Returns null
   // when the selector matches nothing.
-  function pageSnapshot(selector) {
+  // `live`: for a screenshot rendered from the snapshot (a mockup Claude
+  // drives on hosted, #1391), also carry the form state and the scroll, so
+  // the render shows what was typed, ticked and picked, and where.
+  function pageSnapshot(selector, live) {
     const root = selector
       ? document.querySelector(selector)
       : document.documentElement
@@ -1153,7 +1156,9 @@
       if (text) css.push(text)
     }
     // The whole page is its body; the head holds nothing to show but styles.
-    const markup = (selector ? root : document.body || root).cloneNode(true)
+    const shown = selector ? root : document.body || root
+    const markup = shown.cloneNode(true)
+    if (live) mirrorFormState(shown, markup)
     markup
       .querySelectorAll(
         "script, style, link[rel~='stylesheet'], [id^='__screenplay']"
@@ -1167,6 +1172,35 @@
       markup: selector ? markup.outerHTML : markup.innerHTML,
       css: css.join("\n"),
       stylesheetLinks: links,
+      ...(live
+        ? {
+            scroll: { x: window.scrollX, y: window.scrollY },
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+          }
+        : {}),
+    }
+  }
+
+  // Form state lives in properties, which a clone's markup doesn't carry:
+  // write it into the clone's attributes.
+  function mirrorFormState(from, to) {
+    const fields = "input, textarea, select"
+    const live = from.querySelectorAll(fields)
+    const copies = to.querySelectorAll(fields)
+    for (let i = 0; i < live.length && i < copies.length; i++) {
+      const field = live[i]
+      const copy = copies[i]
+      if (field.tagName === "TEXTAREA") {
+        copy.textContent = field.value
+      } else if (field.tagName === "SELECT") {
+        Array.from(copy.options).forEach((option, j) => {
+          option.toggleAttribute("selected", !!field.options[j]?.selected)
+        })
+      } else if (field.type === "checkbox" || field.type === "radio") {
+        copy.toggleAttribute("checked", field.checked)
+      } else if (field.type !== "file") {
+        copy.setAttribute("value", field.value)
+      }
     }
   }
 

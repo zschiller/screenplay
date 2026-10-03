@@ -22,8 +22,9 @@ import { buildSketchTools } from "@/lib/agent/sketch-tools"
  */
 export type ToolTarget =
   | { kind: "sandbox"; room: RoomDoc; sandbox: ToolContext; chatId: string }
-  /** A Sketch Chat: no repository, so Documents and Mockups only. */
-  | { kind: "sketch"; room: RoomDoc; chatId: string }
+  /** A Sketch Chat: no repository, so Documents and Mockups only. `userId`
+   *  is the asker, in whose view it drives a Mockup (#1391). */
+  | { kind: "sketch"; room: RoomDoc; chatId: string; userId: string }
   | {
       kind: "room"
       room: RoomDoc
@@ -56,7 +57,11 @@ export function toolsetFor(target: ToolTarget): ToolSet {
           }),
         }
       : target.kind === "sketch"
-        ? buildSketchTools({ room: target.room, chatId: target.chatId })
+        ? buildSketchTools({
+            room: target.room,
+            chatId: target.chatId,
+            userId: target.userId,
+          })
         : buildRoomTools(target.room.roomId, target.ports, target.turnId)
   return withRedactedOutput({ ...own, ...read, ...ask })
 }

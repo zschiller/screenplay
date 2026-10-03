@@ -2,12 +2,9 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import {
-  FloatingToolbar,
-  FloatingToolbarButton,
-} from "@workspace/ui/components/floating-toolbar"
-import { CursorIcon } from "@workspace/ui/components/icons"
+import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
 import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
+import { drivenByOther } from "@/lib/canvas/frame-control"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
 import { useIframeBridgePort } from "@/hooks/use-bridge-port"
@@ -29,6 +26,12 @@ import type { MockupLayerData, MockupStatus } from "@/lib/types"
 import { mockupStatusOf } from "@/lib/mockup-status"
 import { MockupStatusMenu } from "@/components/canvas/mockup-status-menu"
 import { KnobsPopover } from "@/components/canvas/knobs-popover"
+import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
+import {
+  FrameDriverButton,
+  FrameDriverTag,
+} from "@/components/canvas/frame-driver"
+import type { FrameDriverView } from "@/components/canvas/use-frame-control"
 import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
 import type { FrameWorkspace } from "@/components/canvas/frame-nav"
@@ -111,12 +114,19 @@ interface MockupLayerProps {
    * the canvas stops panning over it and Esc returns.
    */
   focused?: boolean
+  /**
+   * Who drives the mockup (#1391), as on a frame: the agent drives it in the
+   * asker's own view. The driver button, tag and ring show it.
+   */
+  driver?: FrameDriverView
   onFocus?: (id: string | null) => void
   /** Comment placement owns the pointer, so a double-click doesn't Interact. */
   commentMode?: boolean
   /** A pinch or ⌘-scroll over the interacting page, to zoom the canvas. */
   onWheel?: (id: string, wheel: WheelForward) => void
 }
+
+const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
 
 // A mockup's page carries no app state; the bridge's handshake still sends one.
 const NO_STATE: JsonObject = {}
@@ -137,7 +147,9 @@ const ignoreState = () => {}
  * and shared-state runtimes (`MOCKUP_RUNTIME_JS`), so its chat can target an
  * element in it, and the page can declare knobs (`screenplay.registerKnob`,
  * edited from the Knobs button under the selected mockup) and share state
- * with every viewer (`screenplay.shareState`), like a frame's app.
+ * with every viewer (`screenplay.shareState`), like a frame's app. Claude
+ * drives it through the same bridge (#1391), in the asker's view only, and
+ * the Interact button is the driver button, as on a frame.
  *
  * An empty page is a Mockup someone drew and sent to a chat (#1359) that the
  * chat hasn't filled yet, so it shows the model at work (the 9-dot).
@@ -181,6 +193,7 @@ export function MockupLayer({
   onAskForKnob,
   onSharedStateChanged,
   focused = false,
+  driver = NOBODY_DRIVES,
   onFocus,
   commentMode = false,
   onWheel,
@@ -246,6 +259,9 @@ export function MockupLayer({
     onDomReadyRef.current?.(layer.id, dom)
     return () => onDomReadyRef.current?.(layer.id, null)
   }, [layer.id, dom])
+  // No browser can photograph a mockup in someone's canvas on hosted, so a
+  // screenshot there is rendered from a read of the page.
+  useDriveFrame(layer.id, dom, iframeRef, zoom, { snapshot: true })
 
   // The page lays out at the mockup's own size inside the zoomed canvas, so a
   // screen point maps back into it by dividing by zoom.
@@ -316,8 +332,12 @@ export function MockupLayer({
       onGroupDragEnd={onGroupDragEnd}
       onRequestReorderDrag={onRequestReorderDrag}
       titleDragDisabled={spaceHeld || focused}
-      // An interacting mockup's edges belong to the page.
-      resizable={!focused}
+      // An interacting mockup's edges belong to the page. Nor does one
+      // someone else drives resize, so the size never changes under them.
+      resizable={!focused && !drivenByOther(driver)}
+      titleTag={
+        drivenByOther(driver) ? <FrameDriverTag driver={driver} /> : undefined
+      }
       onResize={handleResize}
       groupLabel={groupLabel}
       groupWorkspace={groupWorkspace}
@@ -369,20 +389,10 @@ export function MockupLayer({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-                <FloatingToolbarButton
-                  label="Interact"
-                  shortcut={focused ? ["Esc"] : undefined}
-                  pressed={focused}
-                  // The selection fill while interacting, as on a frame.
-                  className={
-                    focused
-                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
-                      : undefined
-                  }
+                <FrameDriverButton
+                  driver={driver}
                   onClick={() => onFocus?.(focused ? null : layer.id)}
-                >
-                  <CursorIcon />
-                </FloatingToolbarButton>
+                />
                 <KnobsPopover
                   knobs={layer.knobs}
                   values={layer.knobValues}

@@ -27,7 +27,7 @@ import { applyTextEdit } from "@/lib/agent/edit"
 import { buildDevServerTools } from "@/lib/agent/dev-server-tools"
 import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
 import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
-import { chatFrameDriveTools } from "@/lib/frame-drive/mac/live"
+import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import {
   findCodeFiles,
   readCodeFile,
