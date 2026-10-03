@@ -3,6 +3,7 @@ import "server-only"
 import { buildRoomSystemPrompt } from "./config"
 import {
   accountFilesFor,
+  accountSkillsFor,
   accountMemoryStore,
   loadAccountFiles,
   loadAccountMemory,
@@ -21,6 +22,7 @@ import { buildQuestionTools } from "./question-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { appSkillSource, getSkillIndex } from "@/lib/skills"
 import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { loadAccountSkills } from "@/lib/skills/account"
 import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildSkillTools } from "./skill-tools"
@@ -77,8 +79,8 @@ export interface RoomTarget {
 
 export interface RoomContext {
   canvasSummary: string
-  /** The canvas's Skills, the agent's own, then the Coordinator's App
-   *  Skills; no Repo Skills. */
+  /** The canvas's Skills, the sender's own, the agent's own, then the
+   *  Coordinator's App Skills; no Repo Skills. */
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
@@ -136,6 +138,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
     const [
       canvasSummary,
       canvas,
+      account,
       agent,
       memory,
       files,
@@ -146,17 +149,18 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
         summarizeCanvas(collections, terminalTabs)
       ),
       loadCanvasSkills(room),
+      loadAccountSkills(turnSender(target)),
       loadAgentSkills(agentSkillsFor(target.harnessKey)),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
       loadAccountMemory(turnSender(target)),
-      loadAccountFiles(turnSender(target)),
       loadAccountFiles(turnSender(target)),
     ])
     return {
       canvasSummary,
       skills: mergeSkillIndexes({
         canvas,
+        account,
         agent,
         app: getSkillIndex("coordinator"),
       }),
@@ -202,6 +206,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
         // The canvas's Skills and the Coordinator's App Skills (#905, #1555).
         ...buildSkillTools({
           canvas: canvasSkills(room),
+          account: accountSkillsFor(target),
           chatId: target.coordinatorChatId ?? "",
           app: appSkillSource("coordinator"),
           agent: agentSkillsFor(target.harnessKey),

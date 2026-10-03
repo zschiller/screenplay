@@ -212,6 +212,8 @@ export interface FixtureWorld {
    * encrypts into `kv_store` and the bodies it writes to the file store.
    */
   accountFiles?: { files: FileEntryData[]; fileBodies: Record<string, string> }
+  /** Account Skills (#1558), shown in Settings › Skills. */
+  accountSkills?: FixtureSkill[]
   /** The hosted build's half, seeded only by a `--hosted` run (#789). */
   hosted: FixtureHostedWorld
 }
@@ -567,6 +569,7 @@ export function buildFixtureWorld(options: BuildWorldOptions): FixtureWorld {
     ],
     repoConfigs: repoConfigs(now),
     accountMemory: accountMemory(now),
+    accountSkills: accountSkillFixtures(now),
     hosted: hostedWorld(now),
   }
 }
@@ -1934,6 +1937,62 @@ function oneLineChat(
  * one, and a local-folder preset (`localPath`, the desktop acquisition hint),
  * because each renders a different badge.
  */
+/**
+ * Account Skills (#1558) a chat saved for the fixture user, shown in
+ * Settings › Skills: one with a supporting file, so Open shows its sidebar.
+ */
+export function accountSkillFixtures(now: number): FixtureSkill[] {
+  return [
+    {
+      name: "pr-descriptions",
+      savedAt: daysAgo(now, 6),
+      content: [
+        "---",
+        "name: pr-descriptions",
+        "description: How I like pull request descriptions: what a reviewer sees before and after, then how it works, with screenshots for anything visual.",
+        "---",
+        "",
+        "# Pull request descriptions",
+        "",
+        "1. Open with **Before:** and **After:**, each one short paragraph about what a person sees.",
+        "2. Then a **How** paragraph for the reviewer.",
+        "3. Anything visual gets a light and a dark screenshot.",
+        "",
+        "See `references/example.md` for one I liked.",
+        "",
+      ].join("\n"),
+      files: [
+        {
+          path: "references/example.md",
+          content: [
+            "**Before:** The checkout button stayed enabled while an order was placing, so a double click placed two orders.",
+            "",
+            "**After:** The button shows a spinner and ignores clicks until the order is placed.",
+            "",
+          ].join("\n"),
+        },
+      ],
+    },
+    {
+      name: "release-notes",
+      savedAt: daysAgo(now, 1),
+      content: [
+        "---",
+        "name: release-notes",
+        "description: Write release notes the way I like them: grouped by feature, plain sentences, no internal ticket numbers.",
+        "---",
+        "",
+        "# Release notes",
+        "",
+        "- Group changes by feature, newest first.",
+        "- One plain sentence per change, about what people can now do.",
+        "- Leave out internal ticket numbers and refactors nobody sees.",
+        "",
+      ].join("\n"),
+    },
+  ]
+}
+
 function accountMemory(now: number): MemoryData[] {
   const day = 24 * 60 * 60 * 1000
   return [

@@ -6,21 +6,24 @@ import type { SkillMetadata } from "./frontmatter"
  *
  * A chat sees Skills from several sources: Repo Skills (its Branch's
  * `.claude/skills/`, Workspace chats only), Canvas Skills (saved by any chat
- * on the canvas, `canvas.ts`), Harness Skills (the desktop chat's coding
+ * on the canvas, `canvas.ts`), Account Skills (saved to the person who sent
+ * the turn, `account.ts`), Harness Skills (the desktop chat's coding
  * agent's own, `agent-skills.ts`) and App Skills (bundled `lib/skills/`).
  * They merge into a single origin-tagged list the agent's prompt and the `/`
  * menu both draw from, and a single body resolver `read_skill` routes
  * through. The rule, stated once here as {@link SKILL_ORIGIN_RANK}: **Repo,
- * then Canvas, then the agent's own, then App** (spec #1554). A shadowed row
- * is dropped, and a body lookup tries each source in that order.
+ * then Canvas, then Account, then the agent's own, then App** (spec #1554).
+ * A shadowed row is dropped, and a body lookup tries each source in that
+ * order.
  */
 
-export type SkillOrigin = "repo" | "canvas" | "agent" | "app"
+export type SkillOrigin = "repo" | "canvas" | "account" | "agent" | "app"
 
 /** Which source wins a name collision, first to last. */
 export const SKILL_ORIGIN_RANK: readonly SkillOrigin[] = [
   "repo",
   "canvas",
+  "account",
   "agent",
   "app",
 ]

@@ -29,6 +29,7 @@ import { DefaultAgentPicker } from "./default-agent-picker"
 import { RepoConfigsPanel } from "./repo-configs-panel"
 import { AccountMemoryPanel } from "@/components/memory/account-memory-panel"
 import { AccountFilesPanel } from "./account-files-panel"
+import { AccountSkillsPanel } from "./account-skills-panel"
 import {
   SettingsRow,
   SettingsRowList,
@@ -133,6 +134,13 @@ const SECTIONS: SettingsSection[] = [
     description:
       "Files every chat you message can open, on any canvas. Agents save and organize them.",
     content: (header) => <AccountFilesPanel header={header} />,
+  },
+  {
+    id: "skills",
+    title: "Skills",
+    description:
+      "Procedures every chat you message can follow, on any canvas. To add or change one, ask a chat.",
+    content: (header) => <AccountSkillsPanel header={header} />,
   },
   {
     id: "account",

@@ -656,6 +656,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "settings-skills",
+    description: "Settings → Skills: your account skills.",
+    path: "/settings?section=skills",
+    prepare: async (page) => {
+      await page.getByText("release-notes").waitFor()
+    },
+  }),
+  screen({
     name: "preset-form",
     description: "Editing a repository in Settings.",
     path: "/settings?section=repositories",

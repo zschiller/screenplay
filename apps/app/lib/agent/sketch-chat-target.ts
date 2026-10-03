@@ -3,6 +3,7 @@ import "server-only"
 import { buildSketchSystemPrompt, type LayerDirectory } from "./config"
 import {
   accountFilesFor,
+  accountSkillsFor,
   accountMemoryStore,
   loadAccountFiles,
   loadAccountMemory,
@@ -19,6 +20,7 @@ import { buildQuestionTools } from "./question-tools"
 import { sketchAppSkills, sketchSkillIndex } from "./sketch-tools"
 import { buildSkillTools } from "./skill-tools"
 import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { loadAccountSkills } from "@/lib/skills/account"
 import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildFileTools } from "./file-tools"
@@ -45,8 +47,8 @@ export interface SketchTarget {
 export interface SketchContext {
   chatId: string
   layerDirectory: LayerDirectory
-  /** The canvas's Skills, the agent's own, then its Mockup App Skills; no
-   *  repository. */
+  /** The canvas's Skills, the sender's own, the agent's own, then its
+   *  Mockup App Skills; no repository. */
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
@@ -63,6 +65,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
     const [
       layerDirectory,
       canvas,
+      account,
       agent,
       memory,
       files,
@@ -71,17 +74,22 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
     ] = await Promise.all([
       loadLayerDirectory(room),
       loadCanvasSkills(room),
+      loadAccountSkills(turnSender(target)),
       loadAgentSkills(agentSkillsFor(target.harnessKey)),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
       loadAccountMemory(turnSender(target)),
       loadAccountFiles(turnSender(target)),
-      loadAccountFiles(turnSender(target)),
     ])
     return {
       chatId: target.chatId,
       layerDirectory,
-      skills: mergeSkillIndexes({ canvas, agent, app: sketchSkillIndex() }),
+      skills: mergeSkillIndexes({
+        canvas,
+        account,
+        agent,
+        app: sketchSkillIndex(),
+      }),
       memory,
       files,
       accountMemory,
@@ -112,6 +120,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
         // The canvas's Skills and the Mockup App Skills (#1555).
         ...buildSkillTools({
           canvas: canvasSkills(room),
+          account: accountSkillsFor(target),
           chatId,
           app: sketchAppSkills,
           agent: agentSkillsFor(harnessKey),

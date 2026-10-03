@@ -105,7 +105,7 @@ describe("resolveSkillMenuSource", () => {
       { name: "deploy", description: "Repo deploy." },
     ]
 
-    const menu = resolveSkillMenuSource(app, repo, canvas)
+    const menu = resolveSkillMenuSource(app, repo, { canvas })
 
     expect(menu).toEqual([
       { name: "deploy", description: "Repo deploy.", origin: "repo" },
@@ -124,14 +124,32 @@ describe("resolveSkillMenuSource", () => {
   })
 
   it("lists canvas Skills before a Sandbox exists", () => {
-    const menu = resolveSkillMenuSource(app, null, [
-      { name: "review", description: "Canvas review." },
-    ])
+    const menu = resolveSkillMenuSource(app, null, {
+      canvas: [{ name: "review", description: "Canvas review." }],
+    })
 
     expect(menu.map((s) => [s.name, s.origin])).toEqual([
       ["review", "canvas"],
       ["screenplay-add-knob", "app"],
       ["screenplay-share-state", "app"],
+    ])
+  })
+
+  it("lists your Account Skills below the canvas's and above App Skills", () => {
+    const menu = resolveSkillMenuSource(app, null, {
+      canvas: [{ name: "review", description: "Canvas review." }],
+      account: [
+        { name: "review", description: "My review." },
+        { name: "screenplay-add-knob", description: "My knob." },
+        { name: "voice", description: "My voice." },
+      ],
+    })
+
+    expect(menu.map((s) => [s.name, s.origin, s.description])).toEqual([
+      ["review", "canvas", "Canvas review."],
+      ["screenplay-add-knob", "account", "My knob."],
+      ["screenplay-share-state", "app", "Share state."],
+      ["voice", "account", "My voice."],
     ])
   })
 })

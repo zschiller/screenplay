@@ -15,6 +15,8 @@ import { accountFiles } from "@/lib/files"
 import type { Files } from "@/lib/files/files"
 import type { FileEntryData, MemoryData } from "@/lib/types"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
+import { accountSkills } from "@/lib/skills/account"
+import type { SavedSkills } from "@/lib/skills/saved"
 
 /**
  * The seam every chat target kind fills: a Branch's Workspace
@@ -158,6 +160,19 @@ export function accountFilesFor(target: {
 }): Files | null {
   const sender = turnSender(target)
   return sender ? accountFiles(sender) : null
+}
+
+/**
+ * The Skills `save_skill` and `delete_skill` keep for the `account` scope
+ * (#1558): the turn sender's, or `null` on a turn nobody sent, which refuses
+ * the scope.
+ */
+export function accountSkillsFor(target: {
+  userId: string
+  senderless?: boolean
+}): SavedSkills | null {
+  const sender = turnSender(target)
+  return sender ? accountSkills(sender) : null
 }
 
 /** Who sent a target's turn: its member, unless nobody did. */

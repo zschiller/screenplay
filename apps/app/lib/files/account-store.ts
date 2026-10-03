@@ -5,8 +5,6 @@ import { kv } from "@/lib/kv"
 import type { FileEntryData } from "@/lib/types"
 import type { FileListStore } from "./account-files"
 
-const PREFIX = "account-files:"
-
 /** How long a write holds the list, and how long another waits for it. */
 const LOCK_TTL_SEC = 10
 const LOCK_WAIT_MS = 5_000
@@ -21,7 +19,18 @@ const queues = new Map<string, Promise<void>>()
  * desktop alike: the desktop app runs as its one local user.
  */
 export function kvAccountFileStore(userId: string): FileListStore {
-  const key = `${PREFIX}${userId}`
+  return kvFileListStore(`account-files:${userId}`)
+}
+
+/**
+ * One person's Account Skills entries (#1558), a list of their own beside
+ * their Account Files, so a Skill's folder never shows in the Files tree.
+ */
+export function kvAccountSkillStore(userId: string): FileListStore {
+  return kvFileListStore(`account-skills:${userId}`)
+}
+
+function kvFileListStore(key: string): FileListStore {
   return {
     async load() {
       const data = await kv.get<string>(key)

@@ -3,6 +3,7 @@ import "server-only"
 import { buildAgentSystemPrompt, type LayerDirectory } from "./config"
 import {
   accountFilesFor,
+  accountSkillsFor,
   accountMemoryStore,
   loadAccountFiles,
   loadAccountMemory,
@@ -30,6 +31,7 @@ import { sandboxProvider } from "@/lib/sandbox"
 import { buildSkillTools } from "./skill-tools"
 import { appSkillSource, getSkillIndex } from "@/lib/skills"
 import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { loadAccountSkills } from "@/lib/skills/account"
 import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 import {
   enumerateRepoSkillsForSandbox,
@@ -60,8 +62,8 @@ export interface WorkspaceContext {
   repoSystemPrompt: string | undefined
   layerDirectory: LayerDirectory
   /**
-   * The merged Skill index (Repo, Canvas, the agent's own, App), read fresh every
-   * turn so a Skill saved mid-chat is known on the next one.
+   * The merged Skill index (Repo, Canvas, Account, the agent's own, App),
+   * read fresh every turn so a Skill saved mid-chat is known on the next one.
    */
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
@@ -87,6 +89,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       layerDirectory,
       repo,
       canvas,
+      account,
       agent,
       memory,
       files,
@@ -111,6 +114,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       loadLayerDirectory(room),
       enumerateRepoSkillsForSandbox(sandboxName),
       loadCanvasSkills(room),
+      loadAccountSkills(turnSender(target)),
       loadAgentSkills(agentSkillsFor(target.harnessKey)),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
@@ -125,6 +129,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       skills: mergeSkillIndexes({
         repo,
         canvas,
+        account,
         agent,
         app: getSkillIndex(),
       }),
@@ -191,6 +196,7 @@ export const workspaceChatTarget: ChatTargetSpec<
         // Loading Skills, and saving them to the canvas (#1555).
         ...buildSkillTools({
           canvas: canvasSkills(room),
+          account: accountSkillsFor(target),
           chatId,
           app: appSkillSource(),
           repo: () => repoSkillFsForSandbox(sandboxName),

@@ -19,15 +19,22 @@ import { loadAgentSkills, type AgentSkills } from "@/lib/skills/agent-skills"
 
 /**
  * A chat's Skill tools (#1555): `read_skill` loads a Skill from the chat's
- * merged index, and `save_skill` and `delete_skill` keep the canvas's saved
- * Skills. Every chat kind gets all three, from its own App Skills and, on a
- * Workspace chat, its Branch's Repo Skills. On a desktop harness, `read_skill`
- * also reads the agent's own Skills (#1560). Each write takes a `scope`; only
- * `canvas` exists until account skills land.
+ * merged index, and `save_skill` and `delete_skill` keep the saved Skills.
+ * Every chat kind gets all three, from its own App Skills and, on a Workspace
+ * chat, its Branch's Repo Skills. On a desktop harness, `read_skill` also
+ * reads the agent's own Skills (#1560). Each write takes a `scope`: `canvas`
+ * (the canvas's, shared with its members) or `account` (the turn sender's
+ * own, on every canvas, #1558), which a turn nobody sent refuses.
  */
 export interface SkillToolContext {
   /** The canvas's saved Skills. */
   canvas: SavedSkills
+  /**
+   * The Account Skills of the person who sent the turn, or `null` on a turn
+   * nobody sent (a Coordinator wake and the turns it delegates), which
+   * refuses the `account` scope. Absent is the same as `null`.
+   */
+  account?: SavedSkills | null
   /** The chat the tools act for: what its saves record as their author. */
   chatId: string
   /** The App Skills this kind of chat sees. */
@@ -46,12 +53,16 @@ export interface SkillToolContext {
 
 const scopeProperty: JSONSchema7 = {
   type: "string",
-  enum: ["canvas"],
+  enum: ["canvas", "account"],
   description:
-    "Where the skill lives: `canvas` (shared with this canvas's members, used by every chat on it). The default.",
+    "Where the skill lives: `canvas` (shared with this canvas's members, used by every chat on it), the default, or `account` (the own skills of the person who sent this message, used by every chat they message on any canvas, which nobody else's chats see).",
 }
 
-type Scope = { scope?: "canvas" }
+type Scope = { scope?: "canvas" | "account" }
+
+/** What a write says when a turn nobody sent asks for account skills. */
+const NO_ACCOUNT =
+  "Error: nobody sent this turn, so it has no account skills. Use the `canvas` scope instead."
 
 /** A saved Skill as `read_skill` returns it: SKILL.md, then each file. */
 export function renderSavedSkill(content: string, files: SkillFile[]): string {
@@ -65,7 +76,18 @@ export function renderSavedSkill(content: string, files: SkillFile[]): string {
 
 export function buildSkillTools(ctx: SkillToolContext) {
   const author = { addedBy: "agent" as const, addedById: ctx.chatId }
-  const skills = (_scope: Scope["scope"]) => ctx.canvas
+  /** The scope's Skills, or `null` for account Skills on a turn nobody sent. */
+  const skills = (scope: Scope["scope"]): SavedSkills | null =>
+    scope === "account" ? (ctx.account ?? null) : ctx.canvas
+  // A store that can't be read has none of the name, so the lookup goes on.
+  const savedReader =
+    (scope: SavedSkills) =>
+    async (n: string): Promise<string | null> => {
+      const read = await scope.read(n).catch(() => null)
+      return read?.ok
+        ? renderSavedSkill(read.value.content, read.value.files)
+        : null
+    }
   const appListing = formatMergedListing(
     mergeSkillIndexes({ app: ctx.app.index() })
   )
@@ -74,7 +96,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
     read_skill: tool({
       // The App Skills ride in the description too, so a harness that gets
       // the tools before any prompt still finds them.
-      description: `Load the full instructions for a skill: one listed in your instructions, or one a chat saved to this canvas. Call it before acting when a request matches a skill's description, and follow what it says. Screenplay's own skills:\n${appListing}`,
+      description: `Load the full instructions for a skill: one listed in your instructions, or one a chat saved to this canvas or to the account of the person messaging you. Call it before acting when a request matches a skill's description, and follow what it says. Screenplay's own skills:\n${appListing}`,
       inputSchema: jsonSchema<{ name: string }>({
         type: "object",
         properties: { name: { type: "string" } },
@@ -84,12 +106,8 @@ export function buildSkillTools(ctx: SkillToolContext) {
         const fs = ctx.repo ? await ctx.repo() : null
         const content = await resolveSkillBody(name, {
           ...(fs ? { repo: (n: string) => readRepoSkillBody(fs, n) } : {}),
-          canvas: async (n) => {
-            const read = await ctx.canvas.read(n)
-            return read.ok
-              ? renderSavedSkill(read.value.content, read.value.files)
-              : null
-          },
+          canvas: savedReader(ctx.canvas),
+          ...(ctx.account ? { account: savedReader(ctx.account) } : {}),
           ...(ctx.agent ? { agent: ctx.agent.read } : {}),
           app: (n) => ctx.app.read(n),
         })
@@ -98,6 +116,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
         const merged = mergeSkillIndexes({
           app: ctx.app.index(),
           canvas: await ctx.canvas.list().catch(() => []),
+          account: (await ctx.account?.list().catch(() => [])) ?? [],
           agent: await loadAgentSkills(ctx.agent ?? null),
           ...(fs
             ? { repo: await enumerateRepoSkills(fs).catch(() => []) }
@@ -110,7 +129,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
     save_skill: tool({
       description: [
         "Save a skill: a procedure later chats should follow, like a review checklist, a house writing style or how this team ships a release. Save one when the user asks, or when you've worked out a procedure worth reusing.",
-        "`canvas` keeps it with this canvas, for its members: every chat on the canvas lists it from its next turn and can load it with `read_skill`.",
+        "`canvas` keeps it with this canvas, for its members: every chat on the canvas lists it from its next turn and can load it with `read_skill`. `account` keeps it with the person who sent this message: every chat they message, on any canvas, lists it, and nobody else's do. Save to `account` only a procedure that's theirs rather than this canvas's, like how they like a write-up done.",
         "`content` is the whole SKILL.md: frontmatter with `name` (the skill's name) and `description` (what it does and when to use it, which is all a chat sees until it loads the skill), then the instructions in markdown. Put longer references or examples in `files`, and say in SKILL.md when to read them.",
         "Saving a name that exists in the scope replaces that skill, so change one by saving it again. `allowed-tools` and lines with an inline !`command` are removed.",
       ].join(" "),
@@ -146,13 +165,20 @@ export function buildSkillTools(ctx: SkillToolContext) {
         required: ["name", "content"],
       }),
       execute: async ({ scope, name, content, files }) => {
-        const saved = await skills(scope).save({ name, content, files, author })
+        const scoped = skills(scope)
+        if (!scoped) return NO_ACCOUNT
+        const saved = await scoped.save({ name, content, files, author })
         if (!saved.ok) return `Error: ${saved.error}`
         const { replaced, stripped } = saved.value
         const fs = ctx.repo ? await ctx.repo() : null
         const shadowed = fs && (await readRepoSkillBody(fs, name)) !== null
+        // An account Skill also loses to one of the canvas's.
+        const shadowedByCanvas =
+          scope === "account" && (await ctx.canvas.read(name)).ok
         return [
-          `${replaced ? "Replaced" : "Saved"} the canvas skill "${name}". Every chat on this canvas can use it from its next turn.`,
+          scope === "account"
+            ? `${replaced ? "Replaced" : "Saved"} the account skill "${name}". Every chat they message, on any canvas, can use it from its next turn.`
+            : `${replaced ? "Replaced" : "Saved"} the canvas skill "${name}". Every chat on this canvas can use it from its next turn.`,
           ...(stripped.length
             ? [
                 `Removed ${stripped.join(" and ")}: saved skills can't grant tools or run commands.`,
@@ -162,7 +188,11 @@ export function buildSkillTools(ctx: SkillToolContext) {
             ? [
                 `This branch's repository has a skill named "${name}" too, and in this chat the repository's wins.`,
               ]
-            : []),
+            : shadowedByCanvas
+              ? [
+                  `This canvas has a skill named "${name}" too, and on this canvas the canvas's wins.`,
+                ]
+              : []),
         ].join(" ")
       },
     }),
@@ -179,9 +209,11 @@ export function buildSkillTools(ctx: SkillToolContext) {
         required: ["name"],
       }),
       execute: async ({ scope, name }) => {
-        const removed = await skills(scope).remove(name)
+        const scoped = skills(scope)
+        if (!scoped) return NO_ACCOUNT
+        const removed = await scoped.remove(name)
         if (!removed.ok) return `Error: ${removed.error}`
-        return `Deleted the canvas skill "${name}".`
+        return `Deleted the ${scope === "account" ? "account" : "canvas"} skill "${name}".`
       },
     }),
   }
