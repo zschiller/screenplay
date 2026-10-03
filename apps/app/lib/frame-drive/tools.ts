@@ -54,6 +54,8 @@ const modifiersSchema = z
   })
   .optional()
 
+const TELL_IN_CHAT = "Tell the person in chat instead of driving."
+
 export function buildFrameDriveTools(
   driver: AgentFrameDriver,
   reader: Reader,
@@ -70,7 +72,12 @@ export function buildFrameDriveTools(
   const resolve = async (
     id: string | undefined
   ): Promise<{ id: string; name: string } | string> => {
-    return reader.readDoc((c) => findFrame(c, scope, id))
+    const frame = await reader.readDoc((c) => findFrame(c, scope, id))
+    if (typeof frame !== "string") return frame
+    // Just after the canvas closes, the room can read as empty for a moment:
+    // say the canvas isn't open rather than that it has no frames.
+    const closed = await driver.canvasUnavailable()
+    return closed ? `Can't drive frames: ${closed} ${TELL_IN_CHAT}` : frame
   }
 
   const gesture = async (
@@ -295,7 +302,7 @@ export function phrase(frameName: string, outcome: AgentDriveOutcome): string {
     case "wait":
       return waitLine(frameName, outcome)
     case "unavailable":
-      return `Can't drive ${frameName}: ${outcome.reason} Tell the person in chat instead of driving.`
+      return `Can't drive ${frameName}: ${outcome.reason} ${TELL_IN_CHAT}`
     case "failed":
       return `Couldn't drive ${frameName}: ${outcome.reason}`
   }

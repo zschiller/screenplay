@@ -21,9 +21,13 @@ import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 const EVAL_LIKE = /eval|script|exec|run_js|javascript|inject|function/i
 
-function room() {
+function room({ empty = false } = {}) {
   const doc = new Y.Doc()
   const c = createRoomCollections(doc)
+  if (empty)
+    return {
+      readDoc: async <T>(fn: (c: RoomCollections) => T | Promise<T>) => fn(c),
+    }
   c.branches.set("b1", {
     id: "b1",
     sandboxName: "sb-1",
@@ -41,7 +45,11 @@ function room() {
   }
 }
 
-function tools(answer: (op: DriveOp) => DriveResult, unavailable?: string) {
+function tools(
+  answer: (op: DriveOp) => DriveResult,
+  unavailable?: string,
+  { empty = false } = {}
+) {
   const ops: DriveOp[] = []
   const backend: FrameDriveBackend = {
     unavailable: async () => unavailable ?? null,
@@ -66,7 +74,7 @@ function tools(answer: (op: DriveOp) => DriveResult, unavailable?: string) {
   })
   return {
     ops,
-    tools: buildFrameDriveTools(driver, room(), {
+    tools: buildFrameDriveTools(driver, room({ empty }), {
       kind: "chat",
       sandboxName: "sb-1",
     }),
@@ -109,6 +117,16 @@ describe("Frame Drive tools", () => {
     const out = await call(t.frame_click, { target: { text: "Save" } })
     expect(out).toMatch(/isn't showing this canvas.*Tell the person in chat/)
     expect(ops).toEqual([])
+  })
+
+  it("says the canvas isn't open even when the room reads as empty", async () => {
+    const { tools: t } = tools(
+      () => ({ status: "failed", reason: "" }),
+      "Screenplay isn't showing this canvas.",
+      { empty: true }
+    )
+    const out = await call(t.frame_click, { target: { text: "Save" } })
+    expect(out).toMatch(/isn't showing this canvas.*Tell the person in chat/)
   })
 
   it("lists elements with their selectors", async () => {

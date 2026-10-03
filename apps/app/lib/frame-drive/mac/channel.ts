@@ -166,6 +166,7 @@ export function macFrameDriveBackend(
   return {
     async unavailable(frameId) {
       if (!canvasesByRoom().get(roomId)?.length) return NO_CANVAS
+      if (frameId === undefined) return null
       return canvasFor(roomId, frameId) ? null : NO_FRAME
     },
 
@@ -251,10 +252,12 @@ export function visiblePart(
   rect: NonNullable<FrameWhere["rect"]>,
   window: FrameWhere["window"]
 ): NonNullable<FrameWhere["rect"]> | null {
-  const x = Math.max(0, rect.x)
-  const y = Math.max(0, rect.y)
-  const right = Math.min(window.width, rect.x + rect.width)
-  const bottom = Math.min(window.height, rect.y + rect.height)
+  // Snap inward to whole points, so a fractional edge doesn't pull in a
+  // sliver of the frame's border.
+  const x = Math.ceil(Math.max(0, rect.x))
+  const y = Math.ceil(Math.max(0, rect.y))
+  const right = Math.floor(Math.min(window.width, rect.x + rect.width))
+  const bottom = Math.floor(Math.min(window.height, rect.y + rect.height))
   if (right - x < 1 || bottom - y < 1) return null
   return { x, y, width: right - x, height: bottom - y }
 }

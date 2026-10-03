@@ -9,7 +9,10 @@ import { WebSocket as NodeWebSocket } from "ws"
 
 import { frameDriveContract } from "@/lib/frame-drive/contract-suite"
 import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
-import { macFrameDriveBackend } from "@/lib/frame-drive/mac/channel"
+import {
+  macFrameDriveBackend,
+  visiblePart,
+} from "@/lib/frame-drive/mac/channel"
 import {
   FRAME_DRIVE_PATH,
   FRAME_DRIVE_ROOM_PARAM,
@@ -274,5 +277,25 @@ describe("Mac drive channel", () => {
     expect(await other.screenshot(FRAME)).toMatchObject({
       status: "unavailable",
     })
+  })
+})
+
+describe("visiblePart", () => {
+  it("snaps a fractional frame inward, so no border sliver shows", () => {
+    expect(
+      visiblePart(
+        { x: 10.4, y: 20.6, width: 300, height: 200 },
+        { width: 1000, height: 800 }
+      )
+    ).toEqual({ x: 11, y: 21, width: 299, height: 199 })
+  })
+
+  it("keeps only what's inside the window", () => {
+    expect(
+      visiblePart(
+        { x: -50, y: 700, width: 300, height: 200 },
+        { width: 1000, height: 800 }
+      )
+    ).toEqual({ x: 0, y: 700, width: 250, height: 100 })
   })
 })

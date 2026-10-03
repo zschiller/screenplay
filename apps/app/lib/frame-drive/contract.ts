@@ -185,9 +185,10 @@ export type DriveScreenshotResult =
 export interface FrameDriveBackend {
   /**
    * Whether the frame can be driven right now, before anyone asks Frame
-   * Control for it: null when it can, otherwise why not.
+   * Control for it: null when it can, otherwise why not. Without a frame,
+   * whether any frame on the canvas could be (the canvas is open).
    */
-  unavailable(frameId: string): Promise<string | null>
+  unavailable(frameId?: string): Promise<string | null>
   run(frameId: string, op: DriveOp): Promise<DriveResult>
   screenshot(frameId: string): Promise<DriveScreenshotResult>
 }

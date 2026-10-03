@@ -197,6 +197,11 @@ export class AgentFrameDriver {
   }
 
   /** Stop driving the frame and leave the queue for it. */
+  /** Why no frame on the canvas can be driven right now, or null. */
+  canvasUnavailable(): Promise<string | null> {
+    return this.deps.backend.unavailable()
+  }
+
   async letGo(frameId: string): Promise<void> {
     const key = this.deps.keyOf(frameId)
     this.release(key)
