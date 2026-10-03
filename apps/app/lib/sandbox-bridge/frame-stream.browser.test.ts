@@ -592,6 +592,11 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     )
     knob(d, "red")
     await expect.poll(() => colored(d, "red", `r${Date.now()}`)).not.toBeNull()
+
+    // Let f2 go, so the cap tests below start with one paused frame to
+    // close rather than racing to close the frame they just paused.
+    d.send({ t: "unwatch", frame: "f2" })
+    await d.waitFor(() => serviceLog.includes("frame f2: paused") || undefined)
   }, 40_000)
 
   // ---- pause and the cap (#1393) ----
