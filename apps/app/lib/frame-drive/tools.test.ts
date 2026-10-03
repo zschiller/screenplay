@@ -14,6 +14,7 @@ import {
 } from "@/lib/frame-drive/contract"
 import {
   buildFrameDriveTools,
+  findDrivable,
   FRAME_DRIVE_TOOL_ANNOTATIONS,
   phrase,
 } from "@/lib/frame-drive/tools"
@@ -187,5 +188,66 @@ describe("phrase", () => {
       phrase("frame [f1]", { status: "wait", driver: "u", takenOver: true })
     ).toMatch(/took control.*Stop driving.*ask before you carry on/)
     expect(phrase("frame [f1]", { status: "taken" })).toMatch(/took control/)
+  })
+})
+
+describe("findDrivable", () => {
+  function canvas({ frames = 1, mockups = 1 } = {}) {
+    const c = createRoomCollections(new Y.Doc())
+    c.branches.set("b1", {
+      id: "b1",
+      sandboxName: "sb-1",
+      title: "Checkout",
+    } as never)
+    for (let i = 1; i <= frames; i++)
+      c.iframeLayers.set(`f${i}`, {
+        id: `f${i}`,
+        branchId: "b1",
+        route: "/",
+        width: 800,
+        height: 600,
+      } as never)
+    for (let i = 1; i <= mockups; i++)
+      c.mockupLayers.set(`m${i}`, { id: `m${i}`, title: `Take ${i}` } as never)
+    return c
+  }
+  const scope = { kind: "chat" as const, sandboxName: "sb-1" }
+
+  it("drives a Mockup named by its id", () => {
+    expect(findDrivable(canvas(), scope, "m1", true)).toEqual({
+      id: "m1",
+      name: 'Mockup [m1] ("Take 1")',
+    })
+  })
+
+  it("keeps the Workspace's own frame as the default beside Mockups", () => {
+    expect(findDrivable(canvas(), scope, undefined, true)).toMatchObject({
+      id: "f1",
+    })
+  })
+
+  it("defaults to the one Mockup where only Mockups drive", () => {
+    expect(findDrivable(canvas(), scope, undefined, false)).toMatchObject({
+      id: "m1",
+    })
+    const out = findDrivable(canvas({ mockups: 2 }), scope, undefined, false)
+    expect(out).toMatch(/Mockup to drive:\n- m1: Mockup "Take 1"\n- m2/)
+  })
+
+  it("lists frames and Mockups when there's no single one", () => {
+    const out = findDrivable(
+      canvas({ frames: 0, mockups: 2 }),
+      { kind: "chat" },
+      undefined,
+      true
+    )
+    expect(out).toMatch(/frame or Mockup to drive/)
+    expect(out).toContain('- m2: Mockup "Take 2"')
+  })
+
+  it("says when nothing has the id", () => {
+    expect(findDrivable(canvas(), scope, "zz", true)).toMatch(
+      /no frame or Mockup zz/
+    )
   })
 })

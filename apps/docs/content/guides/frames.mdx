@@ -118,31 +118,31 @@ One party drives a frame at a time, and only the driver's clicks and keys
 reach it. Interact is the driver's seat: pressing it makes you the driver,
 and leaving it lets go.
 
-When Claude drives a frame, the frame shows it:
+When the agent drives a frame, the frame shows it:
 
-- **Claude is driving** sits on the frame's title line, at its right edge.
+- **Agent is driving** sits on the frame's title line, at its right edge.
 - An unselected frame gets a 2px ring, so you can spot it
   from across the canvas.
-- Selected, the Interact button shows Claude's dots instead of the cursor, and
-  the frame has no resize handles, so its size can't change under Claude.
+- Selected, the Interact button shows the agent's dots instead of the cursor,
+  and the frame has no resize handles, so its size can't change under it.
 
 <Screenshot
   name="frame-claude-driving"
-  alt="A frame with the Claude is driving tag on its title line and a dark ring around it"
+  alt="A frame with the Agent is driving tag on its title line and a dark ring around it"
 />
 
 <Screenshot
   name="frame-claude-driving-selected"
-  alt="The selected frame Claude drives, with Claude's dots on the Interact button and no resize handles"
+  alt="The selected frame the agent drives, with the agent's dots on the Interact button and no resize handles"
 />
 
-Claude always gives way. Click the button (or double-click the frame) to
-take over at once: you're interacting, and Claude stops and waits. When you
-leave Interact, Claude carries on if it asked to.
+The agent always gives way. Click the button (or double-click the frame) to
+take over at once: you're interacting, and the agent stops and waits. When
+you leave Interact, the agent carries on if it asked to.
 
 <Screenshot
   name="frame-tooltip-take-over"
-  alt="The driver button's tooltip: Claude is driving, then Click to take over"
+  alt="The driver button's tooltip: Agent is driving, then Click to take over"
 />
 
 ### Shared frames
@@ -200,9 +200,9 @@ on your Mac.
   alt="The More menu: Device size, Fit to content, Duplicate, Workspace, Delete frame"
 />
 
-## Claude driving a frame
+## The agent driving a frame
 
-In the desktop app, a Workspace chat's Claude can use a frame you have open:
+In the desktop app, a Workspace chat's agent can use a frame you have open:
 click, type, press keys, scroll, pick options and drag, like you would. It
 reads the page's buttons, links and fields to find what to act on, and looks
 at the frame after each step to check it worked. Ask it to show you what it
@@ -210,17 +210,17 @@ built, or to get a frame into a state for you.
 
 - **It drives your own frame.** The steps happen in the frame on your canvas,
   and nothing is sent anywhere else.
-- **Screenplay has to be open.** Claude drives only while the canvas is open
-  in the desktop app. The window can be in the background while it works.
-  With the canvas closed, Claude tells you so in the chat instead.
+- **Screenplay has to be open.** The agent drives only while the canvas is
+  open in the desktop app. The window can be in the background while it works.
+  With the canvas closed, the agent tells you so in the chat instead.
 - **You can take over at any moment.** Click the driver button (or
-  double-click the frame) and Claude stops at once. It tells you where it got
+  double-click the frame) and the agent stops at once. It tells you where it got
   to and asks before it carries on; when you leave Interact, the frame is
-  Claude's again.
+  the agent's again.
 - **It hands the frame back.** When it's done, or after a minute without a
-  step, the frame stops showing Claude as its driver.
+  step, the frame stops showing the agent as its driver.
 
-Claude's clicks and keys are simulated inside the page, so they do what the
+The agent's clicks and keys are simulated inside the page, so they do what the
 page's own code listens for but not what the browser does for a real gesture.
 On the Mac it can't:
 
@@ -232,8 +232,12 @@ On the Mac it can't:
   value;
 - trigger hover styles made with CSS.
 
-When a step needs one of these, Claude says which and asks you to do it in the
+When a step needs one of these, the agent says which and asks you to do it in the
 frame, then carries on.
+
+The agent drives [mockups](/guides/mockups#the-agent-driving-a-mockup) the same
+way,
+in the browser too.
 
 ## Sizes
 

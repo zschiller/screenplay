@@ -127,6 +127,44 @@ A mockup's page can also [share its state](/building/shared-state#on-a-mockup),
 such as the open tab or what's in a cart, so everyone looking at it sees the
 same thing as you click through it in Interact.
 
+## The agent driving a mockup
+
+A chat's agent can click through a mockup for you, the way it
+[drives a frame](/guides/frames#the-agent-driving-a-frame): ask a chat to show
+you how a take behaves, or to get it into a state. It reads the page's
+buttons and fields, clicks, types and scrolls, and looks at the mockup after
+each step. This works in the browser and in the desktop app, from a
+workspace chat or a [chat with no repository](/guides/agent#chats-with-no-repository).
+
+- **It drives your copy.** The steps happen in the mockup on the canvas of
+  the person who asked. Everyone else keeps their own copy, as when you click
+  through it yourself.
+- **The canvas has to be open.** The agent drives only while the canvas is
+  open in your browser or the desktop app. With it closed, the agent says so in the
+  chat instead.
+- **It shows the same signs as a frame.** **Agent is driving** sits on the
+  mockup's title line, an unselected mockup gets a ring, the Interact button
+  shows the agent's dots, and the mockup has no resize handles while the
+  agent drives it.
+
+<Screenshot
+  name="mockup-claude-driving"
+  alt="A mockup with the Agent is driving tag on its title line and a dark ring around it"
+/>
+
+<Screenshot
+  name="mockup-claude-driving-selected"
+  alt="A selected mockup the agent drives, with the Agent is driving tag on its title line, the agent's dots on the Interact button and no resize handles"
+/>
+
+- **You can take over at any moment.** Click the driver button (its tooltip
+  says **Click to take over**) or double-click the mockup, and the agent stops at
+  once and asks before it carries on.
+
+The agent's clicks and keys are simulated inside the page, so it can't open a
+file picker, use the clipboard or move the keyboard focus. When a step needs
+one of these, it asks you to do it.
+
 ## Safety
 
 A mockup's page runs in a locked-down frame: it can run its own scripts, but

@@ -1378,6 +1378,18 @@ storage and profile restored, when someone watches it again.
 _Avoid_: "streamed iframe" (there is no iframe); trusting a viewer's claim to
 drive without a grant; WebRTC (it can't connect from a Vercel Sandbox, #1366).
 
+**Frame Drive**:
+The agent driving a frame or Mockup (#1389, #1391): one contract of gestures
+and reads (`lib/frame-drive/contract.ts`) and no op that runs a script. Every
+gesture asks **Frame Control** first (`AgentFrameDriver`). A page in a
+person's own canvas (a frame on the Mac, a Mockup anywhere) is driven in the
+**asker's** copy through the Sandbox Bridge, by the canvas's relay
+(`mac/relay.ts`); the relay's socket is the sidecar's WebSocket on the Mac,
+and on hosted the Room's `frameDriveAsks` map, read only by the asker's
+canvas, which posts its answers to `/api/frame-drive/answer` (`view/`). Each
+backend passes the same contract suite (`contract-suite.ts`).
+_Avoid_: driving a Mockup in anyone's view but the asker's; an eval op.
+
 **Canvas Keyboard**:
 The global `keydown`/`keyup` listeners for the canvas (`useCanvasKeyboard`, PRD
 #579), a dispatch from action to verb. Which key means what lives in one table,

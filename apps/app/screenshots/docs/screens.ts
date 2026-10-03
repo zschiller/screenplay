@@ -113,6 +113,8 @@ const VIEW = {
   document: { x: -1080, y: -600, zoom: 0.62 },
   /** Far enough left that the selection toolbar clears the chat panel. */
   documentEdit: { x: -1480, y: -700, zoom: 0.8 },
+  /** The pricing canvas's first mockup, beside its mobile frame. */
+  mockupCloseUp: { x: -650, y: 150, zoom: 0.38 },
 } as const
 
 // Panel widths are percentages of the window: a 240px sidebar and a 420px chat.
@@ -393,10 +395,24 @@ async function selectLayer(page: Page, title: string) {
   )
 }
 
-/** Claude drives the Home frame in this viewer's copy (#1387). */
+/** The agent drives the Home frame in this viewer's copy (#1387). */
 async function claudeDrivesHome(page: Page) {
   await injectYjsUpdate(page, (c) =>
     c.frameControl.set(frameControlKey(ids.layers.home, LOCAL_USER_ID), {
+      live: false,
+      driver: AGENT_PARTY,
+      requests: [],
+    })
+  )
+}
+
+/** The pricing canvas's first mockup, "Option A · Toggle". */
+const TOGGLE_MOCKUP = "mockup-annual-pricing-test-0"
+
+/** The agent drives the Toggle mockup in this viewer's copy (#1391). */
+async function claudeDrivesToggleMockup(page: Page) {
+  await injectYjsUpdate(page, (c) =>
+    c.frameControl.set(frameControlKey(TOGGLE_MOCKUP, LOCAL_USER_ID), {
       live: false,
       driver: AGENT_PARTY,
       requests: [],
@@ -680,6 +696,26 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: (page) => camera(page, { x: -378, y: 130, zoom: 0.3 }),
   }),
   screen({
+    name: "mockup-claude-driving",
+    description: "A mockup the agent drives, not selected: its tag and ring.",
+    path: `/${ids.rooms.pricingExperiments}`,
+    cookies: SIDEBAR_ONLY,
+    crop: [200, 80, 600, 320],
+    beforeNavigate: claudeDrivesToggleMockup,
+    prepare: (page) => camera(page, VIEW.mockupCloseUp),
+  }),
+  screen({
+    name: "mockup-claude-driving-selected",
+    description: "A selected mockup the agent drives: its mark on Interact.",
+    path: `/${ids.rooms.pricingExperiments}`,
+    cookies: SIDEBAR_ONLY,
+    beforeNavigate: claudeDrivesToggleMockup,
+    prepare: async (page) => {
+      await camera(page, VIEW.mockupCloseUp)
+      await selectLayer(page, "Option A · Toggle")
+    },
+  }),
+  screen({
     name: "canvas-menu",
     description: "The Canvas breadcrumb's ⋯ menu.",
     path: ROOM,
@@ -912,7 +948,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "frame-claude-driving",
-    description: "A frame Claude drives, not selected: its tag and ring.",
+    description: "A frame the agent drives, not selected: its tag and ring.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     crop: [240, 40, 760, 360],
@@ -923,7 +959,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "frame-claude-driving-selected",
-    description: "A selected frame Claude drives: its mark on Interact.",
+    description: "A selected frame the agent drives: its mark on Interact.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     beforeNavigate: claudeDrivesHome,
@@ -934,20 +970,21 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "frame-tooltip-take-over",
-    description: "The driver button's take-over tooltip while Claude drives.",
+    description:
+      "The driver button's take-over tooltip while the agent drives.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     crop: [760, 40, 520, 340],
     focus: [
       "[data-slot=tooltip-content]",
-      "button[aria-label='Claude is driving']",
+      "button[aria-label='Agent is driving']",
     ],
     beforeNavigate: claudeDrivesHome,
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
       await page.mouse.move(
-        ...xy(await centerOf(page, frameToolbar("Claude is driving")))
+        ...xy(await centerOf(page, frameToolbar("Agent is driving")))
       )
       await showTooltip(page)
     },

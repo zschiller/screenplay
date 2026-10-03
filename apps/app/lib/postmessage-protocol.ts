@@ -14,6 +14,7 @@ export type DomOp =
   | "getRectsForSelectors"
   | "resolveAnchors"
   | "getDocumentSize"
+  | "getPageSnapshot"
 
 export type HmrStatus = "connected" | "reconnecting" | "disconnected"
 
@@ -35,6 +36,8 @@ export type CanvasToIframeMessage =
       handle?: string
       x?: number
       y?: number
+      /** `getPageSnapshot`: also carry form state and scroll (#1391). */
+      live?: boolean
     }
   | { type: "screenplay:pick-start"; id: string }
   | { type: "screenplay:pick-stop"; id: string }

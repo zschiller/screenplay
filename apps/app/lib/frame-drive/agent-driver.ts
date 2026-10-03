@@ -101,7 +101,7 @@ export interface FrameControlStore {
 /**
  * How long the agent keeps a frame, or its place in the queue, after its last
  * op. An agent whose turn ended without letting go would otherwise leave the
- * frame saying "Claude is driving" (or take it back when the person leaves
+ * frame saying "Agent is driving" (or take it back when the person leaves
  * Interact) long after it moved on.
  */
 export const AGENT_IDLE_RELEASE_MS = 60_000

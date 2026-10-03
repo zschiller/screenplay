@@ -600,7 +600,7 @@ export function sandboxTurn(input: {
  * names it, unless it was created with a name.
  */
 export function sketchTurn(input: {
-  room: RoomDoc
+  room: RoomAccess
   chatId: string
   message: string
   model?: string
@@ -627,7 +627,7 @@ export function sketchTurn(input: {
       const prepared = await prepareChatTarget(
         room,
         sketchChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
-        { chatId } as unknown as never,
+        { chatId, userId: room.userId } as unknown as never,
         undefined,
         { toolNaming: toolNamingForTurn(input.model) }
       )

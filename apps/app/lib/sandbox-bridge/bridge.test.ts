@@ -260,6 +260,28 @@ describe.each<{ transport: string; send: Send }>([
       }
     })
 
+    it("carries form state and the scroll for a live snapshot", async () => {
+      document.body.innerHTML = `
+      <input id="name" value="">
+      <input type="checkbox" id="news">
+      <select id="size"><option>S</option><option>L</option></select>
+      <textarea id="notes"></textarea>`
+      ;(document.getElementById("name") as HTMLInputElement).value = "Ada"
+      ;(document.getElementById("news") as HTMLInputElement).checked = true
+      ;(document.getElementById("size") as HTMLSelectElement).value = "L"
+      ;(document.getElementById("notes") as HTMLTextAreaElement).value = "hi"
+      const snap = (await query("getPageSnapshot", { live: true })) as Snapshot
+      expect(snap.markup).toContain('<input id="name" value="Ada">')
+      expect(snap.markup).toMatch(/<input type="checkbox" id="news" checked/)
+      expect(snap.markup).toContain("<option selected")
+      expect(snap.markup).toContain('<textarea id="notes">hi</textarea>')
+      expect(snap).toMatchObject({ scroll: { x: 0, y: 0 } })
+      // A plain read stays as the page's own markup.
+      const plain = (await query("getPageSnapshot", {})) as Snapshot
+      expect(plain.markup).toContain('<input id="name" value="">')
+      expect(plain).not.toHaveProperty("scroll")
+    })
+
     it("returns null when the selector matches nothing", async () => {
       await expect(
         query("getPageSnapshot", { selector: "#nope" })

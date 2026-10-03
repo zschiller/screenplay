@@ -8,9 +8,10 @@
  * driving a frame must never become running arbitrary code (#1367).
  *
  * Each runtime has a backend that applies the ops: the Mac relays them to the
- * Sandbox Bridge in the person's own frame (`mac/`), hosted (#1396) will send
- * them to the shared browser. Every backend passes the same contract suite
- * (`contract-suite.ts`), so what the agent can do doesn't depend on where
+ * Sandbox Bridge in the person's own frame or mockup (`mac/`), hosted relays a
+ * mockup's to the asker's canvas through the Room's doc (`view/`, #1391), and
+ * will send a frame's to its shared browser (#1396). Every backend passes the
+ * same contract suite (`contract-suite.ts`), so what the agent can do doesn't depend on where
  * Screenplay runs. Who may drive is Frame Control's call, applied in front of
  * every backend by the agent's driver (`agent-driver.ts`).
  */
@@ -129,26 +130,27 @@ export type DriveDone = {
 }
 
 /**
- * The gestures the Mac can't make for real (#1367): its input is synthetic,
- * so nothing the browser itself does for a real gesture happens. A gesture
- * that hits one returns the gap instead of pretending it worked, so the agent
- * asks the person to do that step. Trusted input that would close them is
- * #1385.
+ * The gestures the Sandbox Bridge can't make for real (#1367): it drives a
+ * page in a person's own canvas (a frame on the Mac, a Mockup anywhere, #1391)
+ * with synthetic input, so nothing the browser itself does for a real gesture
+ * happens. A gesture that hits one returns the gap instead of pretending it
+ * worked, so the agent asks the person to do that step. Trusted input that
+ * would close them on the Mac is #1385.
  */
 export const DRIVE_GAPS = {
   "file-picker":
-    "Choosing a file opens the system file picker, which Claude can't open in a frame on the Mac.",
+    "Choosing a file opens the system file picker, which the agent can't open in this page.",
   clipboard:
-    "The page used the clipboard, which Claude can't reach in a frame on the Mac, so the copy or paste didn't happen.",
+    "The page used the clipboard, which the agent can't reach in this page, so the copy or paste didn't happen.",
   "rich-text":
-    "Typing into a rich-text editor needs the keyboard focus, which Claude can't move into a frame on the Mac.",
+    "Typing into a rich-text editor needs the keyboard focus, which the agent can't move into this page.",
   "key-typing":
-    "A key event doesn't type its character on the Mac. Use frame_type to enter text.",
-  tab: "Tab doesn't move the focus in a frame on the Mac.",
+    "A key event doesn't type its character in this page. Use frame_type to enter text.",
+  tab: "Tab doesn't move the focus in this page.",
   "native-select":
-    "A native select's popup can't be opened on the Mac. Use frame_select to pick an option.",
+    "A native select's popup can't be opened in this page. Use frame_select to pick an option.",
   "native-picker":
-    "The browser's own picker (date, time or colour) can't be opened on the Mac. Use frame_type to set the field's value.",
+    "The browser's own picker (date, time or colour) can't be opened in this page. Use frame_type to set the field's value.",
 } as const
 
 export type DriveGap = keyof typeof DRIVE_GAPS

@@ -77,7 +77,7 @@ returns a PNG via the platform webview's snapshot API. The local-fs store writes
 the WebP and serves it back from the sidecar's own `/blobs` route.
 
 The same control server snapshots the canvas window itself when a chat's agent
-[drives a frame](/guides/frames#claude-driving-a-frame) and checks a step.
+[drives a frame](/guides/frames#the-agent-driving-a-frame) and checks a step.
 That picture shows your screen, so the shell mints a token at launch and hands
 it only to the sidecar (`TAURI_CONTROL_TOKEN`); a snapshot request without it
 is refused. The agent's steps reach the canvas over a WebSocket on the local

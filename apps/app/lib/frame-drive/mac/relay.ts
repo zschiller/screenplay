@@ -6,16 +6,18 @@ import {
 } from "@/lib/frame-drive/contract"
 import type {
   CanvasToServer,
+  FrameSnapshot,
   FrameWhere,
   ServerToCanvas,
 } from "@/lib/frame-drive/mac/protocol"
 
 /**
- * The canvas's half of the Mac drive channel (#1389): it takes an op from
- * the sidecar, checks Frame Control in this canvas (the person may have taken
- * the frame since the agent asked), and hands the op to the frame's Sandbox
- * Bridge. React-free, so the Mac backend's contract suite runs it in a test
- * page against the real channel.
+ * The canvas's half of the drive channel (#1389): it takes an op from the
+ * server, checks Frame Control in this canvas (the person may have taken the
+ * frame since the agent asked), and hands the op to the frame's Sandbox
+ * Bridge. Frames and mockups (#1391) alike: both run the bridge. The socket
+ * is the Mac sidecar's WebSocket, or on hosted the Room's doc (`view/`).
+ * React-free, so each backend's contract suite runs it in a test page.
  */
 
 /** A frame the relay can drive: its bridge, and where it sits on screen. */
@@ -25,6 +27,9 @@ export interface RelayFrame {
   /** End a gesture the bridge is still running (someone took control). */
   stop(): void
   where(): FrameWhere
+  /** The page as it is now, for a screenshot taken away from the canvas
+   *  (hosted mockups). */
+  snapshot?(): Promise<FrameSnapshot | null>
 }
 
 export interface RelayFrames {
@@ -60,6 +65,10 @@ export async function answerRelayMessage(
   running: Map<string, number>
 ): Promise<CanvasToServer> {
   const frame = deps.frames.get(message.frameId)
+  if (message.type === "snapshot") {
+    const snapshot = await frame?.snapshot?.().catch(() => null)
+    return { type: "snapshot", id: message.id, snapshot: snapshot ?? null }
+  }
   if (message.type === "where") {
     return {
       type: "where",
@@ -154,7 +163,8 @@ export function runFrameDriveRelay(
   }
 }
 
-/** The mounted frames, registered by each Iframe Layer. */
+/** The mounted frames and mockups, registered by each Iframe and Mockup
+ *  Layer. */
 export function createRelayFrames(): RelayFrames & {
   register(frameId: string, frame: RelayFrame): () => void
 } {
