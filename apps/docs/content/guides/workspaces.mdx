@@ -80,7 +80,8 @@ names and never change the workspace's title or branch.
 
 Renaming a workspace (**… → Rename**, then type over its title) changes only
 the title, so it never touches the branch, its pull request or anyone's
-checkout. To rename the branch itself, use **… → Rename branch…**.
+checkout. The branch keeps the name it was given. To rebase it or rename it,
+ask the agent in its chat.
 
 ## The Chats menu
 
@@ -197,20 +198,17 @@ viewing, git and managing actions:
 
 <Screenshot name="ws-menu" alt="The chat menu" />
 
-| Item                                               | What it does                                                                                                                           |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open prototype player**                          | Opens [play mode](/guides/play-mode) for this workspace.                                                                               |
-| **Open in browser**                                | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`.                   |
-| **Show all routes**                                | Adds a group with one frame per route the workspace has visited.                                                                       |
-| **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one.                                                         |
-| **Rebase on _main_**                               | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
-| **Open branch on GitHub**                          | Opens the branch on GitHub.                                                                                                            |
-| **Rename branch…**                                 | Renames the git branch, on GitHub and in the workspace. Names already used on the remote are refused. The workspace keeps its title.   |
-| **New chat from here…**                            | Opens **New chat** with this workspace's branch as the base.                                                                           |
-| **Rename**                                         | Renames the workspace's title. The git branch stays as it is.                                                                          |
-| **Restart**                                        | See [Restarting](#restarting).                                                                                                         |
-| **Mark as done** / **Reopen**                      | See [Marking a workspace done](#marking-a-workspace-done).                                                                             |
-| **Delete**                                         | Deletes the chat with its workspace and frames, and optionally its branch on GitHub.                                                   |
+| Item                                               | What it does                                                                                                         |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Open prototype player**                          | Opens [play mode](/guides/play-mode) for this workspace.                                                             |
+| **Open in browser**                                | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
+| **Show all routes**                                | Adds a group with one frame per route the workspace has visited.                                                     |
+| **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one.                                       |
+| **New chat from here…**                            | Opens **New chat** with this workspace's branch as the base.                                                         |
+| **Rename**                                         | Renames the workspace's title. The git branch stays as it is.                                                        |
+| **Restart**                                        | See [Restarting](#restarting).                                                                                       |
+| **Mark as done** / **Reopen**                      | See [Marking a workspace done](#marking-a-workspace-done).                                                           |
+| **Delete**                                         | Deletes the chat with its workspace and frames, and optionally its branch on GitHub.                                 |
 
 ## Restarting
 
@@ -275,8 +273,10 @@ There are three ways to open a PR:
   a link card in the chat.
 
 PRs target the repository's default branch. The PR's state (open, merged, or
-closed) is shown at the end of the workspace row and on the header button. Creating PRs
-needs a GitHub connection.
+closed) is shown at the end of the workspace row and on the header button.
+**Create pull request** shows only when the repository is on GitHub and
+you're connected to GitHub, and it's available once the workspace has changes
+to propose.
 
 ## Deleting
 

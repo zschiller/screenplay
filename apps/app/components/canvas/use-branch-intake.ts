@@ -18,8 +18,6 @@ import { withBasePath } from "@/lib/base-path"
 import { chatStore } from "@/lib/chat-store"
 import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import { deleteBranch } from "@/lib/github-actions"
-import { renameAgentBranch } from "@/lib/sandbox/git"
-import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import {
   planBranchCreations,
@@ -40,7 +38,7 @@ import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
  * Branch Intake controller (PRD #562) — the Repo → Branch → Sandbox lifecycle
  * lifted out of `components/canvas/canvas.tsx`. The component calls the verbs
  * this hook returns (`createBranch`, `createBranchFromGitBranch`,
- * `removeRepo`, `removeBranch`, `renameBranch`); the orchestration — the
+ * `removeRepo`, `removeBranch`); the orchestration — the
  * multi-collection Y.Doc writes through the Canvas Operation seam (ADR 0001),
  * the Sandbox Provider calls (ADR 0003), and above all the *ordering* — lives
  * here in one place rather than smeared across the canvas surface.
@@ -125,7 +123,6 @@ export interface BranchIntake {
     id: string,
     options: { deleteOnRemote: boolean }
   ) => Promise<void>
-  renameBranch: (agentId: string, rawBranch: string) => Promise<void>
   /**
    * Re-run a failed Workspace's create (#791): the same flow, branch and
    * Sandbox name as the first attempt. A queued seed prompt is still waiting
@@ -678,45 +675,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     setSelectedGroupIds,
   ])
 
-  const renameBranch = useCallback(
-    async (agentId: string, rawBranch: string) => {
-      const newBranch = sanitizeBranchName(rawBranch)
-      const agent = agents.find((a) => a.id === agentId)
-      if (
-        !newBranch ||
-        !agent?.sandboxName ||
-        !agent.ref ||
-        agent.ref === newBranch
-      )
-        return
-
-      const repo = repos.find((w) => w.id === agent.repoId)
-      if (!repo) return
-
-      // Apply the rename locally before the sandbox roundtrip — the sandbox
-      // resume + `git branch -m` + GitHub call can take several seconds and
-      // the badge sitting on the old name in the meantime feels broken.
-      // Roll back if the sandbox rejects (e.g. branch already exists).
-      const previousBranch = agent.ref
-      const previousAutoNamed = agent.autoNamedBranch
-      updateAgentInStorage(agentId, { ref: newBranch, autoNamedBranch: false })
-
-      const result = await renameAgentBranch(
-        repo,
-        agent.sandboxName,
-        previousBranch,
-        newBranch
-      )
-      if (!result.success) {
-        updateAgentInStorage(agentId, {
-          ref: previousBranch,
-          autoNamedBranch: previousAutoNamed,
-        })
-      }
-    },
-    [agents, repos, updateAgentInStorage]
-  )
-
   const retryBranch = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -838,7 +796,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     createBranchFromGitBranch,
     removeRepo,
     removeBranch,
-    renameBranch,
     retryBranch,
     updateRepoInStorage,
     updateAgentInStorage,

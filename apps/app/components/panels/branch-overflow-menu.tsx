@@ -4,13 +4,10 @@ import { Fragment, type ReactNode } from "react"
 import {
   ArrowClockwiseIcon,
   ArrowCounterClockwiseIcon,
-  ArrowSquareOutIcon,
   ArrowUUpLeftIcon,
   ArrowsClockwiseIcon,
   CheckCircleIcon,
-  GitBranchIcon,
   GitForkIcon,
-  GitMergeIcon,
   GitPullRequestIcon,
   PathIcon,
   PencilSimpleIcon,
@@ -42,15 +39,12 @@ import type { BranchData, RepoData } from "@/lib/types"
 export type BranchMenuItemKey =
   | "retry"
   | "rename"
-  | "rename-branch"
   | "play"
   | "open-in-browser"
   | "routes"
   | "new-branch-from-here"
   | "restart"
   | "create-pr"
-  | "rebase"
-  | "open-github"
   | "mark-done"
   | "reopen"
   | "delete"
@@ -72,7 +66,9 @@ export interface BranchMenuSection {
  * one in particular) shows twice.
  *
  * `fetch`/`pull`/`push`/`sync` are deliberately absent: the always-commit-and-
- * push Engine loop makes them redundant.
+ * push Engine loop makes them redundant. So are rebasing, renaming the branch
+ * and opening it on GitHub: a chat's branch is named for it and stays out of
+ * sight, and its pull request is the GitHub page worth opening.
  */
 export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   {
@@ -83,13 +79,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   {
     id: "git",
     label: "Git",
-    itemKeys: [
-      "create-pr",
-      "rebase",
-      "open-github",
-      "rename-branch",
-      "new-branch-from-here",
-    ],
+    itemKeys: ["create-pr", "new-branch-from-here"],
   },
   {
     id: "manage",
@@ -108,8 +98,6 @@ const HIDDEN_WHILE_DONE: ReadonlySet<BranchMenuItemKey> = new Set([
   "play",
   "open-in-browser",
   "routes",
-  "rebase",
-  "rename-branch",
   "restart",
   "mark-done",
 ])
@@ -122,13 +110,15 @@ export interface WorkspaceMenuLeadInput {
   hasChanges: boolean
   /** A chat turn is in flight on this Workspace. */
   isBusy: boolean
+  /** A pull request can be opened: see {@link BranchOverflowMenuContentProps}. */
+  canCreatePr?: boolean
 }
 
 /**
  * The one action that leads the Workspace menu, from its state: Retry when
  * setup failed, Mark as done once its PR has merged and the agent is idle, the
  * open PR when there is one, Create pull request when there are changes to
- * propose, otherwise the prototype player. A Workspace that's still being set
+ * propose and GitHub to propose them to, otherwise the prototype player. A Workspace that's still being set
  * up (or stopped, until its PR merges) has no lead: nothing in it works yet. A
  * Done one leads with Reopen (#976).
  */
@@ -137,6 +127,7 @@ export function workspaceMenuLead({
   pr,
   hasChanges,
   isBusy,
+  canCreatePr = true,
 }: WorkspaceMenuLeadInput): BranchMenuItemKey | null {
   if (branch.doneAt) return "reopen"
   if (branch.status === "error" || branch.error) return "retry"
@@ -144,7 +135,7 @@ export function workspaceMenuLead({
   if (pr?.state === "merged" && !isBusy) return "mark-done"
   if (branch.status === "stopped") return null
   if (pr?.state === "open") return "create-pr"
-  if (hasChanges && !isBusy) return "create-pr"
+  if (hasChanges && !isBusy && canCreatePr) return "create-pr"
   return branch.previewDomain ? "play" : null
 }
 
@@ -158,8 +149,6 @@ export interface BranchOverflowMenuContentProps {
   hasChanges?: boolean
   /** Opens the inline title editor — already bound to this Workspace. */
   onRename: () => void
-  /** Opens the Rename branch dialog for the git branch (#881). */
-  onRenameBranch: (branchId: string) => void
   /**
    * Opens the create dialog seeded with this branch as the base and an empty
    * prompt (#353) — no longer an immediate fork with a random name.
@@ -190,7 +179,13 @@ export interface BranchOverflowMenuContentProps {
    * straight to it, so the menu never offers to re-create a PR that exists.
    */
   pr?: BranchPrInfo | null
-  onRebase: (branchId: string) => void
+  /**
+   * Whether a pull request can be opened at all: the Repository has a GitHub
+   * remote and the GitHub API is reachable. Without one (a local-only repo, or
+   * the desktop app with no GitHub connection) Create pull request is hidden
+   * rather than offered to fail. An open PR's link shows either way.
+   */
+  canCreatePr?: boolean
   /** Marks the Workspace Done (#976): stops its sandbox and hides its frames. */
   onMarkDone: (branchId: string) => void
   /** Undoes Mark as done: starts the Workspace and shows its frames again. */
@@ -204,7 +199,7 @@ export interface BranchOverflowMenuContentProps {
   onOpenInBrowser?: () => void
   /**
    * Whether this Branch's agent is currently working (`isBranchBusy`). Gates
-   * the "disable while working" items — Rebase on `main` today. Routing is
+   * the "disable while working" items, like Create pull request. Routing is
    * unchanged; an enabled click while busy would be a silent no-op because the
    * chat store ignores messages mid-stream.
    */
@@ -242,19 +237,18 @@ export function BranchOverflowMenuItems({
   onRetry,
   hasChanges = false,
   onRename,
-  onRenameBranch,
   onNewBranchFromHere,
   onRestartDevServer,
   onRestart,
   onRecreate,
   onShowRoutes,
   onCreatePr,
-  onRebase,
   onMarkDone,
   onReopen,
   onDelete,
   onOpenInBrowser,
   pr,
+  canCreatePr = true,
   isBusy = false,
 }: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
@@ -268,15 +262,6 @@ export function BranchOverflowMenuItems({
       <DropdownMenuItem disabled={!branch.ref} onClick={onRename}>
         <PencilSimpleIcon />
         Rename
-      </DropdownMenuItem>
-    ),
-    "rename-branch": (
-      <DropdownMenuItem
-        disabled={!branch.sandboxName || !branch.ref}
-        onClick={() => onRenameBranch(branch.id)}
-      >
-        <GitBranchIcon />
-        Rename branch…
       </DropdownMenuItem>
     ),
     play: (
@@ -384,7 +369,8 @@ export function BranchOverflowMenuItems({
     ),
     // An open PR makes "Create" a duplicate-creating no-op, so swap it for a
     // direct link to the PR. Closed/merged PRs fall through to "Create" since
-    // the branch can legitimately open a fresh one.
+    // the branch can legitimately open a fresh one. With no diff there's
+    // nothing to propose, and GitHub would refuse it.
     "create-pr":
       pr?.state === "open" ? (
         <DropdownMenuItem onClick={() => openExternal(pr.url)}>
@@ -393,35 +379,13 @@ export function BranchOverflowMenuItems({
         </DropdownMenuItem>
       ) : (
         <DropdownMenuItem
-          disabled={!branch.sandboxName || !branch.ref || isBusy}
+          disabled={!branch.sandboxName || !branch.ref || isBusy || !hasChanges}
           onClick={() => onCreatePr(branch.id)}
         >
           <GitPullRequestIcon />
           Create pull request
         </DropdownMenuItem>
       ),
-    rebase: (
-      <DropdownMenuItem
-        disabled={!branch.sandboxName || !branch.ref || isBusy}
-        onClick={() => onRebase(branch.id)}
-      >
-        <GitMergeIcon />
-        Rebase on {repo.defaultBranch}
-      </DropdownMenuItem>
-    ),
-    "open-github": (
-      <DropdownMenuItem
-        disabled={!branch.ref}
-        onClick={() => {
-          if (!branch.ref) return
-          const url = `https://github.com/${repo.repoOwner}/${repo.repoName}/tree/${encodeURI(branch.ref)}`
-          openExternal(url)
-        }}
-      >
-        <ArrowSquareOutIcon />
-        Open branch on GitHub
-      </DropdownMenuItem>
-    ),
     // Not while the agent works (its turn needs the sandbox) or while setup
     // is still running.
     "mark-done": (
@@ -452,9 +416,17 @@ export function BranchOverflowMenuItems({
     ),
   }
 
-  const lead = workspaceMenuLead({ branch, pr, hasChanges, isBusy })
+  const lead = workspaceMenuLead({
+    branch,
+    pr,
+    hasChanges,
+    isBusy,
+    canCreatePr,
+  })
   const shown = (key: BranchMenuItemKey) => {
     if (key === lead) return false
+    if (key === "create-pr" && pr?.state !== "open" && !canCreatePr)
+      return false
     if (!branch.doneAt) return true
     if (key === "create-pr") return pr?.state === "open"
     return !HIDDEN_WHILE_DONE.has(key)

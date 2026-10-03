@@ -1561,7 +1561,7 @@ export function Canvas({
   })
 
   // Branch Intake controller (PRD #562): the Repo -> Branch -> Sandbox
-  // create/teardown orchestration, Branch rename, and the seed-tab / seed-frame
+  // create/teardown orchestration and the seed-tab / seed-frame
   // handoff, lifted into `useBranchIntake`. The component calls the verbs; the
   // controller owns the ordering invariants and the Sandbox Provider calls.
   const {
@@ -1569,7 +1569,6 @@ export function Canvas({
     createBranchFromGitBranch,
     removeRepo: removeRepoIntake,
     removeBranch: removeBranchIntake,
-    renameBranch,
     retryBranch,
     updateRepoInStorage,
     updateAgentInStorage,
@@ -2060,7 +2059,6 @@ export function Canvas({
           onDeleteSketchChat={deleteSketchChat}
           onCreateBranchFromGitBranch={createBranchFromGitBranch}
           onCreateWorkspace={createBranch}
-          onRebaseOnDefault={branchActions.rebaseOnDefault}
           onRestartDevServer={branchActions.restartDevServer}
           onCreatePr={branchActions.createPullRequest}
           onRefreshBranch={branchActions.restartSandbox}
@@ -2072,7 +2070,6 @@ export function Canvas({
           onPlayBranch={handlePlayAgent}
           onShowRoutes={handleShowRoutesForAgent}
           onUpdateBranch={updateAgentInStorage}
-          onRenameBranch={renameBranch}
         >
           <ResizablePanelGroup
             orientation="horizontal"

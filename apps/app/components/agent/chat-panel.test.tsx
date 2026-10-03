@@ -53,6 +53,11 @@ const preview = vi.hoisted(() => ({ failing: false }))
 vi.mock("@/hooks/use-preview-failing", () => ({
   usePreviewFailing: () => preview.failing,
 }))
+// Whether the Workspace's repo can open a PR (a GitHub remote + a token).
+const github = vi.hoisted(() => ({ canCreatePr: true }))
+vi.mock("@/hooks/use-can-create-pr", () => ({
+  useCanCreatePr: () => github.canCreatePr,
+}))
 vi.mock("@/hooks/use-workspace-states", () => ({
   useWorkspaceStates: () => () => "idle",
 }))
@@ -221,6 +226,26 @@ describe("ChatPanel with a Workspace target", () => {
     open.unmount()
     renderWorkspacePanel({ diffStats, branchPr: pr("merged") })
     expect(screen.getByText("+214")).toBeTruthy()
+  })
+
+  it("offers Create pull request only with changes, and only with GitHub", () => {
+    const createPr = () =>
+      screen.queryByRole("button", { name: /Create pull request/ })
+    const { unmount } = renderWorkspacePanel()
+    expect(createPr()?.hasAttribute("disabled")).toBe(true)
+    unmount()
+    const changed = renderWorkspacePanel({
+      diffStats: { additions: 3, deletions: 1 },
+    })
+    expect(createPr()?.hasAttribute("disabled")).toBe(false)
+    changed.unmount()
+    github.canCreatePr = false
+    try {
+      renderWorkspacePanel({ diffStats: { additions: 3, deletions: 1 } })
+      expect(createPr()).toBeNull()
+    } finally {
+      github.canCreatePr = true
+    }
   })
 
   it("shows the chat with no tab strip, and a footnote naming its terminals", () => {

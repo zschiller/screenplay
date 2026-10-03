@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react"
 import type { BranchData, RepoData } from "@/lib/types"
 
-// Rename branch checks the remote's names; none are taken here.
+// The Open existing git branch picker lists the remote's branches; none here.
 vi.mock("@/lib/github-actions", () => ({
   listRepoBranches: vi.fn().mockResolvedValue([]),
 }))
@@ -102,7 +102,6 @@ function renderMenu(
       onDeleteSketchChat={noop}
       onCreateBranchFromGitBranch={noop}
       onCreateWorkspace={noop}
-      onRebaseOnDefault={noop}
       onRestartDevServer={noop}
       onCreatePr={noop}
       onRefreshBranch={noop}
@@ -114,7 +113,6 @@ function renderMenu(
       onPlayBranch={noop}
       onShowRoutes={noop}
       onUpdateBranch={noop}
-      onRenameBranch={noop}
     >
       <ChatsMenuButton />
     </ChatsMenuProvider>

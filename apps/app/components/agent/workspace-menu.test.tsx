@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react"
 import type { BranchData, RepoData } from "@/lib/types"
 
-// Rename branch checks the remote's names; none are taken here.
+// The Open existing git branch picker lists the remote's branches; none here.
 vi.mock("@/lib/github-actions", () => ({
   listRepoBranches: vi.fn().mockResolvedValue([]),
 }))
@@ -29,8 +29,9 @@ vi.mock("@/hooks/use-workspace-states", async () => {
 vi.mock("@/hooks/use-unsaved-work", () => ({
   useUnsavedWork: () => new Map(),
 }))
+// GitHub is reachable, so the menu offers Create pull request.
 vi.mock("@/hooks/use-github-token", () => ({
-  useGitHubTokenAvailable: () => false,
+  useGitHubTokenAvailable: () => true,
 }))
 
 import { ChatsMenuProvider, useChatsMenu } from "./chats-menu"
@@ -113,7 +114,6 @@ function renderHeader(b: BranchData, { provider = true } = {}) {
         onDeleteSketchChat={noop}
         onCreateBranchFromGitBranch={noop}
         onCreateWorkspace={noop}
-        onRebaseOnDefault={noop}
         onRestartDevServer={noop}
         onCreatePr={noop}
         onRefreshBranch={noop}
@@ -125,7 +125,6 @@ function renderHeader(b: BranchData, { provider = true } = {}) {
         onPlayBranch={noop}
         onShowRoutes={noop}
         onUpdateBranch={onUpdateBranch}
-        onRenameBranch={noop}
       >
         <AskRename />
         {title}
@@ -162,9 +161,6 @@ describe("Workspace chat header", () => {
       "Open in browser",
       "Show all routes",
       "Create pull request",
-      "Rebase on main",
-      "Open branch on GitHub",
-      "Rename branch…",
       "New chat from here…",
       "Rename",
       "Restart",
