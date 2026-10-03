@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { BranchData, RepoData } from "@/lib/types"
-import {
-  canvasRepositoryRows,
-  desktopLinkPolicy,
-  hostedLinkPolicy,
-} from "@/lib/repository-library"
+import { desktopLinkPolicy, hostedLinkPolicy } from "@/lib/repository-library"
 
 function repository(id: string, over: Partial<RepoConfig> = {}): RepoConfig {
   return {
@@ -85,19 +81,10 @@ describe("desktop: a canvas repo follows its repository", () => {
     )
   })
 
-  it("switches repositories on and off", () => {
-    expect(policy.control).toBe("switch")
-  })
-
-  it("lists every repository in one group", () => {
-    const rows = canvasRepositoryRows(REPOSITORIES, [LINKED, OWN])
-    expect(policy.groups(rows)).toEqual([{ label: null, rows }])
-    expect(policy.groups([])).toEqual([])
-  })
-
-  it("confirms switching off only when workspaces use it", () => {
-    expect(policy.removeConfirms(LINKED, BRANCHES)).toBe(true)
-    expect(policy.removeConfirms(OWN, BRANCHES)).toBe(false)
+  it("confirms removing only when workspaces use it or it's customized", () => {
+    expect(policy.removeConfirms(LINKED, BRANCHES, REPOSITORIES)).toBe(true)
+    expect(policy.removeConfirms(OWN, BRANCHES, REPOSITORIES)).toBe(false)
+    expect(policy.removeConfirms(EDITED, [], REPOSITORIES)).toBe(true)
   })
 
   it("doesn't name who added a repo", () => {
@@ -128,24 +115,9 @@ describe("hosted: a canvas's copy belongs to the canvas", () => {
     expect(policy.isCustomized(EDITED, REPOSITORIES)).toBe(false)
   })
 
-  it("adds and removes repositories", () => {
-    expect(policy.control).toBe("add-remove")
-  })
-
-  it("lists the canvas's repos before your other repositories", () => {
-    const rows = canvasRepositoryRows(REPOSITORIES, [LINKED, OWN])
-    expect(policy.groups(rows)).toEqual([
-      { label: "On this canvas", rows: rows.filter((r) => r.on) },
-      { label: "Your other repositories", rows: rows.filter((r) => !r.on) },
-    ])
-    expect(
-      policy.groups(canvasRepositoryRows([], [OWN])).map((g) => g.label)
-    ).toEqual(["On this canvas"])
-  })
-
   it("always confirms removing", () => {
-    expect(policy.removeConfirms(LINKED, BRANCHES)).toBe(true)
-    expect(policy.removeConfirms(OWN, [])).toBe(true)
+    expect(policy.removeConfirms(LINKED, BRANCHES, REPOSITORIES)).toBe(true)
+    expect(policy.removeConfirms(OWN, [], REPOSITORIES)).toBe(true)
   })
 
   it("names who added a repo", () => {

@@ -8,6 +8,7 @@ import {
   makeHarness,
 } from "@/test/canvas/harness"
 import {
+  canvasRepositoryGroups,
   canvasRepositoryRows,
   createRepositoryLibrary,
   desktopLinkPolicy,
@@ -289,7 +290,7 @@ describe("switch off", () => {
   })
 })
 
-describe("the canvas switch list", () => {
+describe("the canvas repositories list", () => {
   const summary = (rows: ReturnType<typeof canvasRepositoryRows>) =>
     rows.map((row) =>
       row.on
@@ -326,6 +327,49 @@ describe("the canvas switch list", () => {
         )
       )
     ).toEqual(["on theirs", "on unlinked", "off web"])
+  })
+
+  it("leaves out yours when a teammate added the same repository", () => {
+    const canvas = canvasWith(
+      baseRepo("theirs", {
+        name: "web",
+        repoFullName: "acme/web",
+        repositoryId: "someone-elses",
+      })
+    )
+    const repos = canvas.collections.repos.toArray()
+    expect(
+      summary(canvasRepositoryRows([repository("web", { name: "web" })], repos))
+    ).toEqual(["on theirs"])
+    // Another name for the same remote is a different Repository.
+    expect(
+      summary(canvasRepositoryRows([repository("api", { name: "api" })], repos))
+    ).toEqual(["off api", "on theirs"])
+  })
+
+  it("groups the canvas's repos before your others, leaving out empty groups", () => {
+    const web = repository("web", { name: "web" })
+    const api = repository("api", { name: "api" })
+    const canvas = makeHarness()
+    const rows = () =>
+      canvasRepositoryRows([web, api], canvas.collections.repos.toArray())
+    const labels = () => canvasRepositoryGroups(rows()).map((g) => g.label)
+    expect(labels()).toEqual(["Your other repositories"])
+    switchOn(canvas.collections, web, {
+      id: "repo-1",
+      createdAt: 5,
+      addedBy: "zack",
+    })
+    expect(canvasRepositoryGroups(rows())).toEqual([
+      { label: "On this canvas", rows: rows().filter((r) => r.on) },
+      { label: "Your other repositories", rows: rows().filter((r) => !r.on) },
+    ])
+    switchOn(canvas.collections, api, {
+      id: "repo-2",
+      createdAt: 6,
+      addedBy: "zack",
+    })
+    expect(labels()).toEqual(["On this canvas"])
   })
 
   it("flips a row on and off in place", () => {

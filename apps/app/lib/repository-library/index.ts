@@ -6,6 +6,7 @@
  */
 export {
   applyRepositoryEdit,
+  canvasRepositoryGroups,
   canvasRepositoryRows,
   isCustomized,
   linkCanvasRepos,
@@ -17,6 +18,7 @@ export {
   switchOn,
   switchOnWithEnv,
   unlinkRepository,
+  type CanvasRepositoryGroup,
   type CanvasRepositoryRow,
   type RunSettings,
   type SwitchOffResult,
@@ -33,6 +35,5 @@ export {
   desktopLinkPolicy,
   hostedLinkPolicy,
   repositoryLinkPolicy,
-  type CanvasRepositoryGroup,
   type RepositoryLinkPolicy,
 } from "./link-policy"
