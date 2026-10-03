@@ -380,8 +380,20 @@ describe("bridge Space with the pointer outside the page", () => {
     ;(document.activeElement ?? document.body).dispatchEvent(e)
     return e
   }
-  // postMessage delivers asynchronously.
-  const flush = () => new Promise((r) => setTimeout(r, 0))
+  // postMessage delivers asynchronously, in order: once a marker posted
+  // after the presses arrives, so has everything they posted. A timer can
+  // fire first under load and let one test's messages land in the next.
+  const flush = () =>
+    new Promise<void>((resolve) => {
+      const marker = `flush-${Math.random()}`
+      const done = (e: MessageEvent) => {
+        if (e.data?.type !== marker) return
+        window.removeEventListener("message", done)
+        resolve()
+      }
+      window.addEventListener("message", done)
+      window.postMessage({ type: marker }, "*")
+    })
   const leave = () =>
     window.dispatchEvent(new MouseEvent("mouseout", { relatedTarget: null }))
   const enter = () =>

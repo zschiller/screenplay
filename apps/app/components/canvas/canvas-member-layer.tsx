@@ -538,10 +538,20 @@ function CanvasMemberLayerImpl({
                     route: iframeLayer.route ?? "",
                   })
               : undefined
-          const stream = sharedFrames.streamOf(iframeLayer.branchId)
+          // This viewer's local copy of a shared frame (#1397) is a
+          // per-viewer iframe on its own route, and nothing it does is
+          // written to the room.
+          const localCopy = sharedFrames.localCopyOf(iframeLayer)
+          const stream = localCopy
+            ? undefined
+            : sharedFrames.streamOf(iframeLayer.branchId)
+          const setLocalRoute = (id: string, route: string) =>
+            sharedFrames.setLocalRoute(id, route)
           return (
             <IframeLayer
-              key={iframeLayer.id}
+              // Switching between the shared frame and a local copy starts
+              // the view afresh: a new iframe, or a new stream view.
+              key={localCopy ? `${iframeLayer.id}:local` : iframeLayer.id}
               iframeLayer={{
                 ...iframeLayer,
                 // Until the app says whether the Workspace's frames are
@@ -549,10 +559,28 @@ function CanvasMemberLayerImpl({
                 iframeUrl: sharedFrames.checking(iframeLayer.branchId)
                   ? undefined
                   : agentInfo?.previewDomain,
+                ...(localCopy ? { route: localCopy.route } : {}),
               }}
               sharedStream={
                 stream
                   ? { connection: stream, roomId: sharedFrames.roomId }
+                  : undefined
+              }
+              localCopy={!!localCopy}
+              onGoLocal={
+                stream
+                  ? () => {
+                      frameControl.letGo(iframeLayer.id)
+                      sharedFrames.goLocal(iframeLayer)
+                    }
+                  : undefined
+              }
+              onRejoin={
+                localCopy
+                  ? () => {
+                      frameControl.letGo(iframeLayer.id)
+                      sharedFrames.rejoin(iframeLayer.id)
+                    }
                   : undefined
               }
               zoom={zoom}
@@ -596,12 +624,20 @@ function CanvasMemberLayerImpl({
               onResizeEnd={gestureLayerHandlers.onResizeEnd}
               onRemove={removeIframeLayer}
               onRename={layerMutations.rename}
-              onStateChanged={layerMutations.updateState}
-              onRouteChange={layerMutations.updateRoute}
-              onScrollChange={layerMutations.updateScroll}
+              onStateChanged={
+                localCopy ? ignoreLocalState : layerMutations.updateState
+              }
+              onRouteChange={
+                localCopy ? setLocalRoute : layerMutations.updateRoute
+              }
+              onScrollChange={
+                localCopy ? undefined : layerMutations.updateScroll
+              }
               onKnobsDeclared={layerMutations.updateKnobs}
               onKnobValuesChange={layerMutations.updateKnobValues}
-              onSharedStateChanged={layerMutations.updateSharedState}
+              onSharedStateChanged={
+                localCopy ? undefined : layerMutations.updateSharedState
+              }
               onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
               onOpenInBrowser={openInBrowser}
               onDuplicate={() =>
@@ -633,7 +669,9 @@ function CanvasMemberLayerImpl({
               assignableBranches={agents}
               onAssignBranch={layerMutations.assignAgent}
               discoveredRoutes={agentInfo?.discoveredRoutes}
-              onSelectRoute={layerMutations.updateRoute}
+              onSelectRoute={
+                localCopy ? setLocalRoute : layerMutations.updateRoute
+              }
               remoteSelectedColor={remoteSelectedColor}
               remoteGroupSelectedColor={remoteGroupSelectedColor}
               groupLabel={index === 0 ? groupLabel : undefined}
@@ -694,6 +732,9 @@ function CanvasMemberLayerImpl({
     </>
   )
 }
+
+/** A local copy's page state stays in the copy (#1397). */
+function ignoreLocalState() {}
 
 /**
  * Memoized so a canvas pan/zoom — which re-renders the parent every frame to

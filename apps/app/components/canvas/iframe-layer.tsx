@@ -6,9 +6,11 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowsOutSimpleIcon,
+  ArrowUUpLeftIcon,
   CopyIcon,
   DotsThreeIcon,
   GitBranchIcon,
+  MonitorIcon,
   PlayIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
@@ -61,7 +63,12 @@ import {
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
-import { FrameDriverButton, FrameDriverTag } from "./frame-driver"
+import {
+  FrameDriverButton,
+  FrameDriverTag,
+  FrameLocalCopyTag,
+  FrameRejoinButton,
+} from "./frame-driver"
 import { FrameStreamView } from "./frame-stream-view"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
@@ -152,6 +159,12 @@ interface IframeLayerProps {
    * instead of a per-viewer iframe.
    */
   sharedStream?: { connection: FrameStreamConnection; roomId: string }
+  /** This viewer shows its own local copy of the shared frame (#1397). */
+  localCopy?: boolean
+  /** Switch this viewer's view of the shared frame to a local copy. */
+  onGoLocal?: () => void
+  /** Drop the local copy and show the shared frame again. */
+  onRejoin?: () => void
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
   selected: boolean
@@ -354,6 +367,9 @@ export function IframeLayer({
   onGrantControl,
   onDeclineControl,
   sharedStream,
+  localCopy,
+  onGoLocal,
+  onRejoin,
   createFlow,
   selected,
   onFocus,
@@ -989,7 +1005,11 @@ export function IframeLayer({
       // Nor while someone else drives, so the size never changes under them.
       resizable={!focused && !drivenByOther(driver)}
       titleTag={
-        drivenByOther(driver) ? <FrameDriverTag driver={driver} /> : undefined
+        localCopy ? (
+          <FrameLocalCopyTag />
+        ) : drivenByOther(driver) ? (
+          <FrameDriverTag driver={driver} />
+        ) : undefined
       }
       onResize={onResize}
       onResizeStart={onResizeStart}
@@ -1082,22 +1102,26 @@ export function IframeLayer({
                   }
                 />
                 <FloatingToolbarSeparator />
-                <FrameDriverButton
-                  driver={driver}
-                  asked={askedForControl}
-                  requests={controlRequests}
-                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                  onGrant={
-                    onGrantControl
-                      ? (to) => onGrantControl(iframeLayer.id, to)
-                      : undefined
-                  }
-                  onDecline={
-                    onDeclineControl
-                      ? (to) => onDeclineControl(iframeLayer.id, to)
-                      : undefined
-                  }
-                />
+                {onRejoin ? (
+                  <FrameRejoinButton onRejoin={onRejoin} />
+                ) : (
+                  <FrameDriverButton
+                    driver={driver}
+                    asked={askedForControl}
+                    requests={controlRequests}
+                    onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                    onGrant={
+                      onGrantControl
+                        ? (to) => onGrantControl(iframeLayer.id, to)
+                        : undefined
+                    }
+                    onDecline={
+                      onDeclineControl
+                        ? (to) => onDeclineControl(iframeLayer.id, to)
+                        : undefined
+                    }
+                  />
+                )}
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
                   values={iframeLayer.knobValues}
@@ -1130,6 +1154,19 @@ export function IframeLayer({
                       <DropdownMenuItem onSelect={onDuplicate}>
                         <CopyIcon />
                         Duplicate
+                      </DropdownMenuItem>
+                    )}
+                    {/* Going local (#1397): only this viewer's view. */}
+                    {onGoLocal && (
+                      <DropdownMenuItem onSelect={onGoLocal}>
+                        <MonitorIcon />
+                        Detach from shared frame
+                      </DropdownMenuItem>
+                    )}
+                    {onRejoin && (
+                      <DropdownMenuItem onSelect={onRejoin}>
+                        <ArrowUUpLeftIcon />
+                        Rejoin shared frame
                       </DropdownMenuItem>
                     )}
                     {showWorkspaceMenu && (

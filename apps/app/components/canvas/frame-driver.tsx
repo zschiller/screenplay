@@ -7,7 +7,7 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar"
-import { CursorIcon } from "@workspace/ui/components/icons"
+import { CursorIcon, MonitorIcon } from "@workspace/ui/components/icons"
 import {
   Popover,
   PopoverAnchor,
@@ -213,6 +213,36 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
     )
   }
   return null
+}
+
+/**
+ * "Detached" on the frame's title line, where the driver tag goes, while
+ * this viewer shows its own copy of a shared frame (#1397). Quiet, in the
+ * title's type: nobody else sees it, and nothing here is anyone's alert.
+ */
+export function FrameLocalCopyTag() {
+  return (
+    <span
+      data-frame-local-copy-tag=""
+      className="flex h-[18px] shrink-0 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground"
+    >
+      <MonitorIcon className="size-3" />
+      Detached
+    </span>
+  )
+}
+
+/**
+ * Takes the driver button's place in the frame bar while this viewer shows
+ * its own copy (#1376): there's nobody to drive with, and the way back is
+ * the one thing to do here.
+ */
+export function FrameRejoinButton({ onRejoin }: { onRejoin: () => void }) {
+  return (
+    <Button variant="outline" size="xs" onClick={onRejoin}>
+      Rejoin
+    </Button>
+  )
 }
 
 /** The colour of a driven frame's ring: the driver's, or none. */

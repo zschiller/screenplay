@@ -134,4 +134,91 @@ describe("bridge proxy", () => {
       `127.0.0.1:${listenPort}`
     )
   })
+
+  describe("seeding a local copy of a shared frame (#1397)", () => {
+    const COOKIES = [
+      {
+        name: "session",
+        value: "s3cret",
+        path: "/",
+        expires: -1,
+        httpOnly: true,
+        secure: false,
+        sameSite: "Lax",
+      },
+      {
+        name: "theme",
+        value: "dark",
+        path: "/app",
+        expires: 4102444800,
+        httpOnly: false,
+        secure: false,
+      },
+      // Never a header injection.
+      { name: "bad", value: "x\r\nSet-Cookie: evil=1", path: "/" },
+    ]
+
+    async function seed(
+      headers: Record<string, string>,
+      body: object = { cookies: COOKIES, secure: false }
+    ) {
+      await boundAddress({ SCREENPLAY_LISTEN_HOST: "127.0.0.1" })
+      return fetch(`http://127.0.0.1:${listenPort}/__screenplay-seed`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      })
+    }
+
+    it("serves the seed page without the bridge", async () => {
+      await boundAddress({ SCREENPLAY_LISTEN_HOST: "127.0.0.1" })
+      const res = await fetch(
+        `http://127.0.0.1:${listenPort}/__screenplay-seed`
+      )
+      const body = await res.text()
+      expect(res.status).toBe(200)
+      expect(body).toContain("screenplay:seed-ready")
+      expect(body).not.toContain("__screenplay-bridge.js")
+    })
+
+    it("sets the shared page's cookies and expires the ones it didn't have", async () => {
+      const res = await seed({
+        "x-screenplay-seed": "1",
+        "sec-fetch-site": "same-origin",
+        cookie: "stale=1; session=old",
+      })
+      expect(res.status).toBe(204)
+      expect(res.headers.getSetCookie()).toEqual([
+        "stale=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        "session=s3cret; Path=/; HttpOnly; SameSite=Lax",
+        "theme=dark; Path=/app; Expires=Fri, 01 Jan 2100 00:00:00 GMT",
+      ])
+    })
+
+    it("makes them third-party cookies in a secure context, where the frame is a third party", async () => {
+      const res = await seed(
+        { "x-screenplay-seed": "1", cookie: "stale=1" },
+        { cookies: COOKIES, secure: true }
+      )
+      expect(res.headers.getSetCookie()).toEqual([
+        "stale=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=None; Partitioned",
+        "stale=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        "session=s3cret; Path=/; HttpOnly; Secure; SameSite=None; Partitioned",
+        "theme=dark; Path=/app; Expires=Fri, 01 Jan 2100 00:00:00 GMT; Secure; SameSite=None; Partitioned",
+      ])
+    })
+
+    it("refuses anything but the seed page's own request", async () => {
+      expect((await seed({})).status).toBe(403)
+      proxy.kill("SIGKILL")
+      expect(
+        (
+          await seed({
+            "x-screenplay-seed": "1",
+            "sec-fetch-site": "cross-site",
+          })
+        ).status
+      ).toBe(403)
+    })
+  })
 })

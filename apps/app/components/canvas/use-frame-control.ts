@@ -91,6 +91,13 @@ export interface FrameControl {
   grant(layerId: string, to: string): void
   /** Not now: turn a person's request down. */
   decline(layerId: string, to: string): void
+  /**
+   * Step away from the frame: leave Interact, stop driving it and withdraw
+   * any ask to. Going local from a shared frame, or rejoining it (#1397),
+   * switches which record governs the frame, so it lets go of the old one
+   * first.
+   */
+  letGo(layerId: string): void
 }
 
 /**
@@ -289,6 +296,26 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     [viewerId, dispatch]
   )
 
+  const letGo = useCallback(
+    (layerId: string) => {
+      if (!viewerId) return
+      setFocusedId((id) => (id === layerId ? null : id))
+      const key = keyOf(layerId)
+      const record = key ? collection.get(key) : undefined
+      if (!record) return
+      if (record.driver === viewerId) {
+        dispatch(layerId, {
+          type: "release",
+          by: viewerId,
+          presence: presenceNow(),
+        })
+      } else if (record.requests.some((r) => r.by === viewerId)) {
+        dispatch(layerId, { type: "cancel", by: viewerId })
+      }
+    },
+    [viewerId, keyOf, collection, dispatch, presenceNow, setFocusedId]
+  )
+
   // Interact is the seat: ask to drive on entering it, let go on leaving it,
   // and take it when the frame is handed over. Any other seat this viewer
   // holds on a frame it isn't in is let go (a tab that closed mid-Interact).
@@ -392,7 +419,15 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
   ])
 
   return useMemo(
-    () => ({ driverOf, interact, requestsOf, askedFor, grant, decline }),
-    [driverOf, interact, requestsOf, askedFor, grant, decline]
+    () => ({
+      driverOf,
+      interact,
+      requestsOf,
+      askedFor,
+      grant,
+      decline,
+      letGo,
+    }),
+    [driverOf, interact, requestsOf, askedFor, grant, decline, letGo]
   )
 }

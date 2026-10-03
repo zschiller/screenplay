@@ -15,6 +15,7 @@ import { withBasePath } from "@/lib/base-path"
 import type { BridgePort } from "@/lib/bridge-port"
 import {
   decodeVideoMessage,
+  type FrameSnapshot,
   type FrameStreamClientMessage,
   type FrameStreamServerMessage,
   type FrameStreamVideo,
@@ -63,6 +64,9 @@ const MAX_BACKOFF_MS = 10_000
 // A Workspace whose stream the app can't set up after this many tries keeps
 // per-viewer frames rather than leaving them blank.
 const MAX_CHECK_FAILURES = 4
+// How long going local waits for the shared page's cookies and storage
+// before it opens the local copy without them.
+const SNAPSHOT_TIMEOUT_MS = 5000
 
 export class FrameStreamConnection {
   availability: FrameStreamAvailability = "checking"
@@ -85,6 +89,8 @@ export class FrameStreamConnection {
   private retryTimer: unknown = null
   private checked = false
   private disposed = false
+  private snapshotSeq = 0
+  private snapshots = new Map<string, (s: FrameSnapshot | null) => void>()
 
   constructor(private deps: FrameStreamDeps) {}
 
@@ -192,6 +198,28 @@ export class FrameStreamConnection {
     return true
   }
 
+  /**
+   * The shared page's path, cookies and local storage, for going local
+   * (#1397). Null when the stream is down, the page isn't live, or it takes
+   * too long to answer.
+   */
+  snapshot(frame: string): Promise<FrameSnapshot | null> {
+    const id = `${++this.snapshotSeq}`
+    return new Promise((resolve) => {
+      const timer = this.deps.setTimeout(
+        () => finish(null),
+        SNAPSHOT_TIMEOUT_MS
+      )
+      const finish = (s: FrameSnapshot | null) => {
+        if (!this.snapshots.delete(id)) return
+        this.deps.clearTimeout(timer)
+        resolve(s)
+      }
+      this.snapshots.set(id, finish)
+      if (!this.send({ t: "snapshot", frame, id })) finish(null)
+    })
+  }
+
   isReady(): boolean {
     return this.ready
   }
@@ -244,6 +272,7 @@ export class FrameStreamConnection {
       this.socket = null
       const wasReady = this.ready
       this.ready = false
+      for (const finish of [...this.snapshots.values()]) finish(null)
       if (wasReady) this.notifyConnection(false)
       this.scheduleRetry()
     }
@@ -285,6 +314,18 @@ export class FrameStreamConnection {
         this.send({ t: "watch", frame, ...watch })
       }
       this.notifyConnection(true)
+      return
+    }
+    if (msg.t === "snapshot") {
+      this.snapshots.get(msg.id)?.(
+        "error" in msg
+          ? null
+          : {
+              path: msg.path,
+              cookies: msg.cookies,
+              localStorage: msg.localStorage,
+            }
+      )
       return
     }
     const frame = "frame" in msg ? msg.frame : undefined

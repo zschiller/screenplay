@@ -384,5 +384,98 @@ describe("useFrameControl", () => {
         expect(c.frameControl.get(FRAME)?.driver).toBe("ana")
       })
     })
+
+    describe("going local (#1397)", () => {
+      /** A viewer who can switch the frame to their own local copy. */
+      function renderLocalViewer(
+        c: RoomCollections,
+        viewerId: string,
+        other: string
+      ) {
+        return renderHook(() => {
+          const [focusedId, setFocusedId] = useState<string | null>(null)
+          const [local, setLocal] = useState(false)
+          const control = useFrameControl({
+            collection: c.frameControl,
+            viewerId,
+            others: [presenceOf(other, "#f60")],
+            frameIds: [FRAME],
+            sharedIds: local ? new Set<string>() : SHARED,
+            focusedId,
+            setFocusedId,
+          })
+          return { control, focusedId, setLocal }
+        })
+      }
+
+      it("lets go of the shared frame when its driver goes local", () => {
+        const [a, b] = syncedPair()
+        const anaRoom = createRoomCollections(a)
+        const ana = renderLocalViewer(anaRoom, "ana", "ben")
+        const ben = renderLocalViewer(createRoomCollections(b), "ben", "ana")
+        act(() => ana.result.current.control.interact(FRAME))
+
+        act(() => {
+          ana.result.current.control.letGo(FRAME)
+          ana.result.current.setLocal(true)
+        })
+
+        // Nobody drives the shared frame now; Ben can pick it up.
+        expect(anaRoom.frameControl.has(FRAME)).toBe(false)
+        expect(ben.result.current.control.driverOf(FRAME)).toEqual({
+          kind: "none",
+        })
+        // Ana's local copy is hers alone, and driving it isn't driving the
+        // shared frame.
+        expect(ana.result.current.focusedId).toBeNull()
+        act(() => ana.result.current.control.interact(FRAME))
+        expect(ana.result.current.control.driverOf(FRAME)).toEqual({
+          kind: "you",
+        })
+        expect(anaRoom.frameControl.has(FRAME)).toBe(false)
+        expect(ben.result.current.control.driverOf(FRAME)).toEqual({
+          kind: "none",
+        })
+      })
+
+      it("hands the shared frame to whoever asked when its driver goes local", () => {
+        const [a, b] = syncedPair()
+        const anaRoom = createRoomCollections(a)
+        const ana = renderLocalViewer(anaRoom, "ana", "ben")
+        const ben = renderLocalViewer(createRoomCollections(b), "ben", "ana")
+        act(() => ana.result.current.control.interact(FRAME))
+        act(() => ben.result.current.control.interact(FRAME))
+
+        act(() => {
+          ana.result.current.control.letGo(FRAME)
+          ana.result.current.setLocal(true)
+        })
+
+        expect(anaRoom.frameControl.get(FRAME)).toMatchObject({
+          driver: "ben",
+          requests: [],
+        })
+        expect(ben.result.current.focusedId).toBe(FRAME)
+      })
+
+      it("withdraws your ask to drive the shared frame", () => {
+        const [a, b] = syncedPair()
+        const anaRoom = createRoomCollections(a)
+        const ana = renderLocalViewer(anaRoom, "ana", "ben")
+        const ben = renderLocalViewer(createRoomCollections(b), "ben", "ana")
+        act(() => ana.result.current.control.interact(FRAME))
+        act(() => ben.result.current.control.interact(FRAME))
+
+        act(() => {
+          ben.result.current.control.letGo(FRAME)
+          ben.result.current.setLocal(true)
+        })
+
+        expect(anaRoom.frameControl.get(FRAME)).toMatchObject({
+          driver: "ana",
+          requests: [],
+        })
+      })
+    })
   })
 })

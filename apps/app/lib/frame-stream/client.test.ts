@@ -272,6 +272,76 @@ describe("FrameStreamConnection", () => {
   })
 })
 
+describe("going local (#1397)", () => {
+  async function connected() {
+    const setupResult = setup({ shared: true, url: "wss://s", token: "t" })
+    setupResult.conn.check()
+    await flush()
+    const socket = setupResult.sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+    return { ...setupResult, socket }
+  }
+
+  it("reads the shared page's path, cookies and storage", async () => {
+    const { conn, socket } = await connected()
+    const pending = conn.snapshot("f1")
+    const asked = socket.sent.at(-1)
+    expect(asked).toMatchObject({ t: "snapshot", frame: "f1" })
+    const id = (asked as { id: string }).id
+    socket.serverSays({
+      t: "snapshot",
+      frame: "f1",
+      id,
+      path: "/cart?step=2",
+      cookies: [
+        {
+          name: "session",
+          value: "s",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: false,
+        },
+      ],
+      localStorage: [["draft", "hello"]],
+    })
+    expect(await pending).toEqual({
+      path: "/cart?step=2",
+      cookies: [
+        {
+          name: "session",
+          value: "s",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: false,
+        },
+      ],
+      localStorage: [["draft", "hello"]],
+    })
+  })
+
+  it("answers null when the page can't be read, the stream drops or it times out", async () => {
+    const { conn, socket } = await connected()
+    const refused = conn.snapshot("f1")
+    const id = (socket.sent.at(-1) as { id: string }).id
+    socket.serverSays({ t: "snapshot", frame: "f1", id, error: "not live" })
+    expect(await refused).toBeNull()
+
+    const dropped = conn.snapshot("f1")
+    socket.close()
+    expect(await dropped).toBeNull()
+    // Disconnected: nothing to ask.
+    expect(await conn.snapshot("f1")).toBeNull()
+
+    const { conn: slowConn, timers: slowTimers } = await connected()
+    const slow = slowConn.snapshot("f1")
+    slowTimers.at(-1)!()
+    expect(await slow).toBeNull()
+  })
+})
+
 describe("frame stream protocol", () => {
   it("decodes a video message's frame, keyframe flag and payload", () => {
     const video = decodeVideoMessage(

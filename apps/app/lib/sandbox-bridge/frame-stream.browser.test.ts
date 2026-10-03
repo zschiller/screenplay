@@ -235,6 +235,20 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       const url = req.url ?? "/"
       requests.push(url)
       cookies.push(req.headers.cookie ?? "")
+      // A page that keeps state in a cookie (HttpOnly too) and local storage.
+      if (url === "/store") {
+        res.writeHead(200, {
+          "content-type": "text/html",
+          "set-cookie": [
+            "session=s3cret; Path=/; HttpOnly; SameSite=Lax",
+            "theme=dark; Path=/",
+          ],
+        })
+        res.end(
+          `<!doctype html><script>localStorage.setItem("draft", "hello")</script>`
+        )
+        return
+      }
       res.writeHead(200, { "content-type": "text/html" })
       res.end(
         url === "/bridge" ? BRIDGE_PAGE : url === "/app" ? APP : PAGE(url)
@@ -418,6 +432,46 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     expect(routeOf(a, "f1")?.path).toBe("/other?tab=2")
   }, 30_000)
 
+  it("reads the page's URL, cookies and local storage for going local", async () => {
+    const [a] = viewers.slice(-2) as [Viewer, Viewer]
+    // Another viewer who isn't watching the frame can still take a copy.
+    const c = await connect("cy")
+    a.send({ t: "navigate", frame: "f1", route: "/store" })
+    await a.waitFor(() => routeOf(a, "f1")?.path === "/store" || undefined)
+    type Snapshot = Extract<FrameStreamServerMessage, { t: "snapshot" }>
+    // The page's script may run just after the route is reported.
+    let snapshot: Snapshot | undefined
+    for (let i = 0; i < 40 && !snapshot; i++) {
+      const id = `s1-${i}`
+      c.send({ t: "snapshot", frame: "f1", id })
+      const reply = await c.waitFor(() =>
+        c.messages.find((m): m is Snapshot => m.t === "snapshot" && m.id === id)
+      )
+      if ("path" in reply && reply.localStorage.length) snapshot = reply
+      else await new Promise((r) => setTimeout(r, 100))
+    }
+    expect(snapshot).toMatchObject({
+      frame: "f1",
+      path: "/store",
+      localStorage: [["draft", "hello"]],
+    })
+    if (!snapshot || !("cookies" in snapshot)) throw new Error("no snapshot")
+    expect(
+      Object.fromEntries(snapshot.cookies.map((k) => [k.name, k]))
+    ).toMatchObject({
+      session: { value: "s3cret", httpOnly: true, sameSite: "Lax", path: "/" },
+      theme: { value: "dark", httpOnly: false, expires: -1 },
+    })
+
+    // A frame that doesn't exist says so.
+    c.send({ t: "snapshot", frame: "nope", id: "s2" })
+    expect(
+      await c.waitFor(() =>
+        c.messages.find((m) => m.t === "snapshot" && m.id === "s2")
+      )
+    ).toMatchObject({ error: "no such frame" })
+  }, 30_000)
+
   it("reloads the frame at its URL when the browser restarts", async () => {
     const [a] = viewers.slice(-2) as [Viewer, Viewer]
     const before = a.videos.length
@@ -461,8 +515,8 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     // The service lived through it (cleaning up the dead browser's profile
     // once crashed it, #1419).
     expect(service.exitCode).toBeNull()
-    expect(requests.slice(requestsBefore)).toContain("/other?tab=2")
-    expect(routeOf(a, "f1")?.path).toBe("/other?tab=2")
+    expect(requests.slice(requestsBefore)).toContain("/store")
+    expect(routeOf(a, "f1")?.path).toBe("/store")
   }, 40_000)
 
   it("relays the bridge: reads to whoever asked, room changes through the primary", async () => {
@@ -538,6 +592,11 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     )
     knob(d, "red")
     await expect.poll(() => colored(d, "red", `r${Date.now()}`)).not.toBeNull()
+
+    // Let f2 go, so the cap tests below start with one paused frame to
+    // close rather than racing to close the frame they just paused.
+    d.send({ t: "unwatch", frame: "f2" })
+    await d.waitFor(() => serviceLog.includes("frame f2: paused") || undefined)
   }, 40_000)
 
   // ---- pause and the cap (#1393) ----
