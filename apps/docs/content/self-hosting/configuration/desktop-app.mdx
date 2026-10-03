@@ -7,7 +7,7 @@ description: How the Tauri shell packages the app as an offline, single-user mac
 
 End users should download a release from
 [GitHub Releases](https://github.com/zschiller/screenplay/releases) and follow
-the [Quickstart](/quickstart). This page explains how the app is built.
+the [Quickstart](/guides/quickstart). This page explains how the app is built.
 
 The [local build](/self-hosting/configuration/local-build) and its per-seam local backends —
 [sandbox](/self-hosting/configuration/sandbox-provider), [Yjs host](/self-hosting/configuration/yjs-host),
@@ -105,5 +105,6 @@ Prerequisites: the Rust + Tauri toolchain and `node` on `PATH`.
 
 Signed macOS builds are published as `desktop-v<version>`
 [GitHub Releases](https://github.com/zschiller/screenplay/releases) with the
-`.dmg` attached. Signing and notarization are driven by `APPLE_*` secrets read
-by Tauri's bundler (see `apps/desktop/README.md`). There's no auto-update yet.
+`.dmg` attached, by `pnpm --filter desktop release` on a Mac (see
+[Releasing the desktop app](/contributing#releasing-the-desktop-app)). There's no
+auto-update yet.

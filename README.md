@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://screenplay.space">Website</a> ·
   <a href="https://screenplay.space/docs">Docs</a> ·
-  <a href="https://screenplay.space/docs/quickstart">Quickstart</a> ·
+  <a href="https://screenplay.space/docs/guides/quickstart">Quickstart</a> ·
   <a href="https://github.com/zschiller/screenplay/releases">Download for Mac</a>
 </p>
 
@@ -79,7 +79,7 @@ on one canvas:
 | **Workspaces** | Git worktrees on your machine                                                           | Cloud sandbox VMs                                                |
 | **Agent**      | The coding CLI you already use (Claude Code, Codex, …), signed in with your own account | The built-in agent, on your model provider keys                  |
 | **Together**   | Single user                                                                             | Shared canvases, live cursors and comments                       |
-| **Start**      | [Quickstart](https://screenplay.space/docs/quickstart)                                  | [Self-hosting guide](https://screenplay.space/docs/self-hosting) |
+| **Start**      | [Quickstart](https://screenplay.space/docs/guides/quickstart)                                  | [Self-hosting guide](https://screenplay.space/docs/self-hosting) |
 
 Both are the same product, built from this repository.
 
@@ -103,7 +103,7 @@ ENCRYPTION_KEY=$(openssl rand -hex 32) TERMINAL_AUTH_SECRET=$(openssl rand -hex 
 ```
 
 Then open http://localhost:3000. The
-[Development guide](https://screenplay.space/docs/development) covers the
+[Development guide](https://screenplay.space/docs/contributing) covers the
 multi-user build, the desktop app, and every contributor command.
 
 ## What's in this repository
@@ -114,8 +114,8 @@ multi-user build, the desktop app, and every contributor command.
 | [`apps/desktop`](apps/desktop)                           | The Tauri shell that packages `apps/app` as the Mac app                                      |
 | [`apps/docs`](apps/docs)                                 | The docs site, [screenplay.space/docs](https://screenplay.space/docs)                        |
 | [`apps/homepage`](apps/homepage)                         | The website, [screenplay.space](https://screenplay.space)                                    |
-| [`packages/screenplay-knobs`](packages/screenplay-knobs) | Declare [knobs](https://screenplay.space/docs/building/knobs) in your app                    |
-| [`packages/screenplay-state`](packages/screenplay-state) | Share [state](https://screenplay.space/docs/building/shared-state) across viewers of a frame |
+| [`packages/screenplay-knobs`](packages/screenplay-knobs) | Declare [knobs](https://screenplay.space/docs/guides/building/knobs) in your app                    |
+| [`packages/screenplay-state`](packages/screenplay-state) | Share [state](https://screenplay.space/docs/guides/building/shared-state) across viewers of a frame |
 | [`packages/ui`](packages/ui)                             | Shared shadcn/ui components                                                                  |
 
 ## Contributing
