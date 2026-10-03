@@ -6,7 +6,7 @@ description: How the desktop build removes the multi-user surface with one build
 # Local (single-user) build
 
 Screenplay ships in two shapes from one codebase: the hosted, multi-tenant web
-app and a single-user **desktop build** that runs entirely on one person's
+app and a single-user **desktop build** that runs entirely on one person’s
 machine ([#404](https://github.com/zschiller/screenplay/issues/404)). The desktop build swaps each cloud backend for a local one
 behind the seams the codebase already exposes — see
 [Sandbox provider](/self-hosting/configuration/sandbox-provider),
@@ -33,8 +33,8 @@ a solo tool running on your own machine, so the desktop build leaves it out:
   cursors to show; the follow toolbar is hidden. (The awareness plumbing the
   collaborative editor needs stays — there is simply nobody else on it.)
 
-Git operations use the host's own credentials, so the brokered GitHub token and
-ADR 0002's egress firewall trust boundary dissolve. Re-enabling multi-tenant
+Git operations use the host’s own credentials, so the brokered GitHub token and
+ADR 0002’s egress firewall trust boundary dissolve. Re-enabling multi-tenant
 operation on the local build is out of scope.
 
 ## The switch
@@ -46,15 +46,15 @@ flags (`SANDBOX_BACKEND`, `SCREENPLAY_DB`, `NEXT_PUBLIC_YJS_HOST`):
   hosted multi-user app, **byte-for-byte unchanged**; `1` selects the local
   build. It is `NEXT_PUBLIC_` so the same constant is inlined into both the
   server runtime (auth/session, access checks) and the client bundle (the
-  affordances that simply don't render), and so the bundler dead-code-eliminates
+  affordances that simply don’t render), and so the bundler dead-code-eliminates
   the unused branch.
 
-Read it through `apps/app/lib/local-mode.ts`'s `isLocalBuild`, never
+Read it through `apps/app/lib/local-mode.ts`’s `isLocalBuild`, never
 `process.env` directly, so the gate stays one well-named seam.
 
 ### Database tables
 
-The excluded tables aren't merely unused on the desktop build — they are never
+The excluded tables aren’t merely unused on the desktop build — they are never
 created. The Drizzle schema is split into `apps/app/lib/db/schema-core.ts` (the
 surviving tables: `user`, `kv_store`, `room`, the `agent_*` log, `terminal_tab`)
 and `apps/app/lib/db/schema-multiuser.ts` (auth, `room_member`, comments). The
@@ -70,7 +70,7 @@ the hosted one, from `apps/app`:
 pnpm drizzle-kit generate --config drizzle.local.config.ts
 ```
 
-PGlite applies `drizzle/local` itself on boot, so there's no migrate step.
+PGlite applies `drizzle/local` itself on boot, so there’s no migrate step.
 
 ## Building it by hand
 
@@ -92,7 +92,7 @@ THUMBNAIL_CAPTURER=tauri-webview
 ```
 
 `pnpm --filter desktop build:sidecar` builds the app with that profile. To do
-the same yourself, run `next build` directly rather than the app's `build`
+the same yourself, run `next build` directly rather than the app’s `build`
 script, which first migrates a hosted Postgres. The build opens PGlite once,
 so point it at a throwaway folder:
 

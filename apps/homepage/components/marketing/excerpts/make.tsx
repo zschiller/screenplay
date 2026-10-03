@@ -183,7 +183,7 @@ export function PrHeaderExcerpt() {
             The copy sits on the left now, with the chart beside it. On phones
             the chart drops under the buttons.
           </p>
-          <UserBubble>Make the chart a little taller, then it&apos;s good.</UserBubble>
+          <UserBubble>Make the chart a little taller, then it’s good.</UserBubble>
           <p>Done. The chart is 40px taller on desktop.</p>
         </div>
       </div>
@@ -238,7 +238,7 @@ function Prompt({
 /** Sketch it: the live page beside a mockup a chat drew of a darker take. */
 export function SketchExcerpt() {
   return (
-    <Card label="The live Split layout page beside a mockup an agent sketched of a dark take from the app's own code, with the prompt that asked for it.">
+    <Card label="The live Split layout page beside a mockup an agent sketched of a dark take from the app’s own code, with the prompt that asked for it.">
       <Frame
         label="Home"
         workspace={split.title}
@@ -268,7 +268,7 @@ const plan = [
 /** Write it down: a plan document on the canvas, with the prompt. */
 export function DocExcerpt() {
   return (
-    <Card label="A plan an agent wrote as a document on the canvas from the app's code, with the prompt that asked for it.">
+    <Card label="A plan an agent wrote as a document on the canvas from the app’s code, with the prompt that asked for it.">
       <div className="absolute" style={{ left: 16, top: 46, width: 200 }}>
         <div className="absolute bottom-full left-0 mb-1.5 flex items-center gap-1.5 text-xs leading-none whitespace-nowrap text-muted-foreground">
           <span className="font-medium text-foreground/70">New hero plan</span>

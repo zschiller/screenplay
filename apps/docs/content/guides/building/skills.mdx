@@ -1,6 +1,6 @@
 ---
 title: Agent skills
-description: Teach the agent workflows with SKILL.md files in your repository or saved to a canvas or your account, use your coding agent's own skills on the Mac, and use the skills Screenplay ships.
+description: Teach the agent workflows with SKILL.md files in your repository or saved to a canvas or your account, use your coding agent’s own skills on the Mac, and use the skills Screenplay ships.
 ---
 
 import { FileTree } from "nextra/components"
@@ -8,13 +8,13 @@ import { FileTree } from "nextra/components"
 # Agent skills
 
 A **skill** is a Markdown file of instructions the agent can load when a task
-calls for it. The agent always sees each skill's name and one-line
+calls for it. The agent always sees each skill’s name and one-line
 description, and reads the full instructions only when it needs them. That
 keeps its context lean while making specialized know-how available.
 
 ## Using skills
 
-In any chat, type <kbd>/</kbd> to pick a skill. It's inserted as a chip, and
+In any chat, type <kbd>/</kbd> to pick a skill. It’s inserted as a chip, and
 the agent is required to load it before doing anything else. The menu lists
 the skills that chat can use, and each row ends with where its skill comes
 from.
@@ -22,7 +22,7 @@ The agent also loads skills on its own when a request matches a description.
 
 <Screenshot
   name="composer-skills"
-  alt="The / menu listing Screenplay's built-in skills"
+  alt="The / menu listing Screenplay’s built-in skills"
 />
 
 ## Where skills come from
@@ -31,17 +31,17 @@ Every chat sees one list of skills, gathered from these places:
 
 | In the menu                             | Where it lives                                      | Which chats see it                                |
 | --------------------------------------- | --------------------------------------------------- | ------------------------------------------------- |
-| **Repository**                          | The workspace's repository, under `.claude/skills/` | That workspace's chat                             |
+| **Repository**                          | The workspace’s repository, under `.claude/skills/` | That workspace’s chat                             |
 | **Canvas**                              | Saved to the canvas by any chat on it               | Every chat on the canvas                          |
 | **Account**                             | Saved to your account by any chat you message       | Every chat you message, on any canvas             |
-| Your agent's name, like **Claude Code** | Your coding agent's own skills folder on your Mac   | Every chat on the Mac app that runs on that agent |
+| Your agent’s name, like **Claude Code** | Your coding agent’s own skills folder on your Mac   | Every chat on the Mac app that runs on that agent |
 | **Built in**                            | Ships with Screenplay                               | Every chat, each kind its own                     |
 
-When two skills share a name, only one is used: the repository's wins, then
-the canvas's, then your account's, then your coding agent's own, then
-Screenplay's. The one that loses is left out of the list and the <kbd>/</kbd>
+When two skills share a name, only one is used: the repository’s wins, then
+the canvas’s, then your account’s, then your coding agent’s own, then
+Screenplay’s. The one that loses is left out of the list and the <kbd>/</kbd>
 menu, so what you pick is what runs. The
-[Coordinator](/guides/coordinator) and chats with no repository don't see
+[Coordinator](/guides/coordinator) and chats with no repository don’t see
 repository skills, since they have no single repository.
 
 ## Built-in skills
@@ -57,15 +57,15 @@ Screenplay ships three skills, marked **Built in** in the menu:
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
 [try something several ways](/guides/coordinator#trying-something-several-ways).
-It's in the Coordinator's <kbd>/</kbd> menu only, and workspace agents don't
+It’s in the Coordinator’s <kbd>/</kbd> menu only, and workspace agents don’t
 see it. A chat with no repository lists `screenplay-add-knob` and
 `screenplay-share-state`, the two that work on a mockup.
 
-## Your coding agent's own skills
+## Your coding agent’s own skills
 
 On the Mac app, chats run on the coding agent you installed, and its <kbd>/</kbd>
 menu also lists the skills that agent keeps in your home folder, marked with
-the agent's name:
+the agent’s name:
 
 | Agent       | Folders                                                                        |
 | ----------- | ------------------------------------------------------------------------------ |
@@ -76,15 +76,15 @@ the agent's name:
 Pick one from <kbd>/</kbd> like any other skill. The agent keeps loading these
 skills itself as it always does; Screenplay only lists and reads them, and
 never changes those folders. Add, edit or remove one there and the menu shows
-it the next time you open the chat. Switching the chat's model to another
-agent shows that agent's skills instead. Hosted canvases don't list them,
+it the next time you open the chat. Switching the chat’s model to another
+agent shows that agent’s skills instead. Hosted canvases don’t list them,
 since the agent there runs in a sandbox, not on your computer.
 
 ## Saving a skill to the canvas
 
 Ask any chat on the canvas (a workspace chat, the Coordinator or a chat with
-no repository) to save what you just worked out as a skill: "save this review
-checklist as a skill". The agent writes the `SKILL.md`, and a **Save skill**
+no repository) to save what you just worked out as a skill: “save this review
+checklist as a skill”. The agent writes the `SKILL.md`, and a **Save skill**
 row shows in the chat. Every chat on the canvas can use it from its next
 message, including chats your teammates start, and every chat lists it in its
 
@@ -95,28 +95,28 @@ To change a canvas skill, ask a chat to change it; it saves the skill again
 under the same name. To remove one, ask a chat to delete it, and a **Delete
 skill** row shows.
 
-To see a canvas's skills yourself, open **Canvas settings** from the **…**
-next to the canvas name and choose **Skills**. Each row shows the skill's
+To see a canvas’s skills yourself, open **Canvas settings** from the **…**
+next to the canvas name and choose **Skills**. Each row shows the skill’s
 description and who saved it. **Open** shows the whole skill, read-only, with
 a sidebar of any files saved beside it; **…** › **Delete** removes it for
-everyone on the canvas after you confirm. There's no add or edit here: ask a
+everyone on the canvas after you confirm. There’s no add or edit here: ask a
 chat instead.
 
 ## Saving a skill to your account
 
-A procedure that's yours rather than the canvas's, like how you like release
-notes written, can follow you instead: ask a chat to "save this to my
-account as a skill". Every chat you message, on any canvas, can use it from
+A procedure that’s yours rather than the canvas’s, like how you like release
+notes written, can follow you instead: ask a chat to “save this to my
+account as a skill”. Every chat you message, on any canvas, can use it from
 your next message, and lists it in its <kbd>/</kbd> menu as **Account**. An
 agent saves to the canvas unless you say otherwise.
 
 On a shared canvas, a message uses the account skills of whoever sent it, not
 of whoever started the chat, and a chat saves to the account of whoever asked.
-Nobody else's messages ever use your account skills. Messages the Coordinator
-sends on its own, when a workspace finishes, use no one's account skills.
+Nobody else’s messages ever use your account skills. Messages the Coordinator
+sends on its own, when a workspace finishes, use no one’s account skills.
 
 To see your account skills, open **Settings** from the bottom of the home
-screen sidebar and choose **Skills**. The rows work like the canvas's:
+screen sidebar and choose **Skills**. The rows work like the canvas’s:
 **Open** shows the whole skill, and **…** › **Delete** removes it after you
 confirm. Account skills work the same on the desktop app.
 
@@ -128,17 +128,17 @@ confirm. Account skills work the same on the desktop app.
 ## Saved skills in Claude Code, Codex and OpenCode
 
 On the Mac app, chats that run on Claude Code, Codex or OpenCode get the
-canvas's skills and your account skills as the agent's own skills, so you can
-also invoke one the agent's way (`/name` in Claude Code and OpenCode, `$name`
+canvas’s skills and your account skills as the agent’s own skills, so you can
+also invoke one the agent’s way (`/name` in Claude Code and OpenCode, `$name`
 in Codex) and it
 can read the files saved beside its `SKILL.md`. Before every message,
 Screenplay writes them to a folder in its app data, outside your checkout,
 and hands that folder to the agent, which loads skills from it without
 asking. A skill you delete is gone from the next message, and nothing is
 ever written into your repository. When a canvas skill and an account skill
-share a name, only the canvas's is written; one that shares a name with a
-repository skill isn't written at all, since the agent already loads the
-repository's from the checkout.
+share a name, only the canvas’s is written; one that shares a name with a
+repository skill isn’t written at all, since the agent already loads the
+repository’s from the checkout.
 
 One exception to the order above: if a skill in your own `~/.claude/skills/`
 has the same name as a canvas or account skill, Claude Code runs yours when
@@ -147,10 +147,10 @@ names to avoid this.
 
 ## What a saved skill can do
 
-A saved skill, on a canvas or your account, can't give itself tools or run
+A saved skill, on a canvas or your account, can’t give itself tools or run
 commands: the agent removes
 `allowed-tools` from its frontmatter and any inline `` !`command` `` lines
-before saving. A skill's name uses lowercase letters, digits and hyphens, at
+before saving. A skill’s name uses lowercase letters, digits and hyphens, at
 most 64 characters, and a whole skill, with any files saved beside it, is at
 most 256 KB.
 
@@ -189,10 +189,10 @@ description: >-
 2. …
 ```
 
-Repository skills show up as **Repository** once the workspace's sandbox is
-running. They're read from that workspace's checkout, so different branches
+Repository skills show up as **Repository** once the workspace’s sandbox is
+running. They’re read from that workspace’s checkout, so different branches
 can carry different skills. If a repository skill has the same name as a
-canvas, account or built-in one, the repository's version wins.
+canvas, account or built-in one, the repository’s version wins.
 
 Write the `description` for the agent, not for people: say what the skill does
-**and when to use it**. That's what the agent matches requests against.
+**and when to use it**. That’s what the agent matches requests against.

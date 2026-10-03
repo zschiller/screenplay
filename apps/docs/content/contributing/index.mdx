@@ -46,7 +46,7 @@ pnpm install
 | `packages/screenplay-knobs`, `packages/screenplay-state` | The npm packages apps use to declare [knobs](/guides/building/knobs) and [shared state](/guides/building/shared-state) | — |
 | `packages/ui` | Shared shadcn/ui components | — |
 
-`apps/app/CONTEXT.md` is the glossary for the product's domain language.
+`apps/app/CONTEXT.md` is the glossary for the product’s domain language.
 Design decisions are recorded as ADRs in `apps/app/docs/adr/`. Read both
 before a larger change.
 
@@ -148,10 +148,10 @@ It bumps the version, builds a signed and notarized `.dmg`, checks it with
 Gatekeeper, then commits the bump, tags `desktop-v<version>` and publishes a
 [GitHub Release](https://github.com/zschiller/screenplay/releases) with the
 `.dmg` attached, once under its version and once as `Screenplay.dmg`, the name
-the homepage's Download buttons link to. Nothing is tagged or published unless
+the homepage’s Download buttons link to. Nothing is tagged or published unless
 the build verifies.
 
-The Release's notes are a short changelog for people using the app, not a list
+The Release’s notes are a short changelog for people using the app, not a list
 of commits. Before the build, the script collects the pull requests merged
 since the last release that change the app (skipping the homepage, docs, tests
 and CI), and asks `claude -p` to write them up as New, Improved and Fixed. It
@@ -190,7 +190,7 @@ light and a dark variant (`name.light.webp`, `name.dark.webp`). Embed one with:
 <Screenshot name="hero" alt="Describe what the screenshot shows" />
 ```
 
-The component shows the variant that matches the reader's theme. Put two
+The component shows the variant that matches the reader’s theme. Put two
 related shots side by side (they stack on a phone) with:
 
 ```mdx

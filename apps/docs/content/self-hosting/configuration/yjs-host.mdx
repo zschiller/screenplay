@@ -18,7 +18,7 @@ cost the same as one.
 ## Choosing a host
 
 `NEXT_PUBLIC_YJS_HOST` selects the implementation on both server and client.
-It's inlined at build time.
+It’s inlined at build time.
 
 | `NEXT_PUBLIC_YJS_HOST` | Host | Used by |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ for example while the agent works unattended.
 
 ### Local y-websocket
 
-The desktop app runs a y-websocket server inside its own process. It's started
+The desktop app runs a y-websocket server inside its own process. It’s started
 from `instrumentation.ts` and saves each canvas to disk.
 
 | Variable | Default |
@@ -52,11 +52,11 @@ from `instrumentation.ts` and saves each canvas to disk.
 | `NEXT_PUBLIC_YJS_WS_PORT` | `1234` |
 | `YJS_PERSISTENCE_DIR` | `<cwd>/.data/yjs` |
 
-The server listens on `127.0.0.1` only, so other machines on the network can't
-reach it. It also accepts a connection only from the app's own page (a
-`localhost` or `127.0.0.1` origin on the app's `PORT`) carrying a secret the app
+The server listens on `127.0.0.1` only, so other machines on the network can’t
+reach it. It also accepts a connection only from the app’s own page (a
+`localhost` or `127.0.0.1` origin on the app’s `PORT`) carrying a secret the app
 mints at each launch and keeps in memory. `/api/yjs/auth` hands that secret to
-the page. Other websites open in the browser, and local programs that don't
+the page. Other websites open in the browser, and local programs that don’t
 have the secret, are refused.
 
 ## Adding a host
@@ -69,7 +69,7 @@ Yjs-compatible backends all work:
    (`*-client.tsx`). Model them on the Liveblocks pair.
 2. Select them in `resolveYjsHost()` in `lib/yjs-host/index.ts` and in
    `lib/yjs-host/client.tsx`, behind a new `NEXT_PUBLIC_YJS_HOST` value.
-3. Read the host's credentials inside your server implementation.
+3. Read the host’s credentials inside your server implementation.
 
 Token issuance still goes through `/api/yjs/auth`, so access stays tied to
 canvas membership whichever host you use.

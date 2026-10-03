@@ -10,7 +10,7 @@ import { Steps } from "nextra/components"
 The hosted app signs people in with GitHub through
 [Better Auth](https://www.better-auth.com). The same OAuth token is what
 sandboxes use to clone private repositories, push commits, and open pull
-requests on the user's behalf. There's no other sign-in method.
+requests on the user’s behalf. There’s no other sign-in method.
 
 ## Create the OAuth app
 
@@ -55,15 +55,15 @@ On first sign-in, users are asked to grant `repo`, `read:user`, and
 
 You have two options:
 
-- **Reuse production's app.** This is the simplest. Copy `BETTER_AUTH_SECRET`,
+- **Reuse production’s app.** This is the simplest. Copy `BETTER_AUTH_SECRET`,
   `BETTER_AUTH_PRODUCTION_URL`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET`
   into `apps/app/.env.local`. Local sign-ins detour through production and come
   back to `localhost`.
 - **A dev-only OAuth app.** This keeps production secrets off your machine.
   Create a second OAuth app with the callback
   `http://localhost:3000/app/api/auth/callback/github` (drop `/app` if you
-  don't set a base path locally). Then set
-  `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, that app's credentials,
+  don’t set a base path locally). Then set
+  `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, that app’s credentials,
   and any random `BETTER_AUTH_SECRET`. With the production URL equal to the
   current URL, the proxy steps aside and GitHub redirects straight back to
   localhost.

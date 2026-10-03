@@ -5,8 +5,8 @@ description: Where workspaces run. Vercel Sandbox by default, local worktrees on
 
 # Sandbox provider
 
-Every workspace runs in a **sandbox**. That's where the repository is checked
-out, the setup and run scripts execute, the agent's commands run, and terminal
+Every workspace runs in a **sandbox**. That’s where the repository is checked
+out, the setup and run scripts execute, the agent’s commands run, and terminal
 tabs connect. Sandboxes sit behind the `SandboxProvider` interface in
 `apps/app/lib/sandbox/`, and `SANDBOX_BACKEND` selects the implementation:
 
@@ -21,7 +21,7 @@ Any other value fails at startup.
 
 <Only hosted />
 
-Vercel Sandbox authenticates with Vercel's OIDC token, which is injected
+Vercel Sandbox authenticates with Vercel’s OIDC token, which is injected
 automatically on Vercel. For local development, link the project and pull a
 short-lived token:
 
@@ -30,25 +30,25 @@ vercel link
 vercel env pull apps/app/.env.local   # sets VERCEL_OIDC_TOKEN (~12 h)
 ```
 
-Each workspace gets a fixed **4 vCPU, 8 GB** sandbox. That's room for the dev
-server, the agent's edits and compiles, and the browsers behind shared frames.
-It doesn't grow with the number of frames, because a new size only takes
+Each workspace gets a fixed **4 vCPU, 8 GB** sandbox. That’s room for the dev
+server, the agent’s edits and compiles, and the browsers behind shared frames.
+It doesn’t grow with the number of frames, because a new size only takes
 effect after a restart that loses every running process.
 
 ### Shared frames
 
-A hosted frame someone has made live (**Go live** in the frame's toolbar) is
-one Chrome page running in its workspace's sandbox, next to the dev server.
-Every other frame is a preview in each viewer's own browser and runs nothing in
+A hosted frame someone has made live (**Go live** in the frame’s toolbar) is
+one Chrome page running in its workspace’s sandbox, next to the dev server.
+Every other frame is a preview in each viewer’s own browser and runs nothing in
 the sandbox. A small service in the sandbox encodes every frame as
 H.264 video at up to twice its size, 30 frames a second, and streams them
-to the canvas over one WebSocket on the sandbox's forwarded port `7682`. The
+to the canvas over one WebSocket on the sandbox’s forwarded port `7682`. The
 canvas decodes it with WebCodecs. Viewers authenticate with a short-lived
 token signed with a per-sandbox key derived from `TERMINAL_AUTH_SECRET`, and
 only the person driving a frame gets a token that lets their input through.
 When Claude drives a frame, the app connects to the same service and sends
 each step with its own short-lived grant; the service applies it as real
-input over the Chrome DevTools Protocol, and a person's newer grant takes the
+input over the Chrome DevTools Protocol, and a person’s newer grant takes the
 frame back at once.
 
 A frame being watched costs about 0.75 of a vCPU while its page is still, and
@@ -56,19 +56,19 @@ about 1.6 while it animates. Only pictures that changed are encoded and sent.
 A few seconds after its last viewer leaves, a frame pauses: encoding stops and
 its page is frozen in its browser, about 500 MB of memory and a few percent of
 a vCPU. It resumes in a moment, its state intact. To fit the 8 GB sandbox, a
-workspace keeps at most six frames' browsers running; past that, the least
+workspace keeps at most six frames’ browsers running; past that, the least
 recently viewed paused frame closes its browser, keeping its cookies, storage
-and profile, and reopens at its URL when viewed again. Sandboxes created before shared frames don't forward the stream
-port, so their frames can't go live until the sandbox restarts. Set
+and profile, and reopens at its URL when viewed again. Sandboxes created before shared frames don’t forward the stream
+port, so their frames can’t go live until the sandbox restarts. Set
 `SHARED_FRAMES=off` to hide **Go live** and keep every hosted frame per-viewer.
 
 ### Sandbox image
 
-Sandboxes boot from a custom image: Vercel's Ubuntu image
+Sandboxes boot from a custom image: Vercel’s Ubuntu image
 (`vercel/sandbox/universal`, with Node, pnpm, git and the coding CLIs) plus
 Google Chrome, Xvfb, ffmpeg and xautomation for shared frames. Its Dockerfile is in
 `apps/app/vercel-sandbox-image/`. The app creates sandboxes from the
-`screenplay-workspace` repository in your app project's
+`screenplay-workspace` repository in your app project’s
 [Vercel Container Registry](https://vercel.com/docs/container-registry), or
 from `VERCEL_SANDBOX_IMAGE` if you set it. Push the image before your first deploy,
 or creating a workspace fails with an error naming the missing image.
@@ -77,17 +77,17 @@ The `Vercel Sandbox image` GitHub workflow builds and pushes it whenever the ima
 changes on `main`, and weekly for security updates. It signs in with GitHub
 OIDC, so it needs no secret:
 
-1. In Vercel, add an OIDC policy that trusts your repository's
+1. In Vercel, add an OIDC policy that trusts your repository’s
    `.github/workflows/vercel-sandbox-image.yml`.
 2. In your GitHub repository, add the variables `VERCEL_TEAM_ID`,
    `VERCEL_TEAM_SLUG` and `SCREENPLAY_APP_VERCEL_PROJECT_SLUG` (the app
    project). Add them as repository variables, not environment variables: the
-   workflow doesn't run in a GitHub environment.
+   workflow doesn’t run in a GitHub environment.
 3. Run the workflow once from the **Actions** tab.
 
-The image builds on Vercel's Ubuntu Sandbox image, which the workflow builds
-from [Vercel's own Dockerfiles](https://github.com/vercel/sandbox/tree/main/images)
-because the managed one can't be pulled as a base. To push it by hand instead,
+The image builds on Vercel’s Ubuntu Sandbox image, which the workflow builds
+from [Vercel’s own Dockerfiles](https://github.com/vercel/sandbox/tree/main/images)
+because the managed one can’t be pulled as a base. To push it by hand instead,
 from the repository root of a linked project:
 
 ```bash
@@ -100,7 +100,7 @@ TAGS=vcr.vercel.com/<team>/<project>/screenplay-workspace:latest PUSH=true \
 Sandbox VMs **hibernate**. Idle sandboxes are snapshotted and reclaimed, and
 reopening a canvas restores them with the working tree intact. **Restart
 sandbox** uses the same snapshot. Once a snapshot has fully expired, the only
-way back is **Recreate from scratch**, which discards uncommitted work. That's
+way back is **Recreate from scratch**, which discards uncommitted work. That’s
 why the agent commits and pushes after every change.
 
 ## Local worktrees
@@ -109,9 +109,9 @@ why the agent commits and pushes after every change.
 
 Each project resolves to one local clone: either your folder, or a managed
 clone of the URL you added. Each workspace is a git worktree of that clone,
-so there's one object store per repository and one checkout per branch.
+so there’s one object store per repository and one checkout per branch.
 Worktrees survive restarts, including uncommitted changes. Local sandboxes
-can't hibernate, so **Restart sandbox** isn't offered; **Restart dev server**
+can’t hibernate, so **Restart sandbox** isn’t offered; **Restart dev server**
 and **Recreate from scratch** are.
 
 Dev servers run under portless on a per-workspace port. See
@@ -146,12 +146,12 @@ daemon.
 A `SandboxInstance` is deliberately small: `name`, `worktreePath`, `homeDir`,
 `domain(port)`, `hostPort(port)`, `runCommand`, `writeFiles`,
 `readFileToBuffer`, and `delete()`. See `apps/app/lib/sandbox/types.ts`. The
-agent's tools, the logs stream, and terminals are all written against this
+agent’s tools, the logs stream, and terminals are all written against this
 interface.
 
 <Callout type="info">
   Capabilities not every backend has are kept off the core interface.
   **Hibernation** (`snapshot()`, `extendTimeout()`) is an optional extension,
-  detected with `supportsHibernation()`. A provider without it simply doesn't
+  detected with `supportsHibernation()`. A provider without it simply doesn’t
   offer Restart sandbox. See `apps/app/docs/adr/0003-honest-sandbox-provider-seam.md`.
 </Callout>

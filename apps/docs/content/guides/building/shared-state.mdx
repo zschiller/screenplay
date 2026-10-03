@@ -1,28 +1,28 @@
 ---
 title: Shared state
-description: Sync a piece of your app's UI state across everyone viewing the canvas with @screenplay.space/state.
+description: Sync a piece of your app’s UI state across everyone viewing the canvas with @screenplay.space/state.
 ---
 
 # Shared state
 
-`@screenplay.space/state` bridges a piece of your app's state to the canvas.
-Change it in one person's frame and every other viewer's frame updates too.
-It's useful for things like the signed-in user, the selected plan, or a
+`@screenplay.space/state` bridges a piece of your app’s state to the canvas.
+Change it in one person’s frame and every other viewer’s frame updates too.
+It’s useful for things like the signed-in user, the selected plan, or a
 billing toggle, so a whole team can look at the same screen in the same state.
 
-You don't need the package for the route and scroll position; every frame
-already shares those, and a frame follows another viewer's route without
+You don’t need the package for the route and scroll position; every frame
+already shares those, and a frame follows another viewer’s route without
 reloading (see [Frames](/guides/frames#the-title-bar)). Use it for state the
 page keeps itself.
 
-The route in the selected frame's address bar shows a `{}` when shared state
+The route in the selected frame’s address bar shows a `{}` when shared state
 is present. Hover it to
-see the JSON. Screenplay doesn't edit shared state from the canvas; it only
+see the JSON. Screenplay doesn’t edit shared state from the canvas; it only
 displays it.
 
 <Callout type="info">
   The agent knows this package through the `screenplay-share-state`
-  [skill](/guides/building/skills). Try "share the billing toggle with the canvas".
+  [skill](/guides/building/skills). Try “share the billing toggle with the canvas”.
 </Callout>
 
 ## Install
@@ -51,7 +51,7 @@ export function BillingToggle() {
 }
 ```
 
-This is the demo app's pricing page. Flip the toggle in one frame and every
+This is the demo app’s pricing page. Flip the toggle in one frame and every
 frame on `/pricing` flips with it.
 
 ## Publish only
@@ -86,9 +86,9 @@ shareStore("sales", useSales)
 ```
 
 Open the contact-sales modal in one frame and pick 12 seats, and every other
-viewer's frame shows the same modal with the same seats. The store's data is
+viewer’s frame shows the same modal with the same seats. The store’s data is
 shared under the one key; changes from other viewers are merged back with
-`setState`, so the store's actions keep working everywhere.
+`setState`, so the store’s actions keep working everywhere.
 
 Only fields that are plain JSON are shared. Actions, and fields holding a
 `Date`, `Map`, `Set` or class instance, stay local and are never overwritten.
@@ -114,7 +114,7 @@ unsubscribe()
 
 ## On a mockup
 
-A [mockup](/guides/mockups)'s page has no bundler, so it doesn't install the
+A [mockup](/guides/mockups)’s page has no bundler, so it doesn’t install the
 package. It already has a global `screenplay.shareState(key, initial, onChange)`
 that follows the same rules. `onChange` runs at once with the current value
 and again on every change, your own `set` included, so one function can draw
@@ -129,7 +129,7 @@ the page:
 </script>
 ```
 
-You won't usually write this yourself: the chat that drew the mockup adds it
+You won’t usually write this yourself: the chat that drew the mockup adds it
 when you ask for a page that remembers what people clicked.
 
 ## Rules
@@ -141,11 +141,11 @@ when you ask for a page that remembers what people clicked.
 - State is kept with the frame across reloads and carries into
   [play mode](/guides/play-mode). Keep keys stable, like `id`s: renaming a key
   drops the old entry.
-- **The room's state wins when a frame loads.** A frame that loads or reloads
-  first asks the canvas for the room's state and waits for the answer before
-  publishing, so its initial values don't overwrite what other viewers picked.
-  Keys the room doesn't have yet take the frame's value. If the canvas doesn't
+- **The room’s state wins when a frame loads.** A frame that loads or reloads
+  first asks the canvas for the room’s state and waits for the answer before
+  publishing, so its initial values don’t overwrite what other viewers picked.
+  Keys the room doesn’t have yet take the frame’s value. If the canvas doesn’t
   answer within half a second, the frame publishes anyway.
-- Like knobs, it's **development-only** and does nothing outside a Screenplay
-  frame, so it's safe to ship. It works in Vite and other bundlers with no
+- Like knobs, it’s **development-only** and does nothing outside a Screenplay
+  frame, so it’s safe to ship. It works in Vite and other bundlers with no
   setup, [like knobs](/guides/building/knobs#safe-to-ship).

@@ -12,9 +12,9 @@ and **Account**.
 
 <Screenshot name="settings" alt="The Settings page: the section list and General" />
 
-These are your own settings. A canvas's repositories and their run settings
+These are your own settings. A canvas’s repositories and their run settings
 are in its **Canvas settings**; see [Repositories](/guides/repositories).
-Canvas settings also lists the canvas's [memory](/guides/memory) and
+Canvas settings also lists the canvas’s [memory](/guides/memory) and
 [skills](/guides/building/skills#saving-a-skill-to-the-canvas).
 
 ## General
@@ -31,16 +31,16 @@ chat.
 <Only desktop />
 
 On desktop, the agent is a coding CLI on your machine. Under the default
-model there's one row per supported CLI: **Claude Code**, **Codex**, and
-**OpenCode**. Each row shows whether it's **Signed in**, **Signed out** or
+model there’s one row per supported CLI: **Claude Code**, **Codex**, and
+**OpenCode**. Each row shows whether it’s **Signed in**, **Signed out** or
 **Not installed**:
 
 - **Install and sign in** installs the CLI, then runs its own login in an inline
   terminal.
-- **Sign in** appears when it's installed but signed out.
-- **Sign in again** appears when it's already connected.
+- **Sign in** appears when it’s installed but signed out.
+- **Sign in again** appears when it’s already connected.
 
-If an install or sign-in doesn't finish, the row says so under its name, and
+If an install or sign-in doesn’t finish, the row says so under its name, and
 the same button tries again.
 
 OpenCode reaches every model of every provider you signed in to there, often
@@ -61,7 +61,7 @@ out of it.
 <Only desktop />
 
 GitHub access is **optional** on desktop. Without it you can still add
-repositories by local folder or clone URL, and git uses your machine's own
+repositories by local folder or clone URL, and git uses your machine’s own
 credentials. With it, you can also browse your GitHub repositories and
 branches, and open pull requests.
 
@@ -69,12 +69,12 @@ The **GitHub** row says where things stand:
 
 - **Connected**, with your `@handle`.
 - **Signed out**: the `gh` CLI is installed but not signed in.
-- **Not connected**: `gh` isn't installed.
+- **Not connected**: `gh` isn’t installed.
 
-Screenplay uses the `gh` CLI's login. If `gh` is already signed in, there's
+Screenplay uses the `gh` CLI’s login. If `gh` is already signed in, there’s
 nothing to do, and the row offers **Sign in again** in case that login lapses.
 If `gh` is installed but signed out, **Sign in** runs its sign-in in an inline
-terminal. If it isn't installed, **Install and connect** installs it (with
+terminal. If it isn’t installed, **Install and connect** installs it (with
 Homebrew when available) and then signs you in. The row updates by itself
 when sign-in finishes.
 
@@ -83,12 +83,12 @@ when sign-in finishes.
   tools use it too. To disconnect, run `gh auth logout` yourself.
 </Callout>
 
-On the hosted app there's no GitHub section: you sign in with GitHub, and
+On the hosted app there’s no GitHub section: you sign in with GitHub, and
 Screenplay uses that account for cloning, pushing, and PRs.
 
 ## Repositories
 
-Your repositories and how each one runs. They're grouped by repository, and
+Your repositories and how each one runs. They’re grouped by repository, and
 each row says how many canvases use it. **Edit** opens its settings, and **…**
 holds **Duplicate**, which starts a new one from a copy, and **Delete**. Click
 **New repository** beside the section title to pick one and confirm its
@@ -102,7 +102,7 @@ holds.
 ## Memory
 
 Your **account memory**: preferences every chat you send a message in
-follows, on any canvas, like "Write UI copy in plain sentences." **Add
+follows, on any canvas, like “Write UI copy in plain sentences.” **Add
 memory** beside the section title adds one, **Edit** changes one and **…** ›
 **Delete** removes it. Each row says whether an agent saved it or you added
 it. See [Memory](/guides/memory).
@@ -122,6 +122,6 @@ one, ask a chat. See
 
 ## Account
 
-On the hosted app, this shows who you're signed in as, with **Sign out**. Your
+On the hosted app, this shows who you’re signed in as, with **Sign out**. Your
 name and photo at the bottom of the home sidebar open a menu with **Sign out**
-too. On desktop there's no sign-in, and this shows the app's version.
+too. On desktop there’s no sign-in, and this shows the app’s version.

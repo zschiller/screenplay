@@ -9,13 +9,13 @@ import { Cards } from "nextra/components"
 
 **Screenplay is a canvas for building software with coding agents.** Ask the
 [Coordinator](/guides/coordinator) for a change. It hands the work to
-a workspace's agent, and you watch the app change in a live frame. Every branch
+a workspace’s agent, and you watch the app change in a live frame. Every branch
 gets its own environment, and its running app appears as real, clickable
 previews on an infinite canvas.
 
 <Screenshot
   name="hero"
-  alt="A Screenplay canvas: its layers in the sidebar, desktop and mobile previews of a marketing site on the canvas, and the agent's chat on the right"
+  alt="A Screenplay canvas: its layers in the sidebar, desktop and mobile previews of a marketing site on the canvas, and the agent’s chat on the right"
 />
 
 Instead of juggling terminals, browser tabs and branches, you lay the work out
@@ -30,7 +30,7 @@ spatially:
 - **See every screen at every size.** [Frames](/guides/frames) are live previews
   of any route at any device size: desktop, tablet, or phone. They stay
   arranged next to each other, and hot reload keeps them current.
-- **Point, don't describe.** Target an element in a preview, mention a
+- **Point, don’t describe.** Target an element in a preview, mention a
   document, or load a skill straight from the [composer](/guides/agent). On
   the web app, [comments](/guides/collaboration) pinned to a preview can go
   straight to the agent too.
@@ -61,16 +61,16 @@ few places where they differ.
 ## Privacy and data
 
 **On the desktop app, your work stays on your Mac.** Canvases, chats and
-thumbnails are stored in the app's data folder under
+thumbnails are stored in the app’s data folder under
 `~/Library/Application Support`, and workspaces are git worktrees under
 `~/.screenplay/worktrees`. Chats run through the coding
-CLI you signed in to, so your code and prompts go only to that CLI's provider,
+CLI you signed in to, so your code and prompts go only to that CLI’s provider,
 under your own account. A GitHub token you connect is kept in the macOS
 Keychain. Screenplay itself sends no analytics.
 
 **On the web app, the data lives in the services you deploy it with.** The
 database holds users, canvases, comments, chat history and encrypted settings;
-the realtime host holds each canvas's live state; each workspace's code runs in
+the realtime host holds each canvas’s live state; each workspace’s code runs in
 a sandbox VM; and chats go to the model providers you configure. See
 [Self-hosting](/self-hosting#how-it-fits-together) for each service and its
 defaults.

@@ -7,7 +7,7 @@ description: Navigate the canvas, use the tools, and arrange frames and document
 
 A canvas has three regions:
 
-- **Left sidebar** (<kbd>⌘</kbd> <kbd>B</kbd>): the canvas's layers, its
+- **Left sidebar** (<kbd>⌘</kbd> <kbd>B</kbd>): the canvas’s layers, its
   groups, frames and documents.
 - **The canvas itself**: an infinite surface of frames and documents, with
   the toolbar at the bottom center.
@@ -20,7 +20,7 @@ The shortcuts hide and show the side panels. While one is hidden, **Show
 sidebar** at the top left or **Show chat** at the top right brings it back.
 
 <kbd>⌘</kbd> <kbd>.</kbd> hides both panels at once, or brings them back. Drag a
-panel's edge to resize it; the layout is remembered.
+panel’s edge to resize it; the layout is remembered.
 
 ## Moving around
 
@@ -29,7 +29,7 @@ panel's edge to resize it; the layout is remembered.
 | Pan                   | Scroll or trackpad-swipe, or hold <kbd>Space</kbd> and drag                                              |
 | Zoom                  | <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, or pinch; <kbd>⌘</kbd> <kbd>=</kbd> and <kbd>⌘</kbd> <kbd>-</kbd> |
 | Zoom to 100% / to fit | <kbd>⌘</kbd> <kbd>0</kbd> / <kbd>⇧</kbd> <kbd>1</kbd>                                                    |
-| Jump to a layer       | Double-click it in the sidebar's layer list                                                              |
+| Jump to a layer       | Double-click it in the sidebar’s layer list                                                              |
 
 The zoom percentage at the top right opens the zoom menu: **Zoom in**,
 **Zoom out**, **Zoom to fit**, **Zoom to 50%**, **Zoom to 100%**, **Zoom to
@@ -40,7 +40,7 @@ with the canvas, so you come back to where you left off.
 
 The pill at the top left shows where the canvas lives: **All files** or its
 folder, then the canvas name. Double-click the name to rename it. The **…**
-menu has **Rename**, **Settings** (the canvas's
+menu has **Rename**, **Settings** (the canvas’s
 [repositories](/guides/repositories), [memory](/guides/memory#canvas-memory),
 [files](/guides/files) and [skills](/guides/building/skills#saving-a-skill-to-the-canvas))
 and **Delete**. On a canvas shared with you, only the owner can rename it, so
@@ -54,7 +54,7 @@ comment count, who else is here, and **Share**. See [Sharing & collaboration](/g
 ## Tools
 
 The toolbar at the bottom holds the drawing tools. Exactly one is active at a
-time. Pressing a tool's key again returns to **Select**.
+time. Pressing a tool’s key again returns to **Select**.
 
 | Tool         | Key          | Use                                                                               |
 | ------------ | ------------ | --------------------------------------------------------------------------------- |
@@ -76,10 +76,10 @@ layer, by clicking, dragging or using a slot, selects it and returns to
 
 ## Selecting
 
-- **Click** a layer's title bar to select it. **Shift-click** adds to or
+- **Click** a layer’s title bar to select it. **Shift-click** adds to or
   removes from the selection.
 - **Drag** on empty canvas to draw a selection marquee.
-- Clicking a group's label selects the whole group.
+- Clicking a group’s label selects the whole group.
 - <kbd>Delete</kbd> or <kbd>Backspace</kbd> deletes the selection, and the next
   layer is selected so you can keep going.
 - <kbd>⌘</kbd> <kbd>D</kbd> duplicates the selected frames and mockups, adding
@@ -89,13 +89,13 @@ layer, by clicking, dragging or using a slot, selects it and returns to
 
 ## Layer menus
 
-Each frame, mockup, document and group has one menu, and it's the same
+Each frame, mockup, document and group has one menu, and it’s the same
 wherever you open it: **…** on its row in the [layers list](#the-layers-list),
 **More** on the toolbar under a selected frame or mockup, or **…** after the
 name of a selected document or group. It holds, as they apply:
 
 - **Rename** and **Duplicate** (frames and mockups).
-- A frame's **Device size**, **Fit to content** and a **Chat** submenu with
+- A frame’s **Device size**, **Fit to content** and a **Chat** submenu with
   its [chat menu](/guides/workspaces#workspace-actions).
 - **Delete**.
 - <kbd>Esc</kbd> backs out one step at a time: it closes whatever is open
@@ -105,9 +105,9 @@ name of a selected document or group. It holds, as they apply:
 
 Layers on the canvas always live in **groups**: rows of frames, documents and
 [mockups](/guides/mockups) laid out left to right with an even gap. Groups keep related screens together,
-such as a page's desktop and mobile versions or the steps of a signup flow.
+such as a page’s desktop and mobile versions or the steps of a signup flow.
 
-- **Move a group** by dragging any member's title bar or the group label.
+- **Move a group** by dragging any member’s title bar or the group label.
   Edges and centers snap to nearby groups, with guide lines.
 - **Merge groups** by dragging one group onto the end of another; the target
   lights up. Hold <kbd>⌘</kbd> to move without merging.
@@ -121,24 +121,24 @@ such as a page's desktop and mobile versions or the steps of a signup flow.
 
 A group disappears when its last member is removed.
 
-### A group's workspace
+### A group’s workspace
 
 When every frame in a group shows the same workspace, as the screens of one
-flow do, the group names it after the group's name: its state icon (a spinner
+flow do, the group names it after the group’s name: its state icon (a spinner
 while it sets up, moving dots while its agent works), its title, and its pull
-request when there's room. Its frames leave the workspace off their own titles;
-to show one of them from another workspace, hover the frame's name and click
+request when there’s room. Its frames leave the workspace off their own titles;
+to show one of them from another workspace, hover the frame’s name and click
 **Set workspace** after it.
 
 When the frames show different workspaces, as parallel explorations do, the
-group names none, and each frame's title ends with its own workspace. Switching
+group names none, and each frame’s title ends with its own workspace. Switching
 one frame to another workspace turns a flow into such a group; switching it back
 turns it into a flow again. To put every frame in such a group on one
-workspace, hover the group's name and click **Set workspace** after it. A group
-with a single frame has no group label, so that frame's title names the
+workspace, hover the group’s name and click **Set workspace** after it. A group
+with a single frame has no group label, so that frame’s title names the
 workspace instead.
 
-To show a flow from another workspace, click the group's workspace and pick one
+To show a flow from another workspace, click the group’s workspace and pick one
 from the list (for a group named Checkout, it reads **Show Checkout from…**).
 Every frame in the group moves, each keeping its route, state and size.
 Documents in the group are unaffected. The switch is one undo step, and
@@ -148,15 +148,15 @@ A group whose frames have no workspace yet shows **Choose a workspace** after
 its name instead, and its frames show No workspace, with **Start a chat** to
 build something new in them, until you pick. Picking one
 sets the group and all of its frames. Once some frames have a workspace and
-others don't, each frame offers its own list. A group of documents only has no
+others don’t, each frame offers its own list. A group of documents only has no
 workspace: when its last frame is moved out, split off or deleted, the group
 drops its workspace, and the next frame to join sets it.
 
 ## The layers list
 
-The sidebar's layer list mirrors the canvas. Groups with several
-members appear as folders. A flow's row ends with its workspace (state icon
-and title, with its pull request at the row's end), and its frame rows show
+The sidebar’s layer list mirrors the canvas. Groups with several
+members appear as folders. A flow’s row ends with its workspace (state icon
+and title, with its pull request at the row’s end), and its frame rows show
 just their names. In a group whose frames differ, and in single-frame groups,
 each frame row ends with its own workspace instead.
 
@@ -164,24 +164,24 @@ each frame row ends with its own workspace instead.
 - Double-click to zoom to it.
 - Drag rows to reorder, move a layer into another group, or drop it between
   groups to start a new one.
-- **…** opens the layer's [menu](#layer-menus), the same one as on the
+- **…** opens the layer’s [menu](#layer-menus), the same one as on the
   canvas. A delete happens at once; <kbd>⌘</kbd> <kbd>Z</kbd> brings it back.
 
 ## Undo
 
 <kbd>⌘</kbd> <kbd>Z</kbd> and <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> undo and
 redo your own canvas changes: moving, resizing, adding, deleting and renaming
-frames, documents and groups. A frame's page, its route and scroll, isn't part
-of undo. Your ⌘Z never undoes someone else's changes or the Coordinator's.
+frames, documents and groups. A frame’s page, its route and scroll, isn’t part
+of undo. Your ⌘Z never undoes someone else’s changes or the Coordinator’s.
 
 Deleting a frame, document or group happens at once, whether from the layers
 list, the frame toolbar or the <kbd>Delete</kbd> key, with no confirm and no
 toast; <kbd>⌘</kbd> <kbd>Z</kbd> brings it back. Everyone on the canvas sees
 the delete, and the undo. Deleting a
-workspace or a repository still asks first, because undo can't bring those
+workspace or a repository still asks first, because undo can’t bring those
 back.
 
 <Callout type="info">
-  Undo covers the canvas layout only. It doesn't touch code: to reverse
+  Undo covers the canvas layout only. It doesn’t touch code: to reverse
   something the agent changed, ask it, or use git.
 </Callout>

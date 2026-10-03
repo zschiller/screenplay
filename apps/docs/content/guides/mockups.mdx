@@ -6,18 +6,18 @@ description: Static design options a chat sketches on the canvas, next to the ru
 # Mockups
 
 A mockup is a single static page a chat draws on the canvas to show a
-design idea. It needs no dev server, so it appears the moment it's written.
+design idea. It needs no dev server, so it appears the moment it’s written.
 Mockups let you compare a few options side by side with the running app
 before anything is built.
 
-Ask a workspace chat for it in your own words, for example "sketch three
-takes on the empty cart as mockups". The chat writes each take as its own
+Ask a workspace chat for it in your own words, for example “sketch three
+takes on the empty cart as mockups”. The chat writes each take as its own
 mockup, and when you ask for changes it rewrites them in place. Or draw one
 yourself with the **Mockup** tool and say what goes in it.
 
 <Screenshot
   name="canvas-mockups"
-  alt="An 'Option A · Toggle' pricing mockup beside the live mobile pricing page, with both options listed with their own icon in the layers list"
+  alt="An ‘Option A · Toggle’ pricing mockup beside the live mobile pricing page, with both options listed with their own icon in the layers list"
 />
 
 ## Drawing one
@@ -25,17 +25,17 @@ yourself with the **Mockup** tool and say what goes in it.
 The **Mockup** tool (<kbd>M</kbd>) in the bottom toolbar draws a box where
 you drag, or a 1280×800 one where you click. As you let go, it asks what the
 mockup should show, the same way a drawn [frame](/guides/frames#adding-frames)
-does. Type what to sketch and press <kbd>Enter</kbd>. The box's size is sent
+does. Type what to sketch and press <kbd>Enter</kbd>. The box’s size is sent
 along as the viewport, so a phone-sized box gets a mobile take.
 
 - The chip beside **Send** says which chat sketches it. With nothing selected
-  it's **New chat**, which starts a new workspace chat. If you had a frame,
-  mockup or document selected when you drew, it's that layer's workspace
+  it’s **New chat**, which starts a new workspace chat. If you had a frame,
+  mockup or document selected when you drew, it’s that layer’s workspace
   chat. Click the chip to switch.
 - The chip also offers **New chat, no repository** and any
   [chats with no repository](/guides/agent#chats-with-no-repository): they
   write mockups and documents but no code. On a canvas with no
-  [repository](/guides/repositories) that's the only kind, so the chip
+  [repository](/guides/repositories) that’s the only kind, so the chip
   reads **New chat** and a new one sketches it in the agent panel.
 - Sending puts an empty mockup in the box, owned by that chat. It shows
   **Sketching** until the chat writes its page, then the page appears in
@@ -53,33 +53,33 @@ along as the viewport, so a phone-sized box gets a mobile take.
 A mockup you drew stays where you drew it. Mockups a chat makes on its own
 land here:
 
-- **Beside a frame.** A chat's first mockup joins the group of its
-  workspace's frames, so the live page and the options read left to right in
+- **Beside a frame.** A chat’s first mockup joins the group of its
+  workspace’s frames, so the live page and the options read left to right in
   one row.
 - **Beside each other.** Every later mockup from the same chat joins the
   group of its previous one.
-- **On their own.** When the chat's workspace has no frame on the canvas yet,
+- **On their own.** When the chat’s workspace has no frame on the canvas yet,
   its mockups get a group of their own.
 
 ## Which chat made it
 
-Every mockup remembers the chat that made it, and shows that chat's
-workspace next to its title, as a chat's documents do. When everything in a
-group comes from the same workspace, the group's label names it once instead.
+Every mockup remembers the chat that made it, and shows that chat’s
+workspace next to its title, as a chat’s documents do. When everything in a
+group comes from the same workspace, the group’s label names it once instead.
 Only the chat that made a mockup can change it; ask that chat to continue the
 work. Once that chat is deleted, any chat can change the mockup, and the first
 one that does becomes its chat.
 
 ## Building one
 
-When you've picked a take, ask the chat that drew it to build it, for
-example "build take 2". The chat reads that mockup's page, builds it into
-its own workspace using your app's real components, and checks the result
+When you’ve picked a take, ask the chat that drew it to build it, for
+example “build take 2”. The chat reads that mockup’s page, builds it into
+its own workspace using your app’s real components, and checks the result
 in its frame against the mockup. Its reply sums up the decisions it built
 from: the take you picked, your answers to its questions and the changes you
 asked for along the way. The mockup stays on the canvas, so the take and the live page can sit side by side.
 
-There's no Build button: you ask in the chat, in your own words. How many
+There’s no Build button: you ask in the chat, in your own words. How many
 takes the chat draws and how many rounds it goes through are up to the
 conversation.
 
@@ -93,42 +93,42 @@ layers list with their own icon. Delete them with <kbd>Delete</kbd>, and
 
 **More** (⋯), at the end of the bar under a selected mockup, holds
 **Rename**, **Duplicate** and **Delete**, the same
-[menu](/guides/canvas#layer-menus) as the mockup's row in the layers list.
-Duplicate (<kbd>⌘</kbd> <kbd>D</kbd>) adds a copy at the end of the mockup's
-group, with the same page, size and chat, its name ending in "copy".
+[menu](/guides/canvas#layer-menus) as the mockup’s row in the layers list.
+Duplicate (<kbd>⌘</kbd> <kbd>D</kbd>) adds a copy at the end of the mockup’s
+group, with the same page, size and chat, its name ending in “copy”.
 
 Clicking a mockup selects it rather than using the page. To click through
 it, press **Interact** under the selected mockup or double-click it, as on a
 [frame](/guides/frames): the page takes your clicks, scrolls and typing, and
 
 <kbd>Esc</kbd> or a click outside the mockup returns to the canvas. A mockup has
-no address bar or reload. Mockups aren't chat targets. A chat writes every
-mockup's page, including the ones you draw.
+no address bar or reload. Mockups aren’t chat targets. A chat writes every
+mockup’s page, including the ones you draw.
 
 You can still point at part of one. In the chat that drew it, click the
-composer's **crosshair** and then an element in the mockup, as you would in
+composer’s **crosshair** and then an element in the mockup, as you would in
 a frame (see [Targeting an element](/guides/agent#targeting-an-element)).
 Mockups from other chats dim while you pick.
 
 ## Knobs and shared state
 
 A selected mockup shows **Interact** and **Knobs** buttons under it, like a
-frame's. When the
+frame’s. When the
 chat gives its page [knobs](/guides/building/knobs#knobs-on-a-mockup), the button
 opens them: sliders, switches, text fields, selects and color pickers that
 change the page as you drag, for everyone on the canvas. With none yet,
 **Ask the agent to add a knob** opens the chat that drew the mockup (for a
-mockup a workspace drew, that workspace's chat) with a request started. When
+mockup a workspace drew, that workspace’s chat) with a request started. When
 that chat was deleted, it opens the chat the agent panel is showing instead,
 or a new chat with no repository when the panel shows the Coordinator. A
 mockup you made by hand has no Ask.
 
-A mockup's page can also [share its state](/guides/building/shared-state#on-a-mockup),
-such as the open tab or what's in a cart, so everyone looking at it sees the
+A mockup’s page can also [share its state](/guides/building/shared-state#on-a-mockup),
+such as the open tab or what’s in a cart, so everyone looking at it sees the
 same thing as you click through it in Interact.
 
-A mockup's scroll position syncs the same way, as a frame's does: when
-someone scrolls the page, everyone's copy follows, and the mockup opens, and
+A mockup’s scroll position syncs the same way, as a frame’s does: when
+someone scrolls the page, everyone’s copy follows, and the mockup opens, and
 reloads, where it was scrolled to.
 
 ## Going live
@@ -137,31 +137,31 @@ On a hosted canvas, a mockup starts as your own copy, running in your
 browser, like a [frame](/guides/frames#live-frames). To look at the very same
 page together, click **Go live** (the broadcast button after **Interact**
 under the selected mockup). Going live works as it does on a frame: it
-happens for everyone on the canvas. The mockup's page opens in one browser in
-a workspace's sandbox, everyone's copy switches to it, and the title line
+happens for everyone on the canvas. The mockup’s page opens in one browser in
+a workspace’s sandbox, everyone’s copy switches to it, and the title line
 reads **Live**. Anyone who opens the canvas while the mockup is live lands on
 it live.
 
 A mockup has no workspace of its own, so it borrows one to run in: the
 workspace of the chat that made it, or another running workspace when that
-one isn't running. With no workspace running, **Go live** is disabled and its
+one isn’t running. With no workspace running, **Go live** is disabled and its
 tooltip says a workspace has to be running.
 
 On a live mockup, whoever has control is the only one whose clicks, keys and
 scrolling reach the page, and others can
 [ask for control](/guides/frames#asking-for-control), as on a live frame.
 When the chat rewrites the mockup, the live page shows the new version for
-everyone. Its Knobs gain the same **Theme** knob as a live frame's.
+everyone. Its Knobs gain the same **Theme** knob as a live frame’s.
 
 Click **Go live** again to end it for everyone: each of you is back on your
 own copy. What the live page held only in memory, like a half typed form,
-doesn't come along. The desktop app has no **Go live**.
+doesn’t come along. The desktop app has no **Go live**.
 
 ## The agent driving a mockup
 
-A chat's agent can click through a mockup for you, the way it
+A chat’s agent can click through a mockup for you, the way it
 [drives a frame](/guides/frames#the-agent-driving-a-frame): ask a chat to show
-you how a take behaves, or to get it into a state. It reads the page's
+you how a take behaves, or to get it into a state. It reads the page’s
 buttons and fields, clicks, types and scrolls, and looks at the mockup after
 each step. This works in the browser and in the desktop app, from a
 workspace chat or a [chat with no repository](/guides/agent#chats-with-no-repository).
@@ -174,10 +174,10 @@ workspace chat or a [chat with no repository](/guides/agent#chats-with-no-reposi
   chat instead.
 - **A live mockup is the exception.** On a [live](#going-live) mockup the agent
   drives the one live page, so everyone on the canvas watches each step, and
-  it works with nobody's canvas open.
+  it works with nobody’s canvas open.
 - **It shows the same signs as a frame.** **Agent has control** sits on the
-  mockup's title line, an unselected mockup gets a ring, the Interact button
-  shows the agent's dots, and the mockup has no resize handles while the
+  mockup’s title line, an unselected mockup gets a ring, the Interact button
+  shows the agent’s dots, and the mockup has no resize handles while the
   agent drives it.
 
 <ScreenshotRow>
@@ -189,8 +189,8 @@ workspace chat or a [chat with no repository](/guides/agent#chats-with-no-reposi
 
   <Screenshot
     name="mockup-claude-driving-selected"
-    caption="Selected: the agent's dots, and no resize handles."
-    alt="A selected mockup the agent drives, with the Agent has control tag on its title line, the agent's dots on the Interact button and no resize handles"
+    caption="Selected: the agent’s dots, and no resize handles."
+    alt="A selected mockup the agent drives, with the Agent has control tag on its title line, the agent’s dots on the Interact button and no resize handles"
   />
 </ScreenshotRow>
 
@@ -198,17 +198,17 @@ workspace chat or a [chat with no repository](/guides/agent#chats-with-no-reposi
   says **Click to take control**) or double-click the mockup, and the agent stops at
   once and asks before it carries on.
 
-In the browser, the agent's clicks and keys on your own copy are simulated
-inside the page, so it can't open a file picker, use the clipboard or move the
+In the browser, the agent’s clicks and keys on your own copy are simulated
+inside the page, so it can’t open a file picker, use the clipboard or move the
 keyboard focus. When a step needs one of these, it asks you to do it. It can
-hover: tooltips and menus that open on hover do, and the mockup's hover styles
+hover: tooltips and menus that open on hover do, and the mockup’s hover styles
 show. In the desktop app its clicks and keys are real input, as on a
 [frame](/guides/frames#in-the-desktop-app), so focus, typing and the clipboard
 work too.
 
 ## Safety
 
-A mockup's page runs in a locked-down frame: it can run its own scripts, but
-it can't reach Screenplay, your session or the rest of the canvas, and it
-doesn't load anything from the network. Mockups are self-contained pages. A
-live mockup runs locked down the same way, in its workspace's sandbox.
+A mockup’s page runs in a locked-down frame: it can run its own scripts, but
+it can’t reach Screenplay, your session or the rest of the canvas, and it
+doesn’t load anything from the network. Mockups are self-contained pages. A
+live mockup runs locked down the same way, in its workspace’s sandbox.

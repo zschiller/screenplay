@@ -11,7 +11,7 @@ and the agent should share.
 
 <Screenshot
   name="doc-chat"
-  alt="A 'Pricing launch checklist' document on the canvas, labelled with the Pricing FAQ workspace whose chat wrote it, and that chat open"
+  alt="A ‘Pricing launch checklist’ document on the canvas, labelled with the Pricing FAQ workspace whose chat wrote it, and that chat open"
 />
 
 ## Creating and editing
@@ -20,10 +20,10 @@ and the agent should share.
   drop a document or drag to draw one. It opens straight into editing.
 - **Double-click** a document to edit it. <kbd>Esc</kbd> or clicking outside
   stops editing.
-- The first heading is always the document's **title**. It's also shown in
+- The first heading is always the document’s **title**. It’s also shown in
   the title bar and the layers list.
 
-Select text to open the formatting toolbar. Its first menu shows the block's
+Select text to open the formatting toolbar. Its first menu shows the block’s
 current type (for example **Text**) and converts the block (text, headings
 1–3, bullet or numbered list, quote, code block). The
 buttons apply bold, italic, strikethrough, inline code, and lists. In the
@@ -36,7 +36,7 @@ The last button, **Reply in chat**, [asks an agent about the passage](#ask-an-ag
   alt="The selection toolbar over a highlighted bullet in the checklist"
 />
 
-Several people can edit the same document at once, and each person's cursor
+Several people can edit the same document at once, and each person’s cursor
 shows in their color. Documents are layers like frames: you can move them,
 resize them, and group them with frames.
 
@@ -44,13 +44,13 @@ resize them, and group them with frames.
 
 Select text in a document and click **Reply in chat** (the curved arrow at the
 end of the formatting toolbar). On a document a chat wrote, the passage goes
-into that chat's composer and the panel switches to it. On a document you made
-yourself, it goes into the chat the agent panel is showing, whether that's the
-[Coordinator](/guides/coordinator) or a workspace's chat. Either way the panel
+into that chat’s composer and the panel switches to it. On a document you made
+yourself, it goes into the chat the agent panel is showing, whether that’s the
+[Coordinator](/guides/coordinator) or a workspace’s chat. Either way the panel
 opens if it was closed. This works the same in the web app and the desktop
 app.
 
-The quote sits above the input with the document's title, the line range and
+The quote sits above the input with the document’s title, the line range and
 the first lines of the text. Type your question and send: the agent gets the
 document, the lines and the passage along with it. Nothing is sent until you
 do. Click **×** on the quote to drop it, or select other text and click
@@ -58,21 +58,21 @@ do. Click **×** on the quote to drop it, or select other text and click
 
 <Screenshot
   name="doc-reply-in-chat"
-  alt="A passage from the checklist quoted above the Coordinator's composer"
+  alt="A passage from the checklist quoted above the Coordinator’s composer"
 />
 
 ## Mentioning other documents
 
 Type <kbd>@</kbd> in a document to link to another document on the canvas.
-The mention follows the target if it's renamed. <kbd>@</kbd> works the same
+The mention follows the target if it’s renamed. <kbd>@</kbd> works the same
 way in the [agent composer](/guides/agent#mentioning-documents): the agent is
 told which documents you mentioned and reads their current contents.
 
 ## Documents a chat writes
 
-A [workspace's chat](/guides/agent) can write documents: ask it for a plan, a
-spec or release notes and it drops a new document beside that workspace's
-frames. The document shows the workspace's name next to its title, the same
+A [workspace’s chat](/guides/agent) can write documents: ask it for a plan, a
+spec or release notes and it drops a new document beside that workspace’s
+frames. The document shows the workspace’s name next to its title, the same
 way a group does, unless the group around it already says it. Documents you
 make yourself show no name. A
 [chat with no repository](/guides/agent#chats-with-no-repository) writes
@@ -80,12 +80,12 @@ documents too, on a canvas with no repository or beside workspaces.
 
 A chat edits only the documents it wrote. It can rewrite the body, append to
 it and change the title, and its edits merge live into the shared document, so
-it never overwrites what you're typing. Every chat can read every document,
+it never overwrites what you’re typing. Every chat can read every document,
 but to have a chat change one you made, ask it to write a new one or edit the
 text yourself. When the chat that wrote a document is deleted, any chat can
-edit it, and the first one that does becomes the chat it belongs to. The agent's tool calls show as **Create document**, **Rewrite
+edit it, and the first one that does becomes the chat it belongs to. The agent’s tool calls show as **Create document**, **Rewrite
 document**, **Append to document**, **Set title** and **Read document** rows.
 
-Comments go to the same place. **Send to agent** on a thread on a chat's
+Comments go to the same place. **Send to agent** on a thread on a chat’s
 document sends it to the chat that wrote it. On a document you made, it goes
 to the workspace chat the agent panel is showing.

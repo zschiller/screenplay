@@ -26,7 +26,7 @@ const skills = [
   [
     "brand-voice",
     "Canvas",
-    "Write UI copy in Northwind's voice: plain sentences, no exclamation marks.",
+    "Write UI copy in Northwind’s voice: plain sentences, no exclamation marks.",
   ],
   [
     "release-notes",

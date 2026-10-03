@@ -93,13 +93,13 @@ export function ConceptsDiagram() {
     <Diagram
       width={672}
       height={328}
-      label="A canvas has one Coordinator, which sends work to each workspace's agent. It also holds repositories, each with its workspaces, and layers: frames, which preview a workspace's dev server, and documents."
+      label="A canvas has one Coordinator, which sends work to each workspace’s agent. It also holds repositories, each with its workspaces, and layers: frames, which preview a workspace’s dev server, and documents."
     >
       <Node b={canvas} title="Canvas" tone="group" heading />
       <Node
         b={coordinator}
         title="Coordinator"
-        sub="the canvas's chat: sees everything, arranges the canvas"
+        sub="the canvas’s chat: sees everything, arranges the canvas"
       />
       <Node
         b={repo}
@@ -127,7 +127,7 @@ export function ConceptsDiagram() {
       <Node
         b={frame}
         title="Frame"
-        sub="a live preview of a workspace's dev server"
+        sub="a live preview of a workspace’s dev server"
       />
       <Node
         b={doc}

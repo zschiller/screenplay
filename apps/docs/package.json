@@ -11,7 +11,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "screenshots": "pnpm --filter app screenshots:docs"
+    "screenshots": "pnpm --filter app screenshots:docs",
+    "test": "smart-quotes content components app mdx-components.tsx"
   },
   "dependencies": {
     "@workspace/ui": "workspace:*",
@@ -27,6 +28,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@workspace/eslint-config": "workspace:*",
+    "@workspace/smart-quotes": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.3.8",
