@@ -439,7 +439,7 @@ async function seedDatabase(db: DB, world: FixtureWorld): Promise<void> {
   }
 
   // The Project presets go through `lib/crypto` under the exact key
-  // `lib/repo-configs-store.ts` reads (`user-workspace-configs:<userId>`, kept
+  // `lib/repository-library/store.ts` reads (`user-workspace-configs:<userId>`, kept
   // for back-compat). We write the row directly rather than calling
   // `saveConfigs`, because that reaches `lib/kv` → `lib/db`, which is
   // `server-only` and refuses to load outside an RSC bundle.
@@ -454,6 +454,17 @@ async function seedDatabase(db: DB, world: FixtureWorld): Promise<void> {
       target: schema.kvStore.key,
       set: { value: encrypt(JSON.stringify(world.repoConfigs)) },
     })
+  // A fixture world is shown as authored: mark the repository library's
+  // one-time Canvas migration done (the store's `repository-library-migrated:`
+  // key) so a first load never links or adds Repositories behind its back.
+  await db
+    .insert(schema.kvStore)
+    .values({
+      key: `repository-library-migrated:${world.userId}`,
+      value: "1",
+      expiresAt: null,
+    })
+    .onConflictDoNothing()
 }
 
 /** Order Folders parents-first, so a self-referencing FK always resolves. */

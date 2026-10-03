@@ -74,8 +74,8 @@ export const CORE_SCREENS: Screen[] = [
   },
   {
     name: "settings-presets",
-    description: "Settings → Repository presets.",
-    path: "/settings?section=repository-presets",
+    description: "Settings → Repositories.",
+    path: "/settings?section=repositories",
     fullPage: true,
   },
   {

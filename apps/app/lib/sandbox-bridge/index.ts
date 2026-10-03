@@ -31,3 +31,10 @@ export const MOCKUP_RUNTIME_JS: string = [
   MOCKUP_KNOBS_JS,
   MOCKUP_STATE_JS,
 ].join("\n")
+
+// The Frame Stream service every hosted Workspace runs for its shared frames
+// (#1392), written into the Sandbox and run with Node's built-ins only.
+export const FRAME_STREAM_JS: string = readFileSync(
+  join(dir, "frame-stream.mjs"),
+  "utf8"
+)

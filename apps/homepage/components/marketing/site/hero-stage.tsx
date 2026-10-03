@@ -83,8 +83,8 @@ type Copy = {
  * dissolve into it and the text stays readable.
  *
  * The copies are built on the client only; they're decoration, hidden from
- * assistive tech. With reduced motion they hold still. Hovering clears a hole
- * in the veil to peek at them.
+ * assistive tech. With reduced motion they hold still. Hovering, or touching
+ * on a phone, clears a hole in the veil to peek at them.
  */
 export function HeroStage({ children }: { children: React.ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
@@ -271,19 +271,38 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     // Webfonts change where the lines fall.
     void document.fonts.ready.then(remeasure)
 
-    // Hovering clears a hole in the veil to peek at the copies underneath.
-    const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return
+    // Hovering, or a finger on a touch screen, clears a hole in the veil to
+    // peek at the copies underneath.
+    const peekAt = (p: { clientX: number; clientY: number }) => {
       const r = host.getBoundingClientRect()
-      veil.peekAt({ x: e.clientX - r.left, y: e.clientY - r.top })
+      veil.peekAt({ x: p.clientX - r.left, y: p.clientY - r.top })
       if (reduce) veil.drawOnce()
+    }
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") peekAt(e)
     }
     const onLeave = () => {
       veil.peekAt(null)
       if (reduce) veil.drawOnce()
     }
+    // Touch events rather than pointer events: the browser cancels a touch
+    // pointer as soon as the page starts to scroll, but touchmove keeps
+    // coming, so a swipe stirs the veil without stopping the scroll.
+    const onTouch = (e: TouchEvent) => {
+      const t = e.touches[0]
+      if (t) peekAt(t)
+      else onLeave()
+    }
     host.addEventListener("pointermove", onMove)
     host.addEventListener("pointerleave", onLeave)
+    const touches = [
+      "touchstart",
+      "touchmove",
+      "touchend",
+      "touchcancel",
+    ] as const
+    for (const type of touches)
+      host.addEventListener(type, onTouch, { passive: true })
 
     const resize = new ResizeObserver(remeasure)
     resize.observe(host)
@@ -301,6 +320,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       resize.disconnect()
       host.removeEventListener("pointermove", onMove)
       host.removeEventListener("pointerleave", onLeave)
+      for (const type of touches) host.removeEventListener(type, onTouch)
       seen.disconnect()
       rowsEl.replaceChildren()
     }

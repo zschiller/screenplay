@@ -145,6 +145,45 @@ leave Interact, Claude carries on if it asked to.
   alt="The driver button's tooltip: Claude is driving, then Click to take over"
 />
 
+### Shared frames
+
+On a hosted canvas, a frame is one browser running in its workspace's
+sandbox, and everyone who has the frame on screen watches that same browser.
+Two people looking at a frame see the same page in the same state, and when
+one of them clicks through it the others watch it happen live.
+
+Whoever drives the frame is the only one whose clicks, keys and scrolling
+reach it. Press Interact on a frame nobody drives to pick it up. On a frame
+someone else drives, nothing you do reaches the page: its title line says who
+is driving, and the Interact button shows their avatar.
+
+#### Asking for control
+
+To take a turn on a frame someone else drives, click the Interact button
+(its tooltip says **Click to ask for control**). The person driving sees your
+ask under their Interact button and picks **Let drive** or **Not now**. When
+they let you drive, the frame is yours and you're interacting with it. Click
+the button again to take your ask back.
+
+<Screenshot
+  name="frame-control-requests"
+  alt="Under the Interact button, Ana asks to drive and Ben asks to drive, each with Not now and Let drive"
+/>
+
+When several people ask at once, the driver sees each of them and picks one;
+the others keep waiting. When the driver leaves Interact, control passes to
+whoever asked first. A driver who reloads the page or drops their connection
+keeps control for 5 seconds. If they don't come back, control passes to
+whoever asked first and is still here, or to nobody.
+
+Each frame streams at up to twice its size, so it stays sharp when you zoom in
+to 200%. When a workspace's sandbox goes to sleep, its frames' browsers stop
+with it; when it wakes up, each frame reopens at the page it was on.
+
+The desktop app keeps its own frames: there, every frame is a preview running
+on your Mac. Comment pins on elements, Knobs, the element picker and **Fit to
+content** don't reach a shared frame yet.
+
 <Screenshot
   name="frame-more-menu"
   alt="The More menu: Device size, Fit to content, Duplicate, Workspace, Delete frame"

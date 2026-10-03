@@ -77,7 +77,7 @@ _Avoid_ as a code identifier: workspace (collides with the `@workspace/ui`
 package and the everyday meaning), project; "agent" (an agent is the AI, not a
 Repo).
 
-**Repo Config** (Repository preset):
+**Repo Config** (Repository; "Repository preset" until #1421):
 A saved, reusable bundle of a repo's run settings — setup/dev scripts, Dev
 Server Port (hosted) or files-to-copy globs (desktop), env vars, default Iframe
 Layer size, and system prompt. Sourced three ways through one shared picker — a
@@ -92,13 +92,17 @@ added to a single Room more than once as distinct Repos (each from a different
 preset), and the preset name is what tells those instances apart in the sidebar
 — not accidental coupling, the whole reason the field exists. User-private and
 stored encrypted in KV
-(`user-workspace-configs:{userId}`), **never** in a Room's Y.Doc. Its sole job
-is to **seed** a live Repo when that repo is added to a Room: the copy is
-**one-way** — afterwards the Repo (`RepoData`) and the preset diverge, and
-editing either never touches the other. Managed on the homescreen Settings
-surface; `RepoConfig` is the code identifier everywhere. The user-facing label
-tracks the Repo's own label, so it was renamed with it (#883).
-_Shown to users as_: "Repository preset".
+(`user-workspace-configs:{userId}`), **never** in a Room's Y.Doc. It **seeds**
+a live Repo when switched on for a Room, and that Repo records it
+(`RepoData.repositoryId`) plus who switched it on (`RepoData.addedBy`); a Repo
+with no `repositoryId` is **unlinked**. Owned by the **repository library**
+(`lib/repository-library`, spec #1420): callers list, save and delete through it,
+and switch a Repository on or off for a Room through it, never writing the KV or
+`repos` directly. Its one-time per-user migration links existing Repos by
+`repoFullName` + `name` (desktop also creates a Repository for each unmatched
+Repo; hosted leaves them unlinked). Managed on Settings › Repositories;
+`RepoConfig` is the code identifier everywhere.
+_Shown to users as_: "Repository" (in Settings, "your repositories").
 _Avoid_: template (implies scaffolding or cloning the repo's source — a preset
 carries only run settings, not code); calling the live in-Room Repo settings a
 "preset" (the preset is the reusable seed, `RepoData` is the instance it seeds);
@@ -1336,13 +1340,30 @@ driver, requests[] }` in the Room's `frameControl` Yjs map: the driver lets
 people drive (grant / decline), requests queue, a driver who leaves keeps
 control for 5 seconds, the agent always yields and asks again, and a chat ask
 grants the agent control when the asker drives or nobody does. Records are
-keyed per **copy** of a frame (`frameControlKey`): until shared frames, every
-viewer runs their own copy, whose parties are that viewer and the agent.
+keyed per **copy** of a frame (`frameControlKey`): a viewer's own copy (the
+desktop app, a Workspace without a **Frame Stream**) has a record whose parties
+are that viewer and the agent; a **Shared Frame** has one `live` record, keyed
+by the layer, that every viewer reads and writes.
 `useFrameControl` is the React adapter: **Interact is the driver's seat**
 (entering asks to drive, leaving lets go). The Interact button is the driver
 button, and the Layer Shell draws the title-line tag.
 _Avoid_: a second affordance for control beside Interact; writing `driver`
 outside the reducer; one record per frame for copies that aren't shared.
+
+**Shared Frame** / **Frame Stream**:
+On a hosted canvas (#1392, spec #1386), an Iframe Layer is one Chromium page in
+its Workspace's Sandbox, loading the bridge proxy on localhost, rather than a
+per-viewer iframe. The Workspace's **Frame Stream** service
+(`lib/sandbox-bridge/frame-stream.mjs`, launched by `ensureFrameStream`) grabs
+each page's virtual display, encodes it once (H.264 at up to 2× the CSS size,
+30 fps) and fans it out over one WebSocket on the forwarded `STREAM_PORT`,
+carrying every frame of the Workspace; the canvas decodes it with WebCodecs
+(`FrameStreamView`). Input reaches the page over CDP only from the connection
+holding a **drive grant**, which `/api/frame-stream/drive` signs only for the
+driver Frame Control names. The wire protocol is `lib/frame-stream/protocol.ts`;
+the client connection, one per Workspace, is `lib/frame-stream/client.ts`.
+_Avoid_: "streamed iframe" (there is no iframe); trusting a viewer's claim to
+drive without a grant; WebRTC (it can't connect from a Vercel Sandbox, #1366).
 
 **Canvas Keyboard**:
 The global `keydown`/`keyup` listeners for the canvas (`useCanvasKeyboard`, PRD

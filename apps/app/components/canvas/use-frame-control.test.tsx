@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react"
 import { useState } from "react"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import * as Y from "yjs"
 
 import {
   AGENT_PARTY,
+  FRAME_CONTROL_GRACE_MS,
   frameControlKey,
   reduceFrameControl,
   EMPTY_FRAME_CONTROL,
@@ -149,5 +150,239 @@ describe("useFrameControl", () => {
     })
     const { result } = renderFrameControl(c)
     expect(result.current.control.driverOf(FRAME)).toEqual({ kind: "none" })
+  })
+
+  describe("on a shared frame (#1392)", () => {
+    const SHARED = new Set([FRAME])
+    const NAMES: Record<string, string> = {
+      ana: "Ana",
+      ben: "Ben",
+      cara: "Cara",
+    }
+    const presenceOf = (id: string, color = "#f60") => ({
+      presence: {
+        identity: { id, name: NAMES[id] ?? id },
+        pointer: null,
+        viewport: { x: 0, y: 0, zoom: 1 },
+        color,
+        selectedIframeLayerIds: [],
+      },
+    })
+
+    function renderViewer(
+      c: RoomCollections,
+      viewerId: string,
+      ...others: string[]
+    ) {
+      return renderHook(
+        ({ online }: { online: string[] }) => {
+          const [focusedId, setFocusedId] = useState<string | null>(null)
+          const control = useFrameControl({
+            collection: c.frameControl,
+            viewerId,
+            others: online.map((id) => presenceOf(id)),
+            frameIds: [FRAME],
+            sharedIds: SHARED,
+            focusedId,
+            setFocusedId,
+          })
+          return { control, focusedId, setFocusedId }
+        },
+        { initialProps: { online: others } }
+      )
+    }
+
+    /** Three clients on one doc, as if synced: Ana, Ben and Cara. */
+    function threeViewers() {
+      const c = createRoomCollections(new Y.Doc())
+      return {
+        c,
+        ana: renderViewer(c, "ana", "ben", "cara"),
+        ben: renderViewer(c, "ben", "ana", "cara"),
+        cara: renderViewer(c, "cara", "ana", "ben"),
+      }
+    }
+
+    it("keeps one live record that every viewer sees", () => {
+      const [a, b] = syncedPair()
+      const anaRoom = createRoomCollections(a)
+      const ana = renderViewer(anaRoom, "ana", "ben")
+      const ben = renderViewer(createRoomCollections(b), "ben", "ana")
+
+      act(() => ana.result.current.control.interact(FRAME))
+
+      expect(anaRoom.frameControl.get(FRAME)).toEqual({
+        live: true,
+        driver: "ana",
+        requests: [],
+      })
+      expect(ana.result.current.control.driverOf(FRAME)).toEqual({
+        kind: "you",
+      })
+      expect(ben.result.current.control.driverOf(FRAME)).toMatchObject({
+        kind: "person",
+        id: "ana",
+        name: "Ana",
+      })
+    })
+
+    it("asks the person driving instead of taking the frame", () => {
+      const [a, b] = syncedPair()
+      const anaRoom = createRoomCollections(a)
+      const ana = renderViewer(anaRoom, "ana", "ben")
+      const ben = renderViewer(createRoomCollections(b), "ben", "ana")
+      act(() => ana.result.current.control.interact(FRAME))
+
+      act(() => ben.result.current.control.interact(FRAME))
+
+      expect(ben.result.current.focusedId).toBeNull()
+      expect(anaRoom.frameControl.get(FRAME)).toMatchObject({
+        driver: "ana",
+        requests: [{ by: "ben" }],
+      })
+    })
+
+    it("shows the driver who asked, and hands over on Let drive", () => {
+      const { ana, ben } = threeViewers()
+      act(() => ana.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+
+      expect(ben.result.current.control.askedFor(FRAME)).toBe(true)
+      expect(ana.result.current.control.requestsOf(FRAME)).toEqual([
+        { id: "ben", name: "Ben", color: "#f60", avatar: undefined },
+      ])
+      // Only the driver is asked.
+      expect(ben.result.current.control.requestsOf(FRAME)).toEqual([])
+
+      act(() => ana.result.current.control.grant(FRAME, "ben"))
+
+      expect(ben.result.current.control.driverOf(FRAME)).toEqual({
+        kind: "you",
+      })
+      expect(ben.result.current.focusedId).toBe(FRAME)
+      expect(ana.result.current.focusedId).toBeNull()
+      expect(ana.result.current.control.driverOf(FRAME)).toMatchObject({
+        kind: "person",
+        id: "ben",
+      })
+    })
+
+    it("queues simultaneous asks, oldest first, for the driver to pick", () => {
+      const { ana, ben, cara } = threeViewers()
+      act(() => ana.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+      act(() => cara.result.current.control.interact(FRAME))
+
+      expect(
+        ana.result.current.control.requestsOf(FRAME).map((r) => r.id)
+      ).toEqual(["ben", "cara"])
+
+      act(() => ana.result.current.control.grant(FRAME, "cara"))
+
+      expect(cara.result.current.focusedId).toBe(FRAME)
+      expect(
+        cara.result.current.control.requestsOf(FRAME).map((r) => r.id)
+      ).toEqual(["ben"])
+      expect(ben.result.current.focusedId).toBeNull()
+    })
+
+    it("keeps the driver on Not now and drops the ask", () => {
+      const { c, ana, ben } = threeViewers()
+      act(() => ana.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+
+      act(() => ana.result.current.control.decline(FRAME, "ben"))
+
+      expect(c.frameControl.get(FRAME)).toMatchObject({
+        driver: "ana",
+        requests: [],
+      })
+      expect(ana.result.current.focusedId).toBe(FRAME)
+      expect(ben.result.current.control.askedFor(FRAME)).toBe(false)
+    })
+
+    it("takes the ask back when the asker clicks again", () => {
+      const { c, ana, ben } = threeViewers()
+      act(() => ana.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+
+      act(() => ben.result.current.control.interact(FRAME))
+
+      expect(c.frameControl.get(FRAME)?.requests).toEqual([])
+      expect(ana.result.current.control.requestsOf(FRAME)).toEqual([])
+    })
+
+    it("hands control to whoever asked when the driver leaves Interact", () => {
+      const { ana, ben } = threeViewers()
+      act(() => ana.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+
+      act(() => ana.result.current.setFocusedId(null))
+
+      expect(ben.result.current.focusedId).toBe(FRAME)
+      expect(ben.result.current.control.driverOf(FRAME)).toEqual({
+        kind: "you",
+      })
+    })
+
+    describe("over time", () => {
+      afterEach(() => vi.useRealTimers())
+
+      it("gives the seat back to a driver who reloads within the grace", () => {
+        vi.useFakeTimers()
+        const { c, ana, ben } = threeViewers()
+        act(() => ana.result.current.control.interact(FRAME))
+        act(() => ben.result.current.control.interact(FRAME))
+
+        // Ana's tab reloads: her client goes, Ben sees her leave...
+        ana.unmount()
+        ben.rerender({ online: ["cara"] })
+        act(() => vi.advanceTimersByTime(FRAME_CONTROL_GRACE_MS - 1000))
+        // ...and she's back before the grace runs out.
+        ben.rerender({ online: ["ana", "cara"] })
+        const reloaded = renderViewer(c, "ana", "ben", "cara")
+
+        act(() => vi.advanceTimersByTime(FRAME_CONTROL_GRACE_MS))
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ana")
+        expect(reloaded.result.current.focusedId).toBe(FRAME)
+        expect(reloaded.result.current.control.requestsOf(FRAME)).toEqual([
+          expect.objectContaining({ id: "ben" }),
+        ])
+      })
+
+      it("passes control to the oldest online asker when the driver is gone", () => {
+        vi.useFakeTimers()
+        const { c, ana, ben, cara } = threeViewers()
+        act(() => ana.result.current.control.interact(FRAME))
+        act(() => ben.result.current.control.interact(FRAME))
+        act(() => cara.result.current.control.interact(FRAME))
+
+        ana.unmount()
+        ben.rerender({ online: ["cara"] })
+        cara.rerender({ online: ["ben"] })
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ana")
+
+        act(() => vi.advanceTimersByTime(FRAME_CONTROL_GRACE_MS))
+
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ben")
+        expect(ben.result.current.focusedId).toBe(FRAME)
+        expect(cara.result.current.control.askedFor(FRAME)).toBe(true)
+      })
+
+      it("doesn't count the driver gone before a new viewer sees them", () => {
+        vi.useFakeTimers()
+        const c = createRoomCollections(new Y.Doc())
+        c.frameControl.set(FRAME, { live: true, driver: "ana", requests: [] })
+
+        // Ben's client just loaded: Ana's presence hasn't arrived yet.
+        const ben = renderViewer(c, "ben")
+        act(() => vi.advanceTimersByTime(1000))
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ana")
+
+        ben.rerender({ online: ["ana"] })
+        act(() => vi.advanceTimersByTime(FRAME_CONTROL_GRACE_MS))
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ana")
+      })
+    })
   })
 })

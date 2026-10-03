@@ -199,7 +199,7 @@ export function CanvasSettingsDialog({
 
 /**
  * The Repositories section: one row per Repo (short name over its source),
- * with Edit and a menu holding Remove, like the rows of Repository presets.
+ * with Edit and a menu holding Remove, like the rows of Settings › Repositories.
  */
 function RepositoriesSection({
   repos,

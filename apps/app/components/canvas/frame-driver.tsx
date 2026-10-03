@@ -5,11 +5,17 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@workspace/ui/components/avatar"
+import { Button } from "@workspace/ui/components/button"
 import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar"
 import { CursorIcon } from "@workspace/ui/components/icons"
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@workspace/ui/components/popover"
 import { GripSpinner } from "@/components/grip-spinner"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
-import type { FrameDriverView } from "./use-frame-control"
+import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
 
 /** The agent's name where Frame Control names who drives. */
 const AGENT_NAME = "Claude"
@@ -27,17 +33,75 @@ function DriverMark({
   driver: Extract<FrameDriverView, { kind: "agent" | "person" }>
 }) {
   if (driver.kind === "agent") return <GripSpinner className="size-4" />
+  return <PersonMark person={driver} />
+}
+
+/** A person's avatar in their cursor colour. */
+function PersonMark({ person }: { person: FrameRequesterView }) {
   return (
     <Avatar className="size-4 after:hidden">
-      {driver.avatar ? <AvatarImage src={driver.avatar} alt="" /> : null}
+      {person.avatar ? <AvatarImage src={person.avatar} alt="" /> : null}
       <AvatarFallback
         aria-hidden
-        style={{ backgroundColor: driver.color }}
-        className={`text-xs font-medium ${presenceInkClass(driver.color)}`}
+        style={{ backgroundColor: person.color }}
+        className={`text-xs font-medium ${presenceInkClass(person.color)}`}
       >
-        {initial(driver.name)}
+        {initial(person.name)}
       </AvatarFallback>
     </Avatar>
+  )
+}
+
+/**
+ * The driver's answer to people asking for control (#1395): one row per
+ * person, oldest first, each with Not now and Let drive, so simultaneous
+ * asks queue and the driver picks one. It hangs under the driver button on
+ * the page-theme popover surface, and stays until answered: it doesn't take
+ * focus from the frame, and clicking into the page doesn't dismiss it.
+ */
+function ControlRequests({
+  requests,
+  onGrant,
+  onDecline,
+}: {
+  requests: readonly FrameRequesterView[]
+  onGrant: (id: string) => void
+  onDecline: (id: string) => void
+}) {
+  return (
+    <PopoverContent
+      side="bottom"
+      sideOffset={8}
+      aria-label="Requests for control"
+      className="w-auto min-w-64 gap-2 p-2"
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      onInteractOutside={(e) => e.preventDefault()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {requests.map((person) => (
+        <div
+          key={person.id}
+          data-frame-control-request=""
+          className="flex items-center gap-2"
+        >
+          <PersonMark person={person} />
+          <span className="min-w-0 flex-1 truncate pr-2">
+            {person.name} asks to drive
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onDecline(person.id)}
+          >
+            Not now
+          </Button>
+          <Button size="sm" onClick={() => onGrant(person.id)}>
+            Let drive
+          </Button>
+        </div>
+      ))}
+    </PopoverContent>
   )
 }
 
@@ -46,14 +110,26 @@ function DriverMark({
  * Nobody drives, or you do: today's Interact toggle, pressed in the selection
  * fill while you interact. Someone else drives: their mark on the quiet
  * pressed fill, with a two-line tooltip naming who drives and what a click
- * does (takes over from the agent at once, or asks the person).
+ * does (takes over from the agent at once, asks the person, or takes your
+ * ask back). While you drive and people ask for control, their requests hang
+ * under it (#1395).
  */
 export function FrameDriverButton({
   driver,
+  asked = false,
+  requests = [],
   onClick,
+  onGrant,
+  onDecline,
 }: {
   driver: FrameDriverView
+  /** You asked the person driving for control. */
+  asked?: boolean
+  /** People asking you, the driver, for control. */
+  requests?: readonly FrameRequesterView[]
   onClick: () => void
+  onGrant?: (id: string) => void
+  onDecline?: (id: string) => void
 }) {
   if (driver.kind === "agent" || driver.kind === "person") {
     const name = driver.kind === "agent" ? AGENT_NAME : driver.name
@@ -63,7 +139,9 @@ export function FrameDriverButton({
         hint={
           driver.kind === "agent"
             ? "Click to take over"
-            : "Click to ask for control"
+            : asked
+              ? "Asked for control. Click to cancel"
+              : "Click to ask for control"
         }
         variant="secondary"
         onClick={onClick}
@@ -73,7 +151,7 @@ export function FrameDriverButton({
     )
   }
   const you = driver.kind === "you"
-  return (
+  const button = (
     <FloatingToolbarButton
       label="Interact"
       shortcut={you ? ["Esc"] : undefined}
@@ -89,6 +167,19 @@ export function FrameDriverButton({
     >
       <CursorIcon />
     </FloatingToolbarButton>
+  )
+  const open = you && requests.length > 0 && !!onGrant && !!onDecline
+  return (
+    <Popover open={open}>
+      <PopoverAnchor asChild>{button}</PopoverAnchor>
+      {open && (
+        <ControlRequests
+          requests={requests}
+          onGrant={onGrant}
+          onDecline={onDecline}
+        />
+      )}
+    </Popover>
   )
 }
 

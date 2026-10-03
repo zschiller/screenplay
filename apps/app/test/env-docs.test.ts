@@ -24,6 +24,16 @@ const INTERNAL: Record<string, string> = {
   SCREENPLAY_LISTEN_PORT: "set inside a sandbox by provisioning",
   SCREENPLAY_UPSTREAM_PORT: "set inside a sandbox by provisioning",
   SCREENPLAY_LISTEN_HOST: "set inside a sandbox by provisioning",
+  SCREENPLAY_STREAM_PORT: "set inside a sandbox by the Frame Stream launch",
+  SCREENPLAY_STREAM_HOST: "set inside a sandbox by the Frame Stream launch",
+  SCREENPLAY_STREAM_KEY: "set inside a sandbox by the Frame Stream launch",
+  SCREENPLAY_FRAME_ORIGIN: "set inside a sandbox by the Frame Stream launch",
+  SCREENPLAY_CHROME: "set inside a sandbox by the Frame Stream launch",
+  SCREENPLAY_STREAM_FPS: "Frame Stream tuning, defaulted in the service",
+  SCREENPLAY_STREAM_SCALE: "Frame Stream tuning, defaulted in the service",
+  SCREENPLAY_STREAM_MAX_PIXELS: "Frame Stream tuning, defaulted in the service",
+  SCREENPLAY_STREAM_CODEC: "Frame Stream test switch (VP8 for test browsers)",
+  SCREENPLAY_STREAM_DISPLAY: "Frame Stream test switch (first X display)",
   SCREENPLAY_SHELL_PID: "set by the desktop shell for its own watchdog",
 }
 
