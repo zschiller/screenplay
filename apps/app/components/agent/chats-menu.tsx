@@ -13,9 +13,9 @@ import {
 
 import {
   ArrowsDownUpIcon,
-  CaretDownIcon,
   CaretRightIcon,
   ChatCircleIcon,
+  ChatsIcon,
   PencilSimpleIcon,
   TrashIcon,
   DotsThreeIcon,
@@ -661,9 +661,9 @@ export function ChatsMenuButton() {
           aria-description={menu.needsYou ? "A chat needs you" : undefined}
           className="text-muted-foreground"
         >
+          <ChatsIcon data-icon="inline-start" />
           Chats
           {menu.needsYou ? <NeedsYouDot className="size-1.5" /> : null}
-          <CaretDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
