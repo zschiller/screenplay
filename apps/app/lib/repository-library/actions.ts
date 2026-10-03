@@ -3,13 +3,13 @@
 import { nanoid } from "nanoid"
 import { requireUserId } from "@/lib/auth-helpers"
 import { hasFixtureFault } from "@/lib/fixture-faults"
-import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { listRoomsForUser } from "@/lib/rooms"
 import { openRoom } from "@/lib/room-access"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { envVarsDigest, kvCanvasRepoEnvStore } from "@/lib/repo-env/store"
 import { createRepositoryLibrary } from "./library"
+import { repositoryLinkPolicy } from "./link-policy"
 import { kvRepositoryStore } from "./store"
 
 async function library() {
@@ -35,7 +35,7 @@ async function library() {
         kvCanvasRepoEnvStore.set(roomId, repoId, text),
       digest: envVarsDigest,
     },
-    mode: isLocalBuild ? "desktop" : "hosted",
+    policy: repositoryLinkPolicy,
     mint: () => ({ id: nanoid(), now: Date.now() }),
   })
 }

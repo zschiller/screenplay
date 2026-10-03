@@ -61,10 +61,13 @@ import {
 import { RemoveRepositoryDialog } from "@/components/remove-repository-dialog"
 import { RepoSettingsDialog } from "@/components/repo-settings-dialog"
 import { NeedsYouDot } from "@/components/workspace-mention"
-import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName } from "@/lib/repo-identity"
-import { canvasRepositoryRows, isCustomized } from "@/lib/repository-library"
+import {
+  canvasRepositoryRows,
+  repositoryLinkPolicy,
+  type RepositoryLinkPolicy,
+} from "@/lib/repository-library"
 import {
   listRepositories,
   saveRepositoryToAll,
@@ -109,6 +112,7 @@ export function CanvasSettingsDialog({
   onAddMemory,
   onEditMemory,
   onRemoveMemory,
+  policy = repositoryLinkPolicy,
 }: {
   roomId: string
   /** Whether this person may reveal a Repo's env var values (#1416). */
@@ -132,6 +136,9 @@ export function CanvasSettingsDialog({
   /** Turn one of your Repositories on for this canvas (#1422); New
    *  repository saves one and turns it on here (#1423). */
   onSwitchOn: (repository: RepoConfig) => void
+  /** Whether Canvas Repos follow their Repository; this build's unless a
+   *  test picks one. */
+  policy?: RepositoryLinkPolicy
 }) {
   const [activeId, setActiveId] =
     useState<CanvasSettingsSection>("repositories")
@@ -209,6 +216,7 @@ export function CanvasSettingsDialog({
                   onUpdateRepo={onUpdateRepo}
                   onRemoveRepo={onRemoveRepo}
                   onSwitchOn={onSwitchOn}
+                  policy={policy}
                 />
               )}
             </div>
@@ -240,6 +248,7 @@ function RepositoriesSection({
   onUpdateRepo,
   onRemoveRepo,
   onSwitchOn,
+  policy,
 }: {
   roomId: string
   canRevealEnv: (repo: RepoData) => boolean
@@ -252,6 +261,7 @@ function RepositoriesSection({
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
   onSwitchOn: (repository: RepoConfig) => void
+  policy: RepositoryLinkPolicy
 }) {
   const addRepository = useAddRepositoryFlow()
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -284,7 +294,7 @@ function RepositoriesSection({
     setLoadFailed(false)
   }
 
-  const members = useCanvasMembers(roomId)
+  const members = useCanvasMembers(roomId, policy.showsAddedBy)
   const rows = canvasRepositoryRows(repositories, repos)
   // Who added each Repo only means something once someone else is here.
   const shared = members.length > 1
@@ -292,32 +302,10 @@ function RepositoriesSection({
     id ? members.find((m) => m.userId === id) : undefined
 
   const editing = repos.find((r) => r.id === editingId) ?? null
-  // A hosted canvas's copy belongs to the canvas (#1427): it never takes
-  // Settings edits, so there's no customized dot, Reset or Save to all.
-  const linkedTo = (repo: RepoData | null) =>
-    isLocalBuild
-      ? repositories.find((r) => r.id === repo?.repositoryId)
-      : undefined
+  const groups = policy.groups(rows)
 
-  // Desktop is one list; hosted puts every member's Repos first.
-  const groups = (
-    isLocalBuild
-      ? [{ label: null, rows }]
-      : [
-          { label: "On this canvas", rows: rows.filter((row) => row.on) },
-          {
-            label: "Your other repositories",
-            rows: rows.filter((row) => !row.on),
-          },
-        ]
-  ).filter((group) => group.rows.length > 0)
-
-  // Removing on hosted always confirms: the canvas's copy, and anyone's
-  // edits to it, go for everyone here. Desktop's switch confirms only when
-  // Workspaces use it, since your Repository stays in Settings.
   const switchOff = (repo: RepoData) => {
-    if (!isLocalBuild || branches.some((b) => b.repoId === repo.id))
-      setTurningOffId(repo.id)
+    if (policy.removeConfirms(repo, branches)) setTurningOffId(repo.id)
     else void onRemoveRepo(repo.id, { deleteBranchesOnRemote: false })
   }
 
@@ -326,7 +314,7 @@ function RepositoriesSection({
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        {isLocalBuild
+        {policy.control === "switch"
           ? "Your repositories. Turn one on to run it on this canvas; new workspaces start from its settings."
           : "The repositories on this canvas, shared with everyone here. Add one of yours to copy its settings here."}
       </p>
@@ -369,10 +357,7 @@ function RepositoriesSection({
                   const source = row.on ? row.repo : row.repository
                   const name = repoShortName(source)
                   const customized =
-                    row.on &&
-                    isLocalBuild &&
-                    row.repository !== undefined &&
-                    isCustomized(row.repo, row.repository)
+                    row.on && policy.isCustomized(row.repo, repositories)
                   // Who added it, on a shared canvas, when it wasn't you.
                   const adder =
                     shared && row.on && row.repo.addedBy !== userId
@@ -404,9 +389,7 @@ function RepositoriesSection({
                               <PencilSimpleIcon />
                             </IconButton>
                           )}
-                          {!isLocalBuild ? (
-                            // A hosted canvas's copy is its own (#1427), so
-                            // it's added and removed, not switched.
+                          {policy.control === "add-remove" ? (
                             row.on ? (
                               <IconButton
                                 label={`Remove ${name}`}
@@ -454,7 +437,9 @@ function RepositoriesSection({
         roomId={roomId}
         canRevealEnv={editing ? canRevealEnv(editing) : false}
         repo={editing}
-        repository={linkedTo(editing)}
+        repository={
+          editing ? policy.followedRepository(editing, repositories) : undefined
+        }
         open={editingId !== null}
         onOpenChange={(open) => {
           if (!open) setEditingId(null)
@@ -476,12 +461,16 @@ function RepositoriesSection({
   )
 }
 
-/** The canvas's members, for naming who added each Repo. Hosted only: the
- *  desktop canvas is always yours. A failed fetch just names no one. */
-function useCanvasMembers(roomId: string): CollaboratorInfo[] {
+/** The canvas's members, for naming who added each Repo, when the policy
+ *  names them (the desktop canvas is always yours). A failed fetch just
+ *  names no one. */
+function useCanvasMembers(
+  roomId: string,
+  enabled: boolean
+): CollaboratorInfo[] {
   const [members, setMembers] = useState<CollaboratorInfo[]>([])
   useEffect(() => {
-    if (isLocalBuild) return
+    if (!enabled) return
     let cancelled = false
     listCollaborators(roomId)
       .then((rows) => {
@@ -491,7 +480,7 @@ function useCanvasMembers(roomId: string): CollaboratorInfo[] {
     return () => {
       cancelled = true
     }
-  }, [roomId])
+  }, [roomId, enabled])
   return members
 }
 

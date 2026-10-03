@@ -47,6 +47,10 @@ import {
   listRepositories,
   repositoryCanvasCount,
 } from "@/lib/repository-library/actions"
+import {
+  repositoryLinkPolicy,
+  type RepositoryLinkPolicy,
+} from "@/lib/repository-library/link-policy"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { duplicateName, presetSummary } from "@/lib/preset-summary"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -71,9 +75,13 @@ const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
  */
 export function RepoConfigsPanel({
   header,
+  policy = repositoryLinkPolicy,
 }: {
   /** The Settings section's title row; New repository sits on its right (#927). */
   header: (action?: React.ReactNode) => React.ReactNode
+  /** Whether Canvas Repos follow their Repository; this build's unless a
+   *  test picks one. */
+  policy?: RepositoryLinkPolicy
 }) {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,9 +124,9 @@ export function RepoConfigsPanel({
   }, [])
 
   // The count comes first, so the confirm opens with its final wording. A
-  // hosted canvas's copy never took your edits (#1427), so it isn't counted.
+  // canvas whose copy never took your edits (hosted, #1427) isn't counted.
   const requestDelete = async (config: RepoConfig) => {
-    if (!isLocalBuild) {
+    if (!policy.deleteUnlinksCanvases) {
       setPendingDelete({ config, canvases: null })
       return
     }
@@ -351,7 +359,9 @@ export function RepoConfigsPanel({
           itemName={pendingDelete?.config.name}
           itemNoun="repository"
           description={
-            pendingDelete ? deleteDescription(pendingDelete.canvases) : null
+            pendingDelete
+              ? deleteDescription(policy, pendingDelete.canvases)
+              : null
           }
           onConfirm={() => handleDelete(pendingDelete!.config.id)}
         />
@@ -432,10 +442,14 @@ function PresetDetail({
 }
 
 /** The delete confirm's body: Canvases that use the Repository keep their
- *  copy, unlinked (#1426). `null` = the count couldn't be read. On hosted a
- *  canvas's copy is its own (#1427), so deleting changes nothing there. */
-function deleteDescription(canvases: number | null): string {
-  if (!isLocalBuild) return "Canvases that use it keep their own copy."
+ *  copy, unlinked (#1426). `null` = the count couldn't be read. Where a
+ *  canvas's copy is its own (hosted, #1427), deleting changes nothing there. */
+function deleteDescription(
+  policy: RepositoryLinkPolicy,
+  canvases: number | null
+): string {
+  if (!policy.deleteUnlinksCanvases)
+    return "Canvases that use it keep their own copy."
   const keeps = "but it stops getting your edits."
   if (canvases === null) return `Canvases using it keep their copy, ${keeps}`
   if (canvases === 0) return "It isn’t on any canvas."

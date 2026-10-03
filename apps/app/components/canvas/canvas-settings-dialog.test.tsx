@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   cleanup,
   fireEvent,
@@ -83,15 +83,6 @@ vi.mock("@/lib/repo-env/actions", () => ({
     .fn()
     .mockResolvedValue("API_URL=https://api.test\nSTRIPE_KEY=sk_live_1"),
 }))
-// Desktop unless a test flips it: hosted adds and removes repositories
-// rather than switching them, and drops Save to all, the customized dot and
-// Reset to Settings (#1427).
-const { buildFlag } = vi.hoisted(() => ({ buildFlag: { local: true } }))
-vi.mock("@/lib/local-mode", () => ({
-  get isLocalBuild() {
-    return buildFlag.local
-  },
-}))
 // A shared canvas: you (Zack) and Mia.
 vi.mock("@/lib/rooms-actions", () => ({
   listCollaborators: vi.fn().mockResolvedValue([
@@ -136,6 +127,11 @@ import {
   saveRepository,
   saveRepositoryToAll,
 } from "@/lib/repository-library/actions"
+import {
+  desktopLinkPolicy,
+  hostedLinkPolicy,
+  type RepositoryLinkPolicy,
+} from "@/lib/repository-library"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 
 // Radix's Dialog, menus and cmdk use pointer-capture / scroll APIs jsdom
@@ -162,7 +158,6 @@ window.matchMedia ??= ((query: string) => ({
 
 afterEach(() => {
   cleanup()
-  buildFlag.local = true
   vi.mocked(listRepositories).mockResolvedValue(REPOSITORIES)
   vi.mocked(saveRepositoryToAll).mockClear()
 })
@@ -229,7 +224,10 @@ const MEMORIES: MemoryData[] = [
 function renderDialog(
   repos: RepoData[] = [STOREFRONT, DOCS],
   memories: MemoryData[] = MEMORIES,
-  { canReveal = true }: { canReveal?: boolean } = {}
+  {
+    canReveal = true,
+    policy = desktopLinkPolicy,
+  }: { canReveal?: boolean; policy?: RepositoryLinkPolicy } = {}
 ) {
   const handlers = {
     onUpdateRepo: vi.fn(),
@@ -249,6 +247,7 @@ function renderDialog(
       repos={repos}
       branches={BRANCHES}
       memories={memories}
+      policy={policy}
       {...handlers}
     />
   )
@@ -342,13 +341,15 @@ describe("CanvasSettingsDialog", () => {
   })
 
   it("New repository saves it to your repositories and turns it on here", async () => {
-    // The hosted picker: straight to GitHub, no Open folder.
-    buildFlag.local = false
+    // The hosted picker (tests run the hosted build): straight to GitHub,
+    // no Open folder.
     // The server's upsert: saving the repository you already have keeps its id.
     vi.mocked(saveRepository).mockImplementation(async (r: RepoConfig) =>
       REPOSITORIES.map((x) => (x.id === r.id ? r : x))
     )
-    const { onSwitchOn } = renderDialog()
+    const { onSwitchOn } = renderDialog(undefined, MEMORIES, {
+      policy: hostedLinkPolicy,
+    })
 
     fireEvent.click(screen.getByRole("button", { name: "New repository" }))
     const picker = await screen.findByRole("dialog", {
@@ -507,10 +508,7 @@ describe("CanvasSettingsDialog", () => {
   })
 
   describe("env vars (#1416)", () => {
-    // Env vars are a hosted field.
-    beforeEach(() => {
-      buildFlag.local = false
-    })
+    // Env vars are a hosted field, and tests run the hosted build.
 
     const WITH_ENV = {
       ...DOCS,
@@ -521,6 +519,7 @@ describe("CanvasSettingsDialog", () => {
     async function openDocs(canReveal: boolean) {
       const handlers = renderDialog([STOREFRONT, WITH_ENV], MEMORIES, {
         canReveal,
+        policy: hostedLinkPolicy,
       })
       fireEvent.click(screen.getByRole("button", { name: "Edit docs" }))
       const form = await screen.findByRole("dialog", {
@@ -631,12 +630,11 @@ describe("CanvasSettingsDialog", () => {
   })
 
   describe("on a shared hosted canvas", () => {
-    beforeEach(() => {
-      buildFlag.local = false
-    })
+    const renderHosted = (repos?: RepoData[]) =>
+      renderDialog(repos, MEMORIES, { policy: hostedLinkPolicy })
 
     it("splits the list into On this canvas and Your other repositories", async () => {
-      renderDialog([STOREFRONT, DOCS, MIAS_WEB])
+      renderHosted([STOREFRONT, DOCS, MIAS_WEB])
       await screen.findByRole("button", { name: "Add api" })
 
       const names = (label: string) =>
@@ -653,7 +651,7 @@ describe("CanvasSettingsDialog", () => {
     })
 
     it("adds one of your repositories", async () => {
-      const { onSwitchOn } = renderDialog()
+      const { onSwitchOn } = renderHosted()
 
       fireEvent.click(await screen.findByRole("button", { name: "Add api" }))
 
@@ -663,7 +661,7 @@ describe("CanvasSettingsDialog", () => {
     })
 
     it("confirms removing even a repository no workspace uses", async () => {
-      const { onRemoveRepo } = renderDialog()
+      const { onRemoveRepo } = renderHosted()
 
       fireEvent.click(
         await screen.findByRole("button", { name: "Remove docs" })
@@ -682,7 +680,7 @@ describe("CanvasSettingsDialog", () => {
     })
 
     it("confirms removing a repository its workspaces use", async () => {
-      const { onRemoveRepo } = renderDialog()
+      const { onRemoveRepo } = renderHosted()
 
       fireEvent.click(
         await screen.findByRole("button", { name: "Remove storefront" })
@@ -700,7 +698,7 @@ describe("CanvasSettingsDialog", () => {
     })
 
     it("names a teammate who added a repository", async () => {
-      renderDialog([STOREFRONT, DOCS, MIAS_WEB])
+      renderHosted([STOREFRONT, DOCS, MIAS_WEB])
 
       expect(await screen.findByText("Added by Mia")).not.toBeNull()
       // Yours goes unnamed, and nobody recorded who added docs.
@@ -708,7 +706,7 @@ describe("CanvasSettingsDialog", () => {
     })
 
     it("keeps every edit on this canvas, with no dot, Reset or Save to all", async () => {
-      const { onUpdateRepo } = renderDialog([
+      const { onUpdateRepo } = renderHosted([
         { ...STOREFRONT, devScript: "pnpm dev --turbo" },
         MIAS_WEB,
       ])

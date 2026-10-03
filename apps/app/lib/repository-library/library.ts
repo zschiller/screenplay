@@ -7,6 +7,7 @@ import {
   sameRepository,
   unlinkRepository,
 } from "./canvas"
+import type { RepositoryLinkPolicy } from "./link-policy"
 
 /** Where one person's Repositories live, plus whether their one-time
  *  migration has run. Production is the encrypted per-user KV (`./store`). */
@@ -37,9 +38,9 @@ export interface RepositoryLibraryDeps {
   store: RepositoryStore
   rooms: CanvasRooms
   env: CanvasEnv
-  /** Desktop has one person, so every Canvas Repo can have a home in
-   *  Settings; hosted can't tell whose a pre-library Repo was. */
-  mode: "desktop" | "hosted"
+  /** Whether Canvas Repos follow their Repository (desktop) or belong to
+   *  their Canvas (hosted). */
+  policy: RepositoryLinkPolicy
   /** Mints ids and timestamps; injected so tests stay deterministic. */
   mint: () => { id: string; now: number }
 }
@@ -61,7 +62,7 @@ export function createRepositoryLibrary({
   store,
   rooms,
   env,
-  mode,
+  policy,
   mint,
 }: RepositoryLibraryDeps) {
   /** Repositories as callers get them: stamped with their values' digest,
@@ -93,7 +94,7 @@ export function createRepositoryLibrary({
         created = await rooms.mutate(roomId, (collections) =>
           linkCanvasRepos(collections, repositories, {
             userId,
-            createMissing: mode === "desktop",
+            createMissing: policy.createsMissingRepositories,
             mint,
           })
         )
@@ -115,8 +116,8 @@ export function createRepositoryLibrary({
    * Settings edits reach the Canvases: every Canvas the person can open gets
    * the edit on its uncustomized Repos linked to the Repository, and their
    * stored env var values become the Repository's. A Canvas that won't open
-   * keeps its old copy rather than failing the save. Desktop only: on hosted
-   * a Canvas's copy belongs to the Canvas (#1427).
+   * keeps its old copy rather than failing the save. Only where the policy
+   * propagates edits: on hosted a Canvas's copy belongs to the Canvas (#1427).
    */
   async function propagate(
     before: RepoConfig,
@@ -172,7 +173,7 @@ export function createRepositoryLibrary({
         ? list.map((r) => (r.id === target.id ? saved : r))
         : [...list, repository]
       await store.save(next)
-      if (target && mode === "desktop") await propagate(target, saved)
+      if (target && policy.propagatesEdits) await propagate(target, saved)
       return stamped(next)
     },
 
@@ -184,7 +185,7 @@ export function createRepositoryLibrary({
      * nobody's edit reaches another Canvas (#1427).
      */
     async saveToAll(repository: RepoConfig): Promise<RepoConfig[]> {
-      if (mode === "hosted") {
+      if (!policy.propagatesEdits) {
         throw new Error("Saving to every canvas is only on the desktop app")
       }
       const list = await store.load()
@@ -199,10 +200,12 @@ export function createRepositoryLibrary({
 
     /**
      * How many Canvases have a Repo linked to the Repository, for the delete
-     * confirm. A Canvas that won't open isn't counted.
+     * confirm. A Canvas that won't open isn't counted. Where Canvases don't
+     * follow their Repository (hosted), none is opened and none counts.
      */
     async canvasCount(repositoryId: string): Promise<number> {
       let count = 0
+      if (!policy.deleteUnlinksCanvases) return count
       for (const roomId of await rooms.list()) {
         try {
           const uses = await rooms.read(roomId, (collections) =>
@@ -220,11 +223,14 @@ export function createRepositoryLibrary({
      * Delete a Repository; returns the new list. Every Canvas Repo linked to
      * it stays, unlinked: the Canvas keeps its copy, which stops getting
      * Settings edits. A Canvas that won't open keeps its link to nothing,
-     * which reads as unlinked too.
+     * which reads as unlinked too. Where Canvases don't follow their
+     * Repository (hosted), no other Canvas is opened: a link to nothing
+     * already changes nothing there.
      */
     async delete(repositoryId: string): Promise<RepoConfig[]> {
       const next = (await store.load()).filter((r) => r.id !== repositoryId)
       await store.save(next)
+      if (!policy.deleteUnlinksCanvases) return stamped(next)
       for (const roomId of await rooms.list()) {
         try {
           await rooms.mutate(roomId, (collections) =>
