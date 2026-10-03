@@ -270,6 +270,8 @@ const ASK_FOR_KNOB_PROMPT = "Add a knob to this prototype that controls "
 
 /** How long a Coordinator view request waits for the doc to catch up. */
 const VIEW_REQUEST_SETTLE_MS = 250
+/** How long the agent's reveal waits for a frame it just opened to lay out. */
+const REVEAL_LAYOUT_WAIT_MS = 3000
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
@@ -841,6 +843,24 @@ export function Canvas({
       window.clearTimeout(timer)
     }
   }, [roomId, zoomControls, cameraZoomToRect])
+
+  // The agent showing this member a frame (#1390): fit it in their view,
+  // waiting briefly for a frame it just opened to be laid out.
+  const revealFrame = useCallback(
+    async (frameId: string) => {
+      const deadline = performance.now() + REVEAL_LAYOUT_WAIT_MS
+      for (;;) {
+        const layout = iframeLayerLayoutsRef.current.get(frameId)
+        if (layout) {
+          cameraZoomToRect(layout)
+          return true
+        }
+        if (performance.now() >= deadline) return false
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    },
+    [cameraZoomToRect]
+  )
 
   // The comments panel (#787); Escape closes it from anywhere on the canvas.
   const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
@@ -2099,6 +2119,7 @@ export function Canvas({
           roomId={roomId}
           viewerId={userId ?? null}
           frameControl={collections.frameControl}
+          reveal={revealFrame}
         />
       ) : (
         <FrameDriveViewRelay

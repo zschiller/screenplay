@@ -292,6 +292,21 @@ describe("summarizeSteps", () => {
     expect(failures).toEqual(["Canvas change"])
   })
 
+  it("counts a frame drive as one frame, its reads and steps alike (#1390)", () => {
+    const { text, failures } = summarize([
+      call("1", { title: "frame_start_driving", rawInput: { pace: "show" } }),
+      call("2", { title: "mcp__screenplay__frame_elements" }),
+      call("3", {
+        title: "frame_click",
+        rawInput: { target: { text: "Save" } },
+      }),
+      call("4", { title: "frame_type", status: "failed" }),
+      call("5", { title: "frame_screenshot" }),
+    ])
+    expect(text).toBe("Viewed 1 frame, drove 1 frame")
+    expect(failures).toEqual(["Frame step"])
+  })
+
   it("reads an ACP adapter's calls by kind", () => {
     const { text } = summarize([
       call("1", {

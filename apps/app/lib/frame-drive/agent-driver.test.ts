@@ -9,6 +9,7 @@ import {
 import {
   AGENT_IDLE_RELEASE_MS,
   AgentFrameDriver,
+  agentAsksInChat,
   agentAsksToDrive,
   agentLetsGo,
   memoryFrameControlStore,
@@ -20,6 +21,7 @@ import type {
 } from "@/lib/frame-drive/contract"
 
 const ZACK = "user-zack"
+const ANA = "user-ana"
 const CLICK: DriveOp = { op: "click", target: { text: "Save" } }
 const DONE: DriveResult = {
   status: "done",
@@ -96,6 +98,61 @@ describe("agentAsksToDrive", () => {
   })
 })
 
+describe("agentAsksInChat", () => {
+  const ask = (
+    r: FrameControlRecord,
+    opts: Partial<Parameters<typeof agentAsksInChat>[1]> = {}
+  ) =>
+    agentAsksInChat(r, {
+      asker: ZACK,
+      at: 5,
+      heldBefore: false,
+      takenBy: null,
+      ...opts,
+    })
+
+  it("drives a frame nobody drives, with no second prompt", () => {
+    const decision = ask(EMPTY_FRAME_CONTROL)
+    expect(decision.kind).toBe("drive")
+    expect(decision.record.driver).toBe(AGENT_PARTY)
+  })
+
+  it("takes the frame from the asker, who is the one asking", () => {
+    const decision = ask(record(ZACK))
+    expect(decision.kind).toBe("drive")
+    expect(decision.record.driver).toBe(AGENT_PARTY)
+  })
+
+  it("queues behind someone else who drives", () => {
+    expect(ask(record(ANA))).toEqual({
+      kind: "wait",
+      record: record(ANA, [{ by: AGENT_PARTY, at: 5 }]),
+      driver: ANA,
+      takenOver: false,
+    })
+  })
+
+  it("never undoes a take-over: it waits for the asker to leave Interact", () => {
+    // Taken over since its last step.
+    expect(ask(record(ZACK), { heldBefore: true })).toMatchObject({
+      kind: "wait",
+      driver: ZACK,
+      takenOver: true,
+      record: record(ZACK, [{ by: AGENT_PARTY, at: 5 }]),
+    })
+    // Taken over earlier, and they still have it.
+    expect(ask(record(ZACK), { takenBy: ZACK })).toMatchObject({
+      kind: "wait",
+      takenOver: true,
+    })
+  })
+
+  it("drives again once the person who took over let go", () => {
+    expect(ask(EMPTY_FRAME_CONTROL, { takenBy: ZACK }).kind).toBe("drive")
+    expect(ask(EMPTY_FRAME_CONTROL, { heldBefore: true }).kind).toBe("drive")
+  })
+})
+
 describe("agentLetsGo", () => {
   const presence = { online: new Set([ZACK]), goneAt: new Map() }
 
@@ -116,6 +173,7 @@ function fakeBackend(
   unavailable: string | null = null
 ) {
   const ops: DriveOp[] = []
+  const reveals: string[] = []
   const backend: FrameDriveBackend = {
     unavailable: async () => unavailable,
     run: async (_frameId, op) => {
@@ -123,8 +181,12 @@ function fakeBackend(
       return answer()
     },
     screenshot: async () => ({ status: "unavailable", reason: "no shell" }),
+    reveal: async (frameId) => {
+      reveals.push(frameId)
+      return null
+    },
   }
-  return { backend, ops }
+  return { backend, ops, reveals }
 }
 
 function makeDriver(backend: FrameDriveBackend) {
@@ -256,5 +318,103 @@ describe("AgentFrameDriver", () => {
     fireIdle()
     await Promise.resolve()
     expect(store.records.get(`f2:${ZACK}`)).toEqual(record(ZACK))
+  })
+
+  describe("started from a chat ask", () => {
+    it("shows: drives the asker's frame, brings it into view, and paces every step", async () => {
+      const { backend, ops, reveals } = fakeBackend()
+      const { driver, store } = makeDriver(backend)
+      // The person is interacting with the frame when they ask.
+      store.records.set(`f1:${ZACK}`, record(ZACK))
+      expect(await driver.start("f1", { asker: ZACK, pace: "show" })).toEqual({
+        status: "driving",
+      })
+      expect(reveals).toEqual(["f1"])
+      expect(store.records.get(`f1:${ZACK}`)?.driver).toBe(AGENT_PARTY)
+      await driver.run("f1", CLICK)
+      expect(ops).toEqual([{ ...CLICK, pace: "show" }])
+    })
+
+    it("jumps: no animation, and nobody's view moves", async () => {
+      const { backend, ops, reveals } = fakeBackend()
+      const { driver } = makeDriver(backend)
+      await driver.start("f1", { asker: ZACK, pace: "jump" })
+      await driver.run("f1", CLICK)
+      expect(reveals).toEqual([])
+      expect(ops).toEqual([{ ...CLICK, pace: "jump" }])
+    })
+
+    it("plays steps at once again after it lets go", async () => {
+      const { backend, ops } = fakeBackend()
+      const { driver } = makeDriver(backend)
+      await driver.start("f1", { asker: ZACK, pace: "show" })
+      await driver.letGo("f1")
+      await driver.run("f1", CLICK)
+      expect(ops).toEqual([CLICK])
+    })
+
+    it("doesn't take the frame back from the person who took over", async () => {
+      const { backend, ops, reveals } = fakeBackend()
+      const { driver, store } = makeDriver(backend)
+      await driver.start("f1", { asker: ZACK, pace: "show" })
+      const key = `f1:${ZACK}`
+      store.records.set(
+        key,
+        reduceFrameControl(store.records.get(key)!, {
+          type: "request",
+          by: ZACK,
+          at: 200,
+        })
+      )
+      expect(await driver.run("f1", CLICK)).toMatchObject({
+        status: "wait",
+        takenOver: true,
+      })
+      // Asked again in chat while they still drive: it still waits.
+      expect(await driver.start("f1", { asker: ZACK, pace: "show" })).toEqual({
+        status: "wait",
+        driver: ZACK,
+        takenOver: true,
+      })
+      expect(store.records.get(key)?.driver).toBe(ZACK)
+      expect(ops).toEqual([])
+      expect(reveals).toEqual(["f1"])
+    })
+
+    it("doesn't take the frame back after a take-over the canvas saw mid-step", async () => {
+      const key = `f1:${ZACK}`
+      const records = { current: new Map<string, FrameControlRecord>() }
+      // The person presses Interact while the cursor glides: the canvas
+      // refuses the step.
+      const { backend, reveals } = fakeBackend(() => {
+        records.current.set(key, record(ZACK))
+        return { status: "taken" }
+      })
+      const { driver, store } = makeDriver(backend)
+      records.current = store.records
+      await driver.start("f1", { asker: ZACK, pace: "show" })
+      expect(await driver.run("f1", CLICK)).toEqual({
+        status: "wait",
+        driver: ZACK,
+        takenOver: true,
+      })
+      expect(await driver.start("f1", { asker: ZACK, pace: "show" })).toEqual({
+        status: "wait",
+        driver: ZACK,
+        takenOver: true,
+      })
+      expect(store.records.get(key)?.driver).toBe(ZACK)
+      expect(reveals).toEqual(["f1"])
+    })
+
+    it("says so when the canvas can't be reached", async () => {
+      const { backend } = fakeBackend(() => DONE, "the canvas isn't open")
+      const { driver, store } = makeDriver(backend)
+      expect(await driver.start("f1", { asker: ZACK, pace: "show" })).toEqual({
+        status: "unavailable",
+        reason: "the canvas isn't open",
+      })
+      expect(store.records.size).toBe(0)
+    })
   })
 })

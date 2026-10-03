@@ -132,6 +132,8 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
   find_code_files: FolderOpenIcon,
   view_frame: EyeIcon,
   read_frame_html: CodeIcon,
+  frame_start_driving: CursorIcon,
+  frame_open: AppWindowIcon,
   frame_elements: ListBulletsIcon,
   frame_screenshot: EyeIcon,
   frame_click: CursorIcon,
@@ -186,6 +188,8 @@ const toolLabels: Record<string, string> = {
   find_code_files: "Find files",
   view_frame: "View frame",
   read_frame_html: "Read frame HTML",
+  frame_start_driving: "Start driving",
+  frame_open: "Open frame",
   frame_elements: "Read frame elements",
   frame_screenshot: "Look at frame",
   frame_click: "Click",
@@ -326,7 +330,58 @@ function toolDetail(title: string, raw: unknown): string | null {
   if (title === "run_command") return toolCommand(raw)
   if (title === "read_skill") return (rawInput.name as string) ?? null
   if (title === "set_document_title") return (rawInput.title as string) ?? null
+  if (title.startsWith("frame_")) return driveDetail(title, rawInput)
   return toolPath(raw)
+}
+
+/**
+ * What a Frame Drive step acted on, so each step of a drive reads as a short
+ * line in chat (#1390): Click `Save`, Type `Ada`, Press key `Enter`.
+ */
+function driveDetail(
+  title: string,
+  input: Record<string, unknown>
+): string | null {
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null)
+  const target = (t: unknown): string | null => {
+    if (!t || typeof t !== "object") return null
+    const r = t as Record<string, unknown>
+    if (str(r.text)) return str(r.text)
+    if (str(r.selector)) return str(r.selector)
+    return typeof r.x === "number" && typeof r.y === "number"
+      ? `${Math.round(r.x)}, ${Math.round(r.y)}`
+      : null
+  }
+  switch (title) {
+    case "frame_click":
+      return target(input.target)
+    case "frame_type":
+      return str(input.text)
+    case "frame_select":
+      return str(input.value)
+    case "frame_key": {
+      const mods = (input.modifiers ?? {}) as Record<string, unknown>
+      const names = [
+        mods.ctrlKey && "Ctrl",
+        mods.altKey && "Alt",
+        mods.shiftKey && "Shift",
+        mods.metaKey && "Cmd",
+      ].filter((m): m is string => !!m)
+      const key = str(input.key)
+      return key ? [...names, key].join("+") : null
+    }
+    case "frame_drag": {
+      const from = target(input.target)
+      const to = target(input.to)
+      return from && to ? `${from} → ${to}` : from
+    }
+    case "frame_scroll":
+      return target(input.target)
+    case "frame_open":
+      return str(input.route)
+    default:
+      return null
+  }
 }
 
 /**
