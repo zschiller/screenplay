@@ -17,6 +17,7 @@ import type {
   FrameDriverView,
   FrameRequesterView,
 } from "@/components/canvas/use-frame-control"
+import type { LiveFace } from "@/components/canvas/use-shared-frames"
 import { useIframeBridgePort } from "@/hooks/use-bridge-port"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import {
@@ -529,6 +530,7 @@ export function livePageChrome({
   focused,
   live = false,
   liveDriver,
+  liveFaces,
   onLiveCopy = false,
 }: {
   driver: FrameDriverView
@@ -537,6 +539,8 @@ export function livePageChrome({
   live?: boolean
   /** Who drives the live copy. */
   liveDriver?: FrameDriverView
+  /** The faces on the live page, for the Live tag (#1519). */
+  liveFaces?: readonly LiveFace[]
   /** This viewer sees the live copy (not their own). */
   onLiveCopy?: boolean
 }): { titleTag: ReactNode; resizable: boolean } {
@@ -548,7 +552,7 @@ export function livePageChrome({
     titleTag: drivenByOther(tagDriver) ? (
       <FrameDriverTag driver={tagDriver} />
     ) : live ? (
-      <FrameLiveTag />
+      <FrameLiveTag faces={liveFaces} />
     ) : undefined,
     resizable: !focused && !drivenByOther(tagDriver),
   }

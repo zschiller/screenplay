@@ -345,6 +345,17 @@ export function frameDriverFor(
   return { kind: "person", id: driver }
 }
 
+/**
+ * Whether this viewer writes where a live frame's page went to the room. The
+ * person driving records their own steps; while nobody drives, or the agent
+ * does (it has no canvas of its own), every view records it, since they all
+ * write the same route. That keeps the room's route right for own copies
+ * after live ends and for reloads.
+ */
+export function recordsLiveRoute(driver: FrameDriver): boolean {
+  return driver.kind !== "person"
+}
+
 /** Someone other than the viewer drives the frame. */
 export function drivenByOther(driver: FrameDriver): boolean {
   return driver.kind === "agent" || driver.kind === "person"
