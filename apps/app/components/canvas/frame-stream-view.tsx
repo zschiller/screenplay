@@ -7,6 +7,7 @@ import {
   type FrameStreamConnection,
 } from "@/lib/frame-stream/client"
 import {
+  FRAME_STREAM_COLOR_SPACE,
   h264CodecOf,
   modifiersOf,
   mouseButtonOf,
@@ -127,7 +128,11 @@ export function FrameStreamView({
           configured = null
         }
         if (codec !== configured) {
-          decoder.configure({ codec, optimizeForLatency: true })
+          decoder.configure({
+            codec,
+            optimizeForLatency: true,
+            colorSpace: FRAME_STREAM_COLOR_SPACE,
+          })
           configured = codec
         }
         waitingForKey = false
