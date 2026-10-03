@@ -27,6 +27,7 @@ import { GitHubConnectionPanel } from "./github-connection-panel"
 import { HarnessSetupPanel } from "./harness-setup-panel"
 import { DefaultAgentPicker } from "./default-agent-picker"
 import { RepoConfigsPanel } from "./repo-configs-panel"
+import { AccountMemoryPanel } from "@/components/memory/account-memory-panel"
 import {
   SettingsRow,
   SettingsRowList,
@@ -118,6 +119,12 @@ const SECTIONS: SettingsSection[] = [
     description:
       "Your repositories and how each one runs. Every canvas can use them.",
     content: (header) => <RepoConfigsPanel header={header} />,
+  },
+  {
+    id: "memory",
+    title: "Memory",
+    description: "What every chat you message knows about you, on any canvas.",
+    content: (header) => <AccountMemoryPanel header={header} />,
   },
   {
     id: "account",

@@ -2,8 +2,10 @@ import "server-only"
 
 import { buildAgentSystemPrompt, type LayerDirectory } from "./config"
 import {
+  loadAccountMemory,
   loadCanvasMemory,
   loadLayerDirectory,
+  turnSender,
   type ChatTargetSpec,
 } from "./chat-target-kinds"
 import { prependTurnMarkers } from "./message-markers"
@@ -32,6 +34,9 @@ export interface WorkspaceTarget {
   chatId: string
   /** The member the turn acts for, whose GitHub account git and PRs use. */
   userId: string
+  /** No person sent this turn (a Coordinator wake delegated it), so it reads
+   *  no account memory (#1513). Otherwise `userId` sent it. */
+  senderless?: boolean
 }
 
 export interface WorkspaceContext {
@@ -44,6 +49,8 @@ export interface WorkspaceContext {
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
+  /** The sender's account memory (#1513). */
+  accountMemory: MemoryData[]
 }
 
 export const workspaceChatTarget: ChatTargetSpec<
@@ -54,28 +61,31 @@ export const workspaceChatTarget: ChatTargetSpec<
   // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
   // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
   // the per-Agent prompt.
-  async loadContext(room, { sandboxName, chatId }) {
-    const [branch, layerDirectory, skills, memory, files] = await Promise.all([
-      room
-        .readDoc(({ branches, repos }) => {
-          // `toArray` is a cached snapshot; read the Branch itself fresh.
-          const id = branches
-            .toArray()
-            .find((a) => a.sandboxName === sandboxName)?.id
-          const branch = id ? branches.get(id) : undefined
-          if (!branch) return undefined
-          return {
-            ref: branch.ref,
-            autoNamed: branch.autoNamedBranch !== false,
-            systemPrompt: repos.get(branch.repoId)?.systemPrompt,
-          }
-        })
-        .catch(() => undefined),
-      loadLayerDirectory(room),
-      getMergedSkillIndexForSandbox(sandboxName),
-      loadCanvasMemory(room),
-      loadCanvasFiles(room),
-    ])
+  async loadContext(room, target) {
+    const { sandboxName, chatId } = target
+    const [branch, layerDirectory, skills, memory, files, accountMemory] =
+      await Promise.all([
+        room
+          .readDoc(({ branches, repos }) => {
+            // `toArray` is a cached snapshot; read the Branch itself fresh.
+            const id = branches
+              .toArray()
+              .find((a) => a.sandboxName === sandboxName)?.id
+            const branch = id ? branches.get(id) : undefined
+            if (!branch) return undefined
+            return {
+              ref: branch.ref,
+              autoNamed: branch.autoNamedBranch !== false,
+              systemPrompt: repos.get(branch.repoId)?.systemPrompt,
+            }
+          })
+          .catch(() => undefined),
+        loadLayerDirectory(room),
+        getMergedSkillIndexForSandbox(sandboxName),
+        loadCanvasMemory(room),
+        loadCanvasFiles(room),
+        loadAccountMemory(turnSender(target)),
+      ])
     return {
       chatId,
       branch: branch && { ref: branch.ref, autoNamed: branch.autoNamed },
@@ -84,6 +94,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       skills,
       memory,
       files,
+      accountMemory,
     }
   },
   buildSystemPrompt(ctx, naming) {
@@ -94,6 +105,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       skills: ctx.skills,
       memory: ctx.memory,
       files: ctx.files,
+      accountMemory: ctx.accountMemory,
       toolNaming: naming,
     })
   },

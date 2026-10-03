@@ -7,6 +7,7 @@ const meta = {
   documents: "Documents",
   mockups: "Mockups",
   coordinator: "The Coordinator",
+  memory: "Memory",
   agent: "Workspace chats",
   terminals: "Terminal tabs",
   "play-mode": "Play mode",

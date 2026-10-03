@@ -2,7 +2,7 @@ import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
 import type { FileEntryData, MarkdownLayerData, MemoryData } from "@/lib/types"
 import { fileEntryLine } from "@/lib/files/paths"
-import { MEMORY_PROMPT_LIMIT } from "@/lib/canvas/memory"
+import { MEMORY_PROMPT_LIMIT } from "@/lib/memory/canvas"
 import {
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
@@ -70,11 +70,37 @@ export function renderCanvasMemory(
   memory: readonly Pick<MemoryData, "id" | "text">[] | undefined,
   opts: { withIds?: boolean } = {}
 ): string {
+  return renderMemory(
+    "Canvas memory (preferences, decisions and facts saved for this canvas; follow them unless the user says otherwise):",
+    memory,
+    opts
+  )
+}
+
+/**
+ * Renders the sender's account memory (#1513) as its own block beside canvas
+ * memory: the preferences of the person who sent the turn, from every canvas.
+ * A turn nobody sent (a Coordinator wake) passes none and gets no block.
+ */
+export function renderAccountMemory(
+  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined
+): string {
+  return renderMemory(
+    "Account memory (preferences of the person who sent this message, saved across all their canvases; follow them unless they say otherwise):",
+    memory
+  )
+}
+
+function renderMemory(
+  heading: string,
+  memory: readonly Pick<MemoryData, "id" | "text">[] | undefined,
+  opts: { withIds?: boolean } = {}
+): string {
   if (!memory || memory.length === 0) return ""
   const kept = memory.slice(-MEMORY_PROMPT_LIMIT)
   return [
     "",
-    "Canvas memory (preferences, decisions and facts saved for this canvas; follow them unless the user says otherwise):",
+    heading,
     ...kept.map((m) =>
       opts.withIds ? `- [${m.id}] ${m.text}` : `- ${m.text}`
     ),
@@ -248,6 +274,8 @@ export function buildAgentSystemPrompt(opts: {
   skills: OriginTaggedSkill[]
   memory?: readonly MemoryData[]
   files?: readonly FileEntryData[]
+  /** The sender's account memory (#1513); none on a turn nobody sent. */
+  accountMemory?: readonly MemoryData[]
   toolNaming?: ToolNaming
 }): string {
   const { repoSystemPrompt, layerDirectory, skills, memory } = opts
@@ -270,12 +298,14 @@ export function buildAgentSystemPrompt(opts: {
     ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
     : ""
   const directoryBlock = renderLayerDirectory(layerDirectory, t, opts.chatId)
+  const accountBlock = renderAccountMemory(opts.accountMemory)
   const memoryBlock = renderCanvasMemory(memory)
   return (
     agentSystemPromptBase(naming) +
     skillsBlock +
     agentSystemPromptTail(naming) +
     repoBlock +
+    (accountBlock ? `\n${accountBlock}` : "") +
     (memoryBlock ? `\n${memoryBlock}` : "") +
     `\n${renderCanvasFiles(opts.files, t)}` +
     (directoryBlock ? `\n${directoryBlock}` : "")
@@ -295,6 +325,8 @@ export function buildSketchSystemPrompt(opts: {
   skills: readonly SkillMetadata[]
   memory?: readonly MemoryData[]
   files?: readonly FileEntryData[]
+  /** The sender's account memory (#1513); none on a turn nobody sent. */
+  accountMemory?: readonly MemoryData[]
   toolNaming?: ToolNaming
 }): string {
   const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
@@ -303,6 +335,7 @@ export function buildSketchSystemPrompt(opts: {
     t,
     opts.chatId
   )
+  const accountBlock = renderAccountMemory(opts.accountMemory)
   const memoryBlock = renderCanvasMemory(opts.memory)
   return [
     "You are a design and writing partner on a collaborative canvas in Screenplay. This chat has no repository: there is no code, sandbox or dev server here, and you can't run commands. You make two things on the canvas: Documents and Mockups.",
@@ -326,6 +359,7 @@ export function buildSketchSystemPrompt(opts: {
       : []),
     "",
     "Keep replies short: say what you made and where it is.",
+    ...(accountBlock ? [accountBlock] : []),
     ...(memoryBlock ? [memoryBlock] : []),
     renderCanvasFiles(opts.files, t),
     ...(directoryBlock ? [directoryBlock] : []),
@@ -344,6 +378,8 @@ export function buildRoomSystemPrompt(opts: {
   canvasSummary: string
   memory?: readonly MemoryData[]
   files?: readonly FileEntryData[]
+  /** The sender's account memory (#1513); none on a wake nobody sent. */
+  accountMemory?: readonly MemoryData[]
   skills?: readonly SkillMetadata[]
   toolNaming?: ToolNaming
 }): string {
@@ -410,6 +446,7 @@ export function buildRoomSystemPrompt(opts: {
     `- Every chat on this canvas, yours and each Workspace agent's, reads the canvas memory below. Only you write it, with \`${t("write_memory")}\`.`,
     "- Save a preference, decision or fact about the repositories when the user states one, asks you to remember something, or you learn one that later chats would otherwise have to ask for. One short, self-contained sentence per entry.",
     "- Edit an entry that has become wrong rather than adding a contradicting one, and remove one the user asks you to forget. Never save secrets or credentials.",
+    "- Account memory, when shown, is the preferences of the person who sent this message, from all their canvases. Follow it, but you can't change it: they edit it in Settings › Memory.",
     "",
     `Mentions: the user's message may reference canvas documents as \`${MENTION_MARKER_TOKEN}\` markers, listed with their ids under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer; read them with \`${t("read_document")}\`.`,
     "",
@@ -419,6 +456,7 @@ export function buildRoomSystemPrompt(opts: {
     "",
     "Canvas summary:",
     opts.canvasSummary || "(the canvas is empty)",
+    ...[renderAccountMemory(opts.accountMemory)].filter(Boolean),
     renderCanvasMemory(opts.memory, { withIds: true }) ||
       "\nCanvas memory: (empty)",
     renderCanvasFiles(opts.files, t),

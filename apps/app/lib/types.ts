@@ -234,15 +234,19 @@ export type TerminalTabData = {
 }
 
 /**
- * One entry of **canvas memory** (#902): a preference, decision or fact every
- * chat on the canvas reads. Written by the Coordinator's `write_memory` tool
- * or by a member in Canvas settings › Memory (`lib/canvas/memory.ts`).
+ * One memory entry: a preference, decision or fact chats read in their system
+ * prompt. **Canvas memory** (#902) lives in the Room's Y.Doc and every chat on
+ * the canvas reads it; **account memory** (#1513) is stored per person and
+ * every chat they send a turn in reads it (`lib/memory`).
  */
 export type MemoryData = {
   id: string
   text: string
-  /** Who saved it: the Coordinator, or a member in Canvas settings. */
-  source: "coordinator" | "member"
+  /**
+   * Who saved it: an agent, or a person in settings. Entries saved before
+   * #1513 say `coordinator`; read them through `memorySource`, as `agent`.
+   */
+  source: "agent" | "member" | "coordinator"
   createdAt: number
   updatedAt: number
 }

@@ -9,6 +9,21 @@ vi.mock("@/lib/terminal-tabs", () => ({
   listTerminalTabs: vi.fn().mockResolvedValue([]),
 }))
 
+// Account memory (#1513) per person, in memory instead of the encrypted KV.
+const accountStores = vi.hoisted(
+  () => new Map<string, import("@/lib/memory/account").AccountMemoryStore>()
+)
+vi.mock("@/lib/memory/account-store", async () => {
+  const { inMemoryAccountMemoryStore } = await import("@/lib/memory/account")
+  return {
+    kvAccountMemoryStore: (userId: string) => {
+      if (!accountStores.has(userId))
+        accountStores.set(userId, inMemoryAccountMemoryStore())
+      return accountStores.get(userId)!
+    },
+  }
+})
+
 import type { ChatTargetSpec } from "@/lib/agent/chat-target-kinds"
 import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
@@ -20,7 +35,9 @@ import {
   type ToolNaming,
 } from "@/lib/agent/tool-name"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
-import { addMemory } from "@/lib/canvas/memory"
+import { addMemory } from "@/lib/memory/canvas"
+import { addAccountMemory } from "@/lib/memory/account"
+import { kvAccountMemoryStore } from "@/lib/memory/account-store"
 import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
 import { buildViewTools } from "@/lib/agent/room-view-tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
@@ -97,6 +114,7 @@ describe("room chat target", () => {
         canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"',
         memory: [],
         files: [],
+        accountMemory: [],
       },
       BARE_TOOL_NAMING
     )
@@ -108,7 +126,7 @@ describe("room chat target", () => {
 
   it("sends the next ask to a fresh Workspace instead of planning one (#1182)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [], files: [] },
+      { canvasSummary: "", memory: [], files: [], accountMemory: [] },
       BARE_TOOL_NAMING
     )
 
@@ -119,7 +137,7 @@ describe("room chat target", () => {
 
   it("lists the Coordinator's Skills, and only those, in its prompt (#905)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [], files: [] },
+      { canvasSummary: "", memory: [], files: [], accountMemory: [] },
       BARE_TOOL_NAMING
     )
 
@@ -246,7 +264,7 @@ describe("the Coordinator only delegates", () => {
 
   it("tells the Coordinator to start a chat for a Document or Mockup", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
-      { canvasSummary: "", memory: [], files: [] },
+      { canvasSummary: "", memory: [], files: [], accountMemory: [] },
       BARE_TOOL_NAMING
     )
 
@@ -396,6 +414,94 @@ describe("canvas files in every kind's system prompt", () => {
   it("says there are none yet on a canvas with no files", async () => {
     const { Coordinator } = await prompts(roomWithFiles(0))
     expect(Coordinator).toContain("(none yet)")
+  })
+})
+
+/**
+ * Account memory (#1513): each kind loads the account memory of the person
+ * who sent the turn, not the chat's starter; a turn nobody sent loads none.
+ */
+describe("account memory at chat target loading", () => {
+  async function setup() {
+    accountStores.clear()
+    await addAccountMemory(kvAccountMemoryStore("ana"), {
+      text: "Ana: plain UI copy.",
+      source: "member",
+    })
+    await addAccountMemory(kvAccountMemoryStore("ben"), {
+      text: "Ben: small fixes over redesigns.",
+      source: "agent",
+    })
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { repoId: "repo-1", sandboxName: "sb-1" })
+    )
+    const room: RoomDoc = {
+      roomId: "room-1",
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+    return room
+  }
+
+  const kinds = {
+    Workspace: async (
+      room: RoomDoc,
+      target: { userId: string; senderless?: boolean }
+    ) => {
+      const ctx = await workspaceChatTarget.loadContext(room, {
+        sandboxName: "sb-1",
+        chatId: "chat-1",
+        ...target,
+      })
+      return workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+    },
+    sketch: async (
+      room: RoomDoc,
+      target: { userId: string; senderless?: boolean }
+    ) => {
+      const ctx = await sketchChatTarget.loadContext(room, {
+        chatId: "chat-1",
+        ...target,
+      })
+      return sketchChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+    },
+    Coordinator: async (
+      room: RoomDoc,
+      target: { userId: string; senderless?: boolean }
+    ) => {
+      const ctx = await roomChatTarget.loadContext(room, target)
+      return roomChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+    },
+  }
+
+  for (const [kind, load] of Object.entries(kinds)) {
+    it(`reads the sender's account memory in a ${kind} chat`, async () => {
+      const room = await setup()
+      const prompt = await load(room, { userId: "ben" })
+      expect(prompt).toContain("Account memory (")
+      expect(prompt).toContain("- Ben: small fixes over redesigns.")
+      expect(prompt).not.toContain("Ana:")
+    })
+
+    it(`reads no account memory on a ${kind} turn nobody sent`, async () => {
+      const room = await setup()
+      const prompt = await load(room, { userId: "ana", senderless: true })
+      expect(prompt).not.toContain("Account memory (")
+      expect(prompt).not.toContain("Ana:")
+    })
+  }
+
+  it("leaves the block out when the store can't be read", async () => {
+    const room = await setup()
+    accountStores.set("ana", {
+      load: () => Promise.reject(new Error("kv down")),
+      save: async () => {},
+    })
+    const prompt = await kinds.Workspace(room, { userId: "ana" })
+    expect(prompt).not.toContain("Account memory (")
   })
 })
 
@@ -675,6 +781,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
         layerDirectory: { documents: [] },
         memory: [],
         files: [],
+        accountMemory: [],
       },
       BARE_TOOL_NAMING
     )
@@ -722,6 +829,7 @@ describe("every kind's prompt names only tools its turn has", () => {
             ],
             memory,
             files: [],
+            accountMemory: [],
           },
           naming
         ),
@@ -731,7 +839,12 @@ describe("every kind's prompt names only tools its turn has", () => {
       tools: () => roomChatTarget.tools(room, { userId: "user-1" }),
       prompt: (naming: ToolNaming) =>
         roomChatTarget.buildSystemPrompt(
-          { canvasSummary: "Documents (1)", memory, files: [] },
+          {
+            canvasSummary: "Documents (1)",
+            memory,
+            files: [],
+            accountMemory: [],
+          },
           naming
         ),
     },
@@ -741,7 +854,13 @@ describe("every kind's prompt names only tools its turn has", () => {
         sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" }),
       prompt: (naming: ToolNaming) =>
         sketchChatTarget.buildSystemPrompt(
-          { chatId: "chat-1", layerDirectory, memory, files: [] },
+          {
+            chatId: "chat-1",
+            layerDirectory,
+            memory,
+            files: [],
+            accountMemory: [],
+          },
           naming
         ),
     },

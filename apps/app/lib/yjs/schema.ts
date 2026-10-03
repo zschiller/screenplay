@@ -34,7 +34,7 @@ export const COLLECTION_KEYS = {
   mockupLayers: "mockupLayers",
   chatSessions: "chatSessions",
   plans: "plans",
-  /** Canvas memory entries (#902), `lib/canvas/memory.ts`. */
+  /** Canvas memory entries (#902), `lib/memory/canvas.ts`. */
   memories: "memories",
   /** Canvas Files entries (#1514), `lib/files/canvas-files.ts`. */
   files: "files",

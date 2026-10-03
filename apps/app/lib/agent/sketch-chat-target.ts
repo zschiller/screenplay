@@ -2,8 +2,10 @@ import "server-only"
 
 import { buildSketchSystemPrompt, type LayerDirectory } from "./config"
 import {
+  loadAccountMemory,
   loadCanvasMemory,
   loadLayerDirectory,
+  turnSender,
   type ChatTargetSpec,
 } from "./chat-target-kinds"
 import { prependTurnMarkers } from "./message-markers"
@@ -24,6 +26,9 @@ export interface SketchTarget {
   chatId: string
   /** The member the turn acts for, in whose view it drives a Mockup. */
   userId: string
+  /** No person sent this turn (a Coordinator wake delegated it), so it reads
+   *  no account memory (#1513). Otherwise `userId` sent it. */
+  senderless?: boolean
 }
 
 export interface SketchContext {
@@ -31,18 +36,27 @@ export interface SketchContext {
   layerDirectory: LayerDirectory
   memory: MemoryData[]
   files: FileEntryData[]
+  /** The sender's account memory (#1513). */
+  accountMemory: MemoryData[]
 }
 
 /** No sandbox: Documents and Mockups only, and nothing that touches code. */
 export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
   kind: "sketch",
   async loadContext(room, target) {
-    const [layerDirectory, memory, files] = await Promise.all([
+    const [layerDirectory, memory, files, accountMemory] = await Promise.all([
       loadLayerDirectory(room),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
+      loadAccountMemory(turnSender(target)),
     ])
-    return { chatId: target.chatId, layerDirectory, memory, files }
+    return {
+      chatId: target.chatId,
+      layerDirectory,
+      memory,
+      files,
+      accountMemory,
+    }
   },
   buildSystemPrompt(ctx, naming) {
     return buildSketchSystemPrompt({
@@ -51,6 +65,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
       skills: sketchSkillIndex(),
       memory: ctx.memory,
       files: ctx.files,
+      accountMemory: ctx.accountMemory,
       toolNaming: naming,
     })
   },
