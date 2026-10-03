@@ -50,9 +50,9 @@ Screenplay ships three skills, marked **Built in** in the menu:
 
 | Skill                             | What it teaches                                                                                                                                  |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `screenplay-add-knob`             | Adding [knobs](/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs.                       |
+| `screenplay-add-knob`             | Adding [knobs](/guides/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs.                       |
 | `screenplay-explore-with-mockups` | Exploring a design as [mockups](/guides/mockups), asking you to pick at forks, and [building the take you choose](/guides/mockups#building-one). |
-| `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/building/shared-state).                                                                     |
+| `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/guides/building/shared-state).                                                                     |
 
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
@@ -124,6 +124,25 @@ confirm. Account skills work the same on the desktop app.
   name="settings-skills"
   alt="Settings open on Skills, listing two account skills"
 />
+
+## Saved skills in Claude Code and Codex
+
+On the Mac app, chats that run on Claude Code or Codex get the canvas's
+skills and your account skills as the agent's own skills, so you can also
+invoke one the agent's way (`/name` in Claude Code, `$name` in Codex) and it
+can read the files saved beside its `SKILL.md`. Before every message,
+Screenplay writes them to a folder in its app data, outside your checkout,
+and hands that folder to the agent, which loads skills from it without
+asking. A skill you delete is gone from the next message, and nothing is
+ever written into your repository. When a canvas skill and an account skill
+share a name, only the canvas's is written; one that shares a name with a
+repository skill isn't written at all, since the agent already loads the
+repository's from the checkout.
+
+One exception to the order above: if a skill in your own `~/.claude/skills/`
+has the same name as a canvas or account skill, Claude Code runs yours when
+it invokes that skill itself, by name or with `/name`. Give them different
+names to avoid this.
 
 ## What a saved skill can do
 

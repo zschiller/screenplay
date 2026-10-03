@@ -43,7 +43,7 @@ pnpm install
 | `apps/homepage` | The marketing site | 3001 |
 | `apps/docs` | This site (Nextra) | 3002 |
 | `apps/desktop` | The Tauri shell that packages `apps/app` as the desktop app | — |
-| `packages/screenplay-knobs`, `packages/screenplay-state` | The npm packages apps use to declare [knobs](/building/knobs) and [shared state](/building/shared-state) | — |
+| `packages/screenplay-knobs`, `packages/screenplay-state` | The npm packages apps use to declare [knobs](/guides/building/knobs) and [shared state](/guides/building/shared-state) | — |
 | `packages/ui` | Shared shadcn/ui components | — |
 
 `apps/app/CONTEXT.md` is the glossary for the product's domain language.
@@ -136,6 +136,22 @@ pnpm --filter desktop build           # package Screenplay.app
 This needs the Rust and Tauri toolchains. See
 [Desktop app](/self-hosting/configuration/desktop-app).
 
+### Releasing the desktop app
+
+Releases are cut on a Mac with one command:
+
+```bash
+pnpm --filter desktop release patch   # or minor, major, or an exact X.Y.Z
+```
+
+It bumps the version, builds a signed and notarized `.dmg`, checks it with
+Gatekeeper, then commits the bump, tags `desktop-v<version>` and publishes a
+[GitHub Release](https://github.com/zschiller/screenplay/releases) with the
+`.dmg` attached. Nothing is tagged or published unless the build verifies. It
+needs Node 23 or later, the `gh` CLI signed in, a clean working tree, and the
+Apple signing keys in `apps/desktop/.env.release` (copy
+`.env.release.example`).
+
 ## Screenshots for design review
 
 Design-polish tickets ship before/after screenshots on the PR. The screenshot
@@ -147,7 +163,7 @@ pnpm --filter app screenshots:boot    # a browsable, fully-populated local build
 pnpm --filter app screenshots:shots --screens canvas   # named screens, both themes
 ```
 
-See [Screenshots](/screenshots) for the before/after workflow,
+The [harness README](https://github.com/zschiller/screenplay/blob/main/apps/app/screenshots/README.md) covers the before/after workflow,
 how to add a screen, and what the local build leaves out.
 
 ## Writing docs
@@ -165,7 +181,7 @@ light and a dark variant (`name.light.webp`, `name.dark.webp`). Embed one with:
 
 The component shows the variant that matches the reader's theme. Every
 screenshot is generated: run `pnpm --filter docs screenshots` to regenerate them
-after a UI change, and see [Docs screenshots](/screenshots#docs-screenshots) to
+after a UI change, and see [Docs screenshots](https://github.com/zschiller/screenplay/blob/main/apps/app/screenshots/README.md#docs-screenshots) to
 add one.
 
 ## Issues

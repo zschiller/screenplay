@@ -6,7 +6,6 @@ import { Callout } from "./components/callout"
 import {
   ArchitectureDiagram,
   ConceptsDiagram,
-  ScreenshotsFolderDiagram,
 } from "./components/diagram/diagrams"
 import { Screenshot } from "./components/screenshot"
 
@@ -40,7 +39,6 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
     ArchitectureDiagram,
     Callout,
     ConceptsDiagram,
-    ScreenshotsFolderDiagram,
     Screenshot,
     // A full-width table in a scroll container, like the stock shadcn Table.
     // Nextra's own makes the table itself the scroller, so it can't fill the column.

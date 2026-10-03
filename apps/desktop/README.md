@@ -65,7 +65,7 @@ pnpm --filter desktop build           # build:sidecar + tauri build → Screenpl
 
 Prerequisites: the Rust + Tauri toolchain (`cargo`, system WebView), and `node`
 on `PATH`. Out of scope per the PRD: auto-update. (Code signing and the dmg
-installer are handled by the release workflow — see below.)
+installer are handled by the release script — see below.)
 
 ## Releasing
 
@@ -75,16 +75,16 @@ check: a full sidecar + Tauri build needs a macOS runner (10x billed minutes),
 which isn't worth paying for until the app is release-ready. The build is
 exercised when a release is cut:
 
-- **`desktop-release.yml`** — manual (workflow_dispatch, knobs-style): bumps
-  the version across `package.json` / `tauri.conf.json` / `Cargo.toml`, builds
-  a **Developer ID-signed and notarized dmg**, tags `desktop-v<version>`,
-  publishes a GitHub Release with the dmg attached, and opens a PR to sync the
-  bump into `main`. Signing and notarization are driven entirely by `APPLE_*`
-  secrets read by Tauri's bundler; the required secrets (and how to mint them)
-  are documented in the workflow header. The optional
-  `SCREENPLAY_GITHUB_CLIENT_ID` repo *variable* is compiled into the shell
-  (`option_env!` in `sidecar.rs`) to enable the "Connect GitHub" device flow
-  in released builds.
+- **`pnpm --filter desktop release <patch|minor|major|X.Y.Z>`**
+  (`scripts/release.mjs`), run on a Mac: bumps the version across
+  `package.json` / `tauri.conf.json` / `Cargo.toml`, builds a **Developer
+  ID-signed and notarized dmg**, verifies it with Gatekeeper, then commits the
+  bump, tags `desktop-v<version>` and publishes a GitHub Release with the dmg
+  attached (via `gh`). Signing and notarization read `APPLE_*` variables from a
+  gitignored `.env.release` (see `.env.release.example`). The optional
+  `SCREENPLAY_GITHUB_CLIENT_ID` is compiled into the shell (`option_env!` in
+  `sidecar.rs`) to enable the "Connect GitHub" device flow in released builds.
+  Needs Node 23+ (the script imports TypeScript directly) and a clean tree.
 
 Apple Silicon only for now: `build-sidecar.mjs` ships the build machine's own
 `node` (`process.execPath` — the official nodejs.org build, which is itself
