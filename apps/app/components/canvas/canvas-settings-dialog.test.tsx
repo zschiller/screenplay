@@ -259,20 +259,21 @@ function openMemory() {
 }
 
 describe("CanvasSettingsDialog", () => {
-  it("lists your repositories and the canvas's, switched on or off, with their run scripts", async () => {
+  it("lists the canvas's repositories, then yours to add, with their run scripts", async () => {
     renderDialog()
+    await screen.findByRole("button", { name: "Add api" })
 
-    const api = await screen.findByRole("switch", {
-      name: "Use api on this canvas",
-    })
-    expect(api.getAttribute("aria-checked")).toBe("false")
-    for (const name of ["storefront", "docs"]) {
-      expect(
-        screen
-          .getByRole("switch", { name: `Use ${name} on this canvas` })
-          .getAttribute("aria-checked")
-      ).toBe("true")
-    }
+    const names = (label: string) =>
+      within(screen.getByRole("region", { name: label }))
+        .getAllByRole("button", { name: /^(Add|Remove) / })
+        .map((s) => s.getAttribute("aria-label"))
+    expect(names("On this canvas")).toEqual([
+      "Remove docs",
+      "Remove storefront",
+    ])
+    expect(names("Your other repositories")).toEqual(["Add api"])
+    // No switch: removing takes a repository's chats with it (H3).
+    expect(screen.queryByRole("switch")).toBeNull()
     expect(screen.getAllByText("pnpm install")).toHaveLength(1)
     expect(screen.getByText("go run .")).not.toBeNull()
     expect(screen.getByText("No scripts set")).not.toBeNull()
@@ -283,24 +284,34 @@ describe("CanvasSettingsDialog", () => {
     ).not.toBeNull()
   })
 
-  it("turns one of your repositories on", async () => {
+  it("adds one of your repositories", async () => {
     const { onSwitchOn } = renderDialog()
 
-    fireEvent.click(
-      await screen.findByRole("switch", { name: "Use api on this canvas" })
-    )
+    fireEvent.click(await screen.findByRole("button", { name: "Add api" }))
 
     expect(onSwitchOn).toHaveBeenCalledWith(
       expect.objectContaining({ id: "cfg-api" })
     )
   })
 
-  it("turns a repository without workspaces off straight away", async () => {
+  it("leaves out one of yours the canvas already has under the same name", async () => {
+    // Someone else's acme/api, as the migration or a teammate left it.
+    renderDialog([
+      STOREFRONT,
+      repo({ id: "r4", name: "", repoFullName: "acme/api", repoName: "api" }),
+    ])
+    await screen.findByRole("button", { name: "Remove api" })
+
+    expect(screen.queryByRole("button", { name: "Add api" })).toBeNull()
+    expect(
+      screen.queryByRole("region", { name: "Your other repositories" })
+    ).toBeNull()
+  })
+
+  it("removes a repository without workspaces or changes straight away", async () => {
     const { onRemoveRepo } = renderDialog()
 
-    fireEvent.click(
-      screen.getByRole("switch", { name: "Use docs on this canvas" })
-    )
+    fireEvent.click(await screen.findByRole("button", { name: "Remove docs" }))
 
     expect(onRemoveRepo).toHaveBeenCalledWith("r2", {
       deleteBranchesOnRemote: false,
@@ -308,17 +319,18 @@ describe("CanvasSettingsDialog", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull()
   })
 
-  it("confirms turning off a repository its workspaces use", async () => {
+  it("confirms removing a repository its workspaces use", async () => {
     const { onRemoveRepo } = renderDialog()
 
     fireEvent.click(
-      screen.getByRole("switch", { name: "Use storefront on this canvas" })
+      await screen.findByRole("button", { name: "Remove storefront" })
     )
 
     const confirm = await screen.findByRole("alertdialog")
     expect(within(confirm).getByText("Remove “storefront”?")).not.toBeNull()
     expect(within(confirm).getByText(/Its workspace is removed/)).not.toBeNull()
     expect(within(confirm).getByText("Checkout polish")).not.toBeNull()
+    expect(within(confirm).queryByText(/changes on this canvas/)).toBeNull()
     expect(onRemoveRepo).not.toHaveBeenCalled()
     fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }))
 
@@ -327,6 +339,26 @@ describe("CanvasSettingsDialog", () => {
         deleteBranchesOnRemote: false,
       })
     )
+  })
+
+  it("confirms removing a customized repository, saying its changes are lost", async () => {
+    const customized = {
+      ...STOREFRONT,
+      id: "r5",
+      devScript: "pnpm dev --turbo",
+    }
+    const { onRemoveRepo } = renderDialog([customized, DOCS])
+    await screen.findByRole("img", { name: "Customized for this canvas" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove storefront" }))
+
+    const confirm = await screen.findByRole("alertdialog")
+    expect(
+      within(confirm).getByText(
+        "The repository is removed from this canvas. Its changes on this canvas are lost."
+      )
+    ).not.toBeNull()
+    expect(onRemoveRepo).not.toHaveBeenCalled()
   })
 
   it("says so when you and the canvas have no repository yet", async () => {
@@ -401,7 +433,7 @@ describe("CanvasSettingsDialog", () => {
   it("saves an edit to this canvas only while the box is unticked", async () => {
     const { onUpdateRepo } = renderDialog()
     await waitFor(() => expect(listRepositories).toHaveBeenCalled())
-    await screen.findByRole("switch", { name: "Use api on this canvas" })
+    await screen.findByRole("button", { name: "Add api" })
 
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
     const form = await screen.findByRole("dialog", {
@@ -426,7 +458,7 @@ describe("CanvasSettingsDialog", () => {
   it("saves to Settings and every canvas when the box is ticked", async () => {
     const { onUpdateRepo } = renderDialog()
     await waitFor(() => expect(listRepositories).toHaveBeenCalled())
-    await screen.findByRole("switch", { name: "Use api on this canvas" })
+    await screen.findByRole("button", { name: "Add api" })
 
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
     const form = await screen.findByRole("dialog", {
@@ -462,7 +494,7 @@ describe("CanvasSettingsDialog", () => {
   it("offers no save to all for a repository that isn't in your Settings", async () => {
     renderDialog()
     await waitFor(() => expect(listRepositories).toHaveBeenCalled())
-    await screen.findByRole("switch", { name: "Use api on this canvas" })
+    await screen.findByRole("button", { name: "Add api" })
 
     fireEvent.click(screen.getByRole("button", { name: "Edit docs" }))
     const form = await screen.findByRole("dialog", {
@@ -618,7 +650,7 @@ describe("CanvasSettingsDialog", () => {
   it("offers no reset when the repository matches its Settings", async () => {
     renderDialog()
     await waitFor(() => expect(listRepositories).toHaveBeenCalled())
-    await screen.findByRole("switch", { name: "Use api on this canvas" })
+    await screen.findByRole("button", { name: "Add api" })
 
     expect(
       screen.queryByRole("img", { name: "Customized for this canvas" })

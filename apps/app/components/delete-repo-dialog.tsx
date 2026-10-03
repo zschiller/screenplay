@@ -43,6 +43,8 @@ type DeleteRepoDialogProps = {
   canDeleteOnRemote: boolean
   /** The local build keeps each git branch in the clone on this computer. */
   localBranchKept: boolean
+  /** The Repo was customized for this canvas, so its edits go with it (#1424). */
+  changesLost?: boolean
   onConfirm: (options: { deleteBranchesOnRemote: boolean }) => Promise<void>
 }
 
@@ -59,6 +61,7 @@ export function DeleteRepoDialog({
   workspaces,
   canDeleteOnRemote,
   localBranchKept,
+  changesLost = false,
   onConfirm,
 }: DeleteRepoDialogProps) {
   const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(false)
@@ -90,13 +93,16 @@ export function DeleteRepoDialog({
       verb="Remove"
       itemName={repoName}
       itemNoun="repository"
-      description={
+      description={[
         count === 0
           ? "The repository is removed from this canvas."
           : count === 1
             ? "Its workspace is removed from this canvas, with its chats and frames."
-            : `Its ${count} workspaces are removed from this canvas, with their chats and frames.`
-      }
+            : `Its ${count} workspaces are removed from this canvas, with their chats and frames.`,
+        changesLost && "Its changes on this canvas are lost.",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onConfirm={() => onConfirm({ deleteBranchesOnRemote: remote })}
     >
       {({ pending }) =>

@@ -61,12 +61,14 @@ Above each frame:
 - **Workspace**, with its state icon, unless its
   [group](/guides/canvas#a-groups-workspace) names it because every frame in
   the group shows the same one. Click it to switch the frame's workspace.
+  When the group names it, hover the frame's name and click **Set workspace**
+  to switch just this frame.
 
-Under the selected frame, an address bar shows its workspace and route. Click
-the workspace to point this frame at another one, keeping its route and
-state; this is how you compare workspaces on the same screen. Picking one
-that differs from the other frames in its group moves the workspace from the
-group's title onto each frame's. Click the route to edit
+Switching keeps the frame's route and state; this is how you compare
+workspaces on the same screen. Picking one that differs from the other frames
+in its group moves the workspace from the group's title onto each frame's.
+
+Under the selected frame, an address bar shows its route. Click the route to edit
 it in place, like a browser's address bar: type any path and press **Enter**, or
 pick a route the workspace has visited from the list under the bar. **Esc**
 puts the route back. Routes you visit while interacting
@@ -86,8 +88,8 @@ stays put. Only a page with no client-side router reloads onto the new route.
 
 <Screenshot
   name="frame-branch-picker"
-  caption="Click the workspace to point the frame at another one."
-  alt="The workspace list, opened from the selected frame's address bar"
+  caption="Hover a frame's name and click Set workspace to point it at another one."
+  alt="The workspace list, opened from Set workspace beside a frame's name"
 />
 
 ## The frame toolbar
@@ -98,7 +100,7 @@ it. From left to right:
 | Button                | What it does                                                                                                                                                                                                                                                                                                                                          |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Back**, **Forward** | Step through the routes this frame has shown.                                                                                                                                                                                                                                                                                                         |
-| **Address**           | The frame's workspace and route. Click the route to type a new one. **Reload** reloads the preview, and spins in its place while the page loads. A dot at the start of the address means the dev server disconnected or the preview failed.                                                                                                           |
+| **Address**           | The frame's route. Click it to type a new one. **Reload** reloads the preview, and spins in its place while the page loads. A dot at the start of the address means the dev server disconnected or the preview failed.                                                                                                                                |
 | **Record flow**       | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. The address turns red with a screen count while recording.                                                                                                  |
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame's outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
 | **Detach**            | On a shared frame, switches your view to your own copy, and back. See [Detaching](#detaching).                                                                                                                                                                                                                                                        |
