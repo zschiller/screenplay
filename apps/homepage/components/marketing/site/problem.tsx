@@ -21,8 +21,8 @@ export function Problem() {
     <section className={cn(measure, sectionTop)}>
       <SectionHeading
         slug="The problem"
-        title="The plan, the mockup and the code live in three places."
-        body="A spec in one doc, a mockup in a design tool that has never seen your components, and the build in a terminal and a browser tab. Every handoff starts from scratch."
+        title="Every handoff starts from scratch."
+        body="The plan sits in a doc, the mockup in a design tool that has never seen your components, and the build in a terminal and a browser tab."
       />
 
       <div className="mt-12 grid gap-x-9 gap-y-8 sm:grid-cols-3">
