@@ -397,6 +397,39 @@ describe("useFrameControl", () => {
         ])
       })
 
+      it("keeps a reloaded driver's seat until Interact lands", () => {
+        // A seat found on load without a clock: stamping the clock re-renders
+        // before the canvas has put this viewer back in Interact.
+        vi.useFakeTimers()
+        const c = createRoomCollections(new Y.Doc())
+        c.frameControl.set(FRAME, {
+          live: true,
+          driver: "ana",
+          requests: [{ by: "ben", at: 1 }],
+        })
+        const reloaded = renderHook(() => {
+          const [focusedId, setFocusedId] = useState<string | null>(null)
+          const control = useFrameControl({
+            collection: c.frameControl,
+            viewerId: "ana",
+            others: ["ben", "cara"].map((id) => presenceOf(id)),
+            frameIds: [FRAME],
+            sharedIds: SHARED,
+            focusedId,
+            setFocusedId,
+            takeSeat: (id) => setTimeout(() => setFocusedId(id)),
+          })
+          return { control, focusedId }
+        })
+        act(() => vi.advanceTimersByTime(10))
+
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ana")
+        expect(reloaded.result.current.focusedId).toBe(FRAME)
+        expect(reloaded.result.current.control.requestsOf(FRAME)).toEqual([
+          expect.objectContaining({ id: "ben" }),
+        ])
+      })
+
       it("passes control to the oldest online asker when the driver is gone", () => {
         vi.useFakeTimers()
         const { c, ana, ben, cara } = threeViewers()
