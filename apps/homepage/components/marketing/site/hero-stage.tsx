@@ -107,9 +107,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
+      const floor = rowsEl.parentElement!.getBoundingClientRect()
       return [
         rowsEl.getBoundingClientRect().top - s + HAZE,
         head.getBoundingClientRect().top - s + size * 0.6,
+        // The far side of the floor dissolves into the dark under the nav
+        // through the same grain.
+        [floor.top - s + 90, floor.top - s + floor.height * 0.7],
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()

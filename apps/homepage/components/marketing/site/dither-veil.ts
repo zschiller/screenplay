@@ -4,7 +4,9 @@ import { createFluid } from "./fluid"
  * Paints a background colour over whatever sits under `canvas` as a fine
  * dither that thickens down the canvas, slowly at first: nothing above `span()`'s top,
  * solid from its bottom down, so text below that line stays readable on top
- * of a busy layer and the layer above it dissolves into grain.
+ * of a busy layer and the layer above it dissolves into grain. With a far
+ * span it also thickens up the canvas to solid at the far span's top, so the
+ * layer fades into the background at both ends the same way.
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
  * blue noise instead of Bayer's checkerboard. The grain creeps and a value
@@ -16,7 +18,7 @@ import { createFluid } from "./fluid"
  */
 export function createDitherVeil(
   canvas: HTMLCanvasElement,
-  span: () => [top: number, solid: number]
+  span: () => [top: number, solid: number, far?: [solid: number, clear: number]]
 ) {
   const ctx = canvas.getContext("2d")!
   const host = canvas.parentElement!
@@ -61,6 +63,9 @@ export function createDitherVeil(
   // How sharply the veil eases in down its span: 1 is an even ramp, higher
   // keeps more of the top clear.
   const EASE = 1.6
+  // How much the shimmer moves the fade either way, and its scale per CSS px.
+  const SHIMMER = 0.24
+  const SHIMMER_SCALE = 0.05
 
   let W = 0
   let H = 0
@@ -87,6 +92,9 @@ export function createDitherVeil(
   let edge = new Float32Array(0)
   // The marbling noise at each node of the fluid, this frame.
   let marble = new Float32Array(0)
+  // The idle shimmer at each node of the fluid, this frame, drawn from where
+  // the fluid carried each spot from, so the pointer swirls it.
+  let shimmer = new Float32Array(0)
   // The dye shown this frame, on the same grid.
   let shown = new Float32Array(0)
   // Time into the fluid's current 40ms step.
@@ -136,8 +144,9 @@ export function createDitherVeil(
     const gr = Math.ceil(H / COARSE) + 2
     edge = new Float32Array(gc * gr)
     marble = new Float32Array(gc * gr)
+    shimmer = new Float32Array(gc * gr)
     shown = new Float32Array(gc * gr)
-    const [top, solid] = span()
+    const [top, solid, far] = span()
     const fall = Math.max(solid - top, 1)
     dist = new Float32Array(cols * rows)
     base = new Float32Array(cols * rows)
@@ -145,11 +154,18 @@ export function createDitherVeil(
     let n = 0
     for (let r = 0, i = 0; r < rows; r++) {
       // How far above the solid line this row is.
-      const d = Math.max(solid - (r * cell + cell / 2), 0)
+      const y = r * cell + cell / 2
+      // Above the far span's solid line the veil is solid too.
+      const d = far && y <= far[0] ? 0 : Math.max(solid - y, 0)
       // Below the line it stays solid whatever the edge noise does. Above
-      // it the veil eases in, so the upper part of the span stays clear.
+      // it the veil eases in, so the upper part of the span stays clear,
+      // and eases in again towards the far span's solid line.
       const t = 1 - d / fall
-      const k = d <= 0 ? 1.3 : t > 0 ? t ** EASE : t
+      let k = d <= 0 ? 1.3 : t > 0 ? t ** EASE : t
+      if (far && d > 0) {
+        const u = (far[1] - y) / Math.max(far[1] - far[0], 1)
+        k = Math.max(k, u > 0 ? u ** EASE : u)
+      }
       for (let c = 0; c < cols; c++, i++) {
         dist[i] = d
         base[i] = k
@@ -242,6 +258,12 @@ export function createDitherVeil(
     const bot = edge[j + gc]! + (edge[j + gc + 1]! - edge[j + gc]!) * fx
     return top + (bot - top) * fy
   }
+  function lerpShimmer(j: number, fx: number, fy: number) {
+    const top = shimmer[j]! + (shimmer[j + 1]! - shimmer[j]!) * fx
+    const bot =
+      shimmer[j + gc]! + (shimmer[j + gc + 1]! - shimmer[j + gc]!) * fx
+    return top + (bot - top) * fy
+  }
   function lerpMarble(j: number, fx: number, fy: number) {
     const top = marble[j]! + (marble[j + 1]! - marble[j]!) * fx
     const bot = marble[j + gc]! + (marble[j + gc + 1]! - marble[j + gc]!) * fx
@@ -277,7 +299,10 @@ export function createDitherVeil(
         const x0 = Math.floor(gx)
         const fx = gx - x0
         const j = y0 * gc + x0
-        let k = base[i]! + (lerpEdge(j, fx, fy) - 0.5) * 0.55
+        let k =
+          base[i]! +
+          (lerpEdge(j, fx, fy) - 0.5) * 0.55 +
+          (lerpShimmer(j, fx, fy) - 0.5) * SHIMMER
         if (peek && d) {
           const top = d[j]! + (d[j + 1]! - d[j]!) * fx
           const p =
@@ -308,6 +333,7 @@ export function createDitherVeil(
         continue
       let k = base[band[b]!]!
       k += (lerpEdge(bandAt[b]!, bandFx[b]!, bandFy[b]!) - 0.5) * 0.55
+      k += (lerpShimmer(bandAt[b]!, bandFx[b]!, bandFy[b]!) - 0.5) * SHIMMER
       const kk = k < 0 ? 0 : k > 1 ? 1 : k
       const v = kk * kk * (3 - 2 * kk)
       data[band[b]! * 4 + 3] = v > ign(c + sx, r - sy) ? 255 : v * 150
@@ -372,10 +398,27 @@ export function createDitherVeil(
         }
       }
     }
+    // The shimmer: finer noise that drifts faster than the edge, read from
+    // where the fluid carried each spot from. At rest that's the spot itself;
+    // the pointer swirls it, and it settles back as the fluid does.
+    const mxs = fluid?.mx
+    const mys = fluid?.my
+    const pmx = fluid?.prevMx
+    const pmy = fluid?.prevMy
     for (let j = 0, gx = 0, gy = 0; j < edge.length; j++) {
       edge[j] = noise(
         gx * COARSE * 0.007 + t * 0.45,
         gy * COARSE * 0.007 - t * 0.3
+      )
+      let ux = gx
+      let uy = gy
+      if (mxs && mys && pmx && pmy && j < mxs.length) {
+        ux = pmx[j]! + (mxs[j]! - pmx[j]!) * blend
+        uy = pmy[j]! + (mys[j]! - pmy[j]!) * blend
+      }
+      shimmer[j] = noise(
+        ux * COARSE * SHIMMER_SCALE - t * 0.9,
+        uy * COARSE * SHIMMER_SCALE + t * 0.6
       )
       if (++gx === gc) {
         gx = 0
