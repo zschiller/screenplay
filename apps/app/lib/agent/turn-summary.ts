@@ -1,7 +1,10 @@
 import type { AgentMessage } from "@/lib/agent/types"
 import type { GroupedMessage } from "@/lib/agent/group-tool-calls"
 import { workspaceTasksOf } from "@/lib/agent/workspace-task"
-import { bareToolName } from "@/lib/agent/tool-name"
+import {
+  describeToolCall,
+  type SummaryCategory,
+} from "@/lib/agent/tool-description"
 import { isNoReply } from "@/lib/agent/coordinator-wake"
 import { isQuestionCall } from "@/lib/agent/question"
 
@@ -175,169 +178,6 @@ function wakeReplyIndex(turn: GroupedMessage[], live: boolean): number {
     : reply
 }
 
-type Category =
-  | "read"
-  | "edit"
-  | "readDoc"
-  | "editDoc"
-  | "canvas"
-  | "run"
-  | "search"
-  | "readCanvas"
-  | "readWorkspace"
-  | "viewFrame"
-  | "listChanges"
-  | "memory"
-  | "view"
-  | "drive"
-
-const TITLE_CATEGORY: Record<string, Category> = {
-  read_file: "read",
-  read_code_file: "read",
-  read_workspace_file: "read",
-  // Searches and listings: their `path` is a directory, never a file read.
-  grep: "search",
-  glob: "search",
-  search_code: "search",
-  find_code_files: "search",
-  list_files: "search",
-  write_file: "edit",
-  edit_file: "edit",
-  run_command: "run",
-  read_document: "readDoc",
-  replace_document_body: "editDoc",
-  append_to_document_body: "editDoc",
-  set_document_title: "editDoc",
-  // The Coordinator's arrange tools (#894) change the canvas, not files.
-  create_frames: "canvas",
-  create_document: "canvas",
-  move_group: "canvas",
-  arrange_groups: "canvas",
-  move_to_group: "canvas",
-  merge_groups: "canvas",
-  rename: "canvas",
-  remove: "canvas",
-  undo_changes: "canvas",
-  // A Workspace chat opening a frame to drive (#1390).
-  frame_open: "canvas",
-  // The Coordinator's reads (#893).
-  read_canvas: "readCanvas",
-  read_workspace_chat: "readWorkspace",
-  read_workspace_diff: "readWorkspace",
-  view_frame: "viewFrame",
-  read_frame_html: "viewFrame",
-  frame_elements: "viewFrame",
-  frame_screenshot: "viewFrame",
-  // Driving a frame (#1389, #1390): every step counts toward one frame.
-  frame_start_driving: "drive",
-  frame_click: "drive",
-  frame_type: "drive",
-  frame_key: "drive",
-  frame_scroll: "drive",
-  frame_select: "drive",
-  frame_drag: "drive",
-  frame_hover: "drive",
-  frame_stop_driving: "drive",
-  list_changes: "listChanges",
-  show_on_canvas: "view",
-  write_memory: "memory",
-}
-
-const KIND_CATEGORY: Record<string, Category> = {
-  read: "read",
-  edit: "edit",
-  delete: "edit",
-  move: "edit",
-  execute: "run",
-  search: "search",
-}
-
-/**
- * The call's file path across engines (`path`, `file_path`, …), falling back to
- * the path on a diff it produced; null when it names none.
- */
-function callPath(call: ToolCallMessage): string | null {
-  const raw = call.rawInput
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    const r = raw as Record<string, unknown>
-    for (const key of [
-      "path",
-      "file_path",
-      "filePath",
-      "abs_path",
-      "absPath",
-    ]) {
-      const v = r[key]
-      if (typeof v === "string" && v) return v
-    }
-  }
-  for (const block of call.content) if (block.type === "diff") return block.path
-  return null
-}
-
-function categorize(call: ToolCallMessage): Category | null {
-  // A harness reaches our tools over MCP, under its own namespace.
-  const byTitle = TITLE_CATEGORY[bareToolName(call.title)]
-  if (byTitle) return byTitle
-  if (!call.kind) return null
-  const byKind = KIND_CATEGORY[call.kind]
-  // A read with no file (a skill, a directory listing) isn't "read a file".
-  if (byKind === "read") return callPath(call) ? byKind : null
-  return byKind ?? null
-}
-
-/** A command call's command line: its raw input, else an adapter's prose title. */
-function commandLine(call: ToolCallMessage): string {
-  const raw = call.rawInput
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    const r = raw as Record<string, unknown>
-    const line = [r.command, ...((r.args as string[] | undefined) ?? [])]
-      .filter((w): w is string => typeof w === "string" && w !== "")
-      .join(" ")
-    if (line) return line
-  }
-  return bareToolName(call.title) === "run_command"
-    ? ""
-    : call.title.replace(/`/g, "")
-}
-
-/** The shortest name that says which call failed. */
-function failureName(call: ToolCallMessage): string {
-  const category = categorize(call)
-  if (category === "run") {
-    const words = commandLine(call).split(/\s+/).filter(Boolean)
-    return words.length > 0 ? words.slice(0, 2).join(" ") : "Command"
-  }
-  if (category === "read" || category === "readDoc") return "Read"
-  if (category === "edit" || category === "editDoc") return "Edit"
-  if (category === "search") return "Search"
-  if (category === "canvas") return "Canvas change"
-  if (category === "readCanvas") return "Read canvas"
-  if (category === "readWorkspace") return "Workspace read"
-  if (category === "viewFrame") return "View frame"
-  if (category === "listChanges") return "List changes"
-  if (category === "memory") return "Save to memory"
-  if (category === "view") return "Show on canvas"
-  if (category === "drive") return "Frame step"
-  return "A step"
-}
-
-/** The Workspace or frame a Coordinator read names, so repeats count once. */
-function inputId(
-  call: ToolCallMessage,
-  category: "readWorkspace" | "viewFrame" | "drive"
-): string | null {
-  const raw = call.rawInput
-  const record =
-    raw && typeof raw === "object" && !Array.isArray(raw)
-      ? (raw as Record<string, unknown>)
-      : {}
-  const id = record[category === "readWorkspace" ? "workspaceId" : "frameId"]
-  if (typeof id === "string" && id) return id
-  // A Frame Drive call with no frameId acts on the chat's own frame.
-  return bareToolName(call.title).startsWith("frame_") ? "own frame" : null
-}
-
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
@@ -370,7 +210,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     }
   }
 
-  const seen: Record<Category, Set<string>> = {
+  const seen: Record<SummaryCategory, Set<string>> = {
     read: new Set(),
     edit: new Set(),
     readDoc: new Set(),
@@ -387,25 +227,17 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     drive: new Set(),
   }
   let other = 0
-  const failures = failed.map(failureName)
+  const failures = failed.map((call) => describeToolCall(call).failure)
   for (const call of calls) {
-    const category = categorize(call)
+    const { category, summaryKey } = describeToolCall(call)
     if (!category) {
       other++
       continue
     }
-    const key =
-      category === "read" || category === "edit"
-        ? (callPath(call) ?? call.toolCallId)
-        : category === "readWorkspace" ||
-            category === "viewFrame" ||
-            category === "drive"
-          ? (inputId(call, category) ?? call.toolCallId)
-          : call.toolCallId
-    seen[category].add(key)
+    seen[category].add(summaryKey ?? call.toolCallId)
   }
 
-  const n = (c: Category) => seen[c].size
+  const n = (c: SummaryCategory) => seen[c].size
   const reads = n("read")
   const runs = [
     n("run") && plural(n("run"), "command", "commands"),
