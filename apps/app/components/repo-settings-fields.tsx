@@ -13,6 +13,10 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { isLocalBuild } from "@/lib/local-mode"
+import {
+  DEFAULT_DEV_SERVER_PORT,
+  type RunSettingsFields,
+} from "@/lib/run-settings"
 
 /**
  * Which half of the field set to render. The definitions stay a single source
@@ -103,14 +107,39 @@ function envVarsDescription(access: EnvVarsAccess | undefined): string {
 }
 
 /**
+ * The run-settings value and change props for {@link RepoSettingsFields}, from
+ * one `RunSettingsFields` state and a setter per field, so a form keeps its
+ * run settings as one value rather than a `useState` each.
+ */
+export function runSettingsFieldProps(
+  fields: RunSettingsFields,
+  set: (field: keyof RunSettingsFields) => (value: string) => void
+) {
+  return {
+    setupScript: fields.setupScript,
+    onSetupScriptChange: set("setupScript"),
+    devScript: fields.devScript,
+    onDevScriptChange: set("devScript"),
+    devServerPort: fields.devServerPort,
+    onDevServerPortChange: set("devServerPort"),
+    copyPatterns: fields.copyPatterns,
+    onCopyPatternsChange: set("copyPatterns"),
+    defaultIframeLayerSizeId: fields.defaultIframeLayerSizeId,
+    onDefaultIframeLayerSizeIdChange: set("defaultIframeLayerSizeId"),
+    systemPrompt: fields.systemPrompt,
+    onSystemPromptChange: set("systemPrompt"),
+  } satisfies Partial<RepoSettingsFieldsProps>
+}
+
+/**
  * The shared run-settings body for a repo: the fields that mean the same thing
  * on the homepage preset form and the canvas room-sidebar settings dialog.
  *
  * Built on shadcn's Field primitives so labels, descriptions, and spacing match
  * the rest of the design system instead of hand-rolled markup.
  *
- * Purely presentational — each surface owns the form state (controlled
- * `useState`) and the per-surface chrome (name field, repo identity, save
+ * Purely presentational — each surface owns the form state (one
+ * `RunSettingsFields` value, see {@link runSettingsFieldProps}) and the per-surface chrome (name field, repo identity, save
  * actions). This component only renders the body, so the two surfaces can't
  * drift apart again.
  */
@@ -190,7 +219,7 @@ export function RepoSettingsFields({
                 max={65535}
                 value={devServerPort}
                 onChange={(e) => onDevServerPortChange(e.target.value)}
-                placeholder="3000"
+                placeholder={String(DEFAULT_DEV_SERVER_PORT)}
                 className="font-mono"
               />
               <FieldDescription>
@@ -221,8 +250,8 @@ export function RepoSettingsFields({
                   className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
                 />
                 <FieldDescription>
-                  Files from your folder to copy into each workspace, like
-                  .env. One pattern per line.
+                  Files from your folder to copy into each workspace, like .env.
+                  One pattern per line.
                 </FieldDescription>
               </Field>
             ) : (

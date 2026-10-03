@@ -21,7 +21,7 @@ export {
   unlinkRepository,
   type CanvasRepositoryGroup,
   type CanvasRepositoryRow,
-  type RunSettings,
+  type CanvasRunSettings,
   type SwitchOffResult,
 } from "./canvas"
 export {

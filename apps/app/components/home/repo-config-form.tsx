@@ -15,10 +15,17 @@ import {
   RepoDialogBody,
   RepoDialogFooter,
 } from "@/components/repo-dialog-layout"
-import { RepoSettingsFields } from "@/components/repo-settings-fields"
+import {
+  RepoSettingsFields,
+  runSettingsFieldProps,
+} from "@/components/repo-settings-fields"
 import { saveRepository } from "@/lib/repository-library/actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
+import {
+  parseRunSettings,
+  runSettingsFields,
+  type RunSettingsFields,
+} from "@/lib/run-settings"
 
 interface RepoConfigFormProps {
   /** The Repository being edited; saving updates it in place. */
@@ -53,17 +60,10 @@ export function RepoConfigForm({
   const seed = (initial ?? template)!
   const repo = seed
   const [name, setName] = useState(seed.name ?? "")
-  const [setupScript, setSetupScript] = useState(seed.setupScript ?? "")
-  const [devScript, setDevScript] = useState(seed.devScript ?? "")
-  const [devServerPort, setDevServerPort] = useState(
-    String(seed.devServerPort ?? 3000)
-  )
+  const [fields, setFields] = useState(() => runSettingsFields(seed))
+  const setField = (field: keyof RunSettingsFields) => (value: string) =>
+    setFields((prev) => ({ ...prev, [field]: value }))
   const [envVars, setEnvVars] = useState(seed.envVars ?? "")
-  const [copyPatterns, setCopyPatterns] = useState(seed.copyPatterns ?? "")
-  const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    seed.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
-  )
-  const [systemPrompt, setSystemPrompt] = useState(seed.systemPrompt ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -73,13 +73,8 @@ export function RepoConfigForm({
     repo.repoFullName,
     repo.localPath,
     name,
-    setupScript,
-    devScript,
-    devServerPort,
+    fields,
     envVars,
-    copyPatterns,
-    defaultIframeLayerSizeId,
-    systemPrompt,
   ])
   const [openedWith] = useState(snapshot)
   const dirty = snapshot !== openedWith
@@ -87,9 +82,7 @@ export function RepoConfigForm({
     onDirtyChange?.(dirty)
   }, [dirty, onDirtyChange])
 
-  const parsedPort = Number.parseInt(devServerPort, 10)
-  const portIsValid =
-    Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort < 65536
+  const settings = parseRunSettings(fields)
 
   const trimmedName = name.trim()
   const nameCollision = existingConfigs.some(
@@ -99,10 +92,10 @@ export function RepoConfigForm({
       c.name === trimmedName
   )
 
-  const canSave = portIsValid && !nameCollision
+  const canSave = settings !== undefined && !nameCollision
 
   const handleSave = async () => {
-    if (!canSave) return
+    if (!settings || nameCollision) return
     setSaving(true)
     setError(null)
     const now = Date.now()
@@ -116,13 +109,8 @@ export function RepoConfigForm({
       cloneUrl: repo.cloneUrl,
       localPath: repo.localPath,
       private: repo.private,
-      setupScript,
-      devScript,
-      devServerPort: parsedPort,
+      ...settings,
       envVars,
-      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
-      defaultIframeLayerSizeId,
-      systemPrompt: systemPrompt.trim() || undefined,
       createdAt: initial?.createdAt ?? now,
       updatedAt: now,
     }
@@ -160,20 +148,9 @@ export function RepoConfigForm({
 
         <RepoSettingsFields
           idPrefix="config"
-          setupScript={setupScript}
-          onSetupScriptChange={setSetupScript}
-          devScript={devScript}
-          onDevScriptChange={setDevScript}
-          devServerPort={devServerPort}
-          onDevServerPortChange={setDevServerPort}
+          {...runSettingsFieldProps(fields, setField)}
           envVars={envVars}
           onEnvVarsChange={setEnvVars}
-          copyPatterns={copyPatterns}
-          onCopyPatternsChange={setCopyPatterns}
-          defaultIframeLayerSizeId={defaultIframeLayerSizeId}
-          onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
         />
       </RepoDialogBody>
 

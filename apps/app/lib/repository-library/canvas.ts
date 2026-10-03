@@ -1,11 +1,12 @@
 import { planRepoTeardown } from "@/lib/branch/intake"
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName, repoSource } from "@/lib/repo-identity"
 import { envVarNames } from "@/lib/repo-env/names"
+import { pickRunSettings, sameRunSettings } from "@/lib/run-settings"
 import type { RepoData } from "@/lib/types"
 import type { RoomCollections } from "@/lib/yjs/schema"
+import type { RunSettings } from "@/lib/run-settings"
 
 /**
  * The Canvas half of the repository library (#1420): how a person's
@@ -15,21 +16,12 @@ import type { RoomCollections } from "@/lib/yjs/schema"
  * against one it opened; every write goes through Canvas Operations.
  */
 
-/** The run settings a Repository hands to the Canvas Repos switched on from
- *  it. Env vars ride as names and a digest: their values go to the Canvas's
- *  encrypted store, never the room doc (#1416). Exported for the edit form's
- *  Reset to Settings. */
-export type RunSettings = Pick<
-  RepoData,
-  | "setupScript"
-  | "devScript"
-  | "devServerPort"
-  | "envVarNames"
-  | "envVarsDigest"
-  | "copyPatterns"
-  | "defaultIframeLayerSizeId"
-  | "systemPrompt"
->
+/** What a Repository hands to the Canvas Repos switched on from it: its run
+ *  settings (`lib/run-settings`) plus its env vars as names and a digest, since
+ *  their values go to the Canvas's encrypted store, never the room doc
+ *  (#1416). Exported for the edit form's Reset to Settings. */
+export type CanvasRunSettings = RunSettings &
+  Pick<RepoData, "envVarNames" | "envVarsDigest">
 
 /**
  * What tells two Repositories apart: the remote (or, for a remote-less folder,
@@ -48,17 +40,12 @@ export function sameRepository(
  * A Repository's run settings as a Canvas Repo carries them: its env vars as
  * names plus the digest the library stamps on it (`envVarsDigest`).
  */
-export function runSettings(repository: RepoConfig): RunSettings {
+export function runSettings(repository: RepoConfig): CanvasRunSettings {
   const names = envVarNames(repository.envVars)
   return {
-    setupScript: repository.setupScript,
-    devScript: repository.devScript,
-    devServerPort: repository.devServerPort,
+    ...pickRunSettings(repository),
     envVarNames: names.length > 0 ? names : undefined,
     envVarsDigest: repository.envVarsDigest,
-    copyPatterns: repository.copyPatterns,
-    defaultIframeLayerSizeId: repository.defaultIframeLayerSizeId,
-    systemPrompt: repository.systemPrompt,
   }
 }
 
@@ -71,32 +58,13 @@ export function runSettings(repository: RepoConfig): RunSettings {
  */
 export function repositorySettings(
   repository: RepoConfig
-): Pick<RepoData, "name" | "envVars"> &
-  Omit<RunSettings, "envVarNames" | "envVarsDigest"> {
-  const {
-    envVarNames: _names,
-    envVarsDigest: _digest,
-    ...settings
-  } = runSettings(repository)
+): Pick<RepoData, "name" | "envVars"> & RunSettings {
   // A legacy plain-text copy goes with the rest (#1416).
-  return { name: repository.name, ...settings, envVars: undefined }
-}
-
-/** The settings "customized" compares, with unset fields at their defaults
- *  so a Repo saved through a form that fills them doesn't read as changed.
- *  Agent instructions compare trimmed, as the forms store them (#1479).
- *  Env var values compare by digest (#1416). */
-function comparable(source: Pick<RepoData, "name"> & RunSettings) {
-  return [
-    source.name ?? "",
-    source.setupScript ?? "",
-    source.devScript ?? "",
-    source.devServerPort ?? 3000,
-    source.envVarsDigest ?? "",
-    source.copyPatterns ?? "",
-    source.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
-    source.systemPrompt?.trim() ?? "",
-  ]
+  return {
+    name: repository.name,
+    ...pickRunSettings(repository),
+    envVars: undefined,
+  }
 }
 
 /**
@@ -106,12 +74,16 @@ function comparable(source: Pick<RepoData, "name"> & RunSettings) {
  * stored, so Resetting (or editing back by hand) clears it.
  */
 export function isCustomized(
-  repo: Pick<RepoData, "name"> & RunSettings,
+  repo: Pick<RepoData, "name"> & CanvasRunSettings,
   repository: RepoConfig
 ): boolean {
-  const a = comparable(repo)
-  const b = comparable({ name: repository.name, ...runSettings(repository) })
-  return a.some((v, i) => v !== b[i])
+  // Unset fields compare at their defaults and text trimmed, as the forms
+  // store them (#1479). Env var values compare by digest (#1416).
+  return (
+    (repo.name ?? "") !== (repository.name ?? "") ||
+    (repo.envVarsDigest ?? "") !== (repository.envVarsDigest ?? "") ||
+    !sameRunSettings(repo, repository)
+  )
 }
 
 /** Every Canvas Repo, read fresh by id (a server-side `toArray()` snapshot can
@@ -333,15 +305,10 @@ export function linkCanvasRepos(
           localPath: repo.localPath,
           // A Canvas Repo never recorded visibility; only the lock icon reads it.
           private: false,
-          setupScript: repo.setupScript,
-          devScript: repo.devScript,
-          devServerPort: repo.devServerPort,
+          ...pickRunSettings(repo),
           // Only a legacy plain-text copy is at hand here; desktop, the one
           // build that creates Repositories this way, has no env vars field.
           envVars: repo.envVars ?? "",
-          copyPatterns: repo.copyPatterns,
-          defaultIframeLayerSizeId: repo.defaultIframeLayerSizeId,
-          systemPrompt: repo.systemPrompt,
           createdAt: now,
           updatedAt: now,
         }

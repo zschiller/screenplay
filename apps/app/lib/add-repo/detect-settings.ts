@@ -10,6 +10,7 @@ import {
 
 import type { DetectFileSystem } from "@/lib/add-repo/detect-fs"
 import type { DetectedSettings } from "@/lib/add-repo/resolver"
+import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
 
 /**
  * The `detectSettings` seam (PRD #673, slice #678): deterministic, no-model
@@ -35,7 +36,7 @@ import type { DetectedSettings } from "@/lib/add-repo/resolver"
 const PLAIN_DEFAULTS: DetectedSettings = {
   setupScript: "",
   devScript: "",
-  devServerPort: 3000,
+  devServerPort: DEFAULT_DEV_SERVER_PORT,
 }
 
 export async function detectSettings(

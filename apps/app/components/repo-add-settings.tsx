@@ -12,17 +12,25 @@ import {
   CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { RepoSettingsFields } from "@/components/repo-settings-fields"
+import {
+  RepoSettingsFields,
+  runSettingsFieldProps,
+} from "@/components/repo-settings-fields"
 import {
   mergeDetectedSettings,
   type DetectableField,
-  type DetectableFields,
   type DetectedSettings,
   type ResolvedRepoSettings,
 } from "@/lib/add-repo/resolver"
 import type { DetectRepoSettingsResult } from "@/lib/add-repo/actions"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { isLocalBuild } from "@/lib/local-mode"
+import {
+  DEFAULT_DEV_SERVER_PORT,
+  parseRunSettings,
+  runSettingsFields,
+  type RunSettingsFields,
+} from "@/lib/run-settings"
 
 /** Beyond this the modal gives up on detection and falls back to defaults. */
 const DETECTION_TIMEOUT_MS = 8000
@@ -33,7 +41,7 @@ const REFINE_TIMEOUT_MS = 35_000
 const PLAIN_DETECTED: DetectedSettings = {
   setupScript: "",
   devScript: "",
-  devServerPort: 3000,
+  devServerPort: DEFAULT_DEV_SERVER_PORT,
 }
 
 type DetectionStatus = "idle" | "detecting" | "done" | "failed"
@@ -88,28 +96,20 @@ export function RepoAddSettings({
   /** "Back" when there is a previous screen to return to (#781). */
   cancelLabel?: string
 }) {
-  // The three detectable fields live in one object so a detection fill can be
-  // applied inside a single `setState` updater — against the live values, so it
-  // can't race a keystroke (see mergeDetectedSettings).
-  const [fields, setFields] = useState<DetectableFields>({
-    setupScript: "",
-    devScript: "",
-    devServerPort: "3000",
-  })
+  // The run settings live in one object so a detection fill can be applied
+  // inside a single `setState` updater — against the live values, so it can't
+  // race a keystroke (see mergeDetectedSettings). A desktop local-folder source
+  // shows "files to copy" (not env vars) and pre-fills the checkout's
+  // gitignored config globs (#682): `showEnvField` on the local build is
+  // exactly a folder pick, since a desktop GitHub-clone passes
+  // `showEnvField={false}`.
+  const [fields, setFields] = useState<RunSettingsFields>(() => ({
+    ...runSettingsFields(),
+    copyPatterns: isLocalBuild && showEnvField ? ".env*" : "",
+  }))
   const [envVars, setEnvVars] = useState("")
-  // A desktop local-folder source shows "files to copy" (not env vars) and
-  // pre-fills the checkout's gitignored config globs (#682): `showEnvField` on
-  // the local build is exactly a folder pick, since a desktop GitHub-clone
-  // passes `showEnvField={false}`.
-  const [copyPatterns, setCopyPatterns] = useState(
-    isLocalBuild && showEnvField ? ".env*" : ""
-  )
-  // Advanced-section fields, revealed by the expander (#681).
+  // The advanced section, revealed by the expander (#681).
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    DEFAULT_IFRAME_LAYER_SIZE_ID
-  )
-  const [systemPrompt, setSystemPrompt] = useState("")
   const [presetName, setPresetName] = useState("")
   // Start in "detecting" when there's a source to detect against, so the effect
   // never has to set that synchronously (and the indicator is up on first paint).
@@ -133,10 +133,13 @@ export function RepoAddSettings({
     refineRef.current = refine
   })
 
-  const setField = useCallback((field: DetectableField, value: string) => {
-    dirty.current[field] = true
-    setFields((prev) => ({ ...prev, [field]: value }))
-  }, [])
+  const setField = useCallback(
+    (field: keyof RunSettingsFields) => (value: string) => {
+      if (isDetectable(field)) dirty.current[field] = true
+      setFields((prev) => ({ ...prev, [field]: value }))
+    },
+    []
+  )
 
   const runDetection = useCallback(async () => {
     const run = detectRef.current
@@ -148,9 +151,10 @@ export function RepoAddSettings({
     // A newer run (or an unmount) supersedes this one — drop the late result.
     if (currentRun !== runId.current) return
     if (result.ok) {
-      setFields((prev) =>
-        mergeDetectedSettings(prev, result.settings, dirty.current)
-      )
+      setFields((prev) => ({
+        ...prev,
+        ...mergeDetectedSettings(prev, result.settings, dirty.current),
+      }))
     }
 
     const refineRun = refineRef.current
@@ -164,9 +168,10 @@ export function RepoAddSettings({
     )
     if (currentRun !== runId.current) return
     if (refined.ok) {
-      setFields((prev) =>
-        mergeDetectedSettings(prev, refined.settings, dirty.current)
-      )
+      setFields((prev) => ({
+        ...prev,
+        ...mergeDetectedSettings(prev, refined.settings, dirty.current),
+      }))
     }
     setStatus(result.ok || refined.ok ? "done" : "failed")
   }, [])
@@ -187,39 +192,23 @@ export function RepoAddSettings({
     void runDetection()
   }, [runDetection])
 
-  const parsedPort = Number.parseInt(fields.devServerPort, 10)
-  const portIsValid =
-    Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort < 65536
+  const settings = parseRunSettings(fields)
 
   const handleConfirm = useCallback(() => {
-    if (!portIsValid) return
+    if (!settings) return
     onConfirm({
-      setupScript: fields.setupScript,
-      devScript: fields.devScript,
-      devServerPort: parsedPort,
+      ...settings,
       envVars,
-      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
       // Only forward advanced values the user actually set: the default frame
       // size and an empty system prompt map to `undefined`, so the upsert
       // preserves whatever a matching Repository already carried (#681).
       defaultIframeLayerSizeId:
-        defaultIframeLayerSizeId === DEFAULT_IFRAME_LAYER_SIZE_ID
+        settings.defaultIframeLayerSizeId === DEFAULT_IFRAME_LAYER_SIZE_ID
           ? undefined
-          : defaultIframeLayerSizeId,
-      systemPrompt: systemPrompt.trim() || undefined,
+          : settings.defaultIframeLayerSizeId,
       presetName: presetName.trim() || undefined,
     })
-  }, [
-    portIsValid,
-    parsedPort,
-    fields,
-    envVars,
-    copyPatterns,
-    defaultIframeLayerSizeId,
-    systemPrompt,
-    presetName,
-    onConfirm,
-  ])
+  }, [settings, envVars, presetName, onConfirm])
 
   return (
     <div className="flex flex-col gap-4 px-5 pt-2 pb-5">
@@ -251,22 +240,11 @@ export function RepoAddSettings({
           idPrefix="repo-add"
           section="essential"
           showEnvField={showEnvField}
-          setupScript={fields.setupScript}
-          onSetupScriptChange={(v) => setField("setupScript", v)}
-          devScript={fields.devScript}
-          onDevScriptChange={(v) => setField("devScript", v)}
-          devServerPort={fields.devServerPort}
-          onDevServerPortChange={(v) => setField("devServerPort", v)}
+          // Advanced-only fields aren't rendered here; the shared component
+          // still takes them, so it gets the real state (harmless when hidden).
+          {...runSettingsFieldProps(fields, setField)}
           envVars={envVars}
           onEnvVarsChange={setEnvVars}
-          copyPatterns={copyPatterns}
-          onCopyPatternsChange={setCopyPatterns}
-          // Advanced-only fields aren't rendered here; the shared component still
-          // requires them, so hand it the real state (harmless when hidden).
-          defaultIframeLayerSizeId={defaultIframeLayerSizeId}
-          onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
         />
 
         <Collapsible
@@ -282,20 +260,9 @@ export function RepoAddSettings({
             <RepoSettingsFields
               idPrefix="repo-add"
               section="advanced"
-              setupScript={fields.setupScript}
-              onSetupScriptChange={(v) => setField("setupScript", v)}
-              devScript={fields.devScript}
-              onDevScriptChange={(v) => setField("devScript", v)}
-              devServerPort={fields.devServerPort}
-              onDevServerPortChange={(v) => setField("devServerPort", v)}
+              {...runSettingsFieldProps(fields, setField)}
               envVars={envVars}
               onEnvVarsChange={setEnvVars}
-              copyPatterns={copyPatterns}
-              onCopyPatternsChange={setCopyPatterns}
-              defaultIframeLayerSizeId={defaultIframeLayerSizeId}
-              onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
-              systemPrompt={systemPrompt}
-              onSystemPromptChange={setSystemPrompt}
               presetName={presetName}
               onPresetNameChange={setPresetName}
             />
@@ -306,12 +273,22 @@ export function RepoAddSettings({
         <Button variant="ghost" size="sm" onClick={onCancel}>
           {cancelLabel}
         </Button>
-        <Button size="sm" onClick={handleConfirm} disabled={!portIsValid}>
+        <Button size="sm" onClick={handleConfirm} disabled={!settings}>
           Add repository
         </Button>
       </div>
     </div>
   )
+}
+
+const DETECTABLE: readonly DetectableField[] = [
+  "setupScript",
+  "devScript",
+  "devServerPort",
+]
+
+function isDetectable(field: string): field is DetectableField {
+  return (DETECTABLE as readonly string[]).includes(field)
 }
 
 /** Race a detection call against a timeout; a throw or a timeout is `{ ok: false }`. */
