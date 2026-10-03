@@ -1,12 +1,15 @@
 "use client"
 
+import { Button } from "@workspace/ui/components/button"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@workspace/ui/components/field"
+import { EyeIcon } from "@workspace/ui/components/icons"
 import { Input } from "@workspace/ui/components/input"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -53,9 +56,10 @@ interface RepoSettingsFieldsProps {
   onEnvVarsChange: (value: string) => void
   /**
    * A Canvas Repo's env vars (#1416): the values stay on the server, so the
-   * the person who added the Repo gets them loaded into the field to edit,
-   * and everyone else sees only the names. Absent on the forms that edit your
-   * own Repositories, which show the values as they are.
+   * field shows only the names that are set. The person who added the Repo
+   * reveals the values to edit them; everyone else can only add their own.
+   * Absent on the forms that edit your own Repositories, which show the
+   * values as they are.
    */
   envVarsAccess?: EnvVarsAccess
   copyPatterns: string
@@ -77,10 +81,12 @@ interface RepoSettingsFieldsProps {
 export interface EnvVarsAccess {
   /** The names already set on this Canvas. */
   names: string[]
-  /** This person added the Repo, so the field holds the stored values. */
+  /** This person added the Repo, so Reveal is theirs. */
   owned: boolean
-  /** The stored values are still on their way into the field. */
-  loading: boolean
+  /** The adder's field, read-only until they reveal the values. */
+  locked: boolean
+  revealing: boolean
+  onReveal: () => void
 }
 
 /** What the env field says under it, by who's looking. Kept to what's true:
@@ -88,6 +94,7 @@ export interface EnvVarsAccess {
 function envVarsDescription(access: EnvVarsAccess | undefined): string {
   const base = "One KEY=value per line, injected into each workspace"
   if (!access) return base
+  if (access.locked) return "Values are hidden. Reveal them to edit."
   if (access.owned) return `${base}. Only you can see the values.`
   if (access.names.length === 0) return base
   return "Only the person who added this repository can see the values. Add KEY=value here to set your own on this canvas."
@@ -128,7 +135,7 @@ export function RepoSettingsFields({
   onPresetNameChange,
 }: RepoSettingsFieldsProps) {
   const hiddenNames =
-    envVarsAccess && (!envVarsAccess.owned || envVarsAccess.loading)
+    envVarsAccess && (!envVarsAccess.owned || envVarsAccess.locked)
       ? envVarsAccess.names
       : []
   const showEssential = section === "essential" || section === "all"
@@ -217,14 +224,31 @@ export function RepoSettingsFields({
               </Field>
             ) : (
               <Field>
-                <FieldLabel htmlFor={`${idPrefix}-envvars`}>
-                  Environment variables
-                </FieldLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor={`${idPrefix}-envvars`}>
+                    Environment variables
+                  </FieldLabel>
+                  {envVarsAccess?.locked && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={envVarsAccess.onReveal}
+                      disabled={envVarsAccess.revealing}
+                    >
+                      {envVarsAccess.revealing ? (
+                        <Spinner data-icon="inline-start" />
+                      ) : (
+                        <EyeIcon data-icon="inline-start" />
+                      )}
+                      Reveal values
+                    </Button>
+                  )}
+                </div>
                 <Textarea
                   id={`${idPrefix}-envvars`}
                   value={envVars}
                   onChange={(e) => onEnvVarsChange(e.target.value)}
-                  disabled={envVarsAccess?.loading}
+                  disabled={envVarsAccess?.locked}
                   // The names already set, values masked, until someone types.
                   placeholder={
                     hiddenNames.length > 0

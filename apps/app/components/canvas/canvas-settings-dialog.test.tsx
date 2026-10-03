@@ -446,8 +446,18 @@ describe("CanvasSettingsDialog", () => {
       )
     })
 
-    it("opens the adder's values for editing and saves the set", async () => {
+    it("locks the adder's field until they reveal the values", async () => {
       const { form } = await openDocs(true)
+      expect(
+        within(form).getByLabelText("Environment variables")
+      ).toHaveProperty("disabled", true)
+      expect(revealCanvasRepoEnv).not.toHaveBeenCalled()
+      expect(form.textContent).toContain(
+        "Values are hidden. Reveal them to edit."
+      )
+      fireEvent.click(
+        within(form).getByRole("button", { name: "Reveal values" })
+      )
       const field = within(form).getByLabelText("Environment variables")
       await waitFor(() =>
         expect(field).toHaveProperty(

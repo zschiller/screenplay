@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -104,12 +104,13 @@ function RepoSettingsForm({
   const [devServerPort, setDevServerPort] = useState(
     String(repo.devServerPort ?? 3000)
   )
-  // The values live on the server (#1416). The adder's are loaded into the
-  // field and saved back whole; anyone else starts empty, and the lines they
-  // type replace just those variables.
+  // The values live on the server (#1416). The adder's field stays locked
+  // until they reveal it, then saves back whole; anyone else starts empty, and
+  // the lines they type replace just those variables.
   const hasStoredEnv = repoEnvVarNames(repo).length > 0
   const [envVars, setEnvVars] = useState("")
   const [loadedEnv, setLoadedEnv] = useState<string | null>(null)
+  const [revealing, setRevealing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
@@ -123,25 +124,19 @@ function RepoSettingsForm({
 
   const trimmedSystemPrompt = systemPrompt.trim()
 
-  const envLoading = canRevealEnv && hasStoredEnv && loadedEnv === null
-  const envChanged = !envLoading && envVars !== (loadedEnv ?? "")
+  const envLocked = canRevealEnv && hasStoredEnv && loadedEnv === null
+  const envChanged = !envLocked && envVars !== (loadedEnv ?? "")
 
-  useEffect(() => {
-    if (!canRevealEnv || !hasStoredEnv) return
-    let cancelled = false
+  const reveal = () => {
+    setRevealing(true)
     revealCanvasRepoEnv(roomId, repo.id)
       .then((text) => {
-        if (cancelled) return
         setLoadedEnv(text)
         setEnvVars(text)
       })
-      .catch(() => {
-        if (!cancelled) toast.error("Couldn't load the environment variables.")
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [canRevealEnv, hasStoredEnv, roomId, repo.id])
+      .catch(() => toast.error("Couldn't load the environment variables."))
+      .finally(() => setRevealing(false))
+  }
 
   const handleSave = async () => {
     if (!portIsValid) return
@@ -233,7 +228,9 @@ function RepoSettingsForm({
           envVarsAccess={{
             names: repoEnvVarNames(repo),
             owned: canRevealEnv,
-            loading: envLoading,
+            locked: envLocked,
+            revealing,
+            onReveal: reveal,
           }}
           copyPatterns={copyPatterns}
           onCopyPatternsChange={setCopyPatterns}
