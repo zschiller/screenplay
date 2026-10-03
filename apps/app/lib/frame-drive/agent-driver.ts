@@ -176,6 +176,13 @@ export interface AgentFrameDriverDeps {
   keyOf(frameId: string): string
   /** Who is online, for handing control on when the agent lets go. */
   presence(): FrameControlPresence
+  /**
+   * Bring a frame into the asker's view, through their canvas
+   * (`canvas/channel.ts`), when a chat ask starts it at show pace. Without
+   * one (a hosted shared frame's driver, which no single asker owns), the
+   * caller does it.
+   */
+  reveal?(frameId: string): Promise<string | null>
   now?: () => number
   setTimer?: (fn: () => void, ms: number) => unknown
   clearTimer?: (timer: unknown) => void
@@ -302,7 +309,7 @@ export class AgentFrameDriver {
     this.takenBy.delete(key)
     if (opts.pace === "show") {
       // Best effort: the demo still runs if the canvas can't move.
-      await this.deps.backend.reveal(frameId).catch(() => null)
+      await this.deps.reveal?.(frameId).catch(() => null)
     }
     return { status: "driving" }
   }
@@ -319,11 +326,6 @@ export class AgentFrameDriver {
   /** Whether the canvas has `frameId` loaded: null when it has. */
   frameUnavailable(frameId: string): Promise<string | null> {
     return this.deps.backend.unavailable(frameId)
-  }
-
-  /** Bring a frame into the asker's view. Null when it did, else why not. */
-  reveal(frameId: string): Promise<string | null> {
-    return this.deps.backend.reveal(frameId)
   }
 
   /** Stop driving the frame and leave the queue for it. */

@@ -9,7 +9,7 @@ import type {
 } from "@/lib/postmessage-protocol"
 import type { ElementAnchor } from "@/lib/comment-anchor"
 import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
-import type { FrameSnapshot } from "@/lib/frame-drive/mac/protocol"
+import type { PageInView } from "@/lib/frame-drive/canvas/protocol"
 
 export type Handle = string
 
@@ -261,7 +261,7 @@ export function useScreenplayDom(
       /** The page as it is now, form state and scroll included, for a
        *  screenshot rendered away from the canvas (#1391). */
       pageSnapshot: () =>
-        request<FrameSnapshot | null>({
+        request<PageInView | null>({
           type: "screenplay:dom-query",
           op: "getPageSnapshot",
           live: true,

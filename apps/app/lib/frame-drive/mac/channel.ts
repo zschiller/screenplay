@@ -1,26 +1,29 @@
 import "server-only"
 
-import { randomUUID } from "node:crypto"
 import type { IncomingMessage } from "node:http"
 import type { RawData, WebSocket } from "ws"
 
-import {
-  isDriveOp,
-  type DriveOp,
-  type DriveResult,
-  type DriveScreenshotResult,
-  type FrameDriveBackend,
+import type {
+  DriveScreenshotResult,
+  FrameDriveBackend,
 } from "@/lib/frame-drive/contract"
 import {
+  askerCanvas,
+  type AskerCanvas,
+  type AskerCanvasTimeouts,
+  type CanvasTransport,
+} from "@/lib/frame-drive/canvas/channel"
+import {
   FRAME_DRIVE_ROOM_PARAM,
+  type CanvasAnswer,
   type CanvasToServer,
   type FrameWhere,
-  type ServerToCanvas,
-} from "@/lib/frame-drive/mac/protocol"
+} from "@/lib/frame-drive/canvas/protocol"
 
 /**
- * The sidecar's half of the Mac drive channel (#1389): the canvases connected
- * per Room, and the Frame Drive backend that relays an op to the canvas
+ * The sidecar's transport for the asker's-canvas channel on the Mac (#1389,
+ * `canvas/channel.ts`): the canvases connected per Room, each over its own
+ * WebSocket, and the Frame Drive backend that relays an op to the canvas
  * showing the frame, which applies it through the frame's Sandbox Bridge.
  *
  * A connection only gets here through the local Yjs server's gate (the
@@ -28,13 +31,8 @@ import {
  * other page or process can stand in for the canvas.
  */
 
-/** How long a gesture may take in the frame before the relay gives up. */
-const OP_TIMEOUT_MS = 15_000
-/** How long the canvas may take to lay a new frame out and move to it. */
-const REVEAL_TIMEOUT_MS = 5000
-
 type Pending = {
-  resolve: (message: CanvasToServer) => void
+  resolve: (answer: CanvasAnswer | string) => void
   timer: ReturnType<typeof setTimeout>
 }
 
@@ -95,13 +93,9 @@ export function acceptFrameDriveConnection(
     const left = (rooms.get(roomId) ?? []).filter((c) => c !== canvas)
     if (left.length > 0) rooms.set(roomId, left)
     else rooms.delete(roomId)
-    for (const [id, pending] of canvas.pending) {
+    for (const pending of canvas.pending.values()) {
       clearTimeout(pending.timer)
-      pending.resolve({
-        type: "result",
-        id,
-        result: { status: "unavailable", reason: CANVAS_CLOSED },
-      })
+      pending.resolve(CANVAS_CLOSED)
     }
     canvas.pending.clear()
   })
@@ -112,6 +106,7 @@ const NO_CANVAS =
 const NO_FRAME =
   "This frame isn't loaded on the open canvas, so it can't be driven."
 const CANVAS_CLOSED = "The canvas closed before the frame answered."
+const NO_ANSWER = "The canvas didn't answer in time."
 
 /** The canvas showing `frameId`: the newest one, when several are open. */
 function canvasFor(roomId: string, frameId: string): Canvas | null {
@@ -122,20 +117,39 @@ function canvasFor(roomId: string, frameId: string): Canvas | null {
   return null
 }
 
-function ask(
-  canvas: Canvas,
-  message: ServerToCanvas,
-  timeoutMs: number,
-  onTimeout: CanvasToServer
-): Promise<CanvasToServer> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      canvas.pending.delete(message.id)
-      resolve(onTimeout)
-    }, timeoutMs)
-    canvas.pending.set(message.id, { resolve, timer })
-    canvas.socket.send(JSON.stringify(message))
-  })
+/** Why no canvas in `roomId` shows `frameId`. */
+function missing(roomId: string): string {
+  return canvasesByRoom().get(roomId)?.length ? NO_FRAME : NO_CANVAS
+}
+
+/**
+ * The Mac transport for one Room: each message goes to the newest canvas
+ * showing the frame. On the Mac every canvas open on the Room is the asker's
+ * own, so a reveal moves nobody else's view.
+ */
+export function macCanvasTransport(roomId: string): CanvasTransport {
+  return {
+    ask(message, timeoutMs) {
+      const canvas = canvasFor(roomId, message.frameId)
+      if (!canvas) return Promise.resolve(missing(roomId))
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          canvas.pending.delete(message.id)
+          resolve(NO_ANSWER)
+        }, timeoutMs)
+        canvas.pending.set(message.id, { resolve, timer })
+        canvas.socket.send(JSON.stringify(message))
+      })
+    },
+  }
+}
+
+/** The asker's canvas for one Room on the Mac. */
+export function macAskerCanvas(
+  roomId: string,
+  timeouts?: AskerCanvasTimeouts
+): AskerCanvas {
+  return askerCanvas(macCanvasTransport(roomId), timeouts)
 }
 
 /**
@@ -164,7 +178,7 @@ export function macFrameDriveBackend(
     opTimeoutMs?: number
   }
 ): FrameDriveBackend {
-  const opTimeoutMs = deps.opTimeoutMs ?? OP_TIMEOUT_MS
+  const canvas = macAskerCanvas(roomId, { opTimeoutMs: deps.opTimeoutMs })
   return {
     async unavailable(frameId) {
       if (!canvasesByRoom().get(roomId)?.length) return NO_CANVAS
@@ -172,56 +186,14 @@ export function macFrameDriveBackend(
       return canvasFor(roomId, frameId) ? null : NO_FRAME
     },
 
-    async run(frameId, op: DriveOp): Promise<DriveResult> {
-      // Only the contract's ops ever leave the server.
-      if (!isDriveOp(op)) {
-        return { status: "failed", reason: "unknown drive op" }
-      }
-      const canvas = canvasFor(roomId, frameId)
-      if (!canvas) {
-        return {
-          status: "unavailable",
-          reason: canvasesByRoom().get(roomId)?.length ? NO_FRAME : NO_CANVAS,
-        }
-      }
-      const id = randomUUID()
-      const answer = await ask(
-        canvas,
-        { type: "op", id, frameId, op },
-        opTimeoutMs,
-        {
-          type: "result",
-          id,
-          result: {
-            status: "unavailable",
-            reason: "The canvas didn't answer in time.",
-          },
-        }
-      )
-      return answer.type === "result"
-        ? answer.result
-        : { status: "failed", reason: "unexpected answer" }
-    },
+    run: (frameId, op) => canvas.run(frameId, op),
 
     async screenshot(frameId): Promise<DriveScreenshotResult> {
-      const canvas = canvasFor(roomId, frameId)
-      if (!canvas) {
-        return {
-          status: "unavailable",
-          reason: canvasesByRoom().get(roomId)?.length ? NO_FRAME : NO_CANVAS,
-        }
-      }
-      const id = randomUUID()
-      const answer = await ask(canvas, { type: "where", id, frameId }, 5000, {
-        type: "result",
-        id,
-        result: { status: "unavailable", reason: "no answer" },
-      })
-      if (answer.type !== "where" || !answer.where.rect) {
-        return { status: "unavailable", reason: NO_FRAME }
-      }
-      const { where } = answer
-      const shown = visiblePart(where.rect!, where.window)
+      const where = await canvas.where(frameId)
+      if (typeof where === "string")
+        return { status: "unavailable", reason: where }
+      if (!where.rect) return { status: "unavailable", reason: NO_FRAME }
+      const shown = visiblePart(where.rect, where.window)
       if (!shown) {
         return {
           status: "unavailable",
@@ -245,26 +217,6 @@ export function macFrameDriveBackend(
         status: "shot",
         shot: { ...image, note: screenshotNote(where, shown) },
       }
-    },
-
-    async reveal(frameId) {
-      // On the Mac every canvas open on the Room is the asker's own, so
-      // moving them moves nobody else's view. The newest one that shows the
-      // frame does it, as for an op.
-      const canvas = canvasFor(roomId, frameId)
-      if (!canvas) {
-        return canvasesByRoom().get(roomId)?.length ? NO_FRAME : NO_CANVAS
-      }
-      const id = randomUUID()
-      const answer = await ask(
-        canvas,
-        { type: "reveal", id, frameId },
-        REVEAL_TIMEOUT_MS,
-        { type: "revealed", id, ok: false }
-      )
-      return answer.type === "revealed" && answer.ok
-        ? null
-        : "The canvas couldn't bring the frame into view."
     },
   }
 }

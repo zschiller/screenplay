@@ -5,7 +5,9 @@ import { kv } from "@/lib/kv"
 import { AgentFrameDriver } from "@/lib/frame-drive/agent-driver"
 import { encodeShot, roomFrameControlStore } from "@/lib/frame-drive/server"
 import { kvFrameDriveAnswers } from "@/lib/frame-drive/view/answers"
+import type { AskerCanvas } from "@/lib/frame-drive/canvas/channel"
 import {
+  viewAskerCanvas,
   viewFrameDriveBackend,
   type RenderSnapshot,
 } from "@/lib/frame-drive/view/channel"
@@ -26,6 +28,12 @@ type DriversHost = typeof globalThis & {
   [DRIVERS_KEY]?: Map<string, AgentFrameDriver>
 }
 
+/** The asker's own canvas on hosted: where their Mockups run, and the only
+ *  thing that can bring a frame into their view. */
+export function viewCanvasOf(room: RoomDoc, userId: string): AskerCanvas {
+  return viewAskerCanvas(room, userId, { answers: frameDriveAnswers })
+}
+
 /**
  * The agent's driver for one asker on hosted (#1391): it drives mockups in
  * the asker's own view, through Frame Control's record for their copy.
@@ -39,15 +47,14 @@ export function viewAgentDriver(
   const key = `${room.roomId}:${userId}`
   let driver = drivers.get(key)
   if (!driver) {
+    const canvas = viewCanvasOf(room, userId)
     driver = new AgentFrameDriver({
-      backend: viewFrameDriveBackend(room, userId, {
-        answers: frameDriveAnswers,
-        render: renderSnapshot,
-      }),
+      backend: viewFrameDriveBackend(room, canvas, { render: renderSnapshot }),
       store: roomFrameControlStore(room),
       keyOf: (frameId) => frameControlKey(frameId, userId),
       // A mockup copy's only parties are its viewer and the agent.
       presence: () => ({ online: new Set([userId]), goneAt: new Map() }),
+      reveal: (frameId) => canvas.reveal(frameId),
     })
     drivers.set(key, driver)
   }

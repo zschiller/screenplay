@@ -6,9 +6,10 @@ import {
   hostedFrameDriveBackend,
   type HostedFrame,
 } from "@/lib/frame-drive/hosted/backend"
+import { routeChatDriver } from "@/lib/frame-drive/hosted/router"
 import { roomFrameControlStore } from "@/lib/frame-drive/server"
 import type { FrameDriver } from "@/lib/frame-drive/tools"
-import { viewAgentDriver } from "@/lib/frame-drive/view/live"
+import { viewAgentDriver, viewCanvasOf } from "@/lib/frame-drive/view/live"
 import { frameStreamKey } from "@/lib/frame-stream/token"
 import type { RoomDoc } from "@/lib/room-access"
 import { ensureFrameStream } from "@/lib/sandbox/frame-stream"
@@ -54,33 +55,12 @@ export function hostedAgentDriver(room: RoomDoc): AgentFrameDriver {
  * (#1390), which only their canvas can do.
  */
 export function hostedChatDriver(room: RoomDoc, userId: string): FrameDriver {
-  const shared = hostedAgentDriver(room)
-  const mockups = viewAgentDriver(room, userId)
-  const isMockup = (id: string) =>
-    room.readDoc((c) => c.mockupLayers.get(id) !== undefined)
-  const pick = async (id: string) => ((await isMockup(id)) ? mockups : shared)
-  return {
-    run: async (id, op) => (await pick(id)).run(id, op),
-    async start(id, opts) {
-      const driver = await pick(id)
-      const outcome = await driver.start(id, opts)
-      if (
-        driver === shared &&
-        outcome.status === "driving" &&
-        opts.pace === "show"
-      ) {
-        // Best effort, as on the Mac: the demo runs if their canvas can't move.
-        await mockups.reveal(id).catch(() => null)
-      }
-      return outcome
-    },
-    screenshot: async (id) => (await pick(id)).screenshot(id),
-    frameUnavailable: async (id) => (await pick(id)).frameUnavailable(id),
-    letGo: async (id) => (await pick(id)).letGo(id),
-    // A shared frame runs whether or not anyone has the canvas open; a
-    // Mockup says so itself when the asker's canvas is closed.
-    canvasUnavailable: async () => null,
-  }
+  return routeChatDriver({
+    shared: hostedAgentDriver(room),
+    mockups: viewAgentDriver(room, userId),
+    isMockup: (id) => room.readDoc((c) => c.mockupLayers.get(id) !== undefined),
+    canvas: viewCanvasOf(room, userId),
+  })
 }
 
 /** Every party counts as online. */

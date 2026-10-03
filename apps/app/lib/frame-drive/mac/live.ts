@@ -3,6 +3,7 @@ import "server-only"
 import { frameControlKey } from "@/lib/canvas/frame-control"
 import { AgentFrameDriver } from "@/lib/frame-drive/agent-driver"
 import {
+  macAskerCanvas,
   macFrameDriveBackend,
   type NativeSnapshot,
 } from "@/lib/frame-drive/mac/channel"
@@ -36,6 +37,7 @@ export function macAgentDriver(
   const key = `${room.roomId}:${userId}`
   let driver = drivers.get(key)
   if (!driver) {
+    const canvas = macAskerCanvas(room.roomId)
     driver = new AgentFrameDriver({
       backend: macFrameDriveBackend(room.roomId, {
         snapshot: shellSnapshot,
@@ -45,6 +47,7 @@ export function macAgentDriver(
       keyOf: (frameId) => frameControlKey(frameId, userId),
       // On the Mac the only parties are the person and the agent.
       presence: () => ({ online: new Set([userId]), goneAt: new Map() }),
+      reveal: (frameId) => canvas.reveal(frameId),
     })
     drivers.set(key, driver)
   }

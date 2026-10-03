@@ -181,15 +181,19 @@ function fakeBackend(
       return answer()
     },
     screenshot: async () => ({ status: "unavailable", reason: "no shell" }),
-    reveal: async (frameId) => {
-      reveals.push(frameId)
-      return null
-    },
   }
-  return { backend, ops, reveals }
+  /** The asker's canvas bringing a frame into view. */
+  const reveal = async (frameId: string) => {
+    reveals.push(frameId)
+    return null
+  }
+  return { backend, ops, reveals, reveal }
 }
 
-function makeDriver(backend: FrameDriveBackend) {
+function makeDriver(
+  backend: FrameDriveBackend,
+  reveal?: (frameId: string) => Promise<string | null>
+) {
   const store = memoryFrameControlStore()
   const timers: { fn: () => void; ms: number; cleared: boolean }[] = []
   const driver = new AgentFrameDriver({
@@ -197,6 +201,7 @@ function makeDriver(backend: FrameDriveBackend) {
     store,
     keyOf: (frameId) => `${frameId}:${ZACK}`,
     presence: () => ({ online: new Set([ZACK]), goneAt: new Map() }),
+    reveal,
     now: () => 100,
     setTimer: (fn, ms) => {
       const timer = { fn, ms, cleared: false }
@@ -322,8 +327,8 @@ describe("AgentFrameDriver", () => {
 
   describe("started from a chat ask", () => {
     it("shows: drives the asker's frame, brings it into view, and paces every step", async () => {
-      const { backend, ops, reveals } = fakeBackend()
-      const { driver, store } = makeDriver(backend)
+      const { backend, ops, reveals, reveal } = fakeBackend()
+      const { driver, store } = makeDriver(backend, reveal)
       // The person is interacting with the frame when they ask.
       store.records.set(`f1:${ZACK}`, record(ZACK))
       expect(await driver.start("f1", { asker: ZACK, pace: "show" })).toEqual({
@@ -336,8 +341,8 @@ describe("AgentFrameDriver", () => {
     })
 
     it("jumps: no animation, and nobody's view moves", async () => {
-      const { backend, ops, reveals } = fakeBackend()
-      const { driver } = makeDriver(backend)
+      const { backend, ops, reveals, reveal } = fakeBackend()
+      const { driver } = makeDriver(backend, reveal)
       await driver.start("f1", { asker: ZACK, pace: "jump" })
       await driver.run("f1", CLICK)
       expect(reveals).toEqual([])
@@ -345,8 +350,8 @@ describe("AgentFrameDriver", () => {
     })
 
     it("plays steps at once again after it lets go", async () => {
-      const { backend, ops } = fakeBackend()
-      const { driver } = makeDriver(backend)
+      const { backend, ops, reveal } = fakeBackend()
+      const { driver } = makeDriver(backend, reveal)
       await driver.start("f1", { asker: ZACK, pace: "show" })
       await driver.letGo("f1")
       await driver.run("f1", CLICK)
@@ -354,8 +359,8 @@ describe("AgentFrameDriver", () => {
     })
 
     it("doesn't take the frame back from the person who took over", async () => {
-      const { backend, ops, reveals } = fakeBackend()
-      const { driver, store } = makeDriver(backend)
+      const { backend, ops, reveals, reveal } = fakeBackend()
+      const { driver, store } = makeDriver(backend, reveal)
       await driver.start("f1", { asker: ZACK, pace: "show" })
       const key = `f1:${ZACK}`
       store.records.set(
@@ -386,11 +391,11 @@ describe("AgentFrameDriver", () => {
       const records = { current: new Map<string, FrameControlRecord>() }
       // The person presses Interact while the cursor glides: the canvas
       // refuses the step.
-      const { backend, reveals } = fakeBackend(() => {
+      const { backend, reveals, reveal } = fakeBackend(() => {
         records.current.set(key, record(ZACK))
         return { status: "taken" }
       })
-      const { driver, store } = makeDriver(backend)
+      const { driver, store } = makeDriver(backend, reveal)
       records.current = store.records
       await driver.start("f1", { asker: ZACK, pace: "show" })
       expect(await driver.run("f1", CLICK)).toEqual({
@@ -408,8 +413,11 @@ describe("AgentFrameDriver", () => {
     })
 
     it("says so when the canvas can't be reached", async () => {
-      const { backend } = fakeBackend(() => DONE, "the canvas isn't open")
-      const { driver, store } = makeDriver(backend)
+      const { backend, reveal } = fakeBackend(
+        () => DONE,
+        "the canvas isn't open"
+      )
+      const { driver, store } = makeDriver(backend, reveal)
       expect(await driver.start("f1", { asker: ZACK, pace: "show" })).toEqual({
         status: "unavailable",
         reason: "the canvas isn't open",

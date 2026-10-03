@@ -6,14 +6,14 @@ import {
 } from "@/lib/frame-drive/contract"
 import type {
   CanvasToServer,
-  FrameSnapshot,
   FrameWhere,
+  PageInView,
   ServerToCanvas,
-} from "@/lib/frame-drive/mac/protocol"
+} from "@/lib/frame-drive/canvas/protocol"
 
 /**
- * The canvas's half of the drive channel (#1389): it takes an op from the
- * server, checks Frame Control in this canvas (the person may have taken the
+ * The canvas's half of the asker's-canvas channel (#1389, `channel.ts`): it
+ * takes an op from the server, checks Frame Control in this canvas (the person may have taken the
  * frame since the agent asked), and hands the op to the frame's Sandbox
  * Bridge. Frames and mockups (#1391) alike: both run the bridge. The socket
  * is the Mac sidecar's WebSocket, or on hosted the Room's doc (`view/`).
@@ -29,7 +29,7 @@ export interface RelayFrame {
   where(): FrameWhere
   /** The page as it is now, for a screenshot taken away from the canvas
    *  (hosted mockups). */
-  snapshot?(): Promise<FrameSnapshot | null>
+  snapshot?(): Promise<PageInView | null>
 }
 
 export interface RelayFrames {
@@ -64,7 +64,7 @@ export interface RelaySocket {
   ): void
 }
 
-/** Answer one message from the sidecar. */
+/** Answer one message from the server. */
 export async function answerRelayMessage(
   message: ServerToCanvas,
   deps: Pick<RelayDeps, "frames" | "agentDrives" | "reveal">,

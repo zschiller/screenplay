@@ -7,10 +7,12 @@
  * screenshot). There is no op that runs the agent's own script in the page:
  * driving a frame must never become running arbitrary code (#1367).
  *
- * Each runtime has a backend that applies the ops: the Mac relays them to the
- * Sandbox Bridge in the person's own frame or mockup (`mac/`), hosted relays a
- * mockup's to the asker's canvas through the Room's doc (`view/`, #1391), and
- * sends a frame's to its shared browser as real input (`hosted/`, #1396).
+ * Each runtime has a backend that applies the ops: a page in the person's own
+ * canvas (a frame on the Mac, a mockup anywhere) gets them through the
+ * asker's-canvas channel (`canvas/`), over a WebSocket on the Mac (`mac/`)
+ * or the Room's doc on hosted (`view/`, #1391), and a hosted frame's go to its
+ * shared browser as real input (`hosted/`, #1396). Bringing a frame into the
+ * asker's view is the channel's, whichever backend drives it.
  * Every backend passes the same contract suite (`contract-suite.ts`), so what
  * the agent can do doesn't depend on where Screenplay runs. Who may drive is
  * Frame Control's call, applied in front of every backend by the agent's
@@ -217,9 +219,4 @@ export interface FrameDriveBackend {
   unavailable(frameId?: string): Promise<string | null>
   run(frameId: string, op: DriveOp): Promise<DriveResult>
   screenshot(frameId: string): Promise<DriveScreenshotResult>
-  /**
-   * Bring the frame into view on the canvas of the person who asked, and
-   * nobody else's (#1383). Null when it did, otherwise why not.
-   */
-  reveal(frameId: string): Promise<string | null>
 }
