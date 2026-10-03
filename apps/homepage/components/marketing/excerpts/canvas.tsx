@@ -111,7 +111,6 @@ export function Frame({
   label,
   group,
   workspace,
-  trailing,
   selected,
   device = "desktop",
   className,
@@ -124,8 +123,6 @@ export function Frame({
   group?: [name: string, workspace: string]
   /** The Workspace a frame on its own shows, after its name. */
   workspace?: string
-  /** What the label ends with, such as a Mockup's status. */
-  trailing?: React.ReactNode
   selected?: boolean
   device?: "desktop" | "mobile"
   className?: string
@@ -161,7 +158,6 @@ export function Frame({
             <span className="truncate">{workspace}</span>
           </span>
         ) : null}
-        {trailing}
       </div>
       <div
         className={cn(

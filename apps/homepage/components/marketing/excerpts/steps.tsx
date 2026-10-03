@@ -1,7 +1,6 @@
 import {
   ArrowSquareOutIcon,
   BookBookmarkIcon,
-  DotsThreeIcon,
   GitPullRequestIcon,
   MagnifyingGlassIcon,
   PathIcon,
@@ -209,9 +208,6 @@ export function PullRequestExcerpt() {
               Search chats…
             </div>
           </div>
-          <Tool className="mb-0.5 text-muted-foreground">
-            <DotsThreeIcon />
-          </Tool>
           <Tool className="mb-0.5 text-muted-foreground">
             <PlusIcon />
           </Tool>
