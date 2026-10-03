@@ -2668,6 +2668,7 @@ export function Canvas({
                   }
                   open={canvasSettingsOpen}
                   onOpenChange={setCanvasSettingsOpen}
+                  userId={userId}
                   repos={repos}
                   branches={agents}
                   onUpdateRepo={updateRepoInStorage}

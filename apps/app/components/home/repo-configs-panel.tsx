@@ -115,8 +115,13 @@ export function RepoConfigsPanel({
     setLoadFailed(false)
   }, [])
 
-  // The count comes first, so the confirm opens with its final wording.
+  // The count comes first, so the confirm opens with its final wording. A
+  // hosted canvas's copy never took your edits (#1427), so it isn't counted.
   const requestDelete = async (config: RepoConfig) => {
+    if (!isLocalBuild) {
+      setPendingDelete({ config, canvases: null })
+      return
+    }
     const canvases = await repositoryCanvasCount(config.id).catch((err) => {
       console.error("Failed to count canvases using repository", err)
       return null
@@ -427,8 +432,10 @@ function PresetDetail({
 }
 
 /** The delete confirm's body: Canvases that use the Repository keep their
- *  copy, unlinked (#1426). `null` = the count couldn't be read. */
+ *  copy, unlinked (#1426). `null` = the count couldn't be read. On hosted a
+ *  canvas's copy is its own (#1427), so deleting changes nothing there. */
 function deleteDescription(canvases: number | null): string {
+  if (!isLocalBuild) return "Canvases that use it keep their own copy."
   const keeps = "but it stops getting your edits."
   if (canvases === null) return `Canvases using it keep their copy, ${keeps}`
   if (canvases === 0) return "It isn’t on any canvas."

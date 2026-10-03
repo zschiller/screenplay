@@ -1,7 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BookBookmarkIcon, BrainIcon } from "@workspace/ui/components/icons"
+import {
+  BookBookmarkIcon,
+  BrainIcon,
+  MinusIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+} from "@workspace/ui/components/icons"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,7 +16,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@workspace/ui/components/breadcrumb"
-import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
@@ -63,6 +69,7 @@ import {
   listRepositories,
   saveRepositoryToAll,
 } from "@/lib/repository-library/actions"
+import { listCollaborators, type CollaboratorInfo } from "@/lib/rooms-actions"
 import type { BranchData, MemoryData, RepoData } from "@/lib/types"
 import { MemorySection } from "./canvas-memory-section"
 
@@ -92,6 +99,7 @@ export function CanvasSettingsDialog({
   canRevealEnv,
   open,
   onOpenChange,
+  userId,
   repos,
   branches,
   onUpdateRepo,
@@ -107,6 +115,8 @@ export function CanvasSettingsDialog({
   canRevealEnv: (repo: RepoData) => boolean
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** You, for telling the Repos you added from a teammate's (hosted). */
+  userId: string | undefined
   repos: RepoData[]
   branches: BranchData[]
   /** Canvas memory entries, oldest first. */
@@ -193,6 +203,7 @@ export function CanvasSettingsDialog({
                 <RepositoriesSection
                   roomId={roomId}
                   canRevealEnv={canRevealEnv}
+                  userId={userId}
                   repos={repos}
                   branches={branches}
                   onUpdateRepo={onUpdateRepo}
@@ -215,11 +226,15 @@ export function CanvasSettingsDialog({
  * scripts. Turning one off goes through today's remove path, confirming first
  * when Workspaces use it. Edit changes this canvas only, unless its Save to
  * all box is ticked (#1425); a Repo that differs from its Repository gets an
- * orange dot (#1424).
+ * orange dot (#1424). Hosted diverges (#1427): the list splits into On this
+ * canvas (every member's Repos) and Your other repositories, a shared canvas
+ * shows who added each Repo, and a Repo is the canvas's own copy once
+ * switched on, with no dot, Reset or Save to all.
  */
 function RepositoriesSection({
   roomId,
   canRevealEnv,
+  userId,
   repos,
   branches,
   onUpdateRepo,
@@ -228,6 +243,7 @@ function RepositoriesSection({
 }: {
   roomId: string
   canRevealEnv: (repo: RepoData) => boolean
+  userId: string | undefined
   repos: RepoData[]
   branches: BranchData[]
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
@@ -268,10 +284,40 @@ function RepositoriesSection({
     setLoadFailed(false)
   }
 
+  const members = useCanvasMembers(roomId)
   const rows = canvasRepositoryRows(repositories, repos)
+  // Who added each Repo only means something once someone else is here.
+  const shared = members.length > 1
+  const member = (id: string | undefined) =>
+    id ? members.find((m) => m.userId === id) : undefined
 
+  const editing = repos.find((r) => r.id === editingId) ?? null
+  // A hosted canvas's copy belongs to the canvas (#1427): it never takes
+  // Settings edits, so there's no customized dot, Reset or Save to all.
+  const linkedTo = (repo: RepoData | null) =>
+    isLocalBuild
+      ? repositories.find((r) => r.id === repo?.repositoryId)
+      : undefined
+
+  // Desktop is one list; hosted puts every member's Repos first.
+  const groups = (
+    isLocalBuild
+      ? [{ label: null, rows }]
+      : [
+          { label: "On this canvas", rows: rows.filter((row) => row.on) },
+          {
+            label: "Your other repositories",
+            rows: rows.filter((row) => !row.on),
+          },
+        ]
+  ).filter((group) => group.rows.length > 0)
+
+  // Removing on hosted always confirms: the canvas's copy, and anyone's
+  // edits to it, go for everyone here. Desktop's switch confirms only when
+  // Workspaces use it, since your Repository stays in Settings.
   const switchOff = (repo: RepoData) => {
-    if (branches.some((b) => b.repoId === repo.id)) setTurningOffId(repo.id)
+    if (!isLocalBuild || branches.some((b) => b.repoId === repo.id))
+      setTurningOffId(repo.id)
     else void onRemoveRepo(repo.id, { deleteBranchesOnRemote: false })
   }
 
@@ -282,7 +328,7 @@ function RepositoriesSection({
       <p className="text-sm text-muted-foreground">
         {isLocalBuild
           ? "Your repositories. Turn one on to run it on this canvas; new workspaces start from its settings."
-          : "Your repositories and the ones on this canvas. Turn one on to share it with everyone here; their new workspaces start from its settings."}
+          : "The repositories on this canvas, shared with everyone here. Add one of yours to copy its settings here."}
       </p>
       {loadFailed && (
         <LoadErrorRow
@@ -308,47 +354,93 @@ function RepositoriesSection({
         </Empty>
       ) : (
         <>
-          <SettingsRowList>
-            {rows.map((row) => {
-              const source = row.on ? row.repo : row.repository
-              const name = repoShortName(source)
-              const customized =
-                row.on &&
-                row.repository !== undefined &&
-                isCustomized(row.repo, row.repository)
-              return (
-                <SettingsRow
-                  key={row.on ? row.repo.id : row.repository.id}
-                  title={name}
-                  marker={customized && <CustomizedDot />}
-                  detail={<RunScripts source={source} />}
-                  action={
-                    <>
-                      {row.on && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          aria-label={`Edit ${name}`}
-                          onClick={() => setEditingId(row.repo.id)}
-                        >
-                          Edit
-                        </Button>
-                      )}
-                      <Switch
-                        aria-label={`Use ${name} on this canvas`}
-                        checked={row.on}
-                        onCheckedChange={(on) => {
-                          if (on && !row.on) onSwitchOn(row.repository)
-                          else if (!on && row.on) switchOff(row.repo)
-                        }}
-                      />
-                    </>
-                  }
-                />
-              )
-            })}
-          </SettingsRowList>
+          {groups.map((group) => (
+            <section
+              key={group.label ?? "all"}
+              aria-label={group.label ?? undefined}
+              className="flex flex-col gap-2"
+            >
+              {group.label && (
+                <h3 className="text-xs font-medium text-muted-foreground">
+                  {group.label}
+                </h3>
+              )}
+              <SettingsRowList>
+                {group.rows.map((row) => {
+                  const source = row.on ? row.repo : row.repository
+                  const name = repoShortName(source)
+                  const customized =
+                    row.on &&
+                    isLocalBuild &&
+                    row.repository !== undefined &&
+                    isCustomized(row.repo, row.repository)
+                  // Who added it, on a shared canvas, when it wasn't you.
+                  const adder =
+                    shared && row.on && row.repo.addedBy !== userId
+                      ? member(row.repo.addedBy)
+                      : undefined
+                  return (
+                    <SettingsRow
+                      key={row.on ? row.repo.id : row.repository.id}
+                      title={name}
+                      marker={
+                        customized ? (
+                          <CustomizedDot />
+                        ) : (
+                          adder && (
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              Added by {adder.name}
+                            </span>
+                          )
+                        )
+                      }
+                      detail={<RunScripts source={source} />}
+                      action={
+                        <>
+                          {row.on && (
+                            <IconButton
+                              label={`Edit ${name}`}
+                              onClick={() => setEditingId(row.repo.id)}
+                            >
+                              <PencilSimpleIcon />
+                            </IconButton>
+                          )}
+                          {!isLocalBuild ? (
+                            // A hosted canvas's copy is its own (#1427), so
+                            // it's added and removed, not switched.
+                            row.on ? (
+                              <IconButton
+                                label={`Remove ${name}`}
+                                onClick={() => switchOff(row.repo)}
+                              >
+                                <MinusIcon />
+                              </IconButton>
+                            ) : (
+                              <IconButton
+                                label={`Add ${name}`}
+                                onClick={() => onSwitchOn(row.repository)}
+                              >
+                                <PlusIcon />
+                              </IconButton>
+                            )
+                          ) : (
+                            <Switch
+                              aria-label={`Use ${name} on this canvas`}
+                              checked={row.on}
+                              onCheckedChange={(on) => {
+                                if (on && !row.on) onSwitchOn(row.repository)
+                                else if (!on && row.on) switchOff(row.repo)
+                              }}
+                            />
+                          )}
+                        </>
+                      }
+                    />
+                  )
+                })}
+              </SettingsRowList>
+            </section>
+          ))}
           <div className="flex justify-end">{newButton}</div>
         </>
       )}
@@ -361,14 +453,9 @@ function RepositoriesSection({
       />
       <RepoSettingsDialog
         roomId={roomId}
-        canRevealEnv={(() => {
-          const editing = repos.find((r) => r.id === editingId)
-          return editing ? canRevealEnv(editing) : false
-        })()}
-        repo={repos.find((r) => r.id === editingId) ?? null}
-        repository={repositories.find(
-          (r) => r.id === repos.find((p) => p.id === editingId)?.repositoryId
-        )}
+        canRevealEnv={editing ? canRevealEnv(editing) : false}
+        repo={editing}
+        repository={linkedTo(editing)}
         open={editingId !== null}
         onOpenChange={(open) => {
           if (!open) setEditingId(null)
@@ -379,7 +466,7 @@ function RepositoriesSection({
         }}
       />
       <RemoveRepositoryDialog
-        verb="Turn off"
+        verb={isLocalBuild ? "Turn off" : "Remove"}
         repo={repos.find((r) => r.id === turningOffId) ?? null}
         branches={branches}
         onOpenChange={(open) => {
@@ -389,6 +476,25 @@ function RepositoriesSection({
       />
     </>
   )
+}
+
+/** The canvas's members, for naming who added each Repo. Hosted only: the
+ *  desktop canvas is always yours. A failed fetch just names no one. */
+function useCanvasMembers(roomId: string): CollaboratorInfo[] {
+  const [members, setMembers] = useState<CollaboratorInfo[]>([])
+  useEffect(() => {
+    if (isLocalBuild) return
+    let cancelled = false
+    listCollaborators(roomId)
+      .then((rows) => {
+        if (!cancelled) setMembers(rows)
+      })
+      .catch((err) => console.error("listCollaborators failed:", err))
+    return () => {
+      cancelled = true
+    }
+  }, [roomId])
+  return members
 }
 
 /** A Repo edited on this canvas so it differs from its Repository: the

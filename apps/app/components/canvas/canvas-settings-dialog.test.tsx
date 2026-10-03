@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   cleanup,
   fireEvent,
@@ -83,6 +83,28 @@ vi.mock("@/lib/repo-env/actions", () => ({
     .fn()
     .mockResolvedValue("API_URL=https://api.test\nSTRIPE_KEY=sk_live_1"),
 }))
+// Desktop unless a test flips it: hosted adds and removes repositories
+// rather than switching them, and drops Save to all, the customized dot and
+// Reset to Settings (#1427).
+const { buildFlag } = vi.hoisted(() => ({ buildFlag: { local: true } }))
+vi.mock("@/lib/local-mode", () => ({
+  get isLocalBuild() {
+    return buildFlag.local
+  },
+}))
+// A shared canvas: you (Zack) and Mia.
+vi.mock("@/lib/rooms-actions", () => ({
+  listCollaborators: vi.fn().mockResolvedValue([
+    {
+      userId: "zack",
+      name: "Zack",
+      email: null,
+      avatar: null,
+      isOwner: true,
+    },
+    { userId: "mia", name: "Mia", email: null, avatar: null, isOwner: false },
+  ]),
+}))
 vi.mock("@/lib/add-repo/actions", () => ({
   detectRepoSettings: vi.fn().mockResolvedValue({ ok: false }),
   detectFolderSettings: vi.fn().mockResolvedValue({ ok: false }),
@@ -140,6 +162,7 @@ window.matchMedia ??= ((query: string) => ({
 
 afterEach(() => {
   cleanup()
+  buildFlag.local = true
   vi.mocked(listRepositories).mockResolvedValue(REPOSITORIES)
   vi.mocked(saveRepositoryToAll).mockClear()
 })
@@ -161,7 +184,18 @@ function repo(over: Partial<RepoData>): RepoData {
   }
 }
 
-const STOREFRONT = repo({ repositoryId: "cfg-storefront" })
+const STOREFRONT = repo({ repositoryId: "cfg-storefront", addedBy: "zack" })
+// Mia switched on one of her Repositories here.
+const MIAS_WEB = repo({
+  id: "r3",
+  name: "web",
+  repoFullName: "mia/web",
+  repoName: "web",
+  devScript: "next dev",
+  createdAt: 3,
+  repositoryId: "cfg-mia-web",
+  addedBy: "mia",
+})
 // On the canvas but linked to none of your Repositories.
 const DOCS = repo({
   id: "r2",
@@ -211,6 +245,7 @@ function renderDialog(
       canRevealEnv={() => canReveal}
       open
       onOpenChange={vi.fn()}
+      userId="zack"
       repos={repos}
       branches={BRANCHES}
       memories={memories}
@@ -307,6 +342,8 @@ describe("CanvasSettingsDialog", () => {
   })
 
   it("New repository saves it to your repositories and turns it on here", async () => {
+    // The hosted picker: straight to GitHub, no Open folder.
+    buildFlag.local = false
     // The server's upsert: saving the repository you already have keeps its id.
     vi.mocked(saveRepository).mockImplementation(async (r: RepoConfig) =>
       REPOSITORIES.map((x) => (x.id === r.id ? r : x))
@@ -470,6 +507,11 @@ describe("CanvasSettingsDialog", () => {
   })
 
   describe("env vars (#1416)", () => {
+    // Env vars are a hosted field.
+    beforeEach(() => {
+      buildFlag.local = false
+    })
+
     const WITH_ENV = {
       ...DOCS,
       envVarNames: ["API_URL", "STRIPE_KEY"],
@@ -586,6 +628,118 @@ describe("CanvasSettingsDialog", () => {
     expect(
       within(form).queryByRole("button", { name: "Reset to Settings" })
     ).toBeNull()
+  })
+
+  describe("on a shared hosted canvas", () => {
+    beforeEach(() => {
+      buildFlag.local = false
+    })
+
+    it("splits the list into On this canvas and Your other repositories", async () => {
+      renderDialog([STOREFRONT, DOCS, MIAS_WEB])
+      await screen.findByRole("button", { name: "Add api" })
+
+      const names = (label: string) =>
+        within(screen.getByRole("region", { name: label }))
+          .getAllByRole("button", { name: /^(Add|Remove) / })
+          .map((s) => s.getAttribute("aria-label"))
+      expect(names("On this canvas")).toEqual([
+        "Remove docs",
+        "Remove storefront",
+        "Remove web",
+      ])
+      expect(names("Your other repositories")).toEqual(["Add api"])
+      expect(screen.queryByRole("switch")).toBeNull()
+    })
+
+    it("adds one of your repositories", async () => {
+      const { onSwitchOn } = renderDialog()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Add api" }))
+
+      expect(onSwitchOn).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "cfg-api" })
+      )
+    })
+
+    it("confirms removing even a repository no workspace uses", async () => {
+      const { onRemoveRepo } = renderDialog()
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Remove docs" })
+      )
+
+      const confirm = await screen.findByRole("alertdialog")
+      expect(within(confirm).getByText("Remove “docs”?")).not.toBeNull()
+      expect(onRemoveRepo).not.toHaveBeenCalled()
+      fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }))
+
+      await waitFor(() =>
+        expect(onRemoveRepo).toHaveBeenCalledWith("r2", {
+          deleteBranchesOnRemote: false,
+        })
+      )
+    })
+
+    it("confirms removing a repository its workspaces use", async () => {
+      const { onRemoveRepo } = renderDialog()
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Remove storefront" })
+      )
+
+      const confirm = await screen.findByRole("alertdialog")
+      expect(within(confirm).getByText("Remove “storefront”?")).not.toBeNull()
+      fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }))
+
+      await waitFor(() =>
+        expect(onRemoveRepo).toHaveBeenCalledWith("r1", {
+          deleteBranchesOnRemote: false,
+        })
+      )
+    })
+
+    it("names a teammate who added a repository", async () => {
+      renderDialog([STOREFRONT, DOCS, MIAS_WEB])
+
+      expect(await screen.findByText("Added by Mia")).not.toBeNull()
+      // Yours goes unnamed, and nobody recorded who added docs.
+      expect(screen.getAllByText(/^Added by/)).toHaveLength(1)
+    })
+
+    it("keeps every edit on this canvas, with no dot, Reset or Save to all", async () => {
+      const { onUpdateRepo } = renderDialog([
+        { ...STOREFRONT, devScript: "pnpm dev --turbo" },
+        MIAS_WEB,
+      ])
+      await screen.findByText("Added by Mia")
+      expect(
+        screen.queryByRole("img", { name: "Customized for this canvas" })
+      ).toBeNull()
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
+      const form = await screen.findByRole("dialog", {
+        name: "Repository settings",
+      })
+      expect(
+        within(form).queryByRole("checkbox", {
+          name: "Also update Settings and my other canvases",
+        })
+      ).toBeNull()
+      expect(
+        within(form).queryByRole("button", { name: "Reset to Settings" })
+      ).toBeNull()
+      fireEvent.change(within(form).getByLabelText("Run script"), {
+        target: { value: "pnpm dev" },
+      })
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+
+      expect(onUpdateRepo).toHaveBeenCalledWith(
+        "r1",
+        expect.objectContaining({ devScript: "pnpm dev" })
+      )
+      expect(saveRepositoryToAll).not.toHaveBeenCalled()
+    })
   })
 
   describe("Memory", () => {
