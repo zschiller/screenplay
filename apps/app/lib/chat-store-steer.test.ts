@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { chatStore, type ChatControlEvent } from "./chat-store"
 import { userTurnEcho } from "./agent/user-turn"
+import { buildCanvasViewFooter } from "./agent/message-markers"
 
 let seq = 0
 const nextId = () => `evt_steer_${++seq}`
@@ -120,6 +121,54 @@ describe("chat-store — steering a running turn (#1190)", () => {
     await sent
 
     expect(chatStore.getSnapshot(chatId).pendingSteers).toEqual([])
+    chatStore.cleanup(chatId)
+  })
+
+  it("draws its own Steer once when the broadcast, footer and all, beats the answer", async () => {
+    const chatId = newChat()
+    startRun(chatId)
+    control(chatId, { kind: "steerable", steerable: true })
+    let resolve!: (v: unknown) => void
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((r) => {
+            resolve = r
+          })
+      )
+    )
+    const canvasView = {
+      sender: "Maya",
+      selected: [{ kind: "frame" as const, id: "f1", name: "Checkout" }],
+      onScreen: [],
+    }
+    const sent = chatStore.sendMessage({
+      roomId: "room",
+      chatId,
+      target: { kind: "room" },
+      message: "use v2",
+      canvasView,
+    })
+    // The server echoes the posted text, which carries the Canvas view footer.
+    control(chatId, {
+      kind: "steer_pending",
+      steer: {
+        id: "s1",
+        message: "use v2" + buildCanvasViewFooter(canvasView),
+        turn: { body: "use v2" },
+      },
+    })
+    expect(chatStore.getSnapshot(chatId).pendingSteers).toMatchObject([
+      { id: "s1", message: "use v2" },
+    ])
+    resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({ steered: true, steerId: "s1" }),
+    })
+    await sent
+    expect(chatStore.getSnapshot(chatId).pendingSteers).toHaveLength(1)
     chatStore.cleanup(chatId)
   })
 
