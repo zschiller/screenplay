@@ -193,7 +193,7 @@ When a preview gets stuck, **Restart** offers escalating fixes:
   keeps every file, and works even while the agent is busy. Try it first.
   To stop the dev server instead, see
   [Running and stopping the dev server](/guides/agent#running-and-stopping-the-dev-server).
-- **Restart sandbox** _(hosted)_ restarts the whole sandbox VM. Your working
+- **Restart sandbox** <Only hosted /> restarts the whole sandbox VM. Your working
   tree, including uncommitted changes, is restored from a snapshot.
 - **Recreate from scratch** deletes the sandbox and checks the branch out
   fresh. **Uncommitted changes are permanently discarded**, so you'll be asked
@@ -268,7 +268,9 @@ left on the remote.
 Documents and mockups the chat made stay on the canvas. Any other chat can
 then change them, and the first one that does takes them over.
 
-## One branch, one workspace (desktop)
+## One branch, one workspace
+
+<Only desktop />
 
 On desktop, every workspace is a git worktree of one shared clone, and git
 allows each branch to be checked out only once. Opening a branch that's
