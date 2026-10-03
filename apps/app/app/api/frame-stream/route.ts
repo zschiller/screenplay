@@ -34,9 +34,8 @@ export async function POST(req: Request) {
   const room = await openRoomForRoute(roomId)
   if (room instanceof Response) return room
 
-  if (isLocalSandboxBackend() || !sharedFramesEnabled()) {
-    return Response.json({ shared: false })
-  }
+  if (isLocalSandboxBackend()) return unshared("SANDBOX_BACKEND is local")
+  if (!sharedFramesEnabled()) return unshared("SHARED_FRAMES is off")
 
   const branch = await room.readDoc((c) => c.branches.get(branchId))
   if (!branch) {
@@ -47,7 +46,11 @@ export async function POST(req: Request) {
   if (!result.success) {
     return Response.json({ error: result.error }, { status: 502 })
   }
-  if (!result.value) return Response.json({ shared: false })
+  if (!result.value) {
+    return unshared(
+      `Sandbox ${branch.sandboxName} has no route for the stream port (created before shared frames)`
+    )
+  }
 
   const { token, expiresAt } = viewToken(
     frameStreamKey(branch.sandboxName),
@@ -59,4 +62,11 @@ export async function POST(req: Request) {
     token,
     expiresAt,
   })
+}
+
+/** Per-viewer frames for this Workspace, saying why, in the response and the
+ *  server log, since the canvas falls back without a word. */
+function unshared(reason: string): Response {
+  console.info(`[frame-stream] per-viewer frames: ${reason}`)
+  return Response.json({ shared: false, reason })
 }
