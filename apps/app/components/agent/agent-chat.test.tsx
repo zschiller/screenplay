@@ -121,7 +121,7 @@ describe("AgentChat — affordances per Chat Target", () => {
     )
 
     expect(screen.getByText("Sketch or write something")).toBeTruthy()
-    expect(screen.getByText(/Ask for a Mockup or a Document/)).toBeTruthy()
+    expect(screen.getByText(/Ask for a mockup or a document/)).toBeTruthy()
     expect(
       screen.getByRole("button", { name: "Mock up a pricing page" })
     ).toBeTruthy()

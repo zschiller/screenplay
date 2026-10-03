@@ -32,7 +32,7 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
     placeholder: "Ask the agent… (@ document, / skill)",
     emptyTitle: "Change what your frames show",
     emptyBody:
-      "The agent edits this Workspace's code and can run commands, and your frames update as it works. It can write Documents on the canvas too.",
+      "The agent edits this workspace's code and can run commands, and your frames update as it works. It can write documents on the canvas too.",
     starters: [
       "Explain how this page is built",
       "Tighten the spacing on mobile",
@@ -47,11 +47,11 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
     placeholder: "Ask the Coordinator… (@ document)",
     emptyTitle: "Ask about this canvas",
     emptyBody:
-      "The Coordinator sees every Workspace, frame and Document on this canvas.",
+      "The Coordinator sees every chat, frame and document on this canvas.",
     starters: [
       "What's on this canvas?",
-      "Which Workspaces have a PR?",
-      "What changed in each Workspace?",
+      "Which chats have a PR?",
+      "What changed in each chat?",
     ],
   },
   // A chat with no repository writes pages, not code.
@@ -59,10 +59,10 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
     skills: false,
     planMode: false,
     elementPicking: false,
-    placeholder: "Ask for a Mockup or a Document… (@ document)",
+    placeholder: "Ask for a mockup or a document… (@ document)",
     emptyTitle: "Sketch without code",
     emptyBody:
-      "This chat has no repository. It writes Mockups and Documents on the canvas.",
+      "This chat has no repository. It writes mockups and documents on the canvas.",
     starters: [
       "Mock up a pricing page",
       "Sketch three hero layouts",

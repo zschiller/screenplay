@@ -92,8 +92,8 @@ export function CanvasEmptyState({
           </EmptyMedia>
           <EmptyTitle>This canvas is empty</EmptyTitle>
           <EmptyDescription>
-            Frames preview a Workspace, Mockups sketch a page before it&apos;s
-            built, Documents hold notes and specs, and a repository holds the
+            Frames preview a workspace, mockups sketch a page before it&apos;s
+            built, documents hold notes and specs, and a repository holds the
             code they run.
           </EmptyDescription>
         </EmptyHeader>
@@ -127,13 +127,13 @@ export function CanvasEmptyState({
           )}
           <EmptyAction
             icon={<ScribbleIcon />}
-            label="Add a Mockup"
+            label="Add a mockup"
             shortcut="M"
             onClick={() => toolMode.set("mockup")}
           />
           <EmptyAction
             icon={<FileTextIcon />}
-            label="Add a Document"
+            label="Add a document"
             shortcut="D"
             onClick={() => toolMode.set("document")}
           />

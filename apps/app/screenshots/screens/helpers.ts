@@ -154,7 +154,7 @@ export function rowMenuTrigger(page: Page, text: string): Locator {
 export async function branchRowMenu(page: Page, ref: string): Promise<Locator> {
   const row = await workspaceMenuRow(page, ref)
   await row.hover({ timeout: 15_000 })
-  return row.getByRole("button", { name: "Workspace options" })
+  return row.getByRole("button", { name: "Chat options" })
 }
 
 /**

@@ -9,7 +9,7 @@ The **Coordinator** is one chat for the whole canvas. It's where the panel
 opens, and every canvas has exactly one, shared by everyone on it. It can see
 every workspace (its title, status, changed lines and pull request), every
 frame and document, and your terminal tabs, so you can ask things like
-"What's on this canvas?" or "Which workspaces have a PR?" without opening
+"What's on this canvas?" or "Which chats have a PR?" without opening
 each one. It reads documents too, including ones you @ mention.
 
 It can also look inside a workspace: what its agent was last asked, a summary
@@ -198,13 +198,13 @@ Its tool calls show as compact rows, like a workspace agent's. Once a change
 to the canvas finishes, its row says what changed, such as **Renamed Group
 "Hero" to "Sign-in"**.
 
-| Kind       | Rows                                                                                                                                                               |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Read       | **Read canvas**, **Read document**, **Read Workspace chat**, **Read Workspace diff**, **Read Workspace file**, **View frame**, **Read frame HTML**, **Read skill** |
-| Arrange    | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**             |
-| View       | **Show on canvas**                                                                                                                                                 |
-| Workspaces | **Create Workspaces**, **Stop Workspace**, **Open pull request**, **Remove Workspace**                                                                             |
-| Memory     | **Save to memory**                                                                                                                                                 |
+| Kind    | Rows                                                                                                                                                     |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read    | **Read canvas**, **Read document**, **Read chat**, **Read workspace diff**, **Read workspace file**, **View frame**, **Read frame HTML**, **Read skill** |
+| Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**   |
+| View    | **Show on canvas**                                                                                                                                       |
+| Chats   | **Start chats**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                 |
+| Memory  | **Save to memory**                                                                                                                                       |
 
 A message to a workspace shows as its [card](#messages-to-workspaces) rather
 than a row, and a [question](/guides/agent#questions) it

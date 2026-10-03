@@ -92,7 +92,7 @@ describe("removeBranch — local teardown vs. the remote branch", () => {
       string,
       { description?: string },
     ]
-    expect(title).toBe("Workspace deleted. Its branch is still on GitHub.")
+    expect(title).toBe("Chat deleted. Its branch is still on GitHub.")
     expect(options.description).toBe(
       "Delete it on GitHub if you don't need it."
     )

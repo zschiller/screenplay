@@ -86,7 +86,7 @@ function PlayerChatHostImpl({
   if (!agent) {
     return (
       <PlayerChatPlaceholder onCollapse={onCollapse}>
-        Workspace not found.
+        Chat not found.
       </PlayerChatPlaceholder>
     )
   }

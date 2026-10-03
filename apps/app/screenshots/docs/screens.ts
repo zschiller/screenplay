@@ -977,14 +977,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [760, 40, 520, 340],
     focus: [
       "[data-slot=tooltip-content]",
-      "button[aria-label='Agent is driving']",
+      "button[aria-label='Agent has control']",
     ],
     beforeNavigate: claudeDrivesHome,
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
       await page.mouse.move(
-        ...xy(await centerOf(page, frameToolbar("Agent is driving")))
+        ...xy(await centerOf(page, frameToolbar("Agent has control")))
       )
       await showTooltip(page)
     },
