@@ -1,3 +1,4 @@
+import { isSketchChat } from "@/lib/chat/sketch-chat"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
 
@@ -47,4 +48,35 @@ export function documentOwnerChat(
   if (!chat?.branchId) return null
   const chatId = workspaceChatId(chats, chat.branchId) ?? chat.id
   return { chatId, branchId: chat.branchId }
+}
+
+/**
+ * Where a Mockup's empty Knobs popover sends "Ask the agent to add a knob", by
+ * Mockup id: the Sketch Chat that made it, or the Workspace chat of the chat
+ * that made it (#1315, the same resolution as {@link documentOwnerChat}), never
+ * an earlier, read-only chat. A Mockup made by hand, or whose chat is gone, has
+ * none and offers no Ask.
+ */
+export type MockupAskTarget =
+  | { kind: "sketch"; chatId: string }
+  | { kind: "workspace"; chatId: string; branchId: string }
+
+export function mockupAskTargets(
+  mockups: readonly Doc[],
+  chats: readonly (Chat & Pick<ChatSessionData, "createdAt" | "target">)[]
+): Map<string, MockupAskTarget> {
+  const out = new Map<string, MockupAskTarget>()
+  for (const m of mockups) {
+    const chat = m.ownerChatId
+      ? chats.find((c) => c.id === m.ownerChatId)
+      : undefined
+    if (!chat) continue
+    if (isSketchChat(chat)) {
+      out.set(m.id, { kind: "sketch", chatId: chat.id })
+    } else if (chat.branchId) {
+      const chatId = workspaceChatId(chats, chat.branchId) ?? chat.id
+      out.set(m.id, { kind: "workspace", chatId, branchId: chat.branchId })
+    }
+  }
+  return out
 }

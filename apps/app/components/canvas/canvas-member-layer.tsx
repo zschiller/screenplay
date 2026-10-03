@@ -35,6 +35,7 @@ import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
 import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
+import type { MockupAskTarget } from "@/lib/canvas/document-owner"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 
@@ -115,6 +116,7 @@ function CanvasMemberLayerImpl({
   removeIframeLayer,
   handlePlayIframeLayer,
   onAskForKnob,
+  mockupAskTargets,
   onAskForMockupKnob,
   handleCaptureReadyChange,
   handleCaptureDirty,
@@ -192,9 +194,11 @@ function CanvasMemberLayerImpl({
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
   /** Start an "add a knob" request in a Workspace's chat composer. */
   onAskForKnob: (branchId: string) => void
+  /** Where each chat-made Mockup's Ask goes; a Mockup missing here has no Ask. */
+  mockupAskTargets: ReadonlyMap<string, MockupAskTarget>
   /**
-   * Start an "add a knob" request in the composer of the chat that made a
-   * Mockup.
+   * Start an "add a knob" request in the composer of the chat that can rewrite
+   * a Mockup (its Sketch Chat or its Workspace's chat).
    */
   onAskForMockupKnob: (mockupId: string) => void
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
@@ -500,7 +504,7 @@ function CanvasMemberLayerImpl({
                 commentMode={commentMode}
                 onWheel={onIframeWheel}
                 onAskForKnob={
-                  documentWorkspaces.has(mockup.id)
+                  mockupAskTargets.has(mockup.id)
                     ? () => onAskForMockupKnob(mockup.id)
                     : undefined
                 }
