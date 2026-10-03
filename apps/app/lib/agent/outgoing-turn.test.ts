@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  buildAttachmentsFooter,
   buildCanvasViewFooter,
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
@@ -9,6 +10,7 @@ import {
   serializeMention,
   serializeSkill,
   type CanvasView,
+  type MessageAttachment,
   type ReferencedDoc,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
@@ -49,6 +51,12 @@ const canvasView: CanvasView = {
   onScreen: [{ kind: "document", id: "d1", name: "Spec" }],
 }
 
+const photo: MessageAttachment = {
+  path: "uploads/photo.png",
+  mediaType: "image/png",
+  size: 2048,
+}
+
 /** Every combination of the parts a send can carry. */
 function* combinations(): Generator<OutgoingTurnParts> {
   const messages: Array<{ message: string; referencedDocs: ReferencedDoc[] }> =
@@ -78,12 +86,15 @@ function* combinations(): Generator<OutgoingTurnParts> {
           .join("")
       for (const q of [undefined, quote]) {
         for (const view of [undefined, null, canvasView]) {
-          yield {
-            message: withTokens,
-            referencedDocs,
-            targetedElements,
-            quote: q,
-            canvasView: view,
+          for (const attachments of [[], [photo]]) {
+            yield {
+              message: withTokens,
+              referencedDocs,
+              targetedElements,
+              attachments,
+              quote: q,
+              canvasView: view,
+            }
           }
         }
       }
@@ -95,7 +106,7 @@ describe("buildOutgoingTurn", () => {
   const all = [...combinations()]
 
   it("covers every combination", () => {
-    expect(all).toHaveLength(4 * 3 * 2 * 3)
+    expect(all).toHaveLength(4 * 3 * 2 * 3 * 2)
   })
 
   it.each(all.map((parts, i) => ({ i, parts })))(
@@ -112,10 +123,12 @@ describe("buildOutgoingTurn", () => {
       message: "hi",
       referencedDocs: [{ id: "doc-1", title: "Spec" }],
       targetedElements: [frameElement],
+      attachments: [photo],
       canvasView: view,
     })
     expect(wire).toBe(
       "hi" +
+        buildAttachmentsFooter([photo]) +
         buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }]) +
         buildTargetedElementsFooter([frameElement]) +
         buildCanvasViewFooter(view)
@@ -141,5 +154,26 @@ describe("buildOutgoingTurn", () => {
     const { wire, turn } = buildOutgoingTurn({ message: "this", canvasView })
     expect(parseUserMessage(wire).body).toBe("this")
     expect(turn).toEqual({ body: "this" })
+  })
+})
+
+describe("an outgoing turn's attachments (#1525)", () => {
+  it("show on the turn and project back from the wire", () => {
+    const { wire, turn } = buildOutgoingTurn({
+      message: "what's this?",
+      attachments: [photo],
+    })
+    expect(turn).toEqual({ body: "what's this?", attachments: [photo] })
+    expect(projectUserTurn(wire)).toEqual(turn)
+  })
+
+  it("make a message on their own", () => {
+    const { wire, turn } = buildOutgoingTurn({
+      message: "",
+      attachments: [photo],
+    })
+    expect(wire).not.toBe("")
+    expect(turn).toEqual({ body: "", attachments: [photo] })
+    expect(projectUserTurn(wire)).toEqual(turn)
   })
 })

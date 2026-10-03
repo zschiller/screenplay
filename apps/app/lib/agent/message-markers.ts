@@ -392,6 +392,52 @@ export function buildCanvasViewFooter(view: CanvasView | null): string {
 }
 
 /**
+ * The canonical token that opens the attachments footer (#1525), shared by
+ * the build side (`buildAttachmentsFooter`) and the strip side
+ * (`parseUserMessage`, `parseAttachmentsFooter`).
+ */
+export const ATTACHMENTS_FOOTER_TOKEN = "Attached files:"
+
+/**
+ * A file attached to a message: saved in Canvas Files (under `uploads/`),
+ * named here by its path so the agent can open it and the message can show a
+ * chip for it.
+ */
+export interface MessageAttachment {
+  /** Its path in Canvas Files. */
+  path: string
+  mediaType: string
+  /** Bytes. */
+  size: number
+}
+
+function attachmentLine(a: MessageAttachment): string {
+  // A quoted path, so a name with spaces or parens parses back exactly.
+  return `- ${JSON.stringify(a.path)} (${a.mediaType}, ${a.size} bytes)`
+}
+
+/**
+ * Build the attachments footer: the files the sender attached, by their path
+ * in the canvas's files, so the agent can open them with `read_saved_file`.
+ * Returns an empty string when there are none, so callers can append
+ * unconditionally. Like the canvas-view footer, its lines stop at the first
+ * that isn't an item, so a message joined from several Steers keeps each.
+ */
+export function buildAttachmentsFooter(
+  attachments: readonly MessageAttachment[]
+): string {
+  if (attachments.length === 0) return ""
+  return [
+    "",
+    "",
+    "---",
+    "",
+    `${ATTACHMENTS_FOOTER_TOKEN} the sender attached these to this message. They're saved in the canvas's files; open one with \`read_saved_file\`.`,
+    ...attachments.map(attachmentLine),
+  ].join("\n")
+}
+
+/**
  * Prepend the server turn prefixes to a user message body: wake, delegation,
  * then plan, then branch. Each prefix is emitted only when its input is
  * present, so a turn with no marker returns `body` unchanged.
@@ -478,6 +524,14 @@ const CANVAS_VIEW_FOOTER_RE = new RegExp(
   `\\n\\n---\\n\\n${CANVAS_VIEW_FOOTER_TOKEN}[^\\n]*(?:\\n(?:Selected:|On screen:|- )[^\\n]*)*`,
   "g"
 )
+// The attachments footer stops at its last item line, like the canvas view.
+const ATTACHMENTS_FOOTER_RE = new RegExp(
+  `\\n\\n---\\n\\n${ATTACHMENTS_FOOTER_TOKEN}[^\\n]*(?:\\n- [^\\n]*)*`,
+  "g"
+)
+// One attachment line, exactly as `attachmentLine` emits it.
+const ATTACHMENT_LINE_RE = /^- ("(?:[^"\\]|\\.)*") \(([^,()]+), (\d+) bytes\)$/
+
 // One targeted-element detail line, exactly as `buildTargetedElementsFooter`
 // emits it: `- <ref>: <route> — <selector> (frame: <frameLabel>)` (or
 // `(mockup: …)` for an element in a Mockup) with an
@@ -523,6 +577,7 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   // regex anchors on its own token, so removing one leaves the other intact
   // until its own strip runs.
   body = body.replace(CANVAS_VIEW_FOOTER_RE, "")
+  body = body.replace(ATTACHMENTS_FOOTER_RE, "")
   const hadReferencedDocs = REFERENCED_DOCS_FOOTER_RE.test(body)
   const hadTargetedElements = TARGETED_ELEMENTS_FOOTER_RE.test(body)
   if (hadReferencedDocs) {
@@ -568,6 +623,29 @@ export function parseTargetedElementsFooter(wire: string): TargetedElement[] {
         iframeLayerId: m[6],
         ...(m[4] === "mockup" ? { layerKind: "mockup" as const } : {}),
       })
+    }
+  }
+  return out
+}
+
+/**
+ * Recover the attachments from every `Attached files:` footer in a wire user
+ * message (a message joined from several Steers may carry more than one), in
+ * order. Lines that don't match the canonical shape are skipped.
+ */
+export function parseAttachmentsFooter(wire: string): MessageAttachment[] {
+  const out: MessageAttachment[] = []
+  for (const match of wire.matchAll(ATTACHMENTS_FOOTER_RE)) {
+    for (const line of match[0].split("\n")) {
+      const m = line.match(ATTACHMENT_LINE_RE)
+      if (!m) continue
+      try {
+        const path = JSON.parse(m[1]!) as unknown
+        if (typeof path !== "string") continue
+        out.push({ path, mediaType: m[2]!, size: Number(m[3]) })
+      } catch {
+        // Not a JSON string after all: skip the line.
+      }
     }
   }
   return out

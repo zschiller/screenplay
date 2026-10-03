@@ -13,7 +13,7 @@ import {
   acpHistoryToModelMessages,
   aiSdkChunkToAcpUpdate,
   cachedSystem,
-  recordText,
+  userModelContent,
   withConversationCacheBreakpoint,
 } from "./adapter"
 import type {
@@ -27,6 +27,7 @@ import type {
 import {
   planPermissionRequest,
   SUBMIT_PLAN_TOOL,
+  textBlock,
   type StopReason,
 } from "./schema"
 
@@ -306,12 +307,11 @@ interface PassFinish {
  * model reads: each Steer's text, oldest first, a blank line apart.
  */
 export function steersToModelMessage(steers: TakenSteer[]): ModelMessage {
-  return {
-    role: "user",
-    content: steers
-      .map((s) => recordText({ role: "user", content: s.content }))
-      .join("\n\n"),
-  }
+  // Each Steer's text a blank line apart, then any images they attached.
+  const joined = steers.flatMap((s, i) =>
+    i === 0 ? s.content : [textBlock("\n\n"), ...s.content]
+  )
+  return { role: "user", content: userModelContent(joined) }
 }
 
 /** Splice taken Steers back into a step's input at the indices they joined. */

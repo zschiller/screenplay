@@ -331,6 +331,12 @@ export class AcpSession {
   private queuesPrompts = false
   /** Whether the agent advertised a steering request (see {@link steering}). */
   private takesSteering = false
+  /**
+   * Whether the agent takes image blocks in a prompt (its
+   * `promptCapabilities.image`). An attached image (#1525) is dropped for one
+   * that doesn't; the message's footer still names the file.
+   */
+  private takesImages = false
   /** Prompts sent and not yet resolved; the turn signal is cleared at zero. */
   private outstanding = 0
   /** Whether this turn plans through the collaboration mode (see the getter). */
@@ -434,6 +440,8 @@ export class AcpSession {
     session.takesSteering =
       advertisesSteering(init._meta) ||
       advertisesSteering(init.agentCapabilities?._meta)
+    session.takesImages =
+      init.agentCapabilities?.promptCapabilities?.image === true
     const mcpServers = supportedMcpServers(
       options.mcpServers ?? [],
       init.agentCapabilities?.mcpCapabilities
@@ -608,7 +616,7 @@ export class AcpSession {
     try {
       const response = await this.conn.request<{ outcome?: unknown }>(
         STEERING_METHOD,
-        { sessionId: this.id, prompt: blocks }
+        { sessionId: this.id, prompt: this.promptable(blocks) }
       )
       const outcome = response?.outcome
       return outcome === "injected" || outcome === "startedNewTurn"
@@ -629,6 +637,11 @@ export class AcpSession {
   }
 
   /** Send one turn as an ACP `prompt`, wiring `/stop` cancellation for it. */
+  /** `blocks` without the image blocks an agent that takes none would refuse. */
+  private promptable(blocks: ContentBlock[]): ContentBlock[] {
+    return this.takesImages ? blocks : blocks.filter((b) => b.type !== "image")
+  }
+
   private async sendTurn(
     blocks: ContentBlock[],
     signal: AbortSignal
@@ -639,7 +652,10 @@ export class AcpSession {
     // Queue the prompt first so the cancel notification (if the signal is
     // already aborted) is serialized *after* it on the connection's write
     // queue — otherwise a pre-aborted turn would cancel nothing and then run.
-    const turn = this.conn.prompt({ sessionId, prompt: blocks })
+    const turn = this.conn.prompt({
+      sessionId,
+      prompt: this.promptable(blocks),
+    })
     const cancel = () => void this.conn.cancel({ sessionId })
     if (signal.aborted) cancel()
     else signal.addEventListener("abort", cancel, { once: true })

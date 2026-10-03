@@ -104,6 +104,8 @@ import {
 } from "@/lib/branch/workspace-state"
 import { parseLayerLink } from "@/lib/agent/layer-link"
 import { useMockupTitle } from "@/lib/yjs/react"
+import { attachmentUrl } from "@/lib/chat-attachments"
+import { SentAttachmentChip } from "@/components/agent/attachment-chip"
 import { ElementDetail } from "./element-detail"
 import { commandOutput, highlight, languageFor, LogText } from "./tool-output"
 import { ChatMarkdown } from "./chat-markdown"
@@ -1044,20 +1046,23 @@ function MockupRef({ id }: { id: string }) {
  */
 function UserMessage({
   message,
+  roomId,
   sender,
 }: {
   message: AgentMessage & { role: "user" }
+  roomId?: string
   sender?: ChatSender
 }) {
   // A Coordinator wake is the server's report on a Workspace turn, not
   // something anyone said (#897).
   if (message.wakeFrom) return null
-  if (message.delegatedFrom) return <DelegatedMessage message={message} />
-  if (!sender) return <UserBubble message={message} />
+  if (message.delegatedFrom)
+    return <DelegatedMessage message={message} roomId={roomId} />
+  if (!sender) return <UserBubble message={message} roomId={roomId} />
   return (
     <div className="flex flex-col gap-1">
       <SenderLabel sender={sender} />
-      <UserBubble message={message} />
+      <UserBubble message={message} roomId={roomId} />
     </div>
   )
 }
@@ -1087,8 +1092,10 @@ function SenderLabel({ sender }: { sender: ChatSender }) {
  */
 function DelegatedMessage({
   message,
+  roomId,
 }: {
   message: AgentMessage & { role: "user" }
+  roomId?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   return (
@@ -1105,7 +1112,7 @@ function DelegatedMessage({
         Received a message from the Coordinator
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-1.5 pl-4.5">
-        <UserBubble message={message} align="start" />
+        <UserBubble message={message} roomId={roomId} align="start" />
       </CollapsibleContent>
     </Collapsible>
   )
@@ -1113,9 +1120,12 @@ function DelegatedMessage({
 
 function UserBubble({
   message,
+  roomId,
   align = "end",
 }: {
   message: AgentMessage & { role: "user" }
+  /** The canvas whose files the message's attachments open from. */
+  roomId?: string
   align?: "start" | "end"
 }) {
   // The user-turn projection already stripped the server prefixes and the
@@ -1183,16 +1193,45 @@ function UserBubble({
     [targetedElements]
   )
 
+  const attachments = message.attachments ?? []
+
   return (
-    <div className={cn("flex", align === "end" && "justify-end")}>
-      <ChatMarkdown
-        tone="bubble"
-        urlTransform={(url) => url}
-        components={components}
-        className="max-w-[85%] rounded-xl bg-muted px-3 py-1.5 dark:bg-input/70"
-      >
-        {displayContent}
-      </ChatMarkdown>
+    <div
+      className={cn(
+        "flex flex-col gap-1.5",
+        align === "end" ? "items-end" : "items-start"
+      )}
+    >
+      {attachments.length > 0 && roomId && (
+        // The files sent with it (#1525), over the text the way they sat in
+        // the composer; each opens the file.
+        <div
+          aria-label="Attachments"
+          className={cn(
+            "flex max-w-[85%] flex-wrap gap-1.5",
+            align === "end" && "justify-end"
+          )}
+        >
+          {attachments.map((a) => (
+            <SentAttachmentChip
+              key={a.path}
+              path={a.path}
+              mediaType={a.mediaType}
+              href={attachmentUrl(roomId, a.path)}
+            />
+          ))}
+        </div>
+      )}
+      {(displayContent.trim() || attachments.length === 0) && (
+        <ChatMarkdown
+          tone="bubble"
+          urlTransform={(url) => url}
+          components={components}
+          className="max-w-[85%] rounded-xl bg-muted px-3 py-1.5 dark:bg-input/70"
+        >
+          {displayContent}
+        </ChatMarkdown>
+      )}
     </div>
   )
 }
@@ -1353,6 +1392,7 @@ export function AgentMessageItem({
       return (
         <UserMessage
           message={message}
+          roomId={roomId}
           sender={message.sentBy ? senders?.get(message.sentBy) : undefined}
         />
       )

@@ -529,7 +529,8 @@ class ChatStore {
   async sendMessage(opts: SendMessageOptions, retry = false): Promise<boolean> {
     const { chatId } = opts
     const state = this.getOrCreate(chatId)
-    if (!opts.message.trim()) return false
+    // Attached files alone make a message (#1525).
+    if (!opts.message.trim() && !opts.attachments?.length) return false
     this.askedHere.add(chatId)
     if (state.isStreaming) {
       if (state.steerable !== true) {

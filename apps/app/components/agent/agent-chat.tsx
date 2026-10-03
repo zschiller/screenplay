@@ -47,6 +47,7 @@ import { isHarnessPlumbing } from "@/lib/agent/tool-name"
 import {
   Composer,
   type ComposerHandle,
+  type ComposerAttachmentPort,
   type ComposerSubmitPayload,
 } from "./composer"
 import type { SandboxStatus } from "@/lib/types"
@@ -62,6 +63,7 @@ import {
   type ChatQuote,
 } from "@/lib/chat-quote-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
+import { removeAttachment, uploadAttachment } from "@/lib/chat-attachments"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
 // render would make React re-subscribe every render.
@@ -146,6 +148,16 @@ export function AgentChat({
   const composerRef = useRef<ComposerHandle>(null)
 
   const markdownLayers = useMarkdownLayers()
+
+  // Files dropped or pasted into the composer go into the canvas's files
+  // (#1525).
+  const attach = useMemo<ComposerAttachmentPort>(
+    () => ({
+      upload: (file) => uploadAttachment(roomId, file),
+      remove: (path) => void removeAttachment(roomId, path),
+    }),
+    [roomId]
+  )
 
   // What the Composer offers and how the empty chat reads, for this chat's
   // Chat Target kind (skills, plan mode and element picking need a sandbox).
@@ -524,6 +536,7 @@ export function AgentChat({
         <Composer
           ref={composerRef}
           markdownLayers={markdownLayers}
+          attach={attach}
           // The `/` menu lists the Skills this chat reads: a Workspace's
           // Repo Skills, the canvas's and the App Skills its kind sees,
           // fetched when the chat opens (so reopening after a Skill changes

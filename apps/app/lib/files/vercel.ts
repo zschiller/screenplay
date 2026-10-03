@@ -1,6 +1,6 @@
 import "server-only"
 
-import { BlobNotFoundError, del, get, put } from "@vercel/blob"
+import { BlobNotFoundError, del, get, head, put } from "@vercel/blob"
 import type { FileStore } from "./store"
 
 /**
@@ -49,6 +49,14 @@ export function vercelFileStore(
     },
     async delete(keys) {
       if (keys.length) await del([...keys], { token: auth() })
+    },
+    async size(key) {
+      try {
+        return (await head(key, { token: auth() })).size
+      } catch (e) {
+        if (e instanceof BlobNotFoundError) return null
+        throw e
+      }
     },
   }
 }

@@ -76,8 +76,8 @@ members of the canvas can read them, through
 a separate **file store** (`apps/app/lib/files`) with no public URLs, picked by
 the same `BLOB_STORE` value:
 
-| `BLOB_STORE`     | File store                                                        |
-| ---------------- | ----------------------------------------------------------------- |
+| `BLOB_STORE`     | File store                                                         |
+| ---------------- | ------------------------------------------------------------------ |
 | unset / `vercel` | A private Vercel Blob store, `FILES_BLOB_READ_WRITE_TOKEN`         |
 | `local-fs`       | A local directory, `LOCAL_FILES_DIR`, that nothing serves directly |
 
@@ -87,6 +87,12 @@ store with **private** access and connect it to the project with the env var
 prefix `FILES_BLOB`; `FILES_BLOB_READ_WRITE_TOKEN` is then injected. Without it,
 agents can't save or open files, and say so when asked to.
 
+Files people attach to chat messages land in the same store. On a Vercel Blob
+store, an attachment over 4 MB uploads from the browser straight to the store
+(a function takes a body of at most 4.5 MB) with a token the app hands out for
+that canvas only; the app then checks its size and type and adds it to the
+canvas's files.
+
 A different backend implements the `FileStore` interface in
-`apps/app/lib/files/store.ts` (`put`, `get`, `delete` by key) and is wired into
-`apps/app/lib/files/index.ts`.
+`apps/app/lib/files/store.ts` (`put`, `get`, `delete` and `size` by key) and is
+wired into `apps/app/lib/files/index.ts`.

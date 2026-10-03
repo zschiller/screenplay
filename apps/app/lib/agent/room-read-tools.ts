@@ -13,7 +13,10 @@ import { renderFileWindow } from "@/lib/agent/render"
 import { truncateOutput } from "@/lib/agent/search"
 import { summarizeSteps } from "@/lib/agent/turn-summary"
 import type { AgentMessage } from "@/lib/agent/types"
-import { buildTargetedElementsFooter } from "@/lib/agent/message-markers"
+import {
+  buildAttachmentsFooter,
+  buildTargetedElementsFooter,
+} from "@/lib/agent/message-markers"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { annotateTools } from "@/lib/mcp/tool-server"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
@@ -295,11 +298,16 @@ type UserMessage = Extract<AgentMessage, { role: "user" }>
 
 /**
  * A user turn as an agent reads it: the human's text with the
- * `Targeted elements:` footer the projection lifted into a field put back,
- * since the route and selector are what an agent acts on.
+ * `Targeted elements:` and `Attached files:` footers the projection lifted
+ * into fields put back, since the route, selector and file paths are what an
+ * agent acts on.
  */
 function userTurnText(m: UserMessage): string {
-  return m.content + buildTargetedElementsFooter(m.targetedElements ?? [])
+  return (
+    m.content +
+    buildAttachmentsFooter(m.attachments ?? []) +
+    buildTargetedElementsFooter(m.targetedElements ?? [])
+  )
 }
 
 function clip(text: string, max: number): string {

@@ -18,7 +18,8 @@
         "url": "index.html",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 16, "y": 26 }
+        "trafficLightPosition": { "x": 16, "y": 26 },
+        "dragDropEnabled": false
       }
     ],
     "security": {

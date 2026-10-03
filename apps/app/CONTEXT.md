@@ -766,10 +766,14 @@ canvas; private to them. Browsed read-only in Settings › Files.
 _Shown to users as_: "Files".
 _Avoid_: shared files (they're never shared).
 
-**Attachment** (planned, spec #1511):
-A file a person drops or pastes into a chat message. It is saved into Canvas
-Files under `uploads/` and the message carries a chip naming it; an image also
-reaches the model inline on that turn.
+**Attachment** (`@/lib/files/attachments`, #1525, spec #1511):
+A file a person drops or pastes into a chat message: an image, a PDF, or a
+text or code file, up to 25 MB. It is saved into Canvas Files under
+`uploads/` (a suffix keeps names apart), the message's wire text carries an
+`Attached files:` footer naming its path (hidden, like the Canvas view
+footer), and the message shows a chip per file that opens it. An image also
+reaches the model inline on that turn, in every Engine; other types are opened
+on demand with `read_saved_file`.
 _Avoid_: upload (the folder), image (any supported type can be attached).
 
 **Terminal Tab**:

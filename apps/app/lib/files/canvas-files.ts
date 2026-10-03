@@ -3,6 +3,7 @@ import type { RoomDoc, RoomReader } from "@/lib/room-access"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import type { FileEntryData } from "@/lib/types"
 import { createFiles, type FileIndex, type Files } from "./files"
+import { canvasFileKeyPrefix } from "./paths"
 import type { FileStore } from "./store"
 
 /**
@@ -65,7 +66,7 @@ export function canvasFilesOn(room: RoomDoc, store: FileStore): Files {
   return createFiles({
     index: canvasFileIndex(room),
     store,
-    keyPrefix: `canvas/${room.roomId}`,
+    keyPrefix: canvasFileKeyPrefix(room.roomId),
   })
 }
 

@@ -11,6 +11,8 @@ export interface FileStore {
   get(key: string): Promise<Uint8Array | null>
   /** Delete every key given; a key with nothing under it is fine. */
   delete(keys: readonly string[]): Promise<void>
+  /** How many bytes are under `key`, or `null` when there are none. */
+  size(key: string): Promise<number | null>
 }
 
 /** A {@link FileStore} in memory, for tests and anything that needs no disk. */
@@ -25,6 +27,9 @@ export function memoryFileStore(): FileStore & { keys(): string[] } {
     },
     async delete(keys) {
       for (const key of keys) blobs.delete(key)
+    },
+    async size(key) {
+      return blobs.get(key)?.byteLength ?? null
     },
     keys: () => [...blobs.keys()].sort(),
   }

@@ -82,6 +82,8 @@ import { renderLastTurn } from "./room-read-tools"
 import { roomChatId } from "@/lib/chat/room-chat"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { sandboxSecrets } from "@/lib/env-store"
+import { canvasFiles } from "@/lib/files"
+import { withAttachedImages } from "@/lib/files/attach"
 
 /**
  * Turn Launch over the live database, Room broadcast and `after()`, for a turn
@@ -126,7 +128,17 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
   queueCommentRequest: (input) => queueCommentRequest({ ...input, room }),
   startCommentRequest: (_roomId, chatId) => startCommentRequest(room, chatId),
   settleCommentRequest: (input) => settleCommentRequest({ ...input, room }),
-  driveTurn: launchEngineTurn,
+  driveTurn: (turn) =>
+    launchEngineTurn({
+      ...turn,
+      withAttachedImages: (blocks) =>
+        withAttachedImages(canvasFiles(room), blocks).catch((e) => {
+          // A store hiccup sends the turn without its images; the footer
+          // still names them, so the agent can open them.
+          console.error("attached images failed:", e)
+          return blocks
+        }),
+    }),
   loadRunStatus: runStatus,
   wakeCoordinator: (end) =>
     wakeCoordinator(room, end).catch((e) => {

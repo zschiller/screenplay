@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  ATTACHMENTS_FOOTER_TOKEN,
   ELEMENT_MARKER_TOKEN,
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
   TARGETED_ELEMENTS_FOOTER_TOKEN,
+  buildAttachmentsFooter,
   buildCanvasViewFooter,
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
   deriveElementLabel,
   elementMarkersToPills,
   mockupMarkersToRefs,
+  parseAttachmentsFooter,
   parseTargetedElementsFooter,
   parseUserMessage,
   prependTurnMarkers,
@@ -763,5 +766,82 @@ describe("buildCanvasViewFooter", () => {
     expect(parseUserMessage(wire).body).toBe(
       "make this blue\n\n- and this a list item"
     )
+  })
+})
+
+describe("attachments footer (#1525)", () => {
+  const photo = {
+    path: "uploads/photo.png",
+    mediaType: "image/png",
+    size: 2048,
+  }
+  const odd = {
+    path: 'uploads/notes (final) "v2".md',
+    mediaType: "text/markdown",
+    size: 12,
+  }
+
+  it("names each file by its path, type and size", () => {
+    expect(buildAttachmentsFooter([photo])).toBe(
+      [
+        "",
+        "",
+        "---",
+        "",
+        `${ATTACHMENTS_FOOTER_TOKEN} the sender attached these to this message. They're saved in the canvas's files; open one with \`read_saved_file\`.`,
+        '- "uploads/photo.png" (image/png, 2048 bytes)',
+      ].join("\n")
+    )
+  })
+
+  it("is empty with nothing attached", () => {
+    expect(buildAttachmentsFooter([])).toBe("")
+    expect(parseAttachmentsFooter("just text")).toEqual([])
+  })
+
+  it("round-trips, names with quotes and parens included, and strips out of the body", () => {
+    const body = "what's in these?"
+    const wire = body + buildAttachmentsFooter([photo, odd])
+    expect(parseAttachmentsFooter(wire)).toEqual([photo, odd])
+    expect(parseUserMessage(wire).body).toBe(body)
+  })
+
+  it("rides beside the other footers without disturbing them", () => {
+    const element = {
+      ref: "r1",
+      route: "/",
+      selector: "button",
+      frameLabel: "Checkout",
+    }
+    const view = {
+      selected: [{ kind: "frame" as const, id: "f1", name: "Checkout" }],
+      onScreen: [],
+    }
+    const wire =
+      "match [element: button](element:r1)" +
+      buildAttachmentsFooter([photo]) +
+      buildReferencedDocsFooter([{ id: "d1", title: "Plan" }]) +
+      buildTargetedElementsFooter([element]) +
+      buildCanvasViewFooter(view)
+    const parsed = parseUserMessage(wire)
+    expect(parsed.body).toBe("match [element: button](element:r1)")
+    expect(parsed.hadReferencedDocs).toBe(true)
+    expect(parseAttachmentsFooter(wire)).toEqual([photo])
+    expect(parseTargetedElementsFooter(wire)).toEqual([element])
+  })
+
+  it("keeps every file in leftover Steers joined into one message", () => {
+    const wire = [
+      "first" + buildAttachmentsFooter([photo]),
+      "second" + buildAttachmentsFooter([odd]),
+    ].join("\n\n")
+    expect(parseAttachmentsFooter(wire)).toEqual([photo, odd])
+    expect(parseUserMessage(wire).body).toBe("first\n\nsecond")
+  })
+
+  it("holds a message that is only files", () => {
+    const wire = buildAttachmentsFooter([photo])
+    expect(parseUserMessage(wire).body).toBe("")
+    expect(parseAttachmentsFooter(wire)).toEqual([photo])
   })
 })
