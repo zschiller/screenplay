@@ -36,12 +36,12 @@ workspace starts until you ask for a change.
 - **Open folder** _(desktop)_ picks a folder on your machine, usually your
   existing clone. Screenplay creates a separate worktree for each workspace
   and never touches your own checkout.
-- **Open GitHub repository** opens a searchable picker. **Repository presets**
-  (repositories with a saved [preset](#repository-presets)) are listed first,
+- **Open GitHub repository** opens a searchable picker. **Your repositories**
+  (the ones in [Settings → Repositories](#your-repositories)) are listed first,
   then **Other GitHub repositories**. On desktop you can also paste any clone
   URL, including non-GitHub hosts, and pick **Add _url_**.
 
-Picking a saved preset adds the repository straight away. Otherwise
+Picking one of your repositories adds it straight away. Otherwise
 **Configure repository** opens with settings already detected from the
 repository (**Detecting settings…**). Check them and click **Add repository**.
 
@@ -68,7 +68,7 @@ repository (**Detecting settings…**). Check them and click **Add repository**.
 | **Files to copy**         | _Desktop._ Glob patterns (default `.env*`) copied from your checkout into each new worktree, so local secrets come along.      |
 | **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                               |
 | **System prompt**         | Extra instructions appended to the agent's prompt, e.g. "This repository's app is the Next.js app in `apps/web`". _(Advanced)_ |
-| **Preset name**           | Tells apart several presets for the same repository, e.g. `web` and `api`. _(Advanced)_                                        |
+| **Preset name**           | Tells apart several of your repositories from the same GitHub repository, e.g. `web` and `api`. _(Advanced)_                   |
 
 The run script has to serve on the port Screenplay assigns. Most frameworks
 handle this automatically; see [Dev server & ports](/building/dev-server) if
@@ -87,26 +87,31 @@ The dialog lists each workspace and warns if uncommitted work would be lost.
 When you're connected to GitHub, it also offers **Also delete these _N_
 branches on GitHub**, which is off by default.
 
-## Repository presets
+## Your repositories
 
-Check **Save as a preset** when adding a repository, or
-manage presets in **Settings → Repository presets**. A preset is a reusable
-starting point: once it has been copied into a canvas, editing the preset
-doesn't change the repositories already there, and vice versa.
+**Settings → Repositories** lists your repositories and how each one runs.
+Check **Save as a preset** when adding a repository to keep it there, or click
+**New repository** in Settings. A repository in Settings is a starting point:
+once it has been copied into a canvas, editing it in Settings doesn't change
+the canvases already using it, and vice versa.
 
 <Screenshot
   name="settings-presets"
-  alt="Repository presets in Settings: northwind-web with a 'web' preset"
+  alt="Settings → Repositories: northwind-web with a 'web' repository"
 />
 
-Presets are private to you and stored encrypted. Name them (`web`, `api`,
-`docs`) to keep several per repository. This is handy in monorepos, where
-each app gets its own run script.
+On desktop, every repository on your canvases also has a home in Settings:
+the first time you open Settings after updating, any canvas repository that
+matches none of yours is added to the list.
+
+Your repositories are private to you and stored encrypted. Name them (`web`,
+`api`, `docs`) to keep several from one GitHub repository. This is handy in
+monorepos, where each app gets its own run script.
 
 ## Monorepos
 
 A repository on a canvas previews **one** app. To work on two apps from the
-same monorepo, add the repository twice with different presets. For example,
+same monorepo, add it as two of your repositories with different names. For example,
 a `web` one running `pnpm --filter web dev` and a `docs` one running
 `pnpm --filter docs dev`. Use the **System prompt** field to tell the agent
 which folder is its app's root.

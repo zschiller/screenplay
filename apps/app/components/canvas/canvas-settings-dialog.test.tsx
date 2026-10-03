@@ -31,9 +31,9 @@ vi.mock("@/lib/github-local/actions", () => ({
   getGitHubLocalStatus: vi.fn().mockResolvedValue(null),
   resolveRepoFromUrl: vi.fn(),
 }))
-vi.mock("@/lib/repo-configs-actions", () => ({
-  listRepoConfigs: vi.fn().mockResolvedValue([]),
-  upsertRepoConfig: vi.fn().mockResolvedValue([]),
+vi.mock("@/lib/repository-library/actions", () => ({
+  listRepositories: vi.fn().mockResolvedValue([]),
+  saveRepository: vi.fn().mockResolvedValue([]),
 }))
 vi.mock("@/lib/add-repo/actions", () => ({
   detectRepoSettings: vi.fn().mockResolvedValue({ ok: false }),

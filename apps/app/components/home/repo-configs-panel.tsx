@@ -38,7 +38,10 @@ import {
   SettingsRowList,
   SettingsRowSkeleton,
 } from "@/components/home/settings-row"
-import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
+import {
+  deleteRepository,
+  listRepositories,
+} from "@/lib/repository-library/actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { duplicateName, presetSummary } from "@/lib/preset-summary"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -51,13 +54,13 @@ type Mode =
   | { kind: "duplicate"; config: RepoConfig }
 
 const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
-  new: "New preset",
-  edit: "Edit preset",
-  duplicate: "Duplicate preset",
+  new: "New repository",
+  edit: "Edit repository",
+  duplicate: "Duplicate repository",
 }
 
 /**
- * Manages saved Project presets (per-repo setup/dev/port/env), one settings row
+ * Manages your Repositories (per-repo setup/dev/port/env), one settings row
  * each, sorted by project. Lives on the Settings page; new/edit/duplicate opens
  * the form in a dialog over the list, so the editor never nests a scroll area
  * inside the page's own scroll.
@@ -65,7 +68,7 @@ const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
 export function RepoConfigsPanel({
   header,
 }: {
-  /** The Settings section's title row; New preset sits on its right (#927). */
+  /** The Settings section's title row; New repository sits on its right (#927). */
   header: (action?: React.ReactNode) => React.ReactNode
 }) {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
@@ -81,12 +84,12 @@ export function RepoConfigsPanel({
 
   useEffect(() => {
     let cancelled = false
-    listRepoConfigs()
+    listRepositories()
       .then((list) => {
         if (!cancelled) setConfigs(list)
       })
       .catch((err) => {
-        console.error("Failed to load repository presets", err)
+        console.error("Failed to load repositories", err)
         if (!cancelled) setLoadFailed(true)
       })
       .finally(() => {
@@ -99,12 +102,12 @@ export function RepoConfigsPanel({
 
   // Retry after a failed load; a second failure rejects and leaves the error up.
   const reload = useCallback(async () => {
-    setConfigs(await listRepoConfigs())
+    setConfigs(await listRepositories())
     setLoadFailed(false)
   }, [])
 
   const handleDelete = async (id: string) => {
-    const updated = await deleteRepoConfig(id)
+    const updated = await deleteRepository(id)
     setConfigs(updated)
     setPendingDelete(null)
   }
@@ -141,11 +144,11 @@ export function RepoConfigsPanel({
       onClick={() => openForm({ kind: "new" })}
     >
       <PlusIcon className="size-3.5" />
-      New preset
+      New repository
     </Button>
   )
 
-  // With presets listed, New preset sits on the section's title row. The empty
+  // With repositories listed, New repository sits on the section's title row. The empty
   // state offers it as its own call to action instead, so it shows once.
   const hasList = !loading && !loadFailed && configs.length > 0
 
@@ -154,21 +157,18 @@ export function RepoConfigsPanel({
       {header(hasList ? newPreset("outline") : undefined)}
       <div className="flex min-w-0 flex-col gap-3">
         {loading ? (
-          <SettingsRowSkeleton label="Loading repository presets…" count={2} />
+          <SettingsRowSkeleton label="Loading repositories…" count={2} />
         ) : loadFailed ? (
-          <LoadErrorRow
-            title="Couldn't load repository presets"
-            onRetry={reload}
-          />
+          <LoadErrorRow title="Couldn't load repositories" onRetry={reload} />
         ) : configs.length === 0 ? (
           <Empty className="border py-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <FolderIcon />
               </EmptyMedia>
-              <EmptyTitle>No repository presets yet</EmptyTitle>
+              <EmptyTitle>No repositories yet</EmptyTitle>
               <EmptyDescription>
-                A preset remembers how to run a repository:{" "}
+                Each repository remembers how it runs:{" "}
                 {isLocalBuild
                   ? "its setup and run scripts, and the files to copy from your checkout."
                   : "its setup and run scripts, port and environment variables."}{" "}
@@ -319,7 +319,7 @@ export function RepoConfigsPanel({
           verb="Discard"
           itemNoun="changes"
           cancelLabel="Keep editing"
-          description="Your edits to this preset haven’t been saved."
+          description="Your edits to this repository haven’t been saved."
           onConfirm={closeForm}
         />
 
@@ -330,16 +330,15 @@ export function RepoConfigsPanel({
           }}
           verb="Delete"
           itemName={pendingDelete?.name}
-          itemNoun="preset"
+          itemNoun="repository"
           description={
             pendingDelete ? (
               <>
-                Adding{" "}
+                Canvases already using{" "}
                 <span className="font-mono">
                   {presetOwnerLabel(pendingDelete)}
                 </span>{" "}
-                to a canvas will no longer start from this preset. Repositories
-                already on a canvas keep their settings.
+                keep their copy and its settings.
               </>
             ) : null
           }

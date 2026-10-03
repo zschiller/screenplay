@@ -50,7 +50,7 @@ interface SettingsSection {
   description: string
   /**
    * The section's body. It gets the section header as a render function, so a
-   * section whose action lives in its own state (New preset) can put that
+   * section whose action lives in its own state (New repository) can put that
    * action on the title row; the rest render `header()` first as is.
    */
   content: (header: SectionHeader) => React.ReactNode
@@ -111,10 +111,10 @@ const SECTIONS: SettingsSection[] = [
         },
       ]),
   {
-    id: "repository-presets",
-    title: "Repository presets",
+    id: "repositories",
+    title: "Repositories",
     description:
-      "Saved setup, dev, port, and env vars for each repository. Applied when you add it to a canvas.",
+      "Your repositories and how each one runs. Every canvas can use them.",
     content: (header) => <RepoConfigsPanel header={header} />,
   },
   {
@@ -138,7 +138,9 @@ const SECTIONS: SettingsSection[] = [
  * missing section shows the first.
  */
 export function SettingsView({ section }: { section?: string }) {
-  const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]!
+  // Links made before the rename (#1421) still land on Repositories.
+  const id = section === "repository-presets" ? "repositories" : section
+  const active = SECTIONS.find((s) => s.id === id) ?? SECTIONS[0]!
 
   return (
     <HomeScrollBody header={<HomePageHeader title="Settings" />}>
