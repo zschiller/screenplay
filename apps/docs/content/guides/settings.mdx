@@ -1,14 +1,14 @@
 ---
 title: Settings
-description: Theme, GitHub connection, coding agents, your repositories, your memory, files and skills, and your account.
+description: Theme, coding agents, GitHub connection, your repositories, your memory, files and skills, and your account.
 ---
 
 # Settings
 
 Open **Settings** from the bottom of the home screen sidebar, under **Docs**.
-A list on the left picks the section: **General**, then on desktop **Coding
-agents** and **GitHub** (on the hosted app, **Agent**), then **Repositories**,
-**Memory**, **Files**, **Skills** and **Account**.
+A list on the left picks the section, in this order: **General**, **Agent**,
+**GitHub** (desktop only), **Repositories**, **Memory**, **Files**, **Skills**
+and **Account**.
 
 <Screenshot name="settings" alt="The Settings page: the section list and General" />
 
@@ -22,43 +22,18 @@ Canvas settings also lists the canvas's [memory](/guides/memory) and
 The **Theme**: **Light**, **Dark**, or **System**. This setting applies to
 this device only.
 
-## GitHub
-
-<Only desktop />
-
-GitHub access is **optional** on desktop. Without it you can still add
-repositories by local folder or clone URL, and git uses your machine's own
-credentials. With it, you can also browse your GitHub repositories and
-branches, and open pull requests.
-
-Screenplay finds a token in this order:
-
-1. **The `gh` CLI**, if it's installed and signed in. Nothing else to do: the
-   row reads **Connected**, with your `@handle`.
-2. **A device code.** Choose **Connect with a device code instead**, enter the
-   code on GitHub, and you're connected. The token is kept in your OS
-   keychain. **Disconnect** removes it.
-
-If `gh` isn't installed, **Install & connect** installs it (with Homebrew
-when available) and runs its sign-in in an inline terminal. The row updates by
-itself when sign-in finishes.
-
-<Callout type="info">
-  Screenplay never signs you out of `gh`, since that login is yours and other
-  tools use it too. **Disconnect** only removes a device-code token Screenplay
-  stored.
-</Callout>
-
-On the hosted app, GitHub comes from your sign-in instead: you sign in with
-GitHub, and Screenplay uses that account for cloning, pushing, and PRs.
-
 ## Agent
 
+**Default model**, at the top of the section, picks the agent and model that
+new chats and new workspaces start with. You can still switch model in any
+chat.
+
 <Only desktop />
 
-On desktop, the agent is a coding CLI on your machine. There's one row per
-supported CLI: **Claude Code**, **Codex**, and **OpenCode**. Each row shows
-whether it's **Signed in**, **Signed out** or **Not installed**:
+On desktop, the agent is a coding CLI on your machine. Under the default
+model there's one row per supported CLI: **Claude Code**, **Codex**, and
+**OpenCode**. Each row shows whether it's **Signed in**, **Signed out** or
+**Not installed**:
 
 - **Install and sign in** installs the CLI, then runs its own login in an inline
   terminal.
@@ -75,21 +50,57 @@ search box; check the ones you want and they show in the model picker under
 entry that runs the model you chose in OpenCode itself. The choice is kept on
 this computer.
 
-**Default model**, at the top of the section, picks the agent and model that
-new chats and new workspaces start with. The hosted app has the same choice in
-its own **Agent** section.
-
-A CLI you connect here shows up in the model picker and the new-terminal menu
-straight away, with no restart. The app never uninstalls a CLI or signs you
+A CLI you connect here shows up in the model picker straight away, with no
+restart. The app never uninstalls a CLI or signs you
 out of it.
 
 <Screenshot name="settings-coding-agents" alt="Settings → Agent: the default model, and Claude Code signed in" />
 
+## GitHub
+
+<Only desktop />
+
+GitHub access is **optional** on desktop. Without it you can still add
+repositories by local folder or clone URL, and git uses your machine's own
+credentials. With it, you can also browse your GitHub repositories and
+branches, and open pull requests.
+
+The **GitHub** row says where things stand:
+
+- **Connected**, with your `@handle` (or **Signed in with a device code**).
+- **Signed out**: the `gh` CLI is installed but not signed in.
+- **Not connected**: `gh` isn't installed.
+
+Screenplay finds a token in this order:
+
+1. **The `gh` CLI**, if it's installed and signed in. Nothing else to do. The
+   row offers **Sign in again** in case that login lapses.
+2. **A device code.** Choose **Use a device code instead** under the row,
+   enter the code on GitHub, and you're connected. The token is kept in your
+   OS keychain, and **Disconnect** removes it. The option shows only while
+   nothing else has connected, and only in builds configured for it.
+
+If `gh` is installed but signed out, **Sign in** runs its sign-in in an inline
+terminal. If it isn't installed, **Install and connect** installs it (with
+Homebrew when available) and then signs you in. The row updates by itself
+when sign-in finishes.
+
+<Callout type="info">
+  Screenplay never signs you out of `gh`, since that login is yours and other
+  tools use it too. **Disconnect** only removes a device-code token Screenplay
+  stored.
+</Callout>
+
+On the hosted app there's no GitHub section: you sign in with GitHub, and
+Screenplay uses that account for cloning, pushing, and PRs.
+
 ## Repositories
 
-Your repositories and how each one runs. They're grouped by repository; **Edit**
-or **Delete** each one, or click **New repository** beside the section title
-to pick one and confirm its detected settings. Saving an edit here updates
+Your repositories and how each one runs. They're grouped by repository, and
+each row says how many canvases use it. **Edit** opens its settings, and **…**
+holds **Duplicate**, which starts a new one from a copy, and **Delete**. Click
+**New repository** beside the section title to pick one and confirm its
+detected settings. Saving an edit here updates
 every canvas that uses the repository, unless that canvas customized it. See
 [Your repositories](/guides/repositories#your-repositories) for what each one
 holds.
