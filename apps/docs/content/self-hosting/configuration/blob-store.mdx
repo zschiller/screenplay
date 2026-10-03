@@ -1,6 +1,6 @@
 ---
 title: Blob store
-description: Where canvas thumbnails are stored. Vercel Blob by default, local disk on desktop, or any object store.
+description: Where canvas thumbnails and canvas files are stored. Vercel Blob by default, local disk on desktop, or any object store.
 ---
 
 # Blob store
@@ -67,3 +67,26 @@ The default backend reads its credentials from `BLOB_READ_WRITE_TOKEN` — on
 Vercel, connect a Blob store to your project and the token is injected
 automatically; locally, run `vercel env pull .env.local` after connecting the
 store. A different backend reads whatever env vars you wire into its factory.
+
+## File store
+
+Canvas files, the files agents save for a canvas's members, are private: only
+members of the canvas can read them, through
+`/api/canvas-files/<canvas>/<path>`, which checks membership. Their bytes go to
+a separate **file store** (`apps/app/lib/files`) with no public URLs, picked by
+the same `BLOB_STORE` value:
+
+| `BLOB_STORE`     | File store                                                        |
+| ---------------- | ----------------------------------------------------------------- |
+| unset / `vercel` | A private Vercel Blob store, `FILES_BLOB_READ_WRITE_TOKEN`         |
+| `local-fs`       | A local directory, `LOCAL_FILES_DIR`, that nothing serves directly |
+
+A Vercel Blob store's access is set when it's created, and the thumbnails store
+is public, so files need a second store. In the Vercel dashboard, create a Blob
+store with **private** access and connect it to the project with the env var
+prefix `FILES_BLOB`; `FILES_BLOB_READ_WRITE_TOKEN` is then injected. Without it,
+agents can't save or open files, and say so when asked to.
+
+A different backend implements the `FileStore` interface in
+`apps/app/lib/files/store.ts` (`put`, `get`, `delete` by key) and is wired into
+`apps/app/lib/files/index.ts`.

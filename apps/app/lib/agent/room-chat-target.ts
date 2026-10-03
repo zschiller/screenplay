@@ -13,7 +13,10 @@ import { buildQuestionTools } from "./question-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getSkillIndex } from "@/lib/skills"
 import type { RoomDoc } from "@/lib/room-access"
-import type { MemoryData } from "@/lib/types"
+import { buildFileTools } from "./file-tools"
+import { canvasFiles } from "@/lib/files"
+import { loadCanvasFiles } from "@/lib/files/canvas-files"
+import type { FileEntryData, MemoryData } from "@/lib/types"
 
 /** The Room Target: the whole canvas, for the Coordinator. */
 export interface RoomTarget {
@@ -53,6 +56,7 @@ export interface RoomTarget {
 export interface RoomContext {
   canvasSummary: string
   memory: MemoryData[]
+  files: FileEntryData[]
 }
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
@@ -100,18 +104,20 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   async loadContext(room, target) {
     const ports = liveRoomToolPorts(room, target)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-    const [canvasSummary, memory] = await Promise.all([
+    const [canvasSummary, memory, files] = await Promise.all([
       ports.readDoc((collections) =>
         summarizeCanvas(collections, terminalTabs)
       ),
       loadCanvasMemory(room),
+      loadCanvasFiles(room),
     ])
-    return { canvasSummary, memory }
+    return { canvasSummary, memory, files }
   },
   buildSystemPrompt(ctx, naming) {
     return buildRoomSystemPrompt({
       canvasSummary: ctx.canvasSummary,
       memory: ctx.memory,
+      files: ctx.files,
       skills: getSkillIndex("coordinator"),
       toolNaming: naming,
     })
@@ -126,6 +132,11 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
         ),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
+        // The canvas's saved files (#1514): text only, with no sandbox.
+        ...buildFileTools({
+          canvas: canvasFiles(room),
+          chatId: target.coordinatorChatId ?? "",
+        }),
       },
     }
   },

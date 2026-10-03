@@ -356,7 +356,7 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards and its PR and Skill tools (#1480)", async () => {
+  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards, saved files (#1514) and its PR and Skill tools (#1480)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -389,6 +389,12 @@ describe("a Workspace chat's MCP route", () => {
       "find_code_files",
       "read_document",
       "ask_question",
+      "list_saved_files",
+      "read_saved_file",
+      "save_file",
+      "move_saved_file",
+      "delete_saved_file",
+      "make_saved_folder",
       "create_pr",
       "read_skill",
     ])
@@ -405,6 +411,11 @@ describe("a Workspace chat's MCP route", () => {
     for (const name of ["stop_dev_server", "start_dev_server"]) {
       expect(annotations(name)).toMatchObject({ destructiveHint: false })
     }
+    // Saved files sit outside the repo: reading never asks, deleting is final.
+    expect(annotations("read_saved_file")).toMatchObject({ readOnlyHint: true })
+    expect(annotations("delete_saved_file")).toMatchObject({
+      destructiveHint: true,
+    })
     // read_document and the other Workspaces' code are read-only: a harness
     // never asks first.
     for (const name of [

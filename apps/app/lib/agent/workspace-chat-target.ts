@@ -16,10 +16,14 @@ import { buildMockupTools } from "./mockup-tools"
 import { otherWorkspacesCodeReadTools } from "./code-read-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
+import { buildFileTools } from "./file-tools"
 import { chatFrameDriveTools } from "@/lib/frame-drive/live"
+import { canvasFiles } from "@/lib/files"
+import { loadCanvasFiles } from "@/lib/files/canvas-files"
+import { sandboxProvider } from "@/lib/sandbox"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
-import type { MemoryData } from "@/lib/types"
+import type { FileEntryData, MemoryData } from "@/lib/types"
 
 /** A chat on a Branch's sandbox: the Workspace's one chat (#1315). */
 export interface WorkspaceTarget {
@@ -39,6 +43,7 @@ export interface WorkspaceContext {
   /** Merged App ∪ Repo Skill index, enumerated once from this Branch's sandbox. */
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
+  files: FileEntryData[]
 }
 
 export const workspaceChatTarget: ChatTargetSpec<
@@ -50,7 +55,7 @@ export const workspaceChatTarget: ChatTargetSpec<
   // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
   // the per-Agent prompt.
   async loadContext(room, { sandboxName, chatId }) {
-    const [branch, layerDirectory, skills, memory] = await Promise.all([
+    const [branch, layerDirectory, skills, memory, files] = await Promise.all([
       room
         .readDoc(({ branches, repos }) => {
           // `toArray` is a cached snapshot; read the Branch itself fresh.
@@ -69,6 +74,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       loadLayerDirectory(room),
       getMergedSkillIndexForSandbox(sandboxName),
       loadCanvasMemory(room),
+      loadCanvasFiles(room),
     ])
     return {
       chatId,
@@ -77,6 +83,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       layerDirectory,
       skills,
       memory,
+      files,
     }
   },
   buildSystemPrompt(ctx, naming) {
@@ -86,6 +93,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       chatId: ctx.chatId,
       skills: ctx.skills,
       memory: ctx.memory,
+      files: ctx.files,
       toolNaming: naming,
     })
   },
@@ -110,6 +118,16 @@ export const workspaceChatTarget: ChatTargetSpec<
         ...otherWorkspacesCodeReadTools({ room, sandboxName }),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
+        // The canvas's saved files (#1514); a binary file is saved from the
+        // sandbox.
+        ...buildFileTools({
+          canvas: canvasFiles(room),
+          chatId,
+          readSource: async (path) =>
+            (await sandboxProvider.get({ name: sandboxName })).readFileToBuffer(
+              { path }
+            ),
+        }),
         // Opening the branch's PR and loading Skills (#1480).
         ...buildPrAndSkillTools(sandbox),
       },

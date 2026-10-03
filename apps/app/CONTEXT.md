@@ -445,6 +445,21 @@ _Avoid_: layer wrapper (casual); putting content-specific behaviour (dev-server
 probe, editor, route picker, inline-comment bubble) in the Shell — that stays in the
 adapter; standing up a third Shell per future kind (one Shell, N content adapters).
 
+**Canvas Files** (`@/lib/files`, #1514, spec #1511):
+Files agents save for a Room's members, never shown on the canvas: research
+notes, a reference image, a PDF. Any chat on the Room lists, opens, saves,
+moves, deletes and makes folders in them with the saved-file tools
+(`list_saved_files`, `read_saved_file`, `save_file`, `move_saved_file`,
+`delete_saved_file`, `make_saved_folder`), and every chat's system prompt lists
+their paths. Entries (path, size, media type, who added it) live in the Room's
+Y.Doc; bytes live in the private **file store** (a private Vercel Blob store on
+hosted, local disk on desktop), read only through a route that checks Room
+membership. Folders are explicit entries; deleting one deletes its contents.
+_Shown to users as_: "Files" (Canvas settings › Files).
+_Avoid_: attachments (an Attachment is one way a file arrives); "file" for a
+Room (see **Room**); calling these the repository's files (a Workspace chat's
+`read_file`/`list_files` reach those).
+
 **Chat Session**:
 The _identity_ of a chat tab (id, label, target). The conversation itself —
 messages and streaming state — lives in the client chat-store, not the Y.Doc.

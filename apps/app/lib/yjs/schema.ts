@@ -6,6 +6,7 @@ import type {
   IframeLayerGroupData,
   ChatSessionData,
   MarkdownLayerData,
+  FileEntryData,
   MemoryData,
   MockupLayerData,
   PlanData,
@@ -35,6 +36,8 @@ export const COLLECTION_KEYS = {
   plans: "plans",
   /** Canvas memory entries (#902), `lib/canvas/memory.ts`. */
   memories: "memories",
+  /** Canvas Files entries (#1514), `lib/files/canvas-files.ts`. */
+  files: "files",
   /** Who drives each copy of a frame (#1387), `lib/canvas/frame-control.ts`. */
   frameControl: "frameControl",
   /** The agent's ops waiting for one person's canvas, on hosted (#1391),
@@ -241,6 +244,7 @@ export type RoomCollections = {
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   memories: YjsCollection<MemoryData>
+  files: YjsCollection<FileEntryData>
   frameControl: YjsCollection<FrameControlRecord>
   frameDriveAsks: YjsCollection<FrameDriveAsk>
   commentPositions: YjsCollection<CommentPosition>
@@ -306,6 +310,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     memories: new YjsCollection<MemoryData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.memories)
+    ),
+    files: new YjsCollection<FileEntryData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.files)
     ),
     frameControl: new YjsCollection<FrameControlRecord>(
       doc,
