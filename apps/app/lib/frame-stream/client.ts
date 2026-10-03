@@ -22,7 +22,8 @@ import {
 import type { IframeToCanvasMessage } from "@/lib/postmessage-protocol"
 
 export type FrameStreamEndpoint =
-  { shared: true; url: string; token: string } | { shared: false }
+  | { shared: true; url: string; token: string }
+  | { shared: false; reason?: string }
 
 /** Whether a Workspace's frames are shared: unknown until the app answers. */
 export type FrameStreamAvailability = "checking" | "shared" | "unshared"
