@@ -64,7 +64,7 @@ with that provider's error. It's never rerouted to a different provider.
 Providers live in `apps/app/lib/agent/providers/`, one file each, behind the
 `ModelProvider` interface in `types.ts`:
 
-```ts
+```ts filename="apps/app/lib/agent/providers/mistral.ts"
 import "server-only"
 import { mistral } from "@ai-sdk/mistral"
 import type { ModelProvider } from "./types"
