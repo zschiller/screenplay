@@ -1080,11 +1080,12 @@ function SketchChatMenuRow({
           )}
         />
       </span>
-      {/* The … sits over the row's end, as on a Workspace row. */}
+      {/* The … sits over the row's end, check column included, as on a
+          Workspace row. */}
       <span
         {...isolate}
         className={cn(
-          "absolute inset-y-0 right-7.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
+          "absolute inset-y-0 right-0.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
           menuOpen && "opacity-100",
           renaming && "invisible"
         )}
@@ -1252,12 +1253,13 @@ function WorkspaceMenuRow({
           it holds no slot at rest and the row stays as tall as the
           Coordinator row (#1165). It shows on hover, when the
           row is arrowed to, and while it holds focus; a fade in the row's
-          colour runs under the meta it covers. right-7.5 clears the check
-          column (px-2 + gap-2 + the 14px check). */}
+          colour runs under the meta it covers. It sits at the row's end,
+          over the check column, so it never leaves a gap for a check the row
+          doesn't have. */}
       <span
         {...isolate}
         className={cn(
-          "absolute inset-y-0 right-7.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-highlighted/ws-row:[--row-bg:var(--muted)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
+          "absolute inset-y-0 right-0.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-highlighted/ws-row:[--row-bg:var(--muted)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
           menuOpen && "opacity-100",
           renaming && "invisible"
         )}
