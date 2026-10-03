@@ -134,7 +134,7 @@ export function resolveCaptureProfile(): CaptureProfile {
       PGLITE_MIGRATIONS_DIR: join(appRoot, "drizzle", "local"),
       YJS_PERSISTENCE_DIR: join(stateRoot, "yjs"),
       LOCAL_BLOB_DIR: join(stateRoot, "blobs"),
-      // Canvas Files' private store (#1514), seeded with the fixture files.
+      // Canvas Files and Skills' bytes (#1514, #1555), seeded beside the docs.
       LOCAL_FILES_DIR: join(stateRoot, "files"),
       // Origin-relative on purpose (see `lib/blob/local-fs.ts`): the URL is
       // persisted into the fixture Thumbnail Manifests, so it must not bake in

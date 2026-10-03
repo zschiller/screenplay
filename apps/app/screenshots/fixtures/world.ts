@@ -86,6 +86,14 @@ export interface FixtureFolder {
  * contents the canvas surface reads. Everything except `id`/`name` is optional
  * so an empty Canvas is genuinely a two-field entry.
  */
+/** A Canvas Skill to seed: its `SKILL.md`, supporting files, and when a chat saved it. */
+export interface FixtureSkill {
+  name: string
+  content: string
+  files?: { path: string; content: string }[]
+  savedAt: number
+}
+
 export interface FixtureRoom {
   id: string
   name: string
@@ -110,6 +118,12 @@ export interface FixtureRoom {
     /** Bytes per Canvas Files path, written to the private file store under
      *  the entry's `blobKey`. */
     fileBodies?: Record<string, string>
+    /**
+     * Canvas Skills (#1555) a chat saved, shown in Canvas settings › Skills
+     * (#1557). The seeder saves each through the skills module, so the doc
+     * entries and the file store bytes match what the app writes.
+     */
+    skills?: FixtureSkill[]
     savedViewport?: ViewportData
     /** Markdown body per Markdown Layer id, written into its `markdown-layer-{id}` fragment. */
     markdownBodies?: Record<string, string>
@@ -950,6 +964,88 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
           source: "member",
           createdAt: daysAgo(now, 1),
           updatedAt: daysAgo(now, 1),
+        },
+      ],
+      skills: [
+        {
+          name: "checkout-copy",
+          savedAt: daysAgo(now, 5),
+          content: [
+            "---",
+            "name: checkout-copy",
+            "description: House style for checkout copy: sentence case, no exclamation marks, prices always with their currency, and errors that say what to do next.",
+            "---",
+            "",
+            "# Checkout copy",
+            "",
+            "Use this for any text a shopper reads on the checkout.",
+            "",
+            "## Rules",
+            "",
+            '- Sentence case for every label and button: "Place order", not "Place Order".',
+            "- No exclamation marks, anywhere.",
+            "- Prices always carry their currency: **$24.00**, never 24.00.",
+            '- An error says what happened and what to do next: "Your card was declined. Try another card."',
+            "",
+          ].join("\n"),
+        },
+        {
+          name: "release-checklist",
+          savedAt: daysAgo(now, 2),
+          content: [
+            "---",
+            "name: release-checklist",
+            "description: Cut a checkout release: bump the version, write the changelog from merged PRs, tag it and post the summary.",
+            "---",
+            "",
+            "# Release checklist",
+            "",
+            "1. Bump `version` in `package.json` (patch unless a PR says otherwise).",
+            "2. Write the changelog from the PRs merged since the last tag, using `changelog-template.md`.",
+            "3. Tag the release `vX.Y.Z` and push the tag.",
+            "4. Post the changelog's summary line in the Coordinator.",
+            "",
+          ].join("\n"),
+          files: [
+            {
+              path: "changelog-template.md",
+              content: [
+                "## vX.Y.Z",
+                "",
+                "One line on what this release is for.",
+                "",
+                "### Changes",
+                "",
+                "- PR title (#123)",
+                "",
+              ].join("\n"),
+            },
+            {
+              path: "scripts/tag.sh",
+              content: [
+                "#!/bin/sh",
+                "set -e",
+                'git tag "v$1"',
+                'git push origin "v$1"',
+                "",
+              ].join("\n"),
+            },
+          ],
+        },
+        {
+          name: "visual-review",
+          savedAt: daysAgo(now, 1),
+          content: [
+            "---",
+            "name: visual-review",
+            "description: Before asking for review, shoot the changed screens light and dark at 375 and 1440 wide and attach them.",
+            "---",
+            "",
+            "# Visual review",
+            "",
+            "Shoot every changed screen in light and dark, at 375px and 1440px wide, and attach the shots to the review request.",
+            "",
+          ].join("\n"),
         },
       ],
       savedViewport: { x: 120, y: 80, zoom: 0.42 },

@@ -213,12 +213,14 @@ export function deleteDescription(node: FileTreeNode): string {
 /**
  * One row of the tree, built like the canvas sidebar's layer rows: a
  * folder's icon turns into its chevron on hover, its contents nest on a guide
- * line, and the ⋯ menu shows on hover.
+ * line, and the ⋯ menu shows on hover. A Skill's file sidebar (#1557) uses it
+ * too, with no detail or menu.
  */
-function FileRow({
+export function FileRow({
   node,
   open,
   detail,
+  active,
   onToggle,
   onOpen,
   onReveal,
@@ -227,12 +229,15 @@ function FileRow({
 }: {
   node: FileTreeNode
   open: boolean
-  detail: string
+  detail?: string
+  /** The file shown beside the tree, if one is. */
+  active?: boolean
   onToggle: () => void
   onOpen: () => void
   /** Desktop only: show the file or folder in Finder. */
   onReveal?: () => void
-  onDelete: () => void
+  /** Absent, the row has no ⋯ menu. */
+  onDelete?: () => void
   children?: React.ReactNode
 }) {
   const { entry, name } = node
@@ -242,6 +247,7 @@ function FileRow({
     <div className="group/file-row relative">
       <SidebarMenuButton
         aria-expanded={folder ? open : undefined}
+        isActive={active}
         onClick={folder ? onToggle : onOpen}
         // The ⋯ shows over the row's end on hover, as in the Chats menu, so
         // the meta runs to the edge instead of leaving room for it.
@@ -268,44 +274,50 @@ function FileRow({
           <EntryIcon entry={entry} />
         )}
         <span className="min-w-0 flex-1 truncate">{name}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{detail}</span>
+        {detail && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {detail}
+          </span>
+        )}
       </SidebarMenuButton>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuAction
-            // Shown on this row's own hover: an item holds its folder's
-            // contents, so the stock menu-item hover would light up every
-            // folder above the pointer too. It covers the meta's end on the
-            // hovered row's fill, fading in from the left (on touch screens, where
-            // it always shows, the row keeps room for it).
-            className="group-hover/file-row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 md:bg-sidebar-accent md:opacity-0 md:before:pointer-events-none md:before:absolute md:before:inset-y-0 md:before:-left-4 md:before:w-4 md:before:bg-gradient-to-r md:before:from-transparent md:before:to-sidebar-accent"
-            aria-label={`More actions for ${name}`}
+      {onDelete && (
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuAction
+              // Shown on this row's own hover: an item holds its folder's
+              // contents, so the stock menu-item hover would light up every
+              // folder above the pointer too. It covers the meta's end on the
+              // hovered row's fill, fading in from the left (on touch screens, where
+              // it always shows, the row keeps room for it).
+              className="group-hover/file-row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 md:bg-sidebar-accent md:opacity-0 md:before:pointer-events-none md:before:absolute md:before:inset-y-0 md:before:-left-4 md:before:w-4 md:before:bg-gradient-to-r md:before:from-transparent md:before:to-sidebar-accent"
+              aria-label={`More actions for ${name}`}
+            >
+              <DotsThreeIcon />
+            </SidebarMenuAction>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            onCloseAutoFocus={(event) => event.preventDefault()}
           >
-            <DotsThreeIcon />
-          </SidebarMenuAction>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          onCloseAutoFocus={(event) => event.preventDefault()}
-        >
-          {!folder && (
-            <DropdownMenuItem onSelect={onOpen}>
-              <ArrowSquareOutIcon />
-              Open
+            {!folder && (
+              <DropdownMenuItem onSelect={onOpen}>
+                <ArrowSquareOutIcon />
+                Open
+              </DropdownMenuItem>
+            )}
+            {onReveal && (
+              <DropdownMenuItem onSelect={onReveal}>
+                <FolderOpenIcon />
+                Reveal in Finder
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+              <TrashIcon />
+              Delete
             </DropdownMenuItem>
-          )}
-          {onReveal && (
-            <DropdownMenuItem onSelect={onReveal}>
-              <FolderOpenIcon />
-              Reveal in Finder
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-            <TrashIcon />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   )
   return (

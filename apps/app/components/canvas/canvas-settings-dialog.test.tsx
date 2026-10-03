@@ -250,6 +250,7 @@ function renderDialog(
     onAddMemory: vi.fn(),
     onEditMemory: vi.fn(),
     onRemoveMemory: vi.fn(),
+    skills: [],
     onSwitchOn: vi.fn(),
     deleteFile: vi.fn().mockResolvedValue(undefined),
     openFileOnDesktop: desktop

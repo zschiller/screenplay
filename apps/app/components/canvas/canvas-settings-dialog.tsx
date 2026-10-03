@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   BookBookmarkIcon,
+  BookOpenIcon,
   FolderIcon,
   NotepadIcon,
   PencilSimpleIcon,
@@ -83,13 +84,16 @@ import type {
   MemoryData,
   RepoData,
 } from "@/lib/types"
+import type { SavedSkill } from "@/lib/skills/saved"
 import { deleteCanvasFile, FilesSection } from "./canvas-files-section"
 import { MemorySection } from "./canvas-memory-section"
+import { CanvasSkillsSection } from "./canvas-skills-section"
 import { openCanvasFileOnDesktop } from "@/lib/files/desktop-actions"
 import { isLocalBuild } from "@/lib/local-mode"
 
 /** The sections of Canvas settings. Members may join later. */
-export type CanvasSettingsSection = "repositories" | "memory" | "files"
+export type CanvasSettingsSection =
+  "repositories" | "memory" | "files" | "skills"
 
 const SECTIONS: {
   id: CanvasSettingsSection
@@ -99,6 +103,7 @@ const SECTIONS: {
   { id: "repositories", title: "Repositories", icon: BookBookmarkIcon },
   { id: "memory", title: "Memory", icon: NotepadIcon },
   { id: "files", title: "Files", icon: FolderIcon },
+  { id: "skills", title: "Skills", icon: BookOpenIcon },
 ]
 
 /**
@@ -108,7 +113,8 @@ const SECTIONS: {
  * and your others to add, and edits them through the same flows as the
  * sidebar. What it edits lives in the Room's Y.Doc, so every
  * collaborator shares it. Memory (#902) lists the canvas memory every chat
- * reads, and Files (#1517) the files every chat can open.
+ * reads, Files (#1517) the files every chat can open, and Skills (#1557)
+ * the Skills chats saved here.
  */
 export function CanvasSettingsDialog({
   roomId,
@@ -128,6 +134,7 @@ export function CanvasSettingsDialog({
   files,
   deleteFile = deleteCanvasFile,
   openFileOnDesktop = isLocalBuild ? openCanvasFileOnDesktop : undefined,
+  skills,
   policy = repositoryLinkPolicy,
 }: {
   roomId: string
@@ -156,6 +163,8 @@ export function CanvasSettingsDialog({
     path: string,
     how: "open" | "reveal"
   ) => Promise<void>
+  /** The canvas's saved Skills, by name. */
+  skills: SavedSkill[]
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
   onRemoveRepo: (
     id: string,
@@ -237,7 +246,9 @@ export function CanvasSettingsDialog({
               </Breadcrumb>
             </header>
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
-              {active.id === "files" ? (
+              {active.id === "skills" ? (
+                <CanvasSkillsSection roomId={roomId} skills={skills} />
+              ) : active.id === "files" ? (
                 <FilesSection
                   roomId={roomId}
                   files={files}

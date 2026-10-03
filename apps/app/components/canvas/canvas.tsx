@@ -32,6 +32,7 @@ import {
   useSetPresence,
   useMemories,
   useCanvasFiles,
+  useCanvasSkills,
   useRepos,
   useYjsHistory,
 } from "@/lib/yjs/react"
@@ -1046,6 +1047,8 @@ export function Canvas({
   // projections owned by the Canvas Selection controller, aliased above.
   // Canvas memory (#902), oldest first, edited in Canvas settings › Memory.
   const memoryEntries = useMemories()
+  // Canvas Skills (#1555), listed in Canvas settings › Skills (#1557).
+  const canvasSkills = useCanvasSkills()
   const memories = useMemo(
     () => [...memoryEntries].sort((a, b) => a.createdAt - b.createdAt),
     [memoryEntries]
@@ -2528,6 +2531,7 @@ export function Canvas({
                   }
                   onRemoveMemory={(id) => removeMemory(collections, id)}
                   files={canvasFiles}
+                  skills={canvasSkills}
                 />
                 <CanvasToolbar
                   toolMode={toolMode}

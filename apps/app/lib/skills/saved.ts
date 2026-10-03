@@ -50,6 +50,12 @@ export interface SkillFile {
   content: string
 }
 
+/** A Skill as people read it (Settings' Open, #1557): its whole `SKILL.md`, frontmatter included, and its supporting files. */
+export interface OpenedSkill {
+  content: string
+  files: SkillFile[]
+}
+
 export type SkillResult<T> =
   { ok: true; value: T } | { ok: false; error: string }
 
