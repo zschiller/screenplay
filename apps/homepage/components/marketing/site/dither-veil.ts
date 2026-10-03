@@ -63,9 +63,9 @@ export function createDitherVeil(
   // How sharply the veil eases in down its span: 1 is an even ramp, higher
   // keeps more of the top clear.
   const EASE = 1.6
-  // How much the shimmer moves the fade either way, and its scale per CSS px.
-  const SHIMMER = 0.24
-  const SHIMMER_SCALE = 0.05
+  // How much the marbled smoke moves the fade, and its scale per CSS px.
+  const SHIMMER = 0.5
+  const SHIMMER_SCALE = 0.011
 
   let W = 0
   let H = 0
@@ -398,9 +398,10 @@ export function createDitherVeil(
         }
       }
     }
-    // The shimmer: finer noise that drifts faster than the edge, read from
-    // where the fluid carried each spot from. At rest that's the spot itself;
-    // the pointer swirls it, and it settles back as the fluid does.
+    // The shimmer: marbled smoke, thin veins where warped noise crosses its
+    // middle, read from where the fluid carried each spot from. At rest
+    // that's the spot itself; the pointer swirls it, and it settles back as
+    // the fluid does.
     const mxs = fluid?.mx
     const mys = fluid?.my
     const pmx = fluid?.prevMx
@@ -416,10 +417,13 @@ export function createDitherVeil(
         ux = pmx[j]! + (mxs[j]! - pmx[j]!) * blend
         uy = pmy[j]! + (mys[j]! - pmy[j]!) * blend
       }
-      shimmer[j] = noise(
-        ux * COARSE * SHIMMER_SCALE - t * 0.9,
-        uy * COARSE * SHIMMER_SCALE + t * 0.6
-      )
+      const px = ux * COARSE * SHIMMER_SCALE
+      const py = uy * COARSE * SHIMMER_SCALE
+      const wx = noise(px + t * 0.22, py - t * 0.17)
+      const wy = noise(px + 5.2 - t * 0.18, py + 1.3 + t * 0.14)
+      const vein =
+        1 - Math.abs(2 * noise(px * 1.7 + wx * 3.2, py * 1.7 + wy * 3.2) - 1)
+      shimmer[j] = 0.3 + vein ** 4 * 1.1
       if (++gx === gc) {
         gx = 0
         gy++
