@@ -23,5 +23,5 @@ Every option is Today plus an injected stylesheet or script, applied through a l
 
 ## Assembling the page
 
-- Crop close-ups from the captures with a short script, so every option shows the same region at the same size.
+- Crop close-ups from the captures with a short script, so every option shows the same region at the same size and the detail still reads on a phone, where a capture is about 360px wide.
 - Keep the page source and the crop script in the scratchpad. Publish captures through `files`, and reuse earlier rounds' files with `{artifact, path}` sources.
