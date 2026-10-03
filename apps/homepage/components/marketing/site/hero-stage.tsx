@@ -41,6 +41,12 @@ const EDITS: {
 // shows variety. Index 0 is main, untouched.
 const SEED = [[], [1, 4], [0], [2, 6], [7], [9, 6], [10, 1], [5, 8], [11, 3]]
 
+// Rows on the canvas floor, far to near.
+const ROWS = 8
+// How far below the top of the floor the veil starts thickening, in CSS px,
+// so the far rows fade only into the dark above them.
+const HAZE = 60
+
 const PAGE = `
   <div class="hc-page">
     <div class="hc-nav"><span class="hc-logo"><i></i>Screenplay</span><span class="hc-links"><span>How it works</span><span>Features</span><span>Docs</span></span><span class="hc-dl">Download</span></div>
@@ -66,7 +72,6 @@ const GLYPH = `<svg class="hc-glyph" viewBox="0 0 24 24"><circle class="hc-ring"
 type Copy = {
   el: HTMLElement
   page: HTMLElement
-  box: HTMLElement
   h1: HTMLElement
   name: HTMLElement
   diff: HTMLElement
@@ -75,12 +80,13 @@ type Copy = {
 }
 
 /**
- * The hero's backdrop: copies of this homepage pan past in two rows, each a
- * Workspace an agent is changing live, above the text.
- * The headline, marked `data-veil`, sinks into the bottom row, and a dither in
- * the page's own background colour thickens from the top of the rows, slowly
- * at first, to solid partway down the headline's first line, so the copies
- * dissolve into it and the text stays readable.
+ * The hero's backdrop: copies of this homepage lie on a canvas floor that
+ * recedes to a horizon under the nav, panning past in rows, each a Workspace
+ * an agent is changing live.
+ * The headline, marked `data-veil`, sinks into the nearest row, and a dither in
+ * the page's own background colour thickens down the floor, slowly at first,
+ * to solid partway down the headline's first line, so the copies dissolve into
+ * it and the text stays readable.
  *
  * The copies are built on the client only; they're decoration, hidden from
  * assistive tech. With reduced motion they hold still. Hovering, or touching
@@ -95,15 +101,15 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const host = stage.current!
     const rowsEl = strip.current!
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
-    // Clear at the top of the rows, solid most of the way down the headline's
-    // first line, so that line sits on the densest grain.
+    // Clear on the far floor, solid halfway down the headline's first
+    // line, so that line sits on the densest grain.
     const veil = createDitherVeil(canvas.current!, () => {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
       return [
-        rowsEl.getBoundingClientRect().top - s,
-        head.getBoundingClientRect().top - s + size * 0.88,
+        rowsEl.getBoundingClientRect().top - s + HAZE,
+        head.getBoundingClientRect().top - s + size * 0.6,
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()
@@ -129,12 +135,17 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     }
     const nextHeadline = () => HEADLINES[headlineIndex++ % HEADLINES.length]!
 
-    // Two rows panning opposite ways; each holds two identical runs, so the
-    // loop is seamless at -50%.
+    // Rows panning alternate ways at slightly different speeds; each holds two
+    // identical runs, so the loop is seamless at -50%.
     const copies: Copy[] = []
-    for (const seeds of [SEED, [...SEED.slice(4), ...SEED.slice(0, 4)]]) {
+    const near: Copy[] = []
+    for (let row = 0; row < ROWS; row++) {
+      const k = (row * 4) % SEED.length
+      const seeds = [...SEED.slice(k), ...SEED.slice(0, k)]
       const track = document.createElement("div")
       track.className = "hc-track"
+      track.style.animationDuration = `${80 + row * 6}s`
+      track.style.animationDelay = `${-row * 13}s`
       for (let rep = 0; rep < 2; rep++) {
         for (const seed of seeds) {
           const el = document.createElement("div")
@@ -143,7 +154,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           const f: Copy = {
             el,
             page: el.querySelector(".hc-page")!,
-            box: el.querySelector(".hc-box")!,
             h1: el.querySelector(".hc-h1")!,
             name: el.querySelector(".hc-name")!,
             diff: el.querySelector(".hc-diff")!,
@@ -159,6 +169,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           label(f)
           track.appendChild(el)
           copies.push(f)
+          // The rows just behind the headline, which the veil leaves clear.
+          if (row >= ROWS - 4 && row < ROWS - 1) near.push(f)
         }
       }
       rowsEl.appendChild(track)
@@ -182,18 +194,19 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     }
 
     // A few agents at once each keep picking a copy on screen and changing
-    // it, or, after a few edits, wiping it back to main to start over.
+    // it, or, after a few edits, undoing them back to main to start over.
     async function agent(delay: number) {
       await wait(delay)
       while (alive) {
-        const s = rowsEl.getBoundingClientRect()
-        const onScreen = copies.filter((f) => {
+        const s = host.getBoundingClientRect()
+        const onScreen = (f: Copy) => {
           const r = f.el.getBoundingClientRect()
           return !f.busy && r.left > s.left + 20 && r.right < s.right - 20
-        })
-        // Mostly the top row, which the veil leaves clearest.
-        const clear = onScreen.filter((f) => rowsEl.firstChild!.contains(f.el))
-        const pool = clear.length && Math.random() < 0.75 ? clear : onScreen
+        }
+        // Mostly the rows just behind the headline, the nearest clear ones.
+        const clear = near.filter(onScreen)
+        const pool =
+          clear.length && Math.random() < 0.75 ? clear : copies.filter(onScreen)
         const f = pool[Math.floor(Math.random() * pool.length)]
         if (f) await edit(f)
         await wait(500 + Math.random() * 700)
@@ -203,14 +216,17 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       f.busy = true
       f.el.classList.add("working")
       if (f.done.length >= 3) {
-        f.box.classList.add("wipe")
-        await wait(700)
-        f.page.className = "hc-page"
-        f.h1.textContent = HEAD
-        f.done = []
-        label(f)
-        f.box.classList.remove("wipe")
-        await wait(700)
+        // Back out the edits one at a time, newest first, until it's main.
+        await wait(400)
+        while (f.done.length && alive) {
+          const e = EDITS[f.done.pop()!]!
+          label(f)
+          if (e.type) await type(f, HEAD)
+          else {
+            f.page.classList.remove(e.cls!)
+            await wait(550)
+          }
+        }
       } else {
         const blocked = new Set(
           f.done.flatMap((i) => [EDITS[i]!.cls, EDITS[i]!.not])
