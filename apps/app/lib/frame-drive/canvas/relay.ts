@@ -7,9 +7,11 @@ import {
 import type {
   CanvasToServer,
   FrameWhere,
+  PageAsk,
   PageInView,
   ServerToCanvas,
 } from "@/lib/frame-drive/canvas/protocol"
+import { PAGE_UNSUPPORTED } from "@/lib/frame-drive/canvas/protocol"
 
 /**
  * The canvas's half of the asker's-canvas channel (#1389, `channel.ts`): it
@@ -30,6 +32,9 @@ export interface RelayFrame {
   /** The page as it is now, for a screenshot taken away from the canvas
    *  (hosted mockups). */
   snapshot?(): Promise<PageInView | null>
+  /** One step of a gesture the Mac plays with real input (#1385); see
+   *  {@link PageAsk}. Null when the bridge didn't answer. */
+  page?(ask: PageAsk): Promise<unknown>
 }
 
 export interface RelayFrames {
@@ -80,6 +85,32 @@ export async function answerRelayMessage(
   if (message.type === "snapshot") {
     const snapshot = await frame?.snapshot?.().catch(() => null)
     return { type: "snapshot", id: message.id, snapshot: snapshot ?? null }
+  }
+  if (message.type === "page") {
+    const ask = message.ask
+    const answer = (value: unknown): CanvasToServer => ({
+      type: "page",
+      id: message.id,
+      value,
+    })
+    // The server plays the gesture through the bridge instead.
+    if (!frame?.page || !ask || typeof ask !== "object")
+      return answer(PAGE_UNSUPPORTED)
+    // Reading the page and handing input back need no control; anything that
+    // moves toward the page does.
+    const moves = ask.kind !== "state" && ask.kind !== "release"
+    if (moves && !deps.agentDrives(message.frameId)) return answer("taken")
+    if (ask.kind === "cursor")
+      running.set(message.frameId, (running.get(message.frameId) ?? 0) + 1)
+    try {
+      return answer(await frame.page(ask).catch(() => null))
+    } finally {
+      if (ask.kind === "cursor") {
+        const left = (running.get(message.frameId) ?? 1) - 1
+        if (left > 0) running.set(message.frameId, left)
+        else running.delete(message.frameId)
+      }
+    }
   }
   if (message.type === "where") {
     return {

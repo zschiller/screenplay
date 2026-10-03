@@ -67,8 +67,19 @@ describe("the asker's canvas", () => {
             return { type: "snapshot", id: m.id, snapshot: null }
           case "reveal":
             return { type: "revealed", id: m.id, ok: true }
+          case "page":
+            return {
+              type: "page",
+              id: m.id,
+              value: m.ask.kind === "state" ? { path: "/x" } : "unsupported",
+            }
         }
       })
+    )
+    expect(await canvas.page("f1", { kind: "state" })).toEqual({ path: "/x" })
+    // A frame that can't take real input is the bridge's to play.
+    await expect(canvas.page("f1", { kind: "take" })).rejects.toThrow(
+      /isn't loaded/
     )
     expect(await canvas.run("f1", CLICK)).toEqual({ status: "taken" })
     expect(await canvas.where("f1")).toEqual(WHERE)

@@ -52,7 +52,14 @@ type Paced = { pace?: DrivePace }
 /** The gestures. Each one changes the page, so each one needs control. */
 export type DriveGesture = Paced &
   (
-    | { op: "click"; target: DriveTarget }
+    | {
+        op: "click"
+        target: DriveTarget
+        /** Files to answer a file picker the click opens with: paths relative
+         *  to the frame's Workspace root. Only the Mac takes them (#1385);
+         *  a file outside the Workspace, or none, is the file-picker gap. */
+        files?: string[]
+      }
     | { op: "type"; target: DriveTarget; text: string; replace?: boolean }
     | {
         op: "key"
@@ -147,6 +154,11 @@ export type DriveDone = {
   /** For `key`: the browser's default action Screenplay ran for it, if any
    *  (Enter submits the form). */
   emulated?: string
+  /** The text the gesture copied, where it was real input (#1385): the
+   *  person's own clipboard is left as it was. */
+  copied?: string
+  /** For a `click` with `files`: the file picker took them. */
+  picked?: string[]
 }
 
 /**
@@ -155,13 +167,16 @@ export type DriveDone = {
  * step.
  *
  * - Anywhere: a file picker, because the agent has no file of the person's
- *   to give it.
- * - Where the Sandbox Bridge drives a page in a person's own canvas (a frame
- *   on the Mac, a Mockup anywhere, #1391), everything else here: its input
- *   is synthetic, so nothing the browser itself does for a real gesture
- *   happens (#1367). Trusted input that would close them on the Mac is
- *   #1385. A hosted frame's shared browser (#1396) takes real input and has
- *   none of these.
+ *   to give it. On the Mac (#1385) a click can answer one with files from
+ *   the frame's Workspace.
+ * - Where the Sandbox Bridge drives a page with synthetic input (a Mockup
+ *   anywhere, #1391, or a Mac frame the desktop shell can't reach),
+ *   everything else here: nothing the browser itself does for a real
+ *   gesture happens (#1367).
+ * - A frame on the Mac takes real input from the desktop shell (#1385), so
+ *   only the native popups stay: a select's and the date, time and colour
+ *   pickers. A hosted frame's shared browser (#1396) takes real input and
+ *   has none but the file picker.
  */
 export const DRIVE_GAPS = {
   "file-picker":

@@ -7,6 +7,8 @@ import {
   macFrameDriveBackend,
   type NativeSnapshot,
 } from "@/lib/frame-drive/mac/channel"
+import type { NativeEvent, NativeInput } from "@/lib/frame-drive/mac/real-input"
+import { workspaceFiles } from "@/lib/frame-drive/mac/workspace-files"
 import { encodeShot, roomFrameControlStore } from "@/lib/frame-drive/server"
 import type { RoomDoc } from "@/lib/room-access"
 import { TAURI_CONTROL_URL_ENV_VAR } from "@/lib/thumbnail/capturer/tauri-webview"
@@ -42,6 +44,12 @@ export function macAgentDriver(
       backend: macFrameDriveBackend(room.roomId, {
         snapshot: shellSnapshot,
         encode: encodeShot,
+        // Without the shell (the app in a browser), the bridge plays them.
+        native: process.env[TAURI_CONTROL_URL_ENV_VAR] ? shellInput : undefined,
+        files: async (frameId, paths) => {
+          const root = await frameWorkspaceRoot(room, frameId)
+          return root ? workspaceFiles(root, paths) : null
+        },
       }),
       store: roomFrameControlStore(room),
       keyOf: (frameId) => frameControlKey(frameId, userId),
@@ -54,18 +62,18 @@ export function macAgentDriver(
   return driver
 }
 
-/** The Mac shell's snapshot of the canvas window, limited to `rect`. */
-const shellSnapshot: NativeSnapshot = async (rect) => {
+/** POST `body` to the Mac shell's control server at `path`. */
+async function shell(path: string, body: unknown): Promise<Response> {
   const controlUrl = process.env[TAURI_CONTROL_URL_ENV_VAR]
   if (!controlUrl) throw new Error("the desktop shell isn't running")
-  const res = await fetch(new URL("/snapshot-main", controlUrl), {
+  const res = await fetch(new URL(path, controlUrl), {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-screenplay-control-token":
         process.env[TAURI_CONTROL_TOKEN_ENV_VAR] ?? "",
     },
-    body: JSON.stringify(rect),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) {
@@ -73,5 +81,60 @@ const shellSnapshot: NativeSnapshot = async (rect) => {
       (await res.text().catch(() => "")) || `status ${res.status}`
     )
   }
-  return Buffer.from(await res.arrayBuffer())
+  return res
+}
+
+/** The Mac shell's snapshot of the canvas window, limited to `rect`. */
+const shellSnapshot: NativeSnapshot = async (rect) =>
+  Buffer.from(await (await shell("/snapshot-main", rect)).arrayBuffer())
+
+/** One request to the shell's real input for the canvas window (#1385). */
+type DriveInputRequest =
+  | { action: "events"; events: NativeEvent[] }
+  | { action: "hold-clipboard"; text?: string }
+  | { action: "release-clipboard" }
+  | { action: "offer-files"; paths: string[] }
+  | { action: "withdraw-files" }
+
+const driveInput = async <T>(request: DriveInputRequest): Promise<T> =>
+  (await (await shell("/drive-input", request)).json()) as T
+
+/** The Mac shell's real input for the canvas window (#1385). */
+const shellInput: NativeInput = {
+  send: async (events) => {
+    await driveInput({ action: "events", events })
+  },
+  holdClipboard: async (text) => {
+    await driveInput({ action: "hold-clipboard", text })
+  },
+  releaseClipboard: async () =>
+    (
+      await driveInput<{ copied: string | null }>({
+        action: "release-clipboard",
+      })
+    ).copied,
+  offerFiles: async (paths) => {
+    await driveInput({ action: "offer-files", paths })
+  },
+  withdrawFiles: async () =>
+    (await driveInput<{ taken: boolean }>({ action: "withdraw-files" })).taken,
+}
+
+/** The checkout of the Workspace a frame shows, or null (a Mockup, or a
+ *  frame whose Workspace has none on this Mac). */
+async function frameWorkspaceRoot(
+  room: RoomDoc,
+  frameId: string
+): Promise<string | null> {
+  const sandboxName = await room.readDoc((c) => {
+    const branchId = c.iframeLayers.get(frameId)?.branchId
+    return branchId ? c.branches.get(branchId)?.sandboxName : undefined
+  })
+  if (!sandboxName) return null
+  try {
+    const { sandboxProvider } = await import("@/lib/sandbox")
+    return (await sandboxProvider.get({ name: sandboxName })).worktreePath
+  } catch {
+    return null
+  }
 }

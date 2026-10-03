@@ -3,10 +3,16 @@ import "server-only"
 import type { IncomingMessage } from "node:http"
 import type { RawData, WebSocket } from "ws"
 
-import type {
-  DriveScreenshotResult,
-  FrameDriveBackend,
+import {
+  isDriveOp,
+  isGesture,
+  type DriveScreenshotResult,
+  type FrameDriveBackend,
 } from "@/lib/frame-drive/contract"
+import {
+  runRealInput,
+  type NativeInput,
+} from "@/lib/frame-drive/mac/real-input"
 import {
   askerCanvas,
   type AskerCanvas,
@@ -161,7 +167,10 @@ export type NativeSnapshot = (rect: FrameWhere["rect"]) => Promise<Buffer>
 /**
  * The Mac Frame Drive backend for one Room: ops go to the canvas showing the
  * frame; the screenshot is the shell's snapshot of that canvas, so it shows
- * the frame exactly as the person sees it, background window included.
+ * the frame exactly as the person sees it, background window included. With
+ * the shell's `native` input, a click, typing, a key or a hover lands as real
+ * input (#1385, `real-input.ts`); without it (or where it can't land) the
+ * frame's Sandbox Bridge plays it, gaps and all.
  */
 export function macFrameDriveBackend(
   roomId: string,
@@ -176,9 +185,16 @@ export function macFrameDriveBackend(
       mediaType: string
     }>
     opTimeoutMs?: number
+    /** The desktop shell's real input. */
+    native?: NativeInput
+    /** The files a click names in the frame's Workspace, as absolute paths;
+     *  null when any isn't one. */
+    files?: (frameId: string, paths: string[]) => Promise<string[] | null>
   }
 ): FrameDriveBackend {
   const canvas = macAskerCanvas(roomId, { opTimeoutMs: deps.opTimeoutMs })
+  // What the agent copied, for its own pastes: never the person's clipboard.
+  const clipboard = { text: null as string | null }
   return {
     async unavailable(frameId) {
       if (!canvasesByRoom().get(roomId)?.length) return NO_CANVAS
@@ -186,7 +202,20 @@ export function macFrameDriveBackend(
       return canvasFor(roomId, frameId) ? null : NO_FRAME
     },
 
-    run: (frameId, op) => canvas.run(frameId, op),
+    async run(frameId, op) {
+      const native = deps.native
+      if (native && isDriveOp(op) && isGesture(op)) {
+        const files = deps.files
+        const real = await runRealInput(op, {
+          page: (ask) => canvas.page(frameId, ask),
+          native,
+          files: files && ((paths) => files(frameId, paths)),
+          clipboard,
+        })
+        if (real) return real
+      }
+      return canvas.run(frameId, op)
+    },
 
     async screenshot(frameId): Promise<DriveScreenshotResult> {
       const where = await canvas.where(frameId)

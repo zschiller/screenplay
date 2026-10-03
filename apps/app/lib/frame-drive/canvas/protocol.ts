@@ -1,4 +1,9 @@
-import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
+import type {
+  DriveElement,
+  DriveOp,
+  DriveResult,
+  DriveTarget,
+} from "@/lib/frame-drive/contract"
 import type { PageSnapshot } from "@/lib/sandbox-bridge/page-snapshot"
 
 /**
@@ -35,6 +40,82 @@ export type PageInView = PageSnapshot & {
   viewport: { width: number; height: number }
 }
 
+/**
+ * The steps of a gesture the Mac plays with real input (#1385), each one asked
+ * of the canvas showing the frame: the frame's Sandbox Bridge finds the target
+ * and reports what changed, as it does for a hosted frame's real input
+ * (#1396), and the canvas hands the frame the input for the moment it lands.
+ */
+export type PageAsk =
+  /** Find the target and scroll it into view; `focus` readies a field
+   *  (`replace` selects its text) or focuses the element, for keys. */
+  | {
+      kind: "locate"
+      target: DriveTarget
+      focus?: "field" | "element"
+      replace?: boolean
+      show?: boolean
+    }
+  /** Draw the agent's cursor at show pace (the bridge's `drive-cursor`). */
+  | { kind: "cursor"; what: PageCursor }
+  /** What the page is now: its path, and a field's value. */
+  | { kind: "state"; selector?: string }
+  /**
+   * Let the frame take the input about to land: the keyboard, and with `at`
+   * (a point in the page) the pointer, which must hit the frame there.
+   */
+  | { kind: "take"; at?: { x: number; y: number } }
+  /** Hand the input back to the canvas, as it was before `take`. */
+  | { kind: "release" }
+
+export type PageCursor =
+  | { to: { x: number; y: number } }
+  | { pause: true }
+  | { press: true }
+  | { linger: true }
+  | { hide: true }
+
+/** A target the bridge found, in the page's own CSS px. */
+export type PageLocated = {
+  target: Pick<DriveElement, "selector" | "tag" | "label"> | null
+  x: number
+  y: number
+  /** It's a file input. */
+  file?: boolean
+  /** It opens one of the browser's own popups, which real input can't
+   *  answer either. */
+  popup?: "native-select" | "native-picker"
+  /** False when `focus: "field"` found no text field. */
+  field?: boolean
+}
+
+/** Where the window input for a point in the page lands, from `take`. */
+export type PageTaken = {
+  /** The point in the canvas window (CSS px), or null when the frame isn't
+   *  there to hit (scrolled off, covered, or the window is hidden). */
+  window: { x: number; y: number } | null
+}
+
+/** A page ask's answer when the frame isn't on the canvas or can't take real
+ *  input: the gesture goes through the bridge instead. */
+export const PAGE_UNSUPPORTED = "unsupported"
+
+/** What `state` reads. */
+export type PageState = { path: string; value?: string }
+
+/** The answer to each {@link PageAsk}; "taken" when the agent no longer
+ *  drives the frame, null when it isn't loaded or the bridge didn't answer. */
+export type PageAnswer<K extends PageAsk["kind"]> =
+  | (K extends "locate"
+      ? PageLocated | null
+      : K extends "take"
+        ? PageTaken
+        : K extends "state"
+          ? PageState
+          : null)
+  | "taken"
+  | null
+
 export type ServerToCanvas =
   | { type: "op"; id: string; frameId: string; op: DriveOp }
   | { type: "where"; id: string; frameId: string }
@@ -43,6 +124,8 @@ export type ServerToCanvas =
   | { type: "snapshot"; id: string; frameId: string }
   /** Bring the frame into view on this canvas (#1390). */
   | { type: "reveal"; id: string; frameId: string }
+  /** One step of a gesture played with real input (#1385). */
+  | { type: "page"; id: string; frameId: string; ask: PageAsk }
 
 export type CanvasToServer =
   /** The frames this canvas has mounted, sent on connect and on change. */
@@ -52,6 +135,7 @@ export type CanvasToServer =
   /** Null when the frame isn't loaded or its page didn't answer. */
   | { type: "snapshot"; id: string; snapshot: PageInView | null }
   | { type: "revealed"; id: string; ok: boolean }
+  | { type: "page"; id: string; value: unknown }
 
 /** An answer to one of the server's messages. */
 export type CanvasAnswer = Exclude<CanvasToServer, { type: "frames" }>

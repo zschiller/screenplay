@@ -65,8 +65,11 @@ function tools(
   {
     empty = false,
     frameUnavailable,
+    files,
   }: {
     empty?: boolean
+    /** Whether a click can pick Workspace files (the Mac). */
+    files?: boolean
     /** Whether the canvas has a frame loaded, when that differs. */
     frameUnavailable?: (frameId: string) => string | null
   } = {}
@@ -111,7 +114,7 @@ function tools(
       driver,
       r,
       { kind: "chat", sandboxName: "sb-1" },
-      { asker: "user-zack", sleep: async () => {} }
+      { asker: "user-zack", sleep: async () => {}, files }
     ),
   }
 }
@@ -140,6 +143,39 @@ describe("Frame Drive tools", () => {
     const out = await call(t.frame_click, { target: { text: "Save" } })
     expect(ops).toEqual([{ op: "click", target: { text: "Save" } }])
     expect(out).toMatch(/button "Save".*\/saved/)
+  })
+
+  it("picks Workspace files with a click only where the runtime can (the Mac)", async () => {
+    const done = (): DriveResult => ({
+      status: "done",
+      value: {
+        op: "click",
+        target: { selector: "#upload", tag: "input", label: "Upload" },
+        path: "/",
+        picked: ["fixtures/logo.png"],
+      },
+    })
+    const shape = (t: unknown) =>
+      Object.keys(
+        (t as { inputSchema: { shape: Record<string, unknown> } }).inputSchema
+          .shape
+      )
+    expect(shape(tools(done).tools.frame_click)).not.toContain("files")
+
+    const mac = tools(done, undefined, { files: true })
+    expect(shape(mac.tools.frame_click)).toContain("files")
+    const out = await call(mac.tools.frame_click, {
+      target: { selector: "#upload" },
+      files: ["fixtures/logo.png"],
+    })
+    expect(mac.ops).toEqual([
+      {
+        op: "click",
+        target: { selector: "#upload" },
+        files: ["fixtures/logo.png"],
+      },
+    ])
+    expect(out).toMatch(/file picker took fixtures\/logo\.png/)
   })
 
   it("tells the agent to say so in chat when the canvas isn't open", async () => {
@@ -288,6 +324,16 @@ describe("phrase", () => {
     expect(line).toContain(DRIVE_GAPS["file-picker"])
     expect(line).toMatch(
       /ask the person in chat to do it.*wait for their reply/
+    )
+  })
+
+  it("says what a gesture copied, and that the person's clipboard is untouched", () => {
+    const line = phrase("frame [f1]", {
+      status: "done",
+      value: { op: "click", path: "/", copied: "https://x.co/invite" },
+    })
+    expect(line).toMatch(
+      /copied "https:\/\/x\.co\/invite".*clipboard is unchanged/
     )
   })
 

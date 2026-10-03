@@ -314,31 +314,40 @@ do is choose a file: when a step needs one, it asks you to pick it yourself.
 - **It drives your own frame.** The steps happen in the frame on your canvas,
   and nothing is sent anywhere else.
 - **Screenplay has to be open.** The agent drives only while the canvas is
-  open in the desktop app. The window can be in the background while it works.
-  With the canvas closed, the agent tells you so in the chat instead.
+  open in the desktop app. A canvas that opens in a window hidden behind other
+  windows doesn't load until you bring it forward. With the canvas closed or
+  not loaded, the agent tells you so in the chat instead.
 
-The agent's clicks and keys are simulated inside the page, so they do what the
-page's own code listens for but not what the browser does for a real gesture.
-On the Mac it can't:
+The agent's clicks and keys reach the frame as real input, the same as yours:
+focus, typing, <kbd>Tab</kbd>, rich-text editors and hover styles all work.
+The desktop app sends them to the Screenplay window itself, so your own pointer
+doesn't move, Screenplay doesn't come to the front, and you can keep working
+in another app.
 
-- open the file picker, so it asks you to choose files yourself;
-- copy or paste with the clipboard (a **Copy** button doesn't copy);
-- type into rich-text editors, or move the keyboard focus (including with
-  <kbd>Tab</kbd>), so anything that reacts to focus won't;
-- open a native dropdown, date or colour picker, though it can still set the
-  value.
+- **Copy and paste use the agent's own clipboard.** When the agent copies
+  something (a page's **Copy** button, or <kbd>⌘</kbd> <kbd>C</kbd>), it sees
+  what was copied and your clipboard is put back as it was. When it pastes,
+  it pastes what it copied, never what's on your clipboard.
+- **It picks files from its workspace.** When a step opens a file picker, the
+  agent answers it with files from the frame's workspace, and no panel opens.
+  For a file anywhere else, it asks you to choose it. When you click a file
+  input yourself, you get the usual Finder panel.
+- **Native dropdowns and pickers stay closed.** It can't open a native
+  dropdown, date, time or colour picker, though it can still set its value.
 
-It can hover: tooltips, hover cards and menus that open on hover do, and the
-page's hover styles show, until its next step moves the pointer on. Hover
-styles from a stylesheet on another site (a font or icon CDN, say) don't show,
-and moving your own mouse over the frame hands hover back to you.
+While a step lands, the frame takes the pointer and keyboard for a moment, as
+in Interact. A frame that's scrolled off the canvas or covered can't take a
+click, so the agent's step there is simulated inside the page instead, with the
+limits a [mockup](/guides/mockups#the-agent-driving-a-mockup) in the browser
+has. Moving your own mouse over the frame hands hover back to you.
 
-When a step needs one of these, the agent says which and asks you to do it in
-the frame. Tell it in the chat when you're done, and it carries on from there.
+When a step needs something it can't do, the agent says which and asks you to
+do it in the frame. Tell it in the chat when you're done, and it carries on
+from there.
 
-The agent drives [mockups](/guides/mockups#the-agent-driving-a-mockup) the same
-way,
-in the browser too.
+The agent drives [mockups](/guides/mockups#the-agent-driving-a-mockup) in the
+desktop app the same way. In the browser, its steps on a mockup are simulated
+inside the page.
 
 ## Sizes
 
