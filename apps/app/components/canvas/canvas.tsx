@@ -31,6 +31,7 @@ import {
   useSelfPresence,
   useSetPresence,
   useMemories,
+  useCanvasFiles,
   useRepos,
   useYjsHistory,
 } from "@/lib/yjs/react"
@@ -1049,6 +1050,8 @@ export function Canvas({
     () => [...memoryEntries].sort((a, b) => a.createdAt - b.createdAt),
     [memoryEntries]
   )
+  // Canvas Files (#1517), browsed in Canvas settings › Files.
+  const canvasFiles = useCanvasFiles()
 
   // Leaving the Room takes its Branches' dev servers with it on desktop:
   // local dev servers are host processes with no auto-stop timer, so without
@@ -2524,6 +2527,7 @@ export function Canvas({
                     editMemory(collections, id, { text })
                   }
                   onRemoveMemory={(id) => removeMemory(collections, id)}
+                  files={canvasFiles}
                 />
                 <CanvasToolbar
                   toolMode={toolMode}

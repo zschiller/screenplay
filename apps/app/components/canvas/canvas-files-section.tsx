@@ -1,0 +1,424 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import {
+  CaretRightIcon,
+  DotsThreeIcon,
+  DownloadSimpleIcon,
+  FileIcon,
+  FileImageIcon,
+  FilePdfIcon,
+  FileTextIcon,
+  FolderIcon,
+  TrashIcon,
+  ArrowSquareOutIcon,
+} from "@workspace/ui/components/icons"
+import { Button } from "@workspace/ui/components/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
+import { Spinner } from "@workspace/ui/components/spinner"
+import { cn } from "@workspace/ui/lib/utils"
+import { ConfirmDialog } from "@/components/confirm-dialog"
+import { LoadErrorState } from "@/components/home/load-error"
+import { SettingsRow, SettingsRowList } from "@/components/home/settings-row"
+import { formatFileSize, isTextMediaType } from "@/lib/files/paths"
+import { fileTree, itemCount, type FileTreeNode } from "@/lib/files/tree"
+import type { FileEntryData } from "@/lib/types"
+
+/** Where a canvas's file is read and deleted: the route that checks membership. */
+export function canvasFileUrl(roomId: string, path: string): string {
+  const encoded = path.split("/").map(encodeURIComponent).join("/")
+  return `/api/canvas-files/${encodeURIComponent(roomId)}/${encoded}`
+}
+
+/** Delete a file, or a folder with everything in it, for every member. */
+export async function deleteCanvasFile(
+  roomId: string,
+  path: string
+): Promise<void> {
+  const res = await fetch(canvasFileUrl(roomId, path), { method: "DELETE" })
+  if (!res.ok) throw new Error("Couldn’t delete it. Try again.")
+}
+
+/** A row's muted meta: "880 KB · Saved by agent". */
+export function fileDetail(
+  entry: FileEntryData,
+  adderName: (entry: FileEntryData) => string
+): string {
+  return `${formatFileSize(entry.size)} · ${adderName(entry)}`
+}
+
+/**
+ * Canvas settings › Files (#1517): the canvas's files as one expanding tree,
+ * read-only for people. Agents save and organize files; a person can open one
+ * (pushed onto the dialog's breadcrumb, {@link CanvasFileView}) or delete a
+ * file or folder for every member, after a confirm.
+ */
+export function FilesSection({
+  files,
+  expanded,
+  onToggle,
+  onOpen,
+  onDelete,
+  adderName,
+}: {
+  files: FileEntryData[]
+  /** The folders open in the tree, by path. Kept by the dialog, so they stay
+   *  open while a file is shown. */
+  expanded: ReadonlySet<string>
+  onToggle: (path: string) => void
+  onOpen: (path: string) => void
+  onDelete: (path: string) => Promise<void>
+  /** "Saved by agent", "Added by you", "Added by Sam". */
+  adderName: (entry: FileEntryData) => string
+}) {
+  const [deleting, setDeleting] = useState<FileTreeNode | null>(null)
+  const tree = fileTree(files)
+
+  const rows = (nodes: FileTreeNode[], depth: number): React.ReactNode[] =>
+    nodes.flatMap((node) => {
+      const open = node.entry.kind === "folder" && expanded.has(node.entry.path)
+      return [
+        <FileRow
+          key={node.entry.path}
+          node={node}
+          depth={depth}
+          open={open}
+          detail={
+            node.entry.kind === "folder"
+              ? itemCount(node.children.length)
+              : fileDetail(node.entry, adderName)
+          }
+          onToggle={() => onToggle(node.entry.path)}
+          onOpen={() => onOpen(node.entry.path)}
+          onDelete={() => setDeleting(node)}
+        />,
+        ...(open ? rows(node.children, depth + 1) : []),
+      ]
+    })
+
+  return (
+    <>
+      <p className="text-sm text-muted-foreground">
+        Files every chat on this canvas can open. Agents save and organize them.
+      </p>
+      {tree.length === 0 ? (
+        <Empty className="flex-none border py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FolderIcon />
+            </EmptyMedia>
+            <EmptyTitle>No files yet</EmptyTitle>
+            <EmptyDescription>
+              Ask a chat to save a file here, and every chat on this canvas can
+              open it.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <SettingsRowList>{rows(tree, 0)}</SettingsRowList>
+      )}
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null)
+        }}
+        verb="Delete"
+        itemName={deleting?.name}
+        itemNoun={deleting?.entry.kind ?? "file"}
+        description={deleting ? deleteDescription(deleting) : null}
+        onConfirm={async () => {
+          if (!deleting) return
+          await onDelete(deleting.entry.path)
+          setDeleting(null)
+        }}
+      />
+    </>
+  )
+}
+
+/** What Delete does, with a folder's blast radius. */
+export function deleteDescription(node: FileTreeNode): string {
+  if (node.entry.kind === "file") {
+    return "Chats on this canvas can no longer open it. You can’t undo this."
+  }
+  if (node.descendants === 0) {
+    return "The folder is empty. You can’t undo this."
+  }
+  return node.descendants === 1
+    ? "The 1 item in it goes too, and chats on this canvas can no longer open it. You can’t undo this."
+    : `The ${node.descendants} items in it go too, and chats on this canvas can no longer open them. You can’t undo this.`
+}
+
+/** The indent per level, in px: the chevron's width, so a folder's contents
+ *  line up under its name. */
+const INDENT_PX = 28
+
+function FileRow({
+  node,
+  depth,
+  open,
+  detail,
+  onToggle,
+  onOpen,
+  onDelete,
+}: {
+  node: FileTreeNode
+  depth: number
+  open: boolean
+  detail: string
+  onToggle: () => void
+  onOpen: () => void
+  onDelete: () => void
+}) {
+  const { entry, name } = node
+  const folder = entry.kind === "folder"
+  return (
+    // The divider spans the list; only the row's content steps in.
+    <div style={{ paddingLeft: depth * INDENT_PX }}>
+      <SettingsRow
+        media={
+          <span className="-ml-2 flex shrink-0 items-center gap-1">
+            {folder ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-expanded={open}
+                aria-label={`${open ? "Collapse" : "Expand"} ${name}`}
+                onClick={onToggle}
+                // Ghost fills while aria-expanded, which suits a menu
+                // trigger; an open folder's chevron only turns.
+                className="text-muted-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground aria-expanded:hover:bg-muted aria-expanded:hover:text-foreground"
+              >
+                <CaretRightIcon
+                  className={cn("transition-transform", open && "rotate-90")}
+                />
+              </Button>
+            ) : (
+              <span aria-hidden className="size-7" />
+            )}
+            <EntryIcon entry={entry} />
+          </span>
+        }
+        title={
+          // The name works like its first control (expand, or Open) for a
+          // pointer; keyboards use the chevron and the menu.
+          <button
+            type="button"
+            tabIndex={-1}
+            className="max-w-full cursor-default truncate text-left"
+            onClick={folder ? onToggle : onOpen}
+          >
+            {name}
+          </button>
+        }
+        detail={detail}
+        action={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={`More actions for ${name}`}
+              >
+                <DotsThreeIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
+              {!folder && (
+                <DropdownMenuItem onSelect={onOpen}>
+                  <ArrowSquareOutIcon />
+                  Open
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                <TrashIcon />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
+    </div>
+  )
+}
+
+function EntryIcon({ entry }: { entry: FileEntryData }) {
+  const className = "size-4 text-muted-foreground"
+  if (entry.kind === "folder")
+    return <FolderIcon aria-hidden className={className} />
+  if (entry.mediaType === "application/pdf")
+    return <FilePdfIcon aria-hidden className={className} />
+  if (entry.mediaType.startsWith("image/"))
+    return <FileImageIcon aria-hidden className={className} />
+  if (isTextMediaType(entry.mediaType))
+    return <FileTextIcon aria-hidden className={className} />
+  return <FileIcon aria-hidden className={className} />
+}
+
+/** The most text shown; past it, the file is a download. */
+const TEXT_SHOWN_MAX = 200_000
+
+type Loaded =
+  | { state: "loading" }
+  | { state: "text"; text: string; cut: boolean }
+  | { state: "error" }
+
+/**
+ * An opened file (#1517), shown in place of the tree with its name on the
+ * breadcrumb: an image or PDF as the browser draws it, text as source, and
+ * anything else as a download.
+ */
+export function CanvasFileView({
+  roomId,
+  entry,
+  detail,
+}: {
+  roomId: string
+  entry: FileEntryData
+  detail: string
+}) {
+  const url = canvasFileUrl(roomId, entry.path)
+  // An SVG is drawn as an image (no script runs in an <img>), not as source.
+  const kind =
+    entry.mediaType === "application/pdf"
+      ? "pdf"
+      : entry.mediaType.startsWith("image/")
+        ? "image"
+        : isTextMediaType(entry.mediaType)
+          ? "text"
+          : "other"
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="truncate text-xs text-muted-foreground">{detail}</p>
+        <Button asChild size="sm" variant="outline">
+          <a href={url} download={entry.path.split("/").pop()}>
+            <DownloadSimpleIcon />
+            Download
+          </a>
+        </Button>
+      </div>
+      {kind === "image" ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a private
+              route's bytes, not an optimizable asset */}
+          <img
+            src={url}
+            alt={entry.path}
+            className="max-h-full max-w-full object-contain"
+          />
+        </div>
+      ) : kind === "pdf" ? (
+        <iframe
+          src={url}
+          title={entry.path}
+          className="min-h-0 w-full flex-1 rounded-lg border"
+        />
+      ) : kind === "text" ? (
+        <TextFile url={url} name={entry.path} updatedAt={entry.updatedAt} />
+      ) : (
+        <Empty className="flex-1 border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FileIcon />
+            </EmptyMedia>
+            <EmptyTitle>No preview for this file</EmptyTitle>
+            <EmptyDescription>
+              Download it to open it on your computer.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
+    </div>
+  )
+}
+
+function TextFile({
+  url,
+  name,
+  updatedAt,
+}: {
+  url: string
+  name: string
+  /** Read again when an agent saves over the file. */
+  updatedAt: number
+}) {
+  const [attempt, setAttempt] = useState(0)
+  // What was read, and for which version of the file; a newer version (or a
+  // retry) reads as loading until its own read lands.
+  const key = `${url}#${updatedAt}#${attempt}`
+  const [result, setResult] = useState<{ key: string; loaded: Loaded }>()
+  const loaded: Loaded =
+    result?.key === key ? result.loaded : { state: "loading" }
+
+  useEffect(() => {
+    let cancelled = false
+    const setLoaded = (next: Loaded) => setResult({ key, loaded: next })
+    fetch(url)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const text = await res.text()
+        if (!cancelled) {
+          setLoaded({
+            state: "text",
+            text: text.slice(0, TEXT_SHOWN_MAX),
+            cut: text.length > TEXT_SHOWN_MAX,
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded({ state: "error" })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [url, key])
+
+  if (loaded.state === "loading") {
+    return (
+      <div className="flex flex-1 items-center justify-center rounded-lg border">
+        <Spinner aria-label={`Opening ${name}`} />
+      </div>
+    )
+  }
+  if (loaded.state === "error") {
+    return (
+      <LoadErrorState
+        title="Couldn’t open this file"
+        description="Something went wrong. Try again."
+        onRetry={async () => setAttempt((n) => n + 1)}
+      />
+    )
+  }
+  return (
+    <pre
+      aria-label={name}
+      className="min-h-0 flex-1 overflow-auto rounded-lg border p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap"
+    >
+      {loaded.text}
+      {loaded.cut && (
+        <span className="mt-3 block font-sans text-muted-foreground">
+          Showing the start of the file. Download it for the rest.
+        </span>
+      )}
+    </pre>
+  )
+}

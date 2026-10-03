@@ -14,12 +14,20 @@ vi.mock("@/lib/room-access", () => ({
 }))
 vi.mock("@/lib/files", () => ({ canvasFiles: () => access.files }))
 
-import { GET } from "./route"
+import { DELETE, GET } from "./route"
 
 const get = (...path: string[]) =>
   GET(new Request("http://localhost/api/canvas-files/room-1"), {
     params: Promise.resolve({ roomId: "room-1", path }),
   })
+
+const del = (...path: string[]) =>
+  DELETE(
+    new Request("http://localhost/api/canvas-files/room-1", {
+      method: "DELETE",
+    }),
+    { params: Promise.resolve({ roomId: "room-1", path }) }
+  )
 
 describe("GET /api/canvas-files/[roomId]/[...path]", () => {
   beforeEach(async () => {
@@ -56,5 +64,53 @@ describe("GET /api/canvas-files/[roomId]/[...path]", () => {
   it("answers 404 for a folder or a missing file", async () => {
     expect((await get("research")).status).toBe(404)
     expect((await get("nope.md")).status).toBe(404)
+  })
+})
+
+describe("DELETE /api/canvas-files/[roomId]/[...path]", () => {
+  beforeEach(async () => {
+    access.response = null
+    access.files = createFiles({
+      index: memoryFileIndex(),
+      store: memoryFileStore(),
+      keyPrefix: "canvas/room-1",
+    })
+    for (const path of ["research/a.md", "research/deep/b.md", "c.md"]) {
+      await access.files.save({
+        path,
+        bytes: new TextEncoder().encode("x"),
+        fallbackMediaType: "text/plain",
+        author: { addedBy: "agent", addedById: "chat-1" },
+      })
+    }
+  })
+
+  const paths = async () => {
+    const listed = await access.files!.list()
+    return listed.ok ? listed.value.map((e) => e.path) : []
+  }
+
+  it("deletes a folder with everything in it for every member", async () => {
+    const res = await del("research")
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ kind: "folder", removed: 4 })
+    expect(await paths()).toEqual(["c.md"])
+  })
+
+  it("deletes one file", async () => {
+    expect((await del("c.md")).status).toBe(200)
+    expect(await paths()).not.toContain("c.md")
+  })
+
+  it("deletes nothing for someone who isn't a member", async () => {
+    access.response = new Response("You don't have access", { status: 403 })
+
+    expect((await del("c.md")).status).toBe(403)
+    expect(await paths()).toContain("c.md")
+  })
+
+  it("answers 404 for a path with nothing at it", async () => {
+    expect((await del("nope.md")).status).toBe(404)
   })
 })

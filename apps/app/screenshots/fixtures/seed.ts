@@ -1,5 +1,5 @@
 import { mkdir, rm, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { eq } from "drizzle-orm"
 import * as Y from "yjs"
 
@@ -92,6 +92,7 @@ export async function seedFixtureWorld(
   const yjsDir = profile.env.YJS_PERSISTENCE_DIR!
   const blobDir = profile.env.LOCAL_BLOB_DIR!
   const blobBaseUrl = profile.env.LOCAL_BLOB_BASE_URL!
+  const filesDir = profile.env.LOCAL_FILES_DIR!
 
   if (options.fresh) {
     log("• wiping previous fixture state")
@@ -103,6 +104,7 @@ export async function seedFixtureWorld(
       rm(`${pgliteDir}.lock`, { force: true }),
       rm(yjsDir, { recursive: true, force: true }),
       rm(blobDir, { recursive: true, force: true }),
+      rm(filesDir, { recursive: true, force: true }),
     ])
   }
 
@@ -133,6 +135,7 @@ export async function seedFixtureWorld(
       yjsDir,
       blobDir,
       blobBaseUrl,
+      filesDir,
       db: handle.db,
       renderCaptures: options.renderCaptures ?? renderFrameCaptures,
     })
@@ -525,6 +528,7 @@ async function seedRoomDocs(
     yjsDir: string
     blobDir: string
     blobBaseUrl: string
+    filesDir: string
     db: DB
     renderCaptures: typeof renderFrameCaptures
   }
@@ -542,6 +546,15 @@ async function seedRoomDocs(
       join(ctx.yjsDir, `${encodeURIComponent(room.id)}.ydoc`),
       Y.encodeStateAsUpdate(doc)
     )
+
+    // Canvas Files' bytes, where the local file store looks for them.
+    for (const entry of room.doc?.files ?? []) {
+      const body = room.doc?.fileBodies?.[entry.path]
+      if (entry.kind !== "file" || body === undefined) continue
+      const path = join(ctx.filesDir, entry.blobKey)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, body)
+    }
 
     captureCount += await seedRoomThumbnail(room, ctx)
     doc.destroy()
@@ -590,6 +603,7 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
     for (const plan of fixture.plans ?? []) c.plans.set(plan.id, plan)
     for (const memory of fixture.memories ?? [])
       c.memories.set(memory.id, memory)
+    for (const file of fixture.files ?? []) c.files.set(file.id, file)
     if (fixture.savedViewport) c.savedViewport.set(fixture.savedViewport)
   })
 

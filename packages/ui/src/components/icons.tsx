@@ -53,6 +53,8 @@ import { DotsSixVerticalIcon as DotsSixVerticalBase } from "@phosphor-icons/reac
 import { DotsThreeIcon as DotsThreeBase } from "@phosphor-icons/react/dist/ssr/DotsThree"
 import { EyeIcon as EyeBase } from "@phosphor-icons/react/dist/ssr/Eye"
 import { EyeSlashIcon as EyeSlashBase } from "@phosphor-icons/react/dist/ssr/EyeSlash"
+import { DownloadSimpleIcon as DownloadSimpleBase } from "@phosphor-icons/react/dist/ssr/DownloadSimple"
+import { FileIcon as FileBase } from "@phosphor-icons/react/dist/ssr/File"
 import { FileCodeIcon as FileCodeBase } from "@phosphor-icons/react/dist/ssr/FileCode"
 import { FileImageIcon as FileImageBase } from "@phosphor-icons/react/dist/ssr/FileImage"
 import { FilePdfIcon as FilePdfBase } from "@phosphor-icons/react/dist/ssr/FilePdf"
@@ -271,6 +273,11 @@ export const DotsSixVerticalIcon = phosphor(
 export const DotsThreeIcon = phosphor(DotsThreeBase, "ph-dots-three", "bold")
 export const EyeIcon = phosphor(EyeBase, "ph-eye")
 export const EyeSlashIcon = phosphor(EyeSlashBase, "ph-eye-slash")
+export const DownloadSimpleIcon = phosphor(
+  DownloadSimpleBase,
+  "ph-download-simple"
+)
+export const FileIcon = phosphor(FileBase, "ph-file")
 export const FileCodeIcon = phosphor(FileCodeBase, "ph-file-code")
 export const FileImageIcon = phosphor(FileImageBase, "ph-file-image")
 export const FilePdfIcon = phosphor(FilePdfBase, "ph-file-pdf")
