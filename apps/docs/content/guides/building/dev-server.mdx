@@ -42,7 +42,8 @@ gives each workspace a **stable URL** like
 If you run `npx portless proxy start` yourself (it asks for `sudo` to use
 port 443 and trust a local HTTPS certificate), Screenplay uses that proxy
 instead, and the stable URLs drop the port:
-`https://my-branch.my-app.localhost`.
+`https://my-branch.my-app.localhost`. `npx portless service install` does the
+same and starts that proxy whenever your Mac starts.
 
 </Tabs.Tab>
 <Tabs.Tab>
