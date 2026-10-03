@@ -366,7 +366,7 @@ html.dark .nextra-search kbd::after {
   width: auto;
   max-width: 100%;
   /* A detail of a tall menu or dialog shouldn't run past the screen. */
-  max-height: 36rem;
+  max-height: 48rem;
   height: auto;
   margin-inline: auto;
   border-radius: 2px;
@@ -382,6 +382,17 @@ html.dark .sp-screenshot .sp-screenshot-light {
 }
 html.dark .sp-screenshot .sp-screenshot-dark {
   display: block;
+}
+/* Related shots side by side, stacking when the column is narrow. */
+.sp-screenshot-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+  margin: 1.75rem 0;
+}
+.sp-screenshot-row .sp-screenshot {
+  margin: 0;
 }
 .sp-screenshot figcaption {
   margin-top: 0.6rem;

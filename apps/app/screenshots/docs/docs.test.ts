@@ -87,10 +87,22 @@ describe("the docs world", () => {
 describe("a detail's region", () => {
   const viewport = { width: 1280, height: 800 }
 
+  it("hugs its focus, with a little room around it", () => {
+    expect(detailRegion([400, 300, 200, 100], viewport)).toEqual([
+      384, 284, 232, 132,
+    ])
+  })
+
+  it("is exactly its focus with no padding, even by the window's edge", () => {
+    expect(detailRegion([0, 40, 200, 100], viewport, 0)).toEqual([
+      0, 40, 200, 100,
+    ])
+  })
+
   it("reaches the window's top-left corner when it lands near it", () => {
-    // A sidebar row menu: centring leaves the crop 52px in, slicing labels.
-    expect(detailRegion([208, 152, 249, 352], viewport)).toEqual([
-      0, 0, 613, 568,
+    // A menu by the sidebar: stopping 76px in would slice its labels.
+    expect(detailRegion([100, 90, 249, 352], viewport)).toEqual([
+      0, 0, 365, 458,
     ])
   })
 

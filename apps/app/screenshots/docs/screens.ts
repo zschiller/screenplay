@@ -5,15 +5,24 @@ import { LOCAL_USER_ID } from "@/lib/local-user"
 import { stubLogs, stubTerminal } from "../fixtures/streams"
 import { settle } from "../lib/browser"
 import {
+  CREATE_WORKSPACES_TOOL,
+  createdWorkspacesResult,
+  workspaceLink,
+} from "@/lib/agent/workspace-task"
+import { roomChatId } from "@/lib/chat/room-chat"
+import {
   canvasPanels,
   entryState,
   homeView,
   injectYjsUpdate,
+  replayRun,
+  text,
+  type RunEvent,
   showTooltip,
   unfreeze,
   type Screen,
 } from "../screens"
-import { DOCS_CLOCK, DOCS_IDS } from "./world"
+import { DOCS_CLOCK, DOCS_IDS, PROMPTS } from "./world"
 
 /**
  * The **docs screen list** — every screenshot the product docs embed
@@ -40,6 +49,16 @@ export interface DocsScreen extends Screen {
    */
   crop?: Crop
   /**
+   * Room left around the focus, in CSS px ({@link FOCUS_PAD} by default). A
+   * dialog uses 0: the image is the dialog.
+   */
+  pad?: number
+  /**
+   * Leave a focused text field focused. Otherwise it's blurred before the
+   * capture, so a detail doesn't show a focus ring and caret nobody put there.
+   */
+  keepFocus?: boolean
+  /**
    * For a full-window screen of a page that opens in the user's browser
    * rather than the app (the prototype player): the address `./frame.ts`
    * shows in the browser window it draws around the capture.
@@ -49,6 +68,9 @@ export interface DocsScreen extends Screen {
 
 export type Crop = [x: number, y: number, width: number, height: number]
 
+/** Room left around a detail's focus by default (CSS px). */
+export const FOCUS_PAD = 16
+
 /** Focus regions measured during the last capture, by `<name>.<theme>`. */
 export const measuredFocus = new Map<string, Crop>()
 
@@ -57,12 +79,22 @@ export const failedPrepares = new Map<string, string>()
 
 // Focus presets: the open surface plus the control that opened it.
 const MENU = ["[role=menu]", "button[data-state=open]"]
-const DIALOG = ["[role=dialog]", "[role=alertdialog]"]
+/** The topmost open dialog: a dialog opened over another is shot alone. */
+async function DIALOG(page: Page): Promise<Crop | null> {
+  const rect = (await page.evaluate(`(() => {
+    const open = [...document.querySelectorAll("[role=dialog],[role=alertdialog]")]
+      .map((e) => e.getBoundingClientRect())
+      .filter((r) => r.width && r.height)
+    const r = open[open.length - 1]
+    return r ? [r.left, r.top, r.width, r.height] : null
+  })()`)) as Crop | null
+  return rect && (rect.map(Math.round) as Crop)
+}
 const POPOVER = ["[data-slot=popover-content]", "button[data-state=open]"]
 /** The chat composer's editor (the canvas's documents are editors too). */
 const COMPOSER = "[contenteditable=true][data-placeholder^='Ask the agent']"
 /** A composer suggestion list (@ mentions, / skills), rendered by TipTap. */
-const SUGGESTIONS = [".react-renderer", COMPOSER]
+const SUGGESTIONS = [".react-renderer", "[data-slot=composer]"]
 
 /** The text selection in a document, and the formatting toolbar above it. */
 async function selectionAndToolbar(page: Page): Promise<Crop | null> {
@@ -113,6 +145,8 @@ const VIEW = {
   document: { x: -1080, y: -600, zoom: 0.62 },
   /** Far enough left that the selection toolbar clears the chat panel. */
   documentEdit: { x: -1480, y: -700, zoom: 0.8 },
+  /** The Homepage group's two frames, large enough to read. */
+  result: { x: 40, y: 100, zoom: 0.5 },
   /** The pricing canvas's first mockup, beside its mobile frame. */
   mockupCloseUp: { x: -650, y: 150, zoom: 0.38 },
 } as const
@@ -142,6 +176,11 @@ const screen = (s: DocsScreen): DocsScreen => {
     try {
       await waitForLoaded(page)
       await s.prepare?.(page)
+      if (!s.keepFocus) {
+        await page.evaluate(
+          `document.activeElement?.matches("input, textarea") && document.activeElement.blur()`
+        )
+      }
       if (s.focus) {
         await sleep(page, 300)
         const focus =
@@ -213,6 +252,165 @@ async function measureFocus(
   const x1 = Math.min(W, Math.ceil(rect[2]))
   const y1 = Math.min(H, Math.ceil(rect[3]))
   return [x0, y0, x1 - x0, y1 - y0]
+}
+
+/**
+ * A focus measured in the page for a region rather than an open surface:
+ * `subject` is page JS for its `[left, top, right, bottom]` (or null). It is
+ * padded here and clipped to `within`, so the crop stops at the edge of the
+ * page, panel or canvas it belongs to instead of slicing into the UI beside
+ * it. Spread into a screen; it sets `pad: 0`, the padding being already in.
+ */
+function clipped(
+  subject: string,
+  options: { within?: string; insetTop?: number; pad?: number } = {}
+): Pick<DocsScreen, "focus" | "pad"> {
+  const pad = options.pad ?? FOCUS_PAD
+  return {
+    pad: 0,
+    focus: async (page) => {
+      const rect = (await page.evaluate(`(() => {
+        const r = ${subject}
+        if (!r) return null
+        const box = ${options.within ? `document.querySelector(${JSON.stringify(options.within)})?.getBoundingClientRect()` : "null"}
+        const b = box ?? { left: 0, top: 0, right: innerWidth, bottom: innerHeight }
+        const x0 = Math.max(r[0] - ${pad}, b.left, 0)
+        const y0 = Math.max(r[1] - ${pad}, b.top + ${options.insetTop ?? 0}, 0)
+        const x1 = Math.min(r[2] + ${pad}, b.right, innerWidth)
+        const y1 = Math.min(r[3] + ${pad}, b.bottom, innerHeight)
+        return x1 > x0 && y1 > y0 ? [x0, y0, x1, y1] : null
+      })()`)) as [number, number, number, number] | null
+      if (!rect) return null
+      const x0 = Math.ceil(rect[0])
+      const y0 = Math.ceil(rect[1])
+      return [x0, y0, Math.floor(rect[2]) - x0, Math.floor(rect[3]) - y0]
+    },
+  }
+}
+
+/** Page JS: the union of `selectors`' visible boxes, `growTop` taller. */
+function unionOf(selectors: readonly string[], growTop = 0): string {
+  return `(() => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+    for (const el of document.querySelectorAll(${JSON.stringify(selectors.join(","))})) {
+      const r = el.getBoundingClientRect()
+      if (!r.width || !r.height || getComputedStyle(el).visibility === "hidden") continue
+      x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top)
+      x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom)
+    }
+    return x0 === Infinity ? null : [x0, y0 - ${growTop}, x1, y1]
+  })()`
+}
+
+/**
+ * Page JS: everything painted inside `root` (text, images, controls, and
+ * anything with a border, background or shadow), so a page crops to what it
+ * shows instead of the empty space below it.
+ */
+function paintedIn(root: string, band = "null"): string {
+  return `(() => {
+    const root = document.querySelector(${JSON.stringify(root)})
+    if (!root) return null
+    const R = root.getBoundingClientRect()
+    const band = ${band} ?? [R.top, R.bottom]
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+    for (const el of root.querySelectorAll("*")) {
+      const r = el.getBoundingClientRect()
+      if (!r.width || !r.height || r.top < band[0] || r.bottom > band[1]) continue
+      // A container as big as the root paints its background everywhere.
+      if (r.width * r.height > 0.5 * R.width * R.height) continue
+      const s = getComputedStyle(el)
+      if (s.visibility === "hidden" || s.opacity === "0") continue
+      const text = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+      const painted = text ||
+        /^(img|svg|canvas|iframe|input|textarea|button)$/i.test(el.tagName) ||
+        s.backgroundColor !== "rgba(0, 0, 0, 0)" ||
+        parseFloat(s.borderTopWidth) > 0 || parseFloat(s.borderBottomWidth) > 0 ||
+        s.boxShadow !== "none"
+      if (!painted) continue
+      x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top)
+      x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom)
+    }
+    return x0 === Infinity ? null : [x0, y0, x1, y1]
+  })()`
+}
+
+/**
+ * Page JS: the box around the first element in `root` whose text is `text`,
+ * such as a card by its title: its `levels`-th bordered ancestor, or its
+ * closest match of `closest`.
+ */
+function boxAround(
+  root: string,
+  text: string,
+  { levels = 1, closest }: { levels?: number; closest?: string } = {}
+): string {
+  return `(() => {
+    const els = [...document.querySelectorAll(${JSON.stringify(root)} + " *")]
+    let el = els.find((e) => e.childElementCount === 0 && e.textContent.trim() === ${JSON.stringify(text)})
+    ${
+      closest
+        ? `el = el?.closest(${JSON.stringify(closest)})`
+        : `for (let n = 0; el && n < ${levels}; n++) {
+      el = el.parentElement
+      while (el && parseFloat(getComputedStyle(el).borderTopWidth) === 0) el = el.parentElement
+    }`
+    }
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    return [r.left, r.top, r.right, r.bottom]
+  })()`
+}
+
+/**
+ * Page JS: the chat panel's composer and the terminal pane under it, or the
+ * Coordinator's empty state above it down to the composer.
+ */
+const CHAT_COMPOSER = "#chat [data-slot=composer]"
+const CHAT_FOOT = `(() => {
+  const chat = document.querySelector("#chat")?.getBoundingClientRect()
+  const composer = document.querySelector(${JSON.stringify(CHAT_COMPOSER)})?.getBoundingClientRect()
+  return chat && composer && chat.width ? [chat.left, composer.top, chat.right, chat.bottom] : null
+})()`
+const COORDINATOR_EMPTY = `(() => {
+  const heading = [...document.querySelectorAll("#chat *")].find((e) => e.childElementCount === 0 && e.textContent.trim() === "Ask about this canvas")
+  const composer = document.querySelector(${JSON.stringify(CHAT_COMPOSER)})?.getBoundingClientRect()
+  const chat = document.querySelector("#chat")?.getBoundingClientRect()
+  if (!heading || !composer || !chat) return null
+  return [chat.left, heading.getBoundingClientRect().top, chat.right, chat.bottom]
+})()`
+
+/** Page JS: what the chat panel's transcript shows, under its header. */
+const CHAT_TRANSCRIPT = paintedIn(
+  "#chat",
+  `[document.querySelector("#chat").getBoundingClientRect().top + 49, document.querySelector(${JSON.stringify(CHAT_COMPOSER)}).getBoundingClientRect().top]`
+)
+
+/** A home or Settings page's content, right of the sidebar. */
+const HOME_CONTENT = clipped(paintedIn("#home-content main"), {
+  within: "#home-content",
+})
+/** The selected layer's floating toolbar, under it. */
+const FRAME_TOOLBAR = "#frame-toolbar-portal [role=toolbar]"
+/** Room above a layer for its title line. */
+const TITLE_LINE = 28
+const layer = (id: string) => `[data-layer-id="${id}"]`
+/** Layers on the canvas, clipped to it and kept below its top bar. */
+const onCanvas = (selectors: readonly string[], pad?: number) =>
+  clipped(unionOf(selectors, TITLE_LINE), {
+    within: "#canvas",
+    insetTop: 48,
+    pad,
+  })
+
+/** Collapse the chat panel, which selecting a layer can open over the canvas. */
+async function hideChat(page: Page) {
+  const hide = page.getByRole("button", { name: /^Hide chat/ }).first()
+  if (await hide.isVisible().catch(() => false)) {
+    await hide.click({ force: true, timeout: 5_000 })
+    await page.mouse.move(0, 0)
+    await sleep(page, 600)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -395,6 +593,63 @@ async function selectLayer(page: Page, title: string) {
   )
 }
 
+const HERO_TITLE = "Hero gradient & trust line"
+
+/**
+ * The Quickstart's first ask, as the Coordinator answers it: it starts the
+ * hero Workspace (`create_workspaces`, which the panel draws as a card) and
+ * says so. Replayed rather than seeded, so every other screen keeps the
+ * Coordinator's empty state.
+ */
+function firstAskRun(): RunEvent[] {
+  const workspace = {
+    title: HERO_TITLE,
+    repository: "northwind-web",
+    prompt: PROMPTS.hero,
+  }
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text(PROMPTS.hero),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "docs-first-ask-create",
+        title: CREATE_WORKSPACES_TOOL,
+        kind: "other",
+        status: "completed",
+        rawInput: { workspaces: [workspace] },
+        content: [
+          {
+            type: "content",
+            content: text(
+              createdWorkspacesResult([
+                { ...workspace, branchId: ids.branches.hero },
+              ])
+            ),
+          },
+        ],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          `I started ${workspaceLink(HERO_TITLE, ids.branches.hero)} for this. Its frame updates as the agent works; click the card to follow along.`
+        ),
+      },
+    },
+    { type: "chat-stream-end" },
+  ]
+}
+
 /** The agent drives the Home frame in this viewer's copy (#1387). */
 async function claudeDrivesHome(page: Page) {
   await injectYjsUpdate(page, (c) =>
@@ -570,9 +825,15 @@ const LOGS_SAMPLE =
 
 export const DOCS_SCREENS: DocsScreen[] = [
   // --- Home -----------------------------------------------------------------
-  screen({ name: "home-recents", description: "Home → Recents.", path: "/" }),
+  screen({
+    name: "home-recents",
+    description: "Home → Recents.",
+    path: "/",
+    ...HOME_CONTENT,
+  }),
   screen({
     name: "home-all-files",
+    ...HOME_CONTENT,
     description: "Home → All files.",
     path: "/files",
   }),
@@ -610,12 +871,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "home-table",
+    ...HOME_CONTENT,
     description: "The home grid in its table layout.",
     path: "/files",
     cookies: homeView("table"),
   }),
   screen({
     name: "home-folder",
+    ...HOME_CONTENT,
     description: "Inside the Marketing folder.",
     path: `/files/${ids.folders.marketing}`,
   }),
@@ -623,21 +886,25 @@ export const DOCS_SCREENS: DocsScreen[] = [
   // --- Settings -------------------------------------------------------------
   screen({
     name: "settings",
+    ...HOME_CONTENT,
     description: "Settings, top.",
     path: "/settings",
   }),
   screen({
     name: "settings-coding-agents",
+    ...HOME_CONTENT,
     description: "Settings → Agent.",
     path: "/settings?section=coding-agents",
   }),
   screen({
     name: "settings-presets",
+    ...HOME_CONTENT,
     description: "Settings → Repositories.",
     path: "/settings?section=repositories",
   }),
   screen({
     name: "settings-memory",
+    ...HOME_CONTENT,
     description: "Settings → Memory: your account memory.",
     path: "/settings?section=memory",
     prepare: async (page) => {
@@ -646,6 +913,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "settings-files",
+    ...HOME_CONTENT,
     description: "Settings → Files: your account files, one folder expanded.",
     path: "/settings?section=files",
     prepare: async (page) => {
@@ -657,6 +925,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "settings-skills",
+    ...HOME_CONTENT,
     description: "Settings → Skills: your account skills.",
     path: "/settings?section=skills",
     prepare: async (page) => {
@@ -665,6 +934,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "preset-form",
+    focus: DIALOG,
+    pad: 0,
     description: "Editing a repository in Settings.",
     path: "/settings?section=repositories",
     prepare: async (page) => {
@@ -678,7 +949,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: "/",
     cookies: entryState("setup-agent-ready"),
     // The setup stepper is a small card in an otherwise empty window.
-    crop: [360, 150, 560, 420],
+    ...clipped(paintedIn("body")),
   }),
 
   // --- Canvas and sidebar ---------------------------------------------------
@@ -694,6 +965,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "coordinator",
+    ...clipped(COORDINATOR_EMPTY, { within: "#chat" }),
     description:
       "The chat panel's home: the canvas's Coordinator chat, with no Workspace selected.",
     path: ROOM,
@@ -707,6 +979,39 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "quickstart-coordinator",
+    description:
+      "The Quickstart's ask in the Coordinator: the workspace it started, as a card.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    ...clipped(CHAT_TRANSCRIPT, { within: "#chat", insetTop: 49 }),
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(page, roomChatId(ids.rooms.northwind), firstAskRun())
+      await page
+        .getByText(HERO_TITLE, { exact: true })
+        .last()
+        .waitFor({ timeout: 10_000 })
+      await sleep(page, 600)
+    },
+  }),
+  screen({
+    name: "quickstart-result",
+    description:
+      "The Quickstart's finished change: the hero Workspace's frames with the gradient headline.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    ...onCanvas([layer(ids.layers.home), layer(ids.layers.homeMobile)]),
+    prepare: async (page) => {
+      await hideChat(page)
+      await camera(page, VIEW.result)
+    },
+  }),
+  screen({
     name: "canvas-overview",
     description: "The whole Northwind canvas.",
     path: ROOM,
@@ -715,24 +1020,32 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "canvas-mockups",
+    ...onCanvas(["[data-layer-id]"]),
     description:
       "A pricing mockup beside the live mobile page, on the Pricing experiments canvas.",
     path: `/${ids.rooms.pricingExperiments}`,
     cookies: SIDEBAR_ONLY,
     // The mobile frame, then the first mockup after it in the Group.
-    prepare: (page) => camera(page, { x: -378, y: 130, zoom: 0.3 }),
+    prepare: async (page) => {
+      await hideChat(page)
+      await camera(page, { x: -378, y: 130, zoom: 0.3 })
+    },
   }),
   screen({
     name: "mockup-claude-driving",
     description: "A mockup the agent drives, not selected: its tag and ring.",
     path: `/${ids.rooms.pricingExperiments}`,
     cookies: SIDEBAR_ONLY,
-    crop: [200, 80, 600, 320],
+    ...onCanvas([layer(TOGGLE_MOCKUP)], 16),
     beforeNavigate: claudeDrivesToggleMockup,
-    prepare: (page) => camera(page, VIEW.mockupCloseUp),
+    prepare: async (page) => {
+      await hideChat(page)
+      await camera(page, VIEW.mockupCloseUp)
+    },
   }),
   screen({
     name: "mockup-claude-driving-selected",
+    ...onCanvas([layer(TOGGLE_MOCKUP), FRAME_TOOLBAR], 16),
     description: "A selected mockup the agent drives: its mark on Interact.",
     path: `/${ids.rooms.pricingExperiments}`,
     cookies: SIDEBAR_ONLY,
@@ -740,6 +1053,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.mockupCloseUp)
       await selectLayer(page, "Option A · Toggle")
+      await hideChat(page)
     },
   }),
   screen({
@@ -766,6 +1080,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
+    pad: 0,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await page.getByRole("button", { name: "Canvas options" }).click()
@@ -779,6 +1094,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
+    pad: 0,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await page.getByRole("button", { name: "Canvas options" }).click()
@@ -794,6 +1110,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
+    pad: 0,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await page.getByRole("button", { name: "Canvas options" }).click()
@@ -820,6 +1137,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
+    pad: 0,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
@@ -847,6 +1165,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
+    pad: 0,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
@@ -863,7 +1182,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [560, 0, 720, 520],
-    focus: MENU,
+    // With the Chats menu it opened from, whole.
+    focus: [...MENU, "[data-chats-menu]"],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await openRowMenu(page, "Hero gradient")
@@ -875,7 +1195,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [460, 0, 820, 520],
-    focus: MENU,
+    focus: [...MENU, "[data-chats-menu]"],
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await openRowMenu(page, "Hero gradient")
@@ -888,6 +1208,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
+    pad: 0,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
@@ -902,6 +1223,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
+    pad: 0,
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await unfreeze(page)
@@ -913,12 +1235,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
   // --- Frames ---------------------------------------------------------------
   screen({
     name: "frame-selected",
+    ...onCanvas([layer(ids.layers.home), FRAME_TOOLBAR]),
     description: "A selected frame, with its toolbar.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
+      await hideChat(page)
     },
   }),
   screen({
@@ -942,14 +1266,16 @@ export const DOCS_SCREENS: DocsScreen[] = [
     description: "A frame the agent drives, not selected: its tag and ring.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
-    crop: [240, 40, 760, 360],
+    ...onCanvas([layer(ids.layers.home)]),
     beforeNavigate: claudeDrivesHome,
     prepare: async (page) => {
+      await hideChat(page)
       await camera(page, VIEW.frameCloseUp)
     },
   }),
   screen({
     name: "frame-claude-driving-selected",
+    ...onCanvas([layer(ids.layers.home), FRAME_TOOLBAR]),
     description: "A selected frame the agent drives: its mark on Interact.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
@@ -957,6 +1283,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
+      await hideChat(page)
     },
   }),
   screen({
@@ -1017,7 +1344,11 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     crop: [560, 40, 640, 440],
-    focus: MENU,
+    // The open submenu alone: around both menus, the crop would slice the
+    // frames behind them.
+    ...clipped(boxAround("body", "iPhone 17 Pro", { closest: "[role=menu]" }), {
+      pad: 0,
+    }),
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
@@ -1078,6 +1409,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "frame-tool",
+    focus: ["[role=toolbar][aria-label=Tools]"],
+    pad: 0,
     description: "The Frame tool, about to draw.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
@@ -1097,7 +1430,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [700, 0, 580, 460],
-    focus: POPOVER,
+    ...clipped(unionOf([...POPOVER, "[data-chats-menu]"]), { within: "#chat" }),
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await openChatsMenu(page)
@@ -1109,7 +1442,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       "A Workspace's chat with its terminals named in the footnote under the composer.",
     path: ROOM,
     cookies: WITH_CHAT,
-    crop: [820, 560, 460, 340],
+    ...clipped(CHAT_FOOT, { within: "#chat", pad: 0 }),
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await selectWorkspace(page, "Hero gradient")
@@ -1149,6 +1482,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "target-picking",
+    ...clipped(unionOf(["#canvas"]), { pad: 0 }),
     description: "Element targeting: hovering a button in the Home frame.",
     path: ROOM,
     cookies: WITH_CHAT,
@@ -1164,7 +1498,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     name: "composer-element-hover",
     description: "A targeted element in the composer, hovered.",
     path: ROOM,
-    focus: ["[data-slot=hover-card-content]", COMPOSER],
+    focus: ["[data-slot=hover-card-content]", "[data-slot=composer]"],
     cookies: WITH_CHAT,
     crop: [850, 480, 430, 320],
     prepare: async (page) => {
@@ -1190,6 +1524,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "logs",
+    ...clipped(CHAT_FOOT, { within: "#chat", pad: 0 }),
     description:
       "The Terminal Pane open on Dev server, the dev server's output.",
     path: ROOM,
@@ -1207,6 +1542,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "plan-card",
+    // Tight, so the transcript around the card isn't sliced mid-line.
+    ...clipped(
+      boxAround("#chat", "Add an FAQ to the pricing page", { levels: 2 }),
+      {
+        within: "#chat",
+        pad: 8,
+      }
+    ),
     description: "The approved plan in the Pricing FAQ chat.",
     path: ROOM,
     cookies: WITH_CHAT,
@@ -1218,12 +1561,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "doc-chat",
+    ...onCanvas([layer(ids.layers.checklist)]),
     description:
       "The launch checklist document, with the name of the chat that wrote it (#1314), and that chat open.",
     path: ROOM,
     cookies: WITH_CHAT,
     prepare: async (page) => {
-      await camera(page, VIEW.document)
+      // Low enough that the document's title line clears the top bar.
+      await camera(page, { ...VIEW.document, y: VIEW.document.y + 40 })
       await selectWorkspace(page, "Pricing FAQ")
     },
   }),
@@ -1246,6 +1591,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "doc-reply-in-chat",
+    ...clipped(unionOf([CHAT_COMPOSER]), { within: "#chat", pad: 0 }),
     description: "A document passage quoted into the Coordinator's composer.",
     path: ROOM,
     cookies: WITH_CHAT,
@@ -1267,6 +1613,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "terminal",
+    ...clipped(CHAT_FOOT, { within: "#chat", pad: 0 }),
     description: "A terminal open in a Workspace's Terminal Pane.",
     path: ROOM,
     cookies: WITH_CHAT,
@@ -1331,7 +1678,16 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: PLAY,
     beforeNavigate: warmPlay,
     crop: [700, 300, 580, 500],
-    focus: POPOVER,
+    // The HUD's panel, which has no slot of its own, and the HUD under it.
+    ...clipped(`(() => {
+      const label = [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent.trim() === "Accent color")
+      const panel = label?.closest("[class*='outline-foreground']")?.getBoundingClientRect()
+      const hud = document.querySelector("button:has(svg.ph-sliders-horizontal)")?.getBoundingClientRect()
+      if (!panel) return null
+      return hud
+        ? [Math.min(panel.left, hud.left), Math.min(panel.top, hud.top), Math.max(panel.right, hud.right), Math.max(panel.bottom, hud.bottom)]
+        : [panel.left, panel.top, panel.right, panel.bottom]
+    })()`),
     prepare: async (page) => {
       await openHud(
         page,
@@ -1357,7 +1713,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: PLAY,
     beforeNavigate: warmPlay,
     crop: [760, 360, 520, 440],
-    focus: MENU,
+    focus: ["[role=listbox]", "button[aria-label^='Device']"],
     prepare: async (page) => {
       await openHud(page, "button[aria-label^='Device']", "[role=option]")
     },

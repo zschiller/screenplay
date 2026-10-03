@@ -6,7 +6,7 @@ import sharp from "sharp"
 
 import type { CaptureProfile } from "../profile"
 import { launchBrowser, type Theme } from "../lib/browser"
-import { DOCS_VIEWPORT, type Crop, type DocsScreen } from "./screens"
+import { DOCS_VIEWPORT, FOCUS_PAD, type Crop, type DocsScreen } from "./screens"
 
 /** Where the docs site serves its screenshots from. */
 export const DOCS_SCREENSHOT_DIR = resolve(
@@ -25,10 +25,12 @@ export const DOCS_SCREENSHOT_DIR = resolve(
  *   prototype player opens in the user's browser, not the app): a title bar
  *   with the traffic lights and that address, and the page below it.
  * - **Detail** screens are cropped around their focus (measured from the
- *   screen's `focus` during capture, else its fixed `crop`): the focus centred
- *   with room around it, as the bare UI with no chrome, shadow or backdrop.
- *   A crop that comes close to the window's edge is pushed out to it, so it
- *   shows the window's edge instead of labels sliced a few letters in.
+ *   screen's `focus` during capture, else its fixed `crop`): the focus with a
+ *   little room around it, as the bare UI with no chrome, shadow or backdrop,
+ *   at life size. They are the capture's own pixels, which the docs show at
+ *   2x, so UI text reads at the size the app draws it. A crop that comes
+ *   close to the window's edge is pushed out to it, so it shows the window's
+ *   edge instead of labels sliced a few letters in.
  */
 export async function frameScreens(
   profile: CaptureProfile,
@@ -59,17 +61,28 @@ export async function frameScreens(
           missing++
           continue
         }
-        const img = `data:image/png;base64,${(await readFile(src)).toString("base64")}`
-        const { width, height, html } = framePage(
-          img,
-          screen.viewport ?? DOCS_VIEWPORT,
-          measured[`${screen.name}.${theme}`] ?? screen.crop,
-          theme === "dark",
-          screen.browser
-        )
-        await page.setViewportSize({ width, height })
-        await page.setContent(html, { waitUntil: "load" })
-        const png = await page.screenshot()
+        const raw = await readFile(src)
+        const viewport = screen.viewport ?? DOCS_VIEWPORT
+        const focus = measured[`${screen.name}.${theme}`] ?? screen.crop
+        let png: Buffer
+        if (focus) {
+          png = await cropDetail(
+            raw,
+            viewport,
+            detailRegion(focus, viewport, screen.pad)
+          )
+        } else {
+          const img = `data:image/png;base64,${raw.toString("base64")}`
+          const { width, height, html } = framePage(
+            img,
+            viewport,
+            theme === "dark",
+            screen.browser
+          )
+          await page.setViewportSize({ width, height })
+          await page.setContent(html, { waitUntil: "load" })
+          png = await page.screenshot()
+        }
         const webp = await sharp(png).webp({ quality: 86 }).toBuffer()
         const out = join(DOCS_SCREENSHOT_DIR, `${screen.name}.${theme}.webp`)
         if (await looksTheSame(webp, out)) {
@@ -128,9 +141,6 @@ export async function looksTheSame(
   return differing / (a.data.length / 4) < CHANGED_PIXELS
 }
 
-/** Room left around a detail's focus, and the smallest detail worth magnifying. */
-const FOCUS_PAD = 64
-const MIN_DETAIL = { width: 560, height: 360 }
 /**
  * A detail edge this close to the window's edge (CSS px) is pushed out to it,
  * so the image shows the window's real edge instead of a sliver of it. Near
@@ -141,28 +151,26 @@ const MIN_DETAIL = { width: 560, height: 360 }
 const EDGE_SNAP = { corner: 120, edge: 48 }
 
 /**
- * The region a detail shows: its focus centred, with {@link FOCUS_PAD} of
- * context on every side, grown to {@link MIN_DETAIL}, then slid (never
- * shrunk) to stay inside the window. Edges that land within
- * {@link EDGE_SNAP} of the window's edge are extended to it. The focus is
- * always wholly inside it.
+ * The region a detail shows: its focus with `pad` of context on every side
+ * (no more, so it doesn't slice into neighbouring UI), slid to stay inside
+ * the window. Edges that land within {@link EDGE_SNAP} of the window's edge
+ * are extended to it, unless `pad` is 0. The focus is always wholly inside
+ * it.
  */
 export function detailRegion(
   focus: Crop,
-  viewport: { width: number; height: number }
+  viewport: { width: number; height: number },
+  pad: number = FOCUS_PAD
 ): Crop {
   const [fx, fy, fw, fh] = focus
-  const w = Math.min(
-    viewport.width,
-    Math.max(fw + 2 * FOCUS_PAD, MIN_DETAIL.width)
-  )
-  const h = Math.min(
-    viewport.height,
-    Math.max(fh + 2 * FOCUS_PAD, MIN_DETAIL.height)
-  )
+  const w = Math.min(viewport.width, fw + 2 * pad)
+  const h = Math.min(viewport.height, fh + 2 * pad)
   const clamp = (v: number, max: number) => Math.max(0, Math.min(v, max))
   const x0 = clamp(Math.round(fx + fw / 2 - w / 2), viewport.width - w)
   const y0 = clamp(Math.round(fy + fh / 2 - h / 2), viewport.height - h)
+  // No padding asks for exactly the focus: a dialog, or a region a screen
+  // already padded and clipped to its panel.
+  if (pad === 0) return [x0, y0, w, h]
   const corner = x0 <= EDGE_SNAP.corner && y0 <= EDGE_SNAP.corner
   const snap = (start: number, size: number, max: number): [number, number] => {
     let end = start + size
@@ -175,10 +183,28 @@ export function detailRegion(
   return [x, y, sw, sh]
 }
 
+/**
+ * A detail: `region` (CSS px of the capture) cut out of the raw capture at
+ * the capture's own resolution, so nothing is scaled.
+ */
+async function cropDetail(
+  raw: Buffer,
+  viewport: { width: number; height: number },
+  region: Crop
+): Promise<Buffer> {
+  const { width = viewport.width } = await sharp(raw).metadata()
+  const dpr = width / viewport.width
+  const [x, y, w, h] = region.map((v) => Math.round(v * dpr))
+  return sharp(raw)
+    .extract({ left: x!, top: y!, width: w!, height: h! })
+    .png()
+    .toBuffer()
+}
+
+/** A full-window screen drawn as a desktop or browser window on a backdrop. */
 function framePage(
   img: string,
   viewport: { width: number; height: number },
-  focus: Crop | undefined,
   dark: boolean,
   browser?: string
 ): { width: number; height: number; html: string } {
@@ -187,24 +213,9 @@ function framePage(
   const bg = dark ? "#111111" : "#f0f0f0"
   const border = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.09)"
   const shadow = `0 0 0 1px ${border}, 0 30px 70px -24px rgba(15,10,40,${dark ? 0.9 : 0.38}), 0 10px 24px -12px rgba(15,10,40,${dark ? 0.6 : 0.2})`
-  const [x, y, w, h] = focus ? detailRegion(focus, viewport) : [0, 0, W0, H0]
-  // Details are magnified (up to 1.6×) and may run tall — a long menu, a
-  // whole dialog — rather than shrink.
-  const s = focus ? Math.min(1.6, 1200 / w, 1100 / h) : 1360 / W0
-  const dw = w * s
-  const dh = h * s
-  // A detail is the cropped UI alone, with no window chrome, shadow or
-  // backdrop: the docs page gives it rounded corners and a hairline border.
-  if (focus) {
-    const width = Math.round(dw)
-    const height = Math.round(dh)
-    return {
-      width,
-      height,
-      html: `<!doctype html><body style="margin:0;width:${width}px;height:${height}px;overflow:hidden;position:relative">
-    <img src="${img}" style="position:absolute;left:${-x * s}px;top:${-y * s}px;width:${W0 * s}px;height:${H0 * s}px"></body>`,
-    }
-  }
+  const s = 1360 / W0
+  const dw = W0 * s
+  const dh = H0 * s
   const width = 1600
   // A browser window's title bar, in capture px, above the page.
   const bar = browser ? BROWSER_BAR : 0

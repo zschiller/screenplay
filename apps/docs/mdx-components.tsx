@@ -14,7 +14,7 @@ import {
   ConceptsDiagram,
 } from "./components/diagram/diagrams"
 import { Only } from "./components/only"
-import { Screenshot } from "./components/screenshot"
+import { Screenshot, ScreenshotRow } from "./components/screenshot"
 
 const themeComponents = getThemeComponents()
 const ThemeLink = themeComponents.a!
@@ -62,6 +62,7 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
     ConceptsDiagram,
     Only,
     Screenshot,
+    ScreenshotRow,
     // A full-width table in a scroll container, like the stock shadcn Table.
     // Nextra's own makes the table itself the scroller, so it can't fill the column.
     table: (props) => (

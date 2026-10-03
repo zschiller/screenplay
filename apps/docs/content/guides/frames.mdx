@@ -40,15 +40,18 @@ view, so hot reload, client-side routing, and app state all work as normal.
   stays and shows **No workspace**. Click **Start a chat** in it to ask again,
   or pick a workspace for it from its title (**Choose a workspace**).
 
-  <Screenshot
-    name="frame-ask"
-    alt="A frame just drawn, asking what it should show, with the New chat chip beside the Send button"
-  />
-
-  <Screenshot
-    name="frame-unanswered"
-    alt="A frame with no workspace, offering Start a chat"
-  />
+  <ScreenshotRow>
+    <Screenshot
+      name="frame-ask"
+      caption="Just drawn: what should it show?"
+      alt="A frame just drawn, asking what it should show, with the New chat chip beside the Send button"
+    />
+    <Screenshot
+      name="frame-unanswered"
+      caption="Skipped: no workspace yet."
+      alt="A frame with no workspace, offering Start a chat"
+    />
+  </ScreenshotRow>
 
 - **Show all routes** in the chat menu adds a group with a frame for
   every route the workspace has visited.
@@ -80,17 +83,19 @@ through the app's own router (Next's router, or the history API for React
 Router, Vite and similar apps), so anything you typed or opened in the frame
 stays put. Only a page with no client-side router reloads onto the new route.
 
-<Screenshot
-  name="route-picker"
-  caption="Click the route to edit it, or pick one the workspace has visited."
-  alt="The route selected for editing in the address bar, with /, /customers and /pricing listed under it"
-/>
+<ScreenshotRow>
+  <Screenshot
+    name="route-picker"
+    caption="Click the route to edit it, or pick one the workspace has visited."
+    alt="The route selected for editing in the address bar, with /, /customers and /pricing listed under it"
+  />
 
-<Screenshot
-  name="frame-branch-picker"
-  caption="Hover a frame's name and click Set workspace to point it at another one."
-  alt="The workspace list, opened from Set workspace beside a frame's name"
-/>
+  <Screenshot
+    name="frame-branch-picker"
+    caption="Hover a frame's name and click Set workspace to point it at another one."
+    alt="The workspace list, opened from Set workspace beside a frame's name"
+  />
+</ScreenshotRow>
 
 ## The frame toolbar
 
@@ -145,15 +150,19 @@ When the agent drives a frame, the frame shows it:
 - Selected, the Interact button shows the agent's dots instead of the cursor,
   and the frame has no resize handles, so its size can't change under it.
 
-<Screenshot
-  name="frame-claude-driving"
-  alt="A frame with the Agent has control tag on its title line and a dark ring around it"
-/>
+<ScreenshotRow>
+  <Screenshot
+    name="frame-claude-driving"
+    caption="Not selected: the tag and the ring."
+    alt="A frame with the Agent has control tag on its title line and a dark ring around it"
+  />
 
-<Screenshot
-  name="frame-claude-driving-selected"
-  alt="The selected frame the agent drives, with the agent's dots on the Interact button and no resize handles"
-/>
+  <Screenshot
+    name="frame-claude-driving-selected"
+    caption="Selected: the agent's dots, and no resize handles."
+    alt="The selected frame the agent drives, with the agent's dots on the Interact button and no resize handles"
+  />
+</ScreenshotRow>
 
 The agent always gives way. Click the button (or double-click the frame) to
 take over at once: you're interacting, and the agent stops and waits. When
