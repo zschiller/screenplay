@@ -1126,7 +1126,7 @@
   // that can't style anything in the markup are left out to keep it small; a
   // cross-origin stylesheet can't be read, so it stays a link. Returns null
   // when the selector matches nothing.
-  // `live`: for a screenshot rendered from the snapshot (a mockup Claude
+  // `live`: for a screenshot rendered from the snapshot (a mockup the agent
   // drives on hosted, #1391), also carry the form state and the scroll, so
   // the render shows what was typed, ticked and picked, and where.
   function pageSnapshot(selector, live) {

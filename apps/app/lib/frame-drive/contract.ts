@@ -139,11 +139,11 @@ export type DriveDone = {
  */
 export const DRIVE_GAPS = {
   "file-picker":
-    "Choosing a file opens the system file picker, which Claude can't open in this page.",
+    "Choosing a file opens the system file picker, which the agent can't open in this page.",
   clipboard:
-    "The page used the clipboard, which Claude can't reach in this page, so the copy or paste didn't happen.",
+    "The page used the clipboard, which the agent can't reach in this page, so the copy or paste didn't happen.",
   "rich-text":
-    "Typing into a rich-text editor needs the keyboard focus, which Claude can't move into this page.",
+    "Typing into a rich-text editor needs the keyboard focus, which the agent can't move into this page.",
   "key-typing":
     "A key event doesn't type its character in this page. Use frame_type to enter text.",
   tab: "Tab doesn't move the focus in this page.",

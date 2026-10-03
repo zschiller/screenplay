@@ -147,7 +147,7 @@ const ignoreState = () => {}
  * and shared-state runtimes (`MOCKUP_RUNTIME_JS`), so its chat can target an
  * element in it, and the page can declare knobs (`screenplay.registerKnob`,
  * edited from the Knobs button under the selected mockup) and share state
- * with every viewer (`screenplay.shareState`), like a frame's app. Claude
+ * with every viewer (`screenplay.shareState`), like a frame's app. The agent
  * drives it through the same bridge (#1391), in the asker's view only, and
  * the Interact button is the driver button, as on a frame.
  *

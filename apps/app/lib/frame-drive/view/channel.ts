@@ -35,9 +35,9 @@ const SNAPSHOT_TIMEOUT_MS = 8_000
 const POLL_MS = 150
 
 const NO_ANSWER =
-  "The canvas didn't answer. Claude drives a Mockup in the canvas of the person who asked, so it has to be open in their browser."
+  "The canvas didn't answer. The agent drives a Mockup in the canvas of the person who asked, so it has to be open in their browser."
 const FRAME_NOT_HERE =
-  "Claude can't drive a frame in the browser yet, only Mockups. In the Screenplay desktop app it drives frames too."
+  "The agent can't drive a frame in the browser yet, only Mockups. In the Screenplay desktop app it drives frames too."
 
 /** Renders a page snapshot to an image, as the person would see it. */
 export type RenderSnapshot = (

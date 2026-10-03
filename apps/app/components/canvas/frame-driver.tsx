@@ -18,7 +18,7 @@ import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
 
 /** The agent's name where Frame Control names who drives. */
-const AGENT_NAME = "Claude"
+const AGENT_NAME = "Agent"
 
 /** One initial: all a 16px avatar has room for at the UI text size. */
 function initial(name: string): string {
@@ -184,7 +184,7 @@ export function FrameDriverButton({
 }
 
 /**
- * "Claude is driving" on the frame's title line, right-aligned to the frame,
+ * "Agent is driving" on the frame's title line, right-aligned to the frame,
  * in the title's type, on the driver's colour: ink for the agent, a person's
  * cursor colour for them. Shown whether or not the frame is selected, so a
  * busy frame reads from across the canvas.
