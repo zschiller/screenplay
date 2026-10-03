@@ -2,6 +2,7 @@ import "server-only"
 
 import { buildAgentSystemPrompt, type LayerDirectory } from "./config"
 import {
+  accountMemoryStore,
   loadAccountMemory,
   loadCanvasMemory,
   loadLayerDirectory,
@@ -19,6 +20,7 @@ import { otherWorkspacesCodeReadTools } from "./code-read-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
 import { buildFileTools } from "./file-tools"
+import { buildMemoryTools } from "./memory-tools"
 import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import { canvasFiles } from "@/lib/files"
 import { loadCanvasFiles } from "@/lib/files/canvas-files"
@@ -58,8 +60,8 @@ export interface WorkspaceContext {
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
-  /** The sender's account memory (#1513). */
-  accountMemory: MemoryData[]
+  /** The sender's account memory (#1513); `null` on a turn nobody sent. */
+  accountMemory: MemoryData[] | null
 }
 
 export const workspaceChatTarget: ChatTargetSpec<
@@ -120,7 +122,8 @@ export const workspaceChatTarget: ChatTargetSpec<
       toolNaming: naming,
     })
   },
-  tools(room, { sandboxName, chatId, userId }) {
+  tools(room, target) {
+    const { sandboxName, chatId, userId } = target
     const sandbox = { sandboxName, room, userId }
     return {
       // Reading, writing and editing files, running commands and plan mode's
@@ -141,6 +144,11 @@ export const workspaceChatTarget: ChatTargetSpec<
         ...otherWorkspacesCodeReadTools({ room, sandboxName }),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
+        // Account and canvas memory (#1515).
+        ...buildMemoryTools({
+          canvas: room,
+          account: accountMemoryStore(target),
+        }),
         // The canvas's saved files (#1514); a binary file is saved from the
         // sandbox.
         ...buildFileTools({

@@ -2,6 +2,7 @@ import "server-only"
 
 import { buildRoomSystemPrompt } from "./config"
 import {
+  accountMemoryStore,
   loadAccountMemory,
   loadCanvasMemory,
   turnSender,
@@ -22,6 +23,7 @@ import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildSkillTools } from "./skill-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildFileTools } from "./file-tools"
+import { buildMemoryTools } from "./memory-tools"
 import { canvasFiles } from "@/lib/files"
 import { loadCanvasFiles } from "@/lib/files/canvas-files"
 import type { FileEntryData, MemoryData } from "@/lib/types"
@@ -73,8 +75,8 @@ export interface RoomContext {
   skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
-  /** The sender's account memory (#1513); none on a wake. */
-  accountMemory: MemoryData[]
+  /** The sender's account memory (#1513); `null` on a wake nobody sent. */
+  accountMemory: MemoryData[] | null
 }
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
@@ -161,6 +163,11 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
         ),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
+        // Account and canvas memory (#1515).
+        ...buildMemoryTools({
+          canvas: room,
+          account: accountMemoryStore(target),
+        }),
         // The canvas's saved files (#1514): text only, with no sandbox.
         ...buildFileTools({
           canvas: canvasFiles(room),

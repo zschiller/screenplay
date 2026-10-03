@@ -739,7 +739,8 @@ are the comment-mode placement in **Element Reference**); cross-Branch targeting
 Short notes (preferences, decisions, facts about the repositories) shared by a
 Room's members, which every chat on the canvas reads in its system prompt as
 its own labeled block. Lives in the Room's Y.Doc as the `memories` collection
-(`MemoryData`), changed only through `lib/memory/canvas`. Members edit it in
+(`MemoryData`), changed only through `lib/memory/canvas`. Every chat kind
+saves to it with `write_memory` (`scope: "canvas"`, #1515); members edit it in
 Canvas settings › Memory. Each entry records who saved it: an agent
 (`agent`; older entries say `coordinator` and read as `agent`) or a person
 (`member`). At most 1,000 characters an entry; a prompt carries the newest 100.
@@ -752,8 +753,10 @@ the turns they send read it, on any canvas. Stored per user in the encrypted
 KV beside their Repositories (`lib/memory/account`), on hosted and desktop.
 Read by the **sender** of a turn, never the chat's starter, so a teammate's
 message in your chat reads theirs, not yours; a turn nobody sent (a Coordinator
-wake, and the turns it delegates) reads none. Same entry shape and limits as
-Canvas Memory. People edit it in Settings › Memory.
+wake, and the turns it delegates) reads none. Every chat kind saves to the
+sender's with `write_memory` (`scope: "account"`, #1515); a turn nobody sent
+refuses it. Same entry shape and limits as Canvas Memory. People edit it in
+Settings › Memory.
 _Shown to users as_: "Memory" (Settings).
 _Avoid_: profile, preferences (as a noun for the store), user memory.
 

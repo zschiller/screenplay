@@ -221,7 +221,7 @@ async function runWakeTurn(
         drive = task
       },
     },
-    { roomId: room.roomId, chatId, message, model },
+    { roomId: room.roomId, chatId, message, model, senderless: true },
     roomTurn({ room, chatId, message, model, requesterId, senderless: true })
   )
   await drive?.()
@@ -403,6 +403,7 @@ async function launchDelegatedTurn(
       }),
       sandboxName,
       model,
+      ...(senderless ? { senderless } : {}),
     },
     sandboxTurn({
       room,
@@ -443,6 +444,7 @@ async function launchDelegatedSketchTurn(
         delegatedFrom: coordinatorChatId,
       }),
       model,
+      ...(senderless ? { senderless } : {}),
     },
     sketchTurn({
       room,

@@ -200,6 +200,40 @@ describe("Screenplay's own tools", () => {
     })
   })
 
+  it("says which memory a save went to, and what it saved (#1515)", () => {
+    expect(
+      label({
+        title: "write_memory",
+        rawInput: { scope: "account", action: "add", text: "Plain UI copy." },
+      })
+    ).toEqual({
+      verb: "Save to account memory",
+      detail: "Plain UI copy.",
+      as: "text",
+    })
+    expect(
+      label({
+        title: "write_memory",
+        rawInput: {
+          scope: "canvas",
+          action: "edit",
+          id: "mem-1",
+          text: "Use pnpm.",
+        },
+      })
+    ).toEqual({ verb: "Edit canvas memory", detail: "Use pnpm.", as: "text" })
+    expect(
+      label({
+        title: "write_memory",
+        rawInput: { scope: "account", action: "remove", id: "mem-1" },
+      })
+    ).toEqual({ verb: "Remove from account memory" })
+    expect(describe_({ title: "write_memory" })).toMatchObject({
+      label: { verb: "Save to memory" },
+      category: "memory",
+    })
+  })
+
   it("names a Workspace a Coordinator tool reads by its title", () => {
     expect(
       label(
