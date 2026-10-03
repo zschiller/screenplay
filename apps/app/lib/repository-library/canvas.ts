@@ -154,22 +154,28 @@ export function resetToRepository(
 /**
  * An edit made in Settings reaching one Canvas: every Repo linked to the
  * Repository that wasn't customized against its settings `before` the edit
- * takes the new ones. Customized Repos keep theirs. Env var values follow only
+ * takes the new ones. Customized Repos keep theirs, unless `overrideCustomized`
+ * (Save to all, #1425) gives them the new ones too. Env var values follow only
  * where the Canvas still had the old values, so a Canvas's own env vars
  * survive. Returns the ids of the Repos it updated.
  */
 export function applyRepositoryEdit(
   collections: RoomCollections,
   before: RepoConfig,
-  after: RepoConfig
+  after: RepoConfig,
+  { overrideCustomized = false }: { overrideCustomized?: boolean } = {}
 ): string[] {
   const ops = createCanvasOps(collections)
   const updated: string[] = []
   ops.batch(() => {
     for (const repo of canvasRepos(collections)) {
-      if (repo.repositoryId !== after.id || isCustomized(repo, before)) continue
-      const next = settingsFrom(after)
-      if (repo.envVars !== before.envVars) next.envVars = repo.envVars
+      if (repo.repositoryId !== after.id) continue
+      if (!overrideCustomized && isCustomized(repo, before)) continue
+      const { envVars, ...settings } = settingsFrom(after)
+      // A Canvas's own values are left unwritten, not rewritten, so a save
+      // racing the editing Canvas's own write can't put the old ones back.
+      const next =
+        repo.envVars === before.envVars ? { ...settings, envVars } : settings
       ops.patch("repos", repo.id, next)
       updated.push(repo.id)
     }

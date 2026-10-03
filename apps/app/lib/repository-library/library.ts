@@ -96,11 +96,15 @@ export function createRepositoryLibrary({
    * the edit on its uncustomized Repos linked to the Repository. A Canvas
    * that won't open keeps its old copy rather than failing the save.
    */
-  async function propagate(before: RepoConfig, after: RepoConfig) {
+  async function propagate(
+    before: RepoConfig,
+    after: RepoConfig,
+    options: { overrideCustomized?: boolean } = {}
+  ) {
     for (const roomId of await rooms.list()) {
       try {
         await rooms.mutate(roomId, (collections) =>
-          applyRepositoryEdit(collections, before, after)
+          applyRepositoryEdit(collections, before, after, options)
         )
       } catch (err) {
         console.error(`Couldn't update repositories on canvas ${roomId}`, err)
@@ -144,6 +148,23 @@ export function createRepositoryLibrary({
         : [...list, repository]
       await store.save(next)
       if (target) await propagate(target, saved)
+      return next
+    },
+
+    /**
+     * Save to all (#1425): an edit made on a Canvas, saved to the Repository
+     * and to every Canvas Repo linked to it, customized or not, so none stays
+     * customized. Only for one of your Repositories, by id; returns the new
+     * list.
+     */
+    async saveToAll(repository: RepoConfig): Promise<RepoConfig[]> {
+      const list = await store.load()
+      const target = list.find((r) => r.id === repository.id)
+      if (!target) throw new Error("That repository isn't in your Settings")
+      const saved = { ...repository, createdAt: target.createdAt }
+      const next = list.map((r) => (r.id === target.id ? saved : r))
+      await store.save(next)
+      await propagate(target, saved, { overrideCustomized: true })
       return next
     },
 

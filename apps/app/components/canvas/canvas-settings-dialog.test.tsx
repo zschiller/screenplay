@@ -70,6 +70,7 @@ const { REPOSITORIES } = vi.hoisted(() => ({
 vi.mock("@/lib/repository-library/actions", () => ({
   listRepositories: vi.fn().mockResolvedValue(REPOSITORIES),
   saveRepository: vi.fn(),
+  saveRepositoryToAll: vi.fn().mockResolvedValue(REPOSITORIES),
 }))
 vi.mock("@/lib/add-repo/actions", () => ({
   detectRepoSettings: vi.fn().mockResolvedValue({ ok: false }),
@@ -100,6 +101,7 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 import {
   listRepositories,
   saveRepository,
+  saveRepositoryToAll,
 } from "@/lib/repository-library/actions"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 
@@ -128,6 +130,7 @@ window.matchMedia ??= ((query: string) => ({
 afterEach(() => {
   cleanup()
   vi.mocked(listRepositories).mockResolvedValue(REPOSITORIES)
+  vi.mocked(saveRepositoryToAll).mockClear()
 })
 
 function repo(over: Partial<RepoData>): RepoData {
@@ -342,6 +345,83 @@ describe("CanvasSettingsDialog", () => {
       "r1",
       expect.objectContaining({ name: "web", devScript: "pnpm dev" })
     )
+  })
+
+  it("saves an edit to this canvas only while the box is unticked", async () => {
+    const { onUpdateRepo } = renderDialog()
+    await waitFor(() => expect(listRepositories).toHaveBeenCalled())
+    await screen.findByRole("switch", { name: "Use api on this canvas" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
+    const form = await screen.findByRole("dialog", {
+      name: "Repository settings",
+    })
+    const box = within(form).getByRole("checkbox", {
+      name: "Also update Settings and my other canvases",
+    })
+    expect(box.getAttribute("aria-checked")).toBe("false")
+    fireEvent.change(within(form).getByLabelText("Run script"), {
+      target: { value: "pnpm dev --turbo" },
+    })
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+
+    expect(onUpdateRepo).toHaveBeenCalledWith(
+      "r1",
+      expect.objectContaining({ devScript: "pnpm dev --turbo" })
+    )
+    expect(saveRepositoryToAll).not.toHaveBeenCalled()
+  })
+
+  it("saves to Settings and every canvas when the box is ticked", async () => {
+    const { onUpdateRepo } = renderDialog()
+    await waitFor(() => expect(listRepositories).toHaveBeenCalled())
+    await screen.findByRole("switch", { name: "Use api on this canvas" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
+    const form = await screen.findByRole("dialog", {
+      name: "Repository settings",
+    })
+    fireEvent.change(within(form).getByLabelText("Run script"), {
+      target: { value: "pnpm dev --turbo" },
+    })
+    fireEvent.click(
+      within(form).getByRole("checkbox", {
+        name: "Also update Settings and my other canvases",
+      })
+    )
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(saveRepositoryToAll).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "cfg-storefront",
+          repoFullName: "acme/storefront",
+          devScript: "pnpm dev --turbo",
+        })
+      )
+    )
+    await waitFor(() =>
+      expect(onUpdateRepo).toHaveBeenCalledWith(
+        "r1",
+        expect.objectContaining({ devScript: "pnpm dev --turbo" })
+      )
+    )
+  })
+
+  it("offers no save to all for a repository that isn't in your Settings", async () => {
+    renderDialog()
+    await waitFor(() => expect(listRepositories).toHaveBeenCalled())
+    await screen.findByRole("switch", { name: "Use api on this canvas" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit docs" }))
+    const form = await screen.findByRole("dialog", {
+      name: "Repository settings",
+    })
+    expect(
+      within(form).queryByRole("checkbox", {
+        name: "Also update Settings and my other canvases",
+      })
+    ).toBeNull()
   })
 
   it("marks a repository customized on this canvas, and resets it to Settings", async () => {

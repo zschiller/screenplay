@@ -59,7 +59,10 @@ import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName } from "@/lib/repo-identity"
 import { canvasRepositoryRows, isCustomized } from "@/lib/repository-library"
-import { listRepositories } from "@/lib/repository-library/actions"
+import {
+  listRepositories,
+  saveRepositoryToAll,
+} from "@/lib/repository-library/actions"
 import type { BranchData, MemoryData, RepoData } from "@/lib/types"
 import { MemorySection } from "./canvas-memory-section"
 
@@ -203,8 +206,9 @@ export function CanvasSettingsDialog({
  * switch for whether this canvas uses it, plus the canvas's other Repos
  * (unlinked, or a member's) switched on. Each row's subtitle is its run
  * scripts. Turning one off goes through today's remove path, confirming first
- * when Workspaces use it. Edit changes this canvas only; a Repo that differs
- * from its Repository gets an orange dot (#1424).
+ * when Workspaces use it. Edit changes this canvas only, unless its Save to
+ * all box is ticked (#1425); a Repo that differs from its Repository gets an
+ * orange dot (#1424).
  */
 function RepositoriesSection({
   repos,
@@ -354,6 +358,9 @@ function RepositoriesSection({
           if (!open) setEditingId(null)
         }}
         onUpdate={onUpdateRepo}
+        onSaveToAll={async (repository) => {
+          setRepositories(await saveRepositoryToAll(repository))
+        }}
       />
       <RemoveRepositoryDialog
         verb="Turn off"
