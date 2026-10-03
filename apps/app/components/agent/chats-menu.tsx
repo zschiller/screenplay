@@ -693,11 +693,11 @@ export function ChatsMenuButton() {
               className={cn(
                 "size-3",
                 menu.needsYou &&
-                  "[mask-image:radial-gradient(circle_at_10px_2px,transparent_4.5px,black_5px)]"
+                  "[mask-image:radial-gradient(circle_at_12px_0px,transparent_4.5px,black_5px)]"
               )}
             />
             {menu.needsYou ? (
-              <NeedsYouDot className="absolute -top-px -right-px size-1.5" />
+              <NeedsYouDot className="absolute -top-[3px] -right-[3px] size-1.5" />
             ) : null}
           </span>
           Chats

@@ -36,6 +36,8 @@ export interface WorkspaceTasks {
   branches: readonly BranchData[]
   chatSessions: readonly ChatSessionData[]
   plans: readonly PlanData[]
+  /** Chats, by id, waiting on an answer to a question card. */
+  openQuestions?: ReadonlySet<string>
   onOpen: (task: WorkspaceTaskRef) => void
   /** Show a frame, document or mockup a reply names on the canvas. */
   onShow?: (layerId: string) => void
@@ -122,6 +124,7 @@ export function WorkspaceTaskRow({
       ? [...tasks.chatSessions, { branchId: task.branchId, isStreaming: true }]
       : tasks.chatSessions,
     plans: tasks.plans,
+    openQuestions: tasks.openQuestions,
   })
   const added = branch?.diffAdditions ?? 0
   const removed = branch?.diffDeletions ?? 0

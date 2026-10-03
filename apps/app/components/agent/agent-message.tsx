@@ -1207,7 +1207,9 @@ function UserBubble({
 function AssistantMessage({ content }: { content: string }) {
   const tasks = useWorkspaceTasks()
   const facts = useMemo(
-    () => tasks && roomWorkspaceFacts(tasks.chatSessions, tasks.plans),
+    () =>
+      tasks &&
+      roomWorkspaceFacts(tasks.chatSessions, tasks.plans, tasks.openQuestions),
     [tasks]
   )
   const components = useMemo<Components>(
