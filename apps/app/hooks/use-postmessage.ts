@@ -1,19 +1,16 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import type { RefObject } from "react"
+import type { BridgePort } from "@/lib/bridge-port"
 import type {
   HmrStatus,
   JsonObject,
   JsonValue,
 } from "@/lib/postmessage-protocol"
-import { isScreenplayMessage } from "@/lib/postmessage-protocol"
 
 interface UsePostMessageOptions {
-  // The iframe element ref. Passed in by the caller (rather than created here)
-  // so callers can reference the iframe in callbacks declared before this hook
-  // is called.
-  iframeRef: RefObject<HTMLIFrameElement | null>
+  /** The page's bridge: an iframe's, or a Shared Frame's over its stream. */
+  port: BridgePort
   iframeLayerId: string
   iframeState: JsonObject
   iframeScrollX?: number
@@ -30,7 +27,7 @@ interface UsePostMessageOptions {
 }
 
 export function usePostMessage({
-  iframeRef,
+  port,
   iframeLayerId,
   iframeState,
   iframeScrollX,
@@ -87,50 +84,34 @@ export function usePostMessage({
       type: "screenplay:init" | "screenplay:state-update",
       state: JsonObject
     ) => {
-      const iframe = iframeRef.current
-      if (!iframe?.contentWindow) return
-      iframe.contentWindow.postMessage({ type, state }, "*")
+      port.post({ type, state })
     },
-    [iframeRef]
+    [port]
   )
 
   const sendKnobValues = useCallback(
     (values: JsonObject) => {
-      const iframe = iframeRef.current
-      if (!iframe?.contentWindow) return
-      iframe.contentWindow.postMessage(
-        { type: "screenplay:knob-values", values },
-        "*"
-      )
+      port.post({ type: "screenplay:knob-values", values })
     },
-    [iframeRef]
+    [port]
   )
 
   const sendSharedState = useCallback(
     (state: JsonObject, initial = false) => {
-      const iframe = iframeRef.current
-      if (!iframe?.contentWindow) return
-      iframe.contentWindow.postMessage(
-        { type: "screenplay:shared-state-apply", state, initial },
-        "*"
-      )
+      port.post({ type: "screenplay:shared-state-apply", state, initial })
     },
-    [iframeRef]
+    [port]
   )
 
   const sendScrollTo = useCallback(
     (x: number, y: number) => {
-      const iframe = iframeRef.current
-      if (!iframe?.contentWindow) return
       const last = lastScrollRef.current
       if (last && last.x === x && last.y === y) return
+      if (!port.post({ type: "screenplay:scroll-to", scrollX: x, scrollY: y }))
+        return
       lastScrollRef.current = { x, y }
-      iframe.contentWindow.postMessage(
-        { type: "screenplay:scroll-to", scrollX: x, scrollY: y },
-        "*"
-      )
     },
-    [iframeRef]
+    [port]
   )
 
   // Push scroll changes from Yjs down into the iframe.
@@ -158,28 +139,23 @@ export function usePostMessage({
   }, [sharedState, sendSharedState])
 
   useEffect(() => {
-    function handleMessage(e: MessageEvent) {
-      if (!isScreenplayMessage(e.data)) return
-
-      const iframe = iframeRef.current
-      if (!iframe?.contentWindow || e.source !== iframe.contentWindow) return
-
-      if (e.data.type === "screenplay:ready") {
+    return port.subscribe((data) => {
+      if (data.type === "screenplay:ready") {
         sendMessage("screenplay:init", stateRef.current)
         if (scrollRef.current) {
           sendScrollTo(scrollRef.current.x, scrollRef.current.y)
         }
-        onReadyRef.current?.(iframeLayerId, e.data.version)
-      } else if (e.data.type === "screenplay:state-changed") {
-        onStateChanged(iframeLayerId, e.data.state)
-      } else if (e.data.type === "screenplay:navigation") {
-        onNavigation?.(iframeLayerId, e.data.path, !!e.data.replace)
-      } else if (e.data.type === "screenplay:scroll") {
-        lastScrollRef.current = { x: e.data.scrollX, y: e.data.scrollY }
-        onScroll?.(iframeLayerId, e.data.scrollX, e.data.scrollY)
-      } else if (e.data.type === "screenplay:hmr-status") {
-        onHmrStatusRef.current?.(iframeLayerId, e.data.status)
-      } else if (e.data.type === "screenplay:knobs-declared") {
+        onReadyRef.current?.(iframeLayerId, data.version)
+      } else if (data.type === "screenplay:state-changed") {
+        onStateChanged(iframeLayerId, data.state)
+      } else if (data.type === "screenplay:navigation") {
+        onNavigation?.(iframeLayerId, data.path, !!data.replace)
+      } else if (data.type === "screenplay:scroll") {
+        lastScrollRef.current = { x: data.scrollX, y: data.scrollY }
+        onScroll?.(iframeLayerId, data.scrollX, data.scrollY)
+      } else if (data.type === "screenplay:hmr-status") {
+        onHmrStatusRef.current?.(iframeLayerId, data.status)
+      } else if (data.type === "screenplay:knobs-declared") {
         // Push stored values down now that the iframe has registered the
         // knobs. Sending earlier (e.g. on screenplay:ready) drops the values:
         // applyValue() in screenplay-knobs ignores any id without a matching
@@ -187,18 +163,18 @@ export function usePostMessage({
         if (knobValuesRef.current) {
           sendKnobValues(knobValuesRef.current)
         }
-        onKnobsDeclaredRef.current?.(iframeLayerId, e.data.knobs)
-      } else if (e.data.type === "screenplay:shared-state") {
+        onKnobsDeclaredRef.current?.(iframeLayerId, data.knobs)
+      } else if (data.type === "screenplay:shared-state") {
         // Record the serialized form so the next Yjs echo down to this same
         // iframe is suppressed (we'd otherwise apply our own update back).
-        const next = e.data.state
+        const next = data.state
         try {
           lastSharedStateRef.current = JSON.stringify(next)
         } catch {
           lastSharedStateRef.current = null
         }
         onSharedStateChangedRef.current?.(iframeLayerId, next)
-      } else if (e.data.type === "screenplay:shared-state-request") {
+      } else if (data.type === "screenplay:shared-state-request") {
         // A frame that just loaded asks for the room's state before it
         // publishes, so its defaults don't overwrite what the room has.
         // Always answer, even with an empty room: the frame holds its
@@ -211,12 +187,9 @@ export function usePostMessage({
         }
         sendSharedState(state, true)
       }
-    }
-
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
+    })
   }, [
-    iframeRef,
+    port,
     iframeLayerId,
     onStateChanged,
     onNavigation,
@@ -227,5 +200,5 @@ export function usePostMessage({
     sendSharedState,
   ])
 
-  return { iframeRef, sendMessage }
+  return { sendMessage }
 }

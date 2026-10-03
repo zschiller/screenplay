@@ -120,6 +120,49 @@ describe("FrameStreamConnection", () => {
     })
   })
 
+  it("reaches a watched frame's bridge over the stream, and hears only its own", async () => {
+    const { conn, sockets } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    const port = conn.bridgePort("f1")
+    const heard = vi.fn()
+    const off = port.subscribe(heard)
+    const query = {
+      type: "screenplay:dom-query",
+      id: "q1",
+      op: "getDocumentSize",
+    } as const
+    // Not watched: the service would drop it, so it isn't sent.
+    expect(port.post(query)).toBe(false)
+
+    conn.watch("f1", { route: "/", width: 10, height: 10 }, handlers())
+    await flush()
+    const socket = sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+    expect(port.post(query)).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({
+      t: "bridge",
+      frame: "f1",
+      message: query,
+    })
+
+    const answer = {
+      type: "screenplay:dom-result",
+      id: "q1",
+      ok: true,
+      value: { width: 1, height: 2 },
+    }
+    socket.serverSays({ t: "bridge", frame: "f2", message: answer })
+    socket.serverSays({ t: "bridge", frame: "f1", message: answer })
+    expect(heard.mock.calls).toEqual([[answer]])
+    off()
+    socket.serverSays({ t: "bridge", frame: "f1", message: answer })
+    expect(heard).toHaveBeenCalledTimes(1)
+  })
+
   it("hands each frame its own video and messages", async () => {
     const { conn, sockets } = setup({
       shared: true,

@@ -1352,16 +1352,24 @@ outside the reducer; one record per frame for copies that aren't shared.
 
 **Shared Frame** / **Frame Stream**:
 On a hosted canvas (#1392, spec #1386), an Iframe Layer is one Chromium page in
-its Workspace's Sandbox, loading the bridge proxy on localhost, rather than a
-per-viewer iframe. The Workspace's **Frame Stream** service
+its Workspace's Sandbox, rather than a per-viewer iframe. The page is a small
+host that loads the bridge proxy on localhost in an iframe, as the canvas does,
+so the Sandbox Bridge, Knobs and shared state talk to their parent unchanged. The Workspace's **Frame Stream** service
 (`lib/sandbox-bridge/frame-stream.mjs`, launched by `ensureFrameStream`) grabs
 each page's virtual display, encodes it once (H.264 at up to 2× the CSS size,
 30 fps) and fans it out over one WebSocket on the forwarded `STREAM_PORT`,
 carrying every frame of the Workspace; the canvas decodes it with WebCodecs
 (`FrameStreamView`). Input reaches the page over CDP only from the connection
 holding a **drive grant**, which `/api/frame-stream/drive` signs only for the
-driver Frame Control names. The wire protocol is `lib/frame-stream/protocol.ts`;
-the client connection, one per Workspace, is `lib/frame-stream/client.ts`.
+driver Frame Control names. The canvas's frame features (comment pins, Knobs,
+the element picker, Element References, Fit to content) reach the page through
+a **Bridge Port** (`lib/bridge-port.ts`): postMessage for an iframe, the stream
+for a Shared Frame (#1394), where the host relays the bridge's messages. Reads
+answer whoever asked; what the page reports for the room, and the room's
+changes going back in, pass through one viewer, the frame's **primary** (its
+driver, else whoever has watched longest), so the room is written once. The
+wire protocol is `lib/frame-stream/protocol.ts`; the client connection, one
+per Workspace, is `lib/frame-stream/client.ts`.
 _Avoid_: "streamed iframe" (there is no iframe); trusting a viewer's claim to
 drive without a grant; WebRTC (it can't connect from a Vercel Sandbox, #1366).
 

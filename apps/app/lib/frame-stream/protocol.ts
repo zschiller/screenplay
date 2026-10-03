@@ -8,6 +8,11 @@
  * on a keyframe.
  */
 
+import type {
+  CanvasToIframeMessage,
+  IframeToCanvasMessage,
+} from "@/lib/postmessage-protocol"
+
 /** Messages the canvas sends. `auth` must come first, within 5 seconds. */
 export type FrameStreamClientMessage =
   | { t: "auth"; token: string }
@@ -24,6 +29,10 @@ export type FrameStreamClientMessage =
   | { t: "drive"; frame: string; token: string }
   | { t: "release"; frame: string }
   | ({ t: "input"; frame: string } & FrameStreamInput)
+  /** For the Sandbox Bridge in the shared page (#1394): what the canvas
+   *  would post into a local iframe. Reads from any viewer; room changes
+   *  only from the frame's primary. */
+  | { t: "bridge"; frame: string; message: CanvasToIframeMessage }
 
 /** Driver input, in the frame's CSS pixels. Applied only for the driver. */
 export type FrameStreamInput =
@@ -75,6 +84,9 @@ export type FrameStreamServerMessage =
   /** The page's path (with query and hash) on the frame's origin. */
   | { t: "route"; frame: string; path: string }
   | { t: "error"; frame?: string; message: string }
+  /** What the shared page's bridge posted to its parent: a read's answer to
+   *  whoever asked, what the room records to the primary. */
+  | { t: "bridge"; frame: string; message: IframeToCanvasMessage }
 
 export type FrameStreamVideo = {
   frame: string

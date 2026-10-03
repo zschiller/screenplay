@@ -13,6 +13,8 @@ import {
   type FrameStreamServerMessage,
 } from "@/lib/frame-stream/protocol"
 import { driveToken, viewToken } from "@/lib/frame-stream/token"
+import type { IframeToCanvasMessage } from "@/lib/postmessage-protocol"
+import { BRIDGE_JS } from "./index"
 
 // The Frame Stream service end to end (#1392), in the style of the #1366
 // prototype's bench: a real Xvfb, Chromium and ffmpeg behind the service's
@@ -54,6 +56,27 @@ const PAGE = (path: string) => `<!doctype html><html><head><style>
 </style></head><body data-path="${path}">
   <a id="next" href="/next">next</a><a id="other" href="/other">other</a>
 </body></html>`
+
+// A page with the Sandbox Bridge, as the proxy serves it, and a stand-in for
+// the Knobs package: it declares a colour knob to its parent and shows the
+// value it's sent. It also tries the host's way out directly, which the
+// service must not take from the app.
+const BRIDGE_PAGE = `<!doctype html><html><head><script>${BRIDGE_JS}</script>
+<style>body { margin: 0 } #tall { width: 900px; height: 1200px }</style>
+</head><body><div id="tall"><button id="pay">Pay</button></div><script>
+  parent.postMessage({ type: "screenplay:knobs-declared", knobs: [
+    { id: "color", type: "string", label: "Colour", default: "blue" },
+  ] }, "*")
+  try {
+    __screenplayFrameHost(JSON.stringify({ type: "screenplay:knobs-declared", knobs: [{ id: "forged" }] }))
+  } catch {}
+  addEventListener("message", (e) => {
+    if (e.data && e.data.type === "screenplay:knob-values")
+      document.body.dataset.color = e.data.values.color
+  })
+</script></body></html>`
+
+type BridgeMessage = Extract<FrameStreamServerMessage, { t: "bridge" }>
 
 type Viewer = {
   ws: WebSocket
@@ -107,6 +130,67 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     return viewer
   }
 
+  const bridgeOf = (v: Viewer, frame: string) =>
+    v.messages
+      .filter((m): m is BridgeMessage => m.t === "bridge" && m.frame === frame)
+      .map((m) => m.message)
+
+  /** A read through the shared page's bridge, answered to this viewer. */
+  async function read(
+    v: Viewer,
+    frame: string,
+    id: string,
+    query: Record<string, unknown>
+  ) {
+    v.send({
+      t: "bridge",
+      frame,
+      message: { type: "screenplay:dom-query", id, ...query },
+    } as FrameStreamClientMessage)
+    const answer = await v.waitFor(() =>
+      bridgeOf(v, frame).find(
+        (
+          m
+        ): m is Extract<
+          IframeToCanvasMessage,
+          { type: "screenplay:dom-result" }
+        > => m.type === "screenplay:dom-result" && m.id === id
+      )
+    )
+    if (!answer.ok) throw new Error(answer.error)
+    return answer.value
+  }
+
+  /** A left click. Chrome ignores clicks on an iframe that has only just
+   *  appeared (the host's, as a browser starts), so it clicks until `done`. */
+  async function clickUntil(
+    v: Viewer,
+    frame: string,
+    x: number,
+    y: number,
+    done: () => boolean
+  ) {
+    for (let i = 0; i < 20 && !done(); i++) {
+      for (const type of ["mousePressed", "mouseReleased"] as const) {
+        v.send({
+          t: "input",
+          frame,
+          kind: "mouse",
+          type,
+          x,
+          y,
+          button: "left",
+          buttons: type === "mousePressed" ? 1 : 0,
+          clickCount: 1,
+          modifiers: 0,
+        })
+      }
+      const start = Date.now()
+      while (!done() && Date.now() - start < 500)
+        await new Promise((r) => setTimeout(r, 25))
+    }
+  }
+
   type RouteMessage = Extract<FrameStreamServerMessage, { t: "route" }>
   const routeOf = (v: Viewer, frame: string) =>
     v.messages
@@ -117,7 +201,7 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     devServer = http.createServer((req, res) => {
       requests.push(req.url ?? "/")
       res.writeHead(200, { "content-type": "text/html" })
-      res.end(PAGE(req.url ?? "/"))
+      res.end(req.url === "/bridge" ? BRIDGE_PAGE : PAGE(req.url ?? "/"))
     })
     await new Promise<void>((r) => devServer.listen(0, "127.0.0.1", r))
     const origin = `http://127.0.0.1:${(devServer.address() as AddressInfo).port}`
@@ -266,30 +350,13 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
       frame: "f1",
       token: driveToken(KEY, "ana", "f1").token,
     })
-    a.send({
-      t: "input",
-      frame: "f1",
-      kind: "mouse",
-      type: "mousePressed",
-      x: 100,
-      y: 100,
-      button: "left",
-      buttons: 1,
-      clickCount: 1,
-      modifiers: 0,
-    })
-    a.send({
-      t: "input",
-      frame: "f1",
-      kind: "mouse",
-      type: "mouseReleased",
-      x: 100,
-      y: 100,
-      button: "left",
-      buttons: 0,
-      clickCount: 1,
-      modifiers: 0,
-    })
+    await clickUntil(
+      a,
+      "f1",
+      100,
+      100,
+      () => routeOf(a, "f1")?.path === "/next"
+    )
     await a.waitFor(() => routeOf(a, "f1")?.path === "/next" || undefined)
     await b.waitFor(() => routeOf(b, "f1")?.path === "/next" || undefined)
     expect(
@@ -355,5 +422,80 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     expect(service.exitCode).toBeNull()
     expect(requests.slice(requestsBefore)).toContain("/other?tab=2")
     expect(routeOf(a, "f1")?.path).toBe("/other?tab=2")
+  }, 40_000)
+
+  it("relays the bridge: reads to whoever asked, room changes through the primary", async () => {
+    const c = await connect("cy")
+    const d = await connect("di")
+    const watch = {
+      t: "watch",
+      frame: "f2",
+      route: "/bridge",
+      width: 640,
+      height: 400,
+    } as const
+    c.send(watch)
+    await c.waitFor(() =>
+      c.messages.find(
+        (m) => m.t === "frame" && m.frame === "f2" && m.status === "live"
+      )
+    )
+    d.send(watch)
+
+    // The page's Knobs reach the primary (who watched first), once.
+    const declared = await c.waitFor(() =>
+      bridgeOf(c, "f2").find((m) => m.type === "screenplay:knobs-declared")
+    )
+    expect(declared).toMatchObject({ knobs: [{ id: "color" }] })
+    expect(bridgeOf(d, "f2")).toEqual([])
+    expect(JSON.stringify(bridgeOf(c, "f2"))).not.toContain("forged")
+
+    // Reads answer whoever asked, under their own id, even when two viewers
+    // pick the same one.
+    await expect(
+      read(c, "f2", "q1", { op: "getDocumentSize" })
+    ).resolves.toEqual({
+      width: 900,
+      height: 1200,
+    })
+    await expect(
+      read(d, "f2", "q1", { op: "elementAtPoint", x: 10, y: 10 })
+    ).resolves.toMatchObject({
+      tagName: "button",
+      id: "pay",
+      rect: { x: 0, y: 0 },
+    })
+    expect(
+      bridgeOf(c, "f2").filter((m) => m.type === "screenplay:dom-result")
+    ).toHaveLength(1)
+
+    // A Knob's value from the room reaches the page through the primary;
+    // the same change echoed by another viewer doesn't.
+    const knob = (v: Viewer, color: string) =>
+      v.send({
+        t: "bridge",
+        frame: "f2",
+        message: { type: "screenplay:knob-values", values: { color } },
+      })
+    const colored = (v: Viewer, color: string, id: string) =>
+      read(v, "f2", id, {
+        op: "querySelector",
+        selector: `body[data-color="${color}"]`,
+      })
+    knob(d, "red")
+    knob(c, "green")
+    await expect
+      .poll(() => colored(c, "green", `g${Date.now()}`))
+      .not.toBeNull()
+    await expect(colored(d, "red", "r1")).resolves.toBeNull()
+
+    // When the primary leaves, the next viewer takes over and hears the
+    // page's Knobs, so it can push the room's values.
+    c.send({ t: "unwatch", frame: "f2" })
+    await d.waitFor(() =>
+      bridgeOf(d, "f2").find((m) => m.type === "screenplay:knobs-declared")
+    )
+    knob(d, "red")
+    await expect.poll(() => colored(d, "red", `r${Date.now()}`)).not.toBeNull()
   }, 40_000)
 })

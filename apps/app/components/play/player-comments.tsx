@@ -15,6 +15,7 @@ import {
   useCommentThreads,
   type CommentThreads,
 } from "@/components/canvas/use-comment-threads"
+import { useIframeBridgePort } from "@/hooks/use-bridge-port"
 import { useScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { ElementAnchor, Placement } from "@/lib/comment-anchor"
 import type { GroupOptions } from "@/lib/comments-panel"
@@ -132,7 +133,8 @@ export function usePlayerComments({
   }, [commentMode, exitCommentMode])
 
   // Esc pressed inside the page comes back through the bridge.
-  const dom = useScreenplayDom(iframeRef, {
+  const port = useIframeBridgePort(iframeRef)
+  const dom = useScreenplayDom(port, {
     onEscape: () => {
       if (newComment) setNewComment(null)
       else if (commentMode) exitCommentMode()
