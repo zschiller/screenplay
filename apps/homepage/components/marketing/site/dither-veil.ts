@@ -62,7 +62,7 @@ export function createDitherVeil(
   const PEEK = 90
   // How sharply the veil eases in down its span: 1 is an even ramp, higher
   // keeps more of the top clear.
-  const EASE = 1.6
+  const EASE = 2.4
 
   let W = 0
   let H = 0
