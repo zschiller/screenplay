@@ -35,6 +35,9 @@ export type EditableTextProps = {
   /** Extra classes applied only in edit mode. */
   editClassName?: string
   disabled?: boolean
+  /** Tab order of the idle label; default 0. A row whose own button already
+   *  takes focus passes -1 and starts the rename itself (e.g. on F2). */
+  tabIndex?: number
   /** Default true. Strips newlines, commits on Enter. */
   singleLine?: boolean
   /** Default true. Selects all text when entering edit mode. */
@@ -73,6 +76,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
       viewClassName,
       editClassName,
       disabled,
+      tabIndex = 0,
       singleLine = true,
       selectAllOnEdit = true,
       revertOnEmpty = true,
@@ -356,7 +360,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         "data-placeholder": placeholder,
         "data-editable-text": "idle",
         style,
-        tabIndex: disabled ? -1 : 0,
+        tabIndex: disabled ? -1 : tabIndex,
         onPointerDown:
           editTrigger === "manual" ? onPointerDown : handleIdlePointerDown,
         onKeyDown: editTrigger === "manual" ? undefined : handleIdleKeyDown,

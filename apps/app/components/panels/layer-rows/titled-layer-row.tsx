@@ -27,6 +27,7 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
 import { mockupLayerKind } from "@/lib/layer-kinds/mockup-layer"
 import type { LayerKindDescriptor } from "@/lib/layer-kinds/types"
+import { renameOnF2 } from "./rename-key"
 import type {
   LayerRowComponents,
   LayerRowMenuProps,
@@ -75,6 +76,7 @@ function TitledLayerRow<T extends TitledLayer>({
       value={label}
       onCommit={(next) => onRename(item.id, next)}
       placeholder="Untitled"
+      tabIndex={-1}
       className="min-w-0"
       viewClassName="truncate"
       editClassName={cn(
@@ -93,6 +95,7 @@ function TitledLayerRow<T extends TitledLayer>({
           e.stopPropagation()
           onSelect(item.id, e.shiftKey)
         }}
+        onKeyDown={(e) => renameOnF2(e, editableRef)}
         onDoubleClick={(e) => {
           e.stopPropagation()
           onActivate?.(item.id)
@@ -112,6 +115,7 @@ function TitledLayerRow<T extends TitledLayer>({
           e.stopPropagation()
           onSelect(item.id, e.shiftKey)
         }}
+        onKeyDown={(e) => renameOnF2(e, editableRef)}
         onDoubleClick={(e) => {
           e.stopPropagation()
           onActivate?.(item.id)
