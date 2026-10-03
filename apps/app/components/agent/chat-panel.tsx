@@ -385,7 +385,7 @@ function WorkspaceChatPanel({
       onCreated: onPrCreated,
     })
   }
-  // Why Create pull request is disabled, shown in its tooltip.
+  // Why Create PR is disabled, shown in its tooltip.
   const createPrBlocker = isAgentBusy
     ? "The workspace is still starting…"
     : anyChatStreaming
@@ -476,7 +476,7 @@ function WorkspaceChatPanel({
                   ) : (
                     <GitPullRequestIcon />
                   )}
-                  Create pull request
+                  Create PR
                 </Button>
               </span>
             </HintTooltip>
