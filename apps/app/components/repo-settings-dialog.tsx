@@ -56,7 +56,8 @@ export function RepoSettingsDialog({
   /** Whether this person may reveal the Repo's stored env var values. */
   canRevealEnv: boolean
   repo: RepoData | null
-  /** The Repository (Settings) this Repo is linked to, when it's yours. */
+  /** The Repository (Settings) this Repo follows, as the repository link
+   *  policy answers it: one of yours, and never on hosted (#1427). */
   repository?: RepoConfig
   open: boolean
   onOpenChange: (open: boolean) => void
