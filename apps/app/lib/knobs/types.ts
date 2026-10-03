@@ -54,6 +54,18 @@ export type KnobSelect = {
   options: KnobSelectOption[]
 }
 
+/** A choice of two or three short options, shown as tabs beside the label.
+ *  Past `TABS_KNOB_MAX_OPTIONS` it shows as a select instead. */
+export type KnobTabs = {
+  type: "tabs"
+  id: string
+  label?: string
+  default: string
+  options: KnobSelectOption[]
+}
+
+export const TABS_KNOB_MAX_OPTIONS = 3
+
 export type KnobColor = {
   type: "color"
   id: string
@@ -62,7 +74,13 @@ export type KnobColor = {
 }
 
 export type KnobDef =
-  KnobNumber | KnobSlider | KnobBoolean | KnobString | KnobSelect | KnobColor
+  | KnobNumber
+  | KnobSlider
+  | KnobBoolean
+  | KnobString
+  | KnobSelect
+  | KnobTabs
+  | KnobColor
 
 export type KnobValue = string | number | boolean
 export type KnobValues = { [id: string]: KnobValue }
@@ -82,6 +100,7 @@ export function isKnobDef(value: unknown): value is KnobDef {
     case "color":
       return typeof v.default === "string"
     case "select":
+    case "tabs":
       return typeof v.default === "string" && Array.isArray(v.options)
     default:
       return false
@@ -104,6 +123,7 @@ export function coerceKnobValue(
     case "color":
       return typeof raw === "string" ? raw : def.default
     case "select":
+    case "tabs":
       return typeof raw === "string" && def.options.some((o) => o.value === raw)
         ? raw
         : def.default

@@ -34,6 +34,12 @@ export type SelectKnob = KnobBase<string, "select"> & {
   options: KnobSelectOption[]
 }
 
+/** Two or three short options as tabs beside the label. More than three
+ *  show as a select. */
+export type TabsKnob = KnobBase<string, "tabs"> & {
+  options: KnobSelectOption[]
+}
+
 export type ColorKnob = KnobBase<string, "color">
 
 export type Knob =
@@ -42,6 +48,7 @@ export type Knob =
   | BooleanKnob
   | StringKnob
   | SelectKnob
+  | TabsKnob
   | ColorKnob
 
 export type KnobValue = string | number | boolean

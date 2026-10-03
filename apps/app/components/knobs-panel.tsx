@@ -17,6 +17,7 @@ import {
 import {
   coerceKnobValue,
   isKnobDef,
+  TABS_KNOB_MAX_OPTIONS,
   type KnobDef,
   type KnobValue,
   type KnobValues,
@@ -39,6 +40,17 @@ export function hasKnobOverrides(
 }
 
 export type KnobsTheme = "light" | "dark"
+
+const THEME_KNOB: KnobDef = {
+  type: "tabs",
+  id: "theme",
+  label: "Theme",
+  default: "light",
+  options: [
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" },
+  ],
+}
 
 interface KnobsPanelProps {
   knobs: JsonValue[] | undefined
@@ -102,20 +114,11 @@ export function KnobsPanel({
       </div>
       <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3">
         {theme ? (
-          <div className="flex items-center justify-between gap-3">
-            <Label className="text-xs">Theme</Label>
-            <Tabs
-              value={theme.value}
-              onValueChange={(v) =>
-                theme.onChange(v === "dark" ? "dark" : "light")
-              }
-            >
-              <TabsList>
-                <TabsTrigger value="light">Light</TabsTrigger>
-                <TabsTrigger value="dark">Dark</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          <KnobControl
+            def={THEME_KNOB}
+            value={theme.value}
+            onChange={(v) => theme.onChange(v === "dark" ? "dark" : "light")}
+          />
         ) : null}
         {defs.length === 0
           ? empty
@@ -206,6 +209,33 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
             onChange={(e) => onChange(e.target.value)}
             className="h-7 text-xs md:text-xs"
           />
+        </div>
+      )
+    }
+    case "tabs": {
+      const stringValue = typeof value === "string" ? value : def.default
+      // Beside its label in a 288px panel, more than a few won't fit: those
+      // show as a select rather than wrap or truncate.
+      if (def.options.length > TABS_KNOB_MAX_OPTIONS)
+        return (
+          <KnobControl
+            def={{ ...def, type: "select" }}
+            value={value}
+            onChange={onChange}
+          />
+        )
+      return (
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-xs">{label}</Label>
+          <Tabs value={stringValue} onValueChange={onChange}>
+            <TabsList>
+              {def.options.map((opt) => (
+                <TabsTrigger key={opt.value} value={opt.value}>
+                  {opt.label ?? opt.value}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
       )
     }

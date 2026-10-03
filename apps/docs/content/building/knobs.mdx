@@ -10,7 +10,10 @@ renders them in the frame's **Knobs** popover and the
 [player's](/guides/play-mode) knobs panel. Changing a value on the canvas
 updates the running app instantly, for everyone viewing it, with no rebuild.
 
-<Screenshot name="knobs-popover" alt="The Knobs popover on the Northwind homepage frame: Accent color, Corner radius, Headline, Show customer logos, Hero layout" />
+<Screenshot
+  name="knobs-popover"
+  alt="The Knobs popover on the Northwind homepage frame: Accent color, Corner radius, Headline, Show customer logos, Hero layout"
+/>
 
 Use knobs for things you want to try rather than decide in code: accent
 colors, spacing, copy variants, feature toggles, layout options.
@@ -69,7 +72,14 @@ throughout these docs.
 | `boolean` | Switch       | `default` (boolean)                                |
 | `string`  | Text field   | `default` (string); `placeholder?`                 |
 | `select`  | Dropdown     | `default` (string); `options: { value, label? }[]` |
+| `tabs`    | Tabs         | `default` (string); `options: { value, label? }[]` |
 | `color`   | Color picker | `default` (string, e.g. `"#1d4ed8"`)               |
+
+Use `tabs` for two or three short options you'll flip between, like light
+and dark or grid and list. Tabs sit beside their label, so keep each option to
+one short word (about 20 characters across them all). A `tabs` knob with more
+than three options shows as a dropdown, and anything longer belongs in a
+`select`.
 
 Every knob takes an optional `label` (defaults to the `id`). It can also take
 a `validator: (value) => value`, which runs inside your app on every incoming
