@@ -127,7 +127,8 @@ When the agent drives a frame, the frame shows it:
 - An unselected frame gets a 2px ring, so you can spot it
   from across the canvas.
 - Selected, the Interact button shows the agent's dots instead of the cursor,
-  and the frame has no resize handles, so its size can't change under it.
+  and the frame's resize handles are faded and don't resize it, so its size
+  can't change under it.
 
 <Screenshot
   name="frame-claude-driving"
@@ -136,7 +137,7 @@ When the agent drives a frame, the frame shows it:
 
 <Screenshot
   name="frame-claude-driving-selected"
-  alt="The selected frame the agent drives, with the agent's dots on the Interact button and no resize handles"
+  alt="The selected frame the agent drives, with the agent's dots on the Interact button and faded resize handles"
 />
 
 The agent always gives way. Click the button (or double-click the frame) to
@@ -160,9 +161,8 @@ To look at the very same page together, click **Go live** (the broadcast
 button after **Interact** in the frame's toolbar). Going live works like
 navigating: it's the frame's, so it happens for everyone on the canvas. The
 frame's browser starts in its workspace's sandbox, on the frame's current
-page, and everyone's copy of that frame switches to it. The title line reads
-**Live**, followed by the faces of everyone on it, each in their cursor colour,
-and the faces change as people join and leave the canvas. When one of you
+page, and everyone's copy of that frame switches to it. The title line shows
+a **Live** badge with the broadcast icon. When one of you
 clicks through the page the others see it happen. Anyone who opens the canvas while the frame is live lands on it live.
 
 Until the live page's first picture arrives, a spinner takes the broadcast

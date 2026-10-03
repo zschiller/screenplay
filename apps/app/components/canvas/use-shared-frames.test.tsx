@@ -59,7 +59,6 @@ function renderShared({
         agents: AGENTS,
         iframeLayers: [{ ...FRAME, live }],
         viewerId: ME,
-        self: person(ME, "#FF8FC8").presence,
         others,
         frameControl: room.frameControl,
       }),
@@ -95,23 +94,6 @@ describe("useSharedFrames", () => {
       viewerOn: true,
     })
     expect(result.current.sharedIds.has(FRAME.id)).toBe(true)
-  })
-
-  it("shows the faces on a live frame in each person's cursor colour", () => {
-    const ana = person("ana", "#7FD4FF")
-    const { result, rerender } = renderShared({ others: [ana] })
-    expect(result.current.facesOf(FRAME.id)).toEqual([])
-    rerender({ others: [ana], live: true })
-    expect(result.current.facesOf(FRAME.id)).toEqual([
-      { kind: "person", id: ME, name: ME, color: "#FF8FC8" },
-      { kind: "person", id: "ana", name: "ana", color: "#7FD4FF" },
-    ])
-    // Ana leaves, Ben joins (twice, from two tabs: one face).
-    const ben = person("ben", "#B5F36B")
-    rerender({ others: [ben, ben], live: true })
-    expect(
-      result.current.facesOf(FRAME.id).map((f) => f.kind === "person" && f.id)
-    ).toEqual([ME, "ben"])
   })
 
   it("lands you on a frame that's live when the canvas opens", () => {
@@ -153,7 +135,6 @@ describe("useSharedFrames", () => {
     })
     const { result } = renderShared({ room })
     expect(result.current.liveOf(FRAME.id).on).toEqual([ME, AGENT_PARTY])
-    expect(result.current.facesOf(FRAME.id).at(-1)).toEqual({ kind: "agent" })
   })
 
   it("offers no live frames where frames can't go live", () => {
@@ -213,10 +194,6 @@ describe("useSharedFrames with Mockups (#1523)", () => {
       viewerOn: true,
     })
     expect(result.current.sharedIds.has(MOCKUP)).toBe(true)
-    // The Live tag's faces, as on a frame (#1519).
-    expect(
-      result.current.facesOf(MOCKUP).map((f) => f.kind === "person" && f.id)
-    ).toEqual(["ana"])
   })
 
   it("ends live straight back to your own copy", async () => {

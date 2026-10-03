@@ -56,7 +56,6 @@ import {
   useLivePage,
   type LivePageWrites,
 } from "./live-page"
-import type { LiveFace } from "./use-shared-frames"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
 import { recordsLiveRoute } from "@/lib/canvas/frame-control"
@@ -158,8 +157,6 @@ interface IframeLayerProps {
   /** Someone turned the frame live, for everyone: the title line says Live
    *  (#1516). */
   live?: boolean
-  /** The faces on the live frame, for the Live tag (#1519). */
-  liveFaces?: readonly LiveFace[]
   /** Who drives the live copy, for the title-line tag and the resize handles
    *  of a viewer on their own copy. */
   liveDriver?: FrameDriverView
@@ -374,7 +371,6 @@ export function IframeLayer({
   onControlActivity,
   sharedStream,
   live = false,
-  liveFaces,
   liveDriver = NOBODY_DRIVES,
   onToggleLive,
   liveStarting = false,
@@ -727,7 +723,6 @@ export function IframeLayer({
     focused,
     live,
     liveDriver,
-    liveFaces,
     onLiveCopy: shared,
   })
 

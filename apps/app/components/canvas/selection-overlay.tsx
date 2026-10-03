@@ -60,6 +60,12 @@ interface SelectionOverlayProps {
    */
   drivenFrames?: ReadonlyArray<{ id: string; color: string }>
   hideResizeHandles?: boolean
+  /**
+   * The selected frame or Mockup is one someone else has control of: its
+   * handles stay, so the selection still reads, with their outline faded to
+   * say they don't resize (the Layer drops its resize hit zones).
+   */
+  fadeResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
   /**
    * Sky-blue outline for the element a hovered composer / message element token
@@ -122,6 +128,7 @@ export function SelectionOverlay({
   othersSelections,
   drivenFrames,
   hideResizeHandles,
+  fadeResizeHandles = false,
   inspectRect,
   highlightRect,
   gapHandles,
@@ -356,12 +363,16 @@ export function SelectionOverlay({
           ctx.fillRect(hx - hh, hy - hh, hs, hs)
           ctx.strokeStyle = selectionColor
           ctx.lineWidth = 1
+          // Faded, not hidden: the fill stays solid so the ring doesn't show
+          // through, and only the outline drops to 40%.
+          ctx.globalAlpha = fadeResizeHandles ? 0.4 : 1
           ctx.strokeRect(
             hx - hh + HALF,
             hy - hh + HALF,
             hs - 2 * HALF,
             hs - 2 * HALF
           )
+          ctx.globalAlpha = 1
         }
       }
     }
@@ -649,6 +660,7 @@ export function SelectionOverlay({
     othersSelections,
     drivenFrames,
     hideResizeHandles,
+    fadeResizeHandles,
     inspectRect,
     highlightRect,
     gapHandles,
