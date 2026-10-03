@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -18,6 +19,7 @@ import {
   workspaceMenuLead,
 } from "./branch-overflow-menu"
 import type { BranchPrInfo } from "@/lib/github-actions"
+import { creatingPrStore } from "@/lib/creating-pr-store"
 
 // `isLocalBuild` is a compile-time constant, but the build-specific item
 // ("Restart sandbox" hidden on local) is read at render through this live
@@ -348,6 +350,27 @@ describe("Create pull request", () => {
   it("is disabled with nothing to propose", () => {
     renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: false })
     expect(createPrDisabled()).toBe(true)
+  })
+
+  it("shows a create already running, disabled", async () => {
+    let settle!: () => void
+    const run = creatingPrStore.run(
+      "b1",
+      () => new Promise<void>((r) => (settle = r))
+    )
+    renderMenu(
+      { id: "b1", sandboxName: "sb-1", ref: "feature/foo" },
+      { isBusy: false, hasChanges: true }
+    )
+    const item = screen
+      .getByText("Creating pull request…")
+      .closest('[role="menuitem"]')
+    expect(item?.getAttribute("aria-disabled")).toBe("true")
+    await act(async () => {
+      settle()
+      await run
+    })
+    expect(createPrDisabled()).toBe(false)
   })
 
   it("is hidden when the repo can't open a PR, but an open PR still links", () => {

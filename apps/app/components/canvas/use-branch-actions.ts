@@ -25,6 +25,7 @@ import {
   markedDoneMessage,
 } from "@/lib/canvas/done-workspaces"
 import { createPullRequestAction } from "@/lib/create-pr-action"
+import { creatingPrStore } from "@/lib/creating-pr-store"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import { isLocalBuild } from "@/lib/local-mode"
 import { openExternal } from "@/lib/open-external"
@@ -48,9 +49,7 @@ import type { ChatTarget } from "@/components/canvas/use-chat-target"
  *
  * Each verb routes through {@link routeBranchAction} and applies the result:
  *
- *  - `action` (Create PR) → the deterministic `createPullRequestAction`, the
- *    success / error toast, and the immediate PR source-of-truth write so the
- *    sidebar icon, branch menu, and chat button reflect the open PR now.
+ *  - `action` (Create pull request) → {@link createPullRequest}.
  *  - `recovery` (restart dev server / restart sandbox / recreate) → the matching
  *    `lib/branch/recovery` runner over the injected seams.
  *
@@ -59,6 +58,45 @@ import type { ChatTarget } from "@/components/canvas/use-chat-target"
  * canvas-navigation handlers (play, add-frame, show-routes) are a different
  * concern and are deliberately not part of this controller.
  */
+/**
+ * Create pull request, from the Workspace menu or the chat header's button:
+ * the deterministic server action, then the success or error toast. Writes the
+ * PR source of truth immediately (`onCreated`) so the sidebar icon, branch
+ * menu, and chat button reflect the open PR now, not on the next poll. While
+ * it runs the Workspace is in {@link creatingPrStore}, which shows the
+ * progress in both places and makes a second click a no-op.
+ */
+export function createPullRequest({
+  roomId,
+  branchId,
+  sandboxName,
+  onCreated,
+}: {
+  roomId: string
+  branchId: string
+  sandboxName: string
+  onCreated?: (branchId: string, pr: BranchPrInfo) => void
+}): Promise<void> {
+  return creatingPrStore.run(branchId, async () => {
+    const result = await createPullRequestAction(roomId, sandboxName)
+    if (result.success) {
+      const { url, number } = result.value
+      onCreated?.(branchId, { number, url, state: "open" })
+      toast.success("Pull request created", {
+        description: `#${number}`,
+        action: {
+          label: "View on GitHub",
+          onClick: () => openExternal(url),
+        },
+      })
+    } else {
+      toast.error("Couldn't create pull request", {
+        description: result.error,
+      })
+    }
+  })
+}
+
 export interface BranchActionsDeps {
   agents: BranchData[]
   repos: RepoData[]
@@ -195,26 +233,16 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
   )
 
   // action route → the deterministic Create-PR server action (#355), no model
-  // turn. Writes the PR source of truth immediately so the sidebar icon, branch
-  // menu, and chat button reflect the open PR now — not on the next poll.
+  // turn.
   const applyCreatePr = useCallback(
-    async (agent: BranchData) => {
-      const result = await createPullRequestAction(roomId, agent.sandboxName)
-      if (result.success) {
-        const { url, number } = result.value
-        setBranchPr(agent.id, { number, url, state: "open" })
-        toast.success("Pull request created", {
-          description: `#${number}`,
-          action: {
-            label: "View on GitHub",
-            onClick: () => openExternal(url),
-          },
-        })
-      } else {
-        toast.error("Couldn't create pull request", {
-          description: result.error,
-        })
-      }
+    (agent: BranchData) => {
+      if (!agent.sandboxName) return
+      return createPullRequest({
+        roomId,
+        branchId: agent.id,
+        sandboxName: agent.sandboxName,
+        onCreated: setBranchPr,
+      })
     },
     [roomId, setBranchPr]
   )

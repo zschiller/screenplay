@@ -5,20 +5,20 @@ import type { FileStore } from "./store"
 
 /**
  * The env var holding the private Vercel Blob store's token. A second store,
- * apart from the public one thumbnails use (`BLOB_READ_WRITE_TOKEN`): a
+ * apart from the public one thumbnails use (`PUBLIC_BLOB_READ_WRITE_TOKEN`): a
  * store's access is fixed when it's created, and the public one can't be
  * made private.
  */
-export const FILES_BLOB_TOKEN_ENV_VAR = "FILES_BLOB_READ_WRITE_TOKEN"
+export const PRIVATE_BLOB_TOKEN_ENV_VAR = "PRIVATE_BLOB_READ_WRITE_TOKEN"
 
 /** A {@link FileStore} on a private Vercel Blob store. */
 export function vercelFileStore(
-  token: string | undefined = process.env[FILES_BLOB_TOKEN_ENV_VAR]
+  token: string | undefined = process.env[PRIVATE_BLOB_TOKEN_ENV_VAR]
 ): FileStore {
   const auth = () => {
     if (!token) {
       throw new Error(
-        `Files aren't set up on this server: ${FILES_BLOB_TOKEN_ENV_VAR} isn't set.`
+        `Files aren't set up on this server: ${PRIVATE_BLOB_TOKEN_ENV_VAR} isn't set.`
       )
     }
     return token

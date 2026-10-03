@@ -14,7 +14,9 @@ import type { SavedSkills, SkillFile } from "./saved"
  *
  * The context folder rides ACP `additionalDirectories`, and each harness
  * looks for Skills in its own subfolder of it: Claude Code reads
- * `.claude/skills/`, Codex `.agents/skills/` (research #1528). So the same
+ * `.claude/skills/`, Codex `.agents/skills/` (research #1528), and OpenCode
+ * the same `.agents/skills/` through its config's `skills.paths` (#1589,
+ * `opencodeDirectoriesEnv`). So the same
  * Skills are written as two sections. Both hold one merged set: a canvas
  * Skill wins over an account Skill of the same name, and a name the
  * repository's own Skills already use is left out, the harness reading

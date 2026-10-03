@@ -63,9 +63,10 @@ The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url
 (`lib/thumbnail/`) only ever see the abstract interface and need no
 changes when the backend swaps.
 
-The default backend reads its credentials from `BLOB_READ_WRITE_TOKEN` — on
-Vercel, connect a Blob store to your project and the token is injected
-automatically; locally, run `vercel env pull .env.local` after connecting the
+The default backend reads its credentials from
+`PUBLIC_BLOB_READ_WRITE_TOKEN` — on Vercel, connect a public Blob store to
+your project with the env var prefix `PUBLIC_BLOB` and the token is
+injected automatically; locally, run `vercel env pull .env.local` after connecting the
 store. A different backend reads whatever env vars you wire into its factory.
 
 ## File store
@@ -78,13 +79,13 @@ the same `BLOB_STORE` value:
 
 | `BLOB_STORE`     | File store                                                         |
 | ---------------- | ------------------------------------------------------------------ |
-| unset / `vercel` | A private Vercel Blob store, `FILES_BLOB_READ_WRITE_TOKEN`         |
+| unset / `vercel` | A private Vercel Blob store, `PRIVATE_BLOB_READ_WRITE_TOKEN`         |
 | `local-fs`       | A local directory, `LOCAL_FILES_DIR`, that nothing serves directly |
 
 A Vercel Blob store's access is set when it's created, and the thumbnails store
 is public, so files need a second store. In the Vercel dashboard, create a Blob
 store with **private** access and connect it to the project with the env var
-prefix `FILES_BLOB`; `FILES_BLOB_READ_WRITE_TOKEN` is then injected. Without it,
+prefix `PRIVATE_BLOB`; `PRIVATE_BLOB_READ_WRITE_TOKEN` is then injected. Without it,
 agents can't save or open files, and say so when asked to.
 
 Files people attach to chat messages land in the same store. On a Vercel Blob

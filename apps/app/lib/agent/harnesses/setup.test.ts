@@ -108,6 +108,7 @@ describe("rows (the live read + the dedupe rule)", () => {
     expect(opencodeRows).toHaveLength(1)
     expect(opencodeRows[0]).toMatchObject({
       key: "opencode-gateway",
+      label: "OpenCode",
       hostBinary: "opencode",
       installed: true,
       authenticated: true,
@@ -504,5 +505,48 @@ describe("readiness", () => {
       expect(args[0]).not.toBe("--version")
       expect(cmd).not.toBe("sh")
     }
+  })
+})
+
+describe("choosing models (#1589)", () => {
+  const listing =
+    'opencode/big-pickle\n{\n  "id": "big-pickle",\n  "providerID": "opencode",\n  "name": "Big Pickle"\n}\n'
+
+  it("offers Choose models only on an installed CLI that lists its models", async () => {
+    const rows = await setup({ present: ["claude", "opencode"] }).rows()
+    const by = (bin: string) => rows.find((r) => r.hostBinary === bin)!
+    expect(by("opencode").choosesModels).toBe(true)
+    expect(by("claude").choosesModels).toBe(false)
+    expect(by("codex").choosesModels).toBe(false)
+    const absent = await setup({ present: [] }).rows()
+    expect(absent.find((r) => r.hostBinary === "opencode")!.choosesModels).toBe(
+      false
+    )
+  })
+
+  it("lists the models live through the CLI", async () => {
+    const run = vi.fn<HarnessProcessRunner>(async () => ({
+      exitCode: 0,
+      stdout: listing,
+    }))
+    expect(await setup({ run }).modelChoices("opencode-gateway")).toEqual([
+      { id: "opencode/big-pickle", label: "Big Pickle", group: "OpenCode Zen" },
+    ])
+    expect(run).toHaveBeenCalledWith("opencode", ["models", "--verbose"])
+  })
+
+  it("is null when the CLI fails, can't spawn, or the harness lists nothing", async () => {
+    const failing = setup({
+      run: async () => ({ exitCode: 1, stdout: listing }),
+    })
+    expect(await failing.modelChoices("opencode-gateway")).toBeNull()
+    const missing = setup({
+      run: async () => {
+        throw new Error("ENOENT")
+      },
+    })
+    expect(await missing.modelChoices("opencode-gateway")).toBeNull()
+    expect(await setup().modelChoices("claude-code")).toBeNull()
+    expect(await setup().modelChoices("nope")).toBeNull()
   })
 })

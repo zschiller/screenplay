@@ -3,9 +3,10 @@ import type { AgentMessage } from "@/lib/agent/types"
 /**
  * A tool call's own name, without the namespace a desktop harness adds when
  * it reaches our tools over MCP (#903): Claude Code reports
- * `mcp__screenplay__read_canvas` and Codex `mcp.screenplay.read_canvas`
- * (`Tool: screenplay/read_canvas` before codex-acp 2), where the in-process
- * engine reports `read_canvas`. Any other title comes back as is.
+ * `mcp__screenplay__read_canvas`, Codex `mcp.screenplay.read_canvas`
+ * (`Tool: screenplay/read_canvas` before codex-acp 2) and OpenCode
+ * `screenplay_read_canvas` (its `<server>_<tool>`, #1589), where the
+ * in-process engine reports `read_canvas`. Any other title comes back as is.
  */
 export function bareToolName(title: string): string {
   const claude = title.match(/^mcp__[^_]+(?:_[^_]+)*__([a-z][a-z0-9_]*)$/)
@@ -14,6 +15,8 @@ export function bareToolName(title: string): string {
     title.match(/^mcp\.[^.\s]+\.([a-z][a-z0-9_]*)$/) ??
     title.match(/^Tool: [^/\s]+\/([a-z][a-z0-9_]*)$/)
   if (codex) return codex[1]!
+  const opencode = title.match(/^screenplay_([a-z][a-z0-9_]*)$/)
+  if (opencode) return opencode[1]!
   return title
 }
 
@@ -67,7 +70,8 @@ export function namingWithin(
 /**
  * The naming for a harness that reaches our tools as the MCP server `server`.
  * Claude Code's names are fixed (`mcp__<server>__<tool>`, the form
- * {@link bareToolName} strips), so its prompt names them exactly. Other
+ * {@link bareToolName} strips), and so are OpenCode's (`<server>_<tool>`),
+ * so their prompts name them exactly. Other
  * harnesses namespace MCP tools in ways that vary by version (Codex's
  * `screenplay/<tool>` titles aren't what its model calls), so their prompt
  * keeps the bare names and says where they come from.
@@ -78,6 +82,10 @@ export function harnessToolNaming(
 ): ToolNaming {
   if (harnessKey === "claude-code") {
     return { name: (tool) => `mcp__${server}__${tool}`, harness: true }
+  }
+  // OpenCode names an MCP tool `<server>_<tool>` (#1589).
+  if (harnessKey === "opencode-gateway" || harnessKey === "opencode-compat") {
+    return { name: (tool) => `${server}_${tool}`, harness: true }
   }
   return {
     name: (tool) => tool,

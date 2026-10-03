@@ -1,16 +1,37 @@
 import { useMDXComponents as getThemeComponents } from "nextra-theme-docs"
 import { LinkArrowIcon } from "nextra/icons"
 import type { MDXComponents } from "nextra/mdx-components"
-import { Children, isValidElement, type ReactNode } from "react"
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react"
 import { Callout } from "./components/callout"
 import {
   ArchitectureDiagram,
   ConceptsDiagram,
 } from "./components/diagram/diagrams"
+import { Only } from "./components/only"
 import { Screenshot } from "./components/screenshot"
 
 const themeComponents = getThemeComponents()
 const ThemeLink = themeComponents.a!
+const ThemeTr = themeComponents.tr ?? "tr"
+
+/** An environment variable's name, the only thing in a row's first cell. */
+const ENV_VAR = /^[A-Z][A-Z0-9_]*$/
+
+/** The variable a table row documents, when its first cell is just `NAME`. */
+function rowVariable(children: ReactNode): string | null {
+  const first = Children.toArray(children).find(isValidElement)
+  if (!isValidElement<{ children?: ReactNode }>(first)) return null
+  const cell = Children.toArray(first.props.children)
+  if (cell.length !== 1 || !isValidElement(cell[0])) return null
+  const name = text(cell[0])
+  return ENV_VAR.test(name) ? name : null
+}
 
 /** A table's header labels joined with "|", so CSS can size same-shape tables alike. */
 function headerLabels(children: ReactNode): string {
@@ -39,6 +60,7 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
     ArchitectureDiagram,
     Callout,
     ConceptsDiagram,
+    Only,
     Screenshot,
     // A full-width table in a scroll container, like the stock shadcn Table.
     // Nextra's own makes the table itself the scroller, so it can't fill the column.
@@ -50,6 +72,28 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
         <table {...props} />
       </div>
     ),
+    // A row documenting one environment variable is linkable by its name,
+    // with a # on hover like a heading's.
+    tr: ({ children, ...props }) => {
+      const name = rowVariable(children)
+      if (!name) return <ThemeTr {...props}>{children}</ThemeTr>
+      const [first, ...rest] = Children.toArray(children).filter(isValidElement)
+      const cell = first as ReactElement<{ children?: ReactNode }>
+      return (
+        <ThemeTr id={name} className="sp-anchored-row" {...props}>
+          {cloneElement(cell, undefined, [
+            ...Children.toArray(cell.props.children),
+            <a
+              key="anchor"
+              href={`#${name}`}
+              className="x:focus-visible:nextra-focus subheading-anchor"
+              aria-label={`Permalink for ${name}`}
+            />,
+          ])}
+          {rest}
+        </ThemeTr>
+      )
+    },
     // External links keep Nextra's arrow, but without the underlined
     // non-breaking space before it, and glued to the last word so it never
     // wraps onto a line of its own.

@@ -54,14 +54,39 @@ describe("resolveAcpLaunch", () => {
     expect(resolveAcpLaunch("gemini", { cwd: "/w", env: {} })).toBeNull()
   })
 
-  it("falls through to null for a terminal-only harness (no acpAdapter on its descriptor)", () => {
-    // Both opencode slots are terminal-only — their descriptors carry no adapter.
-    expect(
-      resolveAcpLaunch("opencode-gateway", { cwd: "/w", env: {} })
-    ).toBeNull()
-    expect(
-      resolveAcpLaunch("opencode-compat", { cwd: "/w", env: {} })
-    ).toBeNull()
+  it("resolves both opencode slots to the CLI's own `opencode acp` adapter (#1589)", () => {
+    for (const key of ["opencode-gateway", "opencode-compat"]) {
+      expect(resolveAcpLaunch(key, { cwd: "/w", env: {} })).toMatchObject({
+        command: "opencode",
+        args: ["acp"],
+        modelOption: "model",
+        promptQueueing: false,
+        planAsReply: true,
+        cwd: "/w",
+      })
+    }
+  })
+
+  it("lets opencode read the additional directories through its config env (#1589)", () => {
+    const launch = resolveAcpLaunch("opencode-gateway", {
+      cwd: "/w",
+      env: { PATH: "/bin" },
+      additionalDirectories: ["/ctx"],
+    })!
+    expect(launch.env.PATH).toBe("/bin")
+    expect(JSON.parse(launch.env.OPENCODE_CONFIG_CONTENT!)).toEqual({
+      permission: { external_directory: { "/ctx/*": "allow" } },
+      skills: { paths: ["/ctx/.agents/skills"] },
+    })
+  })
+
+  it("adds no config env for an adapter that takes ACP additionalDirectories", () => {
+    const launch = resolveAcpLaunch("codex", {
+      cwd: "/w",
+      env: {},
+      additionalDirectories: ["/ctx"],
+    })!
+    expect(launch.env).toEqual({})
   })
 
   it("falls through to null for an empty / nullish key", () => {

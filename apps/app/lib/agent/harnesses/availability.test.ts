@@ -13,6 +13,7 @@ import {
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
 import { createHarnessModelCatalog } from "@/lib/agent/harnesses/model-catalog"
 import type { Harness } from "@/lib/agent/harnesses/types"
+import { claudeCodeHarness } from "@/lib/agent/harnesses/claude-code"
 import { groupModelsByProvider } from "@/lib/model-selection"
 
 /**
@@ -91,16 +92,17 @@ describe("createDesktopResolver (Harness Availability — desktop fold)", () => 
     ])
   })
 
-  it("lists both opencode slots when their shared hostBinary is present, probing it once", async () => {
+  it("lists opencode once, as OpenCode, when its shared hostBinary is present, probing it once", async () => {
     const probe = fakeProbe(["opencode"])
     const resolver = createDesktopResolver({ probe })
 
     const available = await resolver.list()
 
-    expect(available.map(({ harness }) => harness.key)).toEqual([
-      "opencode-gateway",
-      "opencode-compat",
-    ])
+    // The two hosted slots mean nothing on desktop, where the CLI rides its
+    // own login: one entry, the first slot, under its desktop name (#1589).
+    expect(
+      available.map(({ harness }) => [harness.key, harness.label])
+    ).toEqual([["opencode-gateway", "OpenCode"]])
     // The two slots share one binary, so it's probed once — not per slot.
     expect(probedBinaries(probe).filter((b) => b === "opencode")).toHaveLength(
       1
@@ -141,20 +143,33 @@ describe("createDesktopResolver (Harness Availability — desktop fold)", () => 
 })
 
 describe("filterByCapability", () => {
-  it("chat keeps only harnesses with an ACP adapter; terminal keeps all", async () => {
-    // Everything installed, so the only filter in play is the capability one.
-    const resolver = createDesktopResolver({
-      probe: fakeProbe(["claude", "codex", "opencode"]),
-    })
-    const available = await resolver.list()
+  it("chat keeps only harnesses with an ACP adapter; terminal keeps all", () => {
+    const terminalOnly = {
+      harness: { ...claudeCodeHarness, key: "shell-only", acpAdapter: null },
+      status: { installed: true, authenticated: null },
+    }
+    const chat = {
+      harness: claudeCodeHarness,
+      status: { installed: true, authenticated: null },
+    }
+    const available = [chat, terminalOnly]
 
     expect(
       filterByCapability(available, "terminal").map((a) => a.harness.key)
-    ).toEqual(["claude-code", "codex", "opencode-gateway", "opencode-compat"])
-    // The opencode slots are terminal-only (no acpAdapter) → dropped for chat.
+    ).toEqual(["claude-code", "shell-only"])
     expect(
       filterByCapability(available, "chat").map((a) => a.harness.key)
-    ).toEqual(["claude-code", "codex"])
+    ).toEqual(["claude-code"])
+  })
+
+  it("keeps every installed desktop CLI for chat, OpenCode included (#1589)", async () => {
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["claude", "codex", "opencode"]),
+    }).list()
+
+    expect(
+      filterByCapability(available, "chat").map((a) => a.harness.key)
+    ).toEqual(["claude-code", "codex", "opencode-gateway"])
   })
 
   it("preserves order and is a no-op for terminal on an empty list", () => {
@@ -240,19 +255,27 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
     ])
   })
 
-  it("drops terminal-only harnesses (no ACP adapter can't back chat)", async () => {
-    // The opencode slots are detected (their shared host binary is present) but
-    // carry no acpAdapter, so they list in the terminal picker yet never as a
-    // chat model.
+  it("lists OpenCode as one chat entry that runs its own default model (#1589)", async () => {
     const available = await createDesktopResolver({
       probe: fakeProbe(["claude", "opencode"]),
     }).list()
 
-    // Only claude-code heads a group; the opencode slots never appear as chat
-    // models even though the terminal picker would list them.
-    expect(
-      groupModelsByProvider(await harnessModels(available)).map((g) => g.key)
-    ).toEqual(["claude-code"])
+    const models = await harnessModels(available)
+    expect(groupModelsByProvider(models).map((g) => g.key)).toEqual([
+      "claude-code",
+      "opencode-gateway",
+    ])
+    // opencode's models are whatever providers the user signed in to, so
+    // there's no curated list: the bare entry rides opencode's own default.
+    expect(models.filter((m) => m.provider.key === "opencode-gateway")).toEqual(
+      [
+        {
+          id: "harness:opencode-gateway",
+          label: "OpenCode",
+          provider: { key: "opencode-gateway", label: "OpenCode" },
+        },
+      ]
+    )
   })
 
   it("emits no models when the seam detects nothing — never a hardcoded fallback agent", async () => {

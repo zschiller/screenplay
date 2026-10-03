@@ -5,7 +5,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
   useSyncExternalStore,
 } from "react"
 import {
@@ -16,11 +15,17 @@ import {
   GitPullRequestIcon,
   PlusIcon,
 } from "@workspace/ui/components/icons"
-import { toast } from "sonner"
-import { createPullRequestAction } from "@/lib/create-pr-action"
-import { openExternal } from "@/lib/open-external"
+import { createPullRequest } from "@/components/canvas/use-branch-actions"
+import { useIsCreatingPr } from "@/lib/creating-pr-store"
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
+import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import {
   Empty,
   EmptyContent,
@@ -364,38 +369,30 @@ function WorkspaceChatPanel({
     [chatSessions]
   )
   const anyChatStreaming = useAnyChatStreaming(allChatIds)
-  const [creatingPr, setCreatingPr] = useState(false)
+  const creatingPr = useIsCreatingPr(agent.id)
   const canCreatePr = useCanCreatePr(agent.repoId)
   const hasChanges =
     !!diffStats && (diffStats.additions > 0 || diffStats.deletions > 0)
 
-  // Calls the direct PR-creation server action (#355) — same path as the Branch
-  // menu's "Create pull request" item, no model turn. The created PR (or a
-  // redacted error) surfaces in a toast.
-  const handleCreatePr = async () => {
-    if (!agent.sandboxName || creatingPr) return
-    setCreatingPr(true)
-    try {
-      const result = await createPullRequestAction(roomId, agent.sandboxName)
-      if (result.success) {
-        const { url, number } = result.value
-        onPrCreated?.(agent.id, { number, url, state: "open" })
-        toast.success("Pull request created", {
-          description: `#${number}`,
-          action: {
-            label: "View on GitHub",
-            onClick: () => openExternal(url),
-          },
-        })
-      } else {
-        toast.error("Couldn't create pull request", {
-          description: result.error,
-        })
-      }
-    } finally {
-      setCreatingPr(false)
-    }
+  // The same create as the Workspace menu's "Create pull request" item (#355),
+  // no model turn; either one shows it running.
+  const handleCreatePr = () => {
+    if (!agent.sandboxName) return
+    void createPullRequest({
+      roomId,
+      branchId: agent.id,
+      sandboxName: agent.sandboxName,
+      onCreated: onPrCreated,
+    })
   }
+  // Why Create PR is disabled, shown in its tooltip.
+  const createPrBlocker = isAgentBusy
+    ? "The workspace is still starting…"
+    : anyChatStreaming
+      ? "The agent is still working."
+      : !hasChanges
+        ? "No changes to propose yet."
+        : undefined
 
   // First chat for this Workspace — drives auto branch/chat naming.
   const isFirstChat = (chat: ChatSessionData) =>
@@ -446,43 +443,43 @@ function WorkspaceChatPanel({
             </span>
           )}
           {displayPr ? (
-            <Button size="xs" variant="outline" asChild>
-              <a
-                href={displayPr.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={prBlocked ? "Merge blocked" : undefined}
-                className={cn("group", prColor)}
-              >
-                <PrStateIcon />#{displayPr.number}
-                <ArrowUpRightIcon className="opacity-60 group-hover:opacity-100" />
-              </a>
-            </Button>
+            <HintTooltip hint={prBlocked ? "Merge blocked" : undefined}>
+              <Button size="xs" variant="outline" asChild>
+                <a
+                  href={displayPr.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn("group", prColor)}
+                >
+                  <PrStateIcon />#{displayPr.number}
+                  <ArrowUpRightIcon className="opacity-60 group-hover:opacity-100" />
+                </a>
+              </Button>
+            </HintTooltip>
           ) : canCreatePr ? (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={handleCreatePr}
-              disabled={
-                !agent.sandboxName ||
-                isAgentBusy ||
-                anyChatStreaming ||
-                creatingPr ||
-                !hasChanges
-              }
-              title={
-                isAgentBusy
-                  ? "The workspace is still starting…"
-                  : anyChatStreaming
-                    ? "The agent is still working."
-                    : !hasChanges
-                      ? "No changes to propose yet."
-                      : undefined
-              }
-            >
-              <GitPullRequestIcon />
-              Create pull request
-            </Button>
+            // A disabled button fires no pointer events, so its reason hangs
+            // off a wrapping span.
+            <HintTooltip hint={creatingPr ? undefined : createPrBlocker}>
+              <span className="flex">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={handleCreatePr}
+                  disabled={
+                    !agent.sandboxName || creatingPr || !!createPrBlocker
+                  }
+                >
+                  {/* The spinner takes the icon's place and the label
+                      stays, so the header's title doesn't lose room. */}
+                  {creatingPr ? (
+                    <Spinner className="size-3" />
+                  ) : (
+                    <GitPullRequestIcon />
+                  )}
+                  Create PR
+                </Button>
+              </span>
+            </HintTooltip>
           ) : null}
         </div>
       </ChatPanelHeader>
@@ -528,5 +525,25 @@ function WorkspaceChatPanel({
         {shownEarlierChat && renderChat(shownEarlierChat, true)}
       </TerminalPane>
     </div>
+  )
+}
+
+/** The stock tooltip around a header control, empty while there's nothing to
+ *  say. The tree stays the same either way, so the control keeps its focus as
+ *  the hint comes and goes. */
+function HintTooltip({
+  hint,
+  children,
+}: {
+  hint: string | undefined
+  children: React.ReactElement
+}) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        {hint && <TooltipContent>{hint}</TooltipContent>}
+      </Tooltip>
+    </TooltipProvider>
   )
 }

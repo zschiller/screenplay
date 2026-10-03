@@ -11,6 +11,7 @@ import {
   type HarnessSetupRow,
   type HarnessSetupRun,
 } from "./setup"
+import type { HarnessModelChoice } from "./types"
 
 /**
  * Server actions backing the desktop "Coding agents" setup surface (ADR 0015) and
@@ -67,6 +68,18 @@ export async function resolveHarnessSetupRun(
 export async function noteHarnessConnected(): Promise<HarnessSetupRow[]> {
   if (!isLocalBuild) return []
   return (await setupFor()).markConnected()
+}
+
+/**
+ * Every model harness `key` can run, listed live by its CLI, for the Settings
+ * row's Choose models (#1589). `null` when it can't be listed, and off the
+ * desktop build.
+ */
+export async function listHarnessModelChoices(
+  key: string
+): Promise<HarnessModelChoice[] | null> {
+  if (!isLocalBuild) return null
+  return (await setupFor()).modelChoices(key)
 }
 
 /**
