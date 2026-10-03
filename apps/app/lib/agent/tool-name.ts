@@ -32,6 +32,12 @@ export interface ToolNaming {
    * it says which MCP server the named tools come from.
    */
   note?: string
+  /**
+   * Set for a desktop harness, which reaches only the Screenplay tools our MCP
+   * server serves and edits files and runs commands with its own tools (#1480).
+   * A prompt names none of the in-process engine's file, shell and plan tools.
+   */
+  harness?: boolean
 }
 
 /** The in-process engine's naming: every tool by its bare name. */
@@ -50,10 +56,11 @@ export function harnessToolNaming(
   server: string
 ): ToolNaming {
   if (harnessKey === "claude-code") {
-    return { name: (tool) => `mcp__${server}__${tool}` }
+    return { name: (tool) => `mcp__${server}__${tool}`, harness: true }
   }
   return {
     name: (tool) => tool,
+    harness: true,
     note: `Screenplay's own tools named in these instructions come from the MCP server \`${server}\`, so they may be listed under that server's namespace rather than by the bare names below.`,
   }
 }

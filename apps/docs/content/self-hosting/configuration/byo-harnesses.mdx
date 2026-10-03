@@ -68,6 +68,12 @@ canvas's Coordinator runs in its own folder under
 not in a repository. The Claude and Codex CLIs can back it; opencode can't
 back any chat yet.
 
+A workspace chat on a CLI edits files and runs commands with the CLI's own
+tools. It reaches Screenplay's tools through the same server: the dev server,
+frames, documents, mockups, skills and opening a pull request. Their output
+has the workspace's environment variable values removed, as in the built-in
+agent.
+
 ## Adding a CLI
 
 A harness descriptor declares its catalog key and label, the command to

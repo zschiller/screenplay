@@ -71,14 +71,33 @@ export function renderCanvasMemory(
 
 /**
  * The Workspace agent's instructions before its skill index. `t` names the
- * dev server and Document tools, which a harness reaches over our MCP server
- * (#1223, #1314); every other tool it names is the in-process engine's own.
+ * Screenplay tools a harness reaches over our MCP server (#1223, #1314). A
+ * harness edits files and runs commands with its own tools, so its
+ * instructions name none of the in-process engine's (#1480).
  */
-const agentSystemPromptBase = (
-  t: ToolNaming["name"]
-) => `You are a skilled UI developer working inside a live development sandbox. You can read, write, and edit files, and run shell commands in the project.
+const agentSystemPromptBase = (naming: ToolNaming) => {
+  const t = naming.name
+  return `You are a skilled UI developer working inside a live development sandbox. You can read, write, and edit files, and run shell commands in the project.${naming.note ? `\n\n${naming.note}` : ""}
 
-When the user asks you to make changes:
+${naming.harness ? harnessWorkflowPrompt(t) : inProcessWorkflowPrompt(t)}
+
+Following \`${MENTION_MARKER_TOKEN}\` mentions:
+The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`${t("read_document")}(id)\` to fetch the contents. Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the message, pairing each id with its title. These reads are live — they always return the current state, not a snapshot.
+
+What "this" means:
+${canvasViewPrompt}
+
+Writing Documents:
+When the user asks for a plan, notes, a spec or any other write-up, put it in a Document on the canvas rather than a file in the project: call \`${t("create_document")}\` with a title and the body as markdown. The Document is yours and shows your name. You can edit only the Documents you made (marked "(yours)" in the layer directory): rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Anyone's Document can be read with \`${t("read_document")}\`; ask its owner, or the user, to change one that isn't yours. In a body, separate paragraphs with a blank line and don't repeat the title as a \`#\` heading.`
+}
+
+/**
+ * How the in-process engine works a change: plan with `submit_plan`, edit with
+ * its file tools and commit, push and open a PR with its own tools.
+ */
+const inProcessWorkflowPrompt = (
+  t: ToolNaming["name"]
+) => `When the user asks you to make changes:
 1. First read relevant files to understand the current code
 2. If the user's message starts with ${PLAN_MODE_MARKER}, you MUST call submit_plan with a markdown plan before making ANY file changes. The plan should describe:
    - What files you will change and why
@@ -108,16 +127,29 @@ Reading, searching, and editing files:
 - Use grep to search file contents (returns file:line: text) and glob to find files by name (e.g. \`**/*.tsx\`) instead of shelling out with run_command.
 
 Opening a pull request:
-When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
+When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.`
 
-Following \`${MENTION_MARKER_TOKEN}\` mentions:
-The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`${t("read_document")}(id)\` to fetch the contents. Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the message, pairing each id with its title. These reads are live — they always return the current state, not a snapshot.
+/**
+ * How a harness works a change, with its own file and shell tools. Plan mode
+ * is the harness's own (the turn's ACP mode), so there is no `submit_plan`.
+ * `create_pr` is ours, served over MCP.
+ */
+const harnessWorkflowPrompt = (
+  t: ToolNaming["name"]
+) => `When the user asks you to make changes:
+1. First read relevant files to understand the current code
+2. Make precise, targeted edits
+3. If needed, run commands to install dependencies, and call ${t("restart_dev_server")} when a change needs the dev server restarted
 
-What "this" means:
-${canvasViewPrompt}
+CRITICAL — YOU MUST ALWAYS GIT COMMIT AND PUSH:
+After ANY file change, you MUST run all three of these commands before responding to the user. Never skip this step. Never forget. This is the most important rule.
+   1. git add -A
+   2. git commit -m "<concise description of changes>"
+   3. git push
+If you do not push, the user will not see your changes. Always push.
 
-Writing Documents:
-When the user asks for a plan, notes, a spec or any other write-up, put it in a Document on the canvas rather than a file in the project: call \`${t("create_document")}\` with a title and the body as markdown. The Document is yours and shows your name. You can edit only the Documents you made (marked "(yours)" in the layer directory): rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Anyone's Document can be read with \`${t("read_document")}\`; ask its owner, or the user, to change one that isn't yours. In a body, separate paragraphs with a blank line and don't repeat the title as a \`#\` heading.`
+Opening a pull request:
+When the user asks to open, create, or submit a pull request (PR), call ${t("create_pr")}. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not run "gh pr create" — always use ${t("create_pr")}.`
 
 /**
  * How a chat reads the `Canvas view:` footer a member's message carries: their
@@ -126,9 +158,13 @@ When the user asks for a plan, notes, a spec or any other write-up, put it in a 
  */
 const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer listing, with ids, what its sender had selected on the canvas and what was on their screen when they sent it. The user doesn't see it. When they say "this", "that", "these" or "here" without naming it, they mean their selection first, then what was on their screen, the first listed taking the most of it. Several people can share a chat and each sees their own canvas, so read the footer of the message you're answering, which names its sender; an earlier message's footer is what its sender saw back then. It is a snapshot from when they sent it. When neither the selection nor the screen settles what they mean, ask.`
 
-const agentSystemPromptTail = (t: ToolNaming["name"]) => `
+const agentSystemPromptTail = (naming: ToolNaming) => {
+  const t = naming.name
+  // A harness runs commands with its own shell tool, not run_command.
+  const shell = naming.harness ? "your shell" : "run_command"
+  return `
 
-Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches run_command: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. The user can stop it from the terminal pane; ${t("stop_dev_server")} and ${t("start_dev_server")} do the same. Never start another dev server with run_command.
+Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches ${shell}: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. The user can stop it from the terminal pane; ${t("stop_dev_server")} and ${t("start_dev_server")} do the same. Never start another dev server with ${shell}.
 
 To see the preview as the user sees it on the canvas, call ${t("view_frame")} for a screenshot of your frame, or ${t("read_frame_html")} for its current page as self-contained HTML (optionally one element, by CSS selector). Both also read other Workspaces' frames on the canvas, by frameId.
 
@@ -139,6 +175,7 @@ Mockups: when the user wants to see a design idea before it's built, or to compa
 This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace's chat.
 
 Keep your responses concise. Show the user what you changed and why.`
+}
 
 /**
  * Build the agent's system prompt with the Branch's merged Skill index baked
@@ -157,8 +194,9 @@ Keep your responses concise. Show the user what you changed and why.`
  * "this config targets apps/web in the monorepo") is part of every chat under
  * that repo without leaking into siblings.
  *
- * `toolNaming` names the dev server tools the way the turn's engine exposes
- * them (#1223).
+ * `toolNaming` names the Screenplay tools the way the turn's engine exposes
+ * them (#1223), and on a harness leaves out the in-process engine's file,
+ * shell and plan tools, which it doesn't have (#1480).
  */
 export function buildAgentSystemPrompt(opts: {
   repoSystemPrompt?: string
@@ -170,7 +208,8 @@ export function buildAgentSystemPrompt(opts: {
   toolNaming?: ToolNaming
 }): string {
   const { repoSystemPrompt, layerDirectory, skills, memory } = opts
-  const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
+  const naming = opts.toolNaming ?? BARE_TOOL_NAMING
+  const t = naming.name
   const skillsBlock =
     skills.length === 0
       ? ""
@@ -178,9 +217,9 @@ export function buildAgentSystemPrompt(opts: {
           "",
           "",
           "Skills available:",
-          "When a user request matches one of the skills below, call \`read_skill\` with the skill name to load its full instructions before making changes. Do not guess — read the skill first.",
+          `When a user request matches one of the skills below, call \`${t("read_skill")}\` with the skill name to load its full instructions before making changes. Do not guess — read the skill first.`,
           "",
-          `MANDATORY — explicit skill invocation: if the user's message contains a marker of the form \`${SKILL_MARKER_TOKEN}\`, the collaborator has explicitly invoked that skill. Before taking ANY other action (including reading other files or making edits), you MUST call \`read_skill\` with \`<name>\` and follow its instructions for this turn. This is not optional — treat it as a direct instruction, not a hint.`,
+          `MANDATORY — explicit skill invocation: if the user's message contains a marker of the form \`${SKILL_MARKER_TOKEN}\`, the collaborator has explicitly invoked that skill. Before taking ANY other action (including reading other files or making edits), you MUST call \`${t("read_skill")}\` with \`<name>\` and follow its instructions for this turn. This is not optional — treat it as a direct instruction, not a hint.`,
           "",
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
         ].join("\n")
@@ -190,9 +229,9 @@ export function buildAgentSystemPrompt(opts: {
   const directoryBlock = renderLayerDirectory(layerDirectory, t, opts.chatId)
   const memoryBlock = renderCanvasMemory(memory)
   return (
-    agentSystemPromptBase(t) +
+    agentSystemPromptBase(naming) +
     skillsBlock +
-    agentSystemPromptTail(t) +
+    agentSystemPromptTail(naming) +
     repoBlock +
     (memoryBlock ? `\n${memoryBlock}` : "") +
     (directoryBlock ? `\n${directoryBlock}` : "")

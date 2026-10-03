@@ -32,6 +32,11 @@ import {
   MOCKUP_TOOL_ANNOTATIONS,
 } from "@/lib/agent/mockup-tools"
 import { toolsetFor, withRedactedOutput } from "@/lib/agent/toolset"
+import {
+  buildPrAndSkillTools,
+  PR_AND_SKILL_TOOL_ANNOTATIONS,
+} from "@/lib/agent/tools"
+import { sandboxSecrets } from "@/lib/env-store"
 import { SKETCH_TOOL_ANNOTATIONS } from "@/lib/agent/sketch-tools"
 import {
   buildQuestionTools,
@@ -79,35 +84,39 @@ export async function POST(req: Request) {
 
   // A Workspace chat's harness gets its own dev server's tools, the frame
   // reads and Frame Drive (#1389), bound to the Sandbox its token was minted for, its Document and
-  // Mockup (#1309) tools, bound to its chat, Question Cards (#1312), and
-  // read-only access to the other Workspaces' code (#1315).
+  // Mockup (#1309) tools, bound to its chat, Question Cards (#1312),
+  // read-only access to the other Workspaces' code (#1315), and its PR and
+  // Skill tools (#1480). Output is scrubbed of the Sandbox's env var values,
+  // as on the in-process engine (#1416).
   if (binding.sandboxName) {
+    const toolCtx = {
+      sandboxName: binding.sandboxName,
+      room,
+      userId: room.userId,
+    }
     const response = await handleMcpMessage(
       {
         name: COORDINATOR_MCP_SERVER_NAME,
         version: "1",
-        tools: withRedactedOutput({
-          ...buildDevServerTools(
-            liveDevServerPorts({ sandboxName: binding.sandboxName, room })
-          ),
-          ...chatFrameReadTools({
-            sandboxName: binding.sandboxName,
-            room,
-          }),
-          ...chatFrameDriveTools({
-            sandboxName: binding.sandboxName,
-            room,
-            userId: room.userId,
-          }),
-          ...buildDocumentTools({ room, chatId: binding.chatId }),
-          ...buildMockupTools({ room, chatId: binding.chatId }),
-          ...otherWorkspacesCodeReadTools({
-            room,
-            sandboxName: binding.sandboxName,
-          }),
-          ...buildLayerReadTools({ room }),
-          ...buildQuestionTools(),
-        }),
+        tools: withRedactedOutput(
+          {
+            ...buildDevServerTools(
+              liveDevServerPorts({ sandboxName: binding.sandboxName, room })
+            ),
+            ...chatFrameReadTools(toolCtx),
+            ...chatFrameDriveTools(toolCtx),
+            ...buildDocumentTools({ room, chatId: binding.chatId }),
+            ...buildMockupTools({ room, chatId: binding.chatId }),
+            ...otherWorkspacesCodeReadTools({
+              room,
+              sandboxName: binding.sandboxName,
+            }),
+            ...buildLayerReadTools({ room }),
+            ...buildQuestionTools(),
+            ...buildPrAndSkillTools(toolCtx),
+          },
+          await sandboxSecrets(binding.sandboxName)
+        ),
         annotations: {
           ...DEV_SERVER_TOOL_ANNOTATIONS,
           ...FRAME_READ_TOOL_ANNOTATIONS,
@@ -116,6 +125,7 @@ export async function POST(req: Request) {
           ...MOCKUP_TOOL_ANNOTATIONS,
           ...QUESTION_TOOL_ANNOTATIONS,
           ...CODE_READ_TOOL_ANNOTATIONS,
+          ...PR_AND_SKILL_TOOL_ANNOTATIONS,
         },
         onInitialize: (client) =>
           console.info(
