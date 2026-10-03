@@ -384,6 +384,8 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
   // The driver each record had when this viewer last looked; absent until
   // the first look, so a seat found on load is told from one just handed over.
   const seenDriverRef = useRef(new Map<string, string | null>())
+  // Seats this viewer is taking, until Interact lands on them.
+  const seatingRef = useRef(new Set<string>())
   useEffect(() => {
     if (!viewerId) return
     const entered = focusedId !== prevFocusedRef.current ? focusedId : null
@@ -407,10 +409,17 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
         record.activeAt === undefined
       )
         dispatch(layerId, { type: "active", by: viewerId, at: Date.now() })
-      if (layerId === focusedId || record?.driver !== viewerId) continue
+      if (layerId === focusedId || record?.driver !== viewerId) {
+        seatingRef.current.delete(layerId)
+        continue
+      }
+      // Taking this seat: hold it until Interact lands, though the record
+      // changes first (its idle clock just started).
+      if (seatingRef.current.has(layerId)) continue
       // Handed over just now, or a shared frame's seat kept through a reload.
       const handedOver = wasSeen ? before !== viewerId : record.live
       if (handedOver && layerId !== entered) {
+        seatingRef.current.add(layerId)
         takeSeat(layerId)
         continue
       }
