@@ -313,6 +313,7 @@ describe("a Workspace chat's Document tools", () => {
       "chat-1",
       baseChat("chat-1", { branchId: "ws-1" })
     )
+    collections.chatSessions.set("chat-2", baseChat("chat-2"))
     collections.markdownLayers.set(
       "hand-made",
       baseDoc("hand-made", { title: "Notes" })
@@ -416,6 +417,37 @@ describe("a Workspace chat's Document tools", () => {
       expect(collections.markdownLayers.get(id)?.title).toBe(title)
       expect(body(id)).toBe("")
     }
+  })
+
+  it("edits a Document whose chat was deleted, and claims it", async () => {
+    const { collections, run, body } = setup()
+    collections.markdownLayers.set(
+      "orphan",
+      baseDoc("orphan", { title: "Old plan", ownerChatId: "deleted-chat" })
+    )
+
+    expect(
+      await run("replace_document_body", {
+        document_id: "orphan",
+        content: "Picked up.",
+      })
+    ).toBe("Replaced document body (10 characters).")
+    expect(body("orphan")).toBe("Picked up.")
+    expect(collections.markdownLayers.get("orphan")?.ownerChatId).toBe("chat-1")
+  })
+
+  it("marks Documents whose chat was deleted in its prompt", async () => {
+    const { collections, room, target } = setup()
+    collections.markdownLayers.set(
+      "orphan",
+      baseDoc("orphan", { title: "Old plan", ownerChatId: "deleted-chat" })
+    )
+
+    const ctx = await workspaceChatTarget.loadContext(room, target)
+    const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+
+    expect(prompt).toMatch(/Old plan \(its chat was deleted; you can edit it\)/)
+    expect(prompt).not.toMatch(/Other plan \(/)
   })
 
   it("marks the chat's own Documents in its prompt", async () => {

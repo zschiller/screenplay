@@ -24,6 +24,10 @@ function chatTools(chatId = "chat-1") {
     "chat-1",
     baseChat("chat-1", { branchId: "ws-1", label: "Empty cart" })
   )
+  h.collections.chatSessions.set(
+    "chat-2",
+    baseChat("chat-2", { label: "Other" })
+  )
   const tools = buildMockupTools({ room, chatId })
   const run = <K extends keyof typeof tools>(
     name: K,
@@ -202,6 +206,26 @@ describe("update_mockup", () => {
     expect(mockupHtml(doc, mockupId).toString()).toBe("<p>theirs</p>")
   })
 
+  it("lets the chat change a Mockup whose chat was deleted, and claims it", async () => {
+    const { run, doc, ops, collections } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>orphan</p>",
+      title: "Orphan",
+      width: 400,
+      height: 300,
+      ownerChatId: "deleted-chat",
+    })!
+
+    const out = await run("update_mockup", {
+      mockup_id: mockupId,
+      html: "<p>mine now</p>",
+    })
+
+    expect(out).toBe(`Updated Mockup ${mockupId}.`)
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>mine now</p>")
+    expect(collections.mockupLayers.get(mockupId)?.ownerChatId).toBe("chat-1")
+  })
+
   it("reports a missing Mockup", async () => {
     const { run } = chatTools()
     expect(
@@ -269,6 +293,21 @@ describe("read_mockup", () => {
 
     expect(out).toContain("Status: Current (made by another chat)")
     expect(out).toContain("<p>theirs</p>")
+  })
+
+  it("says a Mockup whose chat was deleted is the chat's to change", async () => {
+    const { run, ops } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>orphan</p>",
+      title: "Orphan",
+      width: 400,
+      height: 300,
+      ownerChatId: "deleted-chat",
+    })!
+
+    expect(await run("read_mockup", { mockup_id: mockupId })).toContain(
+      "Status: Current (its chat was deleted; you can change it)"
+    )
   })
 
   it("reports a missing Mockup", async () => {

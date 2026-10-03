@@ -974,6 +974,11 @@ export function summarizeCanvas(
   )
   const byCreated = <T extends { createdAt?: number }>(a: T, b: T) =>
     (a.createdAt ?? 0) - (b.createdAt ?? 0)
+  // A Mockup's chat, or that it was deleted (any chat can change it then).
+  const ownerOf = (chatId: string) => {
+    const chat = chats.find((c) => c.id === chatId)
+    return chat ? `by chat "${clip(chat.label)}"` : "its chat was deleted"
+  }
 
   return [
     section(
@@ -1045,8 +1050,7 @@ export function summarizeCanvas(
         `- [${m.id}] "${clip(m.title || "Untitled")}"`,
         `${Math.round(m.width)}×${Math.round(m.height)}`,
         MOCKUP_STATUS_LABELS[mockupStatusOf(m)],
-        m.ownerChatId &&
-          `by chat "${clip(chats.find((c) => c.id === m.ownerChatId)?.label || m.ownerChatId)}"`,
+        m.ownerChatId && ownerOf(m.ownerChatId),
         groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]
         .filter(Boolean)
