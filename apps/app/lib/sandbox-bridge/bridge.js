@@ -570,12 +570,6 @@
       } else if (d.type === "screenplay:set-forward-input") {
         // No-op; kept for protocol compatibility with older parent code.
         reply(d.id, true, null)
-      } else if (d.type === "screenplay:scroll-to") {
-        // Apply scroll from another client. Prime the echo guard first so the
-        // synthetic scroll event this triggers isn't re-broadcast.
-        lastScrollX = d.scrollX
-        lastScrollY = d.scrollY
-        window.scrollTo(d.scrollX, d.scrollY)
       } else if (d.type === "screenplay:navigate") {
         followRoute(d.path).then(
           (followed) => reply(d.id, true, followed),
@@ -1902,42 +1896,6 @@
     })
   }
 
-  // Scroll tracking. Trailing-edge throttle at ~20Hz keeps Yjs writes
-  // manageable without feeling laggy. The echo guard (lastScrollX/Y) is also
-  // updated synchronously in the scroll-to handler so applying a remote
-  // scroll doesn't bounce back as a new broadcast.
-  let lastScrollX = window.scrollX
-  let lastScrollY = window.scrollY
-  let scrollTimer = null
-  let scrollPending = false
-  function emitScroll() {
-    const sx = window.scrollX
-    const sy = window.scrollY
-    if (sx === lastScrollX && sy === lastScrollY) return
-    lastScrollX = sx
-    lastScrollY = sy
-    parent.postMessage(
-      { type: "screenplay:scroll", scrollX: sx, scrollY: sy },
-      "*"
-    )
-  }
-  function onScroll() {
-    if (scrollTimer) {
-      scrollPending = true
-      return
-    }
-    emitScroll()
-    scrollTimer = setTimeout(function flush() {
-      scrollTimer = null
-      if (scrollPending) {
-        scrollPending = false
-        emitScroll()
-        scrollTimer = setTimeout(flush, 50)
-      }
-    }, 50)
-  }
-  window.addEventListener("scroll", onScroll, { passive: true })
-
   // Zoom gestures over the iframe. A trackpad pinch (and ctrl/cmd + wheel)
   // arrives here as a wheel event with ctrlKey/metaKey set. We must NOT let the
   // browser run its default action — that's the native full-page zoom, which
@@ -2056,8 +2014,4 @@
     { type: "screenplay:navigation", path: lastPath, replace: true },
     "*"
   )
-  // Deliberately not posting an initial "screenplay:scroll" here. The parent
-  // applies any saved scroll in response to ready; re-emitting the iframe's
-  // starting (0,0) position would race with that apply and clobber saved
-  // state back to zero on late joiners.
 })()

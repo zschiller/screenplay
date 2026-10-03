@@ -298,8 +298,6 @@ export type IframeLayerData = {
   label: string
   iframeState: JsonObject
   route?: string
-  scrollX?: number
-  scrollY?: number
   /** Knob declarations posted by the running prototype. Replaced wholesale on each declaration. */
   knobs?: JsonValue[]
   /** Current knob values keyed by knob id. Source of truth — synced down into the iframe. */

@@ -621,7 +621,6 @@ function CanvasMemberLayerImpl({
               onRename={layerMutations.rename}
               onStateChanged={layerMutations.updateState}
               onRouteChange={layerMutations.updateRoute}
-              onScrollChange={layerMutations.updateScroll}
               onKnobsDeclared={layerMutations.updateKnobs}
               onKnobValuesChange={layerMutations.updateKnobValues}
               onColorSchemeChange={layerMutations.updateColorScheme}

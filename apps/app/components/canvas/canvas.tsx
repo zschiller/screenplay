@@ -1276,7 +1276,7 @@ export function Canvas({
 
   // Layer Mutation controller (PRD #579, cut 1/4): the thin per-Layer Canvas
   // Operation wrappers — Iframe Layer field writers (rename / assignAgent /
-  // updateState / updateScroll / updateKnobs / updateKnobValues /
+  // updateState / updateKnobs / updateKnobValues /
   // updateSharedState / updateRoute / fitToContent) and Markdown Layer writers
   // (resizeDocument / setTitle / setTitleCache) —
   // bundled into one `LayerMutations` object passed to `CanvasMemberLayer` as a
