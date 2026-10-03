@@ -7,7 +7,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@workspace/ui/components/field"
-import { EyeIcon } from "@workspace/ui/components/icons"
+import { EyeIcon, EyeSlashIcon } from "@workspace/ui/components/icons"
 import { Input } from "@workspace/ui/components/input"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
@@ -83,10 +83,13 @@ export interface EnvVarsAccess {
   names: string[]
   /** This person added the Repo, so Reveal is theirs. */
   owned: boolean
-  /** The adder's field, read-only until they reveal the values. */
+  /** There are stored values to reveal and hide again. */
+  hideable: boolean
+  /** The adder's field, read-only and masked while the values are hidden. */
   locked: boolean
   revealing: boolean
   onReveal: () => void
+  onHide: () => void
 }
 
 /** What the env field says under it, by who's looking. Kept to what's true:
@@ -94,7 +97,6 @@ export interface EnvVarsAccess {
 function envVarsDescription(access: EnvVarsAccess | undefined): string {
   const base = "One KEY=value per line, injected into each workspace"
   if (!access) return base
-  if (access.locked) return "Values are hidden. Reveal them to edit."
   if (access.owned) return `${base}. Only you can see the values.`
   if (access.names.length === 0) return base
   return "Only the person who added this repository can see the values. Add KEY=value here to set your own on this canvas."
@@ -228,21 +230,38 @@ export function RepoSettingsFields({
                   <FieldLabel htmlFor={`${idPrefix}-envvars`}>
                     Environment variables
                   </FieldLabel>
-                  {envVarsAccess?.locked && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={envVarsAccess.onReveal}
-                      disabled={envVarsAccess.revealing}
-                    >
-                      {envVarsAccess.revealing ? (
-                        <Spinner data-icon="inline-start" />
-                      ) : (
-                        <EyeIcon data-icon="inline-start" />
-                      )}
-                      Reveal values
-                    </Button>
-                  )}
+                  {/* Reveal and Hide share one spot, and the button's extra
+                  height is pulled in so the label row matches the others. */}
+                  {envVarsAccess?.hideable &&
+                    (envVarsAccess.locked ? (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="-my-1"
+                        onClick={envVarsAccess.onReveal}
+                        disabled={envVarsAccess.revealing}
+                      >
+                        {envVarsAccess.revealing ? (
+                          <Spinner
+                            data-icon="inline-start"
+                            className="size-3"
+                          />
+                        ) : (
+                          <EyeIcon data-icon="inline-start" />
+                        )}
+                        Reveal values
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="-my-1"
+                        onClick={envVarsAccess.onHide}
+                      >
+                        <EyeSlashIcon data-icon="inline-start" />
+                        Hide values
+                      </Button>
+                    ))}
                 </div>
                 <Textarea
                   id={`${idPrefix}-envvars`}

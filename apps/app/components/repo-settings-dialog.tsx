@@ -23,7 +23,11 @@ import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { revealCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
-import { mergeEnvVars, repoEnvVarNames } from "@/lib/repo-env/names"
+import {
+  envVarNames,
+  mergeEnvVars,
+  repoEnvVarNames,
+} from "@/lib/repo-env/names"
 import { isCustomized, runSettings } from "@/lib/repository-library"
 import type { RepoData } from "@/lib/types"
 
@@ -121,6 +125,7 @@ function RepoSettingsForm({
   const [envVars, setEnvVars] = useState("")
   const [loadedEnv, setLoadedEnv] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
+  const [hidden, setHidden] = useState(true)
   const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
     repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
@@ -137,15 +142,24 @@ function RepoSettingsForm({
 
   const trimmedSystemPrompt = systemPrompt.trim()
 
-  const envLocked = canRevealEnv && hasStoredEnv && loadedEnv === null
-  const envChanged = !envLocked && envVars !== (loadedEnv ?? "")
+  // The adder's stored values can be shown and hidden again; hiding keeps
+  // any edit, it only masks the field.
+  const envHideable = canRevealEnv && hasStoredEnv
+  const envLocked = envHideable && (loadedEnv === null || hidden)
+  const envChanged =
+    loadedEnv !== null ? envVars !== loadedEnv : !envLocked && envVars !== ""
 
   const reveal = () => {
+    if (loadedEnv !== null) {
+      setHidden(false)
+      return
+    }
     setRevealing(true)
     revealCanvasRepoEnv(roomId, repo.id)
       .then((text) => {
         setLoadedEnv(text)
         setEnvVars(text)
+        setHidden(false)
       })
       .catch(() => toast.error("Couldn't load the environment variables."))
       .finally(() => setRevealing(false))
@@ -306,14 +320,17 @@ function RepoSettingsForm({
           onDevScriptChange={setDevScript}
           devServerPort={devServerPort}
           onDevServerPortChange={setDevServerPort}
-          envVars={envVars}
+          envVars={envLocked ? "" : envVars}
           onEnvVarsChange={setEnvVars}
           envVarsAccess={{
-            names: repoEnvVarNames(repo),
+            names:
+              loadedEnv !== null ? envVarNames(envVars) : repoEnvVarNames(repo),
             owned: canRevealEnv,
+            hideable: envHideable,
             locked: envLocked,
             revealing,
             onReveal: reveal,
+            onHide: () => setHidden(true),
           }}
           copyPatterns={copyPatterns}
           onCopyPatternsChange={setCopyPatterns}

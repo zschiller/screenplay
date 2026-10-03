@@ -526,15 +526,13 @@ describe("CanvasSettingsDialog", () => {
       )
     })
 
-    it("locks the adder's field until they reveal the values", async () => {
+    it("locks the adder's field until they reveal the values, and hides them again", async () => {
       const { form } = await openDocs(true)
       expect(
         within(form).getByLabelText("Environment variables")
       ).toHaveProperty("disabled", true)
       expect(revealCanvasRepoEnv).not.toHaveBeenCalled()
-      expect(form.textContent).toContain(
-        "Values are hidden. Reveal them to edit."
-      )
+      expect(form.textContent).toContain("Only you can see the values")
       fireEvent.click(
         within(form).getByRole("button", { name: "Reveal values" })
       )
@@ -548,6 +546,19 @@ describe("CanvasSettingsDialog", () => {
       expect(revealCanvasRepoEnv).toHaveBeenCalledWith("room-1", "r2")
 
       fireEvent.change(field, { target: { value: "API_URL=https://api.test" } })
+
+      // Hide masks and locks the field again, keeping the edit; showing it
+      // again doesn't go back to the server.
+      fireEvent.click(within(form).getByRole("button", { name: "Hide values" }))
+      expect(field).toHaveProperty("value", "")
+      expect(field).toHaveProperty("disabled", true)
+      expect(field.getAttribute("placeholder")).toBe("API_URL=••••••")
+      fireEvent.click(
+        within(form).getByRole("button", { name: "Reveal values" })
+      )
+      expect(field).toHaveProperty("value", "API_URL=https://api.test")
+      expect(revealCanvasRepoEnv).toHaveBeenCalledTimes(1)
+
       fireEvent.click(within(form).getByRole("button", { name: "Save" }))
       await waitFor(() =>
         expect(saveCanvasRepoEnv).toHaveBeenLastCalledWith(
