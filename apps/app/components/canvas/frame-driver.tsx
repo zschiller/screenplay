@@ -216,7 +216,7 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
 }
 
 /**
- * "Local copy" on the frame's title line, where the driver tag goes, while
+ * "Detached" on the frame's title line, where the driver tag goes, while
  * this viewer shows its own copy of a shared frame (#1397). Quiet, in the
  * title's type: nobody else sees it, and nothing here is anyone's alert.
  */
@@ -227,7 +227,7 @@ export function FrameLocalCopyTag() {
       className="flex h-[18px] shrink-0 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground"
     >
       <MonitorIcon className="size-3" />
-      Local copy
+      Detached
     </span>
   )
 }
