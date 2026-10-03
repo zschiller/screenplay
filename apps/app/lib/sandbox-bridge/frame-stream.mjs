@@ -24,7 +24,8 @@
 import http from "node:http"
 import { spawn } from "node:child_process"
 import { createHash, createHmac, timingSafeEqual } from "node:crypto"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync } from "node:fs"
+import { rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -476,8 +477,15 @@ class Frame {
       this.xvfb?.kill("SIGKILL")
     } catch {}
     if (this.display !== undefined) usedDisplays.delete(this.display)
+    // The browser's helpers can still be writing the profile for a moment
+    // after it dies, so removing it can fail; never let that stop a restart.
     if (this.userDataDir)
-      rmSync(this.userDataDir, { recursive: true, force: true })
+      rm(this.userDataDir, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 200,
+      }).catch((e) => log(`frame ${this.id}: ${e.message}`))
     this.chrome = this.xvfb = this.cdp = null
     this.display = this.userDataDir = undefined
   }
