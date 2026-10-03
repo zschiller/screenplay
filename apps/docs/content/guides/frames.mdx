@@ -101,7 +101,7 @@ it. From left to right:
 | **Address**           | The frame's workspace and route. Click the route to type a new one. **Reload** reloads the preview, and spins in its place while the page loads. A dot at the start of the address means the dev server disconnected or the preview failed.                                                                                                           |
 | **Record flow**       | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. The address turns red with a screen count while recording.                                                                                                  |
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame's outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
-| **Detach**            | On a shared frame, switches your view to your own copy, and back. See [Detaching](#detaching).                                                                                                                                                                                                                                                        |
+| **Go live**           | On a hosted canvas, switches you from your own copy of the frame to one live browser others can join, and back. See [Live frames](#live-frames).                                                                                                                                                                                                      |
 | **Knobs**             | Live controls your app declares. See [Knobs](#knobs).                                                                                                                                                                                                                                                                                                 |
 | **More**              | **Device size**, **Fit to content**, **Duplicate**, a **Workspace** submenu with **Open prototype player** and **Open in browser**, and **Delete frame**.                                                                                                                                                                                             |
 
@@ -146,17 +146,35 @@ you leave Interact, the agent carries on if it asked to.
   alt="The driver button's tooltip: Agent has control, then Click to take control"
 />
 
-### Shared frames
+### Live frames
 
-On a hosted canvas, a frame is one browser running in its workspace's
-sandbox, and everyone who has the frame on screen watches that same browser.
-Two people looking at a frame see the same page in the same state, and when
-one of them clicks through it the others watch it happen live.
+On a hosted canvas, each frame starts as your own copy: a preview running in
+your browser, as fast as any page. Your copy follows the canvas: when someone
+navigates the frame, or changes its [shared state](#shared-state) or Knobs,
+every copy follows.
 
-Whoever has control of the frame is the only one whose clicks, keys and
-scrolling reach it. Press Interact on a frame nobody controls to take control.
-On a frame someone else controls, nothing you do reaches the page: its title
-line says who has control, and the Interact button shows their avatar.
+To look at the very same page with someone, click **Go live** (the broadcast
+button after **Interact** in the frame's toolbar). The frame's browser starts
+in its workspace's sandbox, on the frame's current page, and you're on it.
+Nobody else is pulled in: everyone else keeps their own copy, and the frame's
+title line reads **Live** for all of you. Anyone can click **Go live** on that
+frame to join it, and then you all watch one browser, so when one of you
+clicks through the page the others see it happen.
+
+The **Go live** button stays filled while you're on the live frame. Click it
+again to leave: you're back on your own copy, on the live frame's page, with
+its cookies and local storage. What the page held only in memory, like a half
+typed form, doesn't come along. If you open the canvas while a frame is live,
+you land on it live. Once you leave a frame, you stay on your own copy for the
+rest of your visit, until you click **Go live** again. When the last person
+leaves, or closes their tab, the frame stops being live.
+
+On your own copy, **Interact** works on your copy alone. On a live frame,
+whoever has control is the only one whose clicks, keys and scrolling reach
+it. Press Interact on a live frame nobody controls to take control. On one
+someone else controls, nothing you do reaches the page: its title line says
+who has control instead of **Live**, and the Interact button shows their
+avatar. Leaving a live frame you control lets go of control first.
 
 #### Asking for control
 
@@ -177,21 +195,21 @@ whoever asked first. A driver who reloads the page or drops their connection
 keeps control for 5 seconds. If they don't come back, control passes to
 whoever asked first and is still here, or to nobody.
 
-Each frame streams at up to twice its size, so it stays sharp when you zoom in
+A live frame streams at up to twice its size, so it stays sharp when you zoom in
 to 200%. When a workspace's sandbox goes to sleep, its frames' browsers stop
 with it; when it wakes up, each frame reopens at the page it was on.
 
 Comment pins, Knobs, the element picker and **Fit to content** work on a
-shared frame as on any other. A pin sits on the same element for everyone, and
-a Knob you change shows in the one shared page, so everyone sees it at once.
+live frame as on any other. A pin sits on the same element for everyone, and
+a Knob you change shows in the one live page, so everyone on it sees it at once.
 
-A shared frame's Knobs also have a **Theme** knob, above the page's own, that
+A live frame's Knobs also have a **Theme** knob, above the page's own, that
 switches the page between **Light** and **Dark**. It sets what the page's
 `prefers-color-scheme` matches, for everyone watching. A new frame starts in
-Light. A preview running in your own browser, like a detached frame or a frame
+Light. A preview running in your own browser, like your own copy or a frame
 in the desktop app, follows your system's appearance instead.
 
-A frame nobody has on screen pauses a few seconds later, and its page keeps
+A live frame nobody has on screen pauses a few seconds later, and its page keeps
 its state. Scroll back to it and it shows its last picture at once, then picks
 up live where it left off. A workspace keeps six frames' browsers open. Past
 that, the frame nobody has looked at for longest closes its browser, and the
@@ -199,23 +217,8 @@ next time someone looks at it, it reopens at the page it was on, still signed
 in and with its saved settings, but anything the page only held in memory,
 like a half-filled form, starts over.
 
-The desktop app keeps its own frames: there, every frame is a preview running
+The desktop app has no **Go live**: there, every frame is a preview running
 on your Mac.
-
-#### Detaching
-
-When you need devtools, or a gesture the stream can't carry, click
-**Detach** (the monitor button after **Interact** in the frame's toolbar). Only your view switches: the frame becomes a
-preview running in your own browser, and everyone else keeps the shared
-frame. It opens on the shared frame's page with its cookies, local storage
-and [shared state](#shared-state). What the page held only in memory, like a
-half typed form, doesn't come along.
-
-The frame's title reads **Detached** while you're on it. What you do there
-stays there: it never changes the shared frame or what anyone else sees.
-The **Detach** button stays filled while you're on it, and **Interact** works
-on your copy as usual. Click **Detach** again to rejoin: it drops your copy
-and shows the shared frame as it is now.
 
 <Screenshot
   name="frame-more-menu"
@@ -255,8 +258,10 @@ yours over.
 
 ### On a shared canvas
 
-On hosted Screenplay, the agent drives the frame's one shared browser, so
-everyone who has the frame on screen watches each step as it happens. Anyone
+On hosted Screenplay, the agent drives the frame's one live browser, and the
+frame is live while it has control, so everyone on the live frame watches each
+step as it happens. Everyone else sees **Agent has control** on their copy's
+title line. Anyone
 can take the frame from the agent; between people, the usual
 [asking for control](#asking-for-control) applies. The agent can drive a frame
 nobody is looking at, too: it keeps running while the agent works on it.

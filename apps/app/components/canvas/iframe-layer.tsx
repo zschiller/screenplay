@@ -64,8 +64,8 @@ import { KnobsPopover } from "./knobs-popover"
 import {
   FrameDriverButton,
   FrameDriverTag,
-  FrameLocalCopyTag,
-  FrameDetachToggle,
+  FrameLiveTag,
+  FrameGoLiveToggle,
 } from "./frame-driver"
 import { FrameStreamView } from "./frame-stream-view"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
@@ -153,17 +153,19 @@ interface IframeLayerProps {
   onGrantControl?: (layerId: string, to: string) => void
   onDeclineControl?: (layerId: string, to: string) => void
   /**
-   * Set on a hosted canvas whose Workspace streams its frames (#1392): the
-   * frame is one shared browser in the Sandbox, shown from its Frame Stream
-   * instead of a per-viewer iframe.
+   * Set while this viewer is on the frame's live copy (#1392, #1516): one
+   * shared browser in the Sandbox, shown from its Frame Stream instead of
+   * this viewer's own iframe.
    */
   sharedStream?: FrameStreamConnection
-  /** This viewer shows its own local copy of the shared frame (#1397). */
-  localCopy?: boolean
-  /** Switch this viewer's view of the shared frame to a local copy. */
-  onGoLocal?: () => void
-  /** Drop the local copy and show the shared frame again. */
-  onRejoin?: () => void
+  /** Someone is on the frame's live copy: the title line says Live (#1516). */
+  live?: boolean
+  /** Who drives the live copy, for the title-line tag and the resize handles
+   *  of a viewer on their own copy. */
+  liveDriver?: FrameDriverView
+  /** Go live or leave (the Go live toggle). Absent where frames can't go live:
+   *  the desktop app, `SHARED_FRAMES=off`. */
+  onToggleLive?: () => void
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
   selected: boolean
@@ -368,9 +370,9 @@ export function IframeLayer({
   onGrantControl,
   onDeclineControl,
   sharedStream,
-  localCopy,
-  onGoLocal,
-  onRejoin,
+  live = false,
+  liveDriver = NOBODY_DRIVES,
+  onToggleLive,
   createFlow,
   selected,
   onFocus,
@@ -448,6 +450,11 @@ export function IframeLayer({
   // A shared frame (#1392) has no iframe: reloads and routes go to the shared
   // browser over its stream.
   const shared = !!sharedStream
+  // The title line and the resize handles answer to whoever drives the frame
+  // as this viewer sees it, or, from an own copy, whoever drives the live one:
+  // the frame's size is everyone's.
+  const tagDriver =
+    !drivenByOther(driver) && live && !shared ? liveDriver : driver
   const sharedFrame = sharedStream?.frame(iframeLayer.id)
   const sharedFrameRef = useRef(sharedFrame)
   useEffect(() => {
@@ -1002,12 +1009,12 @@ export function IframeLayer({
       // No resize handles while interacting: the Selection Overlay hides its
       // drawn ones, and the edge hit areas would steal clicks from the page.
       // Nor while someone else drives, so the size never changes under them.
-      resizable={!focused && !drivenByOther(driver)}
+      resizable={!focused && !drivenByOther(tagDriver)}
       titleTag={
-        localCopy ? (
-          <FrameLocalCopyTag />
-        ) : drivenByOther(driver) ? (
-          <FrameDriverTag driver={driver} />
+        drivenByOther(tagDriver) ? (
+          <FrameDriverTag driver={tagDriver} />
+        ) : live ? (
+          <FrameLiveTag />
         ) : undefined
       }
       onResize={onResize}
@@ -1117,11 +1124,8 @@ export function IframeLayer({
                       : undefined
                   }
                 />
-                {(onGoLocal || onRejoin) && (
-                  <FrameDetachToggle
-                    detached={!!onRejoin}
-                    onToggle={() => (onRejoin ?? onGoLocal)?.()}
-                  />
+                {onToggleLive && (
+                  <FrameGoLiveToggle live={shared} onToggle={onToggleLive} />
                 )}
                 <KnobsPopover
                   knobs={iframeLayer.knobs}

@@ -1,6 +1,6 @@
 import type { Page } from "playwright-core"
 
-import { stubTerminal } from "../fixtures/streams"
+import { stubFrameStream, stubTerminal } from "../fixtures/streams"
 import { type Screen } from "./screen"
 import {
   canvasPanels,
@@ -216,6 +216,35 @@ export const CORE_SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-frame-go-live",
+    description:
+      "A hosted frame nobody is live on: its toolbar, hovering Go live to show the tooltip.",
+    hosted: true,
+    path: `/${ids.rooms.checkout}`,
+    beforeNavigate: stubFrameStream,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      await frameToolbarButton(page, "Go live").hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-frame-live",
+    description:
+      "A hosted frame you went live on: the pressed Go live toggle, its tooltip, and the Live tag.",
+    hosted: true,
+    path: `/${ids.rooms.checkout}`,
+    beforeNavigate: stubFrameStream,
+    prepare: async (page) => {
+      await selectCheckoutFrame(page)
+      await frameToolbarButton(page, "Go live").click({ timeout: 15_000 })
+      await frameToolbarButton(page, "Live").hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "dialog-new-workspace",
     description:
       "The prompt-first New chat dialog, from the Chats menu's New chat (+).",
@@ -299,6 +328,13 @@ export const CORE_SCREENS: Screen[] = [
     settleMs: 400,
   },
 ]
+
+/** A button in the selected frame's toolbar, by its label. */
+function frameToolbarButton(page: Page, name: string) {
+  return page
+    .locator("#frame-toolbar-portal")
+    .getByRole("button", { name, exact: true })
+}
 
 /**
  * Focus home search with its `/` shortcut and type a query. The first key can

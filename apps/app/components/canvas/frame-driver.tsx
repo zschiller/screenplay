@@ -7,7 +7,7 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar"
-import { CursorIcon, MonitorIcon } from "@workspace/ui/components/icons"
+import { BroadcastIcon, CursorIcon } from "@workspace/ui/components/icons"
 import {
   Popover,
   PopoverAnchor,
@@ -216,47 +216,48 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
 }
 
 /**
- * "Detached" on the frame's title line, where the driver tag goes, while
- * this viewer shows its own copy of a shared frame (#1397). Quiet, in the
- * title's type: nobody else sees it, and nothing here is anyone's alert.
+ * "Live" on the frame's title line, where the driver tag goes, while someone
+ * is on the frame's live copy (#1516). Muted, in the title's type: it says
+ * the frame is shared right now, and nothing here is anyone's alert. The
+ * driver tag replaces it while someone has control.
  */
-export function FrameLocalCopyTag() {
+export function FrameLiveTag() {
   return (
     <span
-      data-frame-local-copy-tag=""
-      className="flex h-[18px] shrink-0 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground"
+      data-frame-live-tag=""
+      className="flex h-[18px] shrink-0 items-center text-xs whitespace-nowrap text-muted-foreground"
     >
-      <MonitorIcon className="size-3" />
-      Detached
+      Live
     </span>
   )
 }
 
 /**
- * The frame bar's Detach toggle (#1397), beside Interact on a shared frame.
- * It stays in the bar both ways, so going to your own copy and back never
- * resizes the bar: plain while you see the shared frame, the pressed ink
- * fill while you're on your own copy, where a click rejoins.
+ * The frame bar's Go live toggle (#1516), after Interact on a frame that can
+ * go live. It stays in the bar both ways, so going live and leaving never
+ * resizes the bar: plain while you're on your own copy, the pressed ink fill
+ * while you're live, where a click leaves for your own copy.
  */
-export function FrameDetachToggle({
-  detached,
+export function FrameGoLiveToggle({
+  live,
   onToggle,
 }: {
-  detached: boolean
+  /** This viewer is on the live frame. */
+  live: boolean
   onToggle: () => void
 }) {
   return (
     <FloatingToolbarButton
-      label={detached ? "Detached" : "Detach from shared frame"}
+      label={live ? "Live" : "Go live"}
       hint={
-        detached
-          ? "Click to rejoin the shared frame"
-          : "Use your own copy. Only you see it."
+        live
+          ? "Click to leave for your own copy"
+          : "Others on the canvas can join"
       }
-      pressed={detached}
+      pressed={live}
       onClick={onToggle}
     >
-      <MonitorIcon />
+      <BroadcastIcon />
     </FloatingToolbarButton>
   )
 }

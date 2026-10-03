@@ -206,6 +206,9 @@ export type CanvasPresence = {
   // Figma-style cursor chat. Absent or `null` while the user isn't chatting;
   // an empty string while the bubble is open but nothing has been typed yet.
   message?: string | null
+  // The frames this viewer is live on (#1516): one shared, streamed browser
+  // each. A frame is live while someone lists it, so a closed tab drops off.
+  liveFrameIds?: string[]
 }
 
 function useAwareness(): AwarenessLike {

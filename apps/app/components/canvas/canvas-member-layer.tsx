@@ -542,44 +542,34 @@ function CanvasMemberLayerImpl({
                     route: iframeLayer.route ?? "",
                   })
               : undefined
-          // This viewer's local copy of a shared frame (#1397) is a
-          // per-viewer iframe on its own route, and nothing it does is
-          // written to the room.
-          const localCopy = sharedFrames.localCopyOf(iframeLayer)
-          const stream = localCopy
-            ? undefined
-            : sharedFrames.streamOf(iframeLayer.branchId)
-          const setLocalRoute = (id: string, route: string) =>
-            sharedFrames.setLocalRoute(id, route)
+          // Frames are each viewer's own copy, an iframe that follows the
+          // room, until this viewer goes live on one (#1516): then it shows
+          // the shared browser's stream.
+          const live = sharedFrames.liveOf(iframeLayer.id)
+          const stream = live.viewerOn
+            ? sharedFrames.streamOf(iframeLayer.branchId)
+            : undefined
+          const canGoLive = !!sharedFrames.streamOf(iframeLayer.branchId)
           return (
             <IframeLayer
-              // Switching between the shared frame and a local copy starts
-              // the view afresh: a new iframe, or a new stream view.
-              key={localCopy ? `${iframeLayer.id}:local` : iframeLayer.id}
+              // Going live or leaving starts the view afresh: a new stream
+              // view, or a new iframe.
+              key={stream ? `${iframeLayer.id}:live` : iframeLayer.id}
               iframeLayer={{
                 ...iframeLayer,
-                // Until the app says whether the Workspace's frames are
-                // shared, the frame waits rather than loading an iframe.
-                iframeUrl: sharedFrames.checking(iframeLayer.branchId)
-                  ? undefined
-                  : agentInfo?.previewDomain,
-                ...(localCopy ? { route: localCopy.route } : {}),
+                iframeUrl: agentInfo?.previewDomain,
               }}
               sharedStream={stream}
-              localCopy={!!localCopy}
-              onGoLocal={
-                stream
+              live={live.live}
+              liveDriver={frameControl.liveDriverOf(iframeLayer.id)}
+              onToggleLive={
+                canGoLive
                   ? () => {
+                      // Going live or leaving switches which Frame Control
+                      // record governs the frame: let go of the old one.
                       frameControl.letGo(iframeLayer.id)
-                      sharedFrames.goLocal(iframeLayer)
-                    }
-                  : undefined
-              }
-              onRejoin={
-                localCopy
-                  ? () => {
-                      frameControl.letGo(iframeLayer.id)
-                      sharedFrames.rejoin(iframeLayer.id)
+                      if (live.viewerOn) sharedFrames.leave(iframeLayer)
+                      else sharedFrames.goLive(iframeLayer)
                     }
                   : undefined
               }
@@ -624,21 +614,13 @@ function CanvasMemberLayerImpl({
               onResizeEnd={gestureLayerHandlers.onResizeEnd}
               onRemove={removeIframeLayer}
               onRename={layerMutations.rename}
-              onStateChanged={
-                localCopy ? ignoreLocalState : layerMutations.updateState
-              }
-              onRouteChange={
-                localCopy ? setLocalRoute : layerMutations.updateRoute
-              }
-              onScrollChange={
-                localCopy ? undefined : layerMutations.updateScroll
-              }
+              onStateChanged={layerMutations.updateState}
+              onRouteChange={layerMutations.updateRoute}
+              onScrollChange={layerMutations.updateScroll}
               onKnobsDeclared={layerMutations.updateKnobs}
               onKnobValuesChange={layerMutations.updateKnobValues}
               onColorSchemeChange={layerMutations.updateColorScheme}
-              onSharedStateChanged={
-                localCopy ? undefined : layerMutations.updateSharedState
-              }
+              onSharedStateChanged={layerMutations.updateSharedState}
               onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
               onOpenInBrowser={openInBrowser}
               onDuplicate={() =>
@@ -670,9 +652,7 @@ function CanvasMemberLayerImpl({
               assignableBranches={agents}
               onAssignBranch={layerMutations.assignAgent}
               discoveredRoutes={agentInfo?.discoveredRoutes}
-              onSelectRoute={
-                localCopy ? setLocalRoute : layerMutations.updateRoute
-              }
+              onSelectRoute={layerMutations.updateRoute}
               remoteSelectedColor={remoteSelectedColor}
               remoteGroupSelectedColor={remoteGroupSelectedColor}
               groupLabel={index === 0 ? groupLabel : undefined}
@@ -733,9 +713,6 @@ function CanvasMemberLayerImpl({
     </>
   )
 }
-
-/** A local copy's page state stays in the copy (#1397). */
-function ignoreLocalState() {}
 
 /**
  * Memoized so a canvas pan/zoom — which re-renders the parent every frame to

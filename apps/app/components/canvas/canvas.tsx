@@ -584,13 +584,18 @@ export function Canvas({
     () => new Set(mockupLayers.map((layer) => layer.id)),
     [mockupLayers]
   )
-  // Shared frames (#1392): on hosted, each Workspace's frames are one browser
-  // in its Sandbox, streamed to everyone; the desktop app keeps its iframes.
+  // Live frames (#1516): on hosted, a frame someone goes live on is one
+  // browser in its Workspace's Sandbox, streamed to the people on it; every
+  // other frame is each viewer's own iframe, as on the desktop app.
   const sharedFrames = useSharedFrames({
     roomId,
     enabled: !isLocalBuild,
     agents,
     iframeLayers,
+    viewerId: userId ?? null,
+    others,
+    setPresence,
+    frameControl: collections.frameControl,
   })
   // Handed a frame (Let drive, a reload): Interact needs it selected.
   const selectIframeLayer = selection.selectIframeLayer
@@ -617,10 +622,18 @@ export function Canvas({
   const drivenFrames = useMemo(
     () =>
       frameIds.flatMap((id) => {
-        const color = frameDriverRingColor(frameControl.driverOf(id))
+        // From an own copy of a live frame, the ring shows who drives the
+        // live one (#1516), as the title-line tag does.
+        const own = frameControl.driverOf(id)
+        const live = sharedFrames.liveOf(id)
+        const color = frameDriverRingColor(
+          drivenByOther(own) || !live.live || live.viewerOn
+            ? own
+            : frameControl.liveDriverOf(id)
+        )
         return color ? [{ id, color }] : []
       }),
-    [frameIds, frameControl]
+    [frameIds, frameControl, sharedFrames]
   )
   const closeCursorChat = interaction.closeCursorChat
 

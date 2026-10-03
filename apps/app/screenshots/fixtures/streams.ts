@@ -189,3 +189,42 @@ export async function stubLogs(
     return undefined
   })
 }
+
+/** Where the stubbed Frame Stream answers (see {@link stubFrameStream}). */
+const FRAME_STREAM_URL = "ws://frame-stream.screenshots.invalid/"
+
+/**
+ * A Frame Stream that says yes (#1392): the app answers that the Workspace's
+ * frames can go live, and the stream's socket says ready but never sends a
+ * picture. The fixture world's Sandboxes are local, so without this the
+ * hosted build hides Go live altogether. Enough for the frame bar and the
+ * Live tag; a live frame's body stays on its loading state.
+ */
+export async function stubFrameStream(page: Page): Promise<void> {
+  // The hosted build reconciles each Workspace with its (absent) Sandbox on
+  // load, and stops it on the miss. Hold those server actions so the frames
+  // stay as seeded for the length of the shot.
+  await page.route("**/*", (route) => {
+    const request = route.request()
+    if (request.method() === "POST" && request.headers()["next-action"]) return
+    return route.fallback()
+  })
+  await page.route("**/api/frame-stream", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        shared: true,
+        url: FRAME_STREAM_URL,
+        token: "screenshots",
+        expiresAt: Date.now() + 3_600_000,
+      }),
+    })
+  )
+  await page.routeWebSocket(FRAME_STREAM_URL, (ws) => {
+    ws.onMessage((message) => {
+      const msg = JSON.parse(String(message)) as { t?: string }
+      if (msg.t === "auth")
+        ws.send(JSON.stringify({ t: "ready", codec: "h264" }))
+    })
+  })
+}
