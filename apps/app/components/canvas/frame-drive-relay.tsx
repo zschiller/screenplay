@@ -13,7 +13,9 @@ import { driveFrames, runFrameDriveRelay } from "@/lib/frame-drive/canvas/relay"
 import {
   FRAME_DRIVE_PATH,
   FRAME_DRIVE_ROOM_PARAM,
+  type PageAsk,
 } from "@/lib/frame-drive/canvas/protocol"
+import { takeFrameInput } from "@/lib/frame-drive/canvas/take-input"
 import {
   docRelaySocket,
   FRAME_DRIVE_ANSWER_PATH,
@@ -28,6 +30,8 @@ import type { YjsCollection } from "@/lib/yjs/schema"
 const TOKEN_PARAM = "token"
 const RECONNECT_MIN_MS = 1000
 const RECONNECT_MAX_MS = 10_000
+/** The longest a real-input gesture may hold a frame's input (#1385). */
+const TAKEN_INPUT_MAX_MS = 15_000
 
 /**
  * The canvas end of the Mac drive channel (#1389), desktop only: while this
@@ -174,31 +178,69 @@ export function useDriveFrame(
   dom: ScreenplayDom,
   iframeRef: RefObject<HTMLIFrameElement | null>,
   zoom: number,
-  { snapshot = false }: { snapshot?: boolean } = {}
+  {
+    snapshot = false,
+    setTakesPointer,
+  }: {
+    snapshot?: boolean
+    /** Let the frame take the pointer for a gesture the Mac plays with real
+     *  input (#1385), as Interact does. */
+    setTakesPointer?: (on: boolean) => void
+  } = {}
 ) {
   // Read at snapshot time, so zooming doesn't re-register the frame.
   const zoomRef = useRef(zoom)
+  const setTakesPointerRef = useRef(setTakesPointer)
   useEffect(() => {
     zoomRef.current = zoom
+    setTakesPointerRef.current = setTakesPointer
   })
-  useEffect(
-    () =>
-      driveFrames.register(frameId, {
-        drive: (op) => dom.drive(op),
-        stop: () => dom.stopDrive(),
-        where: () => {
-          const r = iframeRef.current?.getBoundingClientRect()
-          return {
-            rect: r
-              ? { x: r.x, y: r.y, width: r.width, height: r.height }
-              : null,
-            window: { width: window.innerWidth, height: window.innerHeight },
-            zoom: zoomRef.current,
-            visibility: document.visibilityState,
-          }
-        },
-        ...(snapshot ? { snapshot: () => dom.pageSnapshot() } : {}),
-      }),
-    [frameId, dom, iframeRef, snapshot]
-  )
+  useEffect(() => {
+    // The input a real-input gesture took, until it hands it back. A gesture
+    // that never does (the server went away) hands it back on its own.
+    let taken: {
+      release(): void
+      timer: ReturnType<typeof setTimeout>
+    } | null = null
+    const release = () => {
+      if (!taken) return
+      clearTimeout(taken.timer)
+      taken.release()
+      taken = null
+    }
+    const page = async (ask: PageAsk): Promise<unknown> => {
+      if (ask.kind === "release") return release()
+      if (ask.kind !== "take") return dom.drivePage(ask)
+      release()
+      const iframe = iframeRef.current
+      if (!iframe) return null
+      const got = await takeFrameInput(iframe, ask.at, (on) =>
+        setTakesPointerRef.current?.(on)
+      )
+      taken = {
+        release: got.release,
+        timer: setTimeout(release, TAKEN_INPUT_MAX_MS),
+      }
+      return { window: got.window }
+    }
+    const unregister = driveFrames.register(frameId, {
+      drive: (op) => dom.drive(op),
+      stop: () => dom.stopDrive(),
+      where: () => {
+        const r = iframeRef.current?.getBoundingClientRect()
+        return {
+          rect: r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null,
+          window: { width: window.innerWidth, height: window.innerHeight },
+          zoom: zoomRef.current,
+          visibility: document.visibilityState,
+        }
+      },
+      ...(snapshot ? { snapshot: () => dom.pageSnapshot() } : {}),
+      page,
+    })
+    return () => {
+      release()
+      unregister()
+    }
+  }, [frameId, dom, iframeRef, snapshot])
 }

@@ -20,6 +20,7 @@ export function frameDrivePrompt(
   }
 ): string {
   const shared = frames === "shared"
+  const mac = frames === "mac"
   const tools = `${t("frame_click")}, ${t("frame_type")}, ${t("frame_key")}, ${t("frame_scroll")}, ${t("frame_select")}, ${t("frame_drag")} and ${t("frame_hover")}`
   const intro = shared
     ? `You can drive a frame or Mockup on the canvas, as a person would: ${tools}. A frame is one shared browser: everyone with it on screen watches each step live, and your clicks and keys there are real input, so focus, typing, Tab and hover work. A Mockup you drive in the view of the user who asked; everyone else keeps their own copy.`
@@ -27,7 +28,11 @@ export function frameDrivePrompt(
         frames
           ? "a frame or Mockup the user has open on the canvas"
           : "a Mockup the user has open on the canvas (frames can't be driven in the browser yet)"
-      }, as they would: ${tools}. You drive it in the view of the user who asked; everyone else keeps their own copy.`
+      }, as they would: ${tools}. You drive it in the view of the user who asked; everyone else keeps their own copy.${
+        mac
+          ? ` Your clicks and keys are real input, so focus, typing, Tab, hover and copy and paste work. Copy and paste use a clipboard of your own, never the user's. A file input takes files from your Workspace: click it with \`files\`.`
+          : ""
+      }`
   const check =
     frames && viewFrame
       ? `check each step with ${t("frame_screenshot")}, which shows it as the user sees it (unlike ${t("view_frame")}, which renders a fresh copy of a frame)`
@@ -40,7 +45,9 @@ export function frameDrivePrompt(
     : "- The user can take it from you at any moment: when a step says they took control, stop, tell them in chat where you got to, and ask before driving again."
   const cant = shared
     ? "a file picker anywhere; in a Mockup also the clipboard or typing into a rich-text editor"
-    : "a file picker, the clipboard, typing into a rich-text editor"
+    : mac
+      ? "a file from outside your Workspace"
+      : "a file picker, the clipboard, typing into a rich-text editor"
   const closed = shared
     ? "- A Mockup needs the user's canvas open: when it isn't, say so instead of driving."
     : "- When the canvas isn't open, say so instead of driving."

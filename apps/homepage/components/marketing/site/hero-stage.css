@@ -8,8 +8,7 @@
   --hc-floor: clamp(300px, calc(100svh - 400px), 520px);
 }
 /* The floor sits behind the text rather than pushing it down, so the
-   headline doesn't move when the copies are built. The far side fades into
-   the dark under the nav. */
+   headline doesn't move when the copies are built. */
 .hc-backdrop {
   position: absolute;
   inset: 0 0 auto;
@@ -19,11 +18,6 @@
   pointer-events: none;
   perspective: 800px;
   perspective-origin: 50% 90%;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 70px,
-    #000 calc(var(--hc-floor) * 0.6)
-  );
 }
 /* The headline's first line sinks into the nearest row, where the veil turns
    solid. */
@@ -142,9 +136,10 @@
 }
 
 /* The mini homepage. 1em = 1/60 of the frame's width. It has its own tokens
-   so an agent's edit can change them. */
+   so an agent's edit can change them. The page is a dark grey, not the
+   hero's black, so each copy reads as its own page on the plane. */
 .hc-page {
-  --pg-bg: var(--background);
+  --pg-bg: color-mix(in srgb, var(--foreground) 11%, var(--background));
   --pg-fg: var(--foreground);
   --pg-mut: var(--muted-foreground);
   --pg-line: var(--border);
@@ -161,7 +156,7 @@
     color 0.8s;
 }
 .hc-page.soft {
-  --pg-bg: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --pg-bg: color-mix(in srgb, var(--foreground) 16%, var(--background));
 }
 .hc-page.blue {
   --pg-acc: oklch(0.6 0.2 255);

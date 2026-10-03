@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react"
 import { createDitherVeil } from "./dither-veil"
 import "./hero-stage.css"
 
-const HEAD = "Every branch, side by side."
+const HEAD = "From idea to code, on one canvas."
 const HEADLINES = [
   "Every idea, side by side.",
   "Ship the version that works.",
@@ -52,7 +52,7 @@ const PAGE = `
     <div class="hc-nav"><span class="hc-logo"><i></i>Screenplay</span><span class="hc-links"><span>How it works</span><span>Features</span><span>Docs</span></span><span class="hc-dl">Download</span></div>
     <div class="hc-hero">
       <div class="hc-h1">${HEAD}</div>
-      <div class="hc-row"><p class="hc-lede">Run your coding agents on separate branches and see every result live on one canvas.</p><div class="hc-btns"><span class="hc-b solid">Download for Mac</span><span class="hc-b">Host it for your team</span></div></div>
+      <div class="hc-row"><p class="hc-lede">Coding agents plan, mock up and build from your own repo, with every version live side by side.</p><div class="hc-btns"><span class="hc-b solid">Download for Mac</span><span class="hc-b">Host it for your team</span></div></div>
       <div class="hc-fig"><span></span><span></span><span></span></div>
     </div>
   </div>`
@@ -107,9 +107,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
+      const floor = rowsEl.parentElement!.getBoundingClientRect()
       return [
         rowsEl.getBoundingClientRect().top - s + HAZE,
         head.getBoundingClientRect().top - s + size * 0.6,
+        // The far side of the floor dissolves into the dark under the nav
+        // through the same grain.
+        [floor.top - s + 90, floor.top - s + floor.height * 0.7],
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()

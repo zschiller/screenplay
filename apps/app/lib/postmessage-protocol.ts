@@ -1,4 +1,4 @@
-import type { DriveOp } from "@/lib/frame-drive/contract"
+import type { DriveOp, DriveTarget } from "@/lib/frame-drive/contract"
 
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
@@ -49,6 +49,18 @@ export type CanvasToIframeMessage =
   // value is a `DriveResult`; `drive-stop` ends a gesture still running.
   | { type: "screenplay:drive"; id: string; op: DriveOp }
   | { type: "screenplay:drive-stop"; id: string }
+  // The Mac's real input (#1385), as a shared frame's (#1396): where a
+  // target is, the agent's cursor at show pace, and what a gesture left.
+  | {
+      type: "screenplay:drive-locate"
+      id: string
+      target: DriveTarget
+      focus?: "field" | "element"
+      replace?: boolean
+      show?: boolean
+    }
+  | ({ type: "screenplay:drive-cursor"; id: string } & Record<string, unknown>)
+  | { type: "screenplay:drive-state"; id: string; selector?: string }
   | { type: "screenplay:knob-values"; values: JsonObject }
   | { type: "screenplay:cursor-mode"; mode: CursorMode }
   // `initial` marks the answer to `screenplay:shared-state-request`: the

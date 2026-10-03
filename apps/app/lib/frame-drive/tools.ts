@@ -94,6 +94,9 @@ export function buildFrameDriveTools(
     /** Whether this runtime drives frames, or Mockups only (a hosted
      *  deployment without shared frames, #1391). */
     frames?: boolean
+    /** Whether a click can answer a file picker with Workspace files (the
+     *  Mac, #1385). */
+    files?: boolean
     sleep?: (ms: number) => Promise<void>
   }
 ) {
@@ -131,6 +134,17 @@ export function buildFrameDriveTools(
     if (typeof frame === "string") return frame
     return phrase(frame.name, await driver.run(frame.id, op))
   }
+
+  const clickSchema = z.object({
+    frameId,
+    target: targetSchema,
+    files: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "For a file input: the files to pick, as paths relative to your Workspace's root. Only files in your Workspace can be picked"
+      ),
+  })
 
   const tools = {
     frame_start_driving: tool({
@@ -239,10 +253,17 @@ export function buildFrameDriveTools(
     }),
 
     frame_click: tool({
-      description: `Click an element in ${page}, as a person would. Links follow, buttons and menus open, checkboxes toggle. Find the target with frame_elements first.`,
-      inputSchema: z.object({ frameId, target: targetSchema }),
-      execute: ({ frameId, target }) =>
-        gesture(frameId, { op: "click", target: cleanTarget(target) }),
+      description: `Click an element in ${page}, as a person would. Links follow, buttons and menus open, checkboxes toggle. Find the target with frame_elements first.${opts.files ? " To pick files in a file input, click it with `files`." : ""}`,
+      // Only where a click can pick files does the agent see `files`.
+      inputSchema: (opts.files
+        ? clickSchema
+        : clickSchema.omit({ files: true })) as typeof clickSchema,
+      execute: ({ frameId, target, files }) =>
+        gesture(frameId, {
+          op: "click",
+          target: cleanTarget(target),
+          ...(files?.length ? { files } : {}),
+        }),
     }),
 
     frame_type: tool({
@@ -464,6 +485,9 @@ export function phrase(frameName: string, outcome: AgentDriveOutcome): string {
           `Scrolled to ${Math.round(v.scrolled.x)}, ${Math.round(v.scrolled.y)}.`,
         v.emulated &&
           `Screenplay ran the browser's default for it (${v.emulated}).`,
+        v.picked && `The file picker took ${v.picked.join(", ")}.`,
+        v.copied !== undefined &&
+          `It copied ${JSON.stringify(v.copied)} (the person's own clipboard is unchanged; your next paste pastes this).`,
       ].filter(Boolean)
       return [
         `Did ${v.op} on${on || " the page"} in ${frameName}. The page is at ${v.path}.`,

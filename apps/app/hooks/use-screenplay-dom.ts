@@ -8,8 +8,12 @@ import type {
   DomRect,
 } from "@/lib/postmessage-protocol"
 import type { ElementAnchor } from "@/lib/comment-anchor"
-import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
-import type { PageInView } from "@/lib/frame-drive/canvas/protocol"
+import type {
+  DriveOp,
+  DriveResult,
+  DriveTarget,
+} from "@/lib/frame-drive/contract"
+import type { PageAsk, PageInView } from "@/lib/frame-drive/canvas/protocol"
 
 export type Handle = string
 
@@ -124,6 +128,9 @@ export function useScreenplayDom(
           | "screenplay:navigate"
           | "screenplay:drive"
           | "screenplay:drive-stop"
+          | "screenplay:drive-locate"
+          | "screenplay:drive-cursor"
+          | "screenplay:drive-state"
         op?: DomOp | DriveOp
         selector?: string
         selectors?: string[]
@@ -134,7 +141,11 @@ export function useScreenplayDom(
         y?: number
         path?: string
         live?: boolean
-      },
+        target?: DriveTarget
+        focus?: "field" | "element"
+        replace?: boolean
+        show?: boolean
+      } & Record<string, unknown>,
       timeoutMs = REQUEST_TIMEOUT_MS
     ): Promise<T> => {
       const id = "q_" + seq.current++
@@ -290,6 +301,27 @@ export function useScreenplayDom(
               }
             : { status: "failed" as const, reason: message }
         }),
+      /** One step of a gesture the Mac plays with real input (#1385): find
+       *  a target, draw the agent's cursor, or read what the gesture left.
+       *  Null when the bridge fails or doesn't answer. */
+      drivePage: (ask: Exclude<PageAsk, { kind: "take" | "release" }>) => {
+        const message =
+          ask.kind === "locate"
+            ? {
+                type: "screenplay:drive-locate" as const,
+                target: ask.target,
+                focus: ask.focus,
+                replace: ask.replace,
+                show: ask.show,
+              }
+            : ask.kind === "cursor"
+              ? { type: "screenplay:drive-cursor" as const, ...ask.what }
+              : {
+                  type: "screenplay:drive-state" as const,
+                  selector: ask.selector,
+                }
+        return request<unknown>(message, DRIVE_TIMEOUT_MS).catch(() => null)
+      },
       stopDrive: () =>
         void request<null>({ type: "screenplay:drive-stop" }).catch(() => {}),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),

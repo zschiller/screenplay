@@ -41,6 +41,13 @@ export function frameDriveContract(
     gaps: readonly DriveGap[]
     /** Skip it where the runtime can't run (no browser stack). */
     skip?: boolean
+    /**
+     * The runtime plays gestures as real input (#1385): each gesture that
+     * isn't a gap must also do what a person's would (type the key, copy).
+     * `copies`: a copy comes back as the copied text. `file`: a file in the
+     * frame's Workspace a click can pick (a path relative to its root).
+     */
+    real?: { copies?: boolean; file?: string }
   }
 ) {
   describe.skipIf(!!opts.skip)(`Frame Drive contract: ${name}`, () => {
@@ -307,9 +314,56 @@ export function frameDriveContract(
             expect(DRIVE_GAPS[gap]).toBeTruthy()
           } else {
             expect(result.status).not.toBe("gap")
+            if (opts.real) await expectReal(gap, result)
           }
         })
       }
+
+      /** What a person's gesture would have done. */
+      const expectReal = async (gap: DriveGap, result: DriveResult) => {
+        expectDone(result)
+        if (gap === "key-typing") {
+          expect((await read("#name")).read?.value).toBe("a")
+        } else if (gap === "rich-text") {
+          expect((await read("#notes")).read?.text).toBe("hi")
+        } else if (gap === "clipboard" && opts.real?.copies) {
+          expect(result).toMatchObject({ value: { copied: "link" } })
+        }
+      }
+
+      it("answers a file picker with a file from the Workspace", async () => {
+        const file = opts.real?.file
+        if (!file) return
+        const result = await run({
+          op: "click",
+          target: { selector: "#upload" },
+          files: [file],
+        })
+        expect(result).toMatchObject({
+          status: "done",
+          value: { picked: [file] },
+        })
+        const name = file.split("/").pop()!
+        expect((await read("#upload")).read?.value).toContain(name)
+        // One outside the Workspace is still the person's to pick.
+        expect(
+          await run({
+            op: "click",
+            target: { selector: "#upload" },
+            files: ["../outside.txt"],
+          })
+        ).toMatchObject({ status: "gap", gap: "file-picker" })
+      })
+
+      it("tabs to the next field, and types into it", async () => {
+        if (!opts.real) return
+        await run({ op: "click", target: { selector: "#name" } })
+        expectDone(await run({ op: "key", key: "Tab" }))
+        expectDone(await run({ op: "key", key: "x" }))
+        // Tab moved on to the rich-text editor after the field.
+        expect((await read("#name")).read?.value).toBe("")
+        expect((await read("#notes")).read?.text).toBe("x")
+      })
     })
 
     describe("no script", () => {
