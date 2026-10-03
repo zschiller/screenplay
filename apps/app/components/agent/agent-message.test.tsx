@@ -16,6 +16,7 @@ import {
 } from "./workspace-task-row"
 import {
   AgentMessageItem,
+  FrameDriveGroup,
   TaskGroup,
   TurnSummaryRow,
   quotePlan,
@@ -238,13 +239,13 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     )
   })
 
-  it("renders inline `code` in an ACP title as markdown, not literal backticks", () => {
+  it("renders inline `code` in an ACP title as the row's subject, not literal backticks", () => {
     const { container } = render(
       <AgentMessageItem
         message={toolCall({ title: "Read `src/a.ts`", status: "completed" })}
       />
     )
-    const code = container.querySelector("code")
+    const code = container.querySelector("[data-row-detail]")
     expect(code?.textContent).toBe("src/a.ts")
     // The literal backticks must not survive into the rendered text.
     expect(screen.getByTestId("tool-call").textContent).not.toContain("`")
@@ -291,9 +292,9 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
         })}
       />
     )
-    const codes = Array.from(container.querySelectorAll("code")).map(
-      (c) => c.textContent
-    )
+    const codes = Array.from(
+      container.querySelectorAll("[data-row-detail]")
+    ).map((c) => c.textContent)
     expect(codes).toEqual(["a.ts", "b.ts"])
   })
 
@@ -325,7 +326,9 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     )
     const row = screen.getByTestId("tool-call")
     expect(row.textContent).toContain("Read 3 lines")
-    expect(container.querySelector("code")?.textContent).toBe("src/foo.ts")
+    expect(container.querySelector("[data-row-detail]")?.textContent).toBe(
+      "src/foo.ts"
+    )
   })
 
   // The whole point: a generic adapter's prose "Read File" (with the path under
@@ -351,7 +354,9 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     const row = screen.getByTestId("tool-call")
     expect(row.textContent).toContain("Read 2 lines")
     expect(row.textContent).not.toContain("Read File")
-    expect(container.querySelector("code")?.textContent).toBe("src/foo.ts")
+    expect(container.querySelector("[data-row-detail]")?.textContent).toBe(
+      "src/foo.ts"
+    )
   })
 
   // Before the result arrives (or for a non-numbered read) there's no count, so
@@ -389,7 +394,9 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     )
     const row = screen.getByTestId("tool-call")
     expect(row.textContent).not.toContain("Edit File")
-    expect(container.querySelector("code")?.textContent).toBe("a.ts")
+    expect(container.querySelector("[data-row-detail]")?.textContent).toBe(
+      "a.ts"
+    )
   })
 
   // A `read_skill` is also `kind: "read"` but has no path — it must keep its
@@ -409,7 +416,9 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     const row = screen.getByTestId("tool-call")
     expect(row.textContent).toContain("Read skill")
     expect(row.textContent).not.toContain("lines")
-    expect(container.querySelector("code")?.textContent).toBe("diagnose")
+    expect(container.querySelector("[data-row-detail]")?.textContent).toBe(
+      "diagnose"
+    )
   })
 })
 
@@ -422,7 +431,8 @@ describe("AgentMessageItem — frame drive steps", () => {
       />
     )
     const line = screen.getByTestId("tool-call").textContent
-    const code = container.querySelector("code")?.textContent ?? null
+    const code =
+      container.querySelector("[data-row-detail]")?.textContent ?? null
     unmount()
     return { line, code }
   }
@@ -432,22 +442,20 @@ describe("AgentMessageItem — frame drive steps", () => {
       line: expect.stringContaining("Click"),
       code: "Save",
     })
+    // The element the page says it acted on beats the selector.
     expect(
       row("mcp__screenplay__frame_click", { target: { selector: "#save" } })
         .code
     ).toBe("#save")
     expect(
       row("frame_type", { target: { text: "Name" }, text: "Ada" }).code
-    ).toBe("Ada")
-    expect(
-      row("frame_key", { key: "k", modifiers: { metaKey: true } }).code
-    ).toBe("Cmd+k")
+    ).toBe("“Ada”")
     expect(
       row("frame_drag", {
         target: { text: "Volume" },
         to: { x: 120.4, y: 40 },
       }).code
-    ).toBe("Volume → 120, 40")
+    ).toBe("Volume to 120, 40")
     expect(row("frame_open", { route: "/settings" })).toMatchObject({
       line: expect.stringContaining("Open frame"),
       code: "/settings",
@@ -456,6 +464,47 @@ describe("AgentMessageItem — frame drive steps", () => {
       line: expect.stringContaining("Take control"),
       code: null,
     })
+  })
+
+  it("draws a key press as keycaps", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "frame_key",
+          status: "completed",
+          rawInput: { key: "k", modifiers: { metaKey: true } },
+        })}
+      />
+    )
+    const caps = screen
+      .getByTestId("tool-call")
+      .querySelectorAll("[data-slot=kbd]")
+    expect(Array.from(caps).map((c) => c.textContent)).toEqual(["⌘", "k"])
+  })
+
+  it("names the element a click's result says it acted on", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "frame_click",
+          status: "completed",
+          rawInput: { target: { selector: "main > button.btn-primary" } },
+          content: [
+            {
+              type: "content",
+              content: {
+                type: "text",
+                text: 'Did click on button "Pay now" in frame [f1] (/checkout). The page is at /checkout.',
+              },
+            },
+          ],
+        })}
+      />
+    )
+    const row = screen.getByTestId("tool-call")
+    expect(row.textContent).toContain("Click Pay now")
+    // The result only says the label again, so the row doesn't open.
+    expect(row.getAttribute("aria-expanded")).toBeNull()
   })
 })
 
@@ -1402,5 +1451,94 @@ describe("AgentMessageItem — question cards (#1312)", () => {
       />
     )
     expect(screen.getByText("Ask a question")).toBeTruthy()
+  })
+})
+
+// The tool-row audit (2026-10-03): what an open row shows, and a folded drive.
+describe("AgentMessageItem — tool row output", () => {
+  const text = (t: string): ToolCallContent => ({
+    type: "content",
+    content: { type: "text", text: t },
+  })
+
+  it("never opens onto the input claude-agent-acp echoes as JSON", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "mcp__screenplay__read_canvas",
+          kind: "other",
+          status: "completed",
+          rawInput: { depth: 2 },
+          content: [text('```json\n{\n  "depth": 2\n}\n```')],
+        })}
+      />
+    )
+    expect(
+      screen.getByTestId("tool-call").getAttribute("aria-expanded")
+    ).toBeNull()
+  })
+
+  it("leaves a passing command's exit code out of its output", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "run_command",
+          kind: "execute",
+          status: "completed",
+          rawInput: { command: "ls" },
+          content: [text("stdout:\na.ts\n\nexit code: 0")],
+        })}
+      />
+    )
+    fireEvent.click(screen.getByTestId("tool-call"))
+    expect(screen.getByTestId("tool-content-text").textContent).toBe("a.ts")
+  })
+
+  it("renders a markdown result as markdown", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "read_skill",
+          kind: "read",
+          status: "completed",
+          rawInput: { name: "diagnose" },
+          content: [text("# Diagnose\n\n- one\n- two")],
+        })}
+      />
+    )
+    fireEvent.click(screen.getByTestId("tool-call"))
+    expect(container.querySelectorAll("li")).toHaveLength(2)
+  })
+
+  it("folds a drive into one closed row naming the page and its steps", () => {
+    const step = (id: string, title: string): AgentMessage =>
+      ({
+        ...toolCall({
+          title,
+          status: "completed",
+          content: [
+            text(
+              'Did click on the page in frame [f1] (/checkout in Workspace "Checkout"). The page is at /checkout.'
+            ),
+          ],
+        }),
+        toolCallId: id,
+      }) as AgentMessage
+    render(
+      <FrameDriveGroup
+        steps={
+          [step("a", "frame_click"), step("b", "frame_scroll")] as Extract<
+            AgentMessage,
+            { role: "tool_call" }
+          >[]
+        }
+      />
+    )
+    const header = screen.getByTestId("frame-drive")
+    expect(header.textContent).toContain("Drove Checkout")
+    expect(header.textContent).toContain("2 steps")
+    expect(screen.queryAllByTestId("tool-call")).toHaveLength(0)
+    fireEvent.click(header)
+    expect(screen.getAllByTestId("tool-call")).toHaveLength(2)
   })
 })

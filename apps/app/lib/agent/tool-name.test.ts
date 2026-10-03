@@ -12,6 +12,7 @@ describe("bareToolName", () => {
     expect(bareToolName("mcp__screenplay__read_canvas")).toBe("read_canvas")
     expect(bareToolName("mcp__my_server__list_changes")).toBe("list_changes")
     expect(bareToolName("Tool: screenplay/read_canvas")).toBe("read_canvas")
+    expect(bareToolName("mcp.screenplay.read_canvas")).toBe("read_canvas")
   })
 
   it("leaves every other title as is", () => {
@@ -33,49 +34,37 @@ describe("isHarnessPlumbing", () => {
     status,
     content: [],
   })
-  const coordinator = { coordinator: true }
-  const workspace = { coordinator: false }
 
-  it("is Claude Code's tool loading in the Coordinator's chat, unless it failed", () => {
+  it("is a harness's housekeeping in every chat, unless it failed", () => {
+    for (const title of [
+      "ToolSearch",
+      "Ready to code?",
+      "Compact conversation",
+    ]) {
+      expect(isHarnessPlumbing(call(title, "completed"))).toBe(true)
+      expect(isHarnessPlumbing(call(title, "failed"))).toBe(false)
+    }
     expect(
-      isHarnessPlumbing(call("ToolSearch", "completed"), coordinator)
-    ).toBe(true)
-    expect(isHarnessPlumbing(call("ToolSearch", "failed"), coordinator)).toBe(
-      false
-    )
-    expect(isHarnessPlumbing(call("ToolSearch", "completed"), workspace)).toBe(
-      false
-    )
-    expect(
-      isHarnessPlumbing(
-        call("mcp__screenplay__read_canvas", "completed"),
-        coordinator
-      )
+      isHarnessPlumbing(call("mcp__screenplay__read_canvas", "completed"))
     ).toBe(false)
   })
 
-  it("is Codex's Guardian Review in every chat, unless it failed", () => {
+  it("is Codex's Guardian Review, unless it failed", () => {
     const byId = (status: "in_progress" | "completed" | "failed") =>
       call("Reviewing approval request", status, "guardian_assessment:r1")
-    for (const where of [coordinator, workspace]) {
-      expect(isHarnessPlumbing(byId("completed"), where)).toBe(true)
-      expect(isHarnessPlumbing(byId("in_progress"), where)).toBe(true)
-      expect(
-        isHarnessPlumbing(call("Guardian Review", "completed"), where)
-      ).toBe(true)
-      expect(isHarnessPlumbing(byId("failed"), where)).toBe(false)
-      expect(isHarnessPlumbing(call("Guardian Review", "failed"), where)).toBe(
-        false
-      )
-    }
+    expect(isHarnessPlumbing(byId("completed"))).toBe(true)
+    expect(isHarnessPlumbing(byId("in_progress"))).toBe(true)
+    expect(isHarnessPlumbing(call("Guardian Review", "completed"))).toBe(true)
+    expect(isHarnessPlumbing(byId("failed"))).toBe(false)
+    expect(isHarnessPlumbing(call("Guardian Review", "failed"))).toBe(false)
   })
 
   it("never hides a thinking step for its kind alone", () => {
     expect(
-      isHarnessPlumbing(
-        { ...call("Thinking", "completed"), kind: "think" as const },
-        workspace
-      )
+      isHarnessPlumbing({
+        ...call("Thinking", "completed"),
+        kind: "think" as const,
+      })
     ).toBe(false)
   })
 })

@@ -101,7 +101,7 @@ const SKILL_MARKER_RE = /\[skill:\s*([^\]]+)\]/g
 /**
  * Renderer-only transform: rewrite each inline `[skill: <name>]` marker into
  * the pill markdown link form `[/<name>](skill:<name>)` the message renderer
- * draws as a Sparkles chip. All other text is left untouched.
+ * draws as a skill chip. All other text is left untouched.
  */
 export function skillMarkersToPills(body: string): string {
   return body.replace(

@@ -16,8 +16,14 @@ import { useAgentChat } from "@/hooks/use-agent-chat"
 import { chatStore, sentTurn } from "@/lib/chat-store"
 import { describeSendError } from "@/lib/agent/chat-errors"
 import { RetryButton } from "@/components/home/load-error"
-import { AgentMessageItem, TaskGroup, TurnSummaryRow } from "./agent-message"
 import {
+  AgentMessageItem,
+  FrameDriveGroup,
+  TaskGroup,
+  TurnSummaryRow,
+} from "./agent-message"
+import {
+  foldFrameDrives,
   groupToolCalls,
   type GroupedMessage,
 } from "@/lib/agent/group-tool-calls"
@@ -361,8 +367,15 @@ export function AgentChat({
     ? workspaceTasks?.branches.find((b) => b.id === wakeFrom)
     : undefined
 
-  const renderEntry = ({ message: msg, index: i, children }: GroupedMessage) =>
-    // A subagent's calls fold under the Task that spawned them (#640);
+  const renderEntry = ({
+    message: msg,
+    index: i,
+    children,
+    drive,
+  }: GroupedMessage) =>
+    drive ? (
+      <FrameDriveGroup key={i} steps={children.map((c) => c.message)} />
+    ) : // A subagent's calls fold under the Task that spawned them (#640);
     // `children` is non-empty only for such a Task.
     children.length > 0 && msg.role === "tool_call" ? (
       <TaskGroup
@@ -414,14 +427,10 @@ export function AgentChat({
             <div className="space-y-4">
               {stackTaskRows(
                 foldFinishedTurns(
-                  groupToolCalls(
-                    // Every chat leaves out a harness's own plumbing; the
-                    // Coordinator's also leaves out loading our MCP tools.
-                    messages.filter(
-                      (m) =>
-                        !isHarnessPlumbing(m, {
-                          coordinator: workspaceTasks != null,
-                        })
+                  foldFrameDrives(
+                    groupToolCalls(
+                      // Every chat leaves out a harness's own plumbing.
+                      messages.filter((m) => !isHarnessPlumbing(m))
                     )
                   ),
                   {

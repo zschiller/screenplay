@@ -1,4 +1,6 @@
 import { defineConfig, globalIgnores } from "eslint/config"
+import tsParser from "@typescript-eslint/parser"
+import { bannedIconRules } from "./banned-icons.js"
 
 export const baseConfig = defineConfig([
   globalIgnores([
@@ -9,4 +11,7 @@ export const baseConfig = defineConfig([
     "node_modules/**",
     "next-env.d.ts",
   ]),
+  // Parse TypeScript so the icon ban reaches .ts and .tsx files too.
+  { files: ["**/*.{ts,tsx,mts,cts}"], languageOptions: { parser: tsParser } },
+  bannedIconRules,
 ])

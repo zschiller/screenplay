@@ -324,7 +324,8 @@ body {
    theme-aware highlight.js token colours; code and tables scroll inside the
    message instead of widening the panel. Colours are custom properties so the
    user bubble can deepen its code fills against its own `muted` fill. */
-.chat-markdown {
+.chat-markdown,
+.tool-output {
   --chat-code-bg: var(--muted);
   --chat-code-fg: var(--foreground);
   --chat-block-bg: color-mix(in oklab, var(--muted) 45%, var(--background));
@@ -342,7 +343,8 @@ body {
   --hl-deletion-bg: #ffebe9;
   overflow-wrap: anywhere;
 }
-.dark .chat-markdown {
+.dark .chat-markdown,
+.dark .tool-output {
   --hl-keyword: #ff7b72;
   --hl-string: #a5d6ff;
   --hl-title: #d2a8ff;
@@ -469,63 +471,63 @@ body {
 }
 
 /* highlight.js tokens (rehype-highlight). */
-.chat-markdown .hljs-keyword,
-.chat-markdown .hljs-selector-tag,
-.chat-markdown .hljs-meta .hljs-keyword,
-.chat-markdown .hljs-doctag,
-.chat-markdown .hljs-template-tag,
-.chat-markdown .hljs-type {
+:is(.chat-markdown, .tool-output) .hljs-keyword,
+:is(.chat-markdown, .tool-output) .hljs-selector-tag,
+:is(.chat-markdown, .tool-output) .hljs-meta .hljs-keyword,
+:is(.chat-markdown, .tool-output) .hljs-doctag,
+:is(.chat-markdown, .tool-output) .hljs-template-tag,
+:is(.chat-markdown, .tool-output) .hljs-type {
   color: var(--hl-keyword);
 }
-.chat-markdown .hljs-string,
-.chat-markdown .hljs-regexp,
-.chat-markdown .hljs-meta .hljs-string {
+:is(.chat-markdown, .tool-output) .hljs-string,
+:is(.chat-markdown, .tool-output) .hljs-regexp,
+:is(.chat-markdown, .tool-output) .hljs-meta .hljs-string {
   color: var(--hl-string);
 }
-.chat-markdown .hljs-title,
-.chat-markdown .hljs-title.class_,
-.chat-markdown .hljs-title.function_,
-.chat-markdown .hljs-section {
+:is(.chat-markdown, .tool-output) .hljs-title,
+:is(.chat-markdown, .tool-output) .hljs-title.class_,
+:is(.chat-markdown, .tool-output) .hljs-title.function_,
+:is(.chat-markdown, .tool-output) .hljs-section {
   color: var(--hl-title);
 }
-.chat-markdown .hljs-number,
-.chat-markdown .hljs-literal,
-.chat-markdown .hljs-attr,
-.chat-markdown .hljs-attribute,
-.chat-markdown .hljs-property,
-.chat-markdown .hljs-selector-attr,
-.chat-markdown .hljs-selector-class,
-.chat-markdown .hljs-selector-id,
-.chat-markdown .hljs-variable.constant_,
-.chat-markdown .hljs-meta {
+:is(.chat-markdown, .tool-output) .hljs-number,
+:is(.chat-markdown, .tool-output) .hljs-literal,
+:is(.chat-markdown, .tool-output) .hljs-attr,
+:is(.chat-markdown, .tool-output) .hljs-attribute,
+:is(.chat-markdown, .tool-output) .hljs-property,
+:is(.chat-markdown, .tool-output) .hljs-selector-attr,
+:is(.chat-markdown, .tool-output) .hljs-selector-class,
+:is(.chat-markdown, .tool-output) .hljs-selector-id,
+:is(.chat-markdown, .tool-output) .hljs-variable.constant_,
+:is(.chat-markdown, .tool-output) .hljs-meta {
   color: var(--hl-number);
 }
-.chat-markdown .hljs-built_in,
-.chat-markdown .hljs-variable,
-.chat-markdown .hljs-params,
-.chat-markdown .hljs-symbol {
+:is(.chat-markdown, .tool-output) .hljs-built_in,
+:is(.chat-markdown, .tool-output) .hljs-variable,
+:is(.chat-markdown, .tool-output) .hljs-params,
+:is(.chat-markdown, .tool-output) .hljs-symbol {
   color: var(--hl-builtin);
 }
-.chat-markdown .hljs-name,
-.chat-markdown .hljs-tag,
-.chat-markdown .hljs-quote,
-.chat-markdown .hljs-selector-pseudo {
+:is(.chat-markdown, .tool-output) .hljs-name,
+:is(.chat-markdown, .tool-output) .hljs-tag,
+:is(.chat-markdown, .tool-output) .hljs-quote,
+:is(.chat-markdown, .tool-output) .hljs-selector-pseudo {
   color: var(--hl-tag);
 }
-.chat-markdown .hljs-comment {
+:is(.chat-markdown, .tool-output) .hljs-comment {
   color: var(--hl-comment);
   font-style: italic;
 }
-.chat-markdown .hljs-addition {
+:is(.chat-markdown, .tool-output) .hljs-addition {
   background-color: var(--hl-addition-bg);
 }
-.chat-markdown .hljs-deletion {
+:is(.chat-markdown, .tool-output) .hljs-deletion {
   background-color: var(--hl-deletion-bg);
 }
-.chat-markdown .hljs-emphasis {
+:is(.chat-markdown, .tool-output) .hljs-emphasis {
   font-style: italic;
 }
-.chat-markdown .hljs-strong {
+:is(.chat-markdown, .tool-output) .hljs-strong {
   font-weight: 600;
 }
 

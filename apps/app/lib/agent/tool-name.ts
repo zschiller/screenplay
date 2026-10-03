@@ -3,14 +3,16 @@ import type { AgentMessage } from "@/lib/agent/types"
 /**
  * A tool call's own name, without the namespace a desktop harness adds when
  * it reaches our tools over MCP (#903): Claude Code reports
- * `mcp__screenplay__read_canvas` and Codex `Tool: screenplay/read_canvas`,
- * where the in-process engine reports `read_canvas`. Any other title comes
- * back as is.
+ * `mcp__screenplay__read_canvas` and Codex `mcp.screenplay.read_canvas`
+ * (`Tool: screenplay/read_canvas` before codex-acp 2), where the in-process
+ * engine reports `read_canvas`. Any other title comes back as is.
  */
 export function bareToolName(title: string): string {
   const claude = title.match(/^mcp__[^_]+(?:_[^_]+)*__([a-z][a-z0-9_]*)$/)
   if (claude) return claude[1]!
-  const codex = title.match(/^Tool: [^/\s]+\/([a-z][a-z0-9_]*)$/)
+  const codex =
+    title.match(/^mcp\.[^.\s]+\.([a-z][a-z0-9_]*)$/) ??
+    title.match(/^Tool: [^/\s]+\/([a-z][a-z0-9_]*)$/)
   if (codex) return codex[1]!
   return title
 }
@@ -57,12 +59,15 @@ export function harnessToolNaming(
 }
 
 /**
- * Claude Code's own step for loading deferred tools (our MCP tools among
- * them) before it calls them. It says nothing about the work, so the
- * Coordinator's chat leaves it out unless it failed. A Workspace's chat keeps
- * it.
+ * A harness's housekeeping steps, which say nothing about the work: Claude
+ * Code loading deferred tools (`ToolSearch`) and asking to leave plan mode
+ * (`Ready to code?`), and Codex compacting its context.
  */
-const COORDINATOR_PLUMBING = new Set(["ToolSearch"])
+const HOUSEKEEPING = new Set([
+  "ToolSearch",
+  "Ready to code?",
+  "Compact conversation",
+])
 
 /**
  * Codex's automatic approval reviewer ("Guardian Review"), which codex-acp
@@ -78,17 +83,11 @@ function isGuardianReview(message: AgentMessage & { role: "tool_call" }) {
 }
 
 /**
- * Whether a tool call is harness plumbing a chat hides: a Guardian Review in
- * every chat, and Claude Code's tool loading in the Coordinator's. One that
- * failed always shows, since it explains why something didn't run.
+ * Whether a tool call is harness plumbing every chat hides: a Guardian Review
+ * or a housekeeping step. One that failed always shows, since it explains why
+ * something didn't run.
  */
-export function isHarnessPlumbing(
-  message: AgentMessage,
-  { coordinator }: { coordinator: boolean }
-): boolean {
+export function isHarnessPlumbing(message: AgentMessage): boolean {
   if (message.role !== "tool_call" || message.status === "failed") return false
-  return (
-    isGuardianReview(message) ||
-    (coordinator && COORDINATOR_PLUMBING.has(message.title))
-  )
+  return isGuardianReview(message) || HOUSEKEEPING.has(message.title)
 }

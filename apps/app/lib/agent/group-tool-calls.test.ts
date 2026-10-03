@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { groupToolCalls } from "./group-tool-calls"
+import { foldFrameDrives, groupToolCalls } from "./group-tool-calls"
 import type { AgentMessage } from "@/lib/agent/types"
 
 /** A `tool_call` message, defaulting the noise so a case reads as its shape. */
@@ -86,5 +86,57 @@ describe("groupToolCalls (issue #640)", () => {
     expect(grouped.map((g) => g.message)).toEqual(messages)
     expect(grouped.map((g) => g.index)).toEqual([0, 1, 2, 3])
     expect(grouped.every((g) => g.children.length === 0)).toBe(true)
+  })
+})
+
+describe("foldFrameDrives", () => {
+  const step = (id: string, title: string, frameId?: string) =>
+    call(id, { title, rawInput: frameId ? { frameId } : {} })
+  const say = (content: string): AgentMessage => ({
+    role: "assistant",
+    content,
+  })
+
+  it("folds back-to-back steps on one frame into one entry", () => {
+    const messages = [
+      step("a", "frame_start_driving"),
+      step("b", "mcp__screenplay__frame_click"),
+      step("c", "frame_type"),
+      say("Done."),
+    ]
+    const folded = foldFrameDrives(groupToolCalls(messages))
+    expect(folded).toHaveLength(2)
+    expect(folded[0]).toMatchObject({ drive: true, index: 0 })
+    expect(folded[0]!.children.map((c) => c.index)).toEqual([0, 1, 2])
+    expect(folded[1]!.message).toBe(messages[3])
+  })
+
+  it("splits a drive where the frame changes or other work comes between", () => {
+    const messages = [
+      step("a", "frame_click", "f1"),
+      step("b", "frame_click", "f1"),
+      step("c", "frame_click", "f2"),
+      step("d", "frame_click", "f2"),
+      step("e", "read_file"),
+      step("f", "frame_click", "f2"),
+    ]
+    const folded = foldFrameDrives(groupToolCalls(messages))
+    expect(folded.map((e) => (e.drive ? e.children.length : 0))).toEqual([
+      2, 2, 0, 0,
+    ])
+  })
+
+  it("leaves a lone step, a run of page reads and opening a frame flat", () => {
+    const messages = [
+      step("a", "frame_click"),
+      say("Now reading."),
+      step("b", "frame_elements"),
+      step("c", "frame_screenshot"),
+      step("d", "frame_open"),
+      step("e", "frame_open"),
+    ]
+    const folded = foldFrameDrives(groupToolCalls(messages))
+    expect(folded).toHaveLength(6)
+    expect(folded.some((e) => e.drive)).toBe(false)
   })
 })
