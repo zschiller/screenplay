@@ -74,6 +74,17 @@ export interface ExternalEngineConfig {
   mcpServers?: OpenSessionOptions["mcpServers"]
   sessionMeta?: OpenSessionOptions["sessionMeta"]
   /**
+   * Folders outside `cwd` the agent reads without asking (see
+   * {@link OpenSessionOptions.additionalDirectories}): the chat's context
+   * folder (#1524).
+   */
+  additionalDirectories?: string[]
+  /**
+   * Writes what the agent reads from {@link additionalDirectories} before
+   * each session opens, so it's current on the turn that reads it.
+   */
+  prepareContext?: () => Promise<void>
+  /**
    * How long a stopped turn's agent gets to answer the cancel before its
    * process is ended. Defaults to {@link STOP_GRACE_MS}; tests shorten it.
    */
@@ -346,7 +357,13 @@ export class ExternalEngine implements Engine {
     // The chat's per-chat model choice, applied at open via the adapter's
     // model config option — inert for a chat with no stored model. Reconciliation rewrites a stale stored id
     // to the resolved one (#526).
-    const { modelId, reconcileModel, mcpServers, sessionMeta } = this.config
+    const {
+      modelId,
+      reconcileModel,
+      mcpServers,
+      sessionMeta,
+      additionalDirectories,
+    } = this.config
     const options: OpenSessionOptions = {
       cwd,
       planMode,
@@ -354,7 +371,9 @@ export class ExternalEngine implements Engine {
       reconcileModel,
       mcpServers,
       sessionMeta,
+      additionalDirectories,
     }
+    await this.config.prepareContext?.()
 
     if (this.config.loadSessionId) {
       try {

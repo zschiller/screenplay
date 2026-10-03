@@ -68,6 +68,8 @@ type FakeAgentOpts = {
   loadSession?: boolean
   /** Advertise `promptCapabilities.image` (#1525). */
   images?: boolean
+  /** Advertise `sessionCapabilities.additionalDirectories` (#1524). */
+  additionalDirectories?: boolean
   mcpCapabilities?: { http?: boolean; sse?: boolean }
   modes?: FakeModes
   models?: FakeModels
@@ -168,6 +170,9 @@ class FakeAcpAgent implements Agent {
         loadSession: this.opts.loadSession ?? true,
         mcpCapabilities: this.opts.mcpCapabilities,
         ...(this.opts.images ? { promptCapabilities: { image: true } } : {}),
+        ...(this.opts.additionalDirectories
+          ? { sessionCapabilities: { additionalDirectories: {} } }
+          : {}),
       },
       ...(this.opts.steering
         ? { _meta: { steering: { supported: true } } }
@@ -432,6 +437,44 @@ describe("AcpSession — MCP servers", () => {
     await AcpSession.open(transport, collectingPorts().ports, { cwd: "/" })
     expect(agent.newSessionParams?.mcpServers).toEqual([])
     expect(agent.newSessionParams).not.toHaveProperty("_meta")
+  })
+})
+
+describe("AcpSession — additional directories (#1524)", () => {
+  const folder = "/data/agent-context/chat-1"
+
+  it("sends the context folder on session/new and session/load", async () => {
+    const fresh = connectFakeAgent(async () => "end_turn", {
+      additionalDirectories: true,
+    })
+    await AcpSession.open(fresh.transport, collectingPorts().ports, {
+      cwd: "/work/branch-7",
+      additionalDirectories: [folder],
+    })
+    expect(fresh.agent.newSessionParams?.additionalDirectories).toEqual([
+      folder,
+    ])
+
+    const resumed = connectFakeAgent(async () => "end_turn", {
+      additionalDirectories: true,
+    })
+    await AcpSession.open(resumed.transport, collectingPorts().ports, {
+      cwd: "/work/branch-7",
+      loadSessionId: SESSION_ID,
+      additionalDirectories: [folder],
+    })
+    expect(resumed.agent.loadSessionParams?.additionalDirectories).toEqual([
+      folder,
+    ])
+  })
+
+  it("sends none to an agent that doesn't advertise them", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn")
+    await AcpSession.open(transport, collectingPorts().ports, {
+      cwd: "/work/branch-7",
+      additionalDirectories: [folder],
+    })
+    expect(agent.newSessionParams).not.toHaveProperty("additionalDirectories")
   })
 })
 

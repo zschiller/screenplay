@@ -12,6 +12,7 @@ import {
 } from "@/lib/memory/account"
 import { kvAccountMemoryStore } from "@/lib/memory/account-store"
 import { accountFiles } from "@/lib/files"
+import { agentContextFolder } from "@/lib/files/context-folder"
 import type { Files } from "@/lib/files/files"
 import type { FileEntryData, MemoryData } from "@/lib/types"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
@@ -173,6 +174,17 @@ export function accountSkillsFor(target: {
 }): SavedSkills | null {
   const sender = turnSender(target)
   return sender ? accountSkills(sender) : null
+}
+
+/**
+ * Where a turn's harness reads the saved files on disk (#1524): the chat's
+ * context folder, or `null` on the in-process engine, which has no disk.
+ */
+export function contextFolderFor(
+  harnessKey: string | null | undefined,
+  chatId: string | undefined
+): string | null {
+  return harnessKey && chatId ? agentContextFolder(chatId) : null
 }
 
 /** Who sent a target's turn: its member, unless nobody did. */

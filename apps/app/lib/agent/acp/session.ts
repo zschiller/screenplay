@@ -155,6 +155,13 @@ export interface OpenSessionOptions {
    * `allowedTools`); other adapters ignore keys they don't know.
    */
   sessionMeta?: Record<string, unknown>
+  /**
+   * Folders outside `cwd` the agent may read without asking, sent on **both**
+   * `session/new` and `session/load` as ACP `additionalDirectories`: the
+   * chat's context folder of saved files (#1524). Sent only to an agent that
+   * advertises `sessionCapabilities.additionalDirectories`. Absent ⇒ none.
+   */
+  additionalDirectories?: string[]
 }
 
 /**
@@ -447,11 +454,17 @@ export class AcpSession {
       init.agentCapabilities?.mcpCapabilities
     )
     const meta = options.sessionMeta ? { _meta: options.sessionMeta } : {}
+    const directories =
+      options.additionalDirectories?.length &&
+      init.agentCapabilities?.sessionCapabilities?.additionalDirectories
+        ? { additionalDirectories: options.additionalDirectories }
+        : {}
     if (options.loadSessionId) {
       const loaded = await session.conn.loadSession({
         sessionId: options.loadSessionId,
         cwd: options.cwd,
         mcpServers,
+        ...directories,
         ...meta,
       })
       session.sessionId = options.loadSessionId
@@ -468,6 +481,7 @@ export class AcpSession {
       const created = await session.conn.newSession({
         cwd: options.cwd,
         mcpServers,
+        ...directories,
         ...meta,
       })
       session.sessionId = created.sessionId

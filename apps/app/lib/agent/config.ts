@@ -2,6 +2,10 @@ import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
 import type { FileEntryData, MarkdownLayerData, MemoryData } from "@/lib/types"
 import { fileEntryLine } from "@/lib/files/paths"
+import {
+  ACCOUNT_FILES_SECTION,
+  CANVAS_FILES_SECTION,
+} from "@/lib/files/context-folder"
 import { MEMORY_PROMPT_LIMIT } from "@/lib/memory/canvas"
 import {
   MENTION_MARKER_TOKEN,
@@ -128,7 +132,9 @@ export const FILES_PROMPT_LIMIT = 50
  */
 export function renderCanvasFiles(
   files: readonly FileEntryData[] | undefined,
-  t: ToolNaming["name"] = BARE_TOOL_NAMING.name
+  t: ToolNaming["name"] = BARE_TOOL_NAMING.name,
+  /** The chat's context folder, when a harness reads the files on disk. */
+  contextFolder?: string | null
 ): string {
   const entries = [...(files ?? [])].sort((a, b) =>
     a.path < b.path ? -1 : a.path > b.path ? 1 : 0
@@ -138,6 +144,7 @@ export function renderCanvasFiles(
   return [
     "",
     `Canvas files (shared with the canvas's members, never shown on the canvas or kept in the repository). Open one you need with \`${t("read_saved_file")}\`; don't open files the task doesn't need. Save a result later chats should be able to pick up (research notes, a reference image) with \`${t("save_file")}\`, keep related files in folders (\`${t("make_saved_folder")}\`, \`${t("move_saved_file")}\`), and delete ones you made that are out of date with \`${t("delete_saved_file")}\`.`,
+    ...renderOnDisk(contextFolder, CANVAS_FILES_SECTION, t),
     ...(kept.length === 0 ? ["(none yet)"] : kept.map(fileEntryLine)),
     ...(more > 0
       ? [
@@ -156,7 +163,9 @@ export function renderCanvasFiles(
  */
 export function renderAccountFiles(
   files: readonly FileEntryData[] | null | undefined,
-  t: ToolNaming["name"] = BARE_TOOL_NAMING.name
+  t: ToolNaming["name"] = BARE_TOOL_NAMING.name,
+  /** The chat's context folder, when a harness reads the files on disk. */
+  contextFolder?: string | null
 ): string {
   if (files === undefined) return ""
   if (files === null) {
@@ -170,6 +179,7 @@ export function renderAccountFiles(
   return [
     "",
     `Account files (the own files of the person who sent this message, from all their canvases; nobody else on this canvas sees them). Pass \`scope: "account"\` to the saved-file tools to open, save, move or delete one. Save something here only when it's theirs rather than this canvas's work: a file they'll want on every canvas.`,
+    ...renderOnDisk(contextFolder, ACCOUNT_FILES_SECTION, t),
     ...(kept.length === 0 ? ["(none yet)"] : kept.map(fileEntryLine)),
     ...(more > 0
       ? [
@@ -177,6 +187,22 @@ export function renderAccountFiles(
         ]
       : []),
   ].join("\n")
+}
+
+/**
+ * Where a harness finds a scope's saved files on disk (#1524): the chat's
+ * context folder, which it reads with its own tools and never writes to.
+ */
+function renderOnDisk(
+  contextFolder: string | null | undefined,
+  section: string,
+  t: ToolNaming["name"]
+): string[] {
+  if (!contextFolder) return []
+  const dir = `${contextFolder}/${section}`
+  return [
+    `On disk: these files are also in \`${dir}/\`, by the same paths, so read them there with your own tools rather than \`${t("read_saved_file")}\`. That folder is a read-only copy brought up to date before every turn: save, move and delete files only with the saved-file tools, since changes made in the folder are lost.`,
+  ]
 }
 
 /**
@@ -361,6 +387,8 @@ export function buildAgentSystemPrompt(opts: {
   accountMemory?: readonly MemoryData[] | null
   /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
   accountFiles?: readonly FileEntryData[] | null
+  /** Where a harness reads the saved files on disk (#1524). */
+  contextFolder?: string | null
   toolNaming?: ToolNaming
 }): string {
   const { repoSystemPrompt, layerDirectory, skills, memory } = opts
@@ -387,7 +415,11 @@ export function buildAgentSystemPrompt(opts: {
   const directoryBlock = renderLayerDirectory(layerDirectory, t, opts.chatId)
   const accountBlock = renderAccountMemory(opts.accountMemory)
   const memoryBlock = renderCanvasMemory(memory)
-  const accountFilesBlock = renderAccountFiles(opts.accountFiles, t)
+  const accountFilesBlock = renderAccountFiles(
+    opts.accountFiles,
+    t,
+    opts.contextFolder
+  )
   return (
     agentSystemPromptBase(naming) +
     skillsBlock +
@@ -396,7 +428,7 @@ export function buildAgentSystemPrompt(opts: {
     `\n\n${renderMemorySaving(t, opts.accountMemory)}` +
     (accountBlock ? `\n${accountBlock}` : "") +
     (memoryBlock ? `\n${memoryBlock}` : "") +
-    `\n${renderCanvasFiles(opts.files, t)}` +
+    `\n${renderCanvasFiles(opts.files, t, opts.contextFolder)}` +
     (accountFilesBlock ? `\n${accountFilesBlock}` : "") +
     (directoryBlock ? `\n${directoryBlock}` : "")
   )
@@ -419,6 +451,8 @@ export function buildSketchSystemPrompt(opts: {
   accountMemory?: readonly MemoryData[] | null
   /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
   accountFiles?: readonly FileEntryData[] | null
+  /** Where a harness reads the saved files on disk (#1524). */
+  contextFolder?: string | null
   toolNaming?: ToolNaming
 }): string {
   const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
@@ -457,8 +491,10 @@ export function buildSketchSystemPrompt(opts: {
     renderMemorySaving(t, opts.accountMemory),
     ...(accountBlock ? [accountBlock] : []),
     ...(memoryBlock ? [memoryBlock] : []),
-    renderCanvasFiles(opts.files, t),
-    ...[renderAccountFiles(opts.accountFiles, t)].filter(Boolean),
+    renderCanvasFiles(opts.files, t, opts.contextFolder),
+    ...[renderAccountFiles(opts.accountFiles, t, opts.contextFolder)].filter(
+      Boolean
+    ),
     ...(directoryBlock ? [directoryBlock] : []),
   ].join("\n")
 }
@@ -479,6 +515,8 @@ export function buildRoomSystemPrompt(opts: {
   accountMemory?: readonly MemoryData[] | null
   /** The sender's Account Files (#1521); `null` on a wake nobody sent. */
   accountFiles?: readonly FileEntryData[] | null
+  /** Where a harness reads the saved files on disk (#1524). */
+  contextFolder?: string | null
   skills?: readonly SkillMetadata[]
   toolNaming?: ToolNaming
 }): string {
@@ -555,7 +593,9 @@ export function buildRoomSystemPrompt(opts: {
     opts.canvasSummary || "(the canvas is empty)",
     ...[renderAccountMemory(opts.accountMemory)].filter(Boolean),
     renderCanvasMemory(opts.memory) || "\nCanvas memory: (empty)",
-    renderCanvasFiles(opts.files, t),
-    ...[renderAccountFiles(opts.accountFiles, t)].filter(Boolean),
+    renderCanvasFiles(opts.files, t, opts.contextFolder),
+    ...[renderAccountFiles(opts.accountFiles, t, opts.contextFolder)].filter(
+      Boolean
+    ),
   ].join("\n")
 }

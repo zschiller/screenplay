@@ -571,6 +571,33 @@ describe("ExternalEngine — native session resume", () => {
     }
   })
 
+  // #1524: the context folder is written before the session opens, so the
+  // agent reads current files, and rides the load and the fallback alike.
+  it("writes its context folder before the session opens and hands it to every open", async () => {
+    const rec = recordingFactory({ failLoad: true })
+    const order: string[] = []
+    const engine = new ExternalEngine({
+      sessionFactory: {
+        open: (ports, options) => {
+          order.push("open")
+          return rec.factory.open(ports, options)
+        },
+      },
+      loadSessionId: "stale-sess",
+      additionalDirectories: ["/data/agent-context/chat-1"],
+      prepareContext: async () => void order.push("context"),
+    })
+
+    await engine.run(turn(), () => {}, new AbortController().signal)
+
+    expect(order).toEqual(["context", "open", "open"])
+    for (const options of rec.opens) {
+      expect(options.additionalDirectories).toEqual([
+        "/data/agent-context/chat-1",
+      ])
+    }
+  })
+
   /**
    * ACP has no system-prompt channel, so the external engine must fold the
    * turn's system prompt — the always-commit-and-push rule, plan-mode protocol,

@@ -24,6 +24,12 @@ import {
   coordinatorSessionMeta,
   ensureCoordinatorFolder,
 } from "@/lib/agent/coordinator-mcp"
+import {
+  agentContextFolder,
+  isInsideFolder,
+  syncContextFolder,
+  type ContextSection,
+} from "@/lib/files/context-folder"
 import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
 import type { Engine } from "./engine-seam"
 import { inProcessEngine } from "./in-process-engine"
@@ -96,6 +102,11 @@ export async function resolveLiveEngine(
     roomId?: string
     /** Nobody sent the turn: its MCP tools get no account memory (#1515). */
     senderless?: boolean
+    /**
+     * What the chat's context folder holds (#1524), by section: read when
+     * the turn's session opens, so the agent reads current files.
+     */
+    contextSections?: () => Record<string, ContextSection | null>
   } = {}
 ): Promise<Engine> {
   if (engineChoiceFromEnv() !== "external") {
@@ -155,7 +166,37 @@ export async function resolveLiveEngine(
     reconcileModel,
     mcpServers: mcp?.mcpServers,
     sessionMeta: mcp?.sessionMeta,
+    ...contextFolder(opts, cwd),
   })
+}
+
+/**
+ * The chat's context folder (#1524) for its harness session: the folder the
+ * agent may read without asking, and the sync that brings it up to date
+ * before the session opens. None when the folder would sit inside the
+ * working folder (or hold it), since files never land in a checkout.
+ */
+function contextFolder(
+  opts: {
+    chatId?: string
+    contextSections?: () => Record<string, ContextSection | null>
+  },
+  cwd: string | undefined
+): Pick<ExternalEngineConfig, "additionalDirectories" | "prepareContext"> {
+  const { chatId, contextSections } = opts
+  if (!chatId || !contextSections) return {}
+  const folder = agentContextFolder(chatId)
+  if (cwd && (isInsideFolder(folder, cwd) || isInsideFolder(cwd, folder))) {
+    return {}
+  }
+  return {
+    additionalDirectories: [folder],
+    prepareContext: () =>
+      syncContextFolder(folder, contextSections()).catch((e) => {
+        // The saved-file tools still open every file.
+        console.error("context folder sync failed:", e)
+      }),
+  }
 }
 
 /**
