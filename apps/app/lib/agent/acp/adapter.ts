@@ -202,15 +202,19 @@ export function toolKindFor(toolName: string): ToolKind {
     case "read_workspace_diff":
     case "read_workspace_file":
     case "read_code_file":
-    case "search_code":
-    case "find_code_files":
     case "view_frame":
     case "read_frame_html":
     case "frame_elements":
     case "frame_screenshot":
     case "read_skill":
-    case "list_files":
       return "read"
+    // Searches and listings name a directory, not a file they read.
+    case "grep":
+    case "glob":
+    case "search_code":
+    case "find_code_files":
+    case "list_files":
+      return "search"
     case "write_file":
     case "edit_file":
     case "replace_document_body":

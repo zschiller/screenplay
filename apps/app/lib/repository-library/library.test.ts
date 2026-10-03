@@ -436,6 +436,14 @@ describe("customizing a repository on a canvas", () => {
     expect(isCustomized(repoOf(b, "repo-b")!, web)).toBe(false)
   })
 
+  it("ignores whitespace around agent instructions (#1479)", () => {
+    const web = { ...repository("web"), systemPrompt: "Use pnpm.\n" }
+    const canvas = makeHarness()
+    on(canvas, web, "repo-1")
+    canvas.ops.patch("repos", "repo-1", { systemPrompt: "Use pnpm." })
+    expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
+  })
+
   it("counts a renamed label", () => {
     const web = repository("web")
     const canvas = makeHarness()

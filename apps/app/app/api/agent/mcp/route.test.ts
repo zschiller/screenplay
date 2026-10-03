@@ -45,6 +45,21 @@ vi.mock("@/lib/sandbox/lifecycle", () => ({
 vi.mock("@/lib/auth-helpers", () => ({
   getGitHubTokenForUser: async () => null,
 }))
+// The Workspace's env var value, which no tool output may carry (#1416).
+const SECRET = "correct-horse-battery-staple"
+vi.mock("@/lib/env-store", () => ({
+  sandboxSecrets: async (sandboxName: string) =>
+    sandboxName ? ["correct-horse-battery-staple"] : [],
+}))
+// The Sandbox is unreachable, so read_skill falls back to the App Skills.
+vi.mock("@/lib/sandbox", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/sandbox")>()),
+  sandboxProvider: {
+    get: async () => {
+      throw new Error("no sandbox in tests")
+    },
+  },
+}))
 // A Workspace token's dev server, standing in for the Sandbox.
 const devServerPorts = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/agent/dev-server-ports", () => ({
@@ -56,7 +71,8 @@ vi.mock("@/lib/agent/dev-server-ports", () => ({
         localUrl: "http://localhost:4123",
         answering: false,
       }),
-      readLog: async () => "Error: Cannot find module 'next'\n",
+      readLog: async () =>
+        "Error: Cannot find module 'next'\nSTRIPE_KEY=correct-horse-battery-staple\n",
       restart: async () => ({ ok: true }),
       stop: async () => ({ ok: true }),
       waitUntilAnswering: async () => true,
@@ -65,7 +81,12 @@ vi.mock("@/lib/agent/dev-server-ports", () => ({
 }))
 
 import { DELETE, GET, POST } from "./route"
-import { coordinatorToken } from "@/lib/agent/coordinator-mcp"
+import {
+  COORDINATOR_MCP_SERVER_NAME,
+  coordinatorToken,
+} from "@/lib/agent/coordinator-mcp"
+import { buildAgentSystemPrompt } from "@/lib/agent/config"
+import { harnessToolNaming } from "@/lib/agent/tool-name"
 
 const PORT = process.env.PORT || "3000"
 const binding = { roomId: "room-1", chatId: "room-chat-room-1" }
@@ -330,7 +351,7 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315) and Question Cards", async () => {
+  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards and its PR and Skill tools (#1480)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -363,6 +384,8 @@ describe("a Workspace chat's MCP route", () => {
       "find_code_files",
       "read_document",
       "ask_question",
+      "create_pr",
+      "read_skill",
     ])
     const annotations = (name: string) =>
       result.tools.find((t: { name: string }) => t.name === name).annotations
@@ -384,9 +407,94 @@ describe("a Workspace chat's MCP route", () => {
       "search_code",
       "find_code_files",
       "read_document",
+      "read_skill",
     ]) {
       expect(annotations(name)).toMatchObject({ readOnlyHint: true })
     }
+    expect(annotations("create_pr")).toMatchObject({
+      destructiveHint: false,
+      openWorldHint: true,
+    })
+  })
+
+  // The prompt a harness Workspace chat gets, with every block that names a
+  // tool: Skills, a Document of its own and a repository prompt.
+  const harnessPrompt = (harnessKey: string) =>
+    buildAgentSystemPrompt({
+      layerDirectory: {
+        documents: [{ id: "doc-1", title: "Plan", ownerChatId: "chat-ws-1" }],
+      },
+      chatId: "chat-ws-1",
+      skills: [
+        {
+          name: "screenplay-try-variants",
+          description: "Try variants.",
+          origin: "app",
+        },
+      ],
+      repoSystemPrompt: "This repo is a Next.js app.",
+      toolNaming: harnessToolNaming(harnessKey, COORDINATOR_MCP_SERVER_NAME),
+    })
+
+  it("serves every tool a harness Workspace prompt tells the model to call (#1480)", async () => {
+    const { result } = await (await call(5, "tools/list")).json()
+    const served = new Set(result.tools.map((t: { name: string }) => t.name))
+    const named = [
+      ...harnessPrompt("claude-code").matchAll(
+        new RegExp(`mcp__${COORDINATOR_MCP_SERVER_NAME}__([a-z_]+)`, "g")
+      ),
+    ].map((m) => m[1])
+    expect(named).toEqual(expect.arrayContaining(["create_pr", "read_skill"]))
+    for (const name of new Set(named)) expect(served).toContain(name)
+  })
+
+  it("names none of the in-process engine's own tools to a harness (#1480)", () => {
+    for (const harnessKey of ["claude-code", "codex"]) {
+      const prompt = harnessPrompt(harnessKey)
+      for (const tool of [
+        "submit_plan",
+        "run_command",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "grep",
+        "glob",
+      ]) {
+        expect(prompt).not.toMatch(new RegExp(`\\b${tool}\\b`))
+      }
+    }
+  })
+
+  it("opens the pull request of the Sandbox its token is bound to (#1480)", async () => {
+    const { result } = await (
+      await call(6, "tools/call", {
+        name: "create_pr",
+        arguments: { title: "Fix sign-in redirect" },
+      })
+    ).json()
+    expect(result.isError).toBe(false)
+    expect(result.content[0].text).toBe(
+      "Created PR #7: https://github.com/acme/web/pull/7"
+    )
+    expect(live.createGitHubPr).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sandboxName: "sp-ws-1",
+        userId: "local-user",
+        title: "Fix sign-in redirect",
+      })
+    )
+  })
+
+  it("loads an App Skill (#1480)", async () => {
+    const { result } = await (
+      await call(7, "tools/call", {
+        name: "read_skill",
+        arguments: { name: "screenplay-add-knob" },
+      })
+    ).json()
+    expect(result.isError).toBe(false)
+    expect(result.content[0].text).toContain("name: screenplay-add-knob")
   })
 
   it("makes Documents owned by the chat its token is bound to", async () => {
@@ -414,6 +522,9 @@ describe("a Workspace chat's MCP route", () => {
     expect(result.isError).toBe(false)
     expect(result.content[0].text).toContain("not answering")
     expect(result.content[0].text).toContain("Cannot find module 'next'")
+    // Scrubbed of the Sandbox's env var values, as in-process (#1416).
+    expect(result.content[0].text).not.toContain(SECRET)
+    expect(result.content[0].text).toContain("STRIPE_KEY=")
     expect(devServerPorts).toHaveBeenCalledWith(
       expect.objectContaining({ sandboxName: "sp-ws-1" })
     )
