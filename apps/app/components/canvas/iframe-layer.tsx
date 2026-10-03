@@ -53,11 +53,7 @@ import {
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
-import {
-  FrameAddressBar,
-  frameWorkspaceOf,
-  type FramePreviewStatus,
-} from "./frame-nav"
+import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
@@ -1068,17 +1064,6 @@ export function IframeLayer({
                   <ArrowRightIcon />
                 </FloatingToolbarButton>
                 <FrameAddressBar
-                  workspace={frameWorkspaceOf(
-                    assignableBranches?.find(
-                      (a) => a.id === iframeLayer.branchId
-                    )
-                  )}
-                  workspaces={assignableBranches ?? []}
-                  onAssignWorkspace={
-                    onAssignBranch
-                      ? (branchId) => onAssignBranch(iframeLayer.id, branchId)
-                      : undefined
-                  }
                   route={iframeLayer.route}
                   discoveredRoutes={discoveredRoutes ?? []}
                   onSelectRoute={
