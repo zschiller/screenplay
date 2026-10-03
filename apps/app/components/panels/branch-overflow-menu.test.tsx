@@ -88,7 +88,6 @@ function renderMenu(
     onRecreate,
     onMarkDone,
     onReopen,
-    onAddFrame,
     canCreatePr,
   }: {
     isBusy?: boolean
@@ -101,7 +100,6 @@ function renderMenu(
     onRecreate?: () => void
     onMarkDone?: () => void
     onReopen?: () => void
-    onAddFrame?: (branchId: string) => void
   } = {}
 ) {
   return render(
@@ -120,7 +118,6 @@ function renderMenu(
         onRestart={onRestart ?? vi.fn()}
         onRecreate={onRecreate ?? vi.fn()}
         onShowRoutes={vi.fn()}
-        onAddFrame={onAddFrame}
         onCreatePr={vi.fn()}
         onMarkDone={onMarkDone ?? vi.fn()}
         onReopen={onReopen ?? vi.fn()}
@@ -139,7 +136,7 @@ afterEach(() => {
 describe("BRANCH_MENU_SECTIONS skeleton", () => {
   it("declares View, Git, Manage, then Delete", () => {
     expect(BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])).toEqual([
-      ["view", ["play", "open-in-browser", "add-frame", "routes"]],
+      ["view", ["play", "open-in-browser", "routes"]],
       ["git", ["create-pr"]],
       ["manage", ["rename", "restart", "mark-done"]],
       ["danger", ["delete"]],
@@ -246,32 +243,6 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Mark as done",
       "Delete",
     ])
-  })
-
-  it("adds a frame from under Open in browser where there's a canvas", () => {
-    const onAddFrame = vi.fn()
-    renderMenu({}, { onAddFrame })
-    expect(menuLabels().slice(0, 4)).toEqual([
-      "Open prototype player",
-      "Open in browser",
-      "Add frame",
-      "Show all routes",
-    ])
-    fireEvent.click(screen.getByText("Add frame"))
-    expect(onAddFrame).toHaveBeenCalledWith("branch-1")
-  })
-
-  it("offers Add frame only once the Workspace runs, and not when done", () => {
-    renderMenu({ status: "starting" }, { onAddFrame: vi.fn() })
-    expect(
-      screen
-        .getByText("Add frame")
-        .closest('[role="menuitem"]')
-        ?.getAttribute("aria-disabled")
-    ).toBe("true")
-    cleanup()
-    renderMenu({ status: "stopped", doneAt: 1 }, { onAddFrame: vi.fn() })
-    expect(screen.queryByText("Add frame")).toBeNull()
   })
 
   it("marks a Workspace done from Manage, but not while its agent works", () => {

@@ -63,7 +63,6 @@ export function WorkspaceMenuItems({
       onRestart={menu.onRefreshBranch}
       onRecreate={menu.askRecreate}
       onShowRoutes={menu.onShowRoutes}
-      onAddFrame={menu.onAddFrame}
       onCreatePr={menu.onCreatePr}
       pr={menu.branchPrs.get(branch.id)}
       canCreatePr={menu.canCreatePr(repo)}

@@ -2051,7 +2051,6 @@ export function Canvas({
           onRemoveBranch={removeBranchIntake}
           onPlayBranch={handlePlayAgent}
           onShowRoutes={handleShowRoutesForAgent}
-          onAddFrame={frameActions.addIframeLayerForAgent}
           onUpdateBranch={updateAgentInStorage}
         >
           <ResizablePanelGroup

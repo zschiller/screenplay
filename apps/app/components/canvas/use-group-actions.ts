@@ -128,39 +128,11 @@ export function useGroupActions({
     [ops]
   )
 
-  /**
-   * Add a frame for a Workspace (its chat menu's Add frame): appended to the
-   * Group that holds its frames, sized like its last one there, as the frame
-   * drive's open-a-frame does. A Workspace with no frames yet gets a fresh
-   * Group beside the others.
-   */
+  /** Add an iframeLayer — used by the manual "add screen" button. Always creates a fresh group. */
   const addIframeLayer = useCallback(
     (agentId: string, label: string): string | undefined => {
       const agent = collections.branches.get(agentId)
       if (!agent || agent.status !== "running") return
-      const mine = new Set(
-        collections.iframeLayers
-          .toArray()
-          .filter((l) => l.branchId === agentId)
-          .map((l) => l.id)
-      )
-      const group = collections.iframeLayerGroups
-        .toArray()
-        .find((g) => getGroupMembers(g).some((m) => mine.has(m.id)))
-      const lastId = group
-        ? getGroupMembers(group)
-            .filter((m) => mine.has(m.id))
-            .at(-1)?.id
-        : undefined
-      const last = lastId ? collections.iframeLayers.get(lastId) : undefined
-      if (group && last) {
-        return ops.addFrameToGroup(group.id, {
-          width: last.width,
-          height: last.height,
-          label,
-          branchId: agentId,
-        })
-      }
       const { cx, cy } = getViewportCenter()
       return ops.createFrameForAgent(agentId, { x: cx, y: cy }, label).layerId
     },
