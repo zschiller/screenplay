@@ -23,6 +23,7 @@ const meta = {
   "-- ref": { type: "separator", title: "Reference" },
   settings: "Settings",
   "keyboard-shortcuts": "Keyboard shortcuts",
+  troubleshooting: "Troubleshooting",
 }
 
 export default meta
