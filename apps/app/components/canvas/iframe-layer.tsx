@@ -6,11 +6,9 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowsOutSimpleIcon,
-  ArrowUUpLeftIcon,
   CopyIcon,
   DotsThreeIcon,
   GitBranchIcon,
-  MonitorIcon,
   PlayIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
@@ -67,7 +65,7 @@ import {
   FrameDriverButton,
   FrameDriverTag,
   FrameLocalCopyTag,
-  FrameRejoinButton,
+  FrameDetachToggle,
 } from "./frame-driver"
 import { FrameStreamView } from "./frame-stream-view"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
@@ -1102,24 +1100,26 @@ export function IframeLayer({
                   }
                 />
                 <FloatingToolbarSeparator />
-                {onRejoin ? (
-                  <FrameRejoinButton onRejoin={onRejoin} />
-                ) : (
-                  <FrameDriverButton
-                    driver={driver}
-                    asked={askedForControl}
-                    requests={controlRequests}
-                    onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                    onGrant={
-                      onGrantControl
-                        ? (to) => onGrantControl(iframeLayer.id, to)
-                        : undefined
-                    }
-                    onDecline={
-                      onDeclineControl
-                        ? (to) => onDeclineControl(iframeLayer.id, to)
-                        : undefined
-                    }
+                <FrameDriverButton
+                  driver={driver}
+                  asked={askedForControl}
+                  requests={controlRequests}
+                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                  onGrant={
+                    onGrantControl
+                      ? (to) => onGrantControl(iframeLayer.id, to)
+                      : undefined
+                  }
+                  onDecline={
+                    onDeclineControl
+                      ? (to) => onDeclineControl(iframeLayer.id, to)
+                      : undefined
+                  }
+                />
+                {(onGoLocal || onRejoin) && (
+                  <FrameDetachToggle
+                    detached={!!onRejoin}
+                    onToggle={() => (onRejoin ?? onGoLocal)?.()}
                   />
                 )}
                 <KnobsPopover
@@ -1154,19 +1154,6 @@ export function IframeLayer({
                       <DropdownMenuItem onSelect={onDuplicate}>
                         <CopyIcon />
                         Duplicate
-                      </DropdownMenuItem>
-                    )}
-                    {/* Going local (#1397): only this viewer's view. */}
-                    {onGoLocal && (
-                      <DropdownMenuItem onSelect={onGoLocal}>
-                        <MonitorIcon />
-                        Detach from shared frame
-                      </DropdownMenuItem>
-                    )}
-                    {onRejoin && (
-                      <DropdownMenuItem onSelect={onRejoin}>
-                        <ArrowUUpLeftIcon />
-                        Rejoin shared frame
                       </DropdownMenuItem>
                     )}
                     {showWorkspaceMenu && (
