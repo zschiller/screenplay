@@ -1402,11 +1402,14 @@ The agent driving a frame or Mockup (#1389, #1391): one contract of gestures
 and reads (`lib/frame-drive/contract.ts`) and no op that runs a script. Every
 gesture asks **Frame Control** first (`AgentFrameDriver`). A page in a
 person's own canvas (a frame on the Mac, a Mockup anywhere) is driven in the
-**asker's** copy through the Sandbox Bridge, by the canvas's relay
-(`mac/relay.ts`); the relay's socket is the sidecar's WebSocket on the Mac,
-and on hosted the Room's `frameDriveAsks` map, read only by the asker's
-canvas, which posts its answers to `/api/frame-drive/answer` (`view/`). Each
-backend passes the same contract suite (`contract-suite.ts`).
+**asker's** copy through the Sandbox Bridge, over the **asker's-canvas
+channel** (`canvas/channel.ts`): ops, location queries, snapshot reads and
+reveals go to their canvas's relay (`canvas/relay.ts`) with only the transport
+plugged in, the sidecar's WebSocket on the Mac (`mac/`), and on hosted the
+Room's `frameDriveAsks` map, read only by the asker's canvas, which posts its
+answers to `/api/frame-drive/answer` (`view/`). Bringing a frame into view is
+the channel's, not a backend's, since only the asker's canvas can move their
+view. Each backend passes the same contract suite (`contract-suite.ts`).
 _Avoid_: driving a Mockup in anyone's view but the asker's; an eval op.
 
 **Canvas Keyboard**:
