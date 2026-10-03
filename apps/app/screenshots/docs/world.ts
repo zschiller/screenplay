@@ -274,6 +274,9 @@ function northwindRoom(
     ...REPO_BASE,
     createdAt: now - 9 * DAY,
     sidebarOrder: 0,
+    // Switched on from the "web" Repository in Settings (#1422).
+    repositoryId: "cfg-northwind-web",
+    addedBy: LOCAL_USER_ID,
   }
   const branch = (
     id: string,
@@ -517,6 +520,8 @@ function simpleRoom(spec: {
     name: "web",
     createdAt: spec.createdAt,
     sidebarOrder: 0,
+    repositoryId: "cfg-northwind-web",
+    addedBy: LOCAL_USER_ID,
   }
   const branchId = `branch-${spec.sandboxName}`
   const layers: IframeLayerData[] = spec.frames.map(

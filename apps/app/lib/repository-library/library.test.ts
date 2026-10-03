@@ -8,6 +8,7 @@ import {
   makeHarness,
 } from "@/test/canvas/harness"
 import {
+  canvasRepositoryRows,
   createRepositoryLibrary,
   linkedRepo,
   switchOff,
@@ -185,6 +186,62 @@ describe("switch off", () => {
     const canvas = canvasWith(baseRepo("repo-1"))
     expect(switchOff(canvas.collections, "web").repoId).toBeNull()
     expect(repoOf(canvas, "repo-1")).toBeDefined()
+  })
+})
+
+describe("the canvas switch list", () => {
+  const summary = (rows: ReturnType<typeof canvasRepositoryRows>) =>
+    rows.map((row) =>
+      row.on
+        ? `on ${row.repo.id}${row.repository ? ` <- ${row.repository.id}` : ""}`
+        : `off ${row.repository.id}`
+    )
+
+  it("lists every repository, on where the canvas links to it", () => {
+    const canvas = makeHarness()
+    const web = repository("web", { name: "web" })
+    const api = repository("api", { name: "api" })
+    switchOn(canvas.collections, web, {
+      id: "repo-1",
+      createdAt: 5,
+      addedBy: "zack",
+    })
+    expect(
+      summary(
+        canvasRepositoryRows([web, api], canvas.collections.repos.toArray())
+      )
+    ).toEqual(["off api", "on repo-1 <- web"])
+  })
+
+  it("keeps canvas repos that link to none of yours, switched on", () => {
+    const canvas = canvasWith(
+      baseRepo("unlinked", { name: "docs" }),
+      baseRepo("theirs", { name: "admin", repositoryId: "someone-elses" })
+    )
+    expect(
+      summary(
+        canvasRepositoryRows(
+          [repository("web", { name: "web" })],
+          canvas.collections.repos.toArray()
+        )
+      )
+    ).toEqual(["on theirs", "on unlinked", "off web"])
+  })
+
+  it("flips a row on and off in place", () => {
+    const canvas = makeHarness()
+    const web = repository("web", { name: "web" })
+    const rows = () =>
+      summary(canvasRepositoryRows([web], canvas.collections.repos.toArray()))
+    expect(rows()).toEqual(["off web"])
+    switchOn(canvas.collections, web, {
+      id: "repo-1",
+      createdAt: 5,
+      addedBy: "zack",
+    })
+    expect(rows()).toEqual(["on repo-1 <- web"])
+    switchOff(canvas.collections, "web")
+    expect(rows()).toEqual(["off web"])
   })
 })
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   ArrowLeftIcon,
@@ -32,6 +32,7 @@ import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
+import { useIframeBridgePort } from "@/hooks/use-bridge-port"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import {
   useScreenplayDom,
@@ -434,6 +435,19 @@ export function IframeLayer({
     sharedStreamRef.current = sharedStream
   })
 
+  // The page's Sandbox Bridge: the iframe's, or the shared page's over the
+  // stream (#1394), so pins, Knobs, the picker and Fit to content work on
+  // both alike.
+  const iframePort = useIframeBridgePort(iframeRef)
+  const streamConnection = sharedStream?.connection
+  const port = useMemo(
+    () =>
+      streamConnection
+        ? streamConnection.bridgePort(iframeLayer.id)
+        : iframePort,
+    [streamConnection, iframeLayer.id, iframePort]
+  )
+
   // The URL the iframe is *supposed* to show. reloadIframe reloads onto this,
   // not the DOM's current `iframe.src`: a prior recovery reload may have parked
   // the frame on about:blank (a backgrounded window can pause the restore rAF),
@@ -552,8 +566,9 @@ export function IframeLayer({
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
       // The page is up and interactive — hide the loading overlay immediately,
-      // regardless of the bridge-version housekeeping below.
-      setContentReady(true)
+      // regardless of the bridge-version housekeeping below. A shared frame
+      // is ready when its picture is.
+      if (!sharedStreamRef.current) setContentReady(true)
       if (!iframeLayer.branchId) return
       const expected = await fetchExpectedBridgeVersion()
       if (!expected || expected === reportedVersion) return
@@ -572,6 +587,7 @@ export function IframeLayer({
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
 
   const frameRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   // Floating action toolbar only mounts when the frame itself is the sole
@@ -586,9 +602,7 @@ export function IframeLayer({
     anchorRef: frameRef,
     toolbarRef,
   })
-  // Fit to content reads the page through the bridge, which a shared frame
-  // doesn't reach yet (#1394).
-  const showFit = !!onFitToContent && !!iframeLayer.branchId && !shared
+  const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
   // Open the frame's live preview in a real browser tab, deep-linked to the
   // route it's currently showing — the same page the iframe loads, minus the
@@ -644,7 +658,7 @@ export function IframeLayer({
   )
 
   usePostMessage({
-    iframeRef,
+    port,
     iframeLayerId: iframeLayer.id,
     iframeState: iframeLayer.iframeState ?? {},
     iframeScrollX: iframeLayer.scrollX,
@@ -665,7 +679,7 @@ export function IframeLayer({
   // navigation events into a history trail (handled in canvas.tsx).
   const interactive = focused || createFlow
 
-  const dom = useScreenplayDom(iframeRef, {
+  const dom = useScreenplayDom(port, {
     onWheel: (wheel) => onWheel?.(iframeLayer.id, wheel),
     // Esc the page didn't claim, forwarded by the bridge because keydowns
     // never leave the iframe. Replay it on the canvas's own window so it
@@ -730,13 +744,15 @@ export function IframeLayer({
 
   const queryElementAtPoint = useCallback(
     async (clientX: number, clientY: number) => {
-      const iframe = iframeRef.current
-      if (!iframe) return null
-      const rect = iframe.getBoundingClientRect()
-      // The iframe is rendered inside a zoom-transformed canvas, so its
-      // getBoundingClientRect is the visually scaled size. The iframe's
-      // internal viewport (and what elementFromPoint uses) is unscaled, so we
-      // divide by zoom to convert from screen pixels back to iframe-viewport
+      // The page fills the frame's body: an iframe, or a shared frame's
+      // picture, whose page has the frame's size as its viewport.
+      const body = bodyRef.current
+      if (!body) return null
+      const rect = body.getBoundingClientRect()
+      // The body is rendered inside a zoom-transformed canvas, so its
+      // getBoundingClientRect is the visually scaled size. The page's
+      // viewport (and what elementFromPoint uses) is unscaled, so we
+      // divide by zoom to convert from screen pixels back to page-viewport
       // pixels. Without this the hit-test drifts further off as zoom shrinks.
       const x = (clientX - rect.left) / zoom
       const y = (clientY - rect.top) / zoom
@@ -748,7 +764,7 @@ export function IframeLayer({
         return null
       }
     },
-    [dom, iframeRef, zoom, iframeLayer.width, iframeLayer.height]
+    [dom, zoom, iframeLayer.width, iframeLayer.height]
   )
 
   const desiredSrc = iframeLayer.iframeUrl
@@ -1159,6 +1175,7 @@ export function IframeLayer({
               toolbarPortalTarget
             )}
           <div
+            ref={bodyRef}
             className={`relative h-full w-full overflow-hidden bg-white dark:bg-neutral-900 ${LAYER_SURFACE_CLASS}`}
           >
             {/* Mount the iframe as soon as there's a URL — don't gate it on the

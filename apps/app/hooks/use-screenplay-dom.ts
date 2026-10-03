@@ -1,9 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import type { RefObject } from "react"
-import type { DomOp, DomRect } from "@/lib/postmessage-protocol"
-import { isScreenplayMessage } from "@/lib/postmessage-protocol"
+import type { BridgePort } from "@/lib/bridge-port"
+import type {
+  CanvasToIframeMessage,
+  DomOp,
+  DomRect,
+} from "@/lib/postmessage-protocol"
 import type { ElementAnchor } from "@/lib/comment-anchor"
 import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
 
@@ -69,7 +72,7 @@ interface Options {
 export type ScreenplayDom = ReturnType<typeof useScreenplayDom>
 
 export function useScreenplayDom(
-  iframeRef: RefObject<HTMLIFrameElement | null>,
+  port: BridgePort,
   {
     onPicked,
     onHover,
@@ -132,9 +135,6 @@ export function useScreenplayDom(
       },
       timeoutMs = REQUEST_TIMEOUT_MS
     ): Promise<T> => {
-      const iframe = iframeRef.current
-      if (!iframe?.contentWindow)
-        return Promise.reject(new Error("iframe not mounted"))
       const id = "q_" + seq.current++
       return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -146,10 +146,14 @@ export function useScreenplayDom(
           reject,
           timer,
         })
-        iframe.contentWindow!.postMessage({ ...msg, id }, "*")
+        if (!port.post({ ...msg, id } as CanvasToIframeMessage)) {
+          clearTimeout(timer)
+          pending.current.delete(id)
+          reject(new Error("frame not reachable"))
+        }
       })
     },
-    [iframeRef]
+    [port]
   )
 
   useEffect(() => {
@@ -158,12 +162,7 @@ export function useScreenplayDom(
     // the cleanup operates on the same Map the listener used (and to satisfy
     // the ref-in-cleanup lint).
     const pendingRequests = pending.current
-    function handleMessage(e: MessageEvent) {
-      if (!isScreenplayMessage(e.data)) return
-      const iframe = iframeRef.current
-      if (!iframe?.contentWindow || e.source !== iframe.contentWindow) return
-
-      const d = e.data
+    const unsubscribe = port.subscribe((d) => {
       if (d.type === "screenplay:dom-result") {
         const p = pendingRequests.get(d.id)
         if (!p) return
@@ -204,15 +203,14 @@ export function useScreenplayDom(
       } else if (d.type === "screenplay:escape") {
         onEscapeRef.current?.()
       }
-    }
+    })
 
-    window.addEventListener("message", handleMessage)
     return () => {
-      window.removeEventListener("message", handleMessage)
+      unsubscribe()
       for (const p of pendingRequests.values()) clearTimeout(p.timer)
       pendingRequests.clear()
     }
-  }, [iframeRef])
+  }, [port])
 
   return useMemo(
     () => ({

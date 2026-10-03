@@ -12,12 +12,14 @@
  */
 
 import { withBasePath } from "@/lib/base-path"
+import type { BridgePort } from "@/lib/bridge-port"
 import {
   decodeVideoMessage,
   type FrameStreamClientMessage,
   type FrameStreamServerMessage,
   type FrameStreamVideo,
 } from "@/lib/frame-stream/protocol"
+import type { IframeToCanvasMessage } from "@/lib/postmessage-protocol"
 
 export type FrameStreamEndpoint =
   { shared: true; url: string; token: string } | { shared: false }
@@ -71,6 +73,10 @@ export class FrameStreamConnection {
   private watches = new Map<
     string,
     { watch: FrameWatch; handlers: Set<FrameStreamHandlers> }
+  >()
+  private bridgeListeners = new Map<
+    string,
+    Set<(message: IframeToCanvasMessage) => void>
   >()
   private socket: SocketLike | null = null
   private ready = false
@@ -151,6 +157,31 @@ export class FrameStreamConnection {
     }
     if (patch.route !== undefined && patch.route !== before.route) {
       this.send({ t: "navigate", frame, route: patch.route })
+    }
+  }
+
+  /**
+   * The Sandbox Bridge in a shared frame's page (#1394), reached over the
+   * stream instead of postMessage. Messages go out only while this viewer
+   * watches the frame (the service ignores the rest), so a read of a frame
+   * that's off screen fails at once rather than timing out.
+   */
+  bridgePort(frame: string): BridgePort {
+    return {
+      post: (message) =>
+        this.watches.has(frame) && this.send({ t: "bridge", frame, message }),
+      subscribe: (listener) => {
+        let listeners = this.bridgeListeners.get(frame)
+        if (!listeners) {
+          listeners = new Set()
+          this.bridgeListeners.set(frame, listeners)
+        }
+        listeners.add(listener)
+        return () => {
+          listeners.delete(listener)
+          if (!listeners.size) this.bridgeListeners.delete(frame)
+        }
+      },
     }
   }
 
@@ -258,6 +289,10 @@ export class FrameStreamConnection {
     }
     const frame = "frame" in msg ? msg.frame : undefined
     if (!frame) return
+    if (msg.t === "bridge") {
+      for (const l of this.bridgeListeners.get(frame) ?? []) l(msg.message)
+      return
+    }
     for (const h of this.watches.get(frame)?.handlers ?? []) h.onMessage(msg)
   }
 

@@ -43,6 +43,8 @@ type DeleteRepoDialogProps = {
   canDeleteOnRemote: boolean
   /** The local build keeps each git branch in the clone on this computer. */
   localBranchKept: boolean
+  /** "Turn off" when a Canvas switch removes it; defaults to "Remove". */
+  verb?: "Remove" | "Turn off"
   onConfirm: (options: { deleteBranchesOnRemote: boolean }) => Promise<void>
 }
 
@@ -59,6 +61,7 @@ export function DeleteRepoDialog({
   workspaces,
   canDeleteOnRemote,
   localBranchKept,
+  verb = "Remove",
   onConfirm,
 }: DeleteRepoDialogProps) {
   const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(false)
@@ -87,7 +90,8 @@ export function DeleteRepoDialog({
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      verb="Remove"
+      verb={verb}
+      pendingLabel={verb === "Turn off" ? "Turning off…" : undefined}
       itemName={repoName}
       itemNoun="repository"
       description={

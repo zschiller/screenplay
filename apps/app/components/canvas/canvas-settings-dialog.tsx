@@ -1,12 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   BookBookmarkIcon,
   BrainIcon,
-  DotsThreeIcon,
   PlusIcon,
-  TrashIcon,
 } from "@workspace/ui/components/icons"
 import {
   Breadcrumb,
@@ -25,7 +23,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -46,19 +43,27 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
+import { Switch } from "@workspace/ui/components/switch"
 import {
   AddRepositoryDialog,
   AddRepositoryMenuItems,
   useAddRepositoryFlow,
 } from "@/components/add-repository-dialog"
-import { SettingsRow, SettingsRowList } from "@/components/home/settings-row"
+import { LoadErrorRow } from "@/components/home/load-error"
+import {
+  SettingsRow,
+  SettingsRowList,
+  SettingsRowSkeleton,
+} from "@/components/home/settings-row"
 import { RemoveRepositoryDialog } from "@/components/remove-repository-dialog"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import { RepoSettingsDialog } from "@/components/repo-settings-dialog"
 import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
 import { isLocalBuild } from "@/lib/local-mode"
-import { repoShortName, repoSource } from "@/lib/repo-identity"
-import { sortForSidebar } from "@/lib/sidebar-order"
+import type { RepoConfig } from "@/lib/repo-configs.types"
+import { repoShortName } from "@/lib/repo-identity"
+import { canvasRepositoryRows } from "@/lib/repository-library"
+import { listRepositories } from "@/lib/repository-library/actions"
 import type { BranchData, MemoryData, RepoData } from "@/lib/types"
 import { MemorySection } from "./canvas-memory-section"
 
@@ -77,10 +82,11 @@ const SECTIONS: {
 /**
  * Canvas settings (#883): the canvas-wide setup, opened from the canvas name's
  * … menu. Built on shadcn's settings-dialog block (a sidebar of sections in a
- * dialog). Its first section, Repositories, lists the code the canvas runs and
- * adds, edits and removes it through the same flows as the sidebar. What it
- * edits lives in the Room's Y.Doc, so every collaborator shares it. Memory
- * (#902) lists the canvas memory every chat reads.
+ * dialog). Its first section, Repositories, lists your repositories with a
+ * switch for whether this canvas runs each, and edits them through the same
+ * flows as the sidebar. What it edits lives in the Room's Y.Doc, so every
+ * collaborator shares it. Memory (#902) lists the canvas memory every chat
+ * reads.
  */
 export function CanvasSettingsDialog({
   open,
@@ -90,6 +96,7 @@ export function CanvasSettingsDialog({
   onCreateRepo,
   onUpdateRepo,
   onRemoveRepo,
+  onSwitchOn,
   memories,
   onAddMemory,
   onEditMemory,
@@ -113,6 +120,8 @@ export function CanvasSettingsDialog({
     id: string,
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
+  /** Turn one of your Repositories on for this canvas (#1422). */
+  onSwitchOn: (repository: RepoConfig) => void
 }) {
   const [activeId, setActiveId] =
     useState<CanvasSettingsSection>("repositories")
@@ -132,7 +141,7 @@ export function CanvasSettingsDialog({
         <DialogDescription className="sr-only">
           Set up the code this canvas runs and what every chat on it remembers.
         </DialogDescription>
-        <SidebarProvider className="min-h-0 items-start">
+        <SidebarProvider className="min-h-0 min-w-0 items-start">
           <Sidebar collapsible="none" className="hidden w-48 md:flex">
             <SidebarContent>
               <SidebarGroup>
@@ -154,7 +163,7 @@ export function CanvasSettingsDialog({
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <main className="flex h-[440px] flex-1 flex-col overflow-hidden">
+          <main className="flex h-[440px] min-w-0 flex-1 flex-col overflow-hidden">
             {/* 48px tall, so the breadcrumb centres on the same line as the
                 first section and the close button. */}
             <header className="flex h-12 shrink-0 items-center px-5">
@@ -187,6 +196,7 @@ export function CanvasSettingsDialog({
                   onCreateRepo={onCreateRepo}
                   onUpdateRepo={onUpdateRepo}
                   onRemoveRepo={onRemoveRepo}
+                  onSwitchOn={onSwitchOn}
                 />
               )}
             </div>
@@ -198,8 +208,11 @@ export function CanvasSettingsDialog({
 }
 
 /**
- * The Repositories section: one row per Repo (short name over its source),
- * with Edit and a menu holding Remove, like the rows of Settings › Repositories.
+ * The Repositories section (#1422): every one of your Repositories with a
+ * switch for whether this canvas uses it, plus the canvas's other Repos
+ * (unlinked, or a member's) switched on. Each row's subtitle is its run
+ * scripts. Turning one off goes through today's remove path, confirming first
+ * when Workspaces use it.
  */
 function RepositoriesSection({
   repos,
@@ -207,6 +220,7 @@ function RepositoriesSection({
   onCreateRepo,
   onUpdateRepo,
   onRemoveRepo,
+  onSwitchOn,
 }: {
   repos: RepoData[]
   branches: BranchData[]
@@ -219,14 +233,45 @@ function RepositoriesSection({
     id: string,
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
+  onSwitchOn: (repository: RepoConfig) => void
 }) {
   const addRepository = useAddRepositoryFlow()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [removingId, setRemovingId] = useState<string | null>(null)
-  // The sidebar's order, so both lists read the same way.
-  const sorted = sortForSidebar(repos, (a, b) =>
-    a.repoFullName.localeCompare(b.repoFullName)
-  )
+  const [turningOffId, setTurningOffId] = useState<string | null>(null)
+  // Your Repositories; until they load, the canvas's own Repos list alone.
+  const [repositories, setRepositories] = useState<RepoConfig[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    listRepositories()
+      .then((list) => {
+        if (!cancelled) setRepositories(list)
+      })
+      .catch((err) => {
+        console.error("Failed to load repositories", err)
+        if (!cancelled) setLoadFailed(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const reload = async () => {
+    setRepositories(await listRepositories())
+    setLoadFailed(false)
+  }
+
+  const rows = canvasRepositoryRows(repositories, repos)
+
+  const switchOff = (repo: RepoData) => {
+    if (branches.some((b) => b.repoId === repo.id)) setTurningOffId(repo.id)
+    else void onRemoveRepo(repo.id, { deleteBranchesOnRemote: false })
+  }
 
   const addButton = isLocalBuild ? (
     // Desktop: a menu first, like the sidebar's Add repository (#604).
@@ -256,12 +301,19 @@ function RepositoriesSection({
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        The code this canvas runs, and how to run it.
         {isLocalBuild
-          ? " New workspaces start from these settings."
-          : " Shared with everyone on this canvas, so their new workspaces start from the same settings."}
+          ? "Your repositories. Turn one on to run it on this canvas; new workspaces start from its settings."
+          : "Your repositories and the ones on this canvas. Turn one on to share it with everyone here; their new workspaces start from its settings."}
       </p>
-      {sorted.length === 0 ? (
+      {loadFailed && (
+        <LoadErrorRow
+          title="Couldn't load your repositories"
+          onRetry={reload}
+        />
+      )}
+      {rows.length === 0 && loading ? (
+        <SettingsRowSkeleton label="Loading repositories…" count={2} />
+      ) : rows.length === 0 ? (
         <Empty className="flex-none border py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -278,50 +330,40 @@ function RepositoriesSection({
       ) : (
         <>
           <SettingsRowList>
-            {sorted.map((repo) => (
-              <SettingsRow
-                key={repo.id}
-                title={repoShortName(repo)}
-                detail={repoSource(repo)}
-                action={
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      aria-label={`Edit ${repoShortName(repo)}`}
-                      onClick={() => setEditingId(repo.id)}
-                    >
-                      Edit
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+            {rows.map((row) => {
+              const source = row.on ? row.repo : row.repository
+              const name = repoShortName(source)
+              return (
+                <SettingsRow
+                  key={row.on ? row.repo.id : row.repository.id}
+                  title={name}
+                  detail={<RunScripts source={source} />}
+                  action={
+                    <>
+                      {row.on && (
                         <Button
                           type="button"
                           variant="outline"
-                          size="icon-sm"
-                          aria-label={`More actions for ${repoShortName(repo)}`}
+                          size="sm"
+                          aria-label={`Edit ${name}`}
+                          onClick={() => setEditingId(row.repo.id)}
                         >
-                          <DotsThreeIcon />
+                          Edit
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        onCloseAutoFocus={(event) => event.preventDefault()}
-                      >
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onSelect={() => setRemovingId(repo.id)}
-                        >
-                          <TrashIcon />
-                          Remove
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </>
-                }
-              />
-            ))}
+                      )}
+                      <Switch
+                        aria-label={`Use ${name} on this canvas`}
+                        checked={row.on}
+                        onCheckedChange={(on) => {
+                          if (on && !row.on) onSwitchOn(row.repository)
+                          else if (!on && row.on) switchOff(row.repo)
+                        }}
+                      />
+                    </>
+                  }
+                />
+              )
+            })}
           </SettingsRowList>
           <div className="flex justify-end">{addButton}</div>
         </>
@@ -336,13 +378,32 @@ function RepositoriesSection({
         onUpdate={onUpdateRepo}
       />
       <RemoveRepositoryDialog
-        repo={repos.find((r) => r.id === removingId) ?? null}
+        verb="Turn off"
+        repo={repos.find((r) => r.id === turningOffId) ?? null}
         branches={branches}
         onOpenChange={(open) => {
-          if (!open) setRemovingId(null)
+          if (!open) setTurningOffId(null)
         }}
         onRemoveRepo={onRemoveRepo}
       />
     </>
   )
+}
+
+/** A row's subtitle: how it runs, its setup and dev scripts in mono. */
+function RunScripts({
+  source,
+}: {
+  source: { setupScript: string; devScript: string }
+}) {
+  const scripts = [source.setupScript, source.devScript]
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (scripts.length === 0) return "No scripts set"
+  return scripts.map((script, i) => (
+    <span key={i}>
+      {i > 0 && <span className="mx-1">·</span>}
+      <code className="font-mono text-xs">{script}</code>
+    </span>
+  ))
 }

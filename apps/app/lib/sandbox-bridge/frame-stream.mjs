@@ -11,13 +11,20 @@
 // through CDP only while it holds a drive grant the app signed for that
 // frame, which the app hands out to whoever Frame Control says drives it.
 //
+// The page runs in an iframe inside a small host page this server serves, as
+// it does on the canvas, so the Sandbox Bridge, Knobs and shared state talk
+// to their parent as they always do (#1394). The host relays those messages
+// to and from the viewers over the stream, in place of the canvas's
+// postMessage: reads go back to whoever asked, and what writes to the room
+// (state, Knobs, scroll) goes through one viewer, the frame's primary.
+//
 // No dependencies: it runs from /tmp/screenplay with Node's built-ins only,
 // so the WebSocket server below is a minimal RFC 6455 implementation.
 //
 // Wire protocol (see lib/frame-stream/protocol.ts for the client side):
 //   client → server, JSON text: auth, watch, unwatch, size, navigate,
-//     reload, drive, release, input
-//   server → client, JSON text: ready, frame, route, error
+//     reload, drive, release, input, bridge
+//   server → client, JSON text: ready, frame, route, error, bridge
 //   server → client, binary video: [1][flags][u16 id length][id][access unit]
 //     flags bit 0: keyframe
 
@@ -53,6 +60,34 @@ const MAX_MESSAGE = 1 << 20
 const MAX_BACKLOG = 8 << 20
 const RESTART_DELAY_MS = 500
 const PLACEHOLDER_RETRY_MS = 1000
+// The host page's way out to this server (a CDP binding).
+const BINDING = "__screenplayFrameHost"
+// A page snapshot can be large; anything bigger is dropped.
+const MAX_PAGE_MESSAGE = 16 << 20
+// A bridge read the page never answered (it reloaded) is forgotten.
+const REQUEST_TTL_MS = 30_000
+// What a viewer may send the page. Reads come from anyone; what changes the
+// page from the room's state comes only from the primary, so viewers echoing
+// the same room change don't each apply it.
+const BRIDGE_READS = new Set(["screenplay:dom-query"])
+const BRIDGE_WRITES = new Set([
+  "screenplay:init",
+  "screenplay:state-update",
+  "screenplay:scroll-to",
+  "screenplay:knob-values",
+  "screenplay:shared-state-apply",
+])
+// What the page reports that the room records: the primary hears it, once.
+// The picker, gestures and navigation reports aren't relayed: a shared frame
+// picks with reads, takes its input over CDP, and reports its route itself.
+const PRIMARY_EVENTS = new Set([
+  "screenplay:ready",
+  "screenplay:state-changed",
+  "screenplay:scroll",
+  "screenplay:knobs-declared",
+  "screenplay:shared-state",
+  "screenplay:shared-state-request",
+])
 
 if (!KEY) {
   console.error("[frame-stream] SCREENPLAY_STREAM_KEY is not set")
@@ -343,6 +378,16 @@ class Frame {
     this.enc = null
     this.closed = false
     this.restarts = 0
+    // ---- bridge relay ----
+    // Reads in flight, by the id the page sees: who asked and their own id.
+    this.requests = new Map()
+    this.requestSeq = 0
+    // The viewer the page's room-writing reports go to.
+    this.primaryConn = null
+    // The page's latest Knobs, and a shared-state request nobody was there
+    // to answer: a new primary hears them, so it can push the room's values.
+    this.knobs = null
+    this.unanswered = null
   }
 
   // ---- lifecycle ----
@@ -417,24 +462,52 @@ class Frame {
       width: Math.min(SCREEN, Math.floor(bounds.width * SCALE)),
       height: Math.min(SCREEN, Math.floor(bounds.height * SCALE)),
     }
+    // The host page is the main frame; the app is its one iframe.
+    const host = page.targetId
+    this.appFrame = null
+    // The binding reaches every script in the page, the app's included; only
+    // the host's own calls, which passed its origin check, are relayed.
+    this.hostContext = null
+    this.requests.clear()
+    this.knobs = null
+    this.unanswered = null
     this.cdp.on((msg) => {
       if (msg.sessionId !== this.session) return
-      if (msg.method === "Page.frameNavigated" && !msg.params.frame.parentId)
-        this.onNavigated(msg.params.frame.url)
-      else if (msg.method === "Page.navigatedWithinDocument")
-        this.onNavigated(msg.params.url)
-      else if (
+      const p = msg.params
+      if (msg.method === "Page.frameAttached") {
+        if (p.parentFrameId === host) this.appFrame = p.frameId
+      } else if (msg.method === "Page.frameNavigated") {
+        if (p.frame.parentId !== host) return
+        this.appFrame = p.frame.id
+        this.knobs = null
+        this.onNavigated(p.frame.url)
+      } else if (msg.method === "Page.navigatedWithinDocument") {
+        if (p.frameId === this.appFrame) this.onNavigated(p.url)
+      } else if (
         msg.method === "Network.responseReceived" &&
-        msg.params.type === "Document" &&
-        msg.params.frameId === page.targetId
-      )
-        this.onDocument(msg.params.response.headers ?? {}, gen)
+        p.type === "Document" &&
+        p.frameId === this.appFrame
+      ) {
+        this.onDocument(p.response.headers ?? {}, gen)
+      } else if (msg.method === "Runtime.executionContextCreated") {
+        const aux = p.context.auxData ?? {}
+        if (aux.frameId === host && aux.isDefault)
+          this.hostContext = p.context.id
+      } else if (
+        msg.method === "Runtime.bindingCalled" &&
+        p.name === BINDING &&
+        p.executionContextId === this.hostContext
+      ) {
+        this.fromPage(p.payload)
+      }
     })
+    await this.page("Runtime.addBinding", { name: BINDING })
+    await this.page("Runtime.enable")
     await this.page("Page.enable")
     await this.page("Network.enable")
     await this.page("Emulation.setFocusEmulationEnabled", { enabled: true })
     await this.applySize()
-    await this.page("Page.navigate", { url: ORIGIN + this.path })
+    await this.page("Page.navigate", { url: hostUrl(this.path) })
     if (gen !== this.generation) return
     this.setStatus("live")
     this.restarts = 0
@@ -506,8 +579,19 @@ class Frame {
     if (!placeholder) return
     setTimeout(() => {
       if (gen !== this.generation || this.status !== "live") return
-      this.page("Page.navigate", { url: ORIGIN + this.path }).catch(() => {})
+      this.go(this.path).catch(() => {})
     }, PLACEHOLDER_RETRY_MS)
+  }
+
+  /** Point the app's iframe at a route; a host page that's gone (it never
+   *  should be) is opened again there. */
+  async go(route) {
+    const { result } = await this.page("Runtime.evaluate", {
+      expression: `!!window.__screenplayHost && (__screenplayHost.go(${JSON.stringify(ORIGIN + route)}), true)`,
+      returnByValue: true,
+    })
+    if (!result?.value)
+      await this.page("Page.navigate", { url: hostUrl(route) })
   }
 
   // ---- size ----
@@ -724,6 +808,7 @@ class Frame {
     for (const message of this.gop)
       conn.sendVideo(this.id, message, message[1] === 1)
     this.startEncoder()
+    this.checkPrimary()
   }
 
   removeViewer(conn) {
@@ -731,6 +816,9 @@ class Frame {
     conn.watching.delete(this.id)
     conn.needsKey.delete(this.id)
     if (this.driver?.conn === conn) this.driver = null
+    for (const [id, req] of this.requests)
+      if (req.conn === conn) this.requests.delete(id)
+    this.checkPrimary()
     // Nobody watching: stop encoding. The browser keeps running, so the page
     // keeps its state. (#1393 adds the grace period and the last picture.)
     if (!this.viewers.size) this.stopEncoder()
@@ -773,6 +861,87 @@ class Frame {
     this.path = path
     for (const v of this.viewers)
       v.sendJson({ t: "route", frame: this.id, path })
+  }
+
+  // ---- bridge relay ----
+
+  /** The viewer the page's room-writing reports go to, and the only one
+   *  whose room changes reach the page: the driver, else whoever has
+   *  watched longest. */
+  primary() {
+    const d = this.driver
+    if (d && this.drives(d.conn) && this.viewers.has(d.conn)) return d.conn
+    for (const v of this.viewers) return v
+    return null
+  }
+
+  checkPrimary() {
+    const next = this.primary()
+    if (next === this.primaryConn) return
+    this.primaryConn = next
+    if (!next) return
+    if (this.knobs)
+      next.sendJson({ t: "bridge", frame: this.id, message: this.knobs })
+    if (this.unanswered) {
+      next.sendJson({ t: "bridge", frame: this.id, message: this.unanswered })
+      this.unanswered = null
+    }
+  }
+
+  /** A viewer's message for the page's bridge, as the canvas would post it
+   *  into an iframe. */
+  async toPage(conn, message) {
+    if (this.status !== "live") return
+    if (!message || typeof message !== "object") return
+    if (BRIDGE_READS.has(message.type)) {
+      if (typeof message.id !== "string" || message.id.length > 200) return
+      const now = Date.now()
+      for (const [id, req] of this.requests)
+        if (now - req.at > REQUEST_TTL_MS) this.requests.delete(id)
+      const id = `s${++this.requestSeq}`
+      this.requests.set(id, { conn, id: message.id, at: now })
+      message = { ...message, id }
+    } else if (!BRIDGE_WRITES.has(message.type) || conn !== this.primary()) {
+      return
+    }
+    // The message goes in as data: a string literal the host parses.
+    const json = JSON.stringify(JSON.stringify(message))
+    await this.page("Runtime.evaluate", {
+      expression: `window.__screenplayHost && __screenplayHost.post(${json})`,
+    })
+  }
+
+  /** A message the page posted to its parent, relayed by the host. */
+  fromPage(payload) {
+    if (typeof payload !== "string" || payload.length > MAX_PAGE_MESSAGE) return
+    let message
+    try {
+      message = JSON.parse(payload)
+    } catch {
+      return
+    }
+    if (!message || typeof message.type !== "string") return
+    const relay = (conn) =>
+      conn.sendJson({ t: "bridge", frame: this.id, message })
+    if (message.type === "screenplay:dom-result") {
+      const req = this.requests.get(message.id)
+      if (!req) return
+      this.requests.delete(message.id)
+      if (!this.viewers.has(req.conn)) return
+      message = { ...message, id: req.id }
+      relay(req.conn)
+      return
+    }
+    if (message.type === "screenplay:hmr-status") {
+      for (const v of this.viewers) relay(v)
+      return
+    }
+    if (!PRIMARY_EVENTS.has(message.type)) return
+    if (message.type === "screenplay:knobs-declared") this.knobs = message
+    const primary = this.primary()
+    if (primary) relay(primary)
+    else if (message.type === "screenplay:shared-state-request")
+      this.unanswered = message
   }
 
   // ---- input ----
@@ -840,6 +1009,56 @@ class Frame {
   }
 }
 
+// ---------- host page ----------
+
+/** The host page a frame's browser opens, with the app at `route`. */
+function hostUrl(route) {
+  return `http://127.0.0.1:${PORT}/frame-host?route=${encodeURIComponent(route)}`
+}
+
+/** JSON safe to put inside a <script>. */
+const scriptJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c")
+
+/**
+ * The app in a full-size iframe, sandboxed as the canvas sandboxes it, and
+ * the relay between its bridge and this server. The app posts to its parent
+ * as on the canvas; what it posts goes out through the binding, and the
+ * server's messages come in through `__screenplayHost.post`. Only messages
+ * from the app on the frame origin pass, and only to it.
+ */
+function hostPage(route) {
+  const origin = new URL(ORIGIN).origin
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>Screenplay frame</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#fff}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}</style>
+</head><body>
+<iframe id="app" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+<script>
+(() => {
+  const ORIGIN = ${scriptJson(origin)}
+  const app = document.getElementById("app")
+  const out = window[${scriptJson(BINDING)}]
+  window.addEventListener("message", (e) => {
+    if (e.source !== app.contentWindow || e.origin !== ORIGIN) return
+    const d = e.data
+    if (!d || typeof d.type !== "string" || !d.type.startsWith("screenplay:")) return
+    try { out(JSON.stringify(d)) } catch {}
+  })
+  window.__screenplayHost = {
+    post(json) {
+      if (app.contentWindow) app.contentWindow.postMessage(JSON.parse(json), ORIGIN)
+    },
+    go(url) { app.src = url },
+  }
+  // Keys go to the app, as they would to a page opened on its own.
+  app.addEventListener("load", () => app.focus())
+  app.src = ${scriptJson(ORIGIN + route)}
+})()
+</script>
+</body></html>`
+}
+
 function hasIdr(buf, start, end) {
   for (let i = start; i + 4 < end; i++) {
     if (
@@ -905,11 +1124,11 @@ async function handleMessage(conn, msg) {
         frame.status === "live"
       ) {
         frame.navigatingTo = msg.route
-        await frame.page("Page.navigate", { url: ORIGIN + msg.route })
+        await frame.go(msg.route)
       }
       return
     case "reload":
-      if (frame.status === "live") await frame.page("Page.reload")
+      if (frame.status === "live") await frame.go(frame.path)
       return
     case "drive": {
       const claims = verifyToken(msg.token)
@@ -924,10 +1143,15 @@ async function handleMessage(conn, msg) {
       }
       // The newest grant wins: the app signs one only for the driver.
       frame.driver = { conn, exp: claims.exp }
+      frame.checkPrimary()
       return
     }
     case "release":
       if (frame.driver?.conn === conn) frame.driver = null
+      frame.checkPrimary()
+      return
+    case "bridge":
+      await frame.toPage(conn, msg.message)
       return
     case "input":
       // Watchers' input never reaches the page.
@@ -942,6 +1166,21 @@ const server = http.createServer((req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "content-type": "text/plain" })
     return res.end("ok")
+  }
+  const url = new URL(req.url ?? "/", "http://localhost")
+  // The host page is for the frames' own browsers, on loopback; the
+  // Sandbox's public port never serves it.
+  if (
+    url.pathname === "/frame-host" &&
+    /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(String(req.headers.host))
+  ) {
+    const route = url.searchParams.get("route")
+    if (!validRoute(route)) return res.writeHead(400).end()
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    })
+    return res.end(hostPage(route))
   }
   res.writeHead(404).end()
 })
