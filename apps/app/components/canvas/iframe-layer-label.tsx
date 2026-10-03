@@ -84,7 +84,9 @@ export function IframeLayerLabel({
           currentBranchId={workspace?.branchId}
           title="Set workspace"
           placeholder={`Show ${label || "Untitled"} from…`}
-          className="hidden group-hover/layer-label:flex data-[state=open]:flex"
+          // Hidden but holding its place, so hovering the spot where it
+          // appears shows it too. Out of sight it gives the name its width.
+          className="invisible min-w-0 group-hover/layer-label:visible group-hover/layer-label:min-w-10 data-[state=open]:visible data-[state=open]:min-w-10"
         />
       )
     }

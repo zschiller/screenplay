@@ -98,8 +98,9 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
           switcher={workspace.switcher}
           title="Set workspace"
           placeholder={`Show ${props.label} from…`}
-          // Only on hover, so a Group of explorations stays quiet.
-          className="hidden group-hover/group-label:flex data-[state=open]:flex"
+          // Only on hover, so a Group of explorations stays quiet. Hidden but
+          // holding its place, so hovering the spot where it appears shows it.
+          className="invisible min-w-0 group-hover/group-label:visible group-hover/group-label:min-w-10 data-[state=open]:visible data-[state=open]:min-w-10"
         />
       ) : workspace.branchId === undefined ? (
         <WorkspaceChooser switcher={workspace.switcher} />
