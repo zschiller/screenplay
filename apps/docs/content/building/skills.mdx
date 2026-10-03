@@ -1,6 +1,6 @@
 ---
 title: Agent skills
-description: Teach the agent workflows with SKILL.md files in your repository or saved to a canvas, use your coding agent's own skills on the Mac, and use the skills Screenplay ships.
+description: Teach the agent workflows with SKILL.md files in your repository or saved to a canvas or your account, use your coding agent's own skills on the Mac, and use the skills Screenplay ships.
 ---
 
 import { FileTree } from "nextra/components"
@@ -33,12 +33,14 @@ Every chat sees one list of skills, gathered from these places:
 | --------------------------------------- | --------------------------------------------------- | ------------------------------------------------- |
 | **Repository**                          | The workspace's repository, under `.claude/skills/` | That workspace's chat                             |
 | **Canvas**                              | Saved to the canvas by any chat on it               | Every chat on the canvas                          |
+| **Account**                             | Saved to your account by any chat you message       | Every chat you message, on any canvas             |
 | Your agent's name, like **Claude Code** | Your coding agent's own skills folder on your Mac   | Every chat on the Mac app that runs on that agent |
 | **Built in**                            | Ships with Screenplay                               | Every chat, each kind its own                     |
 
 When two skills share a name, only one is used: the repository's wins, then
-the canvas's, then your coding agent's own, then Screenplay's. The one that loses is left out of the list
-and the <kbd>/</kbd> menu, so what you pick is what runs. The
+the canvas's, then your account's, then your coding agent's own, then
+Screenplay's. The one that loses is left out of the list and the <kbd>/</kbd>
+menu, so what you pick is what runs. The
 [Coordinator](/guides/coordinator) and chats with no repository don't see
 repository skills, since they have no single repository.
 
@@ -99,7 +101,33 @@ a sidebar of any files saved beside it; **…** › **Delete** removes it for
 everyone on the canvas after you confirm. There's no add or edit here: ask a
 chat instead.
 
-A saved skill can't give itself tools or run commands: the agent removes
+## Saving a skill to your account
+
+A procedure that's yours rather than the canvas's, like how you like release
+notes written, can follow you instead: ask a chat to "save this to my
+account as a skill". Every chat you message, on any canvas, can use it from
+your next message, and lists it in its <kbd>/</kbd> menu as **Account**. An
+agent saves to the canvas unless you say otherwise.
+
+On a shared canvas, a message uses the account skills of whoever sent it, not
+of whoever started the chat, and a chat saves to the account of whoever asked.
+Nobody else's messages ever use your account skills. Messages the Coordinator
+sends on its own, when a workspace finishes, use no one's account skills.
+
+To see your account skills, open **Settings** from the bottom of the home
+screen sidebar and choose **Skills**. The rows work like the canvas's:
+**Open** shows the whole skill, and **…** › **Delete** removes it after you
+confirm. Account skills work the same on the desktop app.
+
+<Screenshot
+  name="settings-skills"
+  alt="Settings open on Skills, listing two account skills"
+/>
+
+## What a saved skill can do
+
+A saved skill, on a canvas or your account, can't give itself tools or run
+commands: the agent removes
 `allowed-tools` from its frontmatter and any inline `` !`command` `` lines
 before saving. A skill's name uses lowercase letters, digits and hyphens, at
 most 64 characters, and a whole skill, with any files saved beside it, is at
@@ -143,7 +171,7 @@ description: >-
 Repository skills show up as **Repository** once the workspace's sandbox is
 running. They're read from that workspace's checkout, so different branches
 can carry different skills. If a repository skill has the same name as a
-canvas or built-in one, the repository's version wins.
+canvas, account or built-in one, the repository's version wins.
 
 Write the `description` for the agent, not for people: say what the skill does
 **and when to use it**. That's what the agent matches requests against.

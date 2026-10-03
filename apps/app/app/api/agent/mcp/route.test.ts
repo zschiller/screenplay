@@ -73,6 +73,20 @@ vi.mock("@/lib/files", async () => {
     },
   }
 })
+// Account Skills' lists (#1558) per person, in memory instead of the KV.
+const accountSkillLists = vi.hoisted(
+  () => new Map<string, import("@/lib/files/account-files").FileListStore>()
+)
+vi.mock("@/lib/files/account-store", async () => {
+  const { memoryFileListStore } = await import("@/lib/files/account-files")
+  return {
+    kvAccountSkillStore: (userId: string) => {
+      if (!accountSkillLists.has(userId))
+        accountSkillLists.set(userId, memoryFileListStore())
+      return accountSkillLists.get(userId)!
+    },
+  }
+})
 // Each person's account memory, in memory.
 const accountStores = vi.hoisted(
   () => new Map<string, import("@/lib/memory/account").AccountMemoryStore>()

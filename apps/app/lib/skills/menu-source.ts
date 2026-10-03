@@ -9,13 +9,13 @@ import { mergeSkillIndexes, type OriginTaggedSkill } from "./merged"
  * Sandbox exists). Its `/` menu draws from this one resolver so it never
  * promises a Skill it cannot yet see:
  *
- *  - **No Sandbox** (`repo === null`): the canvas's, the desktop agent's own
- *    and App Skills, ranked as {@link mergeSkillIndexes} defines.
+ *  - **No Sandbox** (`repo === null`): the canvas's, the viewer's own, the
+ *    desktop agent's own and App Skills, ranked as {@link mergeSkillIndexes} defines.
  *    Repo Skills live in a Branch's `.claude/skills/` and simply don't exist
  *    until the Branch is checked out, so the menu offers no Repo Skills — no
  *    error, no empty bail.
  *  - **Sandbox present** (`repo` is an array, possibly empty): the merged
- *    Repo, Canvas, agent's own and App set, ranked likewise.
+ *    Repo, Canvas, Account, agent's own and App set, ranked likewise.
  *
  * Passing `null` rather than `[]` for the no-Sandbox case keeps the distinction
  * explicit at the call site: a missing Sandbox means "don't even look for Repo
@@ -26,8 +26,17 @@ import { mergeSkillIndexes, type OriginTaggedSkill } from "./merged"
 export function resolveSkillMenuSource(
   app: readonly SkillMetadata[],
   repo: readonly SkillMetadata[] | null,
-  canvas: readonly SkillMetadata[] = [],
-  agent: readonly SkillMetadata[] = []
+  saved: SavedSkillSources = {}
 ): OriginTaggedSkill[] {
-  return mergeSkillIndexes({ app, canvas, agent, ...(repo ? { repo } : {}) })
+  return mergeSkillIndexes({ ...saved, app, ...(repo ? { repo } : {}) })
+}
+
+/** The Skills a menu lists beside Repo and App Skills, by source. */
+export interface SavedSkillSources {
+  /** The canvas's saved Skills, when the Composer is on one. */
+  canvas?: readonly SkillMetadata[]
+  /** The viewer's Account Skills (#1558). */
+  account?: readonly SkillMetadata[]
+  /** The desktop agent's own (#1560). */
+  agent?: readonly SkillMetadata[]
 }

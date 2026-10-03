@@ -23,6 +23,8 @@ import {
   writeMarkdownToFragment,
 } from "@/lib/yjs/fragment-text"
 import { createSavedSkills } from "@/lib/skills/saved"
+import { listFileIndex, memoryFileListStore } from "@/lib/files/account-files"
+import { accountFileKeyPrefix } from "@/lib/files/paths"
 import type { FileStore } from "@/lib/files/store"
 import type { FileEntryData } from "@/lib/types"
 import { COLLECTION_KEYS, getRoomCollections } from "@/lib/yjs/schema"
@@ -30,7 +32,12 @@ import { COLLECTION_KEYS, getRoomCollections } from "@/lib/yjs/schema"
 import type { CaptureProfile } from "../profile"
 import { FIXTURE_SESSION_TOKEN } from "../lib/hosted"
 import { renderFrameCaptures, type FrameCaptureRequest } from "./frame-captures"
-import { buildFixtureWorld, type FixtureRoom, type FixtureWorld } from "./world"
+import {
+  buildFixtureWorld,
+  type FixtureRoom,
+  type FixtureSkill,
+  type FixtureWorld,
+} from "./world"
 
 /**
  * The **seeder** — the single writer that turns the Fixture World (`./world.ts`)
@@ -582,6 +589,8 @@ async function seedRoomDocs(
     await writeFile(path, body)
   }
 
+  await seedAccountSkills(world, ctx.filesDir, ctx.db)
+
   return captureCount
 }
 
@@ -659,22 +668,6 @@ async function seedRoomSkills(
     Object.values(
       doc.getMap(COLLECTION_KEYS.skills).toJSON()
     ) as FileEntryData[]
-  const store: FileStore = {
-    async put(key, body) {
-      const path = join(filesDir, key)
-      await mkdir(dirname(path), { recursive: true })
-      await writeFile(path, body)
-    },
-    async get(key) {
-      return new Uint8Array(await readFile(join(filesDir, key)))
-    },
-    async delete(keys) {
-      await Promise.all(keys.map((key) => rm(join(filesDir, key))))
-    },
-    async size(key) {
-      return (await stat(join(filesDir, key)).catch(() => null))?.size ?? null
-    },
-  }
   const saved = createSavedSkills({
     index: {
       entries: async () => all(),
@@ -690,9 +683,43 @@ async function seedRoomSkills(
         return result
       },
     },
-    store,
+    store: localFileStore(filesDir),
     keyPrefix: `canvas/${room.id}/skills`,
   })
+  await saveFixtureSkills(saved, skills)
+}
+
+/**
+ * Save the fixture user's Account Skills (#1558) through the skills module:
+ * bytes into the local file store, the list into `kv_store` under the key
+ * `lib/files/account-store.ts` reads.
+ */
+async function seedAccountSkills(
+  world: FixtureWorld,
+  filesDir: string,
+  db: DB
+): Promise<void> {
+  if (!world.accountSkills?.length) return
+  const list = memoryFileListStore()
+  await saveFixtureSkills(
+    createSavedSkills({
+      index: listFileIndex(list),
+      store: localFileStore(filesDir),
+      keyPrefix: `${accountFileKeyPrefix(world.userId)}/skills`,
+    }),
+    world.accountSkills
+  )
+  const value = encrypt(JSON.stringify(await list.load()))
+  await db
+    .insert(schema.kvStore)
+    .values({ key: `account-skills:${world.userId}`, value, expiresAt: null })
+    .onConflictDoUpdate({ target: schema.kvStore.key, set: { value } })
+}
+
+async function saveFixtureSkills(
+  saved: ReturnType<typeof createSavedSkills>,
+  skills: readonly FixtureSkill[]
+): Promise<void> {
   for (const skill of skills) {
     const result = await saved.save({
       name: skill.name,
@@ -703,6 +730,26 @@ async function seedRoomSkills(
     })
     if (!result.ok)
       throw new Error(`Seeding skill ${skill.name}: ${result.error}`)
+  }
+}
+
+/** The local file store's layout (`lib/files/local-fs.ts`) under `filesDir`. */
+function localFileStore(filesDir: string): FileStore {
+  return {
+    async put(key, body) {
+      const path = join(filesDir, key)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, body)
+    },
+    async get(key) {
+      return new Uint8Array(await readFile(join(filesDir, key)))
+    },
+    async delete(keys) {
+      await Promise.all(keys.map((key) => rm(join(filesDir, key))))
+    },
+    async size(key) {
+      return (await stat(join(filesDir, key)).catch(() => null))?.size ?? null
+    },
   }
 }
 

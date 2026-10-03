@@ -37,6 +37,17 @@ vi.mock("node:os", async (original) => {
   return { ...os, homedir: () => desktop.home || os.homedir() }
 })
 
+// The asker's Account Skills (#1558), in memory instead of the KV.
+const accountSkills = vi.hoisted(() => ({
+  entries: [] as import("@/lib/types").FileEntryData[],
+}))
+vi.mock("@/lib/files/account-store", () => ({
+  kvAccountSkillStore: (userId: string) => ({
+    load: async () => (userId === "user-1" ? accountSkills.entries : []),
+    save: async () => {},
+  }),
+}))
+
 import { GET } from "./route"
 
 function folder(path: string, description?: string) {
@@ -184,6 +195,36 @@ describe("GET /api/agent/skills", () => {
       vi.unstubAllEnvs()
       await rm(desktop.home, { recursive: true, force: true })
       desktop.home = ""
+    }
+  })
+
+  it("lists your Account Skills below the canvas's in every kind of chat (#1558)", async () => {
+    collections = makeHarness().collections
+    collections.skills.set("f-review", folder("review", "Review a PR."))
+    accountSkills.entries = [
+      folder("review", "My review."),
+      folder("voice", "My voice."),
+    ]
+    try {
+      for (const query of [
+        "room=room-1",
+        "room=room-1&chat=room",
+        "room=room-1&chat=sketch",
+      ]) {
+        const { skills } = await (
+          await GET(new Request(`http://localhost/api/agent/skills?${query}`))
+        ).json()
+        expect(
+          skills.filter((s: { name: string }) =>
+            ["review", "voice"].includes(s.name)
+          )
+        ).toEqual([
+          { name: "review", description: "Review a PR.", origin: "canvas" },
+          { name: "voice", description: "My voice.", origin: "account" },
+        ])
+      }
+    } finally {
+      accountSkills.entries = []
     }
   })
 })

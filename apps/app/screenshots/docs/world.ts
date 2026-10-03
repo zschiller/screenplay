@@ -13,6 +13,7 @@ import type {
 
 import {
   accountFileFixtures,
+  accountSkillFixtures,
   canvasFileFixtures,
   type FixtureChat,
   type FixtureRoom,
@@ -276,6 +277,7 @@ export async function buildDocsWorld(
         size: 2 * 1024,
       },
     ]),
+    accountSkills: accountSkillFixtures(now),
     accountMemory: [
       {
         id: "mem-account-copy",

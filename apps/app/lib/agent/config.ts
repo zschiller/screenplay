@@ -180,11 +180,21 @@ export function renderAccountFiles(
 }
 
 /**
- * How any chat keeps a Skill for the canvas (#1555), said in every kind's
- * Skills block beside its index.
+ * How any chat keeps a Skill (#1555), said in every kind's Skills block
+ * beside its index: for the canvas, or for the person who sent the turn
+ * (#1558). `senderless` is a turn nobody sent, which has no account to save
+ * to.
  */
-export function renderSkillSaving(t: ToolNaming["name"]): string {
-  return `- When the user asks you to remember how to do something, or you've worked out a procedure later chats on this canvas should follow, save it as a skill with \`${t("save_skill")}\`. Change one by saving it again, and remove one with \`${t("delete_skill")}\`.`
+export function renderSkillSaving(
+  t: ToolNaming["name"],
+  senderless = false
+): string {
+  return [
+    `- When the user asks you to remember how to do something, or you've worked out a procedure later chats on this canvas should follow, save it as a skill with \`${t("save_skill")}\`. Change one by saving it again, and remove one with \`${t("delete_skill")}\`.`,
+    senderless
+      ? "- Nobody sent this turn, so it has no account skills: save skills to `canvas` only."
+      : "- A procedure that's the user's own rather than this canvas's (how they like a write-up done, wherever they work) goes to `scope: \"account\"`, which every chat they message uses on any canvas; the rest goes to `canvas`.",
+  ].join("\n")
 }
 
 /**
@@ -369,7 +379,7 @@ export function buildAgentSystemPrompt(opts: {
           "",
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
           "",
-          renderSkillSaving(t),
+          renderSkillSaving(t, opts.accountMemory === null),
         ].join("\n")
   const repoBlock = repoSystemPrompt?.trim()
     ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
@@ -438,7 +448,7 @@ export function buildSketchSystemPrompt(opts: {
           `- When a request matches one of these, call \`${t("read_skill")}\` with its name and follow it.`,
           renderSkillInvocation(t),
           ...opts.skills.map((s) => `- **${s.name}**: ${s.description}`),
-          renderSkillSaving(t),
+          renderSkillSaving(t, opts.accountMemory === null),
         ]
       : []),
     "",
@@ -523,7 +533,7 @@ export function buildRoomSystemPrompt(opts: {
           `- When a request matches one of these, call \`${t("read_skill")}\` with its name and follow it before doing anything else.`,
           renderSkillInvocation(t),
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
-          renderSkillSaving(t),
+          renderSkillSaving(t, opts.accountMemory === null),
           "",
         ]
       : []),

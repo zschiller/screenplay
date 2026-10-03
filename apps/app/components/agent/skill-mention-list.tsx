@@ -37,12 +37,13 @@ interface SkillMentionListProps {
 
 /**
  * The word each row ends with: where its Skill lives (#1556). The desktop
- * agent's own Skills read as that agent's name, e.g. "Claude Code" (#1560);
- * Account Skills will read "Account" once they join the menu (#1558).
+ * agent's own Skills read as that agent's name, e.g. "Claude Code" (#1560),
+ * and your own Account Skills read "Account" (#1558).
  */
 export const SKILL_ORIGIN_LABEL: Record<SkillOrigin, string> = {
   repo: "Repository",
   canvas: "Canvas",
+  account: "Account",
   agent: "Agent",
   app: "Built in",
 }

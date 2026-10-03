@@ -60,8 +60,8 @@ const SKILL_FILE = "SKILL.md"
  * A saved-Skills list (#1557, spec #1554): one row per Skill with its
  * description and who saved it, Open (the Skill read-only, in a dialog) and a
  * menu holding Delete, like the Memory rows. There is no Add or Edit: people
- * ask a chat to save or change a Skill. Canvas settings › Skills renders it;
- * Settings › Skills will too.
+ * ask a chat to save or change a Skill. Canvas settings › Skills and
+ * Settings › Skills (#1558) render it.
  */
 export function SavedSkillList({
   skills,

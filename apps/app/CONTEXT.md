@@ -872,10 +872,10 @@ read_document, …). Each Tool's availability is scoped by Chat Target.
 A markdown instruction document (`SKILL.md` with `name` + `description`
 frontmatter) that teaches the agent how to perform a task. Surfaced to the
 model by name + description and loaded in full on demand (`read_skill`), never
-always-on. Exists as a Repo Skill, a Canvas Skill, a Harness Skill or an App
-Skill (spec #1554 adds Account Skills). Every chat sees one merged index; when
-two share a name, the higher-ranked one **shadows** the other, Repo, then
-Canvas, then Harness, then App (`lib/skills/merged.ts`). The Coordinator and
+always-on. Exists as a Repo Skill, a Canvas Skill, an Account Skill, a Harness
+Skill or an App Skill. Every chat sees one merged index; when two share a name,
+the higher-ranked one **shadows** the other, Repo, then Canvas, then Account,
+then Harness, then App (`lib/skills/merged.ts`). The Coordinator and
 chats with no repository get no Repo Skills.
 _Avoid_: command, macro, plugin.
 
@@ -897,10 +897,24 @@ members: every chat on the Room lists it from its next turn. A folder named
 after it holding `SKILL.md` and optional supporting text files, kept by the
 **skills module** (`lib/skills/saved.ts`) over the files module with its own
 index (the Room's `skills` collection), so it never shows in Canvas Files.
-Saving strips `allowed-tools` and inline `` !`command` `` lines. Shadows an App
-Skill of the same name; a Repo Skill shadows it.
+Saving strips `allowed-tools` and inline `` !`command` `` lines. Shadows an
+Account, Harness or App Skill of the same name; a Repo Skill shadows it.
 _Shown to users as_: "Canvas" (the `/` menu's source tag).
 _Avoid_: shared skill, team skill.
+
+**Account Skill** (`lib/skills/account.ts`, #1558):
+A Skill a chat saved to the person who sent its turn (`save_skill` with
+`scope: "account"`), which every turn they send uses, on any canvas, and
+nobody else's turn does: a teammate's message in your chat uses theirs, and a
+turn nobody sent (a Coordinator wake and the turns it delegates) gets none and
+can't save one. Kept by the skills module like a Canvas Skill, with its index
+a list of its own beside Account Files in the encrypted KV and its bytes under
+the person's `account/<userId>/skills/`. People read and delete them in
+Settings › Skills. Shadows a Harness or App Skill of the same name; Repo and
+Canvas Skills shadow it.
+_Shown to users as_: "Account" (the `/` menu's source tag), "Skills"
+(Settings).
+_Avoid_: personal skill, user skill, my skill.
 
 **Harness Skill** (`lib/skills/agent-skills.ts`, #1560):
 A Skill the desktop chat's Harness loads itself from the user's home folder
@@ -908,7 +922,7 @@ A Skill the desktop chat's Harness loads itself from the user's home folder
 are the Harness descriptor's `ownSkills`). The Harness keeps loading it its own
 way; screenplay only lists it in the merged index and the `/` menu and reads it
 for `read_skill`, never writes it. Hosted chats have none. Shadows an App Skill
-of the same name; Repo and Canvas Skills shadow it.
+of the same name; Repo, Canvas and Account Skills shadow it.
 _Shown to users as_: the agent's name, e.g. "Claude Code".
 _Avoid_: personal skill, user skill, Mac skill.
 

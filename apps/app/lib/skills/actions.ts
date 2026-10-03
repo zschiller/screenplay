@@ -1,9 +1,11 @@
 "use server"
 
+import { requireUserId } from "@/lib/auth-helpers"
 import { openRoom } from "@/lib/room-access"
 
+import { accountSkills } from "./account"
 import { canvasSkills } from "./canvas"
-import type { OpenedSkill } from "./saved"
+import type { OpenedSkill, SavedSkill } from "./saved"
 
 /**
  * Read one of the canvas's Skills for Open. Any member may; a non-member is
@@ -31,5 +33,23 @@ export async function deleteCanvasSkill(
     throw new Error("Viewers can't delete skills on this canvas.")
   }
   const removed = await canvasSkills(room).remove(name)
+  if (!removed.ok) throw new Error(removed.error)
+}
+
+/** Your Account Skills (Settings › Skills, #1558), by name. */
+export async function listAccountSkills(): Promise<SavedSkill[]> {
+  return accountSkills(await requireUserId()).list()
+}
+
+/** Read one of your Account Skills for Open. */
+export async function readAccountSkill(name: string): Promise<OpenedSkill> {
+  const read = await accountSkills(await requireUserId()).read(name)
+  if (!read.ok) throw new Error(read.error)
+  return { content: read.value.content, files: read.value.files }
+}
+
+/** Delete one of your Account Skills, with everything in its folder. */
+export async function deleteAccountSkill(name: string): Promise<void> {
+  const removed = await accountSkills(await requireUserId()).remove(name)
   if (!removed.ok) throw new Error(removed.error)
 }

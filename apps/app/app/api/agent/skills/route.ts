@@ -3,6 +3,7 @@ import { getUserId } from "@/lib/auth-helpers"
 import { openRoomForRoute } from "@/lib/room-access"
 import { getSkillIndex } from "@/lib/skills"
 import { loadCanvasSkills } from "@/lib/skills/canvas"
+import { loadAccountSkills } from "@/lib/skills/account"
 import { mergeSkillIndexes, type SkillOrigin } from "@/lib/skills/merged"
 import { getSkillMenuSource } from "@/lib/skills/sandbox-index"
 import { turnHarnessKey } from "@/lib/agent/acp/engine-choice"
@@ -11,9 +12,10 @@ import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 /**
  * Origin-tagged skill metadata for the `/` composer menu. With a `sandbox`
  * query param the response includes that Branch's Repo Skills; with a `room`
- * param, that canvas's saved Skills (for a member of it only). They merge
- * with the App Skills ranked Repo, then Canvas, then App, a shadowed row
- * dropped; with neither param the menu is App Skills only.
+ * param, that canvas's saved Skills (for a member of it only). Your own
+ * Account Skills (#1558) always join them, since every turn you send uses
+ * them. They merge with the App Skills ranked Repo, then Canvas, then
+ * Account, then App, a shadowed row dropped.
  *
  * A `chat` param names a chat with no Branch (#1556): `room` (the
  * Coordinator) lists the canvas's and the Coordinator's App Skills, `sketch`
@@ -22,7 +24,7 @@ import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
  *
  * A `model` param is the chat's model. On the desktop it picks the coding
  * agent running the chat, whose own Skills (`~/.claude/skills` for Claude
- * Code) rank below the canvas's and above App Skills (#1560).
+ * Code) rank below your Account Skills and above App Skills (#1560).
  */
 export interface SkillMenuItem {
   name: string
@@ -54,6 +56,7 @@ export async function GET(request: Request) {
       origin: "canvas",
     }))
   }
+  const account = await loadAccountSkills(userId)
   const agentSkills = agentSkillsFor(
     turnHarnessKey(params.get("model") ?? undefined)
   )
@@ -61,10 +64,19 @@ export async function GET(request: Request) {
   const chat = params.get("chat")
   const tagged =
     chat === "room"
-      ? mergeSkillIndexes({ canvas, agent, app: getSkillIndex("coordinator") })
+      ? mergeSkillIndexes({
+          canvas,
+          account,
+          agent,
+          app: getSkillIndex("coordinator"),
+        })
       : chat === "sketch"
-        ? mergeSkillIndexes({ canvas, agent, app: sketchSkillIndex() })
-        : await getSkillMenuSource(params.get("sandbox"), canvas, agent)
+        ? mergeSkillIndexes({ canvas, account, agent, app: sketchSkillIndex() })
+        : await getSkillMenuSource(params.get("sandbox"), {
+            canvas,
+            account,
+            agent,
+          })
 
   const skills: SkillMenuItem[] = tagged.map((s) => ({
     name: s.name,

@@ -2,7 +2,6 @@ import "server-only"
 
 import { sandboxProvider } from "@/lib/sandbox"
 
-import type { SkillMetadata } from "./frontmatter"
 import { getSkillIndex } from "./index"
 import {
   enumerateRepoSkills,
@@ -10,7 +9,7 @@ import {
   type RepoSkillFs,
 } from "./repo-skills"
 import type { OriginTaggedSkill } from "./merged"
-import { resolveSkillMenuSource } from "./menu-source"
+import { resolveSkillMenuSource, type SavedSkillSources } from "./menu-source"
 
 /**
  * Server-side bridge between the pure Skill modules and a live sandbox. This
@@ -46,20 +45,20 @@ export async function enumerateRepoSkillsForSandbox(
 /**
  * The `/`-menu Skill source for a Composer, honest about the pre-Sandbox case.
  * With a `sandboxName` it returns the Branch's merged index (Repo, Canvas,
- * the agent's own, App); without one (the seed Composer of the New-Workspace
- * dialog, which renders before any Sandbox exists) it leaves out Repo Skills
- * rather than bailing. `canvas` is the canvas's saved Skills, when the
- * Composer is on one, and `agent` the desktop agent's own (#1560).
+ * Account, the agent's own, App); without one (the seed Composer of the
+ * New-Workspace dialog, which renders before any Sandbox exists) it leaves out
+ * Repo Skills rather than bailing. `canvas` is the canvas's saved Skills, when
+ * the Composer is on one, `account` the viewer's own (#1558), and `agent` the
+ * desktop agent's own (#1560).
  */
 export async function getSkillMenuSource(
   sandboxName: string | null | undefined,
-  canvas: readonly SkillMetadata[] = [],
-  agent: readonly SkillMetadata[] = []
+  saved: SavedSkillSources = {}
 ): Promise<OriginTaggedSkill[]> {
   const repo = sandboxName
     ? await enumerateRepoSkillsForSandbox(sandboxName)
     : null
-  return resolveSkillMenuSource(getSkillIndex(), repo, canvas, agent)
+  return resolveSkillMenuSource(getSkillIndex(), repo, saved)
 }
 
 /**

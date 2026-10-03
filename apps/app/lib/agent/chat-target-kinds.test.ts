@@ -32,6 +32,20 @@ vi.mock("@/lib/files", async () => {
 const accountFileLists = vi.hoisted(
   () => new Map<string, import("@/lib/files/account-files").FileListStore>()
 )
+// Account Skills' lists (#1558) per person, in memory instead of the KV.
+const accountSkillLists = vi.hoisted(
+  () => new Map<string, import("@/lib/files/account-files").FileListStore>()
+)
+vi.mock("@/lib/files/account-store", async () => {
+  const { memoryFileListStore } = await import("@/lib/files/account-files")
+  return {
+    kvAccountSkillStore: (userId: string) => {
+      if (!accountSkillLists.has(userId))
+        accountSkillLists.set(userId, memoryFileListStore())
+      return accountSkillLists.get(userId)!
+    },
+  }
+})
 vi.mock("@/lib/terminal-tabs", () => ({
   listTerminalTabs: vi.fn().mockResolvedValue([]),
 }))
@@ -940,6 +954,180 @@ describe("canvas skills in every kind", () => {
 
     expect(enumerateRepoSkillsForSandbox).not.toHaveBeenCalled()
     expect(ctx!.skills.every((s) => s.origin !== "repo")).toBe(true)
+  })
+})
+
+/**
+ * Account Skills (#1558): any chat saves one to the person who sent its turn,
+ * and every chat that person messages, on any canvas, lists and reads it,
+ * ranked below the canvas's. A turn nobody sent has none and can't save one.
+ */
+describe("account skills in every kind", () => {
+  function roomOn(roomId: string): RoomDoc {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { repoId: "repo-1", sandboxName: "sb-1" })
+    )
+    return {
+      roomId,
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+  }
+
+  type Sender = { userId: string; senderless?: boolean }
+  const kinds = {
+    Workspace: {
+      tools: (room: RoomDoc, target: Sender) =>
+        inProcess(
+          workspaceChatTarget.tools(room, {
+            sandboxName: "sb-1",
+            chatId: "chat-1",
+            ...target,
+          })
+        ),
+      prepare: (room: RoomDoc, target: Sender) =>
+        prepareChatTarget(room, workspaceChatTarget, {
+          sandboxName: "sb-1",
+          chatId: "chat-1",
+          ...target,
+        }),
+    },
+    sketch: {
+      tools: (room: RoomDoc, target: Sender) =>
+        inProcess(
+          sketchChatTarget.tools(room, { chatId: "chat-1", ...target })
+        ),
+      prepare: (room: RoomDoc, target: Sender) =>
+        prepareChatTarget(room, sketchChatTarget, {
+          chatId: "chat-1",
+          ...target,
+        }),
+    },
+    Coordinator: {
+      tools: (room: RoomDoc, target: Sender) =>
+        inProcess(roomChatTarget.tools(room, target)),
+      prepare: (room: RoomDoc, target: Sender) =>
+        prepareChatTarget(room, roomChatTarget, target),
+    },
+  }
+
+  const call = async (tools: ToolSet, name: string, input: object) =>
+    (await tools[name]!.execute!(input, {
+      toolCallId: "t1",
+      messages: [],
+      context: {},
+    })) as string
+
+  const skillMd = (name: string, description: string, body = "") =>
+    `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
+
+  for (const [kind, { tools, prepare }] of Object.entries(kinds)) {
+    it(`saves the sender's account skill from a ${kind} chat, and every kind on another canvas uses it`, async () => {
+      accountSkillLists.clear()
+      const here = roomOn("room-1")
+      expect(
+        await call(tools(here, { userId: "ben" }), "save_skill", {
+          scope: "account",
+          name: "voice",
+          content: skillMd("voice", "Ben's writing voice.", "Plain sentences."),
+        })
+      ).toContain('Saved the account skill "voice"')
+
+      const elsewhere = roomOn("room-2")
+      for (const other of Object.values(kinds)) {
+        const prepared = (await other.prepare(elsewhere, { userId: "ben" }))!
+        expect(prepared.systemPrompt).toContain(
+          "- **voice**: Ben's writing voice."
+        )
+        expect(prepared.skillsNote).toContain("- **voice**")
+        expect(prepared.systemPrompt).toContain('`scope: "account"`')
+        expect(
+          await call(prepared.tools, "read_skill", { name: "voice" })
+        ).toContain("Plain sentences.")
+      }
+    })
+
+    it(`never gives one member's account skills to another's turn in a ${kind} chat`, async () => {
+      accountSkillLists.clear()
+      const room = roomOn("room-1")
+      await call(tools(room, { userId: "ben" }), "save_skill", {
+        scope: "account",
+        name: "voice",
+        content: skillMd("voice", "Ben's writing voice."),
+      })
+      // Ana's turn in the same chat: her own, never Ben's.
+      const ana = (await prepare(room, { userId: "ana" }))!
+      expect(ana.systemPrompt).not.toContain("Ben's writing voice.")
+      expect(await call(ana.tools, "read_skill", { name: "voice" })).toMatch(
+        /^Unknown skill/
+      )
+      // And her saves go to her.
+      await call(ana.tools, "save_skill", {
+        scope: "account",
+        name: "voice",
+        content: skillMd("voice", "Ana's writing voice."),
+      })
+      const ben = (await prepare(room, { userId: "ben" }))!
+      expect(ben.systemPrompt).toContain("Ben's writing voice.")
+      expect(ben.systemPrompt).not.toContain("Ana's writing voice.")
+    })
+
+    it(`gives a ${kind} turn nobody sent no account skills, and refuses the scope`, async () => {
+      accountSkillLists.clear()
+      const room = roomOn("room-1")
+      await call(tools(room, { userId: "ana" }), "save_skill", {
+        scope: "account",
+        name: "voice",
+        content: skillMd("voice", "Ana's writing voice."),
+      })
+      const wake = (await prepare(room, { userId: "ana", senderless: true }))!
+      expect(wake.systemPrompt).not.toContain("Ana's writing voice.")
+      expect(wake.systemPrompt).toContain("it has no account skills")
+      for (const name of ["save_skill", "delete_skill"]) {
+        expect(
+          await call(wake.tools, name, {
+            scope: "account",
+            name: "voice",
+            content: skillMd("voice", "x"),
+          })
+        ).toMatch(/nobody sent this turn/)
+      }
+    })
+  }
+
+  it("ranks a canvas skill over an account skill of the same name", async () => {
+    accountSkillLists.clear()
+    const room = roomOn("room-1")
+    const ben = kinds.sketch.tools(room, { userId: "ben" })
+    await call(ben, "save_skill", {
+      scope: "canvas",
+      name: "review",
+      content: skillMd("review", "Canvas review.", "The canvas's way."),
+    })
+    expect(
+      await call(ben, "save_skill", {
+        scope: "account",
+        name: "review",
+        content: skillMd("review", "My review.", "My way."),
+      })
+    ).toContain("on this canvas the canvas's wins")
+
+    const prepared = (await kinds.sketch.prepare(room, { userId: "ben" }))!
+    expect(prepared.systemPrompt).toContain("- **review**: Canvas review.")
+    expect(prepared.systemPrompt).not.toContain("My review.")
+    expect(
+      await call(prepared.tools, "read_skill", { name: "review" })
+    ).toContain("The canvas's way.")
+    // Deleting the account one leaves the canvas's.
+    expect(
+      await call(ben, "delete_skill", { scope: "account", name: "review" })
+    ).toBe('Deleted the account skill "review".')
+    expect(await call(ben, "read_skill", { name: "review" })).toContain(
+      "The canvas's way."
+    )
   })
 })
 
