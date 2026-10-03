@@ -576,6 +576,13 @@ export function ChatsMenuProvider({
             <BranchPicker
               owner={pickerRepo.repoOwner}
               repo={pickerRepo.repoName}
+              taken={
+                new Map(
+                  branches
+                    .filter((b) => b.repoId === pickerRepo.id && b.ref)
+                    .map((b) => [b.ref, workspaceLabel(b)])
+                )
+              }
               onSelect={(branch) => {
                 setBranchPickerRepoId(null)
                 onCreateBranchFromGitBranch(pickerRepo.id, branch)

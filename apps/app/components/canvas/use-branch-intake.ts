@@ -543,6 +543,8 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     (repoId: string, branch: string) => {
       const repo = repos.find((w) => w.id === repoId)
       if (!repo) return
+      // One chat per branch: a second agent on it would push over the first.
+      if (agents.some((a) => a.repoId === repoId && a.ref === branch)) return
 
       const sandboxName = `sp-${nanoid(10)}`
 
@@ -574,6 +576,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       })
     },
     [
+      agents,
       repos,
       ops,
       requestCreate,
