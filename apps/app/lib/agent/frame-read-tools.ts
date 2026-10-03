@@ -77,16 +77,16 @@ export function buildFrameReadTools(
         .optional()
         .describe(
           scope.sandboxName
-            ? "The frame to read, from any Workspace. Leave it out to read your Workspace's frame; with several frames, the answer lists them"
-            : "The frame to read. Leave it out to list the canvas's frames"
+            ? "The frame to read, from any Workspace. Leave it out to read your Workspace’s frame; with several frames, the answer lists them"
+            : "The frame to read. Leave it out to list the canvas’s frames"
         )
     : z.string().describe("The frame id from read_canvas")
 
   const tools = {
     view_frame: tool({
       description: chat
-        ? "Look at a frame on the canvas, from any Workspace: returns a screenshot of its live preview at the frame's size, or its last stored capture when the preview isn't running. Use it to see what the user sees, or what the app really looks like before you sketch a change."
-        : "Look at a frame: returns a screenshot of its live preview, or its last stored capture when the preview isn't running. Use it to check what a Workspace built.",
+        ? "Look at a frame on the canvas, from any Workspace: returns a screenshot of its live preview at the frame’s size, or its last stored capture when the preview isn’t running. Use it to see what the user sees, or what the app really looks like before you sketch a change."
+        : "Look at a frame: returns a screenshot of its live preview, or its last stored capture when the preview isn’t running. Use it to check what a Workspace built.",
       inputSchema: z.object({ frameId: frameIdSchema }),
       execute: async ({ frameId }): Promise<string | ImageToolOutput> => {
         const frame = await ports.readDoc((c) => findFrame(c, scope, frameId))
@@ -132,7 +132,7 @@ export function buildFrameReadTools(
         const frame = await ports.readDoc((c) => findFrame(c, scope, frameId))
         if (typeof frame === "string") return frame
         if (!frame.preview || !frame.sandboxName) {
-          return `Can't read the page in ${frame.name}: its Workspace has no running preview.`
+          return `Can’t read the page in ${frame.name}: its Workspace has no running preview.`
         }
         let snapshot: PageSnapshot | null
         try {
@@ -141,7 +141,7 @@ export function buildFrameReadTools(
             selector
           )
         } catch (err) {
-          return `Couldn't read the page in ${frame.name}: ${errorText(err)}`
+          return `Couldn’t read the page in ${frame.name}: ${errorText(err)}`
         }
         if (!snapshot) {
           return `Nothing in the page of ${frame.name} matches the selector ${selector}.`

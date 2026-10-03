@@ -73,7 +73,7 @@ export function CoordinatorChat({
     requestedRef.current = true
     ensureRoomChatAction(roomId).catch((e) => {
       requestedRef.current = false
-      console.error("Couldn't create the Coordinator chat:", e)
+      console.error("Couldn’t create the Coordinator chat:", e)
     })
   }, [chatSession, roomId])
 

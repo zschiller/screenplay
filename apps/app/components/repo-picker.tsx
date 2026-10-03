@@ -222,7 +222,7 @@ export function RepoPicker({ onSelect, localSources }: RepoPickerProps) {
                   className="flex flex-col items-center gap-3 py-8"
                 >
                   <span className="text-sm text-muted-foreground">
-                    Couldn&apos;t load your GitHub repositories.
+                    Couldn’t load your GitHub repositories.
                   </span>
                   <Button variant="outline" size="sm" onClick={retry}>
                     Try again

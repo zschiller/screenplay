@@ -94,7 +94,7 @@ describe("removeBranch — local teardown vs. the remote branch", () => {
     ]
     expect(title).toBe("Chat deleted. Its branch is still on GitHub.")
     expect(options.description).toBe(
-      "Delete it on GitHub if you don't need it."
+      "Delete it on GitHub if you don’t need it."
     )
   })
 
@@ -112,7 +112,7 @@ describe("removeBranch — local teardown vs. the remote branch", () => {
     await vi.waitFor(() => expect(toast.warning).toHaveBeenCalledOnce())
   })
 
-  it("never touches the GitHub API when remote deletion wasn't asked for", async () => {
+  it("never touches the GitHub API when remote deletion wasn’t asked for", async () => {
     const { collections, result } = mountIntake()
 
     await act(async () => {
@@ -141,7 +141,7 @@ describe("removeBranch — local teardown vs. the remote branch", () => {
     expect(toast.warning).not.toHaveBeenCalled()
   })
 
-  it("deletes the remote branch through the Repo's GitHub identity when asked", async () => {
+  it("deletes the remote branch through the Repo’s GitHub identity when asked", async () => {
     const { result } = mountIntake({ repoOwner: "acme", repoName: "widgets" })
 
     await act(async () => {

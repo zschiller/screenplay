@@ -91,7 +91,7 @@ export function frameDriveContract(
         expect(typeof page.path).toBe("string")
       })
 
-      it("reads one element's text, or says it matches nothing", async () => {
+      it("reads one element’s text, or says it matches nothing", async () => {
         expect(await out()).toBe("Nothing yet")
         expect((await read("#missing")).read).toBeNull()
       })
@@ -119,7 +119,7 @@ export function frameDriveContract(
           <div id="card">Card <button class="reveal">Edit</button></div>
           <p id="out">idle</p>
           <script>
-            // A menu that opens on pointerdown, as Radix's do.
+            // A menu that opens on pointerdown, as Radix’s do.
             document.getElementById("menu-trigger").addEventListener("pointerdown", () => {
               const item = document.createElement("div")
               item.setAttribute("role", "menuitem")
@@ -131,7 +131,7 @@ export function frameDriveContract(
             document.addEventListener("keydown", (e) => {
               if (e.key === "k" && e.metaKey) document.getElementById("out").textContent = "palette"
             })
-            // A pointer-driven slider (pointer capture can't be taken by a
+            // A pointer-driven slider (pointer capture can’t be taken by a
             // synthetic pointer, so it listens on the document).
             let dragging = false
             document.getElementById("slider").addEventListener("pointerdown", () => { dragging = true })
@@ -181,7 +181,7 @@ export function frameDriveContract(
         expect(replaced).toMatchObject({ value: { value: "Grace" } })
       })
 
-      it("submits a field's form with Enter", async () => {
+      it("submits a field’s form with Enter", async () => {
         await run({ op: "type", target: { selector: "#name" }, text: "Ada" })
         expectDone(
           await run({ op: "key", key: "Enter", target: { selector: "#name" } })
@@ -282,7 +282,7 @@ export function frameDriveContract(
       })
     })
 
-    describe("gestures it can't make for real", () => {
+    describe("gestures it can’t make for real", () => {
       beforeEach(() =>
         h.load(`
           <input type="file" id="upload" aria-label="Upload">

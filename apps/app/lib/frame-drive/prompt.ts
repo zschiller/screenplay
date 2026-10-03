@@ -27,10 +27,10 @@ export function frameDrivePrompt(
     : `You can drive ${
         frames
           ? "a frame or Mockup the user has open on the canvas"
-          : "a Mockup the user has open on the canvas (frames can't be driven in the browser yet)"
+          : "a Mockup the user has open on the canvas (frames can’t be driven in the browser yet)"
       }, as they would: ${tools}. You drive it in the view of the user who asked; everyone else keeps their own copy.${
         mac
-          ? ` Your clicks and keys are real input, so focus, typing, Tab, hover and copy and paste work. Copy and paste use a clipboard of your own, never the user's. A file input takes files from your Workspace: click it with \`files\`.`
+          ? ` Your clicks and keys are real input, so focus, typing, Tab, hover and copy and paste work. Copy and paste use a clipboard of your own, never the user’s. A file input takes files from your Workspace: click it with \`files\`.`
           : ""
       }`
   const check =
@@ -49,15 +49,15 @@ export function frameDrivePrompt(
       ? "a file from outside your Workspace"
       : "a file picker, the clipboard, typing into a rich-text editor"
   const closed = shared
-    ? "- A Mockup needs the user's canvas open: when it isn't, say so instead of driving."
-    : "- When the canvas isn't open, say so instead of driving."
+    ? "- A Mockup needs the user’s canvas open: when it isn’t, say so instead of driving."
+    : "- When the canvas isn’t open, say so instead of driving."
   return `${intro} Use them when the user asks you to show them something or to get a page into a state.
 
-- Start with ${t("frame_start_driving")}. Their ask is what lets you drive, so they get no second prompt. Pick the pace from what they asked: \`show\` for "show me" (a cursor glides to each target and pauses, and it's brought into their view), \`jump\` for "get it into that state" (straight to the end state, nobody's view moves).${open}
+- Start with ${t("frame_start_driving")}. Their ask is what lets you drive, so they get no second prompt. Pick the pace from what they asked: \`show\` for "show me" (a cursor glides to each target and pauses, and it’s brought into their view), \`jump\` for "get it into that state" (straight to the end state, nobody’s view moves).${open}
 - Read ${t("frame_elements")} first to find targets, and ${check}.
 - Each step shows in chat as its own short line, so between steps write at most one short sentence, and only when it helps the user follow along.
-- When you're done, call ${t("frame_stop_driving")}.
+- When you’re done, call ${t("frame_stop_driving")}.
 ${takeOver}
-- When a step needs something you can't do (${cant}), ask the user to do that step and to tell you when it's done, then end your turn; carry on from there when they reply.
+- When a step needs something you can’t do (${cant}), ask the user to do that step and to tell you when it’s done, then end your turn; carry on from there when they reply.
 ${closed}`
 }

@@ -150,7 +150,7 @@ describe("createThread", () => {
 
     expect(returned).toBeNull()
     expect(result.current.threads.map((t) => t.id)).toEqual(["t1"])
-    expect(toast.error).toHaveBeenCalledWith("Couldn't post the comment")
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t post the comment")
   })
 })
 
@@ -192,7 +192,7 @@ describe("reply", () => {
       expect(await sent).toBe(false)
     })
     expect(bodies(result.current.threads)).toEqual(["first"])
-    expect(toast.error).toHaveBeenCalledWith("Couldn't send the reply")
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t send the reply")
   })
 })
 
@@ -225,7 +225,7 @@ describe("editComment", () => {
     })
 
     expect(bodies(result.current.threads)).toEqual(["first"])
-    expect(toast.error).toHaveBeenCalledWith("Couldn't save the comment")
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t save the comment")
   })
 })
 
@@ -247,7 +247,7 @@ describe("read state", () => {
     await act(async () => result.current.markRead("t1"))
 
     expect(result.current.threads[0]!.unread).toBe(true)
-    expect(toast.error).toHaveBeenCalledWith("Couldn't mark the thread read")
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t mark the thread read")
   })
 
   it("marks a thread unread, and rolls back when that fails", async () => {
@@ -262,7 +262,7 @@ describe("read state", () => {
 
     await act(async () => save.reject(new Error("nope")))
     expect(result.current.threads[0]!.unread).toBe(false)
-    expect(toast.error).toHaveBeenCalledWith("Couldn't mark the thread unread")
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t mark the thread unread")
   })
 })
 
@@ -274,7 +274,7 @@ describe("setResolved", () => {
     await act(async () => result.current.setResolved("t1", true))
 
     expect(result.current.threads[0]!.resolved).toBe(false)
-    expect(toast.error).toHaveBeenCalledWith("Couldn't resolve the thread")
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t resolve the thread")
   })
 })
 

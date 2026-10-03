@@ -26,9 +26,9 @@ describe("describeTurnError", () => {
     )
   })
 
-  it("names an agent that couldn't be reached", () => {
+  it("names an agent that couldn’t be reached", () => {
     for (const raw of ["HTTP 502", "fetch failed", "connect ECONNREFUSED"]) {
-      expect(describeTurnError(raw)).toBe("The agent couldn't be reached.")
+      expect(describeTurnError(raw)).toBe("The agent couldn’t be reached.")
     }
   })
 
@@ -40,19 +40,19 @@ describe("describeTurnError", () => {
 })
 
 describe("describeSendError", () => {
-  it("keeps the server's own sentence", () => {
-    const ended = "This chat can't continue. Start a new chat to keep going."
+  it("keeps the server’s own sentence", () => {
+    const ended = "This chat can’t continue. Start a new chat to keep going."
     expect(describeSendError(ended)).toBe(ended)
-    expect(describeSendError("The agent couldn't be reached")).toBe(
-      "The agent couldn't be reached."
+    expect(describeSendError("The agent couldn’t be reached")).toBe(
+      "The agent couldn’t be reached."
     )
   })
 
   it("rewords transport errors", () => {
     expect(describeSendError("HTTP 500")).toBe("Something went wrong.")
-    expect(describeSendError("HTTP 503")).toBe("The agent couldn't be reached.")
+    expect(describeSendError("HTTP 503")).toBe("The agent couldn’t be reached.")
     expect(describeSendError("Failed to fetch")).toBe(
-      "The agent couldn't be reached."
+      "The agent couldn’t be reached."
     )
   })
 })

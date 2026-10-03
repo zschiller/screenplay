@@ -3,12 +3,12 @@
  * smart-quotes [--fix] <file or folder>...
  *
  * Lists every straight quote in the copy of the given MDX, TSX and TS files
- * (folders are searched) and exits 1 if there are any. `--fix` writes the
- * curly characters in instead.
+ * (folders are searched, tests skipped) and exits 1 if there are any. `--fix`
+ * writes the curly characters in instead.
  */
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs"
-import { join, relative } from "node:path"
-import { applyEdits, scan } from "./index.js"
+import { readFileSync, writeFileSync } from "node:fs"
+import { relative } from "node:path"
+import { applyEdits, copyFiles, scan } from "./index.js"
 
 const args = process.argv.slice(2)
 const fix = args.includes("--fix")
@@ -18,21 +18,9 @@ if (roots.length === 0) {
   process.exit(2)
 }
 
-const SKIP = new Set(["node_modules", ".next", "public"])
-function* files(path) {
-  if (statSync(path).isDirectory()) {
-    for (const name of readdirSync(path)) {
-      if (!SKIP.has(name) && !name.startsWith("."))
-        yield* files(join(path, name))
-    }
-  } else if (/\.(mdx?|tsx?)$/.test(path) && !path.endsWith(".d.ts")) {
-    yield path
-  }
-}
-
 let found = 0
 for (const root of roots) {
-  for (const file of files(root)) {
+  for (const file of copyFiles(root)) {
     const src = readFileSync(file, "utf8")
     const edits = scan(src, file)
     if (edits.length === 0) continue

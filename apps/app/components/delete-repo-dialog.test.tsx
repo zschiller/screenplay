@@ -128,7 +128,7 @@ describe("DeleteRepoDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith({ deleteBranchesOnRemote: true })
   })
 
-  it("doesn't offer the GitHub delete when it can't work", () => {
+  it("doesn’t offer the GitHub delete when it can’t work", () => {
     renderDialog({ canDeleteOnRemote: false })
 
     expect(screen.queryByRole("checkbox")).toBeNull()
@@ -145,12 +145,12 @@ describe("DeleteRepoDialog", () => {
       "Its 3 chats are removed from this canvas, with their frames."
     )
     expect(removeDescription(0, { sharedCanvas: true })).toBe(
-      "It's removed for everyone on this canvas, with any changes made here."
+      "It’s removed for everyone on this canvas, with any changes made here."
     )
     expect(
       removeDescription(3, { sharedCanvas: true, addedByName: "Ana" })
     ).toBe(
-      "It's removed for everyone on this canvas, with any changes made here. Its 3 chats and their frames go too. Ana added it."
+      "It’s removed for everyone on this canvas, with any changes made here. Its 3 chats and their frames go too. Ana added it."
     )
   })
 })

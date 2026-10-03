@@ -58,7 +58,7 @@ describe("create_mockup", () => {
     expect(mockupHtml(doc, mockupId).toString()).toBe("<h1>A</h1>")
   })
 
-  it("lands beside the chat's Workspace frames when it has no Mockups yet", async () => {
+  it("lands beside the chat’s Workspace frames when it has no Mockups yet", async () => {
     const { run, collections } = chatTools()
     collections.iframeLayers.set(
       "frame-1",
@@ -76,7 +76,7 @@ describe("create_mockup", () => {
     ])
   })
 
-  it("lands beside the chat's latest Mockup", async () => {
+  it("lands beside the chat’s latest Mockup", async () => {
     const { run, collections } = chatTools()
     const first = idIn(
       await run("create_mockup", { title: "Option A", html: "<p>A</p>" })
@@ -106,7 +106,7 @@ describe("create_mockup", () => {
 })
 
 describe("update_mockup", () => {
-  it("rewrites the chat's own Mockup in place", async () => {
+  it("rewrites the chat’s own Mockup in place", async () => {
     const { run, doc, collections } = chatTools()
     const mockupId = idIn(
       await run("create_mockup", { title: "Option A", html: "<p>A</p>" })
@@ -195,12 +195,12 @@ describe("update_mockup", () => {
     const { run } = chatTools()
     expect(
       await run("update_mockup", { mockup_id: "gone", html: "<p>A</p>" })
-    ).toBe("There's no Mockup gone.")
+    ).toBe("There’s no Mockup gone.")
   })
 })
 
 describe("read_mockup", () => {
-  it("lists the chat's own Mockups", async () => {
+  it("lists the chat’s own Mockups", async () => {
     const { run, ops } = chatTools()
     const a = idIn(
       await run("create_mockup", { title: "Take 1", html: "<p>1</p>" })
@@ -224,11 +224,11 @@ describe("read_mockup", () => {
   it("says when the chat has no Mockups", async () => {
     const { run } = chatTools()
     expect(await run("read_mockup", {})).toBe(
-      "This chat hasn't made any Mockups."
+      "This chat hasn’t made any Mockups."
     )
   })
 
-  it("returns a Mockup's title and whole page", async () => {
+  it("returns a Mockup’s title and whole page", async () => {
     const { run } = chatTools()
     const id = idIn(
       await run("create_mockup", { title: "Take 2", html: "<h1>Two</h1>" })
@@ -255,7 +255,7 @@ describe("read_mockup", () => {
     expect(out).toContain("<p>theirs</p>")
   })
 
-  it("says a Mockup whose chat was deleted is the chat's to change", async () => {
+  it("says a Mockup whose chat was deleted is the chat’s to change", async () => {
     const { run, ops } = chatTools()
     const { mockupId } = ops.createMockup({
       html: "<p>orphan</p>",
@@ -273,7 +273,7 @@ describe("read_mockup", () => {
   it("reports a missing Mockup", async () => {
     const { run } = chatTools()
     expect(await run("read_mockup", { mockup_id: "gone" })).toBe(
-      "There's no Mockup gone."
+      "There’s no Mockup gone."
     )
   })
 })

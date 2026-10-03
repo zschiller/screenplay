@@ -39,20 +39,20 @@ function describeDeletion(
   if (deletedCount === 0) {
     return (
       "This folder and all of its subfolders will be deleted. " +
-      "You can't undo this."
+      "You can’t undo this."
     )
   }
 
   let body =
     `Deleting this folder permanently deletes ${countOf(deletedCount, "canvas", "canvases")}, ` +
-    "along with all of their subfolders and contents. You can't undo this."
+    "along with all of their subfolders and contents. You can’t undo this."
 
   if (sharedOwnedCount > 0) {
     body +=
       ` ${countOf(sharedOwnedCount, "canvas", "canvases")} ` +
       (sharedOwnedCount === 1 ? "is" : "are") +
       ` shared and will be deleted for everyone ${
-        sharedOwnedCount === 1 ? "it's" : "they're"
+        sharedOwnedCount === 1 ? "it’s" : "they’re"
       } shared with (${countOf(sharedWithCount, "person", "people")}).`
   }
 

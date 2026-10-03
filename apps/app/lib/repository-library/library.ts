@@ -103,7 +103,7 @@ export function createRepositoryLibrary({
         )
       } catch (err) {
         // One Canvas that won't open mustn't keep the rest unlinked.
-        console.error(`Couldn't link repositories on canvas ${roomId}`, err)
+        console.error(`Couldn’t link repositories on canvas ${roomId}`, err)
         failed = true
         continue
       }
@@ -137,7 +137,7 @@ export function createRepositoryLibrary({
         for (const repoId of updated)
           await env.write(roomId, repoId, a!.envVars)
       } catch (err) {
-        console.error(`Couldn't update repositories on canvas ${roomId}`, err)
+        console.error(`Couldn’t update repositories on canvas ${roomId}`, err)
       }
     }
   }
@@ -195,7 +195,7 @@ export function createRepositoryLibrary({
       }
       const list = await store.load()
       const target = list.find((r) => r.id === repository.id)
-      if (!target) throw new Error("That repository isn't in your Settings")
+      if (!target) throw new Error("That repository isn’t in your Settings")
       const saved = { ...repository, createdAt: target.createdAt }
       const next = list.map((r) => (r.id === target.id ? saved : r))
       await store.save(next)
@@ -218,7 +218,7 @@ export function createRepositoryLibrary({
           )
           if (uses) count++
         } catch (err) {
-          console.error(`Couldn't read repositories on canvas ${roomId}`, err)
+          console.error(`Couldn’t read repositories on canvas ${roomId}`, err)
         }
       }
       return count
@@ -242,7 +242,7 @@ export function createRepositoryLibrary({
           )
           for (const id of new Set(ids)) counts[id] = (counts[id] ?? 0) + 1
         } catch (err) {
-          console.error(`Couldn't read repositories on canvas ${roomId}`, err)
+          console.error(`Couldn’t read repositories on canvas ${roomId}`, err)
         }
       }
       return counts
@@ -266,7 +266,7 @@ export function createRepositoryLibrary({
             unlinkRepository(collections, repositoryId)
           )
         } catch (err) {
-          console.error(`Couldn't unlink repositories on canvas ${roomId}`, err)
+          console.error(`Couldn’t unlink repositories on canvas ${roomId}`, err)
         }
       }
       return stamped(next)

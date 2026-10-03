@@ -71,7 +71,7 @@ export function AccountSkillsPanel({
       {loading ? (
         <SettingsRowSkeleton label="Loading skills…" count={2} />
       ) : loadFailed ? (
-        <LoadErrorRow title="Couldn't load skills" onRetry={reload} />
+        <LoadErrorRow title="Couldn’t load skills" onRetry={reload} />
       ) : (
         <SavedSkillList
           skills={skills}

@@ -67,7 +67,7 @@ const targetSchema = z
     text: z
       .string()
       .optional()
-      .describe("The element's visible label, e.g. 'Save' or 'Email'"),
+      .describe("The element’s visible label, e.g. 'Save' or 'Email'"),
     x: z.number().optional().describe("A point in the frame, in CSS px"),
     y: z.number().optional(),
   })
@@ -110,8 +110,8 @@ export function buildFrameDriveTools(
     .optional()
     .describe(
       frames
-        ? "The frame or Mockup to drive. Leave it out for your Workspace's frame; with several, the answer lists them"
-        : "The Mockup to drive. Leave it out when there's one; with several, the answer lists them"
+        ? "The frame or Mockup to drive. Leave it out for your Workspace’s frame; with several, the answer lists them"
+        : "The Mockup to drive. Leave it out when there’s one; with several, the answer lists them"
     )
 
   /** The page's id, or the answer to give when there's no single one. */
@@ -123,7 +123,7 @@ export function buildFrameDriveTools(
     // Just after the canvas closes, the room can read as empty for a moment:
     // say the canvas isn't open rather than that it has no frames.
     const closed = await driver.canvasUnavailable()
-    return closed ? `Can't drive frames: ${closed} ${TELL_IN_CHAT}` : frame
+    return closed ? `Can’t drive frames: ${closed} ${TELL_IN_CHAT}` : frame
   }
 
   const gesture = async (
@@ -142,13 +142,13 @@ export function buildFrameDriveTools(
       .array(z.string())
       .optional()
       .describe(
-        "For a file input: the files to pick, as paths relative to your Workspace's root. Only files in your Workspace can be picked"
+        "For a file input: the files to pick, as paths relative to your Workspace’s root. Only files in your Workspace can be picked"
       ),
   })
 
   const tools = {
     frame_start_driving: tool({
-      description: `Start driving ${page} because the person asked you in chat to show them something or to get it into a state. Their ask lets you drive, so they get no second prompt. Pick \`pace\` from what they asked: \`show\` for "show me" (a cursor glides to each target and pauses before acting, and it's brought into their view), \`jump\` for "get it into that state" (every step at once, and nobody's view moves). Call it before your first step; it sets the pace of every step until frame_stop_driving.`,
+      description: `Start driving ${page} because the person asked you in chat to show them something or to get it into a state. Their ask lets you drive, so they get no second prompt. Pick \`pace\` from what they asked: \`show\` for "show me" (a cursor glides to each target and pauses before acting, and it’s brought into their view), \`jump\` for "get it into that state" (every step at once, and nobody’s view moves). Call it before your first step; it sets the pace of every step until frame_stop_driving.`,
       inputSchema: z.object({
         frameId,
         pace: z
@@ -167,14 +167,14 @@ export function buildFrameDriveTools(
         switch (outcome.status) {
           case "driving":
             return pace === "show"
-              ? `Driving ${frame.name} at a watchable pace, and brought it into the person's view. Say what you're about to show in one short line, then read frame_elements.`
-              : `Driving ${frame.name} straight to the end state; nobody's view moved. Read frame_elements.`
+              ? `Driving ${frame.name} at a watchable pace, and brought it into the person’s view. Say what you’re about to show in one short line, then read frame_elements.`
+              : `Driving ${frame.name} straight to the end state; nobody’s view moved. Read frame_elements.`
           case "wait":
             return waitLine(frame.name, outcome)
           case "unavailable":
-            return `Can't drive ${frame.name}: ${outcome.reason} ${TELL_IN_CHAT}`
+            return `Can’t drive ${frame.name}: ${outcome.reason} ${TELL_IN_CHAT}`
           case "failed":
-            return `Couldn't drive ${frame.name}: ${outcome.reason}`
+            return `Couldn’t drive ${frame.name}: ${outcome.reason}`
         }
       },
     }),
@@ -182,7 +182,7 @@ export function buildFrameDriveTools(
     ...(frames && {
       frame_open: tool({
         description:
-          "Open a new frame showing your Workspace beside its other frames, to drive when no frame fits: rather than taking over a frame the person is using for something else. Pass `route` to open it on a page. Returns the new frame's id once the canvas has it; then call frame_start_driving with it.",
+          "Open a new frame showing your Workspace beside its other frames, to drive when no frame fits: rather than taking over a frame the person is using for something else. Pass `route` to open it on a page. Returns the new frame’s id once the canvas has it; then call frame_start_driving with it.",
         inputSchema: z.object({
           route: z
             .string()
@@ -192,7 +192,7 @@ export function buildFrameDriveTools(
         execute: async ({ route }) => {
           const closed = await driver.canvasUnavailable()
           if (closed)
-            return `Can't open a frame to drive: ${closed} ${TELL_IN_CHAT}`
+            return `Can’t open a frame to drive: ${closed} ${TELL_IN_CHAT}`
           const opened = await room.mutateDoc((c) =>
             openWorkspaceFrame(c, scope.sandboxName, route)
           )
@@ -203,23 +203,23 @@ export function buildFrameDriveTools(
           const deadline = Date.now() + OPEN_FRAME_WAIT_MS
           while ((await driver.frameUnavailable(opened.id)) !== null) {
             if (Date.now() >= deadline) {
-              return `Opened ${name} beside your Workspace's frames, but the canvas hasn't loaded it yet. Try frame_start_driving with frameId "${opened.id}" in a moment.`
+              return `Opened ${name} beside your Workspace’s frames, but the canvas hasn’t loaded it yet. Try frame_start_driving with frameId "${opened.id}" in a moment.`
             }
             await sleep(OPEN_FRAME_POLL_MS)
           }
-          return `Opened ${name} beside your Workspace's frames. Call frame_start_driving with frameId "${opened.id}"; its page may take a moment to load.`
+          return `Opened ${name} beside your Workspace’s frames. Call frame_start_driving with frameId "${opened.id}"; its page may take a moment to load.`
         },
       }),
     }),
 
     frame_elements: tool({
-      description: `Read what can be acted on in ${page} on the canvas: its links, buttons, fields and other controls, each with a selector to target it by, plus the page's path and title. Pass \`selector\` to also read one element's text and value. Read this before acting, and again after a step to see what changed. Read-only.`,
+      description: `Read what can be acted on in ${page} on the canvas: its links, buttons, fields and other controls, each with a selector to target it by, plus the page’s path and title. Pass \`selector\` to also read one element’s text and value. Read this before acting, and again after a step to see what changed. Read-only.`,
       inputSchema: z.object({
         frameId,
         selector: z
           .string()
           .optional()
-          .describe("Also read this element's text, e.g. 'main' or '#total'"),
+          .describe("Also read this element’s text, e.g. 'main' or '#total'"),
       }),
       execute: async ({ frameId, selector }) => {
         const frame = await resolve(frameId)
@@ -231,7 +231,7 @@ export function buildFrameDriveTools(
     }),
 
     frame_screenshot: tool({
-      description: `Look at ${page} exactly as the person sees it on the canvas, in the state you drove it to. Use it to check each step.${frames ? " (view_frame renders a fresh copy of a frame's page instead, so it doesn't show what you did.)" : ""} Read-only.`,
+      description: `Look at ${page} exactly as the person sees it on the canvas, in the state you drove it to. Use it to check each step.${frames ? " (view_frame renders a fresh copy of a frame’s page instead, so it doesn’t show what you did.)" : ""} Read-only.`,
       inputSchema: z.object({ frameId }),
       execute: async ({ frameId }): Promise<string | ImageToolOutput> => {
         const frame = await resolve(frameId)
@@ -267,7 +267,7 @@ export function buildFrameDriveTools(
     }),
 
     frame_type: tool({
-      description: `Type text into a field in ${page} (an input or a textarea). Adds to what's there, or replaces it with \`replace\`.`,
+      description: `Type text into a field in ${page} (an input or a textarea). Adds to what’s there, or replaces it with \`replace\`.`,
       inputSchema: z.object({
         frameId,
         target: targetSchema,
@@ -275,7 +275,7 @@ export function buildFrameDriveTools(
         replace: z
           .boolean()
           .optional()
-          .describe("Replace the field's value instead of adding to it"),
+          .describe("Replace the field’s value instead of adding to it"),
       }),
       execute: ({ frameId, target, text, replace }) =>
         gesture(frameId, {
@@ -287,7 +287,7 @@ export function buildFrameDriveTools(
     }),
 
     frame_key: tool({
-      description: `Press a key in ${page}, e.g. 'Enter' (submits a field's form), 'Escape', 'ArrowDown', or a shortcut with modifiers. Sent to \`target\`, or to the page. To enter text, use frame_type.`,
+      description: `Press a key in ${page}, e.g. 'Enter' (submits a field’s form), 'Escape', 'ArrowDown', or a shortcut with modifiers. Sent to \`target\`, or to the page. To enter text, use frame_type.`,
       inputSchema: z.object({
         frameId,
         key: z.string().describe("A key name as in KeyboardEvent.key"),
@@ -354,7 +354,7 @@ export function buildFrameDriveTools(
     }),
 
     frame_stop_driving: tool({
-      description: `Hand ${page} back when you're done driving it, so it no longer shows you as its driver.`,
+      description: `Hand ${page} back when you’re done driving it, so it no longer shows you as its driver.`,
       inputSchema: z.object({ frameId }),
       execute: async ({ frameId }) => {
         const frame = await resolve(frameId)
@@ -405,7 +405,7 @@ export function findDrivable(
     const mockup = c.mockupLayers.get(id)
     if (mockup) return { id, name: mockupName(mockup) }
     if (!c.iframeLayers.get(id))
-      return `There's no frame or Mockup ${id} on the canvas.`
+      return `There’s no frame or Mockup ${id} on the canvas.`
     const frame = findFrame(c, scope, id)
     return typeof frame === "string" ? frame : { id, name: frame.name }
   }
@@ -484,10 +484,10 @@ export function phrase(frameName: string, outcome: AgentDriveOutcome): string {
         v.scrolled &&
           `Scrolled to ${Math.round(v.scrolled.x)}, ${Math.round(v.scrolled.y)}.`,
         v.emulated &&
-          `Screenplay ran the browser's default for it (${v.emulated}).`,
+          `Screenplay ran the browser’s default for it (${v.emulated}).`,
         v.picked && `The file picker took ${v.picked.join(", ")}.`,
         v.copied !== undefined &&
-          `It copied ${JSON.stringify(v.copied)} (the person's own clipboard is unchanged; your next paste pastes this).`,
+          `It copied ${JSON.stringify(v.copied)} (the person’s own clipboard is unchanged; your next paste pastes this).`,
       ].filter(Boolean)
       return [
         `Did ${v.op} on${on || " the page"} in ${frameName}. The page is at ${v.path}.`,
@@ -497,16 +497,16 @@ export function phrase(frameName: string, outcome: AgentDriveOutcome): string {
     case "read":
       return renderElements(frameName, outcome.value)
     case "gap":
-      return `Couldn't ${outcome.target ? `act on ${outcome.target.tag}${outcome.target.label ? ` "${outcome.target.label}"` : ""}` : "do that"} in ${frameName}: ${DRIVE_GAPS[outcome.gap]} If the step needs it, ask the person in chat to do it in the frame and to tell you when it's done, then stop and wait for their reply before you carry on.`
+      return `Couldn’t ${outcome.target ? `act on ${outcome.target.tag}${outcome.target.label ? ` "${outcome.target.label}"` : ""}` : "do that"} in ${frameName}: ${DRIVE_GAPS[outcome.gap]} If the step needs it, ask the person in chat to do it in the frame and to tell you when it’s done, then stop and wait for their reply before you carry on.`
     case "not-found":
       return `Nothing in ${frameName} matches ${JSON.stringify(outcome.target)}. Read frame_elements for a selector.`
     case "taken":
     case "wait":
       return waitLine(frameName, outcome)
     case "unavailable":
-      return `Can't drive ${frameName}: ${outcome.reason} ${TELL_IN_CHAT}`
+      return `Can’t drive ${frameName}: ${outcome.reason} ${TELL_IN_CHAT}`
     case "failed":
-      return `Couldn't drive ${frameName}: ${outcome.reason}`
+      return `Couldn’t drive ${frameName}: ${outcome.reason}`
   }
 }
 
@@ -558,7 +558,7 @@ export function openWorkspaceFrame(
     id = ops.createFrameForAgent(branch.id, { x: 0, y: 0 }, label).layerId
     if (path !== "/") c.iframeLayers.update(id, { route: path })
   }
-  if (!id) return "Error: couldn't add a frame beside your Workspace's frames."
+  if (!id) return "Error: couldn’t add a frame beside your Workspace’s frames."
   return { id, route: path }
 }
 
@@ -569,9 +569,9 @@ function waitLine(
     | { status: "wait"; driver: string | null; takenOver: boolean }
 ): string {
   if (outcome.status === "taken" || outcome.takenOver) {
-    return `Someone took control of ${frameName}, so that step didn't run. Stop driving it: tell them in chat where you got to, and ask before you carry on. You'll get the frame back when they leave Interact.`
+    return `Someone took control of ${frameName}, so that step didn’t run. Stop driving it: tell them in chat where you got to, and ask before you carry on. You’ll get the frame back when they leave Interact.`
   }
-  return `Someone is interacting with ${frameName}, so you can't drive it now. Ask in chat for them to leave Interact (Esc) if they want you to carry on; you'll get the frame when they do.`
+  return `Someone is interacting with ${frameName}, so you can’t drive it now. Ask in chat for them to leave Interact (Esc) if they want you to carry on; you’ll get the frame when they do.`
 }
 
 function renderElements(frameName: string, page: DriveElements): string {

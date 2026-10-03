@@ -67,7 +67,7 @@ const named = (text: string) => ({
 
 describe("Canvas Repo env", () => {
   describe("save", () => {
-    it("stores the adder's text whole, then names it in the doc", async () => {
+    it("stores the adder’s text whole, then names it in the doc", async () => {
       const { c, room, store } = setup([repo("r1", { addedBy: "ada" })], {
         r1: "A=1\nB=2",
       })
@@ -79,7 +79,7 @@ describe("Canvas Repo env", () => {
       expect(c.repos.get("r1")).toMatchObject(named("C=3"))
     })
 
-    it("lays anyone else's lines over the stored values", async () => {
+    it("lays anyone else’s lines over the stored values", async () => {
       const { c, room, store } = setup([repo("r1", { addedBy: "ada" })], {
         r1: "A=1\nB=2",
       })
@@ -90,7 +90,7 @@ describe("Canvas Repo env", () => {
       expect(c.repos.get("r1")).toMatchObject(named("A=1\nB=mine"))
     })
 
-    it("merges over a legacy plain-text copy the migration hasn't moved", async () => {
+    it("merges over a legacy plain-text copy the migration hasn’t moved", async () => {
       const { c, room, store, docJson } = setup([
         repo("r1", { addedBy: "ada", envVars: "A=sk_live_old" }),
       ])
@@ -117,11 +117,11 @@ describe("Canvas Repo env", () => {
       expect(c.repos.get("r1")).toMatchObject(named("A=1"))
     })
 
-    it("refuses viewers and Repos the Canvas doesn't have, touching nothing", async () => {
+    it("refuses viewers and Repos the Canvas doesn’t have, touching nothing", async () => {
       const { room, store } = setup([repo("r1")])
       await expect(
         canvasRepoEnv(room, store, { ...ada, role: "viewer" }).save("r1", "A=1")
-      ).rejects.toThrow("Viewers can't change settings")
+      ).rejects.toThrow("Viewers can’t change settings")
       await expect(
         canvasRepoEnv(room, store, ada).save("gone", "A=1")
       ).rejects.toThrow("Repository not found")
@@ -130,7 +130,7 @@ describe("Canvas Repo env", () => {
   })
 
   describe("reset", () => {
-    it("replaces the Canvas's values with the Repository's, then names them", async () => {
+    it("replaces the Canvas’s values with the Repository’s, then names them", async () => {
       const { c, room, store } = setup(
         [repo("r1", { addedBy: "ada", ...named("A=mine") })],
         { r1: "A=mine" }
@@ -155,7 +155,7 @@ describe("Canvas Repo env", () => {
       expect(c.repos.get("r1")?.envVarsDigest).toBeUndefined()
     })
 
-    it("is refused to anyone who can't reveal the values", async () => {
+    it("is refused to anyone who can’t reveal the values", async () => {
       const { c, room, store } = setup(
         [repo("r1", { addedBy: "ada", ...named("A=1") })],
         { r1: "A=1" }
@@ -185,7 +185,7 @@ describe("Canvas Repo env", () => {
   })
 
   describe("copyIn", () => {
-    it("stores values under a new Repo's id and hands back its fields", async () => {
+    it("stores values under a new Repo’s id and hands back its fields", async () => {
       const { c, room, store } = setup([])
 
       const fields = await canvasRepoEnv(room, store, ada).copyIn("r1", "A=1")
@@ -196,7 +196,7 @@ describe("Canvas Repo env", () => {
       expect(c.repos.get("r1")).toBeUndefined()
     })
 
-    it("never overwrites a Repo that's already there or already stored", async () => {
+    it("never overwrites a Repo that’s already there or already stored", async () => {
       const { room, store } = setup([repo("r1")], { r2: "A=1" })
       const env = canvasRepoEnv(room, store, ada)
 
@@ -216,7 +216,7 @@ describe("Canvas Repo env", () => {
   })
 
   describe("reveal", () => {
-    it("is the adder's; the owner's when nobody recorded one; anyone's on desktop", async () => {
+    it("is the adder’s; the owner’s when nobody recorded one; anyone’s on desktop", async () => {
       const { room, store } = setup(
         [repo("r1", { addedBy: "ada" }), repo("r2")],
         {

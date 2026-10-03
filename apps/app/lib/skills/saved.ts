@@ -103,7 +103,7 @@ export function skillNameError(name: string): string | null {
     return `"${name}" is over ${SKILL_NAME_MAX_LENGTH} characters.`
   }
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) {
-    return `"${name}" isn't a valid skill name: use lowercase letters, digits and single hyphens, like "release-checklist".`
+    return `"${name}" isn’t a valid skill name: use lowercase letters, digits and single hyphens, like "release-checklist".`
   }
   return null
 }
@@ -230,7 +230,7 @@ export function createSavedSkills(scope: {
       }
       if (metadata.name !== name) {
         return fail(
-          `SKILL.md declares name "${metadata.name}"; it must match the skill's name, "${name}".`
+          `SKILL.md declares name "${metadata.name}"; it must match the skill’s name, "${name}".`
         )
       }
       if (metadata.description.length > SKILL_DESCRIPTION_MAX_LENGTH) {

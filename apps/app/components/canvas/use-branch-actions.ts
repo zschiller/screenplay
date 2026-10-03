@@ -90,7 +90,7 @@ export function createPullRequest({
         },
       })
     } else {
-      toast.error("Couldn't create pull request", {
+      toast.error("Couldn’t create pull request", {
         description: result.error,
       })
     }

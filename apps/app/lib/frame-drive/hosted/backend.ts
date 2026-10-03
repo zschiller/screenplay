@@ -158,7 +158,7 @@ function connections(): Map<string, AgentConnection> {
 }
 
 const STREAM_DOWN =
-  "The workspace's shared browser isn't reachable right now. The workspace may be starting or asleep."
+  "The workspace’s shared browser isn’t reachable right now. The workspace may be starting or asleep."
 
 function connect(stream: HostedFrame["stream"]): AgentConnection {
   const existing = connections().get(stream.url)
@@ -221,7 +221,7 @@ async function ask(
   const answer = await new Promise<Answer | string>((resolve) => {
     const timer = setTimeout(() => {
       conn.pending.delete(id)
-      resolve("The shared browser didn't answer in time.")
+      resolve("The shared browser didn’t answer in time.")
     }, timeoutMs)
     conn.pending.set(id, (answer) => {
       clearTimeout(timer)

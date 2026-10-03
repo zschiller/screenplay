@@ -61,7 +61,7 @@ export async function adoptAttachment(
   input: { name: string; type: string; blobKey: string; userId: string }
 ): Promise<FileResult<MessageAttachment>> {
   const size = await store.size(input.blobKey)
-  if (size === null) return fail("The upload didn't arrive. Try again.")
+  if (size === null) return fail("The upload didn’t arrive. Try again.")
   const check = checkAttachment({ name: input.name, size, type: input.type })
   if (!check.ok) {
     await store.delete([input.blobKey]).catch(() => {})
@@ -99,7 +99,7 @@ export async function removeAttachment(
     entry.addedBy !== "member" ||
     entry.addedById !== userId
   ) {
-    return fail("That isn't an attachment you added.")
+    return fail("That isn’t an attachment you added.")
   }
   const removed = await files.remove(entry.path)
   return removed.ok ? { ok: true, value: null } : removed

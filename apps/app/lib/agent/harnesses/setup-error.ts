@@ -9,8 +9,8 @@ import type { HarnessSetupActionKind, HarnessSetupRow } from "./setup"
 /** The run couldn't start (the server couldn't resolve what to run). */
 export function setupStartError(kind: HarnessSetupActionKind): string {
   return kind === "install"
-    ? "Couldn't start the install. Try again."
-    : "Couldn't start sign-in. Try again."
+    ? "Couldn’t start the install. Try again."
+    : "Couldn’t start sign-in. Try again."
 }
 
 /**
@@ -23,10 +23,10 @@ export function setupRunError(
   label: string,
   row: HarnessSetupRow | undefined
 ): string | null {
-  if (!row) return `Couldn't check ${label}. Try again.`
+  if (!row) return `Couldn’t check ${label}. Try again.`
   if (row.connected) return null
   if (kind === "install" && !row.installed) {
-    return "The install didn't finish. Try again."
+    return "The install didn’t finish. Try again."
   }
-  return "Sign-in didn't finish. Try again."
+  return "Sign-in didn’t finish. Try again."
 }

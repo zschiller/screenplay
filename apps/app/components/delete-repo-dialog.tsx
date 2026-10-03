@@ -180,7 +180,7 @@ export function removeDescription(
       .join(" ")
   }
   return [
-    "It's removed for everyone on this canvas, with any changes made here.",
+    "It’s removed for everyone on this canvas, with any changes made here.",
     count === 1 && "Its chat and its frames go too.",
     count > 1 && `Its ${count} chats and their frames go too.`,
     addedByName && `${addedByName} added it.`,

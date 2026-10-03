@@ -94,7 +94,7 @@ export function liveFrameReadPorts(roomId: string): FrameReadPorts {
           await writeBridgeFiles(sandbox)
         } catch {
           throw new Error(
-            "the preview's Sandbox Bridge is out of date and couldn't be updated"
+            "the preview’s Sandbox Bridge is out of date and couldn’t be updated"
           )
         }
         return await read()

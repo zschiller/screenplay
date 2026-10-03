@@ -694,7 +694,7 @@ class ChatStore {
         if (body?.error === "not_steerable") return { kind: "not-steerable" }
         if (body?.error === "session_terminated") {
           throw new Error(
-            "This chat can't continue. Start a new chat to keep going."
+            "This chat can’t continue. Start a new chat to keep going."
           )
         }
       }
@@ -797,7 +797,7 @@ class ChatStore {
       // so in the transcript: the run may still be going on the server.
       const msg = e instanceof Error ? e.message : String(e)
       this.update(chatId, { isStreaming: false })
-      this.appendError(chatId, "Couldn't stop the agent.", msg, () =>
+      this.appendError(chatId, "Couldn’t stop the agent.", msg, () =>
         this.stopMessage(roomId, chatId)
       )
     }
@@ -1138,7 +1138,7 @@ class ChatStore {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      this.appendError(chatId, "Couldn't approve the plan.", msg, () =>
+      this.appendError(chatId, "Couldn’t approve the plan.", msg, () =>
         this.approvePlan(roomId, chatId, planId)
       )
     }
@@ -1168,7 +1168,7 @@ class ChatStore {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      this.appendError(chatId, "Couldn't reject the plan.", msg, () =>
+      this.appendError(chatId, "Couldn’t reject the plan.", msg, () =>
         this.rejectPlan(roomId, chatId, planId, feedback)
       )
     }

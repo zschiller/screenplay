@@ -63,16 +63,16 @@ export async function crawlRoutes(
 
     const res = await generateText({
       model: resolveLanguageModel(DEFAULT_MODEL),
-      instructions: `You are analyzing a web project's file structure to discover its navigable routes.
+      instructions: `You are analyzing a web project’s file structure to discover its navigable routes.
 Look at the file listing and determine the framework (Next.js, SvelteKit, Nuxt, Remix, React Router, Astro, plain React, etc.) and identify all static, user-facing routes.
 
 Rules:
 - Only return concrete, navigable routes (no dynamic segments like [id] or :id)
-- Always include "/" if there's a home/index page
+- Always include "/" if there’s a home/index page
 - Return ONLY a JSON array of objects with "route" and "label" keys, nothing else
 - "label" should be a human-readable sentence case title for the route (e.g. "Home", "About us", "Blog posts")
 - Example: [{"route": "/", "label": "Home"}, {"route": "/about", "label": "About"}, {"route": "/pricing", "label": "Pricing"}]
-- If you can't determine routes, return [{"route": "/", "label": "Home"}]`,
+- If you can’t determine routes, return [{"route": "/", "label": "Home"}]`,
       prompt: `Here are the project files:\n\n${fileList}`,
     })
 

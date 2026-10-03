@@ -102,7 +102,7 @@ export function GitHubStep({
           />
         </div>
       ) : connection.statusFailed ? (
-        <LoadErrorRow title="Couldn't check GitHub" onRetry={redetect} />
+        <LoadErrorRow title="Couldn’t check GitHub" onRetry={redetect} />
       ) : !status ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner className="size-4" />

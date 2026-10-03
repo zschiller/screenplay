@@ -1459,7 +1459,7 @@ function ErrorMessage({
     void navigator.clipboard
       ?.writeText(detail)
       .then(() => toast.success("Error copied"))
-      .catch(() => toast.error("Couldn't copy the error"))
+      .catch(() => toast.error("Couldn’t copy the error"))
   }
   return (
     <div

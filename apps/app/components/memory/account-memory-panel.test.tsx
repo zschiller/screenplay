@@ -169,11 +169,11 @@ describe("Settings › Memory (#1513)", () => {
     )
   })
 
-  it("says so when memory can't be loaded", async () => {
+  it("says so when memory can’t be loaded", async () => {
     vi.mocked(listAccountMemory).mockRejectedValue(new Error("kv down"))
     vi.spyOn(console, "error").mockImplementation(() => {})
     render(<AccountMemoryPanel header={() => null} />)
 
-    expect(await screen.findByText("Couldn't load memory")).not.toBeNull()
+    expect(await screen.findByText("Couldn’t load memory")).not.toBeNull()
   })
 })

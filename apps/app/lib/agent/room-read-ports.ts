@@ -61,7 +61,7 @@ async function runningSandbox(
     resume: false,
   })
   if (!isSandboxRunning(sandbox)) {
-    throw new Error("its sandbox isn't running")
+    throw new Error("its sandbox isn’t running")
   }
   return sandbox
 }

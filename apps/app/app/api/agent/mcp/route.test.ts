@@ -175,7 +175,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe("the Coordinator's MCP route", () => {
+describe("the Coordinator’s MCP route", () => {
   it("answers initialize with the tools capability", async () => {
     const res = await POST(
       rpc({
@@ -208,7 +208,7 @@ describe("the Coordinator's MCP route", () => {
     expect(await res.text()).toBe("")
   })
 
-  it("lists the Coordinator's tools with read-only annotations", async () => {
+  it("lists the Coordinator’s tools with read-only annotations", async () => {
     const res = await POST(rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }))
     const { result } = await res.json()
     const readCanvas = result.tools.find(
@@ -228,7 +228,7 @@ describe("the Coordinator's MCP route", () => {
     })
   })
 
-  it("runs read_canvas against the token's Room", async () => {
+  it("runs read_canvas against the token’s Room", async () => {
     const res = await POST(
       rpc({
         jsonrpc: "2.0",
@@ -273,7 +273,7 @@ describe("the Coordinator's MCP route", () => {
     expect(live.startBranchProvisioning).toHaveBeenCalledTimes(1)
   })
 
-  it("opens a Workspace's pull request right away", async () => {
+  it("opens a Workspace’s pull request right away", async () => {
     collections.repos.set("repo-1", baseRepo("repo-1"))
     const { result } = await (
       await POST(toolCall(7, "open_pull_request", { workspace_id: "ws-1" }))
@@ -300,7 +300,7 @@ describe("the Coordinator's MCP route", () => {
 
   // A refusal is the call's result, not an error, so the harness shows it as
   // a finished step (#1231).
-  it("returns a refusal as the call's result", async () => {
+  it("returns a refusal as the call’s result", async () => {
     const removal = await (
       await POST(toolCall(9, "remove_workspace", { workspace_id: "no-such" }))
     ).json()
@@ -315,7 +315,7 @@ describe("the Coordinator's MCP route", () => {
     ).json()
     expect(pr.result.isError).toBe(false)
     expect(pr.result.content[0].text).toBe(
-      "\"Fix sign-in redirect\" isn't in a GitHub repository, so it can't have a pull request."
+      "\"Fix sign-in redirect\" isn’t in a GitHub repository, so it can’t have a pull request."
     )
     expect(live.createGitHubPr).not.toHaveBeenCalled()
   })
@@ -362,7 +362,7 @@ describe("the Coordinator's MCP route", () => {
     expect(res.status).toBe(403)
   })
 
-  it("accepts the sidecar's own origin", async () => {
+  it("accepts the sidecar’s own origin", async () => {
     const res = await POST(
       rpc(
         { jsonrpc: "2.0", id: 7, method: "ping" },
@@ -394,7 +394,7 @@ describe("the Coordinator's MCP route", () => {
   })
 })
 
-describe("a Workspace chat's MCP route", () => {
+describe("a Workspace chat’s MCP route", () => {
   const workspace = {
     roomId: "room-1",
     chatId: "chat-ws-1",
@@ -408,7 +408,7 @@ describe("a Workspace chat's MCP route", () => {
       )
     )
 
-  it("lists its dev server's tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards, saved files (#1514), its PR tool (#1480) and its Skill tools (#1555)", async () => {
+  it("lists its dev server’s tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards, saved files (#1514), its PR tool (#1480) and its Skill tools (#1555)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -519,7 +519,7 @@ describe("a Workspace chat's MCP route", () => {
     for (const name of new Set(named)) expect(served).toContain(name)
   })
 
-  it("names none of the in-process engine's own tools to a harness (#1480)", () => {
+  it("names none of the in-process engine’s own tools to a harness (#1480)", () => {
     for (const harnessKey of ["claude-code", "codex"]) {
       const prompt = harnessPrompt(harnessKey)
       for (const tool of [
@@ -644,7 +644,7 @@ describe("a Workspace chat's MCP route", () => {
  * tools its in-process turn has, less the ones it brings its own of, and
  * every tool it lists carries its annotations.
  */
-describe("every chat kind's MCP toolset", () => {
+describe("every chat kind’s MCP toolset", () => {
   const room: RoomDoc = {
     roomId: "room-1",
     readDoc: async (fn) => fn(collections),
@@ -697,7 +697,7 @@ describe("every chat kind's MCP toolset", () => {
   ]
 
   for (const { kind, binding, tools, native } of kinds) {
-    it(`serves a ${kind} chat's in-process toolset minus the harness's own tools`, async () => {
+    it(`serves a ${kind} chat’s in-process toolset minus the harness’s own tools`, async () => {
       const res = await POST(
         rpc(
           { jsonrpc: "2.0", id: 1, method: "tools/list" },
@@ -768,7 +768,7 @@ describe("write_memory over the MCP route", () => {
       expect(readMemory(collections).map((m) => m.text)).toEqual(["Use pnpm."])
     })
 
-    it(`refuses account memory to a ${kind} chat's turn nobody sent`, async () => {
+    it(`refuses account memory to a ${kind} chat’s turn nobody sent`, async () => {
       const out = await write(
         { ...token, senderless: true },
         { scope: "account", action: "add", text: "Prefers plain UI copy." }

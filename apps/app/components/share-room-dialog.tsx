@@ -111,7 +111,7 @@ export function ShareRoomDialog({
         description: "Only people with access can open it.",
       })
     } catch {
-      toast.error("Couldn't copy the link")
+      toast.error("Couldn’t copy the link")
     }
   }
 
@@ -199,7 +199,7 @@ export function ShareRoomDialog({
         verb="Remove"
         itemName={removing?.name}
         itemNoun="collaborator"
-        description={`They'll lose access to “${roomName}”. You can invite them again later.`}
+        description={`They’ll lose access to “${roomName}”. You can invite them again later.`}
         onConfirm={() => (removing ? handleRemove(removing.userId) : undefined)}
       />
     </Dialog>

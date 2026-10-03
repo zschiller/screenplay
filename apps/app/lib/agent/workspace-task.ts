@@ -48,7 +48,7 @@ export function createdWorkspacesResult(
 ): string {
   const started = outcomes.filter((o) => o.branchId && !o.error)
   const lines = [
-    `Started ${started.length} of ${outcomes.length} Workspace${outcomes.length === 1 ? "" : "s"}. Each gets its seed message once its sandbox is running; you'll hear back when its turns end.`,
+    `Started ${started.length} of ${outcomes.length} Workspace${outcomes.length === 1 ? "" : "s"}. Each gets its seed message once its sandbox is running; you’ll hear back when its turns end.`,
   ]
   for (const o of outcomes) {
     const name = `"${o.title}" (${o.repository})`
@@ -79,7 +79,7 @@ export interface WorkspaceTaskRef {
  * task row can open the chat the message went to.
  */
 export function sentToWorkspaceResult(title: string, chatId: string): string {
-  return `Sent to "${title}" [chat ${chatId}]. Its agent is working on it now; you'll hear back when its turn ends.`
+  return `Sent to "${title}" [chat ${chatId}]. Its agent is working on it now; you’ll hear back when its turn ends.`
 }
 
 /**
@@ -91,7 +91,7 @@ export function queuedForWorkspaceResult(
   title: string,
   chatId: string
 ): string {
-  return `Queued for "${title}" [chat ${chatId}]. Its sandbox is still starting; the message is sent as soon as it runs, and you'll hear back when its turn ends.`
+  return `Queued for "${title}" [chat ${chatId}]. Its sandbox is still starting; the message is sent as soon as it runs, and you’ll hear back when its turn ends.`
 }
 
 /** The link scheme a Coordinator reply names a Workspace with (#897). */

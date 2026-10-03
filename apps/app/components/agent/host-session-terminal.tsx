@@ -39,7 +39,7 @@ export function HostSessionTerminal({
       try {
         const res = await fetch(withBasePath("/api/terminal/host"))
         if (!res.ok)
-          return { ok: false, message: "Couldn't start the terminal." }
+          return { ok: false, message: "Couldn’t start the terminal." }
         const body = (await res.json()) as { url: string }
         return {
           ok: true,
@@ -48,7 +48,7 @@ export function HostSessionTerminal({
           args: [sessionKey, ...command],
         }
       } catch {
-        return { ok: false, message: "Couldn't start the terminal." }
+        return { ok: false, message: "Couldn’t start the terminal." }
       }
     },
   })

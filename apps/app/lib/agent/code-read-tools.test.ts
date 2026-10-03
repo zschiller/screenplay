@@ -40,7 +40,7 @@ function tools(
 ) {
   const openSandbox = vi.fn(async (name: string) => {
     const sandbox = sandboxes[name]
-    if (!sandbox) throw new Error("its sandbox isn't running")
+    if (!sandbox) throw new Error("its sandbox isn’t running")
     return sandbox
   })
   return {
@@ -123,7 +123,7 @@ describe("buildCodeReadTools", () => {
     expect(openSandbox).not.toHaveBeenCalled()
   })
 
-  it("reads the Workspace it's asked for", async () => {
+  it("reads the Workspace it’s asked for", async () => {
     const c = room((c) => {
       c.repos.set("repo-1", baseRepo("repo-1"))
       c.branches.set("ws-1", baseBranch("ws-1"))
@@ -147,7 +147,7 @@ describe("buildCodeReadTools", () => {
     expect(two.commands[0]?.[0]).toBe("rg")
   })
 
-  it("says there's no code when no Workspace has a checkout", async () => {
+  it("says there’s no code when no Workspace has a checkout", async () => {
     const { tools: t } = tools(
       room(() => {}),
       {}
@@ -158,7 +158,7 @@ describe("buildCodeReadTools", () => {
     )
   })
 
-  it("leaves out the reading chat's own Workspace (#1315)", async () => {
+  it("leaves out the reading chat’s own Workspace (#1315)", async () => {
     const c = room((c) => {
       c.repos.set("repo-1", baseRepo("repo-1"))
       c.branches.set(
@@ -185,7 +185,7 @@ describe("buildCodeReadTools", () => {
     ).toContain("No Workspace with a checkout has id ws-1")
   })
 
-  it("answers with the reason when the Sandbox can't be opened", async () => {
+  it("answers with the reason when the Sandbox can’t be opened", async () => {
     const c = room((c) => {
       c.repos.set("repo-1", baseRepo("repo-1"))
       c.branches.set("ws-1", baseBranch("ws-1", { title: "Sign-in fix" }))
@@ -193,7 +193,7 @@ describe("buildCodeReadTools", () => {
     const { tools: t } = tools(c, {})
 
     expect(await run(t.read_code_file, { path: "a.ts" })).toBe(
-      `Couldn't read Workspace "Sign-in fix": its sandbox isn't running`
+      `Couldn’t read Workspace "Sign-in fix": its sandbox isn’t running`
     )
   })
 })

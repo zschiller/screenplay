@@ -131,7 +131,7 @@ describe("tool names per engine (#1223)", () => {
       toolNaming,
     })
 
-  it("names the Coordinator's tools bare on the in-process engine", () => {
+  it("names the Coordinator’s tools bare on the in-process engine", () => {
     const prompt = room()
     for (const tool of ROOM_TOOLS) expect(prompt).toContain(`\`${tool}\``)
     expect(prompt).not.toContain("mcp__")
@@ -145,13 +145,13 @@ describe("tool names per engine (#1223)", () => {
     }
   })
 
-  it("tells Codex where the Coordinator's tools come from", () => {
+  it("tells Codex where the Coordinator’s tools come from", () => {
     const prompt = room(harnessToolNaming("codex", "screenplay"))
     expect(prompt).toContain("`read_skill`")
     expect(prompt).toContain("MCP server `screenplay`")
   })
 
-  it("names a Workspace's dev server tools as Claude Code exposes them", () => {
+  it("names a Workspace’s dev server tools as Claude Code exposes them", () => {
     const opts = { layerDirectory: EMPTY_DIRECTORY, skills: APP_SKILLS }
     const bare = buildAgentSystemPrompt(opts)
     expect(bare).toContain("call read_dev_server_logs")
@@ -194,7 +194,7 @@ describe("buildAgentSystemPrompt — Documents (#1314)", () => {
     expect(prompt).toContain("You can edit only the Documents you made")
   })
 
-  it("marks the chat's own Documents in the layer directory", () => {
+  it("marks the chat’s own Documents in the layer directory", () => {
     const prompt = buildAgentSystemPrompt({
       layerDirectory: directory,
       skills: APP_SKILLS,
@@ -234,7 +234,7 @@ describe("the Canvas view footer", () => {
     ]) {
       expect(prompt).toContain(`\`${CANVAS_VIEW_FOOTER_TOKEN}\` footer`)
       expect(prompt).toContain(
-        "read the footer of the message you're answering"
+        "read the footer of the message you’re answering"
       )
     }
   })
@@ -244,7 +244,7 @@ describe("the Canvas view footer", () => {
  * Account memory (#1513): every kind's prompt carries the sender's account
  * memory as its own labeled block beside canvas memory, capped like it.
  */
-describe("account memory in every kind's system prompt", () => {
+describe("account memory in every kind’s system prompt", () => {
   const entry = (n: number) => ({
     id: `mem-${n}`,
     text: `Preference ${n}.`,
@@ -276,7 +276,7 @@ describe("account memory in every kind's system prompt", () => {
   }
 
   for (const [kind, build] of Object.entries(prompts)) {
-    it(`gives a ${kind} chat the sender's account memory as its own block`, () => {
+    it(`gives a ${kind} chat the sender’s account memory as its own block`, () => {
       const prompt = build({ accountMemory })
       const account = prompt.indexOf("Account memory (")
       const canvas = prompt.indexOf("Canvas memory (")
@@ -286,7 +286,7 @@ describe("account memory in every kind's system prompt", () => {
       expect(prompt.slice(account, canvas)).not.toContain("pnpm")
     })
 
-    it(`leaves the block out of a ${kind} chat's prompt with no account memory`, () => {
+    it(`leaves the block out of a ${kind} chat’s prompt with no account memory`, () => {
       expect(build({})).not.toContain("Account memory (")
       expect(build({ accountMemory: [] })).not.toContain("Account memory (")
     })
@@ -312,7 +312,7 @@ describe("account memory in every kind's system prompt", () => {
  * which scope a note belongs in, and a turn nobody sent saves to the canvas
  * only.
  */
-describe("saving memory in every kind's system prompt", () => {
+describe("saving memory in every kind’s system prompt", () => {
   const prompts = {
     Workspace: (accountMemory?: null) =>
       buildAgentSystemPrompt({
@@ -352,7 +352,7 @@ describe("saving memory in every kind's system prompt", () => {
  * Account Files (#1521): each kind lists the sender's own files in a block
  * after Canvas files, and a turn nobody sent says it has none.
  */
-describe("account files in every kind's system prompt", () => {
+describe("account files in every kind’s system prompt", () => {
   const file = (path: string) => ({
     id: `file-${path}`,
     path,
@@ -388,7 +388,7 @@ describe("account files in every kind's system prompt", () => {
   }
 
   for (const [kind, build] of Object.entries(prompts)) {
-    it(`lists the sender's account files after Canvas files in a ${kind} chat`, () => {
+    it(`lists the sender’s account files after Canvas files in a ${kind} chat`, () => {
       const prompt = build({ accountFiles: [file("style/voice.md")] })
       const canvas = prompt.indexOf("Canvas files (")
       const account = prompt.indexOf("Account files (")

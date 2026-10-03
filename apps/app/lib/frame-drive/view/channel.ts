@@ -31,9 +31,9 @@ import type { RoomDoc } from "@/lib/room-access"
 const POLL_MS = 150
 
 const NO_ANSWER =
-  "The canvas didn't answer. The agent drives a Mockup in the canvas of the person who asked, so it has to be open in their browser."
+  "The canvas didn’t answer. The agent drives a Mockup in the canvas of the person who asked, so it has to be open in their browser."
 const FRAME_NOT_HERE =
-  "The agent can't drive a frame in the browser yet, only Mockups. In the Screenplay desktop app it drives frames too."
+  "The agent can’t drive a frame in the browser yet, only Mockups. In the Screenplay desktop app it drives frames too."
 
 /** Renders a page snapshot to an image, as the person would see it. */
 export type RenderSnapshot = (
@@ -104,7 +104,7 @@ function notDrivable(room: RoomDoc, frameId: string) {
   return room.readDoc((c) => {
     if (c.mockupLayers.get(frameId)) return null
     if (c.iframeLayers.get(frameId)) return FRAME_NOT_HERE
-    return `There's no Mockup ${frameId} on the canvas.`
+    return `There’s no Mockup ${frameId} on the canvas.`
   })
 }
 
@@ -162,13 +162,13 @@ export function viewFrameDriveBackend(
           status: "shot",
           shot: {
             ...image,
-            note: "Rendered from the page as it is in the person's view; anything its scripts draw into a canvas element doesn't show.",
+            note: "Rendered from the page as it is in the person’s view; anything its scripts draw into a canvas element doesn’t show.",
           },
         }
       } catch (err) {
         return {
           status: "unavailable",
-          reason: `Couldn't render the page: ${err instanceof Error ? err.message : String(err)}`,
+          reason: `Couldn’t render the page: ${err instanceof Error ? err.message : String(err)}`,
         }
       }
     },

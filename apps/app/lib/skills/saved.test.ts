@@ -65,7 +65,7 @@ describe("saved skills", () => {
     ])
   })
 
-  it("replaces a Skill of the same name, dropping files the new one doesn't have", async () => {
+  it("replaces a Skill of the same name, dropping files the new one doesn’t have", async () => {
     const { skills, store } = scope()
     await skills.save({
       name: "review",
@@ -138,7 +138,7 @@ describe("saved skills", () => {
     }
     expect(await save("one", skillMd("two"))).toMatchObject({
       ok: false,
-      error: expect.stringContaining('must match the skill\'s name, "one"'),
+      error: expect.stringContaining('must match the skill’s name, "one"'),
     })
     expect(
       await save("big", skillMd("big", "Big.", "x".repeat(SKILL_MAX_BYTES)))
@@ -174,7 +174,7 @@ describe("saved skills", () => {
     expect(await skills.remove("review")).toMatchObject({ ok: false })
   })
 
-  it("never lists a Skill whose save hasn't finished", async () => {
+  it("never lists a Skill whose save hasn’t finished", async () => {
     const { skills, index } = scope()
     // The folder and SKILL.md are in, but not yet the description.
     await index.mutate((tx) =>

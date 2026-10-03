@@ -65,7 +65,7 @@ export function macAgentDriver(
 /** POST `body` to the Mac shell's control server at `path`. */
 async function shell(path: string, body: unknown): Promise<Response> {
   const controlUrl = process.env[TAURI_CONTROL_URL_ENV_VAR]
-  if (!controlUrl) throw new Error("the desktop shell isn't running")
+  if (!controlUrl) throw new Error("the desktop shell isn’t running")
   const res = await fetch(new URL(path, controlUrl), {
     method: "POST",
     headers: {

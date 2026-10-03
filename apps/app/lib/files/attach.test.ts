@@ -65,7 +65,7 @@ describe("saveAttachment (#1525)", () => {
     })
   })
 
-  it("refuses a type agents can't read and saves nothing", async () => {
+  it("refuses a type agents can’t read and saves nothing", async () => {
     const { files, store } = scope()
     const result = await saveAttachment(files, {
       name: "song.mp3",
@@ -103,7 +103,7 @@ describe("adoptAttachment", () => {
     )
   })
 
-  it("deletes refused bytes, and won't take another canvas's key", async () => {
+  it("deletes refused bytes, and won’t take another canvas’s key", async () => {
     const { files, store } = scope()
     await store.put("canvas/room-1/file-abcdefghij", bytes("x"), "")
     const refused = await adoptAttachment(files, store, {
@@ -136,7 +136,7 @@ describe("adoptAttachment", () => {
     })
     expect(result).toEqual({
       ok: false,
-      error: "The upload didn't arrive. Try again.",
+      error: "The upload didn’t arrive. Try again.",
     })
   })
 })
@@ -198,7 +198,7 @@ describe("withAttachedImages", () => {
     ])
   })
 
-  it("returns a turn with no images as it was, and skips a file that's gone", async () => {
+  it("returns a turn with no images as it was, and skips a file that’s gone", async () => {
     const { files } = scope()
     const plain = [textBlock("hello")]
     expect(await withAttachedImages(files, plain)).toBe(plain)

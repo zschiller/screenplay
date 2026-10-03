@@ -76,7 +76,7 @@ describe("skill tools", () => {
 
     const read = await run(coordinator, "read_skill", { name: "release-notes" })
     expect(read).toContain("Group by feature.")
-    expect(read).toContain("This skill's file `examples/v1.md`:\n\n## v1")
+    expect(read).toContain("This skill’s file `examples/v1.md`:\n\n## v1")
     expect(await skills.list()).toMatchObject([
       { name: "release-notes", addedById: "chat-a" },
     ])
@@ -131,7 +131,7 @@ describe("skill tools", () => {
     expect(out).toContain("- screenplay-add-knob:")
   })
 
-  it("reads the desktop agent's own Skills below the canvas's (#1560)", async () => {
+  it("reads the desktop agent’s own Skills below the canvas’s (#1560)", async () => {
     const skills = canvas()
     await skills.save({
       name: "review",
@@ -203,7 +203,7 @@ describe("skill tools", () => {
     expect(tools.read_skill.description).toContain("screenplay-try-variants")
   })
 
-  it("says what it stripped, and when the repository's Skill wins in this chat", async () => {
+  it("says what it stripped, and when the repository’s Skill wins in this chat", async () => {
     const tools = buildSkillTools({
       canvas: canvas(),
       chatId: "chat-a",
@@ -218,10 +218,10 @@ describe("skill tools", () => {
     })
     expect(out).toContain('Saved the canvas skill "deploy"')
     expect(out).toContain(
-      "Removed allowed-tools and !`command` lines: saved skills can't grant tools or run commands."
+      "Removed allowed-tools and !`command` lines: saved skills can’t grant tools or run commands."
     )
     expect(out).toContain(
-      "This branch's repository has a skill named \"deploy\" too, and in this chat the repository's wins."
+      "This branch’s repository has a skill named \"deploy\" too, and in this chat the repository’s wins."
     )
   })
 
@@ -237,7 +237,7 @@ describe("skill tools", () => {
         name: "Release Notes",
         content: skillMd("Release Notes", "x"),
       })
-    ).toMatch(/^Error: "Release Notes" isn't a valid skill name/)
+    ).toMatch(/^Error: "Release Notes" isn’t a valid skill name/)
   })
 
   it("deletes a Skill, which no chat then reads", async () => {

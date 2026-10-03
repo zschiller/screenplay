@@ -50,7 +50,7 @@ export function liveDevServerPorts(opts: {
         .find((b) => b.sandboxName === sandboxName)
       return branch ? repos.get(branch.repoId) : undefined
     })
-    if (!repo) throw new Error("this Workspace's repository wasn't found")
+    if (!repo) throw new Error("this Workspace’s repository wasn’t found")
     return repo
   }
 
@@ -92,7 +92,7 @@ export function liveDevServerPorts(opts: {
           command,
           localUrl: null,
           answering: false,
-          unavailable: "the sandbox wasn't found",
+          unavailable: "the sandbox wasn’t found",
         }
       }
       if (!isSandboxRunning(sandbox)) {

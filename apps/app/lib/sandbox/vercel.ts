@@ -83,7 +83,7 @@ async function liftCheckout(sandbox: Sandbox): Promise<void> {
   })
   if (res.exitCode !== 0) {
     throw new Error(
-      `VercelSandboxProvider: couldn't move the checkout to ${IMAGE_LAYOUT.worktreePath}: ${(await res.stderr()).slice(0, 500)}`
+      `VercelSandboxProvider: couldn’t move the checkout to ${IMAGE_LAYOUT.worktreePath}: ${(await res.stderr()).slice(0, 500)}`
     )
   }
 }
@@ -155,7 +155,7 @@ class VercelSandboxProvider implements SandboxProvider {
       const message = e instanceof Error ? e.message : String(e)
       if (image && /not_found|image_not_ready/.test(message)) {
         throw new Error(
-          `Sandbox image "${image}" isn't available in this project's Vercel Container Registry. Build and push apps/app/vercel-sandbox-image (see the Sandbox provider docs). ${message}`
+          `Sandbox image "${image}" isn’t available in this project’s Vercel Container Registry. Build and push apps/app/vercel-sandbox-image (see the Sandbox provider docs). ${message}`
         )
       }
       throw e

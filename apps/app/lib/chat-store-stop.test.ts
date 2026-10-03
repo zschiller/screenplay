@@ -47,7 +47,7 @@ describe("chat-store — stopping a run (#729)", () => {
     chatStore.cleanup(chatId)
   })
 
-  it("doesn't stack markers when the stop is signalled twice", () => {
+  it("doesn’t stack markers when the stop is signalled twice", () => {
     const chatId = `chat_stop_${++seq}`
     play([
       { type: "chat-stream-start", chatId, id: nextId() },
@@ -70,7 +70,7 @@ describe("chat-store — stopping a run (#729)", () => {
     chatStore.cleanup(chatId)
   })
 
-  it("ignores the agent's output after the Stopped marker until the next run (#1263)", () => {
+  it("ignores the agent’s output after the Stopped marker until the next run (#1263)", () => {
     const chatId = `chat_stop_${++seq}`
     const chunk = (text: string) => ({
       type: "chat-acp-update" as const,
@@ -128,7 +128,7 @@ describe("chat-store — stopping a run (#729)", () => {
     expect(state.messages).toEqual([
       {
         role: "error",
-        content: "Couldn't stop the agent.",
+        content: "Couldn’t stop the agent.",
         detail: "Run not found",
       },
     ])

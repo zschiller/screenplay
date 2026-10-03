@@ -855,7 +855,7 @@ function codexProse(title: string): Harness | null {
     }
   if (/^mcp__[^_]+(?:_[^_]+)*__startup$/.test(title)) {
     return {
-      label: { verb: "Screenplay's tools didn't start" },
+      label: { verb: "Screenplay’s tools didn’t start" },
       icon: "warning",
     }
   }

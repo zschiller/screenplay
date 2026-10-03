@@ -108,11 +108,11 @@ export function acceptFrameDriveConnection(
 }
 
 const NO_CANVAS =
-  "Screenplay isn't showing this canvas, so its frames can't be used. The agent can use them only while the canvas is open in the Screenplay app (the window can be in the background)."
+  "Screenplay isn’t showing this canvas, so its frames can’t be used. The agent can use them only while the canvas is open in the Screenplay app (the window can be in the background)."
 const NO_FRAME =
-  "This frame isn't loaded on the open canvas, so it can't be used."
+  "This frame isn’t loaded on the open canvas, so it can’t be used."
 const CANVAS_CLOSED = "The canvas closed before the frame answered."
-const NO_ANSWER = "The canvas didn't answer in time."
+const NO_ANSWER = "The canvas didn’t answer in time."
 
 /** The canvas showing `frameId`: the newest one, when several are open. */
 function canvasFor(roomId: string, frameId: string): Canvas | null {
@@ -227,7 +227,7 @@ export function macFrameDriveBackend(
         return {
           status: "unavailable",
           reason:
-            "The frame is out of view on the canvas, so there's nothing to photograph. Ask the person to bring it into view.",
+            "The frame is out of view on the canvas, so there’s nothing to photograph. Ask the person to bring it into view.",
         }
       }
       let png: Buffer
@@ -236,7 +236,7 @@ export function macFrameDriveBackend(
       } catch (err) {
         return {
           status: "unavailable",
-          reason: `The Mac couldn't snapshot the canvas: ${err instanceof Error ? err.message : String(err)}`,
+          reason: `The Mac couldn’t snapshot the canvas: ${err instanceof Error ? err.message : String(err)}`,
         }
       }
       const image = deps.encode

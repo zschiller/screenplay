@@ -34,7 +34,7 @@ function setup(
 const canvasTexts = (c: RoomCollections) => readMemory(c).map((m) => m.text)
 
 describe("write_memory, canvas scope", () => {
-  it("adds an entry to the Room's shared data, marked as an agent's", async () => {
+  it("adds an entry to the Room’s shared data, marked as an agent’s", async () => {
     const { collections, account, write } = setup()
     const out = await write({
       scope: "canvas",
@@ -87,7 +87,7 @@ describe("write_memory, canvas scope", () => {
       await write({ scope: "canvas", action: "edit", id: "mem-x", text: "hi" })
     ).toBe("No canvas memory entry [mem-x].")
     expect(await write({ scope: "canvas", action: "remove" })).toMatch(
-      /needs the entry's id/
+      /needs the entry’s id/
     )
     expect(
       await write({ scope: "canvas", action: "add", text: "   " })
@@ -97,7 +97,7 @@ describe("write_memory, canvas scope", () => {
 })
 
 describe("write_memory, account scope", () => {
-  it("adds, edits and removes the sender's entries, never the canvas's", async () => {
+  it("adds, edits and removes the sender’s entries, never the canvas’s", async () => {
     const { collections, account, write } = setup()
 
     const added = await write({
@@ -133,7 +133,7 @@ describe("write_memory, account scope", () => {
     expect(await readAccountMemory(account!)).toEqual([])
   })
 
-  it("doesn't reach a canvas entry by id", async () => {
+  it("doesn’t reach a canvas entry by id", async () => {
     const { collections, write } = setup()
     await write({ scope: "canvas", action: "add", text: "Use pnpm." })
     const id = readMemory(collections)[0]!.id

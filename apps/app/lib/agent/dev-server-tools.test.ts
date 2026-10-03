@@ -64,7 +64,7 @@ describe("read_dev_server_logs", () => {
     expect(out.split("\n\n")[1]).toBe("Error: one\nwarn: two")
   })
 
-  it("rejects a filter that isn't a regular expression", async () => {
+  it("rejects a filter that isn’t a regular expression", async () => {
     const tools = buildDevServerTools(ports())
     expect(await run(tools, "read_dev_server_logs", { filter: "(" })).toBe(
       "Invalid filter regular expression: ("
@@ -99,7 +99,7 @@ describe("restart_dev_server", () => {
     )
   })
 
-  it("points at the logs when the server doesn't come back", async () => {
+  it("points at the logs when the server doesn’t come back", async () => {
     const tools = buildDevServerTools(
       ports({
         waitUntilAnswering: async () => false,
@@ -107,7 +107,7 @@ describe("restart_dev_server", () => {
       })
     )
     const out = await run(tools, "restart_dev_server")
-    expect(out).toMatch(/isn't answering yet/)
+    expect(out).toMatch(/isn’t answering yet/)
     expect(out).toMatch(/Cannot find module 'next'/)
   })
 
@@ -116,7 +116,7 @@ describe("restart_dev_server", () => {
       restart: async () => ({ ok: false, error: "Sandbox is not running" }),
     })
     expect(await run(buildDevServerTools(p), "restart_dev_server")).toBe(
-      "Couldn't restart the dev server: Sandbox is not running"
+      "Couldn’t restart the dev server: Sandbox is not running"
     )
     expect(p.waitUntilAnswering).not.toHaveBeenCalled()
   })
@@ -134,7 +134,7 @@ describe("stop_dev_server and start_dev_server (#1342)", () => {
   it("reports a failed stop", async () => {
     const p = ports({ stop: async () => ({ ok: false, error: "gone" }) })
     expect(await run(buildDevServerTools(p), "stop_dev_server")).toBe(
-      "Couldn't stop the dev server: gone"
+      "Couldn’t stop the dev server: gone"
     )
   })
 

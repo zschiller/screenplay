@@ -142,14 +142,14 @@ export function buildCodeReadTools(ports: CodeReadPorts) {
     try {
       return await read(await ports.openSandbox(found.sandboxName))
     } catch (err) {
-      return `Couldn't read Workspace "${found.title}": ${err instanceof Error ? err.message : String(err)}`
+      return `Couldn’t read Workspace "${found.title}": ${err instanceof Error ? err.message : String(err)}`
     }
   }
 
   const tools = {
     read_code_file: tool({
       description:
-        "Read a file from another Workspace's checkout of its repository, line-numbered like `cat -n`. Reads up to 2000 lines; pass `offset` (1-based) and `limit` to window a large file. Read-only.",
+        "Read a file from another Workspace’s checkout of its repository, line-numbered like `cat -n`. Reads up to 2000 lines; pass `offset` (1-based) and `limit` to window a large file. Read-only.",
       inputSchema: z.object({
         workspaceId: workspaceIdField,
         path: z.string().describe("Path relative to the repo root"),
@@ -162,7 +162,7 @@ export function buildCodeReadTools(ports: CodeReadPorts) {
 
     search_code: tool({
       description:
-        "Search another Workspace's code for a regular expression. Returns matching lines as `file:line: text`. Use `include` to restrict to a file glob (e.g. '*.tsx') and `path` to a directory. Skips node_modules and .git.",
+        "Search another Workspace’s code for a regular expression. Returns matching lines as `file:line: text`. Use `include` to restrict to a file glob (e.g. '*.tsx') and `path` to a directory. Skips node_modules and .git.",
       inputSchema: z.object({
         workspaceId: workspaceIdField,
         pattern: z.string().describe("The regular expression to search for"),
@@ -178,7 +178,7 @@ export function buildCodeReadTools(ports: CodeReadPorts) {
 
     find_code_files: tool({
       description:
-        "Find files in another Workspace's checkout by name pattern (e.g. '**/*.tsx'). Returns matching paths. Skips node_modules and .git.",
+        "Find files in another Workspace’s checkout by name pattern (e.g. '**/*.tsx'). Returns matching paths. Skips node_modules and .git.",
       inputSchema: z.object({
         workspaceId: workspaceIdField,
         pattern: z.string().describe("A file-matching glob, e.g. '**/*.tsx'"),

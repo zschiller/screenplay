@@ -41,7 +41,7 @@ const seen = (partial: Partial<ToolCallMessage>) => {
 }
 
 describe("callIdentity", () => {
-  it("unwraps Codex's MCP calls and their arguments", () => {
+  it("unwraps Codex’s MCP calls and their arguments", () => {
     expect(
       callIdentity(
         call({
@@ -56,7 +56,7 @@ describe("callIdentity", () => {
     ).toEqual({ name: "read_canvas", input: { a: 1 } })
   })
 
-  it("strips Claude Code's namespace and keeps its input", () => {
+  it("strips Claude Code’s namespace and keeps its input", () => {
     expect(
       callIdentity(
         call({ title: "mcp__screenplay__frame_click", rawInput: { a: 1 } })
@@ -66,7 +66,7 @@ describe("callIdentity", () => {
 })
 
 describe("relativePath", () => {
-  it("keeps the repo-relative tail an adapter's title shows", () => {
+  it("keeps the repo-relative tail an adapter’s title shows", () => {
     expect(relativePath("/Users/zack/code/app/src/a.ts", "Read src/a.ts")).toBe(
       "src/a.ts"
     )
@@ -80,7 +80,7 @@ describe("relativePath", () => {
   })
 })
 
-describe("Screenplay's own tools", () => {
+describe("Screenplay’s own tools", () => {
   it("give every tool a verb, an icon and an ACP kind", () => {
     for (const [name, entry] of Object.entries(SCREENPLAY_TOOLS)) {
       const d = describe_({ title: name })
@@ -365,8 +365,8 @@ describe("Screenplay's own tools", () => {
   })
 })
 
-describe("a harness's own tools", () => {
-  it("reads Claude Code's built-ins", () => {
+describe("a harness’s own tools", () => {
+  it("reads Claude Code’s built-ins", () => {
     expect(
       describe_({
         title: "grep -n useFoo src",
@@ -415,7 +415,7 @@ describe("a harness's own tools", () => {
     ).toEqual({ verb: "Edit notebook", detail: "a.ipynb", as: "code" })
   })
 
-  it("reads OpenCode's built-ins, whose titles change as they run (#1589)", () => {
+  it("reads OpenCode’s built-ins, whose titles change as they run (#1589)", () => {
     for (const title of ["skill", "Loaded skill: tidy-copy"]) {
       expect(
         describe_({ title, kind: "other", rawInput: { name: "tidy-copy" } })
@@ -464,7 +464,7 @@ describe("a harness's own tools", () => {
     )
   })
 
-  it("reads Codex's prose titles", () => {
+  it("reads Codex’s prose titles", () => {
     expect(label({ title: "Read file 'src/a.ts'" })).toMatchObject({
       verb: "Read",
       detail: "src/a.ts",
@@ -480,7 +480,7 @@ describe("a harness's own tools", () => {
       icon: "globe",
     })
     expect(describe_({ title: "mcp__screenplay__startup" })).toMatchObject({
-      label: { verb: "Screenplay's tools didn't start" },
+      label: { verb: "Screenplay’s tools didn’t start" },
       icon: "warning",
     })
     // Its command title is the command without the shell wrapper.
@@ -497,7 +497,7 @@ describe("a harness's own tools", () => {
     })
   })
 
-  it("falls back on a tool it doesn't know", () => {
+  it("falls back on a tool it doesn’t know", () => {
     // A PascalCase name reads as words.
     expect(describe_({ title: "NotebookRead" })).toMatchObject({
       label: { verb: "Notebook read" },

@@ -83,7 +83,7 @@ export function canvasRepoEnv(
 
   async function editableRepo(repoId: string): Promise<RepoData> {
     if (viewer.role === "viewer") {
-      throw new Error("Viewers can't change settings")
+      throw new Error("Viewers can’t change settings")
     }
     const repo = await readRepo(repoId)
     if (!repo) throw new Error("Repository not found")
@@ -124,7 +124,7 @@ export function canvasRepoEnv(
      */
     async copyIn(repoId: string, text: string): Promise<EnvDocFields> {
       if (viewer.role === "viewer") {
-        throw new Error("Viewers can't change settings")
+        throw new Error("Viewers can’t change settings")
       }
       if ((await readRepo(repoId)) || (await store.get(room.roomId, repoId))) {
         throw new Error("That repository is already on this canvas")

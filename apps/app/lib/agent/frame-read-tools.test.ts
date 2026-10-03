@@ -143,7 +143,7 @@ describe("read_frame_html", () => {
     )
   })
 
-  it("says why when the page can't be read", async () => {
+  it("says why when the page can’t be read", async () => {
     const { collections, ports } = setup({
       readFramePage: vi.fn(async () => {
         throw new Error("the page has no Sandbox Bridge")
@@ -152,19 +152,19 @@ describe("read_frame_html", () => {
     expect(
       await run(ports, canvas, "read_frame_html", { frameId: "frame-1" })
     ).toBe(
-      'Couldn\'t read the page in frame [frame-1] (/login in Workspace "Fix sign-in"): the page has no Sandbox Bridge'
+      'Couldn’t read the page in frame [frame-1] (/login in Workspace "Fix sign-in"): the page has no Sandbox Bridge'
     )
 
     collections.branches.update("ws-1", { previewDomain: "" })
     expect(
       await run(ports, canvas, "read_frame_html", { frameId: "frame-1" })
     ).toBe(
-      'Can\'t read the page in frame [frame-1] (/login in Workspace "Fix sign-in"): its Workspace has no running preview.'
+      'Can’t read the page in frame [frame-1] (/login in Workspace "Fix sign-in"): its Workspace has no running preview.'
     )
   })
 })
 
-describe("a Workspace agent's frame reads", () => {
+describe("a Workspace agent’s frame reads", () => {
   it("reads its only frame when no frame id is given", async () => {
     const { ports } = setup()
 
@@ -207,7 +207,7 @@ describe("a Workspace agent's frame reads", () => {
     expect(ports.readFramePage).not.toHaveBeenCalled()
   })
 
-  it("reads another Workspace's frame by id", async () => {
+  it("reads another Workspace’s frame by id", async () => {
     const { ports } = setup()
 
     await run(ports, own, "read_frame_html", { frameId: "frame-2" })
@@ -222,7 +222,7 @@ describe("a Workspace agent's frame reads", () => {
     )
   })
 
-  it("lists the canvas's frames when its Workspace has none", async () => {
+  it("lists the canvas’s frames when its Workspace has none", async () => {
     const { collections, ports } = setup()
     collections.iframeLayers.delete("frame-1")
     collections.iframeLayers.set(
@@ -251,8 +251,8 @@ describe("a Workspace agent's frame reads", () => {
   })
 })
 
-describe("a document chat's frame reads", () => {
-  it("reads the canvas's only frame when no frame id is given", async () => {
+describe("a document chat’s frame reads", () => {
+  it("reads the canvas’s only frame when no frame id is given", async () => {
     const { collections, ports } = setup()
     collections.iframeLayers.delete("frame-1")
 

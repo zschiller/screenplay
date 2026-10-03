@@ -243,6 +243,9 @@ importers:
       '@workspace/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@workspace/smart-quotes':
+        specifier: workspace:*
+        version: link:../../packages/smart-quotes
       '@workspace/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config

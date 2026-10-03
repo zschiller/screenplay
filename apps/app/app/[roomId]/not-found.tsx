@@ -19,8 +19,8 @@ export default function CanvasNotFound() {
       title="Canvas not found"
       description={
         isLocalBuild
-          ? "This canvas doesn't exist. It may have been deleted, or the link is wrong."
-          : "This canvas doesn't exist, or it hasn't been shared with you."
+          ? "This canvas doesn’t exist. It may have been deleted, or the link is wrong."
+          : "This canvas doesn’t exist, or it hasn’t been shared with you."
       }
     >
       <Button size="sm" asChild>

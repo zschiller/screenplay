@@ -18,7 +18,7 @@ export function describeTurnError(raw: string): string {
   if (/\b(429|529)\b|rate.?limit|overloaded|too many requests/i.test(raw)) {
     return "The model is busy right now."
   }
-  if (isUnreachable(raw)) return "The agent couldn't be reached."
+  if (isUnreachable(raw)) return "The agent couldn’t be reached."
   return "The agent stopped because of an error."
 }
 
@@ -27,7 +27,7 @@ export function describeTurnError(raw: string): string {
  * ended) pass through; transport errors become one plain line.
  */
 export function describeSendError(raw: string): string {
-  if (isUnreachable(raw)) return "The agent couldn't be reached."
+  if (isUnreachable(raw)) return "The agent couldn’t be reached."
   const text = raw.trim()
   if (isSentence(text)) return /[.!?]$/.test(text) ? text : `${text}.`
   return "Something went wrong."
