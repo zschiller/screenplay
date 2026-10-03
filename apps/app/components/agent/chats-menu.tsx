@@ -731,7 +731,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
     doneBranches,
     sketchChats,
     stateOf,
-    setOpen,
   } = menu
   const [search, setSearch] = useState("")
   const searching = search.trim() !== ""
@@ -743,11 +742,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
       groupWorkspaces(activeBranches, listView.sort, (b) => stateOf(b).section),
     [activeBranches, listView.sort, stateOf]
   )
-
-  const pick = (select: () => void) => {
-    select()
-    setOpen(false)
-  }
 
   const sketchRows = (list: ChatSessionData[]) =>
     list.map((chat) => (
@@ -774,31 +768,33 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
       loop
       className="rounded-none!"
     >
-      <CommandInput
-        placeholder="Search chats…"
-        value={search}
-        onValueChange={setSearch}
-      />
+      {/* + and … sit beside the search field, so they never depend on which
+          section comes first and stay put while searching (H7). */}
+      <div className="flex items-end gap-0.5 pr-1.5 *:data-[slot=command-input-wrapper]:flex-1">
+        <CommandInput
+          placeholder="Search chats…"
+          value={search}
+          onValueChange={setSearch}
+        />
+        <ChatsMenuActions
+          menu={menu}
+          sort={listView.sort}
+          onSort={(sort) => updateListView({ sort })}
+        />
+      </div>
       <CommandList className="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
-        <CommandEmpty>No matches.</CommandEmpty>
+        <CommandEmpty>
+          {searching ? "No matches." : "No chats yet."}
+        </CommandEmpty>
 
         {sortedRepos.length === 0 ? (
           // A canvas with no repository has chats with none, which write
           // Mockups and Documents.
-          <>
+          sketchChats.length > 0 && (
             <CommandGroup heading="Chats">
               {sketchRows(sketchChats)}
-              <CommandItem
-                value="New chat"
-                onSelect={() => pick(() => menu.onCreateSketchChat())}
-              >
-                <span className="flex size-4 shrink-0 items-center justify-center">
-                  <PlusIcon className="size-3.5 opacity-70" />
-                </span>
-                New chat
-              </CommandItem>
             </CommandGroup>
-          </>
+          )
         ) : searching ? (
           <CommandGroup heading="Chats">
             {rows([...activeBranches, ...doneBranches])}
@@ -806,23 +802,12 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
           </CommandGroup>
         ) : (
           <>
-            {/* Grouped by state (#885), each section is its own label, and
-                the first one takes this label's place beside the actions. */}
-            <WorkspacesLabel
-              menu={menu}
-              label={
-                sections[0]
-                  ? WORKSPACE_SECTION_LABELS[sections[0].section]
-                  : "Chats"
-              }
-              sort={listView.sort}
-              onSort={(sort) => updateListView({ sort })}
-            />
+            {/* Grouped by state (#885), each section under its own heading. */}
             {sections.map(({ section, branches }, i) => (
               <CommandGroup
                 key={section}
-                heading={i > 0 ? WORKSPACE_SECTION_LABELS[section] : undefined}
-                className="pt-0"
+                heading={WORKSPACE_SECTION_LABELS[section]}
+                className={i > 0 ? "pt-0" : undefined}
               >
                 {rows(branches)}
               </CommandGroup>
@@ -861,33 +846,41 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
 }
 
 /**
- * The Chats label with the list's actions: + starts a chat, and with it its
- * Workspace, in one step (#884, #1315); the … beside it holds this member's view options (#885) and the
- * rarer Open existing git branch. Styled like a cmdk group heading, but a
- * plain row, since cmdk hides its headings from assistive technology.
+ * The list's actions beside the search field: + starts a chat, and with it its
+ * Workspace, in one step (#884, #1315); the … holds this member's view options
+ * (#885) and the rarer Open existing git branch. On a canvas with no
+ * repository + starts a chat with none, and there is nothing for … to hold.
  */
-function WorkspacesLabel({
+function ChatsMenuActions({
   menu,
-  label,
   sort,
   onSort,
 }: {
   menu: ChatsMenuValue
-  label: string
   sort: WorkspaceSort
   onSort: (sort: WorkspaceSort) => void
 }) {
   const { sortedRepos } = menu
+  if (sortedRepos.length === 0)
+    return (
+      <IconButton
+        label="New chat"
+        className="mb-0.5 text-muted-foreground"
+        onClick={() => {
+          menu.onCreateSketchChat()
+          menu.setOpen(false)
+        }}
+      >
+        <PlusIcon />
+      </IconButton>
+    )
   return (
-    <div className="flex items-center gap-0.5 px-1 pt-1">
-      <span className="flex-1 px-2 py-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
-        {label}
-      </span>
+    <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <IconButton
             label="More chat actions"
-            className="text-muted-foreground"
+            className="mb-0.5 text-muted-foreground"
           >
             <DotsThreeIcon />
           </IconButton>
@@ -946,12 +939,12 @@ function WorkspacesLabel({
       </DropdownMenu>
       <IconButton
         label="New chat"
-        className="mr-1 text-muted-foreground"
+        className="mb-0.5 text-muted-foreground"
         onClick={() => menu.openNewWorkspace(menu.lastUsedRepoId)}
       >
         <PlusIcon />
       </IconButton>
-    </div>
+    </>
   )
 }
 

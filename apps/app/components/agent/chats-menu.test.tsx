@@ -78,14 +78,18 @@ function branch(over: Partial<BranchData>): BranchData {
   } as BranchData
 }
 
-function renderMenu(branches: BranchData[]) {
+function renderMenu(
+  branches: BranchData[],
+  { repos = [REPO] }: { repos?: RepoData[] } = {}
+) {
   const noop = () => {}
   const onSelectWorkspace = vi.fn()
+  const onCreateSketchChat = vi.fn()
   render(
     <ChatsMenuProvider
       userId="u1"
       roomId="room1"
-      repos={[REPO]}
+      repos={repos}
       branches={branches}
       markdownLayers={[]}
       iframeLayers={[]}
@@ -93,7 +97,7 @@ function renderMenu(branches: BranchData[]) {
       branchPrs={new Map()}
       onSelectWorkspace={onSelectWorkspace}
       onSelectSketchChat={noop}
-      onCreateSketchChat={noop}
+      onCreateSketchChat={onCreateSketchChat}
       onRenameSketchChat={noop}
       onDeleteSketchChat={noop}
       onCreateBranchFromGitBranch={noop}
@@ -115,7 +119,7 @@ function renderMenu(branches: BranchData[]) {
       <ChatsMenuButton />
     </ChatsMenuProvider>
   )
-  return { onSelectWorkspace }
+  return { onSelectWorkspace, onCreateSketchChat }
 }
 
 function openMenu() {
@@ -181,5 +185,35 @@ describe("Chats menu", () => {
     expect(onSelectWorkspace).toHaveBeenCalledWith("b1", {
       expandPanel: false,
     })
+  })
+
+  it("keeps New chat and … beside the search field while searching", () => {
+    renderMenu([branch({})])
+    const menu = openMenu()
+    fireEvent.change(within(menu).getByPlaceholderText("Search chats…"), {
+      target: { value: "billing" },
+    })
+    expect(within(menu).getByText("No matches.")).toBeTruthy()
+    expect(within(menu).getByRole("button", { name: "New chat" })).toBeTruthy()
+    expect(
+      within(menu).getByRole("button", { name: "More chat actions" })
+    ).toBeTruthy()
+  })
+
+  it("gives the first section its own heading", () => {
+    renderMenu([branch({})])
+    const heading = openMenu().querySelector("[cmdk-group-heading]")
+    expect(heading?.textContent).toBe("Idle")
+  })
+
+  it("starts a chat with no repository from + on a canvas with none", () => {
+    const { onCreateSketchChat } = renderMenu([], { repos: [] })
+    const menu = openMenu()
+    expect(within(menu).getByText("No chats yet.")).toBeTruthy()
+    expect(
+      within(menu).queryByRole("button", { name: "More chat actions" })
+    ).toBeNull()
+    fireEvent.click(within(menu).getByRole("button", { name: "New chat" }))
+    expect(onCreateSketchChat).toHaveBeenCalledOnce()
   })
 })
