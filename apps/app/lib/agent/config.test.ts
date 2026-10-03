@@ -165,8 +165,12 @@ describe("tool names per engine (#1223)", () => {
     expect(claude).toContain("call mcp__screenplay__restart_dev_server when")
     expect(claude).toContain("`mcp__screenplay__create_document`")
     expect(claude).toContain("`mcp__screenplay__replace_document_body`")
-    // The rest are the in-process engine's own tools, not served over MCP.
-    expect(claude).toContain("call `read_skill`")
+    // Served over MCP too (#1480), so named the same way.
+    expect(claude).toContain("call `mcp__screenplay__read_skill`")
+    expect(claude).toContain("call mcp__screenplay__create_pr")
+    // A harness edits and commits with its own tools.
+    expect(claude).not.toContain("run_command")
+    expect(claude).not.toContain("submit_plan")
   })
 })
 

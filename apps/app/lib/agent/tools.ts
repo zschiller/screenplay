@@ -34,6 +34,7 @@ import {
   searchCode,
 } from "@/lib/agent/code-read-tools"
 import { truncateOutput } from "@/lib/agent/search"
+import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
 
 /**
  * Everything a sandbox tool needs to act on behalf of the acting collaborator:
@@ -218,6 +219,43 @@ export function buildSandboxTools(ctx: ToolContext) {
         findCodeFiles(await getSandbox(ctx), { pattern, path }),
     }),
 
+    // Opening the branch's PR and loading Skills, which a harness reaches
+    // over MCP too (#1480).
+    ...buildPrAndSkillTools(ctx),
+
+    // The Workspace's own dev server: its log and Dev Server Restart.
+    ...buildDevServerTools(
+      liveDevServerPorts({ sandboxName: ctx.sandboxName, room: ctx.room })
+    ),
+
+    // Any frame on the canvas, its own by default: a screenshot and the
+    // page's HTML (#1311).
+    ...chatFrameReadTools(ctx),
+
+    // Driving a frame: your own on the Mac (#1389), the shared one on hosted
+    // (#1396).
+    ...chatFrameDriveTools(ctx),
+
+    // Human-in-the-loop: no execute. The loop halts on this tool call and
+    // /api/agent/plan supplies the result after the user decides.
+    submit_plan: tool({
+      description:
+        "Submit a plan for user approval before making any file changes. The plan should be markdown describing what files will change and why. You MUST call this and wait for approval before write_file or edit_file when plan mode is enabled.",
+      inputSchema: z.object({ plan: z.string() }),
+    }),
+  }
+}
+
+export type SandboxTools = ReturnType<typeof buildSandboxTools>
+
+/**
+ * The Workspace tools a harness has no counterpart for, so the agent MCP route
+ * serves them too (#1480): `create_pr` opens the branch's PR with the
+ * Screenplay user's GitHub account, and `read_skill` loads an App or Repo
+ * Skill from the Workspace's merged index.
+ */
+export function buildPrAndSkillTools(ctx: ToolContext) {
+  return {
     create_pr: tool({
       description:
         "Open a GitHub pull request from this agent's branch into the workspace's default branch. Call this when the user asks to create, open, or submit a PR.",
@@ -262,31 +300,16 @@ export function buildSandboxTools(ctx: ToolContext) {
         return `Unknown skill: "${name}". Available skills:\n${formatMergedListing(merged)}`
       },
     }),
-
-    // The Workspace's own dev server: its log and Dev Server Restart.
-    ...buildDevServerTools(
-      liveDevServerPorts({ sandboxName: ctx.sandboxName, room: ctx.room })
-    ),
-
-    // Any frame on the canvas, its own by default: a screenshot and the
-    // page's HTML (#1311).
-    ...chatFrameReadTools(ctx),
-
-    // Driving a frame: your own on the Mac (#1389), the shared one on hosted
-    // (#1396).
-    ...chatFrameDriveTools(ctx),
-
-    // Human-in-the-loop: no execute. The loop halts on this tool call and
-    // /api/agent/plan supplies the result after the user decides.
-    submit_plan: tool({
-      description:
-        "Submit a plan for user approval before making any file changes. The plan should be markdown describing what files will change and why. You MUST call this and wait for approval before write_file or edit_file when plan mode is enabled.",
-      inputSchema: z.object({ plan: z.string() }),
-    }),
   }
 }
 
-export type SandboxTools = ReturnType<typeof buildSandboxTools>
+/** Their MCP annotations: a PR changes GitHub; reading a Skill changes nothing. */
+export const PR_AND_SKILL_TOOL_ANNOTATIONS: Readonly<
+  Record<keyof ReturnType<typeof buildPrAndSkillTools>, McpToolAnnotations>
+> = {
+  create_pr: { destructiveHint: false, openWorldHint: true },
+  read_skill: { readOnlyHint: true, openWorldHint: false },
+}
 
 async function getSandbox(ctx: ToolContext): Promise<SandboxInstance> {
   return sandboxProvider.get({ name: ctx.sandboxName })
