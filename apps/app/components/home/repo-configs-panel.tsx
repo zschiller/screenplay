@@ -5,7 +5,6 @@ import {
   CopyIcon,
   DotsThreeIcon,
   FolderIcon,
-  PlusIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
@@ -31,6 +30,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
+import {
+  AddRepositoryDialog,
+  NewRepositoryButton,
+  useAddRepositoryFlow,
+} from "@/components/add-repository-dialog"
 import { LoadErrorRow } from "@/components/home/load-error"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
 import {
@@ -41,6 +45,7 @@ import {
 import {
   deleteRepository,
   listRepositories,
+  repositoryCanvasCount,
 } from "@/lib/repository-library/actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { duplicateName, presetSummary } from "@/lib/preset-summary"
@@ -49,21 +54,20 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 
 type Mode =
   | { kind: "list" }
-  | { kind: "new" }
   | { kind: "edit"; config: RepoConfig }
   | { kind: "duplicate"; config: RepoConfig }
 
 const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
-  new: "New repository",
   edit: "Edit repository",
   duplicate: "Duplicate repository",
 }
 
 /**
  * Manages your Repositories (per-repo setup/dev/port/env), one settings row
- * each, sorted by project. Lives on the Settings page; new/edit/duplicate opens
- * the form in a dialog over the list, so the editor never nests a scroll area
- * inside the page's own scroll.
+ * each, sorted by project. Lives on the Settings page. New repository opens the
+ * same picker and detected settings form as a Canvas's, and only saves
+ * (#1423); edit/duplicate open the form in a dialog over the list, so the
+ * editor never nests a scroll area inside the page's own scroll.
  */
 export function RepoConfigsPanel({
   header,
@@ -75,12 +79,17 @@ export function RepoConfigsPanel({
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [mode, setMode] = useState<Mode>({ kind: "list" })
-  // The preset awaiting delete confirmation; the confirm owns pending + error.
-  const [pendingDelete, setPendingDelete] = useState<RepoConfig | null>(null)
+  // The Repository awaiting delete confirmation, with how many Canvases use
+  // it (`null` when that couldn't be read); the confirm owns pending + error.
+  const [pendingDelete, setPendingDelete] = useState<{
+    config: RepoConfig
+    canvases: number | null
+  } | null>(null)
   // Whether the open form differs from what it opened with; closing a changed
   // form asks first (#784). A ref, since only the close path reads it.
   const formDirty = useRef(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const addRepository = useAddRepositoryFlow()
 
   useEffect(() => {
     let cancelled = false
@@ -105,6 +114,15 @@ export function RepoConfigsPanel({
     setConfigs(await listRepositories())
     setLoadFailed(false)
   }, [])
+
+  // The count comes first, so the confirm opens with its final wording.
+  const requestDelete = async (config: RepoConfig) => {
+    const canvases = await repositoryCanvasCount(config.id).catch((err) => {
+      console.error("Failed to count canvases using repository", err)
+      return null
+    })
+    setPendingDelete({ config, canvases })
+  }
 
   const handleDelete = async (id: string) => {
     const updated = await deleteRepository(id)
@@ -137,15 +155,8 @@ export function RepoConfigsPanel({
   // with the full path in its facts line.
   const sortedGroups = groupConfigs(configs)
 
-  const newPreset = (variant: "default" | "outline") => (
-    <Button
-      size="sm"
-      variant={variant}
-      onClick={() => openForm({ kind: "new" })}
-    >
-      <PlusIcon className="size-3.5" />
-      New repository
-    </Button>
+  const newRepository = (variant: "default" | "outline") => (
+    <NewRepositoryButton flow={addRepository} variant={variant} />
   )
 
   // With repositories listed, New repository sits on the section's title row. The empty
@@ -154,7 +165,7 @@ export function RepoConfigsPanel({
 
   return (
     <>
-      {header(hasList ? newPreset("outline") : undefined)}
+      {header(hasList ? newRepository("outline") : undefined)}
       <div className="flex min-w-0 flex-col gap-3">
         {loading ? (
           <SettingsRowSkeleton label="Loading repositories…" count={2} />
@@ -176,7 +187,7 @@ export function RepoConfigsPanel({
                 it.
               </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>{newPreset("default")}</EmptyContent>
+            <EmptyContent>{newRepository("default")}</EmptyContent>
           </Empty>
         ) : (
           <SettingsRowList>
@@ -240,7 +251,7 @@ export function RepoConfigsPanel({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               variant="destructive"
-                              onSelect={() => setPendingDelete(config)}
+                              onSelect={() => void requestDelete(config)}
                             >
                               <TrashIcon />
                               Delete
@@ -287,9 +298,7 @@ export function RepoConfigsPanel({
               <RepoConfigForm
                 // A fresh form per open, so switching presets never carries
                 // one's edits into another.
-                key={
-                  mode.kind === "new" ? "new" : `${mode.kind}:${mode.config.id}`
-                }
+                key={`${mode.kind}:${mode.config.id}`}
                 initial={mode.kind === "edit" ? mode.config : undefined}
                 template={
                   mode.kind === "duplicate"
@@ -313,6 +322,11 @@ export function RepoConfigsPanel({
           </DialogContent>
         </Dialog>
 
+        <AddRepositoryDialog
+          flow={addRepository}
+          onAdded={(_, list) => setConfigs(list)}
+        />
+
         <ConfirmDialog
           open={confirmDiscard}
           onOpenChange={setConfirmDiscard}
@@ -329,20 +343,12 @@ export function RepoConfigsPanel({
             if (!open) setPendingDelete(null)
           }}
           verb="Delete"
-          itemName={pendingDelete?.name}
+          itemName={pendingDelete?.config.name}
           itemNoun="repository"
           description={
-            pendingDelete ? (
-              <>
-                Canvases already using{" "}
-                <span className="font-mono">
-                  {presetOwnerLabel(pendingDelete)}
-                </span>{" "}
-                keep their copy and its settings.
-              </>
-            ) : null
+            pendingDelete ? deleteDescription(pendingDelete.canvases) : null
           }
-          onConfirm={() => handleDelete(pendingDelete!.id)}
+          onConfirm={() => handleDelete(pendingDelete!.config.id)}
         />
       </div>
     </>
@@ -420,14 +426,20 @@ function PresetDetail({
   )
 }
 
+/** The delete confirm's body: Canvases that use the Repository keep their
+ *  copy, unlinked (#1426). `null` = the count couldn't be read. */
+function deleteDescription(canvases: number | null): string {
+  const keeps = "but it stops getting your edits."
+  if (canvases === null) return `Canvases using it keep their copy, ${keeps}`
+  if (canvases === 0) return "It isn’t on any canvas."
+  if (canvases === 1)
+    return `It’s on 1 canvas. That canvas keeps its copy, ${keeps}`
+  return `It’s on ${canvases} canvases. They keep their copy, ${keeps}`
+}
+
 /** A folder preset with no detected remote falls back to path identity. */
 function isPathIdentity(c: RepoConfig): boolean {
   return Boolean(c.localPath) && !c.repoOwner
-}
-
-/** The project a preset belongs to, as its group heading shows it. */
-function presetOwnerLabel(c: RepoConfig): string {
-  return isPathIdentity(c) ? basename(c.localPath!) : c.repoFullName
 }
 
 /** Trailing path segment, tolerant of POSIX and Windows separators. */

@@ -237,14 +237,12 @@ export function RepoSettingsFields({
             </FieldDescription>
           </Field>
 
-          {/* Add-modal only (#681): keys the preset upsert and seeds the
-          Project's display name. Empty → the repo's "default" preset. Absent
-          on the two `all`-rendering modals, which own their own name field. */}
+          {/* Add-modal only (#681): keys the Repository upsert. Empty → the
+          repo's "default" Repository. Absent on the two `all`-rendering
+          modals, which own their own name field. */}
           {onPresetNameChange && (
             <Field>
-              <FieldLabel htmlFor={`${idPrefix}-preset-name`}>
-                Preset name
-              </FieldLabel>
+              <FieldLabel htmlFor={`${idPrefix}-preset-name`}>Name</FieldLabel>
               <Input
                 id={`${idPrefix}-preset-name`}
                 value={presetName ?? ""}
@@ -252,8 +250,8 @@ export function RepoSettingsFields({
                 placeholder="default"
               />
               <FieldDescription>
-                Optional, e.g. “web” or “api” — tells apart presets for the same
-                git repository
+                Optional, e.g. “web” or “api” — tells apart two repositories
+                from the same git repository
               </FieldDescription>
             </Field>
           )}

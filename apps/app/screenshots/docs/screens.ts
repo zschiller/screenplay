@@ -283,12 +283,12 @@ async function openCanvasSettings(page: Page) {
   await clickMenuItem(page, "Settings", 1200)
 }
 
-/** Open Canvas settings' Add repository menu (#884: its one home). */
+/** Open Canvas settings' New repository menu (#884, #1423). */
 async function openAddRepositoryMenu(page: Page) {
   await openCanvasSettings(page)
   await page
     .getByRole("dialog", { name: "Canvas settings" })
-    .getByRole("button", { name: "Add repository" })
+    .getByRole("button", { name: "New repository" })
     .click({ timeout: 10_000 })
   await sleep(page, 900)
 }
@@ -762,7 +762,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "add-project-menu",
-    description: "Canvas settings' Add repository menu.",
+    description: "Canvas settings' New repository menu.",
     path: ROOM,
     cookies: WITH_CHAT,
     focus: MENU,
