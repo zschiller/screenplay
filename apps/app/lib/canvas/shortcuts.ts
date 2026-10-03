@@ -31,6 +31,7 @@ export type CanvasKeyAction =
   | "toggle-panels"
   | "shortcut-sheet"
   | "delete-selection"
+  | "duplicate-selection"
   | "undo"
   | "redo"
 
@@ -161,6 +162,11 @@ export const CANVAS_KEYS: readonly CanvasKeyBinding[] = [
     match: (e) => e.key === "Delete" || e.key === "Backspace",
   },
   {
+    action: "duplicate-selection",
+    caps: ["⌘", "D"],
+    match: modKey("d", "D"),
+  },
+  {
     action: "undo",
     caps: ["⌘", "Z"],
     match: (e) => e.key === "z" && mod(e) && !e.shiftKey,
@@ -211,6 +217,9 @@ export const ZOOM_SHORTCUTS = {
 }
 
 export const SHORTCUT_SHEET_KEY = capsOf("shortcut-sheet")[0]!
+
+/** Duplicate's keys, as the frame and mockup menus print them. */
+export const DUPLICATE_KEYS = capsOf("duplicate-selection")
 
 export interface CanvasShortcut {
   label: string
@@ -337,6 +346,7 @@ const SHEET: { title: string; lines: SheetLine[] }[] = [
         gesture: "Click",
         handledBy: "pointer",
       },
+      { label: "Duplicate selection", action: "duplicate-selection" },
       { label: "Delete selection", action: "delete-selection" },
       { label: "Undo", action: "undo" },
       { label: "Redo", action: "redo" },

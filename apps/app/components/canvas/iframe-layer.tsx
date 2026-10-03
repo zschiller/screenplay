@@ -5,21 +5,10 @@ import { createPortal } from "react-dom"
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  ArrowsOutSimpleIcon,
-  ChatCircleIcon,
-  CopyIcon,
   DotsThreeIcon,
-  PlayIcon,
-  TrashIcon,
 } from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -43,11 +32,15 @@ import {
   type RouteHistory,
 } from "@/lib/canvas/route-history"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
-import { OpenInBrowserItem } from "../open-in-browser-item"
-import { DeviceSizeSubMenu } from "./device-size-menu"
+import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
+import {
+  LayerMenuContent,
+  useRegisterLayerMenu,
+  type LayerMenuActions,
+} from "./layer-menu"
 import {
   LivePageContent,
   LivePageControls,
@@ -62,11 +55,6 @@ import { recordsLiveRoute } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
-import { useChatsMenu } from "@/components/agent/chats-menu"
-import {
-  WorkspaceMenuItems,
-  useHasWorkspaceMenu,
-} from "@/components/agent/workspace-menu"
 import type {
   DomRect,
   HmrStatus,
@@ -331,6 +319,8 @@ interface IframeLayerProps {
   onSelectGroup?: (shiftKey: boolean) => void
   /** Inline rename for the group label (only meaningful when `groupLabel` is set). */
   onRenameGroup?: (next: string) => void
+  /** The Group's menu, on its label while it alone is selected (I7). */
+  groupMenu?: LayerMenuActions
   /**
    * Absolute world-space position of this layer's top-left. Layers render as
    * flat, absolutely-positioned siblings (not nested in a per-group flex row),
@@ -426,6 +416,7 @@ export function IframeLayer({
   remoteGroupSelectedColor,
   onSelectGroup,
   onRenameGroup,
+  groupMenu,
   worldX,
   worldY,
   zIndex,
@@ -609,22 +600,6 @@ export function IframeLayer({
     toolbarRef,
   })
   const showFit = !!onFitToContent && !!iframeLayer.branchId
-  const showPlay = !!onPlay
-  // Open the frame's live preview in a real browser tab, deep-linked to the
-  // route it's currently showing — the same page the iframe loads, minus the
-  // prototype-player wrapper. The canvas binds `onOpenInBrowser` only when the
-  // frame has a live preview (and a Branch/Repo to resolve the portless URL),
-  // so its presence is the gate.
-  const showOpenInBrowser = !!onOpenInBrowser
-  // The `…` menu holds this frame's own actions (device size, fit,
-  // duplicate, delete); the chat's menu (H4), the same one as its header's …,
-  // sits in a Chat submenu so it doesn't read as frame actions. Outside the
-  // Chats menu's provider that's just the prototype player and open in browser.
-  const workspaceMenu = useChatsMenu()
-  const hasWorkspaceMenu = useHasWorkspaceMenu(iframeLayer.branchId)
-  const pendingWorkspaceRenameRef = useRef(false)
-  const showWorkspaceMenu = hasWorkspaceMenu || showPlay || showOpenInBrowser
-
   // Report content-ready transitions up to the thumbnail heartbeat (#474). The
   // first paint and the re-paint after a route/branch change (which drops
   // `contentReady` then reports it again) both flow through here, so the
@@ -735,6 +710,33 @@ export function IframeLayer({
       // Bridge timeout / iframe not ready — ignore.
     }
   }, [dom, iframeLayer.id, onFitToContent])
+
+  // The frame's one menu (I7): the toolbar's … and its sidebar row's … both
+  // open this. The chat's menu (H4), the same one as its header's …, sits in
+  // a Chat submenu so it doesn't read as frame actions.
+  const titleEditableRef = useRef<EditableTextHandle>(null)
+  const menuActions: LayerMenuActions = {
+    noun: "frame",
+    onDuplicate,
+    size: onSetSize
+      ? {
+          width: iframeLayer.width,
+          height: iframeLayer.height,
+          onSelect: (w, h) => onSetSize(iframeLayer.id, w, h),
+        }
+      : undefined,
+    onFitToContent: showFit ? handleFitToContent : undefined,
+    chat: {
+      branchId: iframeLayer.branchId,
+      onPlay: onPlay ? () => onPlay(iframeLayer.id) : undefined,
+      onOpenInBrowser,
+    },
+    onDelete: () => onRemove(iframeLayer.id),
+  }
+  useRegisterLayerMenu(iframeLayer.id, menuActions)
+  const startRename = onRename
+    ? () => titleEditableRef.current?.startEditing()
+    : undefined
 
   // Counts placeholder-recovery reloads for the current `iframeSrc`. Bumping it
   // re-arms the recovery effect's timer (so it retries rather than firing once),
@@ -954,6 +956,7 @@ export function IframeLayer({
       remoteGroupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
+      groupMenu={groupMenu}
       renderTitle={(api) => (
         <IframeLayerLabel
           label={iframeLayer.label}
@@ -970,6 +973,14 @@ export function IframeLayer({
           onSelectFrame={api.deferSelect}
           onRename={
             onRename ? (next) => onRename(iframeLayer.id, next) : undefined
+          }
+          editableRef={titleEditableRef}
+          // With no Workspace there's no toolbar, so the menu sits on the
+          // label as a document's does.
+          menu={
+            selected && !multiSelected && !iframeLayer.branchId
+              ? menuActions
+              : undefined
           }
         />
       )}
@@ -1054,91 +1065,13 @@ export function IframeLayer({
                       <DotsThreeIcon className="text-muted-foreground" />
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent
+                  <LayerMenuContent
+                    actions={menuActions}
+                    onRename={startRename}
                     side="bottom"
                     align="end"
                     sideOffset={8}
-                    // Rename opens the Workspace's chat, whose header title
-                    // takes focus instead of this trigger.
-                    onCloseAutoFocus={(e) => {
-                      if (!pendingWorkspaceRenameRef.current) return
-                      pendingWorkspaceRenameRef.current = false
-                      e.preventDefault()
-                      if (iframeLayer.branchId)
-                        workspaceMenu?.requestRename(iframeLayer.branchId)
-                    }}
-                  >
-                    {onSetSize && (
-                      <DeviceSizeSubMenu
-                        width={iframeLayer.width}
-                        height={iframeLayer.height}
-                        onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
-                      />
-                    )}
-                    {showFit && (
-                      <DropdownMenuItem onSelect={handleFitToContent}>
-                        <ArrowsOutSimpleIcon />
-                        Fit to content
-                      </DropdownMenuItem>
-                    )}
-                    {onDuplicate && (
-                      <DropdownMenuItem onSelect={onDuplicate}>
-                        <CopyIcon />
-                        Duplicate
-                      </DropdownMenuItem>
-                    )}
-                    {showWorkspaceMenu && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <ChatCircleIcon />
-                            Chat
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            {hasWorkspaceMenu && iframeLayer.branchId ? (
-                              // The Workspace's whole menu, as in its chat
-                              // header (H4), opening on this frame.
-                              <WorkspaceMenuItems
-                                branchId={iframeLayer.branchId}
-                                onRename={() => {
-                                  pendingWorkspaceRenameRef.current = true
-                                }}
-                                onPlay={
-                                  onPlay
-                                    ? () => onPlay(iframeLayer.id)
-                                    : undefined
-                                }
-                                onOpenInBrowser={onOpenInBrowser}
-                              />
-                            ) : (
-                              <>
-                                {showPlay && (
-                                  <DropdownMenuItem
-                                    onSelect={() => onPlay?.(iframeLayer.id)}
-                                  >
-                                    <PlayIcon />
-                                    Open prototype player
-                                  </DropdownMenuItem>
-                                )}
-                                {onOpenInBrowser && (
-                                  <OpenInBrowserItem onOpen={onOpenInBrowser} />
-                                )}
-                              </>
-                            )}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                      </>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => onRemove(iframeLayer.id)}
-                    >
-                      <TrashIcon />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
+                  />
                 </DropdownMenu>
               </FloatingToolbar>,
               toolbarPortalTarget

@@ -1,11 +1,6 @@
 "use client"
 
-import { useCallback, useRef } from "react"
-import {
-  DotsThreeIcon,
-  PencilSimpleIcon,
-  TrashIcon,
-} from "@workspace/ui/components/icons"
+import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import {
   SidebarMenuAction,
   SidebarMenuButton,
@@ -13,9 +8,6 @@ import {
 } from "@workspace/ui/components/sidebar"
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -24,6 +16,10 @@ import {
 } from "@workspace/ui/components/editable-text"
 import { cn } from "@workspace/ui/lib/utils"
 import { IconButton } from "@workspace/ui/components/icon-button"
+import {
+  LayerMenuContent,
+  layerMenuLabel,
+} from "@/components/canvas/layer-menu"
 import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
 import { mockupLayerKind } from "@/lib/layer-kinds/mockup-layer"
 import type { LayerKindDescriptor } from "@/lib/layer-kinds/types"
@@ -40,7 +36,7 @@ type TitledLayer = { id: string; title: string }
 
 /**
  * The sidebar row and menu for a Layer named by a `title` (Documents and
- * Mockups): its icon, an inline-rename name, and a Rename / Delete menu.
+ * Mockups): its icon, an inline-rename name, and the Layer's menu.
  */
 function makeTitledLayerRow<T extends TitledLayer>(
   descriptor: LayerKindDescriptor<T>
@@ -142,25 +138,13 @@ function TitledLayerRowMenu<T extends TitledLayer>({
   onRemove,
   editableRef,
 }: LayerRowMenuProps<T> & { descriptor: LayerKindDescriptor<T> }) {
-  const noun = descriptor.singularLabel
-  const optionsLabel = `${noun.charAt(0).toUpperCase()}${noun.slice(1)} options`
-  // See IframeLayerRowMenu — start editing from `onCloseAutoFocus` so
-  // the menu's focus trap is fully torn down before we focus the inline
-  // input, otherwise the trap steals focus back.
-  const pendingEditRef = useRef(false)
-  const onCloseAutoFocus = useCallback(
-    (e: Event) => {
-      if (!pendingEditRef.current) return
-      pendingEditRef.current = false
-      e.preventDefault()
-      editableRef?.current?.startEditing()
-    },
-    [editableRef]
-  )
+  const noun = descriptor.singularLabel as "document" | "mockup"
+  // The Layer's one menu (I7), the same as its canvas …: a Mockup publishes
+  // its own (with Duplicate); a document's is Rename and Delete.
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <IconButton label={optionsLabel} tooltipSide="right" asChild>
+        <IconButton label={layerMenuLabel(noun)} tooltipSide="right" asChild>
           <SidebarMenuAction
             className={cn(
               frameRowActionClass,
@@ -171,28 +155,13 @@ function TitledLayerRowMenu<T extends TitledLayer>({
           </SidebarMenuAction>
         </IconButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
+      <LayerMenuContent
+        layerId={item.id}
+        actions={{ noun, onDelete: () => onRemove(item.id) }}
+        onRename={() => editableRef?.current?.startEditing()}
         side="right"
         align="start"
-        onCloseAutoFocus={onCloseAutoFocus}
-      >
-        <DropdownMenuItem
-          onClick={() => {
-            pendingEditRef.current = true
-          }}
-        >
-          <PencilSimpleIcon />
-          Rename
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={() => onRemove(item.id)}
-        >
-          <TrashIcon />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+      />
     </DropdownMenu>
   )
 }

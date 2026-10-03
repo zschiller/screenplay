@@ -72,10 +72,7 @@ export interface GroupActions {
    * Append a copy of a frame (size, Workspace, route and label) to the end of
    * its group — the frame menu's Duplicate. Returns the copy's id.
    */
-  duplicateIframeLayer: (
-    groupId: string,
-    iframeLayerId: string
-  ) => string | undefined
+  duplicateIframeLayer: (iframeLayerId: string) => string | undefined
   /**
    * Append a copy of a Mockup (page, size, knobs, owning chat) to the end of
    * its group — the mockup bar's Duplicate. Returns the copy's id.
@@ -210,18 +207,9 @@ export function useGroupActions({
   )
 
   const duplicateIframeLayer = useCallback(
-    (groupId: string, iframeLayerId: string): string | undefined => {
-      const source = collections.iframeLayers.get(iframeLayerId)
-      if (!source) return
-      return ops.addFrameToGroup(groupId, {
-        width: source.width,
-        height: source.height,
-        label: source.label ? `${source.label} copy` : "Frame",
-        ...(source.branchId ? { branchId: source.branchId } : {}),
-        ...(source.route ? { route: source.route } : {}),
-      })
-    },
-    [collections, ops]
+    (iframeLayerId: string): string | undefined =>
+      ops.duplicateIframeLayer(iframeLayerId),
+    [ops]
   )
 
   const duplicateMockup = useCallback(

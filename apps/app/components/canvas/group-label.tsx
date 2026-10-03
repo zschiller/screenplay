@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState, type RefObject } from "react"
 import { CaretUpDownIcon } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 import {
   EditableText,
   editableTextFieldClass,
+  type EditableTextHandle,
 } from "@workspace/ui/components/editable-text"
 import {
   Popover,
@@ -18,6 +19,7 @@ import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceHoverProps } from "@/lib/workspace-hover-store"
 import type { FrameWorkspace } from "./frame-nav"
+import { LayerLabelMenu, type LayerMenuActions } from "./layer-menu"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
 /** Switching a whole Group's Workspace from its label (#869), or one frame's
@@ -79,6 +81,8 @@ interface GroupLabelProps {
   /** Optional inline rename. When provided, double-click flips the label
    *  into a contenteditable with the same affordance the frame name uses. */
   onRename?: (next: string) => void
+  /** The Group's menu (I7), as … after the label while it alone is selected. */
+  menu?: LayerMenuActions
 }
 
 /**
@@ -86,13 +90,33 @@ interface GroupLabelProps {
  * leftmost item in a multi-member group. Shared between `IframeLayer` and
  * `MarkdownLayer` so both kinds of group members render the same label.
  */
-export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
+export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
   // Hovering the Workspace lights up its Workspace in the sidebar (#872).
   const hoverProps = useWorkspaceHoverProps(workspace?.branchId, "group")
-  if (!workspace) return <GroupName {...props} className="mb-0.5" />
+  const editableRef = useRef<EditableTextHandle>(null)
+  const menuButton = menu && (
+    <LayerLabelMenu
+      actions={menu}
+      onRename={
+        props.onRename ? () => editableRef.current?.startEditing() : undefined
+      }
+    />
+  )
+  if (!workspace) {
+    if (!menuButton)
+      return (
+        <GroupName {...props} editableRef={editableRef} className="mb-0.5" />
+      )
+    return (
+      <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
+        <GroupName {...props} editableRef={editableRef} />
+        {menuButton}
+      </div>
+    )
+  }
   return (
     <div className="group/group-label mb-0.5 flex max-w-full min-w-0 items-center gap-2">
-      <GroupName {...props} />
+      <GroupName {...props} editableRef={editableRef} />
       {"mixed" in workspace ? (
         <WorkspaceChooser
           switcher={workspace.switcher}
@@ -129,6 +153,7 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
           </span>
         </WorkspaceHoverCard>
       )}
+      {menuButton}
     </div>
   )
 }
@@ -271,7 +296,11 @@ function GroupName({
   dragHandlers,
   onRename,
   className,
-}: Omit<GroupLabelProps, "workspace"> & { className?: string }) {
+  editableRef,
+}: Omit<GroupLabelProps, "workspace" | "menu"> & {
+  className?: string
+  editableRef?: RefObject<EditableTextHandle | null>
+}) {
   // Local selection (fuchsia) wins; a remote selector's color applies only
   // when the group isn't locally selected.
   const remoteColor = !groupSelected && color ? color : undefined
@@ -309,6 +338,7 @@ function GroupName({
           }}
         >
           <EditableText
+            ref={editableRef}
             as="span"
             value={label}
             onCommit={onRename}

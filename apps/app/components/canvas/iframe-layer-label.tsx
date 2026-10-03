@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type RefObject } from "react"
+import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import {
   BracketsCurlyIcon,
   CaretUpDownIcon,
@@ -22,6 +23,7 @@ import type { JsonObject } from "@/lib/postmessage-protocol"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { frameWorkspaceOf, type FrameWorkspace } from "./frame-nav"
 import { WorkspaceChooser } from "./group-label"
+import { LayerLabelMenu, type LayerMenuActions } from "./layer-menu"
 import { LayerLabelRow } from "./layer-title-bar"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
@@ -44,6 +46,11 @@ interface IframeLayerLabelProps {
   /** Inline rename for the frame name. When provided, double-clicking the
    *  name swaps it into a contenteditable. */
   onRename?: (next: string) => void
+  /** The rename field's handle, so the frame menu's Rename can start it. */
+  editableRef?: RefObject<EditableTextHandle | null>
+  /** The frame's menu as … at the row's end, for a selected frame with no
+   *  toolbar to hold it (one without a Workspace). */
+  menu?: LayerMenuActions
 }
 
 /**
@@ -63,6 +70,8 @@ export function IframeLayerLabel({
   remoteSelectedColor,
   onSelectFrame,
   onRename,
+  editableRef,
+  menu,
 }: IframeLayerLabelProps) {
   // The frame's Workspace as the list knows it, for its state and PR (#975).
   const workspace = frameWorkspaceOf(
@@ -123,8 +132,25 @@ export function IframeLayerLabel({
       color={remoteSelectedColor}
       onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
       onRename={onRename}
+      editableRef={editableRef}
       placeholder="Untitled"
-      trailing={trailing}
+      trailing={
+        menu ? (
+          <>
+            {trailing}
+            <LayerLabelMenu
+              actions={menu}
+              onRename={
+                onRename
+                  ? () => editableRef?.current?.startEditing()
+                  : undefined
+              }
+            />
+          </>
+        ) : (
+          trailing
+        )
+      }
     />
   )
 }

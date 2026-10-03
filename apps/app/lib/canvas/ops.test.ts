@@ -301,6 +301,48 @@ describe("updateMockup", () => {
   })
 })
 
+describe("duplicateIframeLayer", () => {
+  it("copies size, label, Workspace and route to the end of its Group", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", {
+        label: "Checkout",
+        width: 390,
+        height: 844,
+        branchId: "branch-1",
+        route: "/cart",
+      })
+    )
+    collections.iframeLayers.set("layer-2", baseLayer("layer-2"))
+    seedGroup(collections, "group-1", [
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "iframe-layer", id: "layer-2" },
+    ])
+
+    const copyId = ops.duplicateIframeLayer("layer-1")
+
+    expect(copyId).toBeDefined()
+    expect(collections.iframeLayers.get(copyId!)).toMatchObject({
+      label: "Checkout copy",
+      width: 390,
+      height: 844,
+      branchId: "branch-1",
+      route: "/cart",
+    })
+    expect(
+      collections.iframeLayerGroups.get("group-1")?.members?.map((m) => m.id)
+    ).toEqual(["layer-1", "layer-2", copyId])
+  })
+
+  it("writes nothing for a missing frame", () => {
+    const { ops, collections } = makeHarness()
+
+    expect(ops.duplicateIframeLayer("gone")).toBeUndefined()
+    expect(collections.iframeLayers.toArray()).toEqual([])
+  })
+})
+
 describe("duplicateMockup", () => {
   it("copies the page, size, knobs and chat to the end of its Group", () => {
     const { doc, ops, collections } = makeHarness()

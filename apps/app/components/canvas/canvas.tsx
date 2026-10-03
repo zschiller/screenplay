@@ -459,6 +459,10 @@ export function Canvas({
     },
     [ops, collections]
   )
+  const removeDocument = useCallback(
+    (id: string) => removeDocumentLayers([id]),
+    [removeDocumentLayers]
+  )
   const saveViewport = useCallback(
     (vp: ViewportData) => {
       ops.saveViewport(vp)
@@ -497,6 +501,8 @@ export function Canvas({
     removeIframeLayers,
     removeDocumentLayers,
     batch: ops.batch,
+    duplicateIframeLayer: ops.duplicateIframeLayer,
+    duplicateMockup: ops.duplicateMockup,
   })
   const selectedIframeLayerIds = selection.iframeLayerIds
   const selectedGroupIds = selection.groupIds
@@ -2093,7 +2099,7 @@ export function Canvas({
                 onSelectDocument={handleDocumentLayerSelect}
                 onZoomToDocument={handleZoomToDocument}
                 onRenameDocument={layerMutations.setTitle}
-                onRemoveDocument={(id) => removeDocumentLayers([id])}
+                onRemoveDocument={removeDocument}
                 onZoomToMockup={handleZoomToMockup}
                 onRenameMockup={layerMutations.renameMockup}
                 onRemoveMockup={removeMockup}
@@ -2294,6 +2300,7 @@ export function Canvas({
                         setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
                         removeIframeLayer={removeIframeLayer}
                         removeMockup={removeMockup}
+                        removeDocument={removeDocument}
                         handlePlayIframeLayer={handlePlayIframeLayer}
                         onAskForKnob={handleAskForKnob}
                         askableMockupIds={askableMockupIds}

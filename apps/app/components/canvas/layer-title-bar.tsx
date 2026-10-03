@@ -1,14 +1,16 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, type Ref } from "react"
 import { cn } from "@workspace/ui/lib/utils"
 import {
   EditableText,
   editableTextFieldClass,
+  type EditableTextHandle,
 } from "@workspace/ui/components/editable-text"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { showsLayerDetail } from "@/lib/canvas/camera"
 import { GroupLabel, type GroupWorkspace } from "./group-label"
+import type { LayerMenuActions } from "./layer-menu"
 
 interface LayerTitleBarProps {
   /** Identifies which layer to lift when the user starts a reorder gesture
@@ -41,6 +43,8 @@ interface LayerTitleBarProps {
   onSelectGroup?: (shiftKey: boolean) => void
   /** Optional inline rename for the group label. */
   onRenameGroup?: (next: string) => void
+  /** The Group's menu, shown as … on its label while it alone is selected. */
+  groupMenu?: LayerMenuActions
   /** Drag handlers for the GroupLabel button — translate the whole group
    *  rather than reordering a single member. */
   groupLabelDragHandlers?: LayerDragHandlers
@@ -92,6 +96,7 @@ export function LayerTitleBar({
   groupSelectedColor,
   onSelectGroup,
   onRenameGroup,
+  groupMenu,
   groupLabelDragHandlers,
   reorderDragTranslateX,
   reorderDragTranslateY,
@@ -172,6 +177,7 @@ export function LayerTitleBar({
             color={groupSelectedColor}
             onSelectGroup={onSelectGroup}
             onRename={onRenameGroup}
+            menu={groupMenu}
             dragHandlers={groupLabelDragHandlers}
           />
         </div>
@@ -210,6 +216,8 @@ interface LayerTitleTextProps {
   onRename?: (next: string) => void
   /** Placeholder shown when the title is empty. */
   placeholder?: string
+  /** The rename field's handle, so a menu's Rename can start it. */
+  editableRef?: Ref<EditableTextHandle>
 }
 
 /**
@@ -228,6 +236,7 @@ export function LayerTitleText({
   onSelectLayer,
   onRename,
   placeholder,
+  editableRef,
 }: LayerTitleTextProps) {
   // Local selection (the canvas selection token) wins; a remote selector's color applies only
   // when we haven't selected the layer ourselves.
@@ -246,6 +255,7 @@ export function LayerTitleText({
   if (onRename) {
     return (
       <EditableText
+        ref={editableRef}
         as="span"
         value={title}
         placeholder={placeholder}

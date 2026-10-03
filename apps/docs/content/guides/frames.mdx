@@ -94,9 +94,10 @@ stays put. Only a page with no client-side router reloads onto the new route.
 
 ## The frame toolbar
 
-When exactly one frame is selected, a toolbar like a browser's appears under
-it. A frame with no workspace has no toolbar until you pick one. From left to
-right:
+When exactly one frame, and nothing else, is selected, a toolbar like a
+browser's appears under it. A frame with no workspace has no toolbar until you
+pick one; its [menu](/guides/canvas#layer-menus) is **…** after its name
+instead. From left to right:
 
 | Button                | What it does                                                                                                                                                                                                                                                                                                                                          |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -107,7 +108,7 @@ right:
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame's outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
 | **Go live**           | <Only hosted /> Switches the frame from everyone's own copy to one live browser everyone on the canvas watches, and back. See [Live frames](#live-frames).                                                                                                                                                                                            |
 | **Knobs**             | Live controls your app declares. See [Knobs](#knobs).                                                                                                                                                                                                                                                                                                 |
-| **More**              | **Device size**, **Fit to content**, **Duplicate**, a **Chat** submenu with the [chat menu](/guides/workspaces#workspace-actions), and **Delete**.                                                                                                                                                                                                    |
+| **More**              | The [frame menu](/guides/canvas#layer-menus): **Rename**, **Duplicate**, **Device size**, **Fit to content**, a **Chat** submenu with the [chat menu](/guides/workspaces#workspace-actions), and **Delete**. Its row in the layers list opens the same menu.                                                                                          |
 
 <Screenshot
   name="frame-tooltip-interact"
@@ -255,7 +256,7 @@ on your Mac.
 
 <Screenshot
   name="frame-more-menu"
-  alt="The More menu: Device size, Fit to content, Duplicate, Chat, Delete"
+  alt="The More menu: Rename, Duplicate, Device size, Fit to content, Chat, Delete"
 />
 
 ## The agent driving a frame

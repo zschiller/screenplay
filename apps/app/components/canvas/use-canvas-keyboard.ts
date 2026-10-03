@@ -213,6 +213,11 @@ export function useCanvasKeyboard({
         case "delete-selection":
           if (selection.deleteSelected()) e.preventDefault()
           return
+        // ⌘D copies the selected frames and Mockups; the browser's own ⌘D
+        // (bookmark) is kept only when nothing was copied.
+        case "duplicate-selection":
+          if (selection.duplicateSelected()) e.preventDefault()
+          return
         case "undo":
           e.preventDefault()
           return history.undo()

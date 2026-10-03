@@ -340,6 +340,12 @@ export type CanvasOps = {
    */
   duplicateMockup(id: string): string | undefined
   /**
+   * Copy an Iframe Layer (size, label, Workspace and route) to the end of its
+   * Group's row, named "<label> copy" — the frame menu's Duplicate. Returns
+   * the copy's id, or `undefined` when the frame or its Group is gone.
+   */
+  duplicateIframeLayer(id: string): string | undefined
+  /**
    * Remove the given Mockup Layers, dropping them from any Group (pruning a
    * Group emptied by the removal). Their HTML texts stay in the doc, like a
    * document's body, so Undo brings a mockup back whole.
@@ -1084,6 +1090,23 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return copyId
   }
 
+  function duplicateIframeLayer(id: string): string | undefined {
+    const source = collections.iframeLayers.get(id)
+    const group = collections.iframeLayerGroups
+      .toArray()
+      .find((g) =>
+        getGroupMembers(g).some((m) => m.kind === "iframe-layer" && m.id === id)
+      )
+    if (!source || !group) return
+    return addFrameToGroup(group.id, {
+      width: source.width,
+      height: source.height,
+      label: source.label ? `${source.label} copy` : "Frame",
+      ...(source.branchId ? { branchId: source.branchId } : {}),
+      ...(source.route ? { route: source.route } : {}),
+    })
+  }
+
   function removeMockups(ids: string[]): { removedChatIds: string[] } {
     if (ids.length === 0) return { removedChatIds: [] }
     const idSet = new Set(ids)
@@ -1346,6 +1369,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     createMockup,
     updateMockup,
     duplicateMockup,
+    duplicateIframeLayer,
     removeMockups,
     removeBranch,
     removeRepo,
