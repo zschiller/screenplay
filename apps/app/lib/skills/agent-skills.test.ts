@@ -56,6 +56,24 @@ describe("agentSkillsFor", () => {
     ])
   })
 
+  it("lists Claude Code's synced skills and Codex's own (.system)", async () => {
+    await skill(".claude/skills", "tidy", skillMd("tidy", "Tidy up."))
+    await skill(".claude/skills/synced/abc", "pdf", skillMd("pdf", "PDFs."))
+    await skill(".claude/skills/.trash", "old", skillMd("old", "Gone."))
+    await skill(
+      ".codex/skills/.system",
+      "imagegen",
+      skillMd("imagegen", "Img.")
+    )
+
+    expect(
+      (await agentSkillsFor("claude-code", home)!.index()).map((s) => s.name)
+    ).toEqual(["pdf", "tidy"])
+    expect(
+      (await agentSkillsFor("codex", home)!.index()).map((s) => s.name)
+    ).toEqual(["imagegen"])
+  })
+
   it("leaves out what it can't read, and reads a block description", async () => {
     await skill(".claude/skills", "broken", "no frontmatter here")
     await skill(

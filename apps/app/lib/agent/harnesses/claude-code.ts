@@ -190,8 +190,12 @@ export const claudeCodeHarness: Harness = {
   launchArgv: ["claude"],
   // The desktop detector probes `claude` on PATH (the global install exposes it).
   hostBinary: "claude",
-  // Personal Skills (https://code.claude.com/docs/en/skills).
-  ownSkills: { agentName: "Claude Code", dirs: [".claude/skills"] },
+  // Personal Skills, then the ones synced from claude.ai
+  // (https://code.claude.com/docs/en/skills).
+  ownSkills: {
+    agentName: "Claude Code",
+    dirs: [".claude/skills", ".claude/skills/synced/*"],
+  },
   // Backs agent chat via the actively-developed claude-agent ACP adapter —
   // rides the CLI's own login (no model key), per spikes #405/#408. Pinned to a
   // specific version: the adapter and the vendored `@agentclientprotocol/sdk`

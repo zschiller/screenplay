@@ -44,8 +44,7 @@ export function agentSkillsAt(
 ): AgentSkills {
   const scan = async () => {
     const found = new Map<string, { metadata: SkillMetadata; raw: string }>()
-    for (const dir of own.dirs) {
-      const root = join(home, dir)
+    for (const root of await expandDirs(home, own.dirs)) {
       const entries = await readdir(root).catch(() => [] as string[])
       for (const entry of entries.sort()) {
         const path = join(root, entry, "SKILL.md")
@@ -77,6 +76,27 @@ export function agentSkillsAt(
       return (await scan()).get(name)?.raw ?? null
     },
   }
+}
+
+/**
+ * Each of `dirs` under `home`, a trailing `/*` standing for every folder
+ * inside it (Claude Code's `synced/<id>/` folders of claude.ai skills).
+ */
+async function expandDirs(
+  home: string,
+  dirs: readonly string[]
+): Promise<string[]> {
+  const roots: string[] = []
+  for (const dir of dirs) {
+    if (!dir.endsWith("/*")) {
+      roots.push(join(home, dir))
+      continue
+    }
+    const parent = join(home, dir.slice(0, -2))
+    const children = await readdir(parent).catch(() => [] as string[])
+    roots.push(...children.sort().map((child) => join(parent, child)))
+  }
+  return roots
 }
 
 /**

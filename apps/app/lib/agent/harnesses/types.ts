@@ -171,7 +171,8 @@ export interface HostFacts {
 export interface HarnessOwnSkills {
   /** How the `/` menu names the agent, e.g. "Claude Code". */
   agentName: string
-  /** Skill folders relative to the home folder, e.g. `.claude/skills`. */
+  /** Skill folders relative to the home folder, e.g. `.claude/skills`; a
+   *  trailing `/*` means every folder inside one. */
   dirs: readonly string[]
 }
 
