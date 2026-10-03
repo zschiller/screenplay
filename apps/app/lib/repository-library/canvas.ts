@@ -76,6 +76,7 @@ function settingsFrom(
 
 /** The settings "customized" compares, with unset fields at their defaults
  *  so a Repo saved through a form that fills them doesn't read as changed.
+ *  Agent instructions compare trimmed, as the forms store them (#1479).
  *  Env var values compare by digest (#1416). */
 function comparable(source: Pick<RepoData, "name"> & RunSettings) {
   return [
@@ -86,7 +87,7 @@ function comparable(source: Pick<RepoData, "name"> & RunSettings) {
     source.envVarsDigest ?? "",
     source.copyPatterns ?? "",
     source.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
-    source.systemPrompt ?? "",
+    source.systemPrompt?.trim() ?? "",
   ]
 }
 

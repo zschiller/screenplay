@@ -120,7 +120,7 @@ export function RepoConfigForm({
       envVars,
       copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
       defaultIframeLayerSizeId,
-      systemPrompt: systemPrompt.trim() ? systemPrompt : undefined,
+      systemPrompt: systemPrompt.trim() || undefined,
       createdAt: initial?.createdAt ?? now,
       updatedAt: now,
     }
